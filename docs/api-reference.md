@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 220 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 221 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -296,7 +296,17 @@ V10.4 订单知识包不新建业务事实，也不依赖知识同步时点。`o
 
 订单动作接口不接受客户端提交的状态、采购数量或采购清单，只接受动作 ID 并在服务端映射到现有订单状态和采购计划逻辑。`confirm_order` 使订单离开待确认，并按实时采购数量进度进入待采购、采购中或采购完成；`generate_purchase_plan` 保存本轮实时生成的采购清单，并仅在原待办为空时补充待办。两者都通过安全写入和审计日志，不提供生产确认或自动扣库存能力。
 
-## 12. 工作台 Workbench
+## 12. 业务变更 Business Changes
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `GET` | `/api/business-changes` | 查询参数 `period?=today/yesterday/last7days/last30days/all`、`from?`、`to?`、`domain?=order/quotation/purchasing/part/recipe/template/coil/customer/model_variant/quality/rotor/settings/file/knowledge/workflow`、`entityType?`、`entityId?`、`eventType?=created/updated/deleted/status_changed/inventory_changed/converted`、`keyword?`、`semanticQuery?`、`beforeId?`、`limit?` | 能力 `business_changes.list`。从追加型结构化事件返回 `items/total/nextCursor/appliedFilters/asOf/provenance`；`period` 按北京时间计算，最大 100 条。精确时间、数量和筛选始终来自事件表；`semanticQuery` 只用知识/向量投影筛选候选，零命中返回空列表，向量或投影不可用时由结构化筛选继续提供正式历史 |
+
+每个已登记正式业务命令最多生成一条事件，即使同一操作修改多个订单、库存或报价；关联对象在 `entities` 中完整列出。空操作、失败事务和幂等重放不新增事件。订单受控修改的 `detailRef` 指向不可变 `order_revisions`，事件不复制订单详情权威。现有订单修订在迁移 67 安全补录；其他领域不从旧审计猜测历史，从本版本上线后开始记录。
+
+AI 只读工具 `search_business_changes` 直接调用本接口，覆盖订单、报价、采购、零件价格/库存、配方、泵壳模板、线圈、客户、型号变体、质量规则、转子档案、业务设置、文件、知识资料和工作流记录，不再为各领域新增独立“修改记录”工具。管理页面 `/business-changes` 使用同一接口核验 AI 可见事实。
+
+## 13. 工作台 Workbench
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
@@ -327,7 +337,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 执行历史是二级执行证据，不是订单、报价、采购、库存或成本的 sourceOfTruth，也不能替代各业务命令的状态机和 `api_operations`。当前记录请求发生在业务命令响应之后，因此业务动作成功但进程在记录请求前中断时，历史仍可能缺一条；此时以正式业务状态和对应业务 operation 回执为准，不允许仅凭“没有执行历史”重做业务写入。该限制是模块化单体内保留现有 executor 编排方式的明确兼容边界，不引入消息队列。
 
-## 13. 设置 Settings
+## 14. 设置 Settings
 
 允许的设置 key：
 
@@ -353,7 +363,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k3`，`KIMI_REASONING_EFFORT` 支持 `low/high/max`，业务附件默认 `low`。`AI_PROVIDER=auto` 为默认模式：DeepSeek 处理普通对话；服务端确认的图片、PDF、Excel/CSV 和文本附件切换 Kimi K3。图片以 base64 原图输入，非图片文件按开放平台 `/v1/files` 的 `file-extract` 流程临时上传、抽取正文并立即删除远端临时文件；本机只缓存抽取结果 10 分钟，且正文作为不可信业务数据而不是系统指令进入模型。Kimi 不可用时回退 DeepSeek 与本地解析/OCR；也可设为 `deepseek` 或 `kimi` 强制固定模型。
 
-## 14. 转子 Rotor
+## 15. 转子 Rotor
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
@@ -377,7 +387,7 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 转子只读数据边界统一在 `rotorQueries` 与 `rotorHistory`：订单型号、关联目标、配方/模板草稿和历史状态只聚合正式 SQLite 数据，不调用 AI、不写库；参数标准化统一在 `rotorParameters`。自然语言候选提取、DeepSeek 超时/重试、JSON 容错、正则纠偏、基础参数合并和安全告警统一在 `rotorNaturalLanguage`；模型输出不是正式图纸参数事实，必须经过确定性校验和 `/draw-preview` 确认。FreeCAD 与打印设备执行已抽入 `rotorExternalCommands`，通过 `businessConfirmation` 绑定 Preview 参数，并用 `api_operations` 持久化 `accepted/processing/completed/failed` 回执。路由只保留鉴权主体、命令上下文、service 调用和响应适配。
 
-## 15. AI
+## 16. AI
 
 ### AI
 
@@ -394,13 +404,13 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。意图规划阶段只接收附件名称、类型和大小，不重复传正文、OCR 或图片二进制。执行阶段的附件文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无附件时使用 DeepSeek；图片只有在 Kimi API Key、K3 和视觉开关可用时使用 Kimi 原图能力；PDF、Excel/CSV 和文本只要求 Kimi API Key 与文件抽取能力，不依赖视觉开关。K3 成功接收图片原图时不再重复附加整段本地 OCR；Kimi 请求失败时回退 DeepSeek，本轮改用本地解析/OCR，并分别记录 `vision_fallback/file_fallback`。供应商请求建立失败、429 和 5xx 最多重试 3 次；已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，也统一映射为 `AI_PROVIDER_NETWORK_ERROR`，并记录脱敏后的供应商、动作和底层错误码。前端对该错误自动重试完整响应流。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
 
-通用 MCP V1 白名单覆盖 capability registry 当前全部 47 个 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的 AI 能力，按领域包括：成本与线圈 `full_calculate/get_copper_price/calculate_coil_cost/get_coil_specs/search_coils/dynamic_config_cost`；零件、模板与配方 `search_parts/search_templates/get_template_detail/get_all_recipes/get_recipe_detail/get_recipe_technical_files/build_recipe_bom_draft/preview_recipe_cost/preview_pump_shell_cost/compare_recipes`；客户与报价 `search_customers/search_quotations/get_quotation_detail/search_customer_history/inspect_quotation_file/build_quotation_draft/explain_cost_change`；订单与经营 `get_recent_orders/get_order_detail/get_purchase_overview/build_order_draft/get_order_knowledge_package/check_order_readiness/get_order_readiness_overview/plan_order_readiness_actions/get_dashboard_summary/get_business_alerts/get_management_action_center/plan_factory_workflow`；质量、规则与知识 `get_data_quality_summary/analyze_recipe_configuration/get_factory_learning_health/get_factory_rule_candidates/get_factory_rule_impact/get_factory_rule_compliance/get_factory_rule_history/search_factory_file_archive_targets/search_factory_knowledge/get_factory_knowledge_detail/get_factory_knowledge_health`；出图历史 `get_rotor_drawing_history`。目录契约测试会把白名单与注册表中的全部安全 Query/Preview 做集合比对，新增安全读能力未同步或误暴露写能力都会失败。任何写能力或意外返回确认令牌的调用仍会在 executor 前后双重拒绝。全部工具标记 `readOnlyHint=true`；其中 `get_copper_price` 会访问管理域外的实时铜价来源，因此标记 `openWorldHint=true`，其余正式工厂数据工具标记 `openWorldHint=false`。这些 annotations 只帮助通用 MCP 客户端理解工具行为，不替代服务端权限控制。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向任何 Agent 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。正式 API 以结构化 JSON 明确返回 `404` 时，MCP 保留 `AI_RESOURCE_NOT_FOUND` 和已验证负结果；网络失败、5xx、非 JSON 响应或超时仍返回执行证据不足，不能伪装成“未找到”。
+通用 MCP V1 白名单覆盖 capability registry 当前全部 48 个 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的 AI 能力，按领域包括：成本与线圈 `full_calculate/get_copper_price/calculate_coil_cost/get_coil_specs/search_coils/dynamic_config_cost`；零件、模板与配方 `search_parts/search_templates/get_template_detail/get_all_recipes/get_recipe_detail/get_recipe_technical_files/build_recipe_bom_draft/preview_recipe_cost/preview_pump_shell_cost/compare_recipes`；客户与报价 `search_customers/search_quotations/get_quotation_detail/search_customer_history/inspect_quotation_file/build_quotation_draft/explain_cost_change`；订单与经营 `get_recent_orders/get_order_detail/get_purchase_overview/build_order_draft/get_order_knowledge_package/check_order_readiness/get_order_readiness_overview/plan_order_readiness_actions/get_dashboard_summary/get_business_alerts/get_management_action_center/plan_factory_workflow`；质量、规则与知识 `get_data_quality_summary/analyze_recipe_configuration/get_factory_learning_health/get_factory_rule_candidates/get_factory_rule_impact/get_factory_rule_compliance/get_factory_rule_history/search_factory_file_archive_targets/search_factory_knowledge/get_factory_knowledge_detail/get_factory_knowledge_health`；出图历史与业务变更 `get_rotor_drawing_history/search_business_changes`。目录契约测试会把白名单与注册表中的全部安全 Query/Preview 做集合比对，新增安全读能力未同步或误暴露写能力都会失败。任何写能力或意外返回确认令牌的调用仍会在 executor 前后双重拒绝。全部工具标记 `readOnlyHint=true`；其中 `get_copper_price` 会访问管理域外的实时铜价来源，因此标记 `openWorldHint=true`，其余正式工厂数据工具标记 `openWorldHint=false`。这些 annotations 只帮助通用 MCP 客户端理解工具行为，不替代服务端权限控制。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向任何 Agent 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。正式 API 以结构化 JSON 明确返回 `404` 时，MCP 保留 `AI_RESOURCE_NOT_FOUND` 和已验证负结果；网络失败、5xx、非 JSON 响应或超时仍返回执行证据不足，不能伪装成“未找到”。
 
 通用 MCP V2 另有 17 个可授权写工具：`execute_order_readiness_action/execute_factory_workflow_step/sync_factory_knowledge/generate_purchase_list/create_order/add_recipe_to_order/remove_recipe_from_order/update_order_item/archive_factory_file/create_recipe/update_recipe/adjust_coil_stock/batch_create_parts/adjust_part_stock/batch_update_prices/generate_rotor_drawing/print_rotor_drawing`。其中 `generate_purchase_list/add_recipe_to_order/remove_recipe_from_order/update_order_item` 必须携带用户明确提供的 `reason`，AI 或 MCP 客户端不得自动编造订单修改原因。所有写工具必须同时在 capability registry 声明 `access=write`、`operation=command`、`supportsPreview=true`、`requiresConfirmation=true`；没有正式 Preview 的 `create_part/update_part/delete_*` 等能力不会因已经存在于 AI 工具目录而自动暴露。每个已授权身份还必须在 `MCP_WRITE_TOOL_ALLOWLISTS` 中显式列出最小工具子集；目录按该子集过滤，实际执行再次校验，伪造 scope 或直接调用未授权工具返回 `mcp_write_tool_not_allowed`。写工具首轮只以 `allowWrite=false` 调统一 executor，取得规范化参数、正式 Preview 上下文和短时 confirmation token；2026 客户端随后通过协议原生 `input_required` form elicitation 向用户展示确认内容。只有 `action=accept` 且结构化 `confirm=true` 才进入统一 `executeConfirmedAiTool` service，消费已绑定主体/能力/参数/operationId 的服务端 token，并要求匹配正式 capability 的 completed operation/audit 回执。Agent 文字和客户端自报 `clientInfo` 均不提供授权。多轮 `requestState` 由官方 SDK HMAC codec 完整性保护，绑定已验证服务身份和调用方法；换身份、换工具、换参数、过期、篡改、并发重复消费均拒绝。2025 无状态客户端继续完整支持只读目录，但没有 elicitation 回路，因此写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。
 
 MCP 默认 `MCP_ENABLED=false`。单 Agent 可配置 `MCP_CLIENT_ID + MCP_TOKEN`；多 Agent 推荐使用 `MCP_SERVICE_TOKENS={"clientId":"token"}`，每个 token 至少 32 字符、不得跨身份复用，也不能与 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码相同。写能力独立默认 `MCP_WRITE_ENABLED=false`；启用时必须同时配置 `MCP_WRITE_CLIENT_IDS=<clientId,...>` 和 `MCP_WRITE_TOOL_ALLOWLISTS={"clientId":["sync_factory_knowledge"]}`。每个写身份必须拥有已登记 token 和非空、无重复、只含上述 17 个正式写工具的数组；缺少映射、未知身份/工具或空数组会使启动配置校验失败。只有该身份获得 `mcp:write` scope，且目录与执行都只允许其数组中的工具；其余身份保持 `mcp:read`。Host/Origin 必须位于 `CORS_ORIGIN` hostname 或 `MCP_ALLOWED_HOSTS`。默认每 IP 每分钟 60 次、单次结果上限 262144 bytes；可分别通过 `MCP_RATE_LIMIT_PER_MINUTE`（1-600）和 `MCP_MAX_RESULT_BYTES`（16384-1048576）调整。日志只记录 requestId、服务身份、token 短 SHA-256 指纹、协议代际、工具名、成功状态、结果分类、稳定错误码和耗时，不记录 token、工具参数或业务结果。正式 API 已证实的“未找到”等业务负结果记为 INFO/`verified_negative`，只有协议错误、执行失败或证据缺失才记为 WARN/`error`。旧 `HERMES_MCP_*` 在一个兼容周期内仍可读取，通用变量一旦出现即优先。
 
-MCP 变更在发布到 Mac Mini 前运行 `npm run verify:mcp-local`：它组合协议/安全单测、官方 conformance 场景，以及基于临时数据库和隔离 API 的真实 HTTP 验收；Hermes 兼容的 2025 客户端与通用 2026 客户端分别发现并调用全部 47 个只读工具，2026 写身份再完成一次 `sync_factory_knowledge` 正式 Preview → form elicitation → Command → operation/audit 回执闭环。隔离进程仅为连续调用把测试限流提高到 600，所有写入只发生在临时数据库副本，生产默认值和源数据库不变。正式环境部署后的日常发布自动运行 `npm run verify:mcp-prod-read`，严格核对 47 个只读工具及 annotations；若验收身份处于写灰度，只允许额外出现其逐工具 allowlist 中的写工具，未知或越权目录会失败。随后在一个连接内复用三个成本场景，并覆盖库存、配方、模板详情、客户/报价详情、订单/采购、管理/质量、知识和出图历史；每个结果必须带已验证执行证据、能力 ID 和正式数据源，并核对完整资源没有大小写重复键或业务字段裁剪。生产空数据不视为协议失败，也不为覆盖详情造数据；全部 47 个工具和缺价路径仍在隔离库验收。生产写开关的发现和单笔可回滚验收仍必须另行明确批准。详细流程和 Windows conformance CLI 的退出兼容边界见 `docs/mcp-development-guide.md`。
+MCP 变更在发布到 Mac Mini 前运行 `npm run verify:mcp-local`：它组合协议/安全单测、官方 conformance 场景，以及基于临时数据库和隔离 API 的真实 HTTP 验收；Hermes 兼容的 2025 客户端与通用 2026 客户端分别发现并调用全部 48 个只读工具，2026 写身份再完成一次 `sync_factory_knowledge` 正式 Preview → form elicitation → Command → operation/audit 回执闭环。隔离进程仅为连续调用把测试限流提高到 600，所有写入只发生在临时数据库副本，生产默认值和源数据库不变。正式环境部署后的日常发布自动运行 `npm run verify:mcp-prod-read`，严格核对 48 个只读工具及 annotations；若验收身份处于写灰度，只允许额外出现其逐工具 allowlist 中的写工具，未知或越权目录会失败。随后在一个连接内复用三个成本场景，并覆盖库存、配方、模板详情、客户/报价详情、订单/采购、管理/质量、知识、出图历史和统一业务变更；每个结果必须带已验证执行证据、能力 ID 和正式数据源，并核对完整资源没有大小写重复键或业务字段裁剪。生产空数据不视为协议失败，也不为覆盖详情造数据；全部 48 个工具和缺价路径仍在隔离库验收。生产写开关的发现和单笔可回滚验收仍必须另行明确批准。详细流程和 Windows conformance CLI 的退出兼容边界见 `docs/mcp-development-guide.md`。
 
 MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 `npm run verify:mcp-write-local`。该门禁以 `scripts/mcp-write-acceptance-manifest.cjs` 为显式验收清单，并与上述 17 个正式写工具做严格集合比对；每个工具都覆盖 scope 拒绝、逐工具 allowlist 拒绝、Preview、HMAC 主体/工具/参数绑定、明确接受、正式执行证据、幂等重放和拒绝无副作用。正式业务证据来自 executor 与 command service 的隔离测试：数据库使用独立内存 SQLite，文件使用临时目录，出图/打印使用外部命令替身。命令主动清空 MCP token 环境且保持 `MCP_ENABLED/MCP_WRITE_ENABLED=false`，不连接 Mac Mini、不读取正式数据库、不调用物理打印机；脱敏报告写入 `logs/mcp-write-local-latest.json`。本地 17/17 通过只证明代码链路具备受控写入条件，不构成生产写开关、身份或逐工具 allowlist 的授权。
 
@@ -408,7 +418,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
-模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。76 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 102 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 103 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -648,7 +658,7 @@ Next iPhone PWA `/ai` 复用本节接口：
 - 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
 - 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力必须先登记能力注册表，再扩展 `tools.cjs`、对应 executor、正式 API、文档和契约测试。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
-## 16. 数据质量
+## 17. 数据质量
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
@@ -708,7 +718,7 @@ V3 第十四阶段在 Web 端把健康检查返回的待复核反馈按配方聚
 
 V3 第十五阶段补齐待复核工作台的操作闭环。反馈保存和已消失提醒确认继续使用原有 API 返回的 `ruleLearning`，Web 端展示候选规则的新生成、重算、失效、撤回批准及剩余隔离证据数量；暂时跳过只调整本地处理顺序，不写数据库。整组完成后清除 `feedbackIds/feedbackId/action` 参数，并通过 `/dashboard?view=quality` 完整导航重新拉取学习证据健康状态。本阶段未新增 API，也不改变反馈或规则的数据语义。
 
-## 17. 统一文件 Files
+## 18. 统一文件 Files
 
 V9.1 使用 `factory_files` 作为 PDF、Word、Excel、文本和图片的统一原文件对象。上传时以后端检测出的真实内容类型为准，不信任浏览器提交的 MIME；文件最大 10MB，支持 `.pdf/.doc/.docx/.xls/.xlsx/.csv/.txt/.md/.png/.jpg/.jpeg/.webp`。DOCX 必须包含 Word 主文档结构，DOC 必须是含 WordDocument 流的 OLE 文件；扩展名与文件签名不一致、无效 UTF-8 文本、损坏 Office 文件、危险可执行扩展名或空文件会在写库前拒绝。V9.2 对 PDF 提取文字层、页码、行坐标和连续表格行；V9.3 对 Excel/CSV 提取工作表、行列、单元格、公式和表格块；Word 提取正文、页眉页脚、脚注、尾注、批注和文本框；V9.4 对图片和无文字层 PDF 执行本地中英文 OCR；V9.5 使用 `factory_file_links` 把同一文件可追溯地关联到客户、报价、配方、质量问题或知识资料，不复制原文件。V10.1 增加订单客户要求文件关联。
 
@@ -737,7 +747,7 @@ V9.5/V10.1 归档使用多态目标校验：客户、报价、订单、配方和
 
 V9 收口后，客户详情和质量反馈入口通过 `POST /api/files` 上传，再以 `source=business_page` 调用归档接口；列表统一读取 `GET /api/files/links`，解除关联使用软删除接口。客户询价附件则在新建报价表单上传，最多选择 4 个来源调用 `/api/quotations/inquiry-summary-draft`，由 Kimi 直接读取原图或通过官方文件接口抽取原始文件内容后联合归纳；该专用链路不经过通用 AI 规划、本地 OCR 或 DeepSeek 回退。人工核对后的摘要、来源和全部附件经 `/api/quotations/save-payload-draft` 绑定预览，并在创建报价时原子归档。已建报价仅通过 `GET /api/quotations/:id/inquiry-summary` 只读查看，不提供补传或编辑入口，摘要始终不会改变正式报价金额或明细。AI 回答反馈也可在知识管理页关联问题截图或原始资料。业务页上传不会自动创建知识资料；需要长期检索时必须另行归档到 `knowledge_document`。
 
-## 18. 工厂知识库 Knowledge
+## 19. 工厂知识库 Knowledge
 
 Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识条目，并在 SQLite 支持 FTS5 时启用 `knowledge_entries_fts`；如果当前 SQLite 构建不支持 FTS5，搜索自动回退到 `LIKE`。
 
@@ -755,7 +765,7 @@ Knowledge Base V1 使用本地 SQLite `knowledge_entries` 表保存派生知识�
 | `POST` | `/api/knowledge/documents` | `multipart/form-data`: `documentType`, `title`, `description?`, `contentText?`, `tags?`, `file?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.upload`。导入独立工厂资料；必须填写技术内容或上传文件，文件最大 10MB，支持 `.txt/.md/.csv/.xls/.xlsx/.pdf`。上传是用户主动选取资料的 medium command，不额外要求确认；资料、统一文件对象、operation 和强审计在同一事务提交。返回保留原资料顶层字段，并增加标准命令回执 |
 | `GET` | `/api/knowledge/documents/:id/download` | 无 | 下载独立工厂资料原文件 |
 | `DELETE` | `/api/knowledge/documents/:id` | JSON：`expectedUpdatedAt?`, `idempotencyKey?`；推荐请求头 `Idempotency-Key`、`X-Operation-ID` | 能力 `knowledge.documents.delete`。软删除原始资料并触发对应派生知识移除；页面继续显式确认。新调用传资源版本和幂等键，旧无 body 调用兼容执行但回执带并发/重试保护缺失 warning |
-| `GET` | `/api/knowledge` | 标准 query：`query?`, `entryType?`, `sourceTable?`, `limit?`；兼容别名：`keyword?`=`query?`、`type?`=`entryType?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document`；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径”；新增调用只使用标准参数名 |
+| `GET` | `/api/knowledge` | 标准 query：`query?`, `entryType?`, `sourceTable?`, `limit?`；兼容别名：`keyword?`=`query?`、`type?`=`entryType?` | 使用 FTS/BM25 + 向量混合搜索知识条目；`entryType` 支持 `part/template/recipe/coil/customer/quotation/order/quality_issue/business_rule/document/change_event`。`change_event` 是 `business_change_events` 的可重建检索投影，结构化时间、领域和实体筛选仍以 `/api/business-changes` 为准；默认最多 10 条，最大 50 条。每项附带 `matchMode/evidenceLevel/exactMatch/keywordRank/vectorDistance/finalScore`；`evidenceLevel=semantic_candidate` 表示纯语义候选，不能单独证明用途、兼容性或专用配件关系。型号、规格、客户名和合同号等精确命中优先。线圈条目以“规格-片数 + 材质 + 槽眼”区分，`defaultWireGauge` 在知识正文中标注为“默认搭配电缆线径”；新增调用只使用标准参数名 |
 | `GET` | `/api/knowledge/:id` | 无 | 读取单条知识详情，包含完整 `content/tags/metadata` |
 | `POST` | `/api/knowledge/sync-preview` | 无 | 能力 `knowledge.sync_derived` 的只读预览。计算正式业务来源和当前派生条目的内容哈希快照，返回新增/更新/移除明细、`previewHash`、服务端 `confirmationToken/operationId` 和建议幂等键；不写库 |
 | `POST` | `/api/knowledge/sync` | 请求头 `Idempotency-Key`；`{ confirmationToken }` | 消费同步预览凭证并重新核对快照；漂移返回 409。派生条目、FTS、同步运行历史、operation 与强审计原子提交；提交后只调度可重建的向量增量任务。相同 key 重试返回原回执，不重复同步，不修改原业务资源 |
@@ -796,7 +806,7 @@ AI 工具：
 - `save_order_requirement_draft`：经用户确认后保存订单客户要求草稿；草稿不属于正式知识，确认进入知识库和撤销确认只能在订单页面完成。
 - `save_order_execution_draft`：经用户确认后新建订单执行事实草稿；AI 无权确认、撤销或删除正式事实，知识确认只能在订单页面完成。
 
-## 19. 当前兼容边界
+## 20. 当前兼容边界
 
 - 核心资源已补齐 `id/createdAt/updatedAt` 标准字段；`Id/CreatedAt/UpdatedAt` 是历史兼容字段，Web 页面必须使用标准字段。
 - 零件、配方、订单、客户和报价的更新/删除统一使用 `/:id` 路径入口；旧式 body 带 ID 写入口已移除。

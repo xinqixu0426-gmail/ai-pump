@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     consumeBusinessConfirmation,
     issueBusinessConfirmation,
@@ -194,6 +195,7 @@ function executePartBatchCreate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: BATCH_CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'created' }),
         input: { parts },
         execute: ({ auditContext }) => {
             for (const part of parts) {
@@ -377,6 +379,7 @@ function executePartCreate(dependencies, input = {}, commandContext = {}) {
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'created' }),
         input: normalized,
         execute: ({ auditContext }) => {
             const now = new Date().toISOString();
@@ -435,6 +438,7 @@ function executePartUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'updated' }),
         input: { partId, expectedUpdatedAt, updates },
         warnings: [
             ...(commandContext.warnings || []),
@@ -518,6 +522,7 @@ function executePartDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'deleted' }),
         input: { partId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),
@@ -642,6 +647,7 @@ function executePartPriceBatch(
         db: dependencies.db,
         ...commandContext,
         capabilityId: BATCH_PRICE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'updated' }),
         input: {
             updates: requestedUpdates,
             previewHash: expectedPreviewHash,

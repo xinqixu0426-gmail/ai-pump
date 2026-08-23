@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -47,6 +48,11 @@ function executeOrderTodoToggle(
         db: dependencies.db,
         ...commandContext,
         capabilityId: CAPABILITY_ID,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'order', entityId: orderId, role: 'primary' }],
+        }),
         input: {
             orderId,
             todoId,

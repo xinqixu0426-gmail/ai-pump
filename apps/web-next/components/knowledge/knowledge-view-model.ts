@@ -34,6 +34,7 @@ export const ENTRY_TYPE_OPTIONS: Array<{ value: KnowledgeEntryType | ''; label: 
   { value: 'quality_issue', label: '质量问题' },
   { value: 'business_rule', label: '业务规则' },
   { value: 'document', label: '工厂资料' },
+  { value: 'change_event', label: '业务变更' },
 ];
 
 export const ENTRY_TYPE_LABELS = Object.fromEntries(
@@ -87,6 +88,7 @@ export const SOURCE_PATHS: Record<string, string> = {
   business_rules: '/dashboard?view=knowledge',
   factory_rule_candidates: '/dashboard?view=quality',
   factory_ai_rules: '/dashboard?view=knowledge',
+  business_change_events: '/business-changes',
 };
 
 export function sourceKey(item: { sourceTable: string; sourceId: string }) {

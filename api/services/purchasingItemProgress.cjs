@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -325,6 +326,7 @@ function executePurchaseItemProgress(dependencies, input = {}, commandContext = 
     const result = executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'purchasing', eventType: 'updated' }),
         input: {
             orderId,
             progressInput,

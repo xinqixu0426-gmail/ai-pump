@@ -22,7 +22,7 @@ function costReport() {
         status: 'passed',
         generatedAt: '2026-08-17T00:00:00.000Z',
         protocolVersion: '2026-07-28',
-        toolCount: 47,
+        toolCount: 48,
         scenarios: {
             fullEstimateBindsRecipe: {
                 status: 'passed',
@@ -141,12 +141,12 @@ test('生产 MCP 全领域只读验收：单连接覆盖代表工具且报告不
     });
 
     assert.equal(report.status, 'passed');
-    assert.equal(report.toolDirectory.representativeToolCount, 17);
-    assert.equal(report.toolDirectory.readToolCount, 47);
+    assert.equal(report.toolDirectory.representativeToolCount, 18);
+    assert.equal(report.toolDirectory.readToolCount, 48);
     assert.equal(report.toolDirectory.writeToolCount, 0);
     assert.deepEqual(report.toolDirectory.writeTools, []);
-    assert.equal(report.requestBudget.maximumRequests, 35);
-    assert.equal(report.requestBudget.actualRequests, 24);
+    assert.equal(report.requestBudget.maximumRequests, 36);
+    assert.equal(report.requestBudget.actualRequests, 25);
     assert.equal(report.domains.orders.resourceSpecificCoverage.status, 'not_applicable');
     const recipeDetail = report.domains.recipes.tools.find(tool => tool.name === 'get_recipe_detail');
     assert.deepEqual(recipeDetail.contract, {
@@ -205,8 +205,8 @@ test('生产 MCP 全领域只读验收：允许当前身份显式授权的单个
         costEvaluator: async () => costReport(),
     });
 
-    assert.equal(report.toolDirectory.toolCount, 48);
-    assert.equal(report.toolDirectory.readToolCount, 47);
+    assert.equal(report.toolDirectory.toolCount, 49);
+    assert.equal(report.toolDirectory.readToolCount, 48);
     assert.equal(report.toolDirectory.writeToolCount, 1);
     assert.deepEqual(report.toolDirectory.writeTools, ['sync_factory_knowledge']);
     assert.equal(report.toolDirectory.hiddenWriteToolCount, 16);

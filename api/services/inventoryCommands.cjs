@@ -4,6 +4,7 @@ const {
     CommandExecutionError,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const { adjustCoilStock, parseStockChange } = require('./coilInventory.cjs');
 const {
     consumeBusinessConfirmation,
@@ -236,6 +237,7 @@ function executePartStockBatch(dependencies, input = {}, commandContext = {}) {
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'inventory_changed' }),
         input: { operations: normalized },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {
@@ -302,6 +304,7 @@ function executeCoilStockBatch(dependencies, input = {}, commandContext = {}) {
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'coil', eventType: 'inventory_changed' }),
         input: { adjustments: normalized, note },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext, operationId }) => {

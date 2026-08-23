@@ -155,6 +155,7 @@ test('Knowledge V4：自动同步覆盖全部核心知识来源', () => {
         'quotations',
         'orders',
         'system_settings',
+        'business_change_events',
     ]) {
         assert.equal(AUTO_SYNC_SOURCE_TABLES.has(sourceTable), true, sourceTable);
     }

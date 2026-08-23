@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     updatePersistentExternalCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     deleteFactoryFile,
     getFactoryFile,
@@ -85,6 +86,7 @@ function executeFactoryFileUpload(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPLOAD_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'file', eventType: 'created' }),
         input: commandInput,
         warnings: commandContext.warnings || [],
         execute: ({ auditContext }) => {
@@ -388,6 +390,7 @@ function executeFactoryFileDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'file', eventType: 'deleted' }),
         input: { fileId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

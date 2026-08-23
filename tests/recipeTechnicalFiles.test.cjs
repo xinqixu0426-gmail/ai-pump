@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
 const {
     DELETE_CAPABILITY_ID,
     UPLOAD_CAPABILITY_ID,
@@ -17,6 +18,7 @@ const FILE_SHA = 'a'.repeat(64);
 
 function createFixture() {
     const db = new Database(':memory:');
+    installBusinessChangeSchema(db);
     db.exec(`
         CREATE TABLE api_operations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +44,7 @@ function createFixture() {
         );
         CREATE TABLE recipes (
             id INTEGER PRIMARY KEY,
+            name TEXT,
             updated_at TEXT,
             deleted_at TEXT
         );
@@ -73,7 +76,7 @@ function createFixture() {
             updated_at TEXT,
             deleted_at TEXT
         );
-        INSERT INTO recipes (id, updated_at) VALUES (1, '${FIXED_AT}');
+        INSERT INTO recipes (id, name, updated_at) VALUES (1, 'V750', '${FIXED_AT}');
     `);
 
     function audit(table, id, context) {

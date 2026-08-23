@@ -6,6 +6,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -410,6 +411,7 @@ function executeOrderCreate(dependencies, input = {}, commandContext = {}) {
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'order', eventType: 'created' }),
         input: {
             payload: {
                 customerId: draft.customerId,
@@ -513,6 +515,17 @@ function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandConte
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            reason: outcome => outcome.data?.revision?.reason || '',
+            detailRef: outcome => outcome.data?.revision ? {
+                type: 'order_revision',
+                id: outcome.data.revision.id,
+                orderId: outcome.data.order?.id,
+                revisionNo: outcome.data.revision.revisionNo,
+            } : {},
+        }),
         input: {
             orderId,
             expectedUpdatedAt,
@@ -618,6 +631,7 @@ function executeOrderDelete(dependencies, orderIdValue, input = {}, commandConte
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'order', eventType: 'deleted' }),
         input: { orderId, expectedUpdatedAt },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {
@@ -773,6 +787,11 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'status_changed',
+            reason: outcome => outcome.data?.order?.statusReason || '',
+        }),
         input: {
             orderId,
             ...statusInput,

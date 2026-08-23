@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -134,6 +135,7 @@ function executeBusinessSettingUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'settings', eventType: 'updated' }),
         input: { key, value, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

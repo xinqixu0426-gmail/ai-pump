@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -79,6 +80,7 @@ function executeCustomerCreate(dependencies, input = {}, commandContext = {}) {
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'customer', eventType: 'created' }),
         input: normalized,
         execute: ({ auditContext }) => {
             assertCustomerNameAvailable(dependencies.db, normalized.name);
@@ -154,6 +156,7 @@ function executeCustomerUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'customer', eventType: 'updated' }),
         input: { customerId, expectedUpdatedAt, changes: normalized },
         warnings: [
             ...(commandContext.warnings || []),
@@ -246,6 +249,7 @@ function executeCustomerDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'customer', eventType: 'deleted' }),
         input: { customerId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

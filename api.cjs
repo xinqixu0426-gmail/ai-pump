@@ -178,6 +178,7 @@ app.use('/api/workbench', require('./api/routes/workbench.cjs'));
 app.use('/api/quality', require('./api/routes/quality.cjs'));
 app.use('/api/files', require('./api/routes/files.cjs'));
 app.use('/api/knowledge', require('./api/routes/knowledge.cjs'));
+app.use('/api/business-changes', require('./api/routes/businessChanges.cjs'));
 
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: `API 不存在：${req.method} ${req.originalUrl}` });

@@ -4,6 +4,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -263,6 +264,11 @@ function executeRecipeTechnicalFileUpload(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({
+            domain: 'recipe',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'recipe', entityId: recipeId, role: 'primary' }],
+        }),
         input: {
             recipeId,
             expectedUpdatedAt,
@@ -405,6 +411,11 @@ function executeRecipeTechnicalFileDelete(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({
+            domain: 'recipe',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'recipe', entityId: recipeId, role: 'primary' }],
+        }),
         input: {
             recipeId,
             fileId,

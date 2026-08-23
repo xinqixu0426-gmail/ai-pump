@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -212,6 +213,7 @@ function executeCompletePurchase(dependencies, input = {}, commandContext = {}) 
     const result = executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'purchasing', eventType: 'inventory_changed' }),
         input: { orderId, expectedUpdatedAt, previewHash: expectedPreviewHash },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {

@@ -50,6 +50,7 @@ const MCP_READ_ONLY_TOOL_NAMES = Object.freeze([
     'get_factory_knowledge_detail',
     'get_factory_knowledge_health',
     'get_rotor_drawing_history',
+    'search_business_changes',
 ]);
 
 // MCP V2 写能力必须同时具备正式 Preview + Confirmation，并经独立写 scope 开放。

@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const { buildLongScrewInventoryParts } = require('./longScrewInventory.cjs');
 const {
     assertExpectedUpdatedAt,
@@ -274,6 +275,7 @@ function executeModelVariantCreate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'model_variant', eventType: 'created' }),
         input: normalized,
         execute: ({ auditContext }) => {
             assertTemplateExists(dependencies.db, normalized.template_id);
@@ -351,6 +353,7 @@ function executeModelVariantUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'model_variant', eventType: 'updated' }),
         input: { modelVariantId, expectedUpdatedAt, updates: normalized },
         warnings: [
             ...(commandContext.warnings || []),
@@ -443,6 +446,7 @@ function executeModelVariantDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'model_variant', eventType: 'deleted' }),
         input: { modelVariantId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

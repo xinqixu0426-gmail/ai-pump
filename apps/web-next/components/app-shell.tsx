@@ -7,6 +7,7 @@ import {
   Bot,
   Boxes,
   Cable,
+  Clock3,
   Database,
   FileText,
   Layers3,
@@ -53,6 +54,7 @@ const engineeringNavItems = [
 ];
 
 const systemNavItems = [
+  { href: '/business-changes', label: '业务变更', icon: Clock3 },
   { href: '/dashboard?view=quality', label: '数据质量', icon: ShieldCheck },
   { href: '/dashboard?view=knowledge', label: '知识库', icon: Database },
   { href: '/setup', label: '系统设置', icon: Settings2 },

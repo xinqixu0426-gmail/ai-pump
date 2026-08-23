@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     confirmOrderRequirementSummary,
     getOrderRequirementSummary,
@@ -57,6 +58,11 @@ function executeRequirementCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'order', entityId: orderId, role: 'primary' }],
+        }),
         input: {
             orderId,
             ...(input.summaryText === undefined

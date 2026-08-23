@@ -227,7 +227,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
-- 通用 MCP：默认关闭，以 Bearer service token 提供 47 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，在内存数据库、临时文件和外部命令替身中覆盖 17/17，不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
+- 通用 MCP：默认关闭，以 Bearer service token 提供 48 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，在内存数据库、临时文件和外部命令替身中覆盖 17/17，不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。
 - 部署环境判断、端口、CORS 来源和内部 API 超时统一由 `api/services/environment.cjs` 解析；无效数值在启动或发布校验阶段直接失败，避免运行时出现隐蔽超时。
@@ -259,9 +259,10 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒，以及配方智能检查 |
 | 统一文件 | `/api/files` | V9 原文件上传、PDF/Excel/CSV 定位解析、图片与扫描 PDF OCR、报价映射草稿、业务页附件、知识归档、真实类型识别、SHA-256 去重和下载 |
 | 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、独立资料导入、搜索和详情读取，供 AI 检索 |
+| 业务变更 | `/api/business-changes` | 跨订单、报价、采购、零件、配方、模板、线圈、客户、型号变体、质量规则、转子档案、业务设置、文件、知识资料和工作流的追加型业务历史；结构化精确查询并投影到知识/向量检索 |
 | 设置 | `/api/settings/:key`、`/api/settings/runtime` | `settingsQueries` 只读提供业务白名单、公开运行快照和 AI 连接探测；两类写入都使用幂等、版本、事务回执和强审计，运行配置提交成功后才应用进程环境 |
 | AI | `/api/ai` | 对话、工具调用、会话和评测；模型流解析与工具消息协议由独立 service 统一 |
-| 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 47 个只读工具，包含模板与报价完整详情；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
+| 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 48 个只读工具，包含模板、报价完整详情和统一业务变更历史；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
 
 配方、订单、模板和型号变体的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
 
@@ -322,7 +323,7 @@ POST /api/rotor/save
 - AI 系统上下文按“不可编辑核心规则 + 当前领域规则 + 可编辑工厂配置 + 相关纠错规则”组装。AI 工作台的“工厂配置”只维护术语、偏好和操作习惯，不能覆盖标准 API、来源真实性和写操作确认；旧整份提示词会先备份再迁移。纠正规则按当前问题筛选，避免无关历史习惯占用上下文或互相干扰。
 - AI Agent Runtime V3 将普通工具结果作为模型继续调查和提取结论的证据；证据以“不可信业务数据”角色进入最终合成，字段中的提示词或命令不会取得系统权限。`aiEntityResolverV3` 对客户、订单、配方、零件、线圈方案和泵壳模板复用同一套原词/前缀探针、候选评分和绑定协议：只读唯一高置信候选可透明绑定并告知规范名称，多候选结构化追问，写能力仅接受精确目标或人工确认。每个绑定都生成不含原始业务对象的 `resolutionReceipt`。Web 会持久化服务端生成的限长 `turnState`，紧邻追问可复用正式实体引用；新目标不会继承旧实体或写意图。V2 文件只保留兼容导出。
 - V3 最终提取按 `answerShape` 只返回当前问题的结果：内部 ID/sourceId/数据库序号默认不展示，列表不由模型自行计算分组数量，也不附加未询问的库存风险、相似项判断和后续建议。
-- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 76 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema 和 `aiExecutionEvidence`：Query/Preview 必须有本轮正式 API 成功证据；零结果可进入有限只读调查，预算结束仍为零才回答未找到；HTTP/超时/协议失败立即停止结论。写工具必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
+- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema 和 `aiExecutionEvidence`：Query/Preview 必须有本轮正式 API 成功证据；零结果可进入有限只读调查，预算结束仍为零才回答未找到；HTTP/超时/协议失败立即停止结论。写工具必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
 - 新建报价的询价助手使用报价域专用只读接口，直接读取统一文件库原始附件并强制调用已配置的 Kimi 开放平台：图片传原图，文档使用 Kimi 文件抽取；不再经过通用 AI 对话规划、本地 OCR 或 DeepSeek 静默降级。Kimi 失败时页面明确提示，人工核对后的摘要仍通过报价保存预览绑定，不影响成本和价格。
 - 能力注册表同时声明每项 AI capability 允许的 `entityScopes`。具名订单等 `single` 查询只开放单对象能力，不允许调用全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总；跨订单汇总必须使用 `collection/global`，防止无关订单信息混入回答。
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。
@@ -365,8 +366,8 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
-- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。76 个 AI 工具、29 个 AI 写工具和 101 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“意图信封 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
-- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 47 项只读白名单及 17 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
+- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 103 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“意图信封 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
+- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 48 项只读白名单及 17 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
 - 零件资料修改与库存调整是两个独立 Command；AI 的 `update_part` 只接受资料字段，库存统一走 `adjust_part_stock`。报价转订单、采购下单/入库、配方保存、转子出图、文件归档和知识同步均调用对应正式 service。

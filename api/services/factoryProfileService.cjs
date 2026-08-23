@@ -4,6 +4,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 
 const UPDATE_FACTORY_PROFILE_CAPABILITY_ID = requireBusinessCapability(
     'ai.factory_profile.update'
@@ -131,6 +132,7 @@ function executeFactoryProfileUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_FACTORY_PROFILE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'settings', eventType: 'updated' }),
         input: { prompt: profile, expectedVersion },
         warnings: [
             ...(commandContext.warnings || []),

@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     applyRuntimeEnvironment,
     prepareRuntimeSettingsUpdate,
@@ -64,6 +65,7 @@ function executeRuntimeSettingsUpdate(
         db: dependencies.dbAccessors.db,
         ...commandContext,
         capabilityId: UPDATE_RUNTIME_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'settings', eventType: 'updated' }),
         input: {
             expectedUpdatedAt,
             settings: initialDraft.requested,

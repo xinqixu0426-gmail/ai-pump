@@ -23,6 +23,8 @@ const CORE_COUNT_TABLES = Object.freeze([
     'knowledge_embeddings',
     'api_operations',
     'audit_log',
+    'business_change_events',
+    'business_change_event_entities',
 ]);
 
 function projectRoot() {

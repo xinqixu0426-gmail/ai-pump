@@ -15,6 +15,7 @@ const AUTO_SYNC_SOURCE_TABLES = new Set([
     'order_execution_records',
     'factory_ai_rules',
     'system_settings',
+    'business_change_events',
 ]);
 
 const DEFAULT_DELAY_MS = 300;

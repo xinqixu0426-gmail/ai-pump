@@ -6,6 +6,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -117,6 +118,7 @@ function executeRotorParameterSave(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'rotor', eventType: 'created' }),
         input: {
             params: normalized.params,
             drawingName,
@@ -188,6 +190,7 @@ function executeRotorHistoryRename(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'rotor', eventType: 'updated' }),
         input: { historyId, drawingName, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),
@@ -253,6 +256,7 @@ function executeRotorHistoryLink(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'rotor', eventType: 'updated' }),
         input: { historyId, linkedPumpModel, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),
@@ -346,6 +350,7 @@ function executeRotorHistoryDelete(
     const receipt = executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'rotor', eventType: 'deleted' }),
         input: { historyId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

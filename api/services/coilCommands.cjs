@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertPreviewHash,
     normalizePreviewHash,
@@ -275,6 +276,7 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'coil', eventType: 'created' }),
         input: normalized,
         execute: ({ auditContext }) => {
             const variantResult = ensureStatorVariant(
@@ -429,6 +431,7 @@ function executeCoilUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'coil', eventType: 'updated' }),
         input: { coilId, expectedUpdatedAt, patch },
         warnings: [
             ...(commandContext.warnings || []),
@@ -607,6 +610,7 @@ function executeCoilDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'coil', eventType: 'deleted' }),
         input: { coilId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),
@@ -753,6 +757,7 @@ function executeCoilUnitPriceBatch(
         db: dependencies.db,
         ...commandContext,
         capabilityId: BATCH_UNIT_PRICE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'coil', eventType: 'updated' }),
         input: { ...normalized, previewHash },
         warnings: [
             ...(commandContext.warnings || []),

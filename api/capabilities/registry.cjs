@@ -1,4 +1,7 @@
 const DOMAIN_CAPABILITY_NAMES = Object.freeze({
+    business_history: Object.freeze([
+        'search_business_changes',
+    ]),
     management: Object.freeze([
         'get_management_action_center',
         'plan_factory_workflow',
@@ -123,6 +126,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
 });
 
 const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
+    search_business_changes: '查询业务变更',
     get_management_action_center: '读取管理待办',
     plan_factory_workflow: '生成工厂工作流计划',
     get_business_alerts: '读取经营异常',
@@ -245,6 +249,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_rotor_drawing_history',
     ]),
     query: Object.freeze([
+        'search_business_changes',
         'get_coil_specs',
         'search_coils',
         'get_all_recipes',
@@ -329,6 +334,7 @@ const AI_EXECUTOR_BY_CAPABILITY_NAME = Object.freeze(Object.fromEntries(
 ));
 
 const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
+    'search_business_changes',
     'search_parts',
     'search_coils',
     'get_all_recipes',
@@ -402,6 +408,7 @@ const WRITE_CAPABILITY_NAMES = new Set([
 ]);
 
 const LIVE_CAPABILITY_NAMES = new Set([
+    'search_business_changes',
     'full_calculate',
     'get_copper_price',
     'calculate_coil_cost',
@@ -486,6 +493,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 ]);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
+    search_business_changes: Object.freeze(['business_changes.list']),
     search_parts: Object.freeze(['parts.list']),
     search_coils: Object.freeze(['coils.list']),
     get_recent_orders: Object.freeze(['orders.list']),
@@ -582,6 +590,7 @@ function defineBusinessCapability(definition) {
         timeoutMs: 15_000,
         deprecated: false,
         contractStatus: 'current',
+        recordsBusinessChange: true,
         ...definition,
     });
 }
@@ -621,6 +630,15 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'business_changes.list': defineQueryCapability({
+        capabilityId: 'business_changes.list',
+        domain: 'business_history',
+        inputSchema: 'GET /api/business-changes?period?&from?&to?&domain?&entityType?&entityId?&eventType?&keyword?&beforeId?&limit?',
+        outputSchema: 'BusinessChangePage',
+        sourceOfTruth: 'business_change_events+business_change_event_entities',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
     'inventory.parts.batch_adjust_stock': defineBusinessCapability({
         capabilityId: 'inventory.parts.batch_adjust_stock',
         domain: 'inventory',
@@ -864,6 +882,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'market.sync_copper_price': defineBusinessCapability({
         capabilityId: 'market.sync_copper_price',
+        recordsBusinessChange: false,
         domain: 'cost',
         operation: 'maintenance',
         inputSchema: 'POST /api/copper-price/update',
@@ -879,6 +898,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'market.sync_indicators': defineBusinessCapability({
         capabilityId: 'market.sync_indicators',
+        recordsBusinessChange: false,
         domain: 'cost',
         operation: 'maintenance',
         inputSchema: 'POST /api/market-indicators/update',
@@ -1347,6 +1367,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'drawings.rotor.generate_pdf': defineBusinessCapability({
         capabilityId: 'drawings.rotor.generate_pdf',
+        recordsBusinessChange: false,
         domain: 'drawing',
         inputSchema: 'POST /api/rotor/draw',
         outputSchema: 'ExternalCommandReceipt<RotorDrawingJob>',
@@ -1360,6 +1381,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'drawings.rotor.print_pdf': defineBusinessCapability({
         capabilityId: 'drawings.rotor.print_pdf',
+        recordsBusinessChange: false,
         domain: 'drawing',
         inputSchema: 'POST /api/rotor/print/:jobId',
         outputSchema: 'ExternalCommandReceipt<RotorPrintResult>',
@@ -1373,6 +1395,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'knowledge.sync_derived': defineBusinessCapability({
         capabilityId: 'knowledge.sync_derived',
+        recordsBusinessChange: false,
         domain: 'knowledge',
         inputSchema: 'POST /api/knowledge/sync',
         outputSchema: 'CommandReceipt<KnowledgeSyncResult>',
@@ -1423,6 +1446,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'files.parse': defineBusinessCapability({
         capabilityId: 'files.parse',
+        recordsBusinessChange: false,
         domain: 'file',
         operation: 'maintenance',
         inputSchema: 'POST /api/files/:id/parse',
@@ -1450,6 +1474,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.conversations.create': defineBusinessCapability({
         capabilityId: 'ai.conversations.create',
+        recordsBusinessChange: false,
         domain: 'ai',
         inputSchema: 'POST /api/ai/conversations',
         outputSchema: 'CommandReceipt<AiConversation>',
@@ -1462,6 +1487,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.conversations.messages.append': defineBusinessCapability({
         capabilityId: 'ai.conversations.messages.append',
+        recordsBusinessChange: false,
         domain: 'ai',
         inputSchema: 'POST /api/ai/conversations/:id/messages',
         outputSchema: 'CommandReceipt<AiConversationMessage>',
@@ -1474,6 +1500,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.conversations.messages.update_metadata': defineBusinessCapability({
         capabilityId: 'ai.conversations.messages.update_metadata',
+        recordsBusinessChange: false,
         domain: 'ai',
         inputSchema: 'PATCH /api/ai/conversations/:id/messages/:messageId',
         outputSchema: 'CommandReceipt<AiConversationMessage>',
@@ -1485,6 +1512,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.conversations.delete': defineBusinessCapability({
         capabilityId: 'ai.conversations.delete',
+        recordsBusinessChange: false,
         domain: 'ai',
         inputSchema: 'DELETE /api/ai/conversations/:id',
         outputSchema: 'CommandReceipt<AiConversationDeleteResult>',
@@ -1496,6 +1524,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.evaluations.runs.start': defineBusinessCapability({
         capabilityId: 'ai.evaluations.runs.start',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/evaluations/runs { scope?: manual|release }',
@@ -1511,6 +1540,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.evaluations.results.record': defineBusinessCapability({
         capabilityId: 'ai.evaluations.results.record',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/evaluations/runs/:id/results',
@@ -1526,6 +1556,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.evaluations.runs.complete': defineBusinessCapability({
         capabilityId: 'ai.evaluations.runs.complete',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/evaluations/runs/:id/complete',
@@ -1540,6 +1571,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.evaluations.cases.review': defineBusinessCapability({
         capabilityId: 'ai.evaluations.cases.review',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'PATCH /api/ai/evaluations/cases/:id',
@@ -1554,6 +1586,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.evaluations.system_cases.configure': defineBusinessCapability({
         capabilityId: 'ai.evaluations.system_cases.configure',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema:
@@ -1578,6 +1611,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.feedback.submit': defineBusinessCapability({
         capabilityId: 'ai.feedback.submit',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/feedback',
@@ -1593,6 +1627,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.feedback.diagnose': defineBusinessCapability({
         capabilityId: 'ai.feedback.diagnose',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/feedback/:id/diagnose',
@@ -1607,6 +1642,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.feedback.retest': defineBusinessCapability({
         capabilityId: 'ai.feedback.retest',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'POST /api/ai/feedback/:id/retest',
@@ -1621,6 +1657,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.feedback.review': defineBusinessCapability({
         capabilityId: 'ai.feedback.review',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'PATCH /api/ai/feedback/:id',
@@ -1634,6 +1671,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'ai.learning_rules.update': defineBusinessCapability({
         capabilityId: 'ai.learning_rules.update',
+        recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
         inputSchema: 'PATCH /api/ai/learning-rules/:id',
@@ -1691,6 +1729,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'quality.rule_candidates.refresh': defineBusinessCapability({
         capabilityId: 'quality.rule_candidates.refresh',
+        recordsBusinessChange: false,
         domain: 'quality',
         operation: 'maintenance',
         inputSchema: 'POST /api/quality/rule-candidates/refresh',

@@ -70,6 +70,33 @@ function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
 
 async function executeQueryTool(toolName, args, internalFetch, options = {}) {
     switch (toolName) {
+        case 'search_business_changes': {
+            const query = new URLSearchParams();
+            for (const key of ['period', 'from', 'to', 'domain', 'entityType', 'entityId', 'eventType', 'keyword', 'semanticQuery', 'limit']) {
+                if (args[key] !== undefined && args[key] !== null && String(args[key]).trim() !== '') {
+                    query.set(key, String(args[key]));
+                }
+            }
+            const page = await getJson(
+                internalFetch,
+                `/api/business-changes${query.size ? `?${query.toString()}` : ''}`,
+                '业务变更历史读取失败'
+            );
+            return {
+                success: true,
+                intent: 'business_change_history',
+                summary: page.total > 0
+                    ? `找到 ${page.total} 条符合条件的业务变更。`
+                    : '没有找到符合当前筛选条件的业务变更。',
+                data: page,
+                receipt: buildQueryReceipt(page.appliedFilters, page.total, page.items?.length || 0),
+                sources: [{
+                    sourceTable: 'business_change_events',
+                    evidenceLevel: 'authoritative_business_event',
+                    asOf: page.asOf,
+                }],
+            };
+        }
         case 'get_coil_specs': {
             const specs = await getJson(internalFetch, '/api/coils/specs', '线圈规格读取失败');
             return { success: true, data: specs };

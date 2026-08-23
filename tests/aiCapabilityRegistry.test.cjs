@@ -112,6 +112,7 @@ test('AI 能力注册表：当日成本对比工具统一登记实时业务证�
 
 test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
+        'business_changes.list',
         'inventory.parts.batch_adjust_stock',
         'inventory.coils.adjust_stock',
         'workflow.quotation.convert_to_order',

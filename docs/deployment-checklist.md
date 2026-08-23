@@ -97,7 +97,7 @@ mcp_servers:
     connect_timeout: 15
 ```
 
-不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 47 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 48 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
 
 ## 3. 重启服务
 
@@ -145,10 +145,10 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 3 次不能完成才按错误阻止验收。
 
 日常发布在公网 ready、登录页和 AI 页面通过后，还会执行
-`npm run verify:mcp-prod-read`。该门禁在单个连接内复用三个正式成本场景，并以 18 次调用覆盖 17 个
-代表工具及库存、配方、客户/报价、订单/采购、管理/质量、知识和出图历史；逐次验证
+`npm run verify:mcp-prod-read`。该门禁在单个连接内复用三个正式成本场景，并覆盖 18 个
+代表工具及库存、配方、客户/报价、订单/采购、管理/质量、知识、出图历史和统一业务变更；逐次验证
 `mcp.verified`、能力 ID 和正式数据源，并交叉核对配方明细/无覆盖试算的当前完整成本、
-覆盖试算的 `currentTotalCost` 主字段，以及两项成本对比工具的实时数据模式。最坏 35 个请求，低于每分钟 60 次生产限流。
+覆盖试算的 `currentTotalCost` 主字段，以及两项成本对比工具的实时数据模式。最坏 36 个请求，低于每分钟 60 次生产限流。
 它不创建缺价、订单或其他测试样本，也不修改任何生产数据。失败会以非零状态阻止发布完成，
 脱敏综合报告保存在 `logs/mcp-production-read-latest.json`，成本子报告继续保存在
 `logs/mcp-production-cost-latest.json`。
@@ -165,6 +165,7 @@ LaunchDaemon 日志达到 10 MB 后轮转，保留 14 份压缩文件；轮转�
 收到 `SIGTERM` 并由 LaunchDaemon 自动拉起，以确保新日志文件真正生效。
 
 - 打开 Web 前端并验证登录、订单、配方、报价、线圈、转子出图和移动端 `/ai`。
+- 本次包含迁移 67 时，在可回滚的隔离数据库先执行一笔业务变更，确认 operation 回执带 `businessChangeEvent`，`GET /api/business-changes` 可按实体查到同一事件，知识条目 `entryType=change_event` 与向量投影完成同步；生产只做已有真实变更的只读查询，不为验收制造数据。
 - 查看错误日志：
 
 ```bash

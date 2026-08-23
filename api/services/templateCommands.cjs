@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -397,6 +398,7 @@ function executeTemplateCreate(dependencies, input = {}, commandContext = {}) {
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'template', eventType: 'created' }),
         input: normalized,
         execute: ({ auditContext }) => {
             assertUniqueShellModel(dependencies.db, normalized.shell_model);
@@ -451,6 +453,7 @@ function executeTemplateUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'template', eventType: 'updated' }),
         input: { templateId, expectedUpdatedAt, updates },
         warnings: [
             ...(commandContext.warnings || []),
@@ -532,6 +535,7 @@ function executeTemplateDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'template', eventType: 'deleted' }),
         input: { templateId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

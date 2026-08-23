@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const { buildOrderReadinessContext } = require('./activeOrderReadiness.cjs');
 const { buildOrderReadinessPlan } = require('./orderReadinessPlan.cjs');
 const { applyOrderStatusChange } = require('./orderCommands.cjs');
@@ -186,6 +187,11 @@ function executeOrderReadinessAction(
         db: dependencies.db,
         ...commandContext,
         capabilityId: CAPABILITY_ID,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'order', entityId: orderId, role: 'primary' }],
+        }),
         input: {
             orderId,
             actionId,

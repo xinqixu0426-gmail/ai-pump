@@ -20,6 +20,7 @@ const ENTRY_TYPES = new Set([
     'quality_issue',
     'business_rule',
     'document',
+    'change_event',
 ]);
 
 function loadDbAccessors() {
@@ -94,6 +95,32 @@ function createEntry(input) {
         searchText,
     };
     return { ...entry, contentHash: hashEntry(entry) };
+}
+
+function businessChangeEntry(event) {
+    return createEntry({
+        entryType: 'change_event',
+        sourceTable: 'business_change_events',
+        sourceId: event.id,
+        sourceUpdatedAt: event.occurredAt,
+        title: event.title,
+        summary: event.summary,
+        content: [
+            event.reason ? `修改原因：${event.reason}` : '',
+            event.content,
+            `发生时间：${event.occurredAt}`,
+            `关联对象：${(event.entities || []).map(item => item.label).join('；')}`,
+        ],
+        tags: [...new Set(['业务变更', event.primaryDomain, event.eventType, ...(event.tags || [])])],
+        metadata: {
+            eventId: Number(event.id),
+            eventType: event.eventType,
+            primaryDomain: event.primaryDomain,
+            occurredAt: event.occurredAt,
+            entities: event.entities || [],
+            evidenceLevel: 'authoritative_business_event',
+        },
+    });
 }
 
 function partEntry(part) {
@@ -613,6 +640,9 @@ function buildKnowledgeEntries(options = {}) {
     const customers = options.customers || getDb().dbGetAllCustomers();
     const quotations = options.quotations || getDb().dbGetAllQuotations();
     const orders = options.orders || getDb().dbGetAllOrders();
+    const businessChanges = Object.prototype.hasOwnProperty.call(options, 'businessChanges')
+        ? options.businessChanges
+        : require('./businessChanges.cjs').businessChangeKnowledgeEntries(getDb().db);
     const orderRequirements = Object.prototype.hasOwnProperty.call(options, 'orderRequirements')
         ? options.orderRequirements
         : listConfirmedOrderRequirementsForKnowledge({ dbAccessors: getDb() });
@@ -674,6 +704,7 @@ function buildKnowledgeEntries(options = {}) {
             requirementByOrderId.get(Number(order.id)) || null,
             executionByOrderId.get(Number(order.id)) || []
         )),
+        ...businessChanges.map(businessChangeEntry),
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
         ...approvedFactoryRuleEntries(ruleCandidates),
@@ -1146,6 +1177,7 @@ function inspectKnowledgeOverview(options = {}) {
 module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
+    businessChangeEntry,
     activeFactoryAiRuleEntries,
     documentEntry,
     syncFactoryRuleKnowledgeEntry,

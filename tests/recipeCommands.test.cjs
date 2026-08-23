@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
 const {
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
@@ -16,6 +17,7 @@ const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
 
 function createFixture() {
     const db = new Database(':memory:');
+    installBusinessChangeSchema(db);
     db.exec(`
         CREATE TABLE api_operations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
 const {
     QUOTATION_EXPIRY_CAPABILITY_ID,
     createQuotationExpiryMaintenance,
@@ -10,6 +11,7 @@ const {
 
 function createFixture() {
     const db = new Database(':memory:');
+    installBusinessChangeSchema(db);
     db.exec(`
         CREATE TABLE quotations (
             id INTEGER PRIMARY KEY,

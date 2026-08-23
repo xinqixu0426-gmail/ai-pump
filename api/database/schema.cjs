@@ -1,3 +1,74 @@
+const BUSINESS_CHANGE_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS business_change_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id TEXT NOT NULL UNIQUE,
+        capability_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK(event_type IN (
+            'created', 'updated', 'deleted', 'status_changed', 'inventory_changed', 'converted'
+        )),
+        primary_domain TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        reason TEXT DEFAULT '',
+        changes_json TEXT NOT NULL DEFAULT '[]',
+        audit_ids_json TEXT NOT NULL DEFAULT '[]',
+        detail_ref_json TEXT NOT NULL DEFAULT '{}',
+        actor_key TEXT NOT NULL DEFAULT 'system',
+        search_text TEXT NOT NULL DEFAULT '',
+        source_type TEXT NOT NULL DEFAULT 'command' CHECK(source_type IN ('command', 'order_revision_backfill')),
+        occurred_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS business_change_event_entities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        entity_label TEXT NOT NULL DEFAULT '',
+        role TEXT NOT NULL DEFAULT 'affected' CHECK(role IN ('primary', 'affected')),
+        created_at TEXT NOT NULL,
+        UNIQUE(event_id, entity_type, entity_id),
+        FOREIGN KEY(event_id) REFERENCES business_change_events(id) ON DELETE CASCADE
+    );
+
+    CREATE TRIGGER IF NOT EXISTS business_change_events_no_update
+    BEFORE UPDATE ON business_change_events
+    BEGIN
+        SELECT RAISE(ABORT, 'business change events are immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS business_change_events_no_delete
+    BEFORE DELETE ON business_change_events
+    BEGIN
+        SELECT RAISE(ABORT, 'business change events are immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS business_change_event_entities_no_update
+    BEFORE UPDATE ON business_change_event_entities
+    BEGIN
+        SELECT RAISE(ABORT, 'business change event entities are immutable');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS business_change_event_entities_no_delete
+    BEFORE DELETE ON business_change_event_entities
+    BEGIN
+        SELECT RAISE(ABORT, 'business change event entities are immutable');
+    END;
+`;
+
+const BUSINESS_CHANGE_INDEXES_SQL = `
+    CREATE INDEX IF NOT EXISTS idx_business_change_events_occurred
+        ON business_change_events(occurred_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_business_change_events_domain_occurred
+        ON business_change_events(primary_domain, occurred_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_business_change_events_type_occurred
+        ON business_change_events(event_type, occurred_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_business_change_event_entities_lookup
+        ON business_change_event_entities(entity_type, entity_id, event_id DESC);
+    CREATE INDEX IF NOT EXISTS idx_business_change_event_entities_event
+        ON business_change_event_entities(event_id, role, id);
+`;
+
 const CANONICAL_TABLES_SQL = `
     CREATE TABLE IF NOT EXISTS pump_shell_templates (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,6 +388,8 @@ const CANONICAL_TABLES_SQL = `
         expires_at TEXT NOT NULL,
         UNIQUE(actor_key, capability_id, idempotency_key)
     );
+
+    ${BUSINESS_CHANGE_SCHEMA_SQL}
 
     CREATE TABLE IF NOT EXISTS customers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -874,6 +947,7 @@ const CANONICAL_INDEXES_SQL = `
         ON api_operations(expires_at);
     CREATE INDEX IF NOT EXISTS idx_api_operations_operation
         ON api_operations(operation_id, capability_id);
+    ${BUSINESS_CHANGE_INDEXES_SQL}
 `;
 
 const LEGACY_COLUMN_UPGRADES = {
@@ -997,6 +1071,8 @@ const APPLICATION_TABLES = Object.freeze([
     'ai_evaluation_runs',
     'api_operations',
     'audit_log',
+    'business_change_event_entities',
+    'business_change_events',
     'coil_stock_movements',
     'coils',
     'config',
@@ -1081,6 +1157,8 @@ function createKnowledgeFts(db) {
 
 module.exports = {
     APPLICATION_TABLES,
+    BUSINESS_CHANGE_INDEXES_SQL,
+    BUSINESS_CHANGE_SCHEMA_SQL,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
     COIL_INVENTORY_SCHEMA_SQL,

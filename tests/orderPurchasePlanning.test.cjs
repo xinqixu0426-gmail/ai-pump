@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 const {
     getOrderWithCurrentPurchasePlan,
     listOrdersWithCurrentPurchasePlans,
-    persistCurrentBalancedPurchasePlans,
 } = require('../api/services/orderPurchasePlanning.cjs');
 
 function createFixture() {
@@ -69,13 +68,7 @@ test('订单列表和详情查询返回实时采购计划视图但不写库', ()
     assert.deepEqual(fixture.writes, []);
 });
 
-test('只有显式持久化命令会写回变化后的采购计划', () => {
-    const fixture = createFixture();
-    persistCurrentBalancedPurchasePlans({
-        db: fixture.database,
-        dbAccessors: fixture.dbAccessors,
-    });
-    assert.deepEqual(fixture.writes, [
-        ['orders', 7, { purchase_list_json: '[]' }],
-    ]);
+test('采购计划查询模块不再暴露绕过正式命令的持久化入口', () => {
+    const planning = require('../api/services/orderPurchasePlanning.cjs');
+    assert.equal(planning.persistCurrentBalancedPurchasePlans, undefined);
 });

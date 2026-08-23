@@ -158,6 +158,7 @@ function plannerPrompt(pageContext, resolutionContext, turnState) {
 18. 用户首次用型号、简称或关键词查询单个业务对象时，不要因为“可能存在同名对象”提前要求澄清；应先规划最小正式 Query/Preview，让正式 API 返回零个、一个或多个候选。一个候选直接继续，多个候选由执行层列出后再问用户。
 19. 如果上一轮 assistant 已列出正式候选，而当前用户用“第一个/第二个”、候选完整名称、后缀、规格或其他可唯一识别的描述作答，必须选择 previous_turn，沿用原目标和原能力，并把用户选中的正式名称或可唯一识别片段传给工具。不得再次泛问“请提供完整名称”，也不得凭序号生成内部 ID。
 20. 候选澄清只解决对象绑定，不改变用户原始目标。例如上一轮问成本、这一轮选择具体配方，仍应调用配方成本 Preview；不能退化成只列配方或只读知识库。
+21. “今天/最近/某段时间有没有修改、改了什么、为什么修改、哪些业务发生过某类调整”属于 business_history，使用 search_business_changes。它不是当前对象列表、管理待办或一般知识快照；不要改用 get_recent_orders、get_management_action_center 或 search_factory_knowledge 猜测历史。
 
 ${pageNote}
 

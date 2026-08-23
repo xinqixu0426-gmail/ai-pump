@@ -1,5 +1,7 @@
 const crypto = require('node:crypto');
 const {
+    BUSINESS_CHANGE_INDEXES_SQL,
+    BUSINESS_CHANGE_SCHEMA_SQL,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
     COIL_INVENTORY_SCHEMA_SQL,
@@ -2981,6 +2983,73 @@ const MIGRATIONS = Object.freeze([
         signature: 'reject-order-revision-update-delete-v1',
         up(db) {
             createOrderRevisionImmutabilityTriggers(db);
+        },
+    },
+    {
+        version: 67,
+        name: 'cross_domain_business_change_memory',
+        signature: 'append-only-command-events-entity-refs-order-revision-backfill-v1',
+        up(db) {
+            db.exec(BUSINESS_CHANGE_SCHEMA_SQL);
+            db.exec(BUSINESS_CHANGE_INDEXES_SQL);
+            const revisions = db.prepare(`
+                SELECT id, order_id, revision_no, reason, change_summary_json,
+                       operation_id, actor, created_at
+                FROM order_revisions
+                ORDER BY id
+            `).all();
+            const insertEvent = db.prepare(`
+                INSERT OR IGNORE INTO business_change_events (
+                    operation_id, capability_id, event_type, primary_domain,
+                    summary, reason, changes_json, audit_ids_json, detail_ref_json,
+                    actor_key, search_text, source_type, occurred_at, created_at
+                ) VALUES (?, 'orders.update_draft', 'updated', 'order', ?, ?, ?, ?, ?, ?, ?,
+                          'order_revision_backfill', ?, ?)
+            `);
+            const selectEvent = db.prepare(
+                'SELECT id FROM business_change_events WHERE operation_id = ?'
+            );
+            const insertEntity = db.prepare(`
+                INSERT OR IGNORE INTO business_change_event_entities (
+                    event_id, entity_type, entity_id, entity_label, role, created_at
+                ) VALUES (?, 'order', ?, ?, 'primary', ?)
+            `);
+            const auditIds = db.prepare(`
+                SELECT id FROM audit_log WHERE operation_id = ? ORDER BY id
+            `);
+            for (const revision of revisions) {
+                const summary = `修改订单 #${revision.order_id}：${revision.reason}`;
+                const auditIdsJson = JSON.stringify(
+                    auditIds.all(revision.operation_id).map(row => Number(row.id))
+                );
+                const detailRefJson = JSON.stringify({
+                    type: 'order_revision',
+                    id: Number(revision.id),
+                    orderId: Number(revision.order_id),
+                    revisionNo: Number(revision.revision_no),
+                });
+                insertEvent.run(
+                    revision.operation_id,
+                    summary,
+                    revision.reason,
+                    revision.change_summary_json || '[]',
+                    auditIdsJson,
+                    detailRefJson,
+                    revision.actor || 'system',
+                    `${summary}\n${revision.change_summary_json || '[]'}`,
+                    revision.created_at,
+                    revision.created_at
+                );
+                const event = selectEvent.get(revision.operation_id);
+                if (event) {
+                    insertEntity.run(
+                        event.id,
+                        String(revision.order_id),
+                        `订单 #${revision.order_id}`,
+                        revision.created_at
+                    );
+                }
+            }
         },
     },
 ]);

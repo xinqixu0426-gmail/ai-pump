@@ -5,6 +5,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
     normalizeExpectedUpdatedAt,
@@ -252,6 +253,7 @@ function executeKnowledgeDocumentUpload(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'knowledge', eventType: 'created' }),
         input: {
             documentType: normalized.documentType,
             title: normalized.title,
@@ -354,6 +356,7 @@ function executeKnowledgeDocumentDelete(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'knowledge', eventType: 'deleted' }),
         input: { id, expectedUpdatedAt },
         warnings: expectedUpdatedAt
             ? []

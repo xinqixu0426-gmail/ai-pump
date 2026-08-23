@@ -149,6 +149,13 @@ const DOMAIN_SCENARIOS = Object.freeze([
             Object.freeze({ name: 'get_rotor_drawing_history', args: Object.freeze({ limit: 1 }) }),
         ]),
     }),
+    Object.freeze({
+        id: 'businessChanges',
+        label: '统一业务变更',
+        calls: Object.freeze([
+            Object.freeze({ name: 'search_business_changes', args: Object.freeze({ period: 'last7days', limit: 10 }) }),
+        ]),
+    }),
 ]);
 
 const REPRESENTATIVE_CALL_NAMES = Object.freeze(

@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertRecipeBomPrices,
     buildRecipeCostDraft,
@@ -591,6 +592,7 @@ function executeRecipeCreate(dependencies, input = {}, commandContext = {}) {
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'recipe', eventType: 'created' }),
         input: {
             payload: camelPayload,
             previewHash: expectedPreviewHash,
@@ -689,6 +691,7 @@ function executeRecipeUpdate(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'recipe', eventType: 'updated' }),
         input: {
             recipeId,
             payload: camelPayload,
@@ -793,6 +796,7 @@ function executeRecipeDelete(
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
+        businessChange: standardBusinessChange({ domain: 'recipe', eventType: 'deleted' }),
         input: {
             recipeId,
             expectedUpdatedAt,

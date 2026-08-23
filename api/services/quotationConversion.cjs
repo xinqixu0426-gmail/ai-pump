@@ -5,6 +5,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertPreviewHash,
     normalizePreviewHash,
@@ -292,6 +293,22 @@ function executeQuotationConversion(dependencies, input = {}, commandContext = {
     return executePersistentCommand({
         db,
         ...commandContext,
+        businessChange: standardBusinessChange({
+            domain: 'quotation',
+            eventType: 'converted',
+            entityRefs: outcome => [
+                {
+                    entityType: 'quotation',
+                    entityId: outcome.data?.quotation?.id,
+                    role: 'primary',
+                },
+                {
+                    entityType: 'order',
+                    entityId: outcome.data?.order?.id,
+                    role: 'affected',
+                },
+            ],
+        }),
         input: {
             quotationId,
             expectedUpdatedAt,

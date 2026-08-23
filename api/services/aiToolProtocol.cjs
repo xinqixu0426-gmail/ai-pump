@@ -5,6 +5,7 @@ const {
 } = require('./aiToolInputValidatorV2.cjs');
 
 const VIEW_TYPE_MAP = {
+    search_business_changes: 'business_change_history',
     get_order_detail: 'order_detail',
     get_order_knowledge_package: 'order_knowledge_package',
     generate_purchase_list: 'purchase_list',

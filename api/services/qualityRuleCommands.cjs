@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     resolveRecipeAnalysisFeedback,
     saveRecipeAnalysisFeedback,
@@ -128,6 +129,7 @@ function executeSaveRecipeAnalysisFeedback(
         db: dependencies.db,
         ...commandContext,
         capabilityId: SAVE_RECIPE_FEEDBACK_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quality', eventType: 'updated' }),
         input: commandInput,
         warnings: versionWarnings(
             commandContext,
@@ -207,6 +209,7 @@ function executeResolveRecipeAnalysisFeedback(
         db: dependencies.db,
         ...commandContext,
         capabilityId: RESOLVE_RECIPE_FEEDBACK_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quality', eventType: 'updated' }),
         input: commandInput,
         warnings: versionWarnings(
             commandContext,
@@ -335,6 +338,7 @@ function executeReviewFactoryRuleCandidate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: REVIEW_RULE_CANDIDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quality', eventType: 'updated' }),
         input: commandInput,
         warnings: versionWarnings(
             commandContext,
@@ -421,6 +425,7 @@ function executeRestoreFactoryRuleEvent(
         db: dependencies.db,
         ...commandContext,
         capabilityId: RESTORE_RULE_EVENT_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quality', eventType: 'updated' }),
         input: commandInput,
         warnings: versionWarnings(
             commandContext,

@@ -34,7 +34,8 @@ export type KnowledgeEntryType =
   | 'order'
   | 'quality_issue'
   | 'business_rule'
-  | 'document';
+  | 'document'
+  | 'change_event';
 
 export type KnowledgeDocumentType =
   | 'technical_note'

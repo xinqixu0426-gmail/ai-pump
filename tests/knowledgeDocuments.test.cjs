@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
+const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
 const {
     DELETE_CAPABILITY_ID,
     UPLOAD_CAPABILITY_ID,
@@ -12,6 +13,7 @@ const {
 
 function createDependencies() {
     const db = new Database(':memory:');
+    installBusinessChangeSchema(db);
     db.exec(`
         CREATE TABLE api_operations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

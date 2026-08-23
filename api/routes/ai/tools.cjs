@@ -1276,13 +1276,35 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'search_business_changes',
+            description: '查询订单、报价、采购、零件价格/库存、配方、泵壳模板、线圈和客户的正式业务变更历史。用户问“今天/最近有没有修改”“改了什么”“为什么改”“哪些业务发生过某类调整”时必须使用本工具，不能用管理行动中心、当前列表或知识快照代替。时间、数量和筛选结果来自结构化业务事件；semanticQuery 仅用于按含义寻找相关变更。只读。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    period: { type: 'string', enum: ['today', 'yesterday', 'last7days', 'last30days', 'all'], description: '按北京时间查询的常用时间范围' },
+                    from: { type: 'string', description: '自定义开始时间，ISO 8601；与 period 二选一' },
+                    to: { type: 'string', description: '自定义结束时间，ISO 8601；与 period 二选一' },
+                    domain: { type: 'string', enum: ['order', 'quotation', 'purchasing', 'part', 'recipe', 'template', 'coil', 'customer'], description: '业务域过滤' },
+                    entityType: { type: 'string', enum: ['order', 'quotation', 'purchasing', 'part', 'recipe', 'template', 'coil', 'customer'], description: '关联对象类型过滤' },
+                    entityId: { type: 'string', description: '关联对象 ID' },
+                    eventType: { type: 'string', enum: ['created', 'updated', 'deleted', 'status_changed', 'inventory_changed', 'converted'], description: '变更类型' },
+                    keyword: { type: 'string', description: '摘要、原因、字段名或对象名称的精确关键词' },
+                    semanticQuery: { type: 'string', description: '按业务含义寻找相关变更，例如“不锈钢接轴相关调整”' },
+                    limit: { type: 'number', description: '返回条数，默认20，最大100' }
+                }
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'search_factory_knowledge',
             description: '搜索工厂知识库中的业务规则、独立资料、已确认知识和历史快照，用于解释用途、兼容性、工厂约定或资料内容。若问题有零件、模板、配方、线圈、客户、报价、订单等正式实时 Query 能力，必须优先使用对应领域工具，禁止用知识快照代替当前价格、库存、状态、数量或正式列表。结果 evidenceLevel=semantic_candidate 或 matchMode=vector 只表示语义候选，不能单独证明用途、兼容性或专用配件关系；必须由标题、摘要、正文或 metadata 的明确文字证实后才能下结论。配方结果中的 Excel 是性能测试报告附件，不是图纸。独立资料使用 entryType=document；parserStatus=metadata_only 表示知识条目只能使用标题、说明和标签，不得把聊天附件的解析能力误认为该资料正文已进入知识库。只读。',
             parameters: {
                 type: 'object',
                 properties: {
                     query: { type: 'string', description: '搜索关键词' },
-                    entryType: { type: 'string', enum: ['part', 'template', 'recipe', 'coil', 'customer', 'quotation', 'order', 'quality_issue', 'business_rule', 'document'], description: '知识类型过滤，可选' },
+                    entryType: { type: 'string', enum: ['part', 'template', 'recipe', 'coil', 'customer', 'quotation', 'order', 'quality_issue', 'business_rule', 'document', 'change_event'], description: '知识类型过滤，可选' },
                     sourceTable: { type: 'string', description: '来源表过滤，可选' },
                     limit: { type: 'number', description: '最多返回条数，默认10，最大50' }
                 }

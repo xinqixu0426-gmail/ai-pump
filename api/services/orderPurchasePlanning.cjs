@@ -52,32 +52,9 @@ function getOrderWithCurrentPurchasePlan(id, options = {}) {
     );
 }
 
-function persistCurrentBalancedPurchasePlans(options = {}) {
-    const accessors = options.dbAccessors || loadDbAccessors();
-    const database = options.db || accessors.db;
-    const { records, plans } = buildCurrentBalancedPurchasePlans({
-        ...options,
-        db: database,
-        dbAccessors: accessors,
-    });
-    const persist = database.transaction(() => {
-        for (const record of records) {
-            const plan = plans.get(record.id);
-            if (!plan) continue;
-            const nextJson = JSON.stringify(plan.purchaseList || []);
-            if (nextJson !== String(record.purchase_list_json || '[]')) {
-                accessors.safeUpdate('orders', record.id, { purchase_list_json: nextJson });
-            }
-        }
-    });
-    persist();
-    return plans;
-}
-
 module.exports = {
     applyPurchasePlanView,
     buildCurrentBalancedPurchasePlans,
     getOrderWithCurrentPurchasePlan,
     listOrdersWithCurrentPurchasePlans,
-    persistCurrentBalancedPurchasePlans,
 };

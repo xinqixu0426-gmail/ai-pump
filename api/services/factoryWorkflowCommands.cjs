@@ -1,5 +1,6 @@
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { executePersistentCommand } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     recordFactoryWorkflowRun,
 } = require('./factoryWorkflowHistory.cjs');
@@ -17,6 +18,7 @@ function executeRecordFactoryWorkflowRun(
         db: dependencies.db,
         ...commandContext,
         capabilityId: RECORD_WORKFLOW_RUN_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'workflow', eventType: 'created' }),
         input,
         warnings: commandContext.warnings || [],
         execute: ({ auditContext }) => {

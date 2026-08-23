@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     buildQuotationSavePayloadDraft,
 } = require('./quotationDraft.cjs');
@@ -78,6 +79,7 @@ function executeQuotationCreate(dependencies, input = {}, commandContext = {}) {
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quotation', eventType: 'created' }),
         input: {
             customerId: draft.customerId,
             status: draft.status,
@@ -172,6 +174,7 @@ function executeQuotationUpdate(
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quotation', eventType: 'updated' }),
         input: {
             quotationId,
             expectedUpdatedAt,
@@ -312,6 +315,7 @@ function executeQuotationStatus(
         db: dependencies.db,
         ...commandContext,
         capabilityId: STATUS_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quotation', eventType: 'status_changed' }),
         input: { quotationId, status, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),
@@ -379,6 +383,7 @@ function executeQuotationDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quotation', eventType: 'deleted' }),
         input: { quotationId, expectedUpdatedAt },
         warnings: [
             ...(commandContext.warnings || []),

@@ -4,6 +4,7 @@ const {
     executePersistentCommand,
     requestHash,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     consumeBusinessConfirmation,
     issueBusinessConfirmation,
@@ -150,6 +151,7 @@ function executeConfirmedFactoryFileArchive(
         db: dependencies.db,
         ...commandContext,
         capabilityId: ARCHIVE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'file', eventType: 'updated' }),
         operationId: confirmation.operationId,
         input: confirmation.input,
         execute: ({ auditContext }) => {
@@ -251,6 +253,7 @@ function executeFactoryFileLinkDelete(
         db: dependencies.db,
         ...commandContext,
         capabilityId: LINK_DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'file', eventType: 'deleted' }),
         input: {
             fileId: Number(fileId),
             linkId: Number(linkId),

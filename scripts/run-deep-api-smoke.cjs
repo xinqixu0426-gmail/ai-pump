@@ -789,6 +789,7 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
             : {});
         await call('get_factory_knowledge_health');
         await call('get_rotor_drawing_history', { limit: 3 });
+        await call('search_business_changes', { period: 'all', limit: 3 });
 
         assert(
             calledNames.size === MCP_EXPECTED_TOOL_NAMES.length
@@ -2410,8 +2411,21 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(
         actionResult.capabilityId === 'orders.execute_readiness_action'
             && actionResult.operationId
-            && actionResult.auditId,
+            && actionResult.auditId
+            && actionResult.businessChangeEvent?.primaryDomain === 'order',
         `订单确认步骤缺少正式命令回执: ${JSON.stringify(actionResult)}`
+    );
+    const businessChangePage = (await request(
+        '业务变更中心查询刚完成的订单修改',
+        'GET',
+        `/api/business-changes?period=all&domain=order&entityType=order&entityId=${pendingOrder.id}`
+    )).payload.data;
+    assert(
+        businessChangePage.items.some(item => (
+            item.id === actionResult.businessChangeEvent.id
+            && item.capabilityId === 'orders.execute_readiness_action'
+        )),
+        `业务变更中心没有返回刚完成的订单修改: ${JSON.stringify(businessChangePage)}`
     );
     const replayedAction = (await request(
         '幂等重放订单确认步骤',

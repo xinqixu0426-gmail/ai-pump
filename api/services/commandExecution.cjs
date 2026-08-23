@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { getBusinessCapability } = require('../capabilities/registry.cjs');
 
 const DEFAULT_OPERATION_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_KEY_RE = /^[a-zA-Z0-9._:/-]{8,200}$/;
@@ -55,6 +56,8 @@ function executePersistentCommand({
     requestId = null,
     input,
     execute,
+    businessChange = null,
+    requestKnowledgeSync = null,
     warnings = [],
     now = new Date(),
     retentionMs = DEFAULT_OPERATION_RETENTION_MS,
@@ -152,6 +155,34 @@ function executePersistentCommand({
             );
         }
         const completedAt = new Date().toISOString();
+        const businessChangeDescriptor = typeof businessChange === 'function'
+            ? businessChange(outcome)
+            : businessChange;
+        const formalCapability = getBusinessCapability(normalizedCapabilityId);
+        if (
+            changes.length > 0
+            && formalCapability?.recordsBusinessChange === true
+            && !businessChangeDescriptor
+        ) {
+            throw new CommandExecutionError(
+                'business_change_descriptor_required',
+                '正式业务命令产生了变更但没有声明业务变更事件，已整体回滚',
+                500
+            );
+        }
+        let businessChangeEvent = null;
+        if (changes.length > 0 && businessChangeDescriptor) {
+            const { recordBusinessChangeEvent } = require('./businessChanges.cjs');
+            businessChangeEvent = recordBusinessChangeEvent(db, {
+                operationId: normalizedOperationId,
+                capabilityId: normalizedCapabilityId,
+                actorKey: normalizedActorKey,
+                changes,
+                auditIds,
+                descriptor: businessChangeDescriptor,
+                occurredAt: completedAt,
+            });
+        }
         const receipt = {
             ...(outcome.data && typeof outcome.data === 'object' ? outcome.data : {}),
             operationId: normalizedOperationId,
@@ -162,6 +193,7 @@ function executePersistentCommand({
             warnings: [...warnings, ...(Array.isArray(outcome.warnings) ? outcome.warnings : [])],
             auditId: auditIds[0] || null,
             auditIds,
+            ...(businessChangeEvent ? { businessChangeEvent } : {}),
             idempotentReplay: false,
             completedAt,
         };
@@ -179,7 +211,22 @@ function executePersistentCommand({
         return receipt;
     });
 
-    return run.immediate();
+    const receipt = run.immediate();
+    if (receipt?.businessChangeEvent && !receipt.idempotentReplay) {
+        try {
+            const requestSync = typeof requestKnowledgeSync === 'function'
+                ? requestKnowledgeSync
+                : require('./knowledgeAutoSync.cjs').requestAutoKnowledgeSync;
+            requestSync({
+                sourceTable: 'business_change_events',
+                sourceId: receipt.businessChangeEvent.id,
+                reason: 'command_completed',
+            });
+        } catch {
+            // 业务事件已经原子提交；知识投影由后台健康检查和下次全量同步补偿。
+        }
+    }
+    return receipt;
 }
 
 function beginPersistentExternalCommand({

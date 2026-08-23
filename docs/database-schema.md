@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `66`：
+当前版本为 `67`：
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -86,6 +86,7 @@
 | 64 | `recipe_configuration_policy` | 为泵壳模板和配方增加客户可选配置范围；历史空值继续按开放模式读取，不改写既有报价和订单快照 |
 | 65 | `order_revision_history` | 增加订单修订历史，并修复旧库订单表重建可能造成的修订外键临时表指向 |
 | 66 | `immutable_order_revisions` | 为订单修订增加数据库级更新、删除拒绝触发器，确保历史只能追加 |
+| 67 | `cross_domain_business_change_memory` | 增加追加型跨业务变更事件和实体引用；安全补录现有订单修订，不从旧审计猜测其他领域历史 |
 
 ## 数据治理
 
@@ -97,6 +98,8 @@
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。
 - `orders.customer_id` 是订单归属客户的稳定关系，`customer_name` 仅保留建单时名称快照。`inventory_disposition/inventory_disposition_at/inventory_disposition_note` 保存关闭时的库存去向；关闭动作本身不隐式扣减库存。
 - `order_revisions` 按 `order_id + revision_no` 追加保存每次受控核心修改的原因、完整修改前后业务快照、结构化差异、命令 `operation_id`、操作者和时间。记录与订单修改、operation、强审计在同一事务写入；通用写入层只允许插入，数据库触发器同时拒绝更新和删除；查询只输出脱敏操作者标签。
+- `business_change_events` 以 `operation_id` 唯一保存完成命令的业务域、事件类型、安全摘要、原因、结构化变化、审计 ID 快照、详情引用、操作者和时间；`business_change_event_entities` 保存一个跨资源 operation 影响的所有已登记正式业务领域对象。领域清单以能力注册表和 API 契约为权威，数据库用字符串保存而不维护第二份枚举。两表只允许追加，数据库触发器拒绝更新和删除；事件不外键依赖默认 90 天清理的 `api_operations`。
+- 正式命令通过显式 `businessChange` 描述在 `executePersistentCommand` 事务内落事件；`safeInsert/safeUpdate` 不自动生成事件。`knowledge_entries` 中 `change_event` 及其 embedding 是可删除、可重建投影，不能用于精确计数、时间或替代当前业务 API。
 - `coils.scheme_status` 只允许 `official/testing/disabled`；`disabled` 表示停用历史方案，不删除库存追溯事实，也不参与正式方案选择。
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。

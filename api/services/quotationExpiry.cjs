@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { executePersistentCommand } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const { nextBjtTime } = require('./scheduleTime.cjs');
 
 const DEFAULT_EXPIRY_MONTHS = 1;
@@ -64,6 +65,7 @@ function expireOverdueQuotations({
     return executePersistentCommand({
         db,
         capabilityId: QUOTATION_EXPIRY_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'quotation', eventType: 'status_changed' }),
         input: {
             trigger: normalizedTrigger,
             expiryMonths,

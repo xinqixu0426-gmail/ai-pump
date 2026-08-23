@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     confirmOrderExecutionRecord,
     createOrderExecutionDraft,
@@ -110,6 +111,11 @@ function executeCreateExecutionDraft(
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'order', entityId: orderId, role: 'primary' }],
+        }),
         input: { orderId, ...normalizedDraft },
         execute: ({ auditContext }) => {
             const writes = [];
@@ -143,6 +149,11 @@ function executeExistingRecordCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId,
+        businessChange: standardBusinessChange({
+            domain: 'order',
+            eventType: 'updated',
+            entityRefs: () => [{ entityType: 'order', entityId: orderId, role: 'primary' }],
+        }),
         input: {
             orderId,
             recordId,

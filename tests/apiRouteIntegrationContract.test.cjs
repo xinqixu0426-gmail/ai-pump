@@ -975,14 +975,7 @@ test('关键 API 集成契约：订单只读查询和处理方案不刷新采购
     assertNoWrites(detail);
     assert.match(purchasePlanning, /function listOrdersWithCurrentPurchasePlans/);
     assert.match(purchasePlanning, /function getOrderWithCurrentPurchasePlan/);
-    assert.doesNotMatch(
-        sliceBetween(
-            purchasePlanning,
-            'function listOrdersWithCurrentPurchasePlans',
-            'function persistCurrentBalancedPurchasePlans'
-        ),
-        /safeUpdate/
-    );
+    assert.doesNotMatch(purchasePlanning, /persistCurrentBalancedPurchasePlans|safeUpdate/);
 });
 
 test('关键 API 集成契约：报价列表只读，过期状态由独立维护服务处理', () => {
