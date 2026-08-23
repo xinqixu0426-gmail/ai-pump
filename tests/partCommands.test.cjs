@@ -234,6 +234,70 @@ test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删�
     }
 });
 
+test('零件单项新增在正式命令事务内阻止重复身份并允许不同供应商', () => {
+    const fixture = createFixture();
+    try {
+        const original = executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'IDENTITY-1',
+                category: '轴承',
+                price: 8,
+                supplier: '供应商A',
+                stock: 0,
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'identity-original')
+        );
+        assert.throws(
+            () => executePartCreate(
+                fixture.dependencies,
+                {
+                    model: 'identity-1',
+                    category: '油封',
+                    price: 9,
+                    supplier: '供应商a',
+                    stock: 0,
+                    duplicatePolicy: 'reject',
+                },
+                commandContext(CREATE_CAPABILITY_ID, 'identity-conflict')
+            ),
+            error => error.code === 'part_identity_conflict' && error.statusCode === 409
+        );
+        const otherSupplier = executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'IDENTITY-1',
+                category: '轴承',
+                price: 10,
+                supplier: '供应商B',
+                stock: 0,
+                duplicatePolicy: 'reject',
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'identity-other-supplier')
+        );
+        assert.notEqual(otherSupplier.part.id, original.part.id);
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE model = ? COLLATE NOCASE AND deleted_at IS NULL')
+                .get('IDENTITY-1').count,
+            2
+        );
+        const confirmedDuplicate = executePartCreate(
+            fixture.dependencies,
+            {
+                model: 'IDENTITY-1',
+                category: '轴承',
+                price: 11,
+                supplier: '供应商A',
+                stock: 0,
+            },
+            commandContext(CREATE_CAPABILITY_ID, 'identity-confirmed-duplicate')
+        );
+        assert.notEqual(confirmedDuplicate.part.id, original.part.id);
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('泵壳零件型号修改与关联模板在同一命令内同步', () => {
     const fixture = createFixture();
     try {

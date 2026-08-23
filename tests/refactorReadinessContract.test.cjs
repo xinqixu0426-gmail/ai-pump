@@ -2264,6 +2264,7 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     const templatePartCategory = readUtf8('apps/web-next/lib/template-part-category.ts');
     const templateCommands = readUtf8('api/services/templateCommands.cjs');
     const schema = readUtf8('api/database/schema.cjs');
+    const inlineResolution = readUtf8('apps/web-next/lib/inline-part-resolution.ts');
 
     assert.match(recipesView, /part\.category === '泵壳'/);
     assert.match(recipesView, /<PumpShellTemplateEditor/);
@@ -2287,8 +2288,8 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /createShellComponentPart/);
     assert.match(recipesView, /category:\s*SHELL_COMPONENT_CATEGORY/);
     assert.match(recipesView, /stock:\s*0/);
-    assert.match(recipesView, /const beforeCreate = await readPartsFresh\(\)/);
-    assert.match(recipesView, /const afterCreate = await readPartsFresh\(\)/);
+    assert.match(inlineResolution, /const beforeRows = await readParts\(\)/);
+    assert.match(inlineResolution, /const afterRows = await readParts\(\)/);
     assert.match(recipesView, /window\.addEventListener\('focus', refreshWhenVisible\)/);
     assert.match(recipesView, /document\.addEventListener\('visibilitychange', refreshWhenVisible\)/);
     assert.doesNotMatch(shellCostEditor, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
@@ -2333,6 +2334,56 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(schema, /\['surface_treatment_mode', "TEXT DEFAULT 'none'"\]/);
     assert.match(schema, /\['surface_treatment_cost', 'REAL'\]/);
     assert.match(schema, /\['bundle_note', "TEXT DEFAULT ''"\]/);
+});
+
+test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正式目录', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const inlineCreate = readUtf8('apps/web-next/components/recipe/InlinePartCreateDialog.tsx');
+    const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
+    const optionalPacking = readUtf8('apps/web-next/components/recipe/RecipeOptionalPackingSection.tsx');
+    const recipeTable = readUtf8('apps/web-next/components/recipe/RecipeDataTable.tsx');
+    const partCommands = readUtf8('api/services/partCommands.cjs');
+    const inlineResolution = readUtf8('apps/web-next/lib/inline-part-resolution.ts');
+
+    assert.match(recipesView, /const resolveCatalogPart = useCallback/);
+    assert.match(recipesView, /resolveInlineCatalogPart/);
+    assert.match(inlineResolution, /normalizedIdentity\(part\.model\).*normalizedIdentity\(model\)/s);
+    assert.match(inlineResolution, /function reusablePartFromRows/);
+    assert.match(inlineResolution, /const identityRows = rows\.filter/);
+    assert.match(inlineResolution, /const categoryConflict = identityRows\.find/);
+    assert.match(inlineResolution, /beforeCreate\) await beforeCreate\(\)/);
+    assert.match(inlineResolution, /const afterRows = await readParts\(\)/);
+    assert.match(inlineResolution, /duplicatePolicy: 'reject'/);
+    assert.match(inlineResolution, /const recovered = reusablePartFromRows/);
+    assert.match(recipesView, /kind: 'template-shell'/);
+    assert.match(recipesView, /kind: 'template-fixed'/);
+    assert.match(recipesView, /kind === 'packing' \? 'recipe-packing' : 'recipe-optional'/);
+    assert.match(recipesView, /partId: part\.id/);
+    assert.match(recipesView, /costSource: ''/);
+    assert.match(recipesView, /packagingMaterial: packagingMaterialForCatalogPart\(part\)/);
+    assert.match(recipesView, /整套泵壳只能绑定“泵壳”分类的正式零件/);
+    assert.match(recipesView, /配方包装只能绑定具有正式二级分类的“包装”零件/);
+    assert.match(recipesView, /categoryScope: kind === 'packing' \? 'locked' : 'non-packaging'/);
+    assert.match(recipesView, /!templateDrawerOpen && !drawerOpen/);
+    assert.match(templateEditor, /onOpenCreateShellPart/);
+    assert.match(templateEditor, /onOpenCreateFixedPart/);
+    assert.match(templateEditor, /新增泵壳/);
+    assert.match(templateEditor, />建档<\/Button>/);
+    assert.match(optionalPacking, /isCatalogMissing=\{\(row\) => isCatalogMissing\('optional', row\)\}/);
+    assert.match(optionalPacking, /isCatalogMissing=\{\(row\) => isCatalogMissing\('packing', row\)\}/);
+    assert.match(recipeTable, /零件库未找到 · 新增并选中/);
+    assert.match(inlineCreate, /validatePartForm/);
+    assert.match(inlineCreate, /buildPartNotes/);
+    assert.match(inlineCreate, /PACKAGING_SUBCATEGORIES/);
+    assert.match(inlineCreate, /seed\?\.categoryScope === 'locked'/);
+    assert.match(inlineCreate, /category !== '包装'/);
+    assert.match(inlineCreate, /为了完成当前模板或配方，请输入大于 0 的目录单价/);
+    assert.match(inlineCreate, /初始库存必须是大于或等于 0 的整数/);
+    assert.match(inlineCreate, /保存并选中/);
+    assert.doesNotMatch(inlineCreate, /\bfetch\s*\(/);
+    assert.match(partCommands, /duplicatePolicy === 'reject'/);
+    assert.match(partCommands, /findActivePartByIdentity\(dependencies\.db, normalized\)/);
+    assert.match(partCommands, /'part_identity_conflict'/);
 });
 
 test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和方案状态', () => {

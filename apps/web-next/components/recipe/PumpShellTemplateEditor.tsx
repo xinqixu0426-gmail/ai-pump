@@ -123,6 +123,8 @@ type PumpShellTemplateEditorProps = {
     supplier: string;
     price: number;
   }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
+  onOpenCreateShellPart: () => void;
+  onOpenCreateFixedPart: (row: TemplatePartFormRow, category: string | null) => void;
   onFormChange: (update: (form: TemplateFormState) => TemplateFormState) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -145,6 +147,8 @@ export function PumpShellTemplateEditor({
   getDefaultUnitPrice,
   onRefreshShellComponentParts,
   onCreateShellComponentPart,
+  onOpenCreateShellPart,
+  onOpenCreateFixedPart,
   onFormChange,
   onClose,
   onSubmit,
@@ -359,30 +363,35 @@ export function PumpShellTemplateEditor({
                 <span className="text-sm font-medium text-ink">{form.costMode === 'bundle' ? '零件库泵壳型号' : '组合模板名称'}</span>
                 {form.costMode === 'bundle' ? (
                   <>
-                    <select
-                      value={form.shellModel}
-                      onChange={(event) => selectShell(event.target.value)}
-                      className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                    >
-                      <option value="">请选择泵壳型号</option>
-                      {form.shellModel && !shellCatalogOptions.some((option) => option.model === form.shellModel) ? (
-                        <option value={form.shellModel}>{form.shellModel}（零件库中未找到）</option>
-                      ) : null}
-                      {shellCatalogOptions.map((option) => {
-                        const hasTemplate = templates.some((template) => (
-                          template.shellModel === option.model && template.id !== editingTemplate?.id
-                        ));
-                        const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
-                        const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
-                        return (
-                          <option key={option.model} value={option.model} disabled={hasTemplate}>
-                            {option.model} · {priceText}{hasTemplate ? ' · 已有模板' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
+                    <span className="mt-2 flex gap-2">
+                      <select
+                        value={form.shellModel}
+                        onChange={(event) => selectShell(event.target.value)}
+                        className="h-10 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                      >
+                        <option value="">请选择泵壳型号</option>
+                        {form.shellModel && !shellCatalogOptions.some((option) => option.model === form.shellModel) ? (
+                          <option value={form.shellModel}>{form.shellModel}（零件库中未找到）</option>
+                        ) : null}
+                        {shellCatalogOptions.map((option) => {
+                          const hasTemplate = templates.some((template) => (
+                            template.shellModel === option.model && template.id !== editingTemplate?.id
+                          ));
+                          const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
+                          const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
+                          return (
+                            <option key={option.model} value={option.model} disabled={hasTemplate}>
+                              {option.model} · {priceText}{hasTemplate ? ' · 已有模板' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <Button type="button" size="sm" onClick={onOpenCreateShellPart} icon={<Plus size={14} />}>
+                        新增泵壳
+                      </Button>
+                    </span>
                     {shellCatalogOptions.length === 0 ? (
-                      <span className="mt-2 block text-xs text-amber-700">零件库暂无泵壳，请先在零件页新增并选择“泵壳”分类。</span>
+                      <span className="mt-2 block text-xs text-amber-700">零件库暂无泵壳，可在这里新增并自动选中。</span>
                     ) : null}
                   </>
                 ) : (
@@ -466,7 +475,15 @@ export function PumpShellTemplateEditor({
                   </span>
                   <input value={row.supplier || ''} onChange={(event) => updatePartRow(row.id, { supplier: event.target.value })} placeholder="供应商" className="h-9 rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
                   <input value={String(row.qty)} onChange={(event) => updatePartRow(row.id, { qty: numberValue(event.target.value) })} onFocus={selectInputValueOnFocus} type="number" min="0" step="0.01" placeholder="数量" className="h-9 min-w-[88px] rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400" />
-                  <Button type="button" size="sm" variant="danger" onClick={() => removePartRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
+                  <span className="flex gap-1">
+                    {row.model.trim() && !templatePartCatalogForName(partCatalog, row.name).some((part) => (
+                      part.model === row.model.trim()
+                      && (!row.supplier?.trim() || part.supplier === row.supplier.trim())
+                    )) ? (
+                      <Button type="button" size="sm" onClick={() => onOpenCreateFixedPart(row, category)} icon={<Plus size={14} />}>建档</Button>
+                    ) : null}
+                    <Button type="button" size="sm" variant="danger" onClick={() => removePartRow(row.id)} icon={<Trash2 size={14} />}>删除</Button>
+                  </span>
                 </div>
                 );
               })}

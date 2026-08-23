@@ -10,6 +10,7 @@ import {
   PumpShellTemplateEditor,
   type ShellCatalogOption,
   type TemplateFormState,
+  type TemplatePartFormRow,
 } from '@/components/recipe/PumpShellTemplateEditor';
 import { PumpShellTemplateWorkspace } from '@/components/recipe/PumpShellTemplateWorkspace';
 import {
@@ -34,6 +35,10 @@ import { RecipeDynamicConfigSection, wireLinkNote } from '@/components/recipe/Re
 import { RecipeDetailPanel } from '@/components/recipe/RecipeDetailPanel';
 import { RecipeEditor } from '@/components/recipe/RecipeEditor';
 import { RecipeLaborCostSection } from '@/components/recipe/RecipeLaborCostSection';
+import {
+  InlinePartCreateDialog,
+  type InlinePartCreateSeed,
+} from '@/components/recipe/InlinePartCreateDialog';
 import {
   ModelVariantCompatibilityPanel,
   type ModelVariantEditorTarget,
@@ -68,7 +73,8 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { money } from '@/lib/format';
-import { createPart, getAllParts, type Part } from '@/lib/parts';
+import { resolveInlineCatalogPart } from '@/lib/inline-part-resolution';
+import { createPart, getAllParts, type Part, type PartInput } from '@/lib/parts';
 import {
   analyzeRecipeConfiguration,
   getFactoryLearningHealth,
@@ -110,6 +116,7 @@ import {
   type ShellComponentInput,
 } from '@/lib/recipes';
 import { buildTechnicalReferenceFields, calculateBearingSpan, findShellMetaForTemplate, openOffsetFromMeta } from '@/lib/technical-references';
+import { templatePartCategoryForName } from '@/lib/template-part-category';
 
 type RecipeSection = 'recipes' | 'templates' | 'variants';
 
@@ -117,6 +124,12 @@ type RecipeDeleteTarget =
   | { kind: 'recipe'; item: Recipe }
   | { kind: 'template'; item: PumpShellTemplate }
   | { kind: 'variant'; item: PumpModelVariant };
+
+type InlinePartCreateTarget = {
+  kind: 'template-shell' | 'template-fixed' | 'recipe-optional' | 'recipe-packing';
+  rowId?: string;
+  seed: InlinePartCreateSeed;
+};
 
 function parseRecipeReviewTarget(search: string): {
   recipeId: number;
@@ -300,6 +313,7 @@ export function RecipesView() {
   const [templateReuseSource, setTemplateReuseSource] = useState<PumpShellTemplate | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
+  const [inlinePartCreateTarget, setInlinePartCreateTarget] = useState<InlinePartCreateTarget | null>(null);
   const [autoAnalyzeRecipeId, setAutoAnalyzeRecipeId] = useState<number | null>(null);
   const [reviewEvidenceTargets, setReviewEvidenceTargets] = useState<FactoryLearningHealth['items']>([]);
   const [reviewEvidenceBatchTotal, setReviewEvidenceBatchTotal] = useState(0);
@@ -362,6 +376,20 @@ export function RecipesView() {
     }
   }, [readPartsFresh]);
 
+  const resolveCatalogPart = useCallback(async (
+    input: PartInput,
+    beforeCreate?: () => Promise<void>
+  ): Promise<{ part: Part; created: boolean }> => {
+    const result = await resolveInlineCatalogPart({
+      input,
+      readParts: readPartsFresh,
+      createPart,
+      beforeCreate,
+    });
+    setParts(result.rows);
+    return { part: result.part, created: result.created };
+  }, [readPartsFresh]);
+
   const createShellComponentPart = useCallback(async (input: {
     model: string;
     supplier: string;
@@ -374,21 +402,7 @@ export function RecipesView() {
     if (!supplier) throw new Error('请先填写供应商');
     if (!Number.isFinite(price) || price <= 0) throw new Error('请输入大于 0 的零件单价');
 
-    const identityMatches = (part: Part) => (
-      part.model.trim().localeCompare(model, undefined, { sensitivity: 'accent' }) === 0
-      && part.supplier.trim().localeCompare(supplier, undefined, { sensitivity: 'accent' }) === 0
-    );
-    const beforeCreate = await readPartsFresh();
-    setParts(beforeCreate);
-    const existing = beforeCreate.find(identityMatches);
-    if (existing) {
-      if (existing.category !== SHELL_COMPONENT_CATEGORY) {
-        throw new Error(`该型号和供应商已存在于“${existing.category}”分类，请先在零件库调整分类`);
-      }
-      return { part: existing, created: false };
-    }
-
-    const created = await createPart({
+    return resolveCatalogPart({
       model,
       category: SHELL_COMPONENT_CATEGORY,
       price,
@@ -396,13 +410,7 @@ export function RecipesView() {
       stock: 0,
       notes: '从泵壳模板自由搭配中就地建档',
     });
-    const afterCreate = await readPartsFresh();
-    setParts(afterCreate);
-    return {
-      part: afterCreate.find((part) => part.id === created.id) || created,
-      created: true,
-    };
-  }, [readPartsFresh]);
+  }, [resolveCatalogPart]);
 
   const prepareRecipeEditorUi = useCallback(() => {
     setReviewEvidenceTargets([]);
@@ -444,7 +452,7 @@ export function RecipesView() {
   }, []);
 
   useEffect(() => {
-    if (!templateDrawerOpen) return;
+    if (!templateDrawerOpen && !drawerOpen) return;
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refreshShellComponentParts();
     };
@@ -455,7 +463,7 @@ export function RecipesView() {
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [refreshShellComponentParts, templateDrawerOpen]);
+  }, [drawerOpen, refreshShellComponentParts, templateDrawerOpen]);
 
   useEffect(() => {
     if (loading || deepLinkHandledRef.current) return;
@@ -1084,6 +1092,108 @@ export function RecipesView() {
     clearBomPreviewError();
   }
 
+  function packagingSubcategoryForDraft(row: RecipeSelectionRow): string {
+    const text = `${row.model} ${row.packagingMaterial}`;
+    if (text.includes('泡沫') || text.includes('珍珠棉') || text.includes('内衬')) return '内衬';
+    if (text.includes('箱') || text.includes('外包装')) return '外包装';
+    return '固定包材';
+  }
+
+  function isRecipeCatalogMissing(kind: 'optional' | 'packing', row: RecipeSelectionRow): boolean {
+    const model = row.model.trim();
+    const supplier = row.supplier.trim();
+    if (!model) return false;
+    return !parts.some((part) => (
+      part.model === model
+      && (kind === 'packing'
+        ? part.category === '包装'
+        : part.category !== '包装' && part.category !== '线圈转子')
+      && (!supplier || part.supplier === supplier)
+    ));
+  }
+
+  function openInlineRecipePart(kind: 'optional' | 'packing', row: RecipeSelectionRow) {
+    const inferredCategory = kind === 'packing'
+      ? '包装'
+      : (templatePartCategoryForName(row.model) || '配件');
+    if (inferredCategory === '线圈转子') {
+      setFormError('线圈转子使用独立线圈方案，不进入零件库；请在线圈配置中建立正式方案');
+      return;
+    }
+    setInlinePartCreateTarget({
+      kind: kind === 'packing' ? 'recipe-packing' : 'recipe-optional',
+      rowId: row.id,
+      seed: {
+        contextLabel: kind === 'packing' ? '配方包装材料' : '配方选配件',
+        model: row.model,
+        supplier: row.supplier,
+        category: inferredCategory,
+        subcategory: kind === 'packing' ? packagingSubcategoryForDraft(row) : '',
+        price: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
+        stock: 0,
+        categoryScope: kind === 'packing' ? 'locked' : 'non-packaging',
+      },
+    });
+  }
+
+  function handleInlinePartResolved(result: { part: Part; created: boolean }) {
+    const target = inlinePartCreateTarget;
+    if (!target) return;
+    const part = result.part;
+    if (target.kind === 'template-shell' && part.category !== '泵壳') {
+      throw new Error('整套泵壳只能绑定“泵壳”分类的正式零件');
+    }
+    if (target.kind === 'template-fixed' && target.seed.categoryScope === 'locked' && part.category !== target.seed.category) {
+      throw new Error(`模板固定配件必须绑定“${target.seed.category}”分类的正式零件`);
+    }
+    if (target.kind === 'recipe-optional' && (part.category === '包装' || part.category === '线圈转子')) {
+      throw new Error('配方选配件不能绑定包装或线圈转子记录');
+    }
+    if (target.kind === 'recipe-packing' && (
+      part.category !== '包装'
+      || !['外包装', '内衬', '固定包材'].includes(part.subcategory || '')
+    )) {
+      throw new Error('配方包装只能绑定具有正式二级分类的“包装”零件');
+    }
+    if (target.kind === 'template-shell') {
+      setTemplateForm((current) => ({
+        ...current,
+        shellModel: part.model,
+        bundleCost: current.costMode === 'bundle' && part.price > 0
+          ? String(part.price)
+          : current.bundleCost,
+      }));
+    } else if (target.kind === 'template-fixed' && target.rowId) {
+      setTemplateForm((current) => ({
+        ...current,
+        partRows: current.partRows.map((row) => row.id === target.rowId
+          ? { ...row, model: part.model, supplier: part.supplier }
+          : row),
+      }));
+    } else if (target.kind === 'recipe-optional' && target.rowId) {
+      updateOptionalDraftPart(target.rowId, {
+        partId: part.id,
+        model: part.model,
+        supplier: part.supplier,
+        costSource: '',
+        snapshotPrice: '',
+      });
+      clearBomPreviewError();
+    } else if (target.kind === 'recipe-packing' && target.rowId) {
+      updatePackingDraftPart(target.rowId, {
+        partId: part.id,
+        model: part.model,
+        supplier: part.supplier,
+        packagingMaterial: packagingMaterialForCatalogPart(part),
+        costSource: '',
+        snapshotPrice: '',
+      });
+      clearBomPreviewError();
+    }
+    setFormError(null);
+    setInlinePartCreateTarget(null);
+  }
+
   function removeOptionalPart(id: string) {
     removeOptionalDraftPart(id);
     clearBomPreviewError();
@@ -1169,6 +1279,40 @@ export function RecipesView() {
     setTemplateForm(emptyTemplateForm());
     setFormError(null);
     setTemplateDrawerOpen(true);
+  }
+
+  function openInlineShellPart() {
+    setInlinePartCreateTarget({
+      kind: 'template-shell',
+      seed: {
+        contextLabel: '泵壳模板整套泵壳',
+        model: templateForm.shellModel,
+        category: '泵壳',
+        price: Number(templateForm.bundleCost || 0),
+        stock: 0,
+        categoryScope: 'locked',
+      },
+    });
+  }
+
+  function openInlineFixedPart(row: TemplatePartFormRow, category: string | null) {
+    if (category === '线圈转子') {
+      setFormError('线圈转子使用独立线圈方案，不进入零件库；请调整固定配件名称或在线圈页面建档');
+      return;
+    }
+    setInlinePartCreateTarget({
+      kind: 'template-fixed',
+      rowId: row.id,
+      seed: {
+        contextLabel: `模板固定配件 · ${row.name || '未命名配件'}`,
+        model: row.model,
+        supplier: row.supplier || '',
+        category: category || '配件',
+        price: 0,
+        stock: 0,
+        categoryScope: category ? 'locked' : 'non-packaging',
+      },
+    });
   }
 
   function openEditTemplate(template: PumpShellTemplate) {
@@ -1696,6 +1840,8 @@ export function RecipesView() {
         getDefaultUnitPrice={defaultUnitPriceForModel}
         onRefreshShellComponentParts={refreshShellComponentParts}
         onCreateShellComponentPart={createShellComponentPart}
+        onOpenCreateShellPart={openInlineShellPart}
+        onOpenCreateFixedPart={openInlineFixedPart}
         onFormChange={(update) => setTemplateForm(update)}
         onClose={closeTemplateEditor}
         onSubmit={submitTemplate}
@@ -1811,6 +1957,8 @@ export function RecipesView() {
               onAddPackingPart={addPackingPart}
               onUpdatePackingPart={updatePackingPart}
               onRemovePackingPart={removePackingPart}
+              isCatalogMissing={isRecipeCatalogMissing}
+              onCreateCatalogPart={openInlineRecipePart}
             />
 
             <ConfigurationPolicyEditor
@@ -1871,6 +2019,15 @@ export function RecipesView() {
               />
             </div>
       </RecipeEditor>
+
+      <InlinePartCreateDialog
+        open={Boolean(inlinePartCreateTarget)}
+        seed={inlinePartCreateTarget?.seed || null}
+        supplierOptions={parts.map((part) => part.supplier)}
+        onClose={() => setInlinePartCreateTarget(null)}
+        onResolve={resolveCatalogPart}
+        onResolved={handleInlinePartResolved}
+      />
 
       <RecipeAnalysisPanel
         open={recipeAnalysisOpen}

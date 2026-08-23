@@ -375,13 +375,24 @@ function cascadePumpShellTemplateModel(dependencies, current, updates, auditCont
 
 function executePartCreate(dependencies, input = {}, commandContext = {}) {
     const normalized = normalizeCreateInput(dependencies, input);
+    const duplicatePolicy = input.duplicatePolicy === 'reject' ? 'reject' : 'allow';
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'part', eventType: 'created' }),
-        input: normalized,
+        input: { ...normalized, duplicatePolicy },
         execute: ({ auditContext }) => {
+            const existing = duplicatePolicy === 'reject'
+                ? findActivePartByIdentity(dependencies.db, normalized)
+                : null;
+            if (existing) {
+                throw partCommandError(
+                    'part_identity_conflict',
+                    `零件“${normalized.model}”（供应商：${normalized.supplier}）已存在于“${existing.category}”分类，请直接使用现有记录`,
+                    409
+                );
+            }
             const now = new Date().toISOString();
             const write = dependencies.safeInsert('parts', {
                 model: normalized.model,

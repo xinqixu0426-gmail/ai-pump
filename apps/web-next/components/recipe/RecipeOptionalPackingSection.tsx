@@ -34,6 +34,8 @@ type RecipeOptionalPackingSectionProps = {
   onAddPackingPart: () => void;
   onUpdatePackingPart: (id: string, patch: Partial<RecipeSelectionRow>) => void;
   onRemovePackingPart: (id: string) => void;
+  isCatalogMissing: (kind: 'optional' | 'packing', row: RecipeSelectionRow) => boolean;
+  onCreateCatalogPart: (kind: 'optional' | 'packing', row: RecipeSelectionRow) => void;
 };
 
 export function RecipeOptionalPackingSection({
@@ -51,6 +53,8 @@ export function RecipeOptionalPackingSection({
   onAddPackingPart,
   onUpdatePackingPart,
   onRemovePackingPart,
+  isCatalogMissing,
+  onCreateCatalogPart,
 }: RecipeOptionalPackingSectionProps) {
   const totalItems = optionalParts.length + packingParts.length;
   const packingComplete = packingParts.length > 0;
@@ -91,6 +95,8 @@ export function RecipeOptionalPackingSection({
             getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, part))}
             getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, part))}
             formulaLabel="公式:"
+            isCatalogMissing={(row) => isCatalogMissing('optional', row)}
+            onCreateCatalogPart={(row) => onCreateCatalogPart('optional', row)}
           />
         </div>
 
@@ -117,6 +123,8 @@ export function RecipeOptionalPackingSection({
             getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, part))}
             getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, part))}
             formulaLabel="公式:"
+            isCatalogMissing={(row) => isCatalogMissing('packing', row)}
+            onCreateCatalogPart={(row) => onCreateCatalogPart('packing', row)}
           />
         </div>
       </div>

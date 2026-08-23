@@ -29,6 +29,8 @@ type RecipeDataTableProps = {
   getCostLine: (row: RecipeSelectionRow) => string;
   getFormula?: (row: RecipeSelectionRow) => string;
   formulaLabel?: string;
+  isCatalogMissing?: (row: RecipeSelectionRow) => boolean;
+  onCreateCatalogPart?: (row: RecipeSelectionRow) => void;
 };
 
 export function RecipeDataTable({
@@ -44,6 +46,8 @@ export function RecipeDataTable({
   getCostLine,
   getFormula,
   formulaLabel = '公式:',
+  isCatalogMissing,
+  onCreateCatalogPart,
 }: RecipeDataTableProps) {
   const isPacking = kind === 'packing';
 
@@ -97,6 +101,16 @@ export function RecipeDataTable({
                 <div className="mt-1 truncate text-[11px] text-slate-500" title={getCostLine(row)}>{getCostLine(row)}</div>
                 {getFormula?.(row) ? (
                   <div className="mt-0.5 truncate text-[11px] text-slate-500" title={getFormula(row)}>{formulaLabel} {getFormula(row)}</div>
+                ) : null}
+                {row.model.trim() && isCatalogMissing?.(row) ? (
+                  <button
+                    type="button"
+                    onClick={() => onCreateCatalogPart?.(row)}
+                    disabled={disabled}
+                    className="mt-1 text-left text-[11px] font-medium text-blue-700 hover:text-blue-800 disabled:opacity-60"
+                  >
+                    零件库未找到 · 新增并选中
+                  </button>
                 ) : null}
               </td>
               <td className="px-2.5 py-2">

@@ -23,6 +23,7 @@ export type PartInput = {
   supplier: string;
   stock: number;
   notes?: string;
+  duplicatePolicy?: 'allow' | 'reject';
 };
 
 type PartRow = {
