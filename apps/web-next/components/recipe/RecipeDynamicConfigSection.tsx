@@ -19,7 +19,7 @@ type RecipeDynamicFields = {
 
 type RecipeDynamicConfigSectionProps = {
   form: RecipeDynamicFields;
-  hasMissingConfig: boolean;
+  complete: boolean;
   floatWireOptions: string[];
   cableWireOptions: string[];
   recommendedFloatWire: string;
@@ -62,8 +62,10 @@ function DynamicConfigCostRow({
 }) {
   const amount = recipePartSubtotal(part);
   const unpriced = Boolean(part) && Number(part?.snapshotPrice || 0) <= 0;
-  const note = loading
-    ? '正在计算'
+  const note = loading && ready && part
+    ? '正在更新，暂显上次结果'
+    : loading
+      ? '首次计算中'
     : !ready
       ? '参数填写完整后自动计算'
       : !part
@@ -79,7 +81,7 @@ function DynamicConfigCostRow({
         <div className={`mt-0.5 text-xs leading-5 ${unpriced ? 'text-red-700' : 'text-muted'}`}>{note}</div>
       </div>
       <div className={`shrink-0 text-base font-semibold tabular-nums ${unpriced ? 'text-red-700' : 'text-ink'}`}>
-        {loading || !ready || !part ? '-' : money(amount)}
+        {!ready || !part ? '-' : money(amount)}
       </div>
     </div>
   );
@@ -87,7 +89,7 @@ function DynamicConfigCostRow({
 
 export function RecipeDynamicConfigSection({
   form,
-  hasMissingConfig,
+  complete,
   floatWireOptions,
   cableWireOptions,
   recommendedFloatWire,
@@ -107,15 +109,16 @@ export function RecipeDynamicConfigSection({
 
   return (
     <WorkspaceSection
+      id="recipe-dynamic-config-section"
       title="3. 浮球与电缆"
       description="动态配置会进入 BOM 草稿，并实时影响成本预览。"
       summary={[
         form.hasFloat ? `浮球 ${form.floatWire || '待填线径'}` : '',
         form.hasCable ? `电缆 ${form.cableWire || '待填线径'} / ${form.cableLength || '待填长度'}m` : '',
       ].filter(Boolean).join(' · ') || '未启用浮球和电缆'}
-      status={!enabled || !hasMissingConfig ? 'default' : 'warning'}
+      status={complete ? 'complete' : 'warning'}
       badge={!enabled ? '未启用' : '已配置'}
-      badgeTone={!enabled ? 'gray' : 'green'}
+      badgeTone={complete ? 'green' : 'amber'}
       defaultOpen={false}
     >
       <div className="grid gap-3 md:grid-cols-2">

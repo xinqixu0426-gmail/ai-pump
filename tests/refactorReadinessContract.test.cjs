@@ -1301,7 +1301,7 @@ test('Next UI 契约：配方零件必须在旁边展示成本价和计算公式
 
     assert.match(recipeOptionalPackingSection, /partCostLine/);
     assert.match(recipesView, /partFormulaLine/);
-    assert.match(recipeOptionalPackingSection, /findDraftSelectionPart\(bomDraft, part\)/);
+    assert.match(recipeOptionalPackingSection, /findDraftSelectionPart\(bomDraft, optionalCostRow\(part\)\)/);
     assert.match(recipeOptionalPackingSection, /公式:/);
     assert.match(recipeCostDisplay, /function findDraftSelectionPart/);
     assert.match(recipeDetailPanel, /快照小计/);
@@ -1357,7 +1357,7 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipeCoilSection, /<details className="group mt-2 rounded-md border border-line bg-slate-50\/70">/);
     assert.match(recipeCoilSection, /计算明细/);
     assert.match(recipeCoilSection, /coilSnapshot\?\.formula/);
-    assert.match(recipesView, /coilSnapshot=\{bomDraft\?\.coilSnapshot\}/);
+    assert.match(recipesView, /coilSnapshot=\{displayedCosts\.draft\?\.coilSnapshot\}/);
     assert.doesNotMatch(recipesView, /线圈与叶轮/);
     assert.match(technicalEditor, /叶轮参数/);
 });
@@ -1397,8 +1397,8 @@ test('Next UI 契约：浮球和电缆参数完成后展示后端 BOM 成本', (
     assert.match(recipeDynamicConfigSection, /DynamicConfigCostRow/);
     assert.match(recipeDynamicConfigSection, /label="浮球成本"/);
     assert.match(recipeDynamicConfigSection, /label="成品电缆成本"/);
-    assert.match(recipesView, /floatCostPart=\{floatCostPart\}/);
-    assert.match(recipesView, /cableCostPart=\{cableCostPart\}/);
+    assert.match(recipesView, /floatCostPart=\{displayedCosts\.floatCostPart\}/);
+    assert.match(recipesView, /cableCostPart=\{displayedCosts\.cableCostPart\}/);
     assert.match(recipeDynamicConfigSection, /未匹配到零件价格，请先补齐零件库/);
     assert.match(recipeCostDisplay, /function partFormulaLine/);
 });
@@ -1467,7 +1467,7 @@ test('Next UI 契约：配方草稿集中管理生命周期和纯草稿操作', 
     assert.doesNotMatch(bomPreviewHook, /bomPreviewFromRecipe/);
 });
 
-test('Next UI 契约：编辑配方首次成本完成前不得展示历史快照或允许保存', () => {
+test('Next UI 契约：编辑配方成本刷新保留上次结果且保存按最新草稿核算', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const bomPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
     const costSummary = readUtf8('apps/web-next/components/recipe/CostSummaryPanel.tsx');
@@ -1476,11 +1476,20 @@ test('Next UI 契约：编辑配方首次成本完成前不得展示历史快照
     assert.match(recipesView, /const openEditDrawer[\s\S]*startEditDraft\(recipe\);[\s\S]*resetBomPreview\(\);[\s\S]*prepareRecipeEditorUi\(\)/);
     assert.doesNotMatch(recipesView, /replaceBomPreview\(bomPreviewFromRecipe\(recipe\)\)/);
     assert.doesNotMatch(bomPreviewHook, /parseRecipePartsJson/);
-    assert.match(recipesView, /costPreviewPending = canPreviewBomDraft && \(!bomDraft \|\| bomDraftLoading\)/);
-    assert.match(recipesView, /当前成本正在计算，请等待完成后再保存配方/);
-    assert.match(costSummary, /loading \? '正在计算' : ready \? money\(total\) : '—'/);
+    assert.doesNotMatch(recipesView, /costPreviewPending = canPreviewBomDraft/);
+    assert.doesNotMatch(recipesView, /当前成本正在计算，请等待完成后再保存配方/);
+    assert.match(recipesView, /const draft = await buildBomDraft\(\)/);
+    assert.match(costSummary, /ready \? money\(total\) : loading \? '首次计算中' : '—'/);
     assert.match(costSummary, /ready \? money\(value\) : '—'/);
-    assert.match(recipeEditor, /costLoading \? '等待成本计算'/);
+    assert.match(costSummary, /正在更新，暂显上次结果/);
+    assert.doesNotMatch(recipeEditor, /等待成本计算/);
+    assert.match(recipeEditor, /成本正在后台更新；保存时会按当前配置重新核算/);
+    assert.match(recipeEditor, /<fieldset disabled=\{saving\} aria-busy=\{saving\}/);
+    assert.match(recipesView, /costDisplaySnapshot/);
+    assert.match(recipesView, /costDisplayRefreshing && costDisplaySnapshot/);
+    assert.match(recipesView, /optionalCostRows=\{displayedCosts\.optionalParts\}/);
+    assert.match(recipesView, /templateParts=\{displayedCosts\.relatedBomParts\}/);
+    assert.match(bomPreviewHook, /stale: Boolean\(draft && acceptedInput !== input\)/);
 });
 
 test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
@@ -2363,7 +2372,7 @@ test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正
     assert.match(recipesView, /packagingMaterial: packagingMaterialForCatalogPart\(part\)/);
     assert.match(recipesView, /整套泵壳只能绑定“泵壳”分类的正式零件/);
     assert.match(recipesView, /配方包装只能绑定具有正式二级分类的“包装”零件/);
-    assert.match(recipesView, /categoryScope: kind === 'packing' \? 'locked' : 'non-packaging'/);
+    assert.match(recipesView, /categoryScope: kind === 'packing' \|\| knownOptionalCategory \? 'locked' : 'non-packaging'/);
     assert.match(recipesView, /!templateDrawerOpen && !drawerOpen/);
     assert.match(templateEditor, /onOpenCreateShellPart/);
     assert.match(templateEditor, /onOpenCreateFixedPart/);
@@ -2571,6 +2580,48 @@ test('Next UI 契约：整值数字输入显式复用首次聚焦全选，精细
     assert.match(guide, /螺丝直径是整体替换的名义规格，而拉伸筒基准长度是精密尺寸/);
 });
 
+test('Next UI 契约：新产品入口串联复制配方、现有模板和全新模板', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const productDialog = readUtf8('apps/web-next/components/recipe/ProductCreationDialog.tsx');
+    const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
+    const recipeEditor = readUtf8('apps/web-next/components/recipe/RecipeEditor.tsx');
+    const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
+
+    assert.match(recipesView, /<ProductCreationDialog/);
+    assert.match(recipesView, /新建产品/);
+    assert.match(productDialog, /复制相近配方/);
+    assert.match(productDialog, /从现有模板创建/);
+    assert.match(productDialog, /创建全新模板/);
+    assert.match(productDialog, /onCloneRecipe\(selectedRecipe\)/);
+    assert.match(productDialog, /onCreateFromTemplate\(selectedTemplate\)/);
+    assert.match(productDialog, /onCreateTemplate/);
+    assert.doesNotMatch(productDialog, /proxyRequest|proxyFetch|fetch\(/);
+
+    assert.match(recipesView, /function openCloneRecipe\(recipe: Recipe\)[\s\S]*startCloneDraft\(recipe\)/);
+    assert.match(recipesView, /async function openCreateFromTemplate\(template: PumpShellTemplate\)[\s\S]*startCreateDraft\(\)[\s\S]*onTemplateChange\(String\(template\.id\), template, false\)/);
+    assert.match(recipesView, /const savedTemplate = editingTemplate[\s\S]*await createTemplate\(input\)/);
+    assert.match(recipesView, /submitter\?\.name === 'continueToRecipe'/);
+    assert.match(recipesView, /onTemplateChange\(String\(savedTemplate\.id\), savedTemplate, false\)/);
+    assert.match(templateEditor, /name=\{!editingTemplate \? 'continueToRecipe' : undefined\}/);
+    assert.match(templateEditor, /保存模板并创建配方/);
+
+    assert.equal((recipeWorkspace.match(/>复制<\/Button>/g) || []).length, 2);
+    assert.equal((recipesView.match(/useConfirmDiscard\(/g) || []).length, 2);
+    assert.match(recipesView, /onClose=\{requestRecipeClose\}/);
+    assert.match(recipesView, /onClose=\{requestTemplateClose\}/);
+    assert.match(recipesView, /resetRecipeDirty\(\)[\s\S]*closeRecipeEditor\(\)/);
+    assert.match(recipesView, /resetTemplateDirty\(\)[\s\S]*setTemplateDrawerOpen\(false\)/);
+    assert.match(recipesView, /const requestId = \+\+templateDraftRequestRef\.current/);
+    assert.equal((recipesView.match(/if \(requestId !== templateDraftRequestRef\.current\) return;/g) || []).length, 2);
+    assert.match(recipesView, /function closeRecipeEditor\(\)[\s\S]*templateDraftRequestRef\.current \+= 1[\s\S]*setDrawerOpen\(false\)/);
+    assert.match(recipesView, /target\.kind === 'template-shell'[\s\S]*markTemplateDirty\(\)/);
+    assert.match(recipesView, /target\.kind === 'template-fixed'[\s\S]*markTemplateDirty\(\)/);
+    assert.match(recipesView, /target\.kind === 'recipe-optional'[\s\S]*markRecipeDirty\(\)/);
+    assert.match(recipesView, /target\.kind === 'recipe-packing'[\s\S]*markRecipeDirty\(\)/);
+    assert.match(recipeEditor, /dirty \? '有未保存修改' : '尚未修改'/);
+    assert.match(templateEditor, /dirty \? '有未保存修改' : '尚未修改'/);
+});
+
 test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖原生 datalist', () => {
     const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
     const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
@@ -2594,4 +2645,62 @@ test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖
     assert.match(recipeDataTable, /modelListId.*row\.id/);
     assert.match(optionalPackingSection, /label: `\$\{part\.model\} · \$\{part\.label\}`/);
     assert.match(shellCostEditor, /shell-component-model-options-/);
+});
+
+test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中补齐零件', () => {
+    const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
+    const recipeEditor = readUtf8('apps/web-next/components/recipe/RecipeEditor.tsx');
+    const recipeSection = readUtf8('apps/web-next/components/recipe/RecipeSection.tsx');
+    const coilSection = readUtf8('apps/web-next/components/recipe/RecipeCoilSection.tsx');
+    const dynamicSection = readUtf8('apps/web-next/components/recipe/RecipeDynamicConfigSection.tsx');
+    const costSummary = readUtf8('apps/web-next/components/recipe/CostSummaryPanel.tsx');
+    const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
+    const candidates = readUtf8('apps/web-next/components/recipe/missing-part-candidates.ts');
+    const batchDialog = readUtf8('apps/web-next/components/recipe/MissingPartsBatchDialog.tsx');
+    const partsClient = readUtf8('apps/web-next/lib/parts.ts');
+    const capabilityRegistry = readUtf8('api/capabilities/registry.cjs');
+    const apiReference = readUtf8('docs/api-reference.md');
+
+    for (const sectionId of [
+        'recipe-basic-section',
+        'recipe-coil-section',
+        'recipe-dynamic-config-section',
+        'recipe-optional-packing-section',
+        'recipe-labor-section',
+    ]) {
+        assert.match(recipesView + coilSection + dynamicSection, new RegExp(sectionId));
+    }
+    assert.match(recipeSection, /RecipeSectionFlowProvider/);
+    assert.match(recipeSection, /useRecipeSectionFlow/);
+    assert.match(recipeEditor, /steps\.find\(\(step\) => !step\.done\)/);
+    assert.match(recipeEditor, /justCompleted/);
+    assert.match(recipeEditor, /scrollIntoView/);
+    assert.match(costSummary, /sectionFlow\?\.onActiveSectionChange\(step\.id\)/);
+
+    assert.match(candidates, /collectTemplateMissingPartCandidates/);
+    assert.match(candidates, /collectRecipeMissingPartCandidates/);
+    assert.match(candidates, /template-component/);
+    assert.match(candidates, /template-fixed/);
+    assert.match(candidates, /recipe-optional/);
+    assert.match(candidates, /recipe-packing/);
+    assert.match(candidates, /inferredCategory === '线圈转子'/);
+    assert.match(candidates, /matchScope: inferredCategory \? 'exact-category' : 'non-packaging'/);
+    assert.match(templateEditor, /待补齐零件/);
+    assert.match(recipeEditor, /集中补齐/);
+    assert.match(recipesView, /<MissingPartsBatchDialog/);
+
+    assert.match(batchDialog, /await getAllParts\(\)[\s\S]*previewPartBatchCreate/);
+    assert.match(batchDialog, /partIdentityKey\(part\) === identityKey\(row\)/);
+    assert.match(batchDialog, /existing\.price !== candidate\.price/);
+    assert.match(batchDialog, /await confirmPartBatchCreate\(preview\)[\s\S]*await getAllParts\(\)/);
+    assert.match(batchDialog, /勿重复提交本批建档/);
+    assert.match(batchDialog, /setCommitted\(true\)[\s\S]*await confirmPartBatchCreate\(preview\)/);
+    assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreatePreview>>\('\/api\/parts\/batch-create-preview'/);
+    assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreateReceipt>>\('\/api\/parts\/batch-create'/);
+    assert.match(partsClient, /'Idempotency-Key': preview\.suggestedIdempotencyKey/);
+    assert.match(recipesView, /setParts\(freshParts\)/);
+    assert.match(recipesView, /updateOptionalDraftPart/);
+    assert.match(recipesView, /updatePackingDraftPart/);
+    assert.match(capabilityRegistry, /'parts\.batch_create'[\s\S]*callers: Object\.freeze\(\['web', 'ai', 'internal'\]\)/);
+    assert.match(apiReference, /Web 确认成功后必须重新调用 `GET \/api\/parts`/);
 });

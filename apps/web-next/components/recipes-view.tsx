@@ -5,6 +5,7 @@ import { Layers3, Package, Plus, RefreshCw } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { BomTableDialog } from '@/components/recipe/BomTableDialog';
 import { CostSummaryPanel } from '@/components/recipe/CostSummaryPanel';
+import { MissingPartsBatchDialog } from '@/components/recipe/MissingPartsBatchDialog';
 import { ConfigurationPolicyEditor } from '@/components/recipe/ConfigurationPolicyEditor';
 import {
   PumpShellTemplateEditor,
@@ -13,6 +14,7 @@ import {
   type TemplatePartFormRow,
 } from '@/components/recipe/PumpShellTemplateEditor';
 import { PumpShellTemplateWorkspace } from '@/components/recipe/PumpShellTemplateWorkspace';
+import { ProductCreationDialog } from '@/components/recipe/ProductCreationDialog';
 import {
   emptyTemplateForm,
   parseTemplateJsonArray,
@@ -34,6 +36,7 @@ import type { RecipeSelectionRow } from '@/components/recipe/RecipeDataTable';
 import { RecipeDynamicConfigSection, wireLinkNote } from '@/components/recipe/RecipeDynamicConfigSection';
 import { RecipeDetailPanel } from '@/components/recipe/RecipeDetailPanel';
 import { RecipeEditor } from '@/components/recipe/RecipeEditor';
+import type { RecipeFlowStep } from '@/components/recipe/RecipeSection';
 import { RecipeLaborCostSection } from '@/components/recipe/RecipeLaborCostSection';
 import {
   InlinePartCreateDialog,
@@ -61,6 +64,13 @@ import { useBomPreview } from '@/components/recipe/useBomPreview';
 import { useRecipeDraft, type RecipeFormState } from '@/components/recipe/useRecipeDraft';
 import { resolveCoilVariantSelection } from '@/components/recipe/coil-selection';
 import {
+  candidateMatchesPart,
+  collectRecipeMissingPartCandidates,
+  collectTemplateMissingPartCandidates,
+  packagingSubcategoryForDraft,
+  type MissingPartCandidate,
+} from '@/components/recipe/missing-part-candidates';
+import {
   SHELL_COMPONENT_CATEGORY,
   barrelComponentNameOptions,
   isBarrelComponentName,
@@ -71,6 +81,7 @@ import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { money } from '@/lib/format';
 import { resolveInlineCatalogPart } from '@/lib/inline-part-resolution';
@@ -129,6 +140,25 @@ type InlinePartCreateTarget = {
   kind: 'template-shell' | 'template-fixed' | 'recipe-optional' | 'recipe-packing';
   rowId?: string;
   seed: InlinePartCreateSeed;
+};
+
+type CostDisplaySnapshot = {
+  draft: RecipeBomDraftResult | null;
+  relatedBomParts: RecipePart[];
+  optionalParts: RecipeSelectionRow[];
+  packingParts: RecipeSelectionRow[];
+  total: number;
+  bomCount: number;
+  coilCost: number;
+  templatePartsCost: number;
+  optionalPartsCost: number;
+  packingPartsCost: number;
+  laborAndManagementCost: number;
+  surfaceTreatmentCost: number;
+  floatCostReady: boolean;
+  cableCostReady: boolean;
+  floatCostPart?: RecipePart;
+  cableCostPart?: RecipePart;
 };
 
 function parseRecipeReviewTarget(search: string): {
@@ -286,6 +316,7 @@ export function RecipesView() {
   const {
     draft: bomDraft,
     loading: bomDraftLoading,
+    stale: bomDraftStale,
     error: bomDraftError,
     canPreview: canPreviewBomDraft,
     run: runBomPreview,
@@ -314,6 +345,9 @@ export function RecipesView() {
   const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
   const [templateForm, setTemplateForm] = useState<TemplateFormState>(emptyTemplateForm());
   const [inlinePartCreateTarget, setInlinePartCreateTarget] = useState<InlinePartCreateTarget | null>(null);
+  const [productCreationOpen, setProductCreationOpen] = useState(false);
+  const [missingPartsBatchTarget, setMissingPartsBatchTarget] = useState<'template' | 'recipe' | null>(null);
+  const [costDisplaySnapshot, setCostDisplaySnapshot] = useState<CostDisplaySnapshot | null>(null);
   const [autoAnalyzeRecipeId, setAutoAnalyzeRecipeId] = useState<number | null>(null);
   const [reviewEvidenceTargets, setReviewEvidenceTargets] = useState<FactoryLearningHealth['items']>([]);
   const [reviewEvidenceBatchTotal, setReviewEvidenceBatchTotal] = useState(0);
@@ -326,9 +360,40 @@ export function RecipesView() {
   const autoAnalysisStartedRef = useRef<number | null>(null);
   const deepLinkHandledRef = useRef(false);
   const partsReadPromiseRef = useRef<Promise<Part[]> | null>(null);
+  const templateDraftRequestRef = useRef(0);
   const runRecipeAnalysisRef = useLatestValue(runRecipeAnalysis);
   const reviewEvidenceTarget = reviewEvidenceTargets[0] || null;
   const reviewEvidenceCompletedCount = Math.max(0, reviewEvidenceBatchTotal - reviewEvidenceTargets.length);
+  const {
+    dirty: recipeFormDirty,
+    discardPromptOpen: recipeDiscardPromptOpen,
+    discardMessage: recipeDiscardMessage,
+    markDirty: markRecipeDirty,
+    resetDirty: resetRecipeDirty,
+    requestClose: requestRecipeClose,
+    confirmDiscard: confirmRecipeDiscard,
+    cancelDiscard: cancelRecipeDiscard,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: closeRecipeEditor,
+    message: '当前配方草稿有尚未保存的修改，确定放弃吗？',
+  });
+  const {
+    dirty: templateFormDirty,
+    discardPromptOpen: templateDiscardPromptOpen,
+    discardMessage: templateDiscardMessage,
+    markDirty: markTemplateDirty,
+    resetDirty: resetTemplateDirty,
+    requestClose: requestTemplateClose,
+    confirmDiscard: confirmTemplateDiscard,
+    cancelDiscard: cancelTemplateDiscard,
+  } = useConfirmDiscard({
+    open: templateDrawerOpen,
+    busy: saving,
+    onDiscard: closeTemplateEditor,
+    message: '当前泵壳模板有尚未保存的修改，确定放弃吗？',
+  });
 
   async function load(force = false) {
     setError(null);
@@ -429,10 +494,12 @@ export function RecipesView() {
   }, []);
 
   const openEditDrawer = useCallback((recipe: Recipe) => {
+    templateDraftRequestRef.current += 1;
+    resetRecipeDirty();
     startEditDraft(recipe);
     resetBomPreview();
     prepareRecipeEditorUi();
-  }, [prepareRecipeEditorUi, resetBomPreview, startEditDraft]);
+  }, [prepareRecipeEditorUi, resetBomPreview, resetRecipeDirty, startEditDraft]);
 
   const syncRecipeTechnicalFileCount = useCallback((recipeId: number | null | undefined, technicalFileCount: number) => {
     if (!recipeId) return;
@@ -776,6 +843,70 @@ export function RecipesView() {
     numberValue(form.assemblyWage) + numberValue(form.packingWage) + numberValue(form.managementFee)
   ), [form.assemblyWage, form.managementFee, form.packingWage]);
   const surfaceTreatmentPreviewCost = form.surfaceTreatmentMode === 'none' ? 0 : numberValue(form.surfaceTreatmentCost);
+  useEffect(() => {
+    if (!drawerOpen || !bomDraft) {
+      setCostDisplaySnapshot(null);
+      return;
+    }
+    if (bomDraftLoading || bomDraftStale) return;
+    setCostDisplaySnapshot({
+      draft: bomDraft,
+      relatedBomParts,
+      optionalParts: optionalParts.map((row) => ({ ...row })),
+      packingParts: packingParts.map((row) => ({ ...row })),
+      total: liveTotal,
+      bomCount: bomDraft.parts.length,
+      coilCost: Number(bomDraft.coilSnapshot?.totalCost || 0),
+      templatePartsCost: relatedBomPartsCost,
+      optionalPartsCost,
+      packingPartsCost,
+      laborAndManagementCost,
+      surfaceTreatmentCost: surfaceTreatmentPreviewCost,
+      floatCostReady,
+      cableCostReady,
+      floatCostPart,
+      cableCostPart,
+    });
+  }, [
+    bomDraft,
+    bomDraftLoading,
+    bomDraftStale,
+    cableCostPart,
+    cableCostReady,
+    drawerOpen,
+    floatCostPart,
+    floatCostReady,
+    laborAndManagementCost,
+    liveTotal,
+    optionalPartsCost,
+    optionalParts,
+    packingPartsCost,
+    packingParts,
+    relatedBomParts,
+    relatedBomPartsCost,
+    surfaceTreatmentPreviewCost,
+  ]);
+  const costDisplayRefreshing = Boolean(bomDraft && (bomDraftLoading || bomDraftStale));
+  const displayedCosts = costDisplayRefreshing && costDisplaySnapshot
+    ? costDisplaySnapshot
+    : {
+        draft: bomDraft,
+        relatedBomParts,
+        optionalParts,
+        packingParts,
+        total: liveTotal,
+        bomCount: bomDraft?.parts.length || 0,
+        coilCost: Number(bomDraft?.coilSnapshot?.totalCost || 0),
+        templatePartsCost: relatedBomPartsCost,
+        optionalPartsCost,
+        packingPartsCost,
+        laborAndManagementCost,
+        surfaceTreatmentCost: surfaceTreatmentPreviewCost,
+        floatCostReady,
+        cableCostReady,
+        floatCostPart,
+        cableCostPart,
+      };
   const laborCostWarnings = useMemo(() => {
     const warnings: string[] = [];
     if (numberValue(form.assemblyWage) <= 0) warnings.push('安装工资未填写或为 0，人工成本可能漏算');
@@ -808,27 +939,32 @@ export function RecipesView() {
     return hints;
   }, [bomDraft?.coilSnapshot, laborCostWarnings, packingParts.length, relatedBomParts.length]);
   const recipeSaveBlockedByWarnings = costWarningHints.length > 0;
-  const costPreviewPending = canPreviewBomDraft && (!bomDraft || bomDraftLoading);
+  const templateMissingPartCandidates = useMemo(
+    () => collectTemplateMissingPartCandidates(templateForm, parts),
+    [parts, templateForm]
+  );
+  const recipeMissingPartCandidates = useMemo(
+    () => collectRecipeMissingPartCandidates(optionalParts, packingParts, parts),
+    [optionalParts, packingParts, parts]
+  );
   const configurationStatus = useMemo(() => {
     const floatReady = !form.hasFloat || Boolean(form.floatWire);
     const cableReady = !form.hasCable || Boolean(form.cableWire && form.cableLength);
-    const checks = [
-      { label: '基础信息', done: Boolean(form.name.trim() && form.templateId) },
-      { label: '模板 BOM', done: relatedBomParts.length > 0 },
-      { label: '线圈成本', done: Boolean(form.coilSpec && form.coilSheets && bomDraft?.coilSnapshot) },
-      { label: '浮球/电缆', done: floatReady && cableReady },
-      { label: '包装', done: packingParts.length > 0 || Boolean(bomDraft?.parts.some((part) => String(part.name || part.model || '').includes('包装') || String(part.name || part.model || '').includes('纸箱'))) },
-      { label: '人工管理', done: laborCostComplete },
+    const steps: RecipeFlowStep[] = [
+      { id: 'recipe-basic-section', label: '基础信息', done: Boolean(form.name.trim() && form.templateId) },
+      { id: 'recipe-coil-section', label: '线圈成本', done: Boolean(!bomDraftStale && form.coilSpec && form.coilSheets && bomDraft?.coilSnapshot) },
+      { id: 'recipe-dynamic-config-section', label: '浮球/电缆', done: floatReady && cableReady },
+      { id: 'recipe-optional-packing-section', label: '包装与配件', done: packingParts.length > 0 },
+      { id: 'recipe-labor-section', label: '人工管理', done: laborCostComplete },
     ];
-    const completedItems = checks.filter((item) => item.done).map((item) => item.label);
-    const pendingItems = checks.filter((item) => !item.done).map((item) => item.label);
+    const completedCount = steps.filter((item) => item.done).length;
     return {
-      completedItems,
-      pendingItems,
-      completionPercent: Math.round((completedItems.length / checks.length) * 100),
+      steps,
+      completionPercent: Math.round((completedCount / steps.length) * 100),
     };
   }, [
     bomDraft,
+    bomDraftStale,
     form.cableLength,
     form.cableWire,
     form.coilSheets,
@@ -840,7 +976,6 @@ export function RecipesView() {
     form.templateId,
     laborCostComplete,
     packingParts.length,
-    relatedBomParts.length,
   ]);
 
   useEffect(() => {
@@ -932,7 +1067,8 @@ export function RecipesView() {
     });
   }, [bomDraft?.coilSnapshot?.wireGauge, cableWireOptions, drawerOpen, floatWireOptions, setForm]);
 
-  function updateForm(patch: Partial<RecipeFormState>, invalidateBom = true) {
+  function updateForm(patch: Partial<RecipeFormState>, invalidateBom = true, dirty = true) {
+    if (dirty) markRecipeDirty();
     updateDraftForm(patch);
     if (invalidateBom) clearBomPreviewError();
   }
@@ -979,18 +1115,40 @@ export function RecipesView() {
   }
 
   function openCreateDrawer() {
+    templateDraftRequestRef.current += 1;
+    resetRecipeDirty();
     startCreateDraft();
     resetBomPreview();
     prepareRecipeEditorUi();
   }
 
   function openCloneRecipe(recipe: Recipe) {
+    templateDraftRequestRef.current += 1;
+    setProductCreationOpen(false);
+    setActiveSection('recipes');
+    resetRecipeDirty();
     startCloneDraft(recipe);
     resetBomPreview();
     prepareRecipeEditorUi();
+    markRecipeDirty();
   }
 
-  async function onTemplateChange(nextTemplateId: string) {
+  async function openCreateFromTemplate(template: PumpShellTemplate) {
+    setProductCreationOpen(false);
+    setActiveSection('recipes');
+    resetRecipeDirty();
+    startCreateDraft();
+    resetBomPreview();
+    prepareRecipeEditorUi();
+    await onTemplateChange(String(template.id), template, false);
+  }
+
+  async function onTemplateChange(
+    nextTemplateId: string,
+    templateOverride?: PumpShellTemplate,
+    dirty = true
+  ) {
+    const requestId = ++templateDraftRequestRef.current;
     const templateId = Number(nextTemplateId);
     if (!Number.isInteger(templateId) || templateId <= 0) {
       updateForm({
@@ -1007,16 +1165,17 @@ export function RecipesView() {
         surfaceTreatmentMode: 'none',
         surfaceTreatmentCost: '0',
         configurationPolicyJson: null,
-      });
+      }, true, dirty);
       resetBomPreview();
       return;
     }
 
     try {
-      const nextTemplate = templates.find((template) => template.id === templateId);
+      const nextTemplate = templateOverride || templates.find((template) => template.id === templateId);
       const nextShellMeta = findShellMetaForTemplate(nextTemplate, parts);
       const nextHasStainlessBarrel = nextShellMeta?.isStainless === true;
       const { recipeDraft } = await getTemplateRecipeDraft(templateId);
+      if (requestId !== templateDraftRequestRef.current) return;
       updateForm({
         templateId: String(recipeDraft.templateId),
         variantId: '',
@@ -1030,26 +1189,30 @@ export function RecipesView() {
         surfaceTreatmentMode: recipeDraft.surfaceTreatmentMode || 'none',
         surfaceTreatmentCost: String(recipeDraft.surfaceTreatmentCost || 0),
         configurationPolicyJson: recipeDraft.configurationPolicyJson || null,
-      });
+      }, true, dirty);
       clearBomPreviewError();
       setFormError(null);
     } catch (error) {
+      if (requestId !== templateDraftRequestRef.current) return;
       setFormError(error instanceof Error ? error.message : '应用泵壳模板失败');
     }
   }
 
 
   function addOptionalPart() {
+    markRecipeDirty();
     addOptionalDraftPart();
     clearBomPreviewError();
   }
 
   function addPackingPart() {
+    markRecipeDirty();
     addPackingDraftPart();
     clearBomPreviewError();
   }
 
   function updateOptionalPart(id: string, patch: Partial<RecipeSelection>) {
+    markRecipeDirty();
     const nextPatch = { ...patch };
     if (patch.model !== undefined && patch.supplier === undefined) {
       nextPatch.supplier = defaultSupplierForModel(String(patch.model || ''));
@@ -1068,6 +1231,7 @@ export function RecipesView() {
   }
 
   function updatePackingPart(id: string, patch: Partial<RecipeSelection>) {
+    markRecipeDirty();
     const nextPatch = { ...patch };
     if (patch.model !== undefined && patch.supplier === undefined) {
       const nextSupplier = defaultSupplierForModel(String(patch.model || ''), '包装');
@@ -1092,30 +1256,25 @@ export function RecipesView() {
     clearBomPreviewError();
   }
 
-  function packagingSubcategoryForDraft(row: RecipeSelectionRow): string {
-    const text = `${row.model} ${row.packagingMaterial}`;
-    if (text.includes('泡沫') || text.includes('珍珠棉') || text.includes('内衬')) return '内衬';
-    if (text.includes('箱') || text.includes('外包装')) return '外包装';
-    return '固定包材';
-  }
-
   function isRecipeCatalogMissing(kind: 'optional' | 'packing', row: RecipeSelectionRow): boolean {
     const model = row.model.trim();
     const supplier = row.supplier.trim();
     if (!model) return false;
+    const inferredCategory = kind === 'optional' ? templatePartCategoryForName(model) : null;
     return !parts.some((part) => (
       part.model === model
       && (kind === 'packing'
         ? part.category === '包装'
-        : part.category !== '包装' && part.category !== '线圈转子')
+        : inferredCategory
+          ? part.category === inferredCategory
+          : part.category !== '包装' && part.category !== '线圈转子')
       && (!supplier || part.supplier === supplier)
     ));
   }
 
   function openInlineRecipePart(kind: 'optional' | 'packing', row: RecipeSelectionRow) {
-    const inferredCategory = kind === 'packing'
-      ? '包装'
-      : (templatePartCategoryForName(row.model) || '配件');
+    const knownOptionalCategory = kind === 'optional' ? templatePartCategoryForName(row.model) : null;
+    const inferredCategory = kind === 'packing' ? '包装' : (knownOptionalCategory || '配件');
     if (inferredCategory === '线圈转子') {
       setFormError('线圈转子使用独立线圈方案，不进入零件库；请在线圈配置中建立正式方案');
       return;
@@ -1131,7 +1290,7 @@ export function RecipesView() {
         subcategory: kind === 'packing' ? packagingSubcategoryForDraft(row) : '',
         price: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
         stock: 0,
-        categoryScope: kind === 'packing' ? 'locked' : 'non-packaging',
+        categoryScope: kind === 'packing' || knownOptionalCategory ? 'locked' : 'non-packaging',
       },
     });
   }
@@ -1146,8 +1305,14 @@ export function RecipesView() {
     if (target.kind === 'template-fixed' && target.seed.categoryScope === 'locked' && part.category !== target.seed.category) {
       throw new Error(`模板固定配件必须绑定“${target.seed.category}”分类的正式零件`);
     }
-    if (target.kind === 'recipe-optional' && (part.category === '包装' || part.category === '线圈转子')) {
-      throw new Error('配方选配件不能绑定包装或线圈转子记录');
+    if (target.kind === 'recipe-optional' && (
+      part.category === '包装'
+      || part.category === '线圈转子'
+      || (target.seed.categoryScope === 'locked' && part.category !== target.seed.category)
+    )) {
+      throw new Error(target.seed.categoryScope === 'locked'
+        ? `配方选配件必须绑定“${target.seed.category}”分类的正式零件`
+        : '配方选配件不能绑定包装或线圈转子记录');
     }
     if (target.kind === 'recipe-packing' && (
       part.category !== '包装'
@@ -1156,6 +1321,7 @@ export function RecipesView() {
       throw new Error('配方包装只能绑定具有正式二级分类的“包装”零件');
     }
     if (target.kind === 'template-shell') {
+      markTemplateDirty();
       setTemplateForm((current) => ({
         ...current,
         shellModel: part.model,
@@ -1164,6 +1330,7 @@ export function RecipesView() {
           : current.bundleCost,
       }));
     } else if (target.kind === 'template-fixed' && target.rowId) {
+      markTemplateDirty();
       setTemplateForm((current) => ({
         ...current,
         partRows: current.partRows.map((row) => row.id === target.rowId
@@ -1171,6 +1338,7 @@ export function RecipesView() {
           : row),
       }));
     } else if (target.kind === 'recipe-optional' && target.rowId) {
+      markRecipeDirty();
       updateOptionalDraftPart(target.rowId, {
         partId: part.id,
         model: part.model,
@@ -1180,6 +1348,7 @@ export function RecipesView() {
       });
       clearBomPreviewError();
     } else if (target.kind === 'recipe-packing' && target.rowId) {
+      markRecipeDirty();
       updatePackingDraftPart(target.rowId, {
         partId: part.id,
         model: part.model,
@@ -1194,12 +1363,84 @@ export function RecipesView() {
     setInlinePartCreateTarget(null);
   }
 
+  async function handleMissingPartsCompleted(candidates: MissingPartCandidate[], freshParts: Part[]) {
+    const resolved = new Map<string, Part>();
+    for (const candidate of candidates) {
+      const part = freshParts.find((item) => candidateMatchesPart(candidate, item));
+      if (!part) throw new Error(`零件“${candidate.model}”已提交，但回读后未找到匹配记录，请刷新后检查，勿重复提交`);
+      resolved.set(candidate.key, part);
+    }
+
+    setParts(freshParts);
+    if (missingPartsBatchTarget === 'template') {
+      markTemplateDirty();
+      setTemplateForm((current) => {
+        let next = current;
+        for (const candidate of candidates) {
+          const part = resolved.get(candidate.key);
+          if (!part) continue;
+          if (candidate.targetKind === 'template-shell') {
+            next = {
+              ...next,
+              shellModel: part.model,
+              bundleCost: next.costMode === 'bundle' ? String(part.price) : next.bundleCost,
+            };
+          } else if (candidate.targetKind === 'template-component' && candidate.rowId) {
+            next = {
+              ...next,
+              componentRows: next.componentRows.map((row) => row.id === candidate.rowId
+                ? { ...row, model: part.model, supplier: part.supplier, unitCost: part.price }
+                : row),
+            };
+          } else if (candidate.targetKind === 'template-fixed' && candidate.rowId) {
+            next = {
+              ...next,
+              partRows: next.partRows.map((row) => row.id === candidate.rowId
+                ? { ...row, model: part.model, supplier: part.supplier }
+                : row),
+            };
+          }
+        }
+        return next;
+      });
+    } else if (missingPartsBatchTarget === 'recipe') {
+      markRecipeDirty();
+      for (const candidate of candidates) {
+        const part = resolved.get(candidate.key);
+        if (!part || !candidate.rowId) continue;
+        if (candidate.targetKind === 'recipe-optional') {
+          updateOptionalDraftPart(candidate.rowId, {
+            partId: part.id,
+            model: part.model,
+            supplier: part.supplier,
+            costSource: '',
+            snapshotPrice: '',
+          });
+        } else if (candidate.targetKind === 'recipe-packing') {
+          updatePackingDraftPart(candidate.rowId, {
+            partId: part.id,
+            model: part.model,
+            supplier: part.supplier,
+            packagingMaterial: packagingMaterialForCatalogPart(part),
+            costSource: '',
+            snapshotPrice: '',
+          });
+        }
+      }
+      clearBomPreviewError();
+    }
+    setFormError(null);
+    setMissingPartsBatchTarget(null);
+  }
+
   function removeOptionalPart(id: string) {
+    markRecipeDirty();
     removeOptionalDraftPart(id);
     clearBomPreviewError();
   }
 
   function removePackingPart(id: string) {
+    markRecipeDirty();
     removePackingDraftPart(id);
     clearBomPreviewError();
   }
@@ -1274,6 +1515,8 @@ export function RecipesView() {
   }
 
   function openCreateTemplate() {
+    setProductCreationOpen(false);
+    resetTemplateDirty();
     setEditingTemplate(null);
     setTemplateReuseSource(null);
     setTemplateForm(emptyTemplateForm());
@@ -1316,6 +1559,7 @@ export function RecipesView() {
   }
 
   function openEditTemplate(template: PumpShellTemplate) {
+    resetTemplateDirty();
     setEditingTemplate(template);
     setTemplateReuseSource(null);
     setTemplateForm(templateFormFromTemplate(template));
@@ -1324,6 +1568,7 @@ export function RecipesView() {
   }
 
   function openReuseTemplate(template: PumpShellTemplate) {
+    resetTemplateDirty();
     setEditingTemplate(null);
     setTemplateReuseSource(template);
     setTemplateForm(templateFormForReuse(template, templates));
@@ -1332,12 +1577,21 @@ export function RecipesView() {
   }
 
   function closeTemplateEditor() {
+    setMissingPartsBatchTarget((current) => current === 'template' ? null : current);
     setTemplateDrawerOpen(false);
     setTemplateReuseSource(null);
   }
 
+  function closeRecipeEditor() {
+    templateDraftRequestRef.current += 1;
+    setMissingPartsBatchTarget((current) => current === 'recipe' ? null : current);
+    setDrawerOpen(false);
+  }
+
   async function submitTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const continueToRecipe = !editingTemplate && submitter?.name === 'continueToRecipe';
     if (!templateForm.shellModel.trim()) {
       setFormError(templateForm.costMode === 'bundle' ? '请从零件库选择泵壳型号' : '请填写组合模板名称');
       return;
@@ -1374,12 +1628,23 @@ export function RecipesView() {
     setFormError(null);
     setError(null);
     try {
-      if (editingTemplate) await updateTemplate(editingTemplate, input);
-      else await createTemplate(input);
+      const savedTemplate = editingTemplate
+        ? await updateTemplate(editingTemplate, input)
+        : await createTemplate(input);
       await load(true);
+      resetTemplateDirty();
       setTemplateDrawerOpen(false);
       setTemplateReuseSource(null);
-      setActiveSection('templates');
+      if (continueToRecipe) {
+        setActiveSection('recipes');
+        resetRecipeDirty();
+        startCreateDraft();
+        resetBomPreview();
+        prepareRecipeEditorUi();
+        await onTemplateChange(String(savedTemplate.id), savedTemplate, false);
+      } else {
+        setActiveSection('templates');
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '泵壳模板保存失败');
     } finally {
@@ -1550,10 +1815,6 @@ export function RecipesView() {
       setFormError('配方名称不能为空');
       return;
     }
-    if (costPreviewPending) {
-      setFormError('当前成本正在计算，请等待完成后再保存配方');
-      return;
-    }
     if (recipeSaveBlockedByWarnings) {
       setFormError('存在成本警告，请处理后再保存配方');
       scrollToCostWarningTarget();
@@ -1632,9 +1893,10 @@ export function RecipesView() {
       if (editingRecipe) await updateRecipe(editingRecipe.id, payload);
       else await createRecipe(payload);
       await load(true);
+      resetRecipeDirty();
       setRecipeAnalysisOpen(false);
       setAnalysisSaveGateOpen(false);
-      setDrawerOpen(false);
+      closeRecipeEditor();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '配方保存失败');
     } finally {
@@ -1672,18 +1934,21 @@ export function RecipesView() {
             刷新
           </Button>
           {activeSection === 'variants' ? (
-            <Button variant="primary" onClick={openCreateVariant} disabled={saving} icon={<Plus size={15} />}>
+            <Button onClick={openCreateVariant} disabled={saving} icon={<Plus size={15} />}>
               新建配置
             </Button>
           ) : activeSection === 'templates' ? (
-            <Button variant="primary" onClick={openCreateTemplate} disabled={saving} icon={<Plus size={15} />}>
+            <Button onClick={openCreateTemplate} disabled={saving} icon={<Plus size={15} />}>
               新建模板
             </Button>
           ) : activeSection === 'recipes' ? (
-            <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
+            <Button onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
               新建配方
             </Button>
           ) : null}
+          <Button variant="primary" onClick={() => setProductCreationOpen(true)} disabled={saving} icon={<Plus size={15} />}>
+            新建产品
+          </Button>
           </>
         )}
       />
@@ -1842,8 +2107,14 @@ export function RecipesView() {
         onCreateShellComponentPart={createShellComponentPart}
         onOpenCreateShellPart={openInlineShellPart}
         onOpenCreateFixedPart={openInlineFixedPart}
-        onFormChange={(update) => setTemplateForm(update)}
-        onClose={closeTemplateEditor}
+        missingPartCount={templateMissingPartCandidates.length}
+        onOpenMissingParts={() => setMissingPartsBatchTarget('template')}
+        dirty={templateFormDirty}
+        onFormChange={(update) => {
+          markTemplateDirty();
+          setTemplateForm(update);
+        }}
+        onClose={requestTemplateClose}
         onSubmit={submitTemplate}
       />
 
@@ -1852,11 +2123,15 @@ export function RecipesView() {
         editing={Boolean(editingRecipe)}
         saving={saving}
         analysisLoading={recipeAnalysisLoading}
-        saveBlocked={recipeSaveBlockedByWarnings || costPreviewPending}
-        costLoading={costPreviewPending}
+        saveBlocked={recipeSaveBlockedByWarnings}
+        costLoading={bomDraftLoading}
         formError={formError}
-        onClose={() => setDrawerOpen(false)}
+        dirty={recipeFormDirty}
+        steps={configurationStatus.steps}
+        missingPartCount={recipeMissingPartCandidates.length}
+        onClose={requestRecipeClose}
         onAnalyze={() => void runRecipeAnalysis()}
+        onOpenMissingParts={() => setMissingPartsBatchTarget('recipe')}
         onSubmit={submitRecipe}
       >
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -1865,8 +2140,9 @@ export function RecipesView() {
               form={form}
               templates={templates}
               hasStainlessBarrel={hasStainlessBarrel}
-              templateParts={relatedBomParts}
-              templatePartsCost={relatedBomPartsCost}
+              templateParts={displayedCosts.relatedBomParts}
+              templatePartsCost={displayedCosts.templatePartsCost}
+              complete={configurationStatus.steps[0].done}
               linkedChanges={linkedChangeAnnotations}
               linkedChangeSummary={linkedChangeSummary}
               hasLinkedChangeWarning={hasLinkedChangeWarning}
@@ -1881,8 +2157,9 @@ export function RecipesView() {
               sheetOptions={coilSheetOptions}
               materialOptions={formMaterialOptions}
               slotTypeOptions={formSlotTypeOptions}
-              coilSnapshot={bomDraft?.coilSnapshot}
-              capacitorModel={bomDraft?.capacitorModel || ''}
+              coilSnapshot={displayedCosts.draft?.coilSnapshot}
+              complete={configurationStatus.steps[1].done}
+              capacitorModel={displayedCosts.draft?.capacitorModel || ''}
               onSpecChange={(coilSpec) => {
                 const selection = coilSpec
                   ? resolveCoilVariantSelection(
@@ -1919,18 +2196,18 @@ export function RecipesView() {
 
             <RecipeDynamicConfigSection
               form={form}
-              hasMissingConfig={missingConfigHints.some((hint) => hint.includes('浮球') || hint.includes('电缆'))}
               floatWireOptions={floatWireOptions}
               cableWireOptions={cableWireOptions}
               recommendedFloatWire={recommendedFloatWire}
               recommendedCableWire={recommendedCableWire}
               isFloatWireRecommended={isFloatWireRecommended}
               isCableWireRecommended={isCableWireRecommended}
-              floatCostReady={floatCostReady}
-              cableCostReady={cableCostReady}
-              costLoading={bomDraftLoading}
-              floatCostPart={floatCostPart}
-              cableCostPart={cableCostPart}
+              complete={configurationStatus.steps[2].done}
+              floatCostReady={displayedCosts.floatCostReady}
+              cableCostReady={displayedCosts.cableCostReady}
+              costLoading={costDisplayRefreshing}
+              floatCostPart={displayedCosts.floatCostPart}
+              cableCostPart={displayedCosts.cableCostPart}
               onChange={(patch) => updateForm(patch)}
               onFloatWireChange={(floatWire) => {
                 autoWireSelectionRef.current.floatWire = '';
@@ -1945,11 +2222,14 @@ export function RecipesView() {
             <RecipeOptionalPackingSection
               optionalParts={optionalParts}
               packingParts={packingParts}
-              optionalPartsCost={optionalPartsCost}
-              packingPartsCost={packingPartsCost}
+              optionalPartsCost={displayedCosts.optionalPartsCost}
+              packingPartsCost={displayedCosts.packingPartsCost}
+              complete={configurationStatus.steps[3].done}
               partModelOptions={partModelOptions}
               packingModelOptions={packingModelOptions}
-              bomDraft={bomDraft}
+              bomDraft={displayedCosts.draft}
+              optionalCostRows={displayedCosts.optionalParts}
+              packingCostRows={displayedCosts.packingParts}
               saving={saving}
               onAddOptionalPart={addOptionalPart}
               onUpdateOptionalPart={updateOptionalPart}
@@ -1997,21 +2277,20 @@ export function RecipesView() {
               </div>
 
               <CostSummaryPanel
-                bomCount={bomDraft?.parts.length || 0}
-                loading={bomDraftLoading}
+                bomCount={displayedCosts.bomCount}
+                loading={costDisplayRefreshing}
                 ready={Boolean(bomDraft)}
                 saving={saving}
-                total={liveTotal}
-                coilCost={Number(bomDraft?.coilSnapshot?.totalCost || 0)}
-                templatePartsCost={relatedBomPartsCost}
-                optionalPartsCost={optionalPartsCost}
-                packingPartsCost={packingPartsCost}
-                laborAndManagementCost={laborAndManagementCost}
-                surfaceTreatmentCost={surfaceTreatmentPreviewCost}
+                total={displayedCosts.total}
+                coilCost={displayedCosts.coilCost}
+                templatePartsCost={displayedCosts.templatePartsCost}
+                optionalPartsCost={displayedCosts.optionalPartsCost}
+                packingPartsCost={displayedCosts.packingPartsCost}
+                laborAndManagementCost={displayedCosts.laborAndManagementCost}
+                surfaceTreatmentCost={displayedCosts.surfaceTreatmentCost}
                 missingConfigHints={missingConfigHints}
                 costWarningHints={costWarningHints}
-                completedItems={configurationStatus.completedItems}
-                pendingItems={configurationStatus.pendingItems}
+                steps={configurationStatus.steps}
                 completionPercent={configurationStatus.completionPercent}
                 onRefresh={() => void buildBomDraft()}
                 onOpenBom={() => setBomDetailsOpen(true)}
@@ -2020,6 +2299,17 @@ export function RecipesView() {
             </div>
       </RecipeEditor>
 
+      <ProductCreationDialog
+        open={productCreationOpen}
+        recipes={recipes}
+        templates={templates}
+        saving={saving}
+        onClose={() => setProductCreationOpen(false)}
+        onCloneRecipe={openCloneRecipe}
+        onCreateFromTemplate={openCreateFromTemplate}
+        onCreateTemplate={openCreateTemplate}
+      />
+
       <InlinePartCreateDialog
         open={Boolean(inlinePartCreateTarget)}
         seed={inlinePartCreateTarget?.seed || null}
@@ -2027,6 +2317,14 @@ export function RecipesView() {
         onClose={() => setInlinePartCreateTarget(null)}
         onResolve={resolveCatalogPart}
         onResolved={handleInlinePartResolved}
+      />
+
+      <MissingPartsBatchDialog
+        open={Boolean(missingPartsBatchTarget)}
+        candidates={missingPartsBatchTarget === 'template' ? templateMissingPartCandidates : recipeMissingPartCandidates}
+        supplierOptions={parts.map((part) => part.supplier)}
+        onClose={() => setMissingPartsBatchTarget(null)}
+        onCompleted={handleMissingPartsCompleted}
       />
 
       <RecipeAnalysisPanel
@@ -2076,6 +2374,32 @@ export function RecipesView() {
         getSubtotal={recipePartSubtotal}
         getSourceLabel={partCostSourceLabel}
         getFormula={partFormulaLine}
+      />
+
+      <ConfirmDialog
+        open={recipeDiscardPromptOpen}
+        title="放弃未保存的配方？"
+        description={recipeDiscardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmRecipeDiscard}
+        onClose={cancelRecipeDiscard}
+        layer="top"
+      />
+
+      <ConfirmDialog
+        open={templateDiscardPromptOpen}
+        title="放弃未保存的模板？"
+        description={templateDiscardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmTemplateDiscard}
+        onClose={cancelTemplateDiscard}
+        layer="top"
       />
 
       <ConfirmDialog

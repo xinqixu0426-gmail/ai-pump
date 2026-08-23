@@ -113,6 +113,7 @@ export function useBomPreview({
   autoDelayMs = 400,
 }: UseBomPreviewOptions) {
   const [draft, setDraft] = useState<RecipeBomDraftResult | null>(null);
+  const [acceptedInput, setAcceptedInput] = useState<BomPreviewInput | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
@@ -188,7 +189,10 @@ export function useBomPreview({
     setError(null);
     try {
       const nextDraft = await previewRecipeBomDraft(requestInput);
-      if (requestId === requestRef.current) setDraft(nextDraft);
+      if (requestId === requestRef.current) {
+        setDraft(nextDraft);
+        setAcceptedInput(requestInput);
+      }
       return nextDraft;
     } catch (error) {
       if (requestId === requestRef.current && options.captureError !== false) {
@@ -203,6 +207,7 @@ export function useBomPreview({
   const replace = useCallback((nextDraft: RecipeBomDraftResult | null) => {
     requestRef.current += 1;
     setDraft(nextDraft);
+    setAcceptedInput(null);
     setLoading(false);
     setError(null);
   }, []);
@@ -244,6 +249,7 @@ export function useBomPreview({
   return {
     draft,
     loading,
+    stale: Boolean(draft && acceptedInput !== input),
     error,
     canPreview: Boolean(input),
     run,

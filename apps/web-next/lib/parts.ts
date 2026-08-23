@@ -90,6 +90,75 @@ export async function createPart(input: PartInput): Promise<Part> {
   return rowToPart(result.data);
 }
 
+export type PartBatchCreateInput = Pick<
+  PartInput,
+  'model' | 'category' | 'subcategory' | 'price' | 'supplier' | 'stock' | 'notes'
+>;
+
+export type PartBatchCreatePreview = {
+  capabilityId: 'parts.batch_create';
+  preview: true;
+  confirmationToken: string;
+  previewHash: string;
+  suggestedIdempotencyKey: string;
+  requestedCount: number;
+  createCount: number;
+  skippedCount: number;
+  parts: PartBatchCreateInput[];
+  skippedExisting: PartRow[];
+  warnings: Array<{ code: string; message: string; resourceId?: number }>;
+};
+
+export type PartBatchCreateReceipt = {
+  operationId: string;
+  status?: string;
+  operationStatus?: string;
+  createdCount: number;
+  parts: PartRow[];
+  auditIds: number[];
+  warnings?: Array<{ code?: string; message?: string }>;
+  idempotentReplay?: boolean;
+};
+
+export async function previewPartBatchCreate(
+  parts: PartBatchCreateInput[]
+): Promise<PartBatchCreatePreview> {
+  const result = await proxyRequest<ApiResponse<PartBatchCreatePreview>>('/api/parts/batch-create-preview', {
+    method: 'POST',
+    body: JSON.stringify({ parts }),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '生成零件批量建档预览失败');
+  }
+  return result.data;
+}
+
+export async function confirmPartBatchCreate(
+  preview: Pick<PartBatchCreatePreview, 'confirmationToken' | 'suggestedIdempotencyKey'>
+): Promise<PartBatchCreateReceipt> {
+  const result = await proxyRequest<ApiResponse<PartBatchCreateReceipt>>('/api/parts/batch-create', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.suggestedIdempotencyKey,
+    },
+    body: JSON.stringify({
+      confirmationToken: preview.confirmationToken,
+      idempotencyKey: preview.suggestedIdempotencyKey,
+    }),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '零件批量建档失败');
+  }
+  const status = result.data.status || result.data.operationStatus;
+  if (status !== 'completed'
+    || !result.data.operationId
+    || result.data.createdCount <= 0
+    || result.data.auditIds.length < result.data.createdCount) {
+    throw new Error('零件批量建档回执不完整，请勿重复提交并检查业务变更记录');
+  }
+  return result.data;
+}
+
 async function replacePartStock(part: Part, targetStock: number): Promise<Part> {
   const delta = targetStock - part.stock;
   if (delta === 0) return part;

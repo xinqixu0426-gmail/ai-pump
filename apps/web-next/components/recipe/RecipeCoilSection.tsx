@@ -23,6 +23,7 @@ type RecipeCoilSectionProps = {
   materialOptions: string[];
   slotTypeOptions: string[];
   coilSnapshot: RecipeBomDraftResult['coilSnapshot'];
+  complete: boolean;
   capacitorModel: string;
   onSpecChange: (value: string) => void;
   onSheetsChange: (value: string) => void;
@@ -38,6 +39,7 @@ export function RecipeCoilSection({
   materialOptions,
   slotTypeOptions,
   coilSnapshot,
+  complete,
   capacitorModel,
   onSpecChange,
   onSheetsChange,
@@ -47,12 +49,13 @@ export function RecipeCoilSection({
 }: RecipeCoilSectionProps) {
   return (
     <WorkspaceSection
+      id="recipe-coil-section"
       title="2. 线圈转子"
       description="选择线圈规格和片数后，系统自动读取对应线重并计算成本。"
       summary={form.coilSpec ? `${form.coilSpec} / ${form.coilSheets || '待选片数'} / ${form.coilMaterial || '-'} / ${form.coilSlotType || '小眼'}` : '待选择线圈规格'}
-      status={coilSnapshot ? 'complete' : 'warning'}
-      badge="自动计算"
-      badgeTone="blue"
+      status={complete ? 'complete' : 'warning'}
+      badge={complete ? '已完成' : '自动计算'}
+      badgeTone={complete ? 'green' : 'blue'}
       defaultOpen={false}
     >
       <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">

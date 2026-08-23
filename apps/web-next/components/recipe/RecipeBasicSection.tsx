@@ -27,6 +27,7 @@ type RecipeBasicSectionProps = {
   hasStainlessBarrel: boolean;
   templateParts: RecipePart[];
   templatePartsCost: number;
+  complete: boolean;
   linkedChanges: LinkedChangeAnnotation[];
   linkedChangeSummary: string;
   hasLinkedChangeWarning: boolean;
@@ -48,6 +49,7 @@ export function RecipeBasicSection({
   hasStainlessBarrel,
   templateParts,
   templatePartsCost,
+  complete,
   linkedChanges,
   linkedChangeSummary,
   hasLinkedChangeWarning,
@@ -55,8 +57,6 @@ export function RecipeBasicSection({
   onTemplateChange,
   onOpenTemplateParts,
 }: RecipeBasicSectionProps) {
-  const complete = Boolean(form.name.trim() && form.templateId);
-
   return (
     <WorkspaceSection
       id="recipe-basic-section"

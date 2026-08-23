@@ -422,7 +422,7 @@ export function RecipeWorkspace({
                   <div className="flex flex-wrap justify-end gap-1">
                     <Button className="h-7" size="sm" variant="ghost" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
                     <Button className="h-7" size="sm" variant="secondary" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
-                    <Button className="h-7 w-7 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />} />
+                    <Button className="h-7" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />}>复制</Button>
                     <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void onRemove(row.recipe)} icon={<Trash2 size={14} />} />
                   </div>
                 </article>
@@ -509,7 +509,7 @@ export function RecipeWorkspace({
                         <div className="flex justify-end gap-1">
                           <Button className="h-7" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
                           <Button className="h-7" size="sm" variant="secondary" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
-                          <Button className="h-7 w-7 px-0" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />} />
+                          <Button className="h-7" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />}>复制</Button>
                           <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void onRemove(row.recipe)} icon={<Trash2 size={14} />} />
                         </div>
                       </td>

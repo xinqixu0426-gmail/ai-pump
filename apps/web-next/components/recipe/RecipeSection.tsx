@@ -8,6 +8,32 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 
 export type RecipeSectionStatus = 'default' | 'active' | 'complete' | 'warning' | 'error' | 'disabled';
 export type RecipeBadgeTone = 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'gray';
+export type RecipeFlowStep = { id: string; label: string; done: boolean };
+
+type RecipeSectionFlowValue = {
+  activeSectionId: string;
+  sectionIds: string[];
+  onActiveSectionChange: (sectionId: string) => void;
+};
+
+const RecipeSectionFlowContext = React.createContext<RecipeSectionFlowValue | null>(null);
+
+export function useRecipeSectionFlow() {
+  return React.useContext(RecipeSectionFlowContext);
+}
+
+export function RecipeSectionFlowProvider({
+  activeSectionId,
+  sectionIds,
+  onActiveSectionChange,
+  children,
+}: RecipeSectionFlowValue & { children: ReactNode }) {
+  return (
+    <RecipeSectionFlowContext.Provider value={{ activeSectionId, sectionIds, onActiveSectionChange }}>
+      {children}
+    </RecipeSectionFlowContext.Provider>
+  );
+}
 
 type RecipeSectionProps = {
   id?: string;
@@ -36,7 +62,18 @@ export function RecipeSection({
   muted = false,
   children,
 }: RecipeSectionProps) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const flow = React.useContext(RecipeSectionFlowContext);
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen);
+  const controlled = Boolean(id && flow?.sectionIds.includes(id));
+  const open = controlled ? flow?.activeSectionId === id : localOpen;
+
+  function toggleOpen() {
+    if (controlled && id && flow) {
+      if (!open) flow.onActiveSectionChange(id);
+      return;
+    }
+    setLocalOpen((next) => !next);
+  }
 
   return (
     <section
@@ -52,7 +89,7 @@ export function RecipeSection({
           type="button"
           aria-expanded={open}
           aria-controls={id ? `${id}-content` : undefined}
-          onClick={() => setOpen((next) => !next)}
+          onClick={toggleOpen}
           className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
         >
           <div className="min-w-0">

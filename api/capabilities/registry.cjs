@@ -724,7 +724,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         supportsPreview: true,
         previewPath: '/api/parts/batch-create-preview',
         concurrencyControl: 'confirmationToken_bound_absence_snapshot',
-        callers: Object.freeze(['ai', 'internal']),
+        callers: Object.freeze(['web', 'ai', 'internal']),
     }),
     'parts.update': defineBusinessCapability({
         capabilityId: 'parts.update',

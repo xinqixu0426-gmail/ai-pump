@@ -24,6 +24,9 @@ type RecipeOptionalPackingSectionProps = {
   packingParts: RecipeSelectionRow[];
   optionalPartsCost: number;
   packingPartsCost: number;
+  optionalCostRows: RecipeSelectionRow[];
+  packingCostRows: RecipeSelectionRow[];
+  complete: boolean;
   partModelOptions: string[];
   packingModelOptions: PackingModelOption[];
   bomDraft: RecipeBomDraftResult | null;
@@ -43,6 +46,9 @@ export function RecipeOptionalPackingSection({
   packingParts,
   optionalPartsCost,
   packingPartsCost,
+  optionalCostRows,
+  packingCostRows,
+  complete,
   partModelOptions,
   packingModelOptions,
   bomDraft,
@@ -57,17 +63,17 @@ export function RecipeOptionalPackingSection({
   onCreateCatalogPart,
 }: RecipeOptionalPackingSectionProps) {
   const totalItems = optionalParts.length + packingParts.length;
-  const packingComplete = packingParts.length > 0;
-
+  const optionalCostRow = (row: RecipeSelectionRow) => optionalCostRows.find((candidate) => candidate.id === row.id) || row;
+  const packingCostRow = (row: RecipeSelectionRow) => packingCostRows.find((candidate) => candidate.id === row.id) || row;
   return (
     <RecipeSection
       id="recipe-optional-packing-section"
       title="4. 包装与其他配件"
       description="额外物料和包装项默认弱化，添加后会参与 BOM 和成本草稿。"
       summary={`${totalItems} 项，${money(optionalPartsCost + packingPartsCost)}`}
-      status={packingComplete ? 'complete' : 'warning'}
-      badge={packingComplete ? `${totalItems} 项` : '待完善'}
-      badgeTone={packingComplete ? 'green' : 'amber'}
+      status={complete ? 'complete' : 'warning'}
+      badge={complete ? `${totalItems} 项` : '待完善'}
+      badgeTone={complete ? 'green' : 'amber'}
       defaultOpen={false}
       muted
     >
@@ -92,9 +98,9 @@ export function RecipeOptionalPackingSection({
             onAdd={onAddOptionalPart}
             onUpdate={onUpdateOptionalPart}
             onRemove={onRemoveOptionalPart}
-            getAmount={(part) => recipePartSubtotal(findDraftSelectionPart(bomDraft, part))}
-            getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, part))}
-            getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, part))}
+            getAmount={(part) => recipePartSubtotal(findDraftSelectionPart(bomDraft, optionalCostRow(part)))}
+            getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, optionalCostRow(part)))}
+            getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, optionalCostRow(part)))}
             formulaLabel="公式:"
             isCatalogMissing={(row) => isCatalogMissing('optional', row)}
             onCreateCatalogPart={(row) => onCreateCatalogPart('optional', row)}
@@ -124,9 +130,9 @@ export function RecipeOptionalPackingSection({
             onAdd={onAddPackingPart}
             onUpdate={onUpdatePackingPart}
             onRemove={onRemovePackingPart}
-            getAmount={(part) => recipePartSubtotal(findDraftSelectionPart(bomDraft, part))}
-            getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, part))}
-            getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, part))}
+            getAmount={(part) => recipePartSubtotal(findDraftSelectionPart(bomDraft, packingCostRow(part)))}
+            getCostLine={(part) => partCostLine(findDraftSelectionPart(bomDraft, packingCostRow(part)))}
+            getFormula={(part) => partFormulaLine(findDraftSelectionPart(bomDraft, packingCostRow(part)))}
             formulaLabel="公式:"
             isCatalogMissing={(row) => isCatalogMissing('packing', row)}
             onCreateCatalogPart={(row) => onCreateCatalogPart('packing', row)}

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { Check, CircleAlert, Layers3, Package, Plus, Save, Trash2, X } from 'lucide-react';
+import { Check, CircleAlert, Layers3, Package, PackagePlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { SlideOver } from '@/components/motion/slide-over';
 import {
   ShellCostEditor,
@@ -111,6 +111,8 @@ type PumpShellTemplateEditorProps = {
   form: TemplateFormState;
   formError: string | null;
   saving: boolean;
+  dirty: boolean;
+  missingPartCount: number;
   shellCatalogOptions: ShellCatalogOption[];
   shellComponentModelOptions: string[];
   shellComponentParts: ShellComponentCatalogPart[];
@@ -126,6 +128,7 @@ type PumpShellTemplateEditorProps = {
   }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
   onOpenCreateShellPart: () => void;
   onOpenCreateFixedPart: (row: TemplatePartFormRow, category: string | null) => void;
+  onOpenMissingParts: () => void;
   onFormChange: (update: (form: TemplateFormState) => TemplateFormState) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -139,6 +142,8 @@ export function PumpShellTemplateEditor({
   form,
   formError,
   saving,
+  dirty,
+  missingPartCount,
   shellCatalogOptions,
   shellComponentModelOptions,
   shellComponentParts,
@@ -150,6 +155,7 @@ export function PumpShellTemplateEditor({
   onCreateShellComponentPart,
   onOpenCreateShellPart,
   onOpenCreateFixedPart,
+  onOpenMissingParts,
   onFormChange,
   onClose,
   onSubmit,
@@ -267,6 +273,18 @@ export function PumpShellTemplateEditor({
             <div className="flex items-center gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
               <CircleAlert size={16} />
               {formError}
+            </div>
+          ) : null}
+
+          {missingPartCount > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <div>
+                <div className="text-sm font-semibold text-amber-900">待补齐零件 {missingPartCount} 项</div>
+                <div className="mt-1 text-xs text-amber-700">可以集中填写供应商和目录价，也可继续在对应物料行单条建档。</div>
+              </div>
+              <Button type="button" size="sm" onClick={onOpenMissingParts} disabled={saving} icon={<PackagePlus size={14} />}>
+                集中补齐
+              </Button>
             </div>
           ) : null}
 
@@ -541,11 +559,25 @@ export function PumpShellTemplateEditor({
           </section>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-line p-5">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
-          <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
-            {saving ? '保存中' : '保存模板'}
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-5">
+          <div className="text-xs text-muted" aria-live="polite">{dirty ? '有未保存修改' : '尚未修改'}</div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
+            {!editingTemplate ? (
+              <Button type="submit" disabled={saving} icon={<Save size={15} />}>
+                {saving ? '保存中' : '保存模板'}
+              </Button>
+            ) : null}
+            <Button
+              type="submit"
+              name={!editingTemplate ? 'continueToRecipe' : undefined}
+              variant="primary"
+              disabled={saving}
+              icon={<Save size={15} />}
+            >
+              {saving ? '保存中' : editingTemplate ? '保存模板' : '保存模板并创建配方'}
+            </Button>
+          </div>
         </div>
       </form>
     </SlideOver>

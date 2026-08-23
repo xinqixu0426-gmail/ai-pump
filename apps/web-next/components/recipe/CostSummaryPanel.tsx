@@ -4,6 +4,7 @@ import { Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { money } from '@/lib/format';
 import { BomPreview } from './BomPreview';
+import { type RecipeFlowStep, useRecipeSectionFlow } from './RecipeSection';
 
 type CostSummaryPanelProps = {
   bomCount: number;
@@ -19,8 +20,7 @@ type CostSummaryPanelProps = {
   surfaceTreatmentCost: number;
   missingConfigHints: string[];
   costWarningHints?: string[];
-  completedItems: string[];
-  pendingItems: string[];
+  steps: RecipeFlowStep[];
   completionPercent: number;
   onRefresh: () => void;
   onOpenBom: () => void;
@@ -50,16 +50,16 @@ export function CostSummaryPanel({
   surfaceTreatmentCost,
   missingConfigHints,
   costWarningHints = [],
-  completedItems,
-  pendingItems,
+  steps,
   completionPercent,
   onRefresh,
   onOpenBom,
   onGoToCostWarnings,
 }: CostSummaryPanelProps) {
+  const sectionFlow = useRecipeSectionFlow();
   const clampedPercent = Math.max(0, Math.min(100, completionPercent));
-  const completedCount = completedItems.length;
-  const moduleCount = completedItems.length + pendingItems.length;
+  const completedCount = steps.filter((step) => step.done).length;
+  const moduleCount = steps.length;
   const pendingHints = Array.from(new Set([...missingConfigHints, ...costWarningHints]));
 
   return (
@@ -69,7 +69,7 @@ export function CostSummaryPanel({
           <div>
             <div className="text-base font-semibold text-slate-900">实时成本预览</div>
             <div className="mt-1 text-xs text-slate-500">
-              {loading ? '正在计算当前成本...' : ready && bomCount > 0 ? `${bomCount} 项 BOM` : '填写配置后自动预览'}
+              {loading && ready ? '正在更新，暂显上次结果' : loading ? '首次计算中...' : ready && bomCount > 0 ? `${bomCount} 项 BOM` : '填写配置后自动预览'}
             </div>
           </div>
           <Button type="button" size="sm" onClick={onRefresh} disabled={saving || loading} icon={<Wand2 size={14} />}>
@@ -80,12 +80,12 @@ export function CostSummaryPanel({
         <CostSummaryCard total={total} bomCount={bomCount} loading={loading} ready={ready} />
 
         <div className="mt-4 space-y-2.5">
-          <CostLine label="线圈成本" value={coilCost} ready={ready && !loading} />
-          <CostLine label="模板配件成本" value={templatePartsCost} ready={ready && !loading} />
-          <CostLine label="选配件成本" value={optionalPartsCost} ready={ready && !loading} />
-          <CostLine label="包装材料成本" value={packingPartsCost} ready={ready && !loading} />
-          <CostLine label="人工与管理费" value={laborAndManagementCost} ready={ready && !loading} />
-          <CostLine label="表面处理费" value={surfaceTreatmentCost} ready={ready && !loading} />
+          <CostLine label="线圈成本" value={coilCost} ready={ready} />
+          <CostLine label="模板配件成本" value={templatePartsCost} ready={ready} />
+          <CostLine label="选配件成本" value={optionalPartsCost} ready={ready} />
+          <CostLine label="包装材料成本" value={packingPartsCost} ready={ready} />
+          <CostLine label="人工与管理费" value={laborAndManagementCost} ready={ready} />
+          <CostLine label="表面处理费" value={surfaceTreatmentCost} ready={ready} />
         </div>
 
         <div className={`mt-4 rounded-md border p-3 ${pendingHints.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50/70'}`}>
@@ -139,17 +139,17 @@ export function CostSummaryPanel({
               <span className="group-open:hidden">展开</span>
               <span className="hidden group-open:inline">收起</span>
             </summary>
-            <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-1">
-              <div className="space-y-1">
-                {completedItems.map((item) => (
-                  <div key={item} className="text-emerald-700">✓ {item}</div>
-                ))}
-              </div>
-              <div className="space-y-1">
-                {pendingItems.map((item) => (
-                  <div key={item} className="text-slate-500">○ {item}</div>
-                ))}
-              </div>
+            <div className="mt-3 grid gap-1.5 text-xs">
+              {steps.map((step) => (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => sectionFlow?.onActiveSectionChange(step.id)}
+                  className={`rounded-md px-2 py-1.5 text-left transition-colors hover:bg-white/70 ${step.done ? 'text-emerald-700' : 'text-slate-600'}`}
+                >
+                  {step.done ? '✓' : '○'} {step.label}
+                </button>
+              ))}
             </div>
           </details>
         </div>
@@ -168,13 +168,15 @@ function CostSummaryCard({ total, bomCount, loading, ready }: { total: number; b
         <div className="text-xs font-medium text-sky-700">总成本</div>
         <div className="mt-1 flex items-end gap-1">
           <span className="text-3xl font-bold tracking-tight text-slate-950">
-            {loading ? '正在计算' : ready ? money(total) : '—'}
+            {ready ? money(total) : loading ? '首次计算中' : '—'}
           </span>
-          {ready && !loading ? <span className="pb-1 text-sm font-medium text-slate-600">/ 台</span> : null}
+          {ready ? <span className="pb-1 text-sm font-medium text-slate-600">/ 台</span> : null}
         </div>
         <div className="mt-2 text-xs text-sky-700">
-          {loading
-            ? '正在根据当前模板和配方参数生成 BOM'
+          {loading && ready
+            ? '正在更新，当前金额为上次计算结果'
+            : loading
+              ? '正在根据当前模板和配方参数首次生成 BOM'
             : ready
               ? `根据当前 ${bomCount} 项 BOM 实时计算`
               : '完成必要配置后生成当前成本'}
