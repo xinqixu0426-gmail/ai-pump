@@ -58,8 +58,14 @@ test('持久化命令：相同 key 和请求只返回已保存回执', () => {
         assert.equal(executions, 1);
         assert.equal(first.operationId, 'operation-1');
         assert.equal(first.idempotentReplay, false);
+        assert.equal(first.completedAt, '2026-08-02T00:00:00.000Z');
         assert.equal(replay.idempotentReplay, true);
         assert.equal(replay.auditId, 9);
+        assert.equal(replay.completedAt, first.completedAt);
+        assert.equal(
+            db.prepare('SELECT completed_at FROM api_operations').get().completed_at,
+            first.completedAt
+        );
         assert.equal(db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 1);
     } finally {
         db.close();

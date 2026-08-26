@@ -258,6 +258,318 @@ test('AI executor 行为：新建和删除零件只调用正式 CRUD API', async
     ]);
 });
 
+test('AI executor 行为：新建配方把所选零件交给权威 BOM 保存草稿而不是废弃成本草稿', async () => {
+    const selectedPart = {
+        partId: 7,
+        model: '正式零件A',
+        name: '正式零件A',
+        supplier: '正式供应商',
+        qty: 2,
+        snapshotPrice: 3.5,
+    };
+    const draft = {
+        id: 31,
+        name: 'MCP配方A',
+        spec: '1寸',
+        partsJson: JSON.stringify([selectedPart]),
+        extraPartsJson: JSON.stringify([selectedPart]),
+        savedTotalCost: 7,
+        previewHash: 'recipe-create-preview-hash',
+        suggestedIdempotencyKey: 'recipe-create:test',
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 7, model: '正式零件A', supplier: '正式供应商', price: 3.5 }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body.optionalParts, [selectedPart]);
+            assert.equal(Object.hasOwn(call.body, 'costDraft'), false);
+            return jsonResponse({ success: true, data: draft });
+        }
+        if (call.url.endsWith('/api/recipes') && call.method === 'POST') {
+            assert.deepEqual(call.body, draft);
+            return jsonResponse({
+                success: true,
+                data: commandData('recipes.create', {
+                    id: 31,
+                    name: 'MCP配方A',
+                    spec: '1寸',
+                    savedTotalCost: 7,
+                }),
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('create_recipe', {
+        name: 'MCP配方A',
+        spec: '1寸',
+        parts: [{ model: '正式零件A', qty: 2 }],
+    }, { allowWrite: true, operationId: 'operation-create-recipe' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.recipe.id, 31);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/parts',
+        'POST /api/recipes/save-payload-draft',
+        'POST /api/recipes',
+    ]);
+});
+
+test('AI executor 行为：修改无模板配方会更新保存的可选零件选择', async () => {
+    const currentPart = {
+        partId: 7,
+        model: '正式零件A',
+        name: '正式零件A',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 3.5,
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 31,
+                    name: 'MCP配方A',
+                    spec: '1寸',
+                    templateId: null,
+                    partsJson: JSON.stringify([currentPart]),
+                    extraPartsJson: JSON.stringify([currentPart]),
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            assert.equal(call.body.recipeId, 31);
+            assert.equal(call.body.optionalParts[0].qty, 3);
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 31,
+                    name: 'MCP配方A',
+                    spec: '1寸',
+                    partsJson: JSON.stringify([{ ...currentPart, qty: 3 }]),
+                    extraPartsJson: JSON.stringify([{ ...currentPart, qty: 3 }]),
+                    expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                    previewHash: 'recipe-update-preview-hash',
+                    suggestedIdempotencyKey: 'recipe-update:test',
+                },
+            });
+        }
+        if (call.url.endsWith('/api/recipes/31') && call.method === 'PATCH') {
+            return jsonResponse({
+                success: true,
+                data: commandData('recipes.update', {
+                    id: 31,
+                    name: 'MCP配方A',
+                    spec: '1寸',
+                }),
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: 'MCP配方A',
+        updateParts: [{ model: '正式零件A', qty: 3 }],
+    }, { allowWrite: true, operationId: 'operation-update-recipe' });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/save-payload-draft',
+        'PATCH /api/recipes/31',
+    ]);
+});
+
+test('AI executor 行为：模板和动态配置配方更新名称时不会把生成 BOM 当作可选零件重复保存', async () => {
+    const generatedParts = [
+        { model: '模板泵壳', supplier: '', qty: 1, snapshotPrice: 90 },
+        { model: '45UF电容', supplier: '', qty: 1, snapshotPrice: 8 },
+        { model: '12-140', supplier: '', qty: 1, snapshotPrice: 60 },
+        { model: '浮球-0.75', supplier: '', qty: 1, snapshotPrice: 12 },
+        { model: '电缆3*0.75', supplier: '', qty: 5, snapshotPrice: 2 },
+    ];
+    let draftCalls = 0;
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 41,
+                    name: '动态配方A',
+                    spec: '旧规格',
+                    templateId: 9,
+                    coilSpec: '12',
+                    coilSheets: 140,
+                    coilMaterial: '钢带',
+                    coilSlotType: '小眼',
+                    hasFloat: 1,
+                    floatWire: '0.75',
+                    hasCable: 1,
+                    cableLength: 5,
+                    cableWire: '3*0.75',
+                    partsJson: JSON.stringify(generatedParts),
+                    extraPartsJson: '[]',
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            draftCalls += 1;
+            assert.deepEqual(call.body.optionalParts, []);
+            assert.equal(call.body.form.templateId, 9);
+            assert.equal(call.body.form.coilSpec, '12');
+            assert.equal(call.body.form.hasFloat, true);
+            assert.equal(call.body.form.hasCable, true);
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 41,
+                    name: call.body.form.name,
+                    spec: call.body.form.spec,
+                    partsJson: JSON.stringify(generatedParts.map(part => ({
+                        ...part,
+                        snapshotPrice: part.snapshotPrice + 0.5,
+                    }))),
+                    extraPartsJson: '[]',
+                    expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                    previewHash: `recipe-dynamic-preview-${draftCalls}`,
+                    suggestedIdempotencyKey: `recipe-update:dynamic-${draftCalls}`,
+                },
+            });
+        }
+        if (call.url.endsWith('/api/recipes/41') && call.method === 'PATCH') {
+            const models = JSON.parse(call.body.partsJson).map(part => part.model);
+            assert.equal(models.length, generatedParts.length);
+            assert.equal(new Set(models).size, generatedParts.length);
+            return jsonResponse({
+                success: true,
+                data: commandData('recipes.update', {
+                    id: 41,
+                    name: '动态配方A-改名',
+                    spec: '旧规格',
+                }),
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '动态配方A',
+        newName: '动态配方A-改名',
+    }, { allowWrite: true, operationId: 'operation-update-dynamic-recipe' });
+
+    assert.equal(result.success, true);
+    assert.equal(draftCalls, 2);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/save-payload-draft',
+        'POST /api/recipes/save-payload-draft',
+        'PATCH /api/recipes/41',
+    ]);
+});
+
+test('AI executor 行为：历史配方无法从生成规则解释 partsJson 时 fail-closed 且不保存', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 42,
+                    name: '历史手工配方',
+                    spec: '旧规格',
+                    templateId: null,
+                    partsJson: '[{"model":"历史手工零件","supplier":"老供应商","qty":1}]',
+                    extraPartsJson: null,
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body.optionalParts, []);
+            return jsonResponse({
+                success: false,
+                code: 'recipe_bom_required',
+                error: '配方 BOM 不能为空',
+            }, 400);
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '历史手工配方',
+        newSpec: '新规格',
+    }, { allowWrite: true, operationId: 'operation-update-legacy-recipe' });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'RECIPE_OPTIONAL_PARTS_MIGRATION_REQUIRED');
+    assert.match(result.error, /配方页面核对并保存一次/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/save-payload-draft',
+    ]);
+});
+
+test('AI executor 行为：非模板动态生成零件不能通过 updateParts 静默改数量', async () => {
+    const generatedParts = [{ model: '12-140', supplier: '', qty: 1, snapshotPrice: 60 }];
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 43,
+                    name: '非模板线圈配方',
+                    spec: '旧规格',
+                    templateId: null,
+                    coilSpec: '12',
+                    coilSheets: 140,
+                    coilMaterial: '钢带',
+                    coilSlotType: '小眼',
+                    partsJson: JSON.stringify(generatedParts),
+                    extraPartsJson: '[]',
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body.optionalParts, []);
+            return jsonResponse({
+                success: true,
+                data: {
+                    partsJson: JSON.stringify(generatedParts),
+                    extraPartsJson: '[]',
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '非模板线圈配方',
+        updateParts: [{ model: '12-140', qty: 2 }],
+    }, { allowWrite: true, operationId: 'operation-update-generated-part' });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /联动规则生成的零件数量不能/);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/save-payload-draft',
+    ]);
+});
+
 test('AI executor 行为：批量新增零件只生成一次确认并调用正式批量 API', async () => {
     process.env.INTERNAL_SECRET = 'test-secret';
     const args = {

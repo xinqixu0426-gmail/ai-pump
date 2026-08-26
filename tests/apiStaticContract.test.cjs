@@ -679,8 +679,9 @@ test('API 静态契约：AI 订单写操作必须复用订单草稿和动作接�
 test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接口', () => {
     const recipeExecutor = readUtf8(path.join(repoRoot, 'api/routes/ai/executors/recipeExecutors.cjs'));
 
-    assert.match(recipeExecutor, /\/api\/recipes\/cost-draft/);
+    assert.doesNotMatch(recipeExecutor, /\/api\/recipes\/cost-draft/);
     assert.match(recipeExecutor, /\/api\/recipes\/save-payload-draft/);
+    assert.match(recipeExecutor, /optionalParts/);
     assert.match(recipeExecutor, /postJson\(internalFetch,\s*'\/api\/recipes'/);
     assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
     assert.match(recipeExecutor, /recipeId: recipe\.id \?\? recipe\.Id/);

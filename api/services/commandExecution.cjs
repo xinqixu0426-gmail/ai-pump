@@ -154,7 +154,7 @@ function executePersistentCommand({
                 500
             );
         }
-        const completedAt = new Date().toISOString();
+        const completedAt = new Date(now).toISOString();
         const businessChangeDescriptor = typeof businessChange === 'function'
             ? businessChange(outcome)
             : businessChange;

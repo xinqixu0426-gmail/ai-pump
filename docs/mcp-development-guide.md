@@ -49,12 +49,19 @@ npm run verify:mcp-local
 npm run verify:mcp-write-local
 ```
 
-该门禁把 `api/mcp/catalog.cjs` 的 17 个正式写工具与验收清单做严格集合比对，逐工具验证
+该门禁先把 `api/mcp/catalog.cjs` 的 17 个正式写工具与验收清单做严格集合比对，并用快速矩阵逐工具验证
 `mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
-正式执行证据、幂等重放、拒绝后无副作用。业务层复用正式 executor 和 command service 测试：
-数据库写入使用独立内存 SQLite，文件归档使用临时文件，出图和打印停在外部命令替身，
-不会读取生产 MCP token、连接 Mac Mini、修改正式数据库或调用物理打印机。脱敏结果写入
-`logs/mcp-write-local-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
+正式执行证据、确认层重放、拒绝后无副作用。矩阵通过后，`scripts/run-mcp-write-local-e2e.cjs`
+创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端，让全部 17 个工具逐一经过
+MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Query/数据库回读；同时真实调用 2025
+只读工具、尝试并拒绝其隐藏写工具。`create_order/adjust_part_stock/batch_update_prices/sync_factory_knowledge`
+会把同一份 2026 `requestState + inputResponses` 再提交一次，核对 `idempotentReplay=true`、原 operation/audit
+不变且数据库零新增；订单、库存、配方、文件和打印各有一个真实失败样本，核对失败回执与零副作用。
+报价转订单会核对客户、来源说明和明细，打印替身会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
+线圈、文件和知识都只写临时库；FreeCAD 及 macOS `lp`、Windows Sumatra/Edge/rundll32 打印后端均由
+进程替身拦截，未知外部命令 fail-closed，并回读异步终态。测试不会读取生产 MCP token、连接 Mac Mini、
+修改正式数据库或调用物理打印机。综合报告写入 `logs/mcp-write-local-latest.json`，逐工具证据写入
+`logs/mcp-write-local-e2e-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
 生产 `MCP_WRITE_ENABLED` 仍保持关闭，直到负责人明确批准并另做一笔可回滚的生产验收。
 
 Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”

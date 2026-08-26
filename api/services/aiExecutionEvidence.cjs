@@ -6,8 +6,9 @@ function normalizedAuditIds(value = {}) {
     return [...new Set(ids.map(String))];
 }
 
-function commandReceiptFrom(value) {
+function commandReceiptFrom(value, options = {}) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const acceptedStatuses = new Set(options.acceptedStatuses || ['completed']);
     const candidates = [
         value,
         value.receipt,
@@ -22,7 +23,7 @@ function commandReceiptFrom(value) {
             && candidate.operationId.trim()
             && typeof candidate.capabilityId === 'string'
             && candidate.capabilityId.trim()
-            && operationStatus === 'completed'
+            && acceptedStatuses.has(operationStatus)
             && auditIds.length > 0
         ) {
             return {
@@ -38,13 +39,13 @@ function commandReceiptFrom(value) {
     return null;
 }
 
-function apiCallEvidence(trace = []) {
+function apiCallEvidence(trace = [], options = {}) {
     return trace.map(item => ({
         method: item.method,
         path: item.path,
         ok: item.ok !== false,
         outcome: item.outcome === 'not_found' ? 'not_found' : null,
-        receipt: commandReceiptFrom(item.result),
+        receipt: commandReceiptFrom(item.result, options),
     }));
 }
 
@@ -92,7 +93,11 @@ function buildReadFailureEvidence(trace = []) {
 
 function buildWriteExecutionEvidence(capability, trace = []) {
     const formalCapabilityIds = new Set(capability?.formalCapabilityIds || []);
-    const calls = apiCallEvidence(trace);
+    const completionMode = capability?.completionMode || 'completed';
+    const acceptedStatuses = completionMode === 'accepted_async'
+        ? ['accepted', 'processing', 'completed']
+        : ['completed'];
+    const calls = apiCallEvidence(trace, { acceptedStatuses });
     const receipts = calls
         .map(call => call.receipt)
         .filter(Boolean);
@@ -110,6 +115,7 @@ function buildWriteExecutionEvidence(capability, trace = []) {
     return {
         verified: true,
         kind: 'formal_api_command',
+        completionMode,
         receipts: matchingReceipts,
         calls: calls.map(call => ({
             method: call.method,

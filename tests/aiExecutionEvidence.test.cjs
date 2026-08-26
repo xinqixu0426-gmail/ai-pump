@@ -115,6 +115,33 @@ test('AI 统一证据门：写工具只接受登记能力对应的 operation/aud
     assert.equal(missingAudit.verified, false);
 });
 
+test('AI 统一证据门：只有显式异步外部命令可把 accepted 作为已验证受理', () => {
+    const acceptedDrawing = buildWriteExecutionEvidence(
+        AI_CAPABILITY_REGISTRY.generate_rotor_drawing,
+        [{
+            method: 'POST',
+            path: '/api/rotor/draw',
+            result: formalReceipt('drawings.rotor.generate_pdf', {
+                status: 'accepted',
+            }),
+        }]
+    );
+    assert.equal(acceptedDrawing.verified, true);
+    assert.equal(acceptedDrawing.completionMode, 'accepted_async');
+    assert.equal(acceptedDrawing.receipts[0].status, 'accepted');
+
+    const ordinaryCommand = buildWriteExecutionEvidence(
+        AI_CAPABILITY_REGISTRY.create_order,
+        [{
+            method: 'POST',
+            path: '/api/orders',
+            result: formalReceipt('orders.create', { status: 'accepted' }),
+        }]
+    );
+    assert.equal(ordinaryCommand.verified, false);
+    assert.equal(ordinaryCommand.code, 'ai_write_evidence_missing');
+});
+
 test('AI 统一证据门：兼容业务 status 覆盖时只认 operationStatus', () => {
     const receipt = commandReceiptFrom({
         ...formalReceipt('quality.rule_candidates.review'),

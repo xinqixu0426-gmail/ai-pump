@@ -257,6 +257,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             /^(?:(?:POST|PUT|PATCH|DELETE) \/api\/|INTERNAL )/
         );
         assert.match(capability.outputSchema, /^(?:External)?CommandReceipt</);
+        assert.ok(['completed', 'accepted_async'].includes(capability.completionMode));
         assert.ok(capability.sourceOfTruth);
         assert.match(capability.idempotency, /persistent/);
         assert.ok([
@@ -368,12 +369,14 @@ test('正式业务能力注册表：转子生成和打印声明 Preview、确认
     const print = getBusinessCapability('drawings.rotor.print_pdf');
 
     assert.equal(generate.riskLevel, 'high');
+    assert.equal(generate.completionMode, 'accepted_async');
     assert.equal(generate.requiresConfirmation, true);
     assert.equal(generate.supportsPreview, true);
     assert.equal(generate.previewPath, '/api/rotor/draw-preview');
     assert.match(generate.transactionality, /before_external_side_effect/);
 
     assert.equal(print.riskLevel, 'critical');
+    assert.equal(print.completionMode, 'completed');
     assert.equal(print.requiresConfirmation, true);
     assert.equal(print.supportsPreview, true);
     assert.equal(print.previewPath, '/api/rotor/print/:jobId/preview');
@@ -386,12 +389,14 @@ test('AI 能力注册表：转子生成和打印都是受确认保护的外部�
 
     assert.equal(generate.access, 'write');
     assert.equal(generate.operation, 'command');
+    assert.equal(generate.completionMode, 'accepted_async');
     assert.equal(generate.riskLevel, 'high');
     assert.equal(generate.requiresConfirmation, true);
     assert.match(generate.transactionality, /external_side_effect/);
 
     assert.equal(print.access, 'write');
     assert.equal(print.operation, 'command');
+    assert.equal(print.completionMode, 'completed');
     assert.equal(print.riskLevel, 'critical');
     assert.equal(print.requiresConfirmation, true);
     assert.match(print.transactionality, /external_side_effect/);

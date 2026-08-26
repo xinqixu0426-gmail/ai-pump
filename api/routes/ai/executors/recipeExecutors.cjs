@@ -18,6 +18,7 @@ function buildAiRecipeParts(parts, allParts) {
         if (!model) return null;
         const dbPart = allParts.find(dp => (dp.model || '') === model || (dp.model || '').includes(model));
         return {
+            ...(dbPart?.id || dbPart?.Id ? { partId: Number(dbPart.id || dbPart.Id) } : {}),
             model,
             name: dbPart ? (dbPart.model || model) : model,
             supplier: dbPart ? (dbPart.supplier || '-') : '-',
@@ -107,10 +108,9 @@ function buildRecipeComparison(recipe1, recipe2, drivers = []) {
 }
 
 async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}) {
-    if (parts.length === 0) {
-        throw new Error('配方 BOM 不能为空，请至少提供一个零件');
-    }
-    const costDraft = await postJson(internalFetch, '/api/recipes/cost-draft', { parts }, '生成配方成本草稿失败');
+    const optionalParts = options.optionalParts === undefined
+        ? parts
+        : options.optionalParts;
     return postJson(internalFetch, '/api/recipes/save-payload-draft', {
         ...(options.recipeId ? {
             recipeId: Number(options.recipeId),
@@ -145,11 +145,84 @@ async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}
             impellerDiameter: form.impellerDiameter ?? null,
             impellerBladeCount: form.impellerBladeCount ?? null,
         },
-        costDraft,
         packingParts: options.packingParts || [],
-        optionalParts: options.optionalParts || [],
+        optionalParts,
         technicalData: options.technicalData || {},
     }, '生成配方保存草稿失败');
+}
+
+async function resolvePersistedOptionalParts(internalFetch, recipe, authoritativeParts) {
+    const persisted = parsePersistedJsonArray(recipe.extraPartsJson);
+    if (persisted.known && persisted.value.length > 0) return persisted.value;
+
+    // extra_parts_json was added after parts_json. For legacy rows an empty
+    // value is not enough to prove that no manual selections existed. Rebuild
+    // the current generated BOM with zero optional parts and accept it only
+    // when it fully explains the stored BOM composition. Current prices may
+    // differ, but identities, suppliers, quantities and duplicate counts may not.
+    try {
+        const regenerated = await buildAiRecipeSavePayload(
+            internalFetch,
+            buildFormFromRecipe(recipe),
+            [],
+            {
+                recipeId: recipe.id ?? recipe.Id,
+                expectedUpdatedAt: recipe.updatedAt ?? recipe.UpdatedAt,
+                packingParts: parseJsonArray(recipe.packingPartsJson),
+                optionalParts: [],
+                technicalData: parseJsonObject(recipe.technicalDataJson),
+            }
+        );
+        if (sameBomComposition(authoritativeParts, parseJsonArray(regenerated.partsJson))) {
+            return [];
+        }
+    } catch {
+        // A failed formal draft means the stored BOM cannot be classified safely.
+    }
+
+    const error = new Error(
+        '该历史配方缺少可验证的可选零件选择，无法安全区分手工零件与模板/线圈/浮球/电缆生成项；请先在配方页面核对并保存一次后再由 AI 修改'
+    );
+    error.code = 'RECIPE_OPTIONAL_PARTS_MIGRATION_REQUIRED';
+    throw error;
+}
+
+function parsePersistedJsonArray(value) {
+    if (Array.isArray(value)) return { known: true, value };
+    if (value === undefined || value === null || String(value).trim() === '') {
+        return { known: false, value: [] };
+    }
+    try {
+        const parsed = JSON.parse(String(value));
+        return Array.isArray(parsed)
+            ? { known: true, value: parsed }
+            : { known: false, value: [] };
+    } catch {
+        return { known: false, value: [] };
+    }
+}
+
+function bomComposition(parts) {
+    return (Array.isArray(parts) ? parts : [])
+        .map(part => JSON.stringify([
+            String(part?.model || '').trim(),
+            String(part?.supplier || '').trim(),
+            Number(part?.qty ?? 0),
+        ]))
+        .sort();
+}
+
+function sameBomComposition(left, right) {
+    const leftRows = bomComposition(left);
+    const rightRows = bomComposition(right);
+    return leftRows.length === rightRows.length
+        && leftRows.every((row, index) => row === rightRows[index]);
+}
+
+function matchesPartModel(part, model) {
+    const candidate = String(part?.model || '').trim();
+    const query = String(model || '').trim();
+    return Boolean(candidate && query && (candidate === query || candidate.includes(query)));
 }
 
 async function executeRecipeTool(toolName, args, internalFetch) {
@@ -196,19 +269,51 @@ async function executeRecipeTool(toolName, args, internalFetch) {
             const recipe = findRecipe(await loadRecipes(internalFetch), recipeName);
             if (!recipe) return { success: false, error: '找不到配方: ' + recipeName };
 
-            let parts = parseJsonArray(recipe.partsJson);
+            const authoritativeParts = parseJsonArray(recipe.partsJson);
+            let parts;
+            try {
+                parts = await resolvePersistedOptionalParts(
+                    internalFetch,
+                    recipe,
+                    authoritativeParts
+                );
+            } catch (error) {
+                return {
+                    success: false,
+                    code: error.code || 'RECIPE_OPTIONAL_PARTS_MIGRATION_REQUIRED',
+                    error: error.message,
+                };
+            }
             const changes = [];
 
             // 移除零件
             if (removeParts.length > 0) {
-                const before = parts.length;
-                parts = parts.filter(p => !removeParts.some(rm => p.model === rm || (p.model || '').includes(rm)));
-                changes.push(`移除了${before - parts.length}个零件`);
+                let removed = 0;
+                for (const model of removeParts) {
+                    const index = parts.findIndex(part => matchesPartModel(part, model));
+                    if (index >= 0) {
+                        parts.splice(index, 1);
+                        removed += 1;
+                        continue;
+                    }
+                    if (authoritativeParts.some(part => matchesPartModel(part, model))) {
+                        return { success: false, error: '模板或联动规则生成的零件不能通过配方工具直接移除，请修改模板或配置' };
+                    }
+                    return { success: false, error: `找不到可编辑的配方零件: ${model}` };
+                }
+                if (removed > 0) changes.push(`移除了${removed}个零件`);
             }
             // 修改零件数量
             for (const up of updateParts) {
-                const found = parts.find(p => p.model === up.model || (p.model || '').includes(up.model));
-                if (found) { changes.push(`${found.model}: 数量 ${found.qty} → ${up.qty}`); found.qty = up.qty; }
+                const found = parts.find(part => matchesPartModel(part, up.model));
+                if (found) {
+                    changes.push(`${found.model}: 数量 ${found.qty} → ${up.qty}`);
+                    found.qty = up.qty;
+                } else if (authoritativeParts.some(part => matchesPartModel(part, up.model))) {
+                    return { success: false, error: '模板或联动规则生成的零件数量不能通过配方工具直接修改，请修改模板或配置' };
+                } else {
+                    return { success: false, error: `找不到可编辑的配方零件: ${up.model}` };
+                }
             }
             // 添加零件
             if (addParts.length > 0) {
@@ -216,6 +321,7 @@ async function executeRecipeTool(toolName, args, internalFetch) {
                 for (const ap of addParts) {
                     const dbPart = allPartsDb.find(dp => (dp.model || '') === ap.model || (dp.model || '').includes(ap.model));
                     parts.push({
+                        ...(dbPart?.id || dbPart?.Id ? { partId: Number(dbPart.id || dbPart.Id) } : {}),
                         model: ap.model,
                         name: dbPart ? (dbPart.model || ap.model) : ap.model,
                         supplier: dbPart ? (dbPart.supplier || '-') : '-',
@@ -232,13 +338,18 @@ async function executeRecipeTool(toolName, args, internalFetch) {
 
             if (changes.length === 0) return { success: false, error: '没有指定任何修改' };
             try {
-                const payload = await buildAiRecipeSavePayload(internalFetch, form, parts, {
-                    recipeId: recipe.id ?? recipe.Id,
-                    expectedUpdatedAt: recipe.updatedAt ?? recipe.UpdatedAt,
-                    packingParts: parseJsonArray(recipe.packingPartsJson),
-                    optionalParts: parseJsonArray(recipe.extraPartsJson),
-                    technicalData: parseJsonObject(recipe.technicalDataJson),
-                });
+                const payload = await buildAiRecipeSavePayload(
+                    internalFetch,
+                    form,
+                    recipe.templateId ? authoritativeParts : parts,
+                    {
+                        recipeId: recipe.id ?? recipe.Id,
+                        expectedUpdatedAt: recipe.updatedAt ?? recipe.UpdatedAt,
+                        packingParts: parseJsonArray(recipe.packingPartsJson),
+                        optionalParts: parts,
+                        technicalData: parseJsonObject(recipe.technicalDataJson),
+                    }
+                );
                 const saved = await patchJson(internalFetch, `/api/recipes/${recipe.id ?? recipe.Id}`, payload, '配方修改失败');
                 return {
                     success: true,

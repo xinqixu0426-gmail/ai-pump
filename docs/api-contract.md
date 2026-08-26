@@ -68,7 +68,7 @@
 - AI tool 的 `displayName` 必须由能力注册表统一提供；执行计划、确认卡片和审计展示不得各自维护第二份名称映射。
 - AI tool 必须且只能声明一个有效 `executorKey`；总 executor 必须按注册表直接分发，领域 executor 不得另存工具集合或由总 executor 依次试探。
 - `resultProvenance` 只描述正式 executor 回执的证据属性，不得由 AI 根据答案文字猜测。库存、成本、订单状态、报价和价格等实时正式事实必须登记为 `live_business`；知识快照、派生建议和普通执行回执不得冒充实时事实。
-- AI tool 的成功状态必须经过统一执行证据门。Query/Preview 至少取得一条本轮正式 API 成功结果，才能返回业务事实；Command 必须取得与该 AI capability 的 `formalCapabilityIds` 匹配的正式回执，且回执同时具备 `operationId`、`status=completed`（兼容响应可使用 `operationStatus=completed`）和非空 `auditId/auditIds`。
+- AI tool 的成功状态必须经过统一执行证据门。Query/Preview 至少取得一条本轮正式 API 成功结果，才能返回业务事实；普通 Command 必须取得与该 AI capability 的 `formalCapabilityIds` 匹配的正式回执，且回执同时具备 `operationId`、`status=completed`（兼容响应可使用 `operationStatus=completed`）和非空 `auditId/auditIds`。只有能力注册表显式声明 `completionMode=accepted_async` 的外部命令，才可把 `accepted/processing` 作为“正式任务已受理”的证据；此时 operation 与强审计必须已持久化，结果必须保留异步状态并提供正式回读入口，AI 不得宣称外部副作用已经完成。
 - 模型文字、executor 自行构造的 `success:true`、确认卡片和客户端传入的操作号都不是执行证据。证据缺失、能力不匹配或审计缺失时，统一执行器必须把结果降级为失败；`/api/ai/confirm-tool` 不得完成确认状态，最终回复不得补写业务数据。
 - 自然语言中的名称、型号、编号和简称只能作为待解析候选，不能直接成为 high/critical 写操作确认卡中的正式目标。签发 AI confirmation token 前必须通过正式 Query/Preview 唯一解析为标准资源标识和标准名称，并以正式 Preview 返回的当前值、预计值、资源版本和业务确认凭证生成确认内容；零匹配、多匹配或 Preview 不完整时不得签发确认。正式 Preview 的服务端上下文必须与 AI confirmation token 绑定且不得下发客户端，确认执行时只能消费该已绑定上下文，不能重新信任模型参数。
 - AI 确认卡只能来自 executor 的结构化 `requiresConfirmation + confirmationToken + argsHash + rows` 回执，模型 Markdown、标题、表格或“请确认”文字永远不能作为确认卡或可执行状态。写意图轮次没有结构化确认、正式失败或缺参追问时，服务端必须丢弃模型正文并返回安全说明；“是/确认/执行”等自然语言只能延续待确认语义，不能替代服务端 token。
@@ -313,6 +313,10 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
   }
 }
 ```
+
+显式登记为 `completionMode=accepted_async` 的外部命令可以先返回 `status=accepted`，但必须同时返回持久化 `operationId`、非空审计 ID 和状态回读标识；完成、失败及重放仍由同一 operation 状态机追踪。确认层操作号不得冒充正式业务 `operationId`，跨层回执应另行返回 `confirmationOperationId`。
+
+确认后的业务执行失败必须保留正式业务错误码；执行器没有稳定 code 时统一返回 `ai_write_execution_failed`。`ai_write_evidence_missing` 只表示业务结果自称成功但缺少匹配的正式 operation/audit 证据，不得用它掩盖“资源不存在、版本冲突或业务校验失败”。
 
 ## 9. 数据库和审计
 

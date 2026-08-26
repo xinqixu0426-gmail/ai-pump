@@ -165,11 +165,17 @@ test('AI 确认协议：Web 与 MCP 复用同一确认执行服务和正式回�
             calls.push({ name, args, options });
             return {
                 success: true,
-                auditId: 91,
+                auditId: 90,
+                auditIds: [90],
                 changes: [{ field: 'price', from: 10, to: 12.5 }],
                 executionEvidence: {
                     verified: true,
-                    receipts: [{ auditIds: [91] }],
+                    receipts: [{
+                        operationId: 'formal-operation-91',
+                        capabilityId: 'parts.update',
+                        status: 'completed',
+                        auditIds: [91],
+                    }],
                 },
             };
         },
@@ -177,8 +183,12 @@ test('AI 确认协议：Web 与 MCP 复用同一确认执行服务和正式回�
     });
 
     assert.equal(receipt.status, 'completed');
-    assert.equal(receipt.auditId, 91);
-    assert.equal(receipt.operationId, confirmation.operationId);
+    assert.equal(receipt.auditId, 90);
+    assert.deepEqual(receipt.auditIds, [90, 91]);
+    assert.equal(receipt.operationId, 'formal-operation-91');
+    assert.equal(receipt.confirmationOperationId, confirmation.operationId);
+    assert.deepEqual(receipt.formalCapabilityIds, ['parts.update']);
+    assert.deepEqual(receipt.formalOperationIds, ['formal-operation-91']);
     assert.deepEqual(calls, [{
         name: 'update_part',
         args: { model: 'A-1', price: 12.5 },
@@ -197,7 +207,33 @@ test('AI 确认协议：Web 与 MCP 复用同一确认执行服务和正式回�
         },
     });
     assert.equal(replay.idempotentReplay, true);
-    assert.equal(replay.auditId, 91);
+    assert.equal(replay.auditId, 90);
+    assert.deepEqual(replay.auditIds, [90, 91]);
+});
+
+test('AI 确认协议：业务失败与正式回执证据缺失使用不同错误码', async () => {
+    const businessFailure = issue({ now: Date.now() });
+    await assert.rejects(
+        executeConfirmedAiTool({
+            confirmationToken: businessFailure.confirmationToken,
+            subject: 'session-a',
+            execute: async () => ({ success: false, error: '订单不存在' }),
+        }),
+        error => error.code === 'ai_write_execution_failed'
+            && error.message === '订单不存在'
+    );
+
+    const evidenceFailure = issue({ now: Date.now() });
+    await assert.rejects(
+        executeConfirmedAiTool({
+            confirmationToken: evidenceFailure.confirmationToken,
+            subject: 'session-a',
+            execute: async () => ({ success: true, changes: [] }),
+            verifyWriteExecution: () => false,
+        }),
+        error => error.code === 'ai_write_evidence_missing'
+            && /可验证的写操作回执/.test(error.message)
+    );
 });
 
 test('AI 确认协议：executor 返回短时 token，未确认仍不执行写能力', async () => {

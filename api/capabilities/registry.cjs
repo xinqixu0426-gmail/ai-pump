@@ -582,6 +582,7 @@ function defineBusinessCapability(definition) {
     return Object.freeze({
         access: 'write',
         operation: 'command',
+        completionMode: 'completed',
         requiresConfirmation: true,
         idempotency: 'persistent_actor_capability_key_request_hash_90_days',
         concurrencyControl: 'expectedUpdatedAt',
@@ -1367,6 +1368,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'drawings.rotor.generate_pdf': defineBusinessCapability({
         capabilityId: 'drawings.rotor.generate_pdf',
+        completionMode: 'accepted_async',
         recordsBusinessChange: false,
         domain: 'drawing',
         inputSchema: 'POST /api/rotor/draw',
@@ -1913,6 +1915,9 @@ function buildRegistry() {
             outputSchema: `executor.${name}.result`,
             access,
             operation,
+            completionMode: access === 'read'
+                ? 'not_applicable'
+                : primaryFormalCapability.completionMode,
             sourceOfTruth: sourceOfTruthFor(name, domains),
             dataMode: dataModeFor(name),
             resultProvenance: LIVE_BUSINESS_EVIDENCE_NAMES.has(name)
