@@ -353,6 +353,25 @@ const CANONICAL_TABLES_SQL = `
         updated_at TEXT NOT NULL
     );
 
+    -- 历史 Schema 68 兼容表。WPS 集成功能已弃用，保留表结构仅用于
+    -- 保持已迁移数据库可前向运行，业务代码不再读取或写入该表。
+    CREATE TABLE IF NOT EXISTS external_connections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider TEXT NOT NULL UNIQUE CHECK(provider IN ('wps')),
+        external_user_id TEXT NOT NULL DEFAULT '',
+        external_user_name TEXT NOT NULL DEFAULT '',
+        external_company_id TEXT NOT NULL DEFAULT '',
+        scopes_json TEXT NOT NULL DEFAULT '[]',
+        access_token_encrypted TEXT NOT NULL DEFAULT '',
+        refresh_token_encrypted TEXT NOT NULL DEFAULT '',
+        access_token_expires_at TEXT,
+        refresh_token_expires_at TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -1083,6 +1102,7 @@ const APPLICATION_TABLES = Object.freeze([
     'factory_rule_events',
     'factory_workflow_runs',
     'factory_ai_rules',
+    'external_connections',
     'knowledge_embeddings',
     'knowledge_entries',
     'knowledge_documents',

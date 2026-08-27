@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ClipboardEvent } from 'react';
 import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paperclip, Sparkles, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
@@ -12,6 +13,10 @@ import {
   type FactoryFileArchiveTargetType,
   type FactoryFileLink,
 } from '@/lib/files';
+import {
+  FACTORY_ATTACHMENT_EXTENSIONS,
+  selectClipboardFile,
+} from '@/lib/clipboard-files';
 
 type FactoryFileAttachmentsProps = {
   targetType: FactoryFileArchiveTargetType;
@@ -24,7 +29,7 @@ type FactoryFileAttachmentsProps = {
   onChanged?: () => void;
 };
 
-const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
+const ACCEPTED_FILE_TYPES = FACTORY_ATTACHMENT_EXTENSIONS.join(',');
 
 function fileSizeLabel(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -63,9 +68,11 @@ export function FactoryFileAttachments({
   const [summarizingFileId, setSummarizingFileId] = useState<number | null>(null);
   const [unlinkTarget, setUnlinkTarget] = useState<FactoryFileLink | null>(null);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const locked = busy || summarizingFileId !== null;
 
   const load = useCallback(async () => {
+    setMessage('');
     if (!targetId) {
       setLinks([]);
       setLoading(false);
@@ -87,10 +94,11 @@ export function FactoryFileAttachments({
     void load();
   }, [load]);
 
-  async function upload(file?: File) {
-    if (!file || busy) return;
+  async function upload(file?: File, pasteNotice = '') {
+    if (!file || locked || !targetId) return;
     setBusy(true);
     setError('');
+    setMessage('');
     try {
       const stored = await uploadFactoryFile(file);
       await archiveFactoryFile(stored.id, {
@@ -102,6 +110,7 @@ export function FactoryFileAttachments({
       });
       await load();
       onChanged?.();
+      setMessage(pasteNotice);
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传附件失败');
     } finally {
@@ -110,10 +119,36 @@ export function FactoryFileAttachments({
     }
   }
 
+  function handlePaste(event: ClipboardEvent<HTMLElement>) {
+    if (event.clipboardData.files.length === 0) return;
+    event.preventDefault();
+    if (!targetId) {
+      setMessage('');
+      setError('请先保存当前业务记录，再粘贴附件。');
+      return;
+    }
+    if (locked) {
+      setMessage('');
+      setError('当前附件正在处理中，请完成后再粘贴。');
+      return;
+    }
+    const decision = selectClipboardFile(event.clipboardData.files, {
+      allowedExtensions: FACTORY_ATTACHMENT_EXTENSIONS,
+      allowedLabel: ' PDF、Word、Excel、CSV、文本或图片文件',
+    });
+    if (decision.kind === 'rejected') {
+      setMessage('');
+      setError(decision.message);
+      return;
+    }
+    if (decision.kind === 'accepted') void upload(decision.file, decision.notice);
+  }
+
   async function unlink(link: FactoryFileLink) {
     if (busy) return;
     setBusy(true);
     setError('');
+    setMessage('');
     try {
       await deleteFactoryFileLink(link.fileId, link.id, link.updatedAt);
       await load();
@@ -130,6 +165,7 @@ export function FactoryFileAttachments({
     if (!onAiSummarize || locked) return;
     setSummarizingFileId(link.fileId);
     setError('');
+    setMessage('');
     try {
       await onAiSummarize(link);
     } catch (err) {
@@ -141,7 +177,12 @@ export function FactoryFileAttachments({
 
   return (
     <>
-    <section className={embedded ? '' : 'overflow-hidden rounded-panel border border-line bg-white shadow-panel'}>
+    <section
+      onPaste={handlePaste}
+      tabIndex={0}
+      aria-label={`${title}粘贴上传区域`}
+      className={`${embedded ? '' : 'overflow-hidden rounded-panel border border-line bg-white shadow-panel'} outline-none transition focus:ring-2 focus:ring-sky-200`}
+    >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -149,7 +190,9 @@ export function FactoryFileAttachments({
             {title}
             {!loading && links.length > 0 ? <span className="text-xs font-normal text-muted">{links.length} 个</span> : null}
           </div>
-          <div className="mt-1 text-xs leading-5 text-muted">{description}</div>
+          <div className="mt-1 text-xs leading-5 text-muted">
+            {description} 点击此区域后可按 Ctrl+V 粘贴单个文件。
+          </div>
         </div>
         <div className="shrink-0">
           <input
@@ -173,6 +216,7 @@ export function FactoryFileAttachments({
       </div>
 
       {error ? <div className="border-t border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{error}</div> : null}
+      {message ? <div className="border-t border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-700">{message}</div> : null}
 
       {loading ? (
         <div className="flex items-center gap-2 border-t border-line px-4 py-4 text-sm text-muted">

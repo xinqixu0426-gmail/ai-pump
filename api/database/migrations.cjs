@@ -3052,6 +3052,35 @@ const MIGRATIONS = Object.freeze([
             }
         },
     },
+    {
+        // WPS 集成已弃用，但已发布到本地数据库的迁移版本必须永久保留，
+        // 避免通过数据库降级丢失迁移后的业务数据。
+        version: 68,
+        name: 'external_cloud_connections',
+        signature: 'encrypted-system-level-wps-oauth-connection-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS external_connections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    provider TEXT NOT NULL UNIQUE CHECK(provider IN ('wps')),
+                    external_user_id TEXT NOT NULL DEFAULT '',
+                    external_user_name TEXT NOT NULL DEFAULT '',
+                    external_company_id TEXT NOT NULL DEFAULT '',
+                    scopes_json TEXT NOT NULL DEFAULT '[]',
+                    access_token_encrypted TEXT NOT NULL DEFAULT '',
+                    refresh_token_encrypted TEXT NOT NULL DEFAULT '',
+                    access_token_expires_at TEXT,
+                    refresh_token_expires_at TEXT,
+                    metadata_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_external_connections_active
+                    ON external_connections(provider, deleted_at, updated_at DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

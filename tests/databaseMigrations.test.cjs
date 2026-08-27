@@ -621,6 +621,60 @@ test('数据库迁移：已应用迁移的名称或校验和变化时拒绝启�
     }
 });
 
+test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历史连接记录', () => {
+    const db = openMemoryDatabase();
+    const historicalChecksum = '038317dbcec2a522535dd3ed835835762315415bc83420cf0bf11255b11d5fb2';
+    try {
+        runMigrations(db, { now: FIXED_NOW });
+        const applied = db.prepare(`
+            SELECT name, checksum FROM schema_migrations WHERE version = 68
+        `).get();
+        assert.deepEqual(applied, {
+            name: 'external_cloud_connections',
+            checksum: historicalChecksum,
+        });
+
+        db.prepare(`
+            INSERT INTO external_connections (
+                provider, external_user_id, external_user_name,
+                scopes_json, access_token_encrypted, refresh_token_encrypted,
+                metadata_json, created_at, updated_at
+            ) VALUES ('wps', 'legacy-user', '历史个人账号', '["legacy"]',
+                'encrypted-access', 'encrypted-refresh', '{}', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW);
+
+        const second = runMigrations(db, { now: FIXED_NOW });
+        assert.deepEqual(second.appliedVersions, []);
+        assert.equal(second.currentVersion, 68);
+        assert.equal(db.pragma('user_version', { simple: true }), 68);
+        assert.deepEqual(
+            db.prepare(`
+                SELECT provider, external_user_id, external_user_name
+                FROM external_connections
+            `).get(),
+            {
+                provider: 'wps',
+                external_user_id: 'legacy-user',
+                external_user_name: '历史个人账号',
+            }
+        );
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema
+            WHERE type = 'index' AND name = 'idx_external_connections_active'
+        `).get());
+
+        db.prepare(`
+            UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 68
+        `).run();
+        assert.throws(
+            () => runMigrations(db, { now: FIXED_NOW }),
+            /迁移 68 校验失败/
+        );
+    } finally {
+        db.close();
+    }
+});
+
 test('数据库迁移：核心外键和 CHECK 约束阻止非法业务数据', () => {
     const db = openMemoryDatabase();
     try {

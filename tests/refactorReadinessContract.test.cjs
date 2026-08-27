@@ -1806,6 +1806,33 @@ test('Next UI 契约：转子页支持配方技术档案带入并支持历史关
     assert.match(rotorDraftService, /function buildRotorRecipeDraft/);
 });
 
+test('Next UI 契约：通用附件和配方测试报告支持受控文件粘贴', () => {
+    const clipboardFiles = readUtf8('apps/web-next/lib/clipboard-files.ts');
+    const factoryAttachments = readUtf8('apps/web-next/components/factory-file-attachments.tsx');
+    const technicalDataEditor = readUtf8('apps/web-next/components/technical-data-editor.tsx');
+
+    assert.match(clipboardFiles, /files\.length === 0/);
+    assert.match(clipboardFiles, /files\.length > 1/);
+    assert.match(clipboardFiles, /allowedExtensions\.includes\(extension\)/);
+    assert.match(clipboardFiles, /file\.size > maxBytes/);
+    assert.match(clipboardFiles, /本次仅上传第一个/);
+
+    assert.match(factoryAttachments, /onPaste=\{handlePaste\}/);
+    assert.match(factoryAttachments, /if \(event\.clipboardData\.files\.length === 0\) return;\s+event\.preventDefault\(\)/);
+    assert.match(factoryAttachments, /selectClipboardFile\(event\.clipboardData\.files/);
+    assert.match(factoryAttachments, /void upload\(decision\.file, decision\.notice\)/);
+    assert.match(factoryAttachments, /const stored = await uploadFactoryFile\(file\)/);
+    assert.match(factoryAttachments, /await archiveFactoryFile\(stored\.id/);
+    assert.match(factoryAttachments, /if \(!file \|\| locked \|\| !targetId\) return/);
+
+    assert.match(technicalDataEditor, /onPaste=\{handleTestReportPaste\}/);
+    assert.match(technicalDataEditor, /if \(event\.clipboardData\.files\.length === 0\) return;\s+event\.preventDefault\(\)/);
+    assert.match(technicalDataEditor, /RECIPE_TEST_REPORT_EXTENSIONS/);
+    assert.match(technicalDataEditor, /void uploadTestReport\(decision\.file, decision\.notice\)/);
+    assert.match(technicalDataEditor, /await uploadRecipeTechnicalFile\(recipeId, file, recipeUpdatedAt\)/);
+    assert.match(technicalDataEditor, /if \(!recipeId \|\| !file \|\| fileBusy\) return/);
+});
+
 test('Next UI 契约：配方页必须保留模板入口并支持直接复制配方', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const technicalReferences = readUtf8('apps/web-next/lib/technical-references.ts');

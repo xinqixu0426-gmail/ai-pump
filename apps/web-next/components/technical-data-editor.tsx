@@ -2,7 +2,7 @@
 
 import { ChevronDown, Download, FileSpreadsheet, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ClipboardEvent, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { selectInputValueOnFocus } from '@/components/ui/field';
@@ -14,6 +14,10 @@ import {
   type RecipeTechnicalFile,
 } from '@/lib/recipes';
 import { bearingOptions } from '@/lib/rotor';
+import {
+  RECIPE_TEST_REPORT_EXTENSIONS,
+  selectClipboardFile,
+} from '@/lib/clipboard-files';
 import {
   createCustomTechnicalField,
   getRecipeTechnicalProgress,
@@ -105,6 +109,7 @@ export function TechnicalDataEditor({
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileError, setFileError] = useState('');
+  const [fileMessage, setFileMessage] = useState('');
   const [deleteFileTarget, setDeleteFileTarget] = useState<RecipeTechnicalFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const customFields = value.customFields || [];
@@ -123,6 +128,7 @@ export function TechnicalDataEditor({
   ].filter(Boolean);
 
   useEffect(() => {
+    setFileMessage('');
     if (!recipeId) {
       setTechnicalFiles([]);
       onTechnicalFileCountChange?.(0);
@@ -148,13 +154,15 @@ export function TechnicalDataEditor({
     onTechnicalFileCountChange?.(files.length);
   }
 
-  async function uploadTestReport(file?: File) {
-    if (!recipeId || !file) return;
+  async function uploadTestReport(file?: File, pasteNotice = '') {
+    if (!recipeId || !file || fileBusy) return;
     setFileBusy(true);
     setFileError('');
+    setFileMessage('');
     try {
       await uploadRecipeTechnicalFile(recipeId, file, recipeUpdatedAt);
       syncTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
+      setFileMessage(pasteNotice);
     } catch (error) {
       setFileError(error instanceof Error ? error.message : '测试报告上传失败');
     } finally {
@@ -163,10 +171,36 @@ export function TechnicalDataEditor({
     }
   }
 
+  function handleTestReportPaste(event: ClipboardEvent<HTMLDivElement>) {
+    if (event.clipboardData.files.length === 0) return;
+    event.preventDefault();
+    if (!recipeId) {
+      setFileMessage('');
+      setFileError('请先保存配方，再粘贴性能测试报告。');
+      return;
+    }
+    if (fileBusy) {
+      setFileMessage('');
+      setFileError('测试报告正在处理中，请完成后再粘贴。');
+      return;
+    }
+    const decision = selectClipboardFile(event.clipboardData.files, {
+      allowedExtensions: RECIPE_TEST_REPORT_EXTENSIONS,
+      allowedLabel: ' Excel（.xls 或 .xlsx）文件',
+    });
+    if (decision.kind === 'rejected') {
+      setFileMessage('');
+      setFileError(decision.message);
+      return;
+    }
+    if (decision.kind === 'accepted') void uploadTestReport(decision.file, decision.notice);
+  }
+
   async function removeTestReport(file: RecipeTechnicalFile) {
     if (!recipeId) return;
     setFileBusy(true);
     setFileError('');
+    setFileMessage('');
     try {
       await deleteRecipeTechnicalFile(recipeId, file.id, file.updatedAt);
       syncTechnicalFiles(await getRecipeTechnicalFiles(recipeId));
@@ -225,10 +259,16 @@ export function TechnicalDataEditor({
       </button>
 
       {expanded ? <div className="space-y-4 border-t border-line p-4">
-        <div>
+        <div
+          onPaste={handleTestReportPaste}
+          tabIndex={0}
+          aria-label="性能测试报告粘贴上传区域"
+          className="rounded-md outline-none transition focus:ring-2 focus:ring-sky-200"
+        >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-xs font-semibold text-muted">性能测试报告</div>
+              <div className="mt-1 text-xs text-muted">点击此区域后可按 Ctrl+V 粘贴单个 Excel 文件。</div>
             </div>
             <input
               ref={fileInputRef}
@@ -277,6 +317,7 @@ export function TechnicalDataEditor({
             </div>
           )}
           {fileError ? <div className="mt-2 text-sm text-rose-700">{fileError}</div> : null}
+          {fileMessage ? <div className="mt-2 text-sm text-emerald-700">{fileMessage}</div> : null}
         </div>
 
         <div>
