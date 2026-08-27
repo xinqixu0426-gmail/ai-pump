@@ -1011,15 +1011,17 @@ async function run() {
         assert(Number(createdPart.stock) === 2, '零件库存回读不一致');
 
         await callWriteWithReplay('batch_update_prices', {
-            category: createdPartCategory,
-            percentChange: 1,
+            targets: [{
+                partId: createdPart.id,
+            }],
+            absoluteChange: 0.01,
         });
         createdPart = (await apiRequest(
             '回读零件批量调价',
             'GET',
             `/api/parts?keyword=${encodeURIComponent(createdPartModel)}`
         )).payload.data.find(part => part.model === createdPartModel);
-        assert(Number(createdPart.price) === 12.46, `零件调价回读异常: ${createdPart.price}`);
+        assert(Number(createdPart.price) === 12.35, `零件调价回读异常: ${createdPart.price}`);
 
         await callWrite('adjust_coil_stock', {
             items: [{

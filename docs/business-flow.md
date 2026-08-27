@@ -40,7 +40,7 @@
 | 流程 | 主要入口 | 是否写库 | 写入内容 |
 |---|---|---:|---|
 | 零件查询/新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 查询否/写入是 | 查询由正式 `parts.list` 按关键词、类别、供应商、库存状态、数量和价格/库存数值边界筛选；无 `limit` 时返回全部，低库存统一为 1–5。正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
-| 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务 |
+| 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；AI/MCP 可按类别或用 `targets` 明确 1–8 个零件，后者先经正式 Query 以 `partId` 或完整 `model+supplier` 唯一绑定，再要求正式 Preview 无跳过、warning 或价格漂移并完整展示确认。预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务；执行后核对精确 changes 集合并回读正式价格 |
 | 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；AI 的单个/多个型号统一经 `adjust_part_stock` 生成一张确认卡，缺少 operation/audit 回执不得报成功；普通 PATCH 的 `stock` 只保留历史兼容 |
 | 线圈新增/修改/删除 | `/api/coils`、`/api/coils/:id` | 是 | 定子组合、绕组方案状态、可选绕组技术备忘和计算后的 `cost` |
 | 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数；持久幂等，修改/删除绑定版本，模板与 operation/强审计同事务；任何历史配方引用都会阻止硬删除 |

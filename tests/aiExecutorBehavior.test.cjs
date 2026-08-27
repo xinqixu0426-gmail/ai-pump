@@ -1199,15 +1199,70 @@ test('AI executor 行为：库存命令回执与正式回读不一致时拒绝�
     assert.equal(calls.length, 4);
 });
 
+test('AI executor 行为：库存命令 changes 必须与预览形成无重复的精确集合', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const scenarios = [
+        [
+            { resourceId: 7, field: 'stock', from: 4, to: 5 },
+            { resourceId: 7, field: 'stock', from: 4, to: 5 },
+        ],
+        [{ resourceId: 7, field: 'stock', from: 4, to: 5 }],
+        [
+            { resourceId: 7, field: 'stock', from: 3, to: 5 },
+            { resourceId: 8, field: 'stock', from: 6, to: 7 },
+        ],
+    ];
+    for (const changes of scenarios) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 7, model: 'A', stock: 4 },
+                    { id: 8, model: 'B', stock: 6 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/batch-stock-preview')) {
+                return jsonResponse({ success: true, data: {
+                    confirmationToken: 'stock-set-token',
+                    suggestedIdempotencyKey: 'stock-set-key',
+                    operations: [
+                        { partId: 7, model: 'A', currentStock: 4, nextStock: 5, delta: 1 },
+                        { partId: 8, model: 'B', currentStock: 6, nextStock: 7, delta: 1 },
+                    ],
+                    warnings: [],
+                } });
+            }
+            if (call.url.endsWith('/api/parts/batch-stock')) {
+                return jsonResponse({ success: true, data: {
+                    operationId: 'formal-stock-set-operation',
+                    capabilityId: 'inventory.parts.batch_adjust_stock',
+                    status: 'completed',
+                    updatedCount: 2,
+                    changes,
+                    auditIds: [702, 703],
+                } });
+            }
+            return jsonResponse({ success: false, error: '不应回读库存' }, 500);
+        });
+        const result = await executeToolCall('adjust_part_stock', {
+            items: [{ model: 'A', changeQty: 1 }, { model: 'B', changeQty: 1 }],
+        }, { allowWrite: true });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'part_stock_result_mismatch');
+        assert.equal(calls.filter(call => call.url.endsWith('/api/parts')).length, 1);
+    }
+});
+
 test('AI executor 行为：批量调价生成候选价后必须经正式预览和原子命令', async () => {
     process.env.INTERNAL_SECRET = 'test-secret';
+    let partsReadCount = 0;
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            partsReadCount += 1;
             return jsonResponse({
                 success: true,
                 data: [
-                    { id: 7, model: '轴承A', category: '轴承', price: 10 },
-                    { id: 8, model: '轴承B', category: '轴承', price: 12.34 },
+                    { id: 7, model: '轴承A', category: '轴承', supplier: '甲厂', price: partsReadCount === 1 ? 10 : 11 },
+                    { id: 8, model: '轴承B', category: '轴承', supplier: '乙厂', price: partsReadCount === 1 ? 12.34 : 13.57 },
                     { id: 9, model: '螺丝A', category: '螺丝', price: 1 },
                 ],
             });
@@ -1226,6 +1281,11 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
                         { partId: 7, price: 11, expectedUpdatedAt: 'v1' },
                         { partId: 8, price: 13.57, expectedUpdatedAt: 'v2' },
                     ],
+                    changes: [
+                        { resourceType: 'part', resourceId: 7, field: 'price', from: 10, to: 11 },
+                        { resourceType: 'part', resourceId: 8, field: 'price', from: 12.34, to: 13.57 },
+                    ],
+                    warnings: [],
                     previewHash: 'price-hash',
                     suggestedIdempotencyKey: 'price-key',
                 },
@@ -1242,7 +1302,13 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
             });
             return jsonResponse({
                 success: true,
-                data: commandData('parts.batch_update_prices', { updatedCount: 2 }),
+                data: commandData('parts.batch_update_prices', {
+                    updatedCount: 2,
+                    changes: [
+                        { resourceType: 'part', resourceId: 7, field: 'price', from: 10, to: 11 },
+                        { resourceType: 'part', resourceId: 8, field: 'price', from: 12.34, to: 13.57 },
+                    ],
+                }),
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -1258,14 +1324,250 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
     assert.equal(result.count, 2);
     assert.equal(result.changeType, '+10%');
     assert.deepEqual(result.details, [
-        { model: '轴承A', oldPrice: 10, newPrice: 11 },
-        { model: '轴承B', oldPrice: 12.34, newPrice: 13.57 },
+        { partId: 7, model: '轴承A', supplier: '甲厂', oldPrice: 10, newPrice: 11 },
+        { partId: 8, model: '轴承B', supplier: '乙厂', oldPrice: 12.34, newPrice: 13.57 },
     ]);
+    assert.equal(result.status, 'completed');
+    assert.equal(result.changes.length, 2);
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.readback[0].price, 11);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/parts',
         'POST /api/parts/prices-preview',
         'PATCH /api/parts/prices',
+        'GET /api/parts',
     ]);
+});
+
+test('AI executor 行为：明确调价目标必须正式唯一绑定并在确认后回读', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    let partsReadCount = 0;
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            partsReadCount += 1;
+            return jsonResponse({ success: true, data: [
+                { id: 21, model: 'MCP-轴承-A', supplier: '甲厂', category: '轴承', price: partsReadCount === 1 ? 10 : 10.01 },
+                { id: 22, model: 'MCP-轴承-B', supplier: '乙厂', category: '轴承', price: partsReadCount === 1 ? 20 : 20.01 },
+            ] });
+        }
+        if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                updates: [
+                    { partId: 21, price: 10.01 },
+                    { partId: 22, price: 20.01 },
+                ],
+            });
+            return jsonResponse({ success: true, data: {
+                updates: [
+                    { partId: 21, price: 10.01, expectedUpdatedAt: 'v21' },
+                    { partId: 22, price: 20.01, expectedUpdatedAt: 'v22' },
+                ],
+                changes: [
+                    { resourceType: 'part', resourceId: 21, field: 'price', from: 10, to: 10.01 },
+                    { resourceType: 'part', resourceId: 22, field: 'price', from: 20, to: 20.01 },
+                ],
+                warnings: [],
+                previewHash: 'target-price-hash',
+                suggestedIdempotencyKey: 'target-price-key',
+            } });
+        }
+        if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+            return jsonResponse({ success: true, data: commandData('parts.batch_update_prices', {
+                updatedCount: 2,
+                changes: [
+                    { resourceType: 'part', resourceId: 21, field: 'price', from: 10, to: 10.01 },
+                    { resourceType: 'part', resourceId: 22, field: 'price', from: 20, to: 20.01 },
+                ],
+            }) });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('batch_update_prices', {
+        targets: [
+            { partId: 21 },
+            { model: ' MCP-轴承-B ', supplier: ' 乙厂 ' },
+        ],
+        absoluteChange: 0.01,
+    }, { allowWrite: true, operationId: 'operation-target-prices' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 2);
+    assert.equal(result.category, null);
+    assert.equal(result.changeType, '+0.01元');
+    assert.deepEqual(result.readback.map(item => item.price), [10.01, 20.01]);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/parts',
+        'POST /api/parts/prices-preview',
+        'PATCH /api/parts/prices',
+        'GET /api/parts',
+    ]);
+});
+
+test('AI executor 行为：明确调价目标与正式预览漂移时不生成确认卡', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 25, model: '预览漂移-A', supplier: '甲厂', category: '轴承', price: 10 },
+                { id: 26, model: '预览漂移-B', supplier: '乙厂', category: '轴承', price: 20 },
+            ] });
+        }
+        if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+            return jsonResponse({ success: true, data: {
+                updates: [{ partId: 25, price: 10.01, expectedUpdatedAt: 'v25' }],
+                changes: [
+                    { resourceType: 'part', resourceId: 25, field: 'price', from: 10.02, to: 10.01 },
+                ],
+                warnings: [{ code: 'part_not_found_skipped', resourceId: 26 }],
+                previewHash: 'drift-price-hash',
+                suggestedIdempotencyKey: 'drift-price-key',
+            } });
+        }
+        return jsonResponse({ success: false, error: '不应执行调价命令' }, 500);
+    });
+
+    const result = await executeToolCall('batch_update_prices', {
+        targets: [{ partId: 25 }, { partId: 26 }],
+        absoluteChange: 0.01,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'part_price_preview_target_drift');
+    assert.equal(calls.some(call => call.url.endsWith('/api/parts/prices')), false);
+});
+
+test('AI executor 行为：明确调价目标歧义、重复或缺价时不生成正式预览', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 31, model: '重复型号', supplier: '同厂', category: '配件', price: 1 },
+                { id: 32, model: '重复型号', supplier: '同厂', category: '配件', price: 2 },
+                { id: 33, model: '缺价型号', supplier: '同厂', category: '配件', price: null },
+            ] });
+        }
+        return jsonResponse({ success: false, error: '不应调用调价预览或命令' }, 500);
+    });
+
+    for (const [args, code] of [
+        [{ targets: [{ model: '重复型号', supplier: '同厂' }], absoluteChange: 1 }, 'part_price_target_ambiguous'],
+        [{ targets: [{ partId: 31 }, { partId: 31 }], absoluteChange: 1 }, 'part_price_target_duplicate'],
+        [{ targets: [{ partId: 33 }], absoluteChange: 1 }, 'part_price_current_price_missing'],
+        [{ targets: [{ partId: 999 }], absoluteChange: 1 }, 'part_price_target_not_found'],
+    ]) {
+        const result = await executeToolCall('batch_update_prices', args, { allowWrite: false });
+        assert.equal(result.success, false);
+        assert.equal(result.code, code);
+    }
+    assert.equal(calls.every(call => call.method === 'GET'), true);
+});
+
+test('AI executor 行为：调价回执或正式价格回读不完整时拒绝报成功', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    for (const scenario of ['missing-receipt', 'readback-mismatch']) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 41, model: '验收轴承', supplier: '验收厂', category: '轴承', price: 10 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+                return jsonResponse({ success: true, data: {
+                    updates: [{ partId: 41, price: 10.01, expectedUpdatedAt: 'v41' }],
+                    changes: [
+                        { resourceType: 'part', resourceId: 41, field: 'price', from: 10, to: 10.01 },
+                    ],
+                    warnings: [],
+                    previewHash: `price-${scenario}`,
+                    suggestedIdempotencyKey: `price-key-${scenario}`,
+                } });
+            }
+            if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+                const data = {
+                    updatedCount: 1,
+                    changes: [
+                        { resourceType: 'part', resourceId: 41, field: 'price', from: 10, to: 10.01 },
+                    ],
+                };
+                return jsonResponse({ success: true, data: scenario === 'missing-receipt'
+                    ? data
+                    : commandData('parts.batch_update_prices', data) });
+            }
+            return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+        });
+
+        const result = await executeToolCall('batch_update_prices', {
+            targets: [{ partId: 41 }],
+            absoluteChange: 0.01,
+        }, { allowWrite: true, operationId: `operation-${scenario}` });
+
+        assert.equal(result.success, false);
+        assert.equal(
+            result.code,
+            scenario === 'missing-receipt'
+                ? 'part_price_receipt_missing'
+                : 'part_price_readback_mismatch'
+        );
+        assert.equal(
+            calls.filter(call => call.url.endsWith('/api/parts') && call.method === 'GET').length,
+            scenario === 'missing-receipt' ? 1 : 2
+        );
+    }
+});
+
+test('AI executor 行为：调价命令 changes 必须与预览形成无重复的精确集合', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const scenarios = [
+        [
+            { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+            { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+        ],
+        [{ resourceId: 51, field: 'price', from: 10, to: 10.01 }],
+        [
+            { resourceId: 51, field: 'price', from: 9.99, to: 10.01 },
+            { resourceId: 52, field: 'price', from: 20, to: 20.01 },
+        ],
+    ];
+    for (const changes of scenarios) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 51, model: '集合轴承-A', supplier: '甲厂', price: 10 },
+                    { id: 52, model: '集合轴承-B', supplier: '乙厂', price: 20 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+                return jsonResponse({ success: true, data: {
+                    updates: [
+                        { partId: 51, price: 10.01, expectedUpdatedAt: 'v51' },
+                        { partId: 52, price: 20.01, expectedUpdatedAt: 'v52' },
+                    ],
+                    changes: [
+                        { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+                        { resourceId: 52, field: 'price', from: 20, to: 20.01 },
+                    ],
+                    warnings: [],
+                    previewHash: 'price-set-hash',
+                    suggestedIdempotencyKey: 'price-set-key',
+                } });
+            }
+            if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+                return jsonResponse({ success: true, data: commandData('parts.batch_update_prices', {
+                    updatedCount: 2,
+                    changes,
+                }) });
+            }
+            return jsonResponse({ success: false, error: '不应回读价格' }, 500);
+        });
+        const result = await executeToolCall('batch_update_prices', {
+            targets: [{ partId: 51 }, { partId: 52 }],
+            absoluteChange: 0.01,
+        }, { allowWrite: true, operationId: 'operation-price-set' });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'part_price_result_mismatch');
+        assert.equal(calls.filter(call => call.url.endsWith('/api/parts')).length, 1);
+    }
 });
 
 test('AI executor 行为：线圈库存未确认时先正式预览再显示标准方案', async () => {

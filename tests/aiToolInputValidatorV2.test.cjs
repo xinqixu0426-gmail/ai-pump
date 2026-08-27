@@ -101,6 +101,34 @@ test('V2 写工具输入：拒绝空白目标、空批次、零变动和冲突�
         }),
         /必须且只能符合一种输入形式/
     );
+    assert.deepEqual(validateAiToolArgs('batch_update_prices', {
+        targets: [{ partId: '7' }],
+        absoluteChange: 0.01,
+    }), {
+        targets: [{ partId: 7 }],
+        absoluteChange: 0.01,
+    });
+    assert.deepEqual(validateAiToolArgs('batch_update_prices', {
+        targets: [{ model: ' 轴承 A ', supplier: ' 供应商甲 ' }],
+        percentChange: -5,
+    }), {
+        targets: [{ model: '轴承 A', supplier: '供应商甲' }],
+        percentChange: -5,
+    });
+    for (const args of [
+        { targets: [], absoluteChange: 1 },
+        { targets: Array.from({ length: 9 }, (_, index) => ({ partId: index + 1 })), absoluteChange: 1 },
+        { targets: [{ model: '轴承A' }], absoluteChange: 1 },
+        { targets: [{ supplier: '供应商甲' }], absoluteChange: 1 },
+        { targets: [{ partId: 7, model: '轴承A', supplier: '供应商甲' }], absoluteChange: 1 },
+        { category: '轴承', targets: [{ partId: 7 }], absoluteChange: 1 },
+        { targets: [{ partId: 7, unknown: true }], absoluteChange: 1 },
+    ]) {
+        assert.throws(
+            () => validateAiToolArgs('batch_update_prices', args),
+            AiToolInputValidationError
+        );
+    }
 });
 
 test('V2 工具输入：查询与写入不再维护第二份手写参数白名单', () => {
