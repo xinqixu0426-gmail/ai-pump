@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('status', 'add', 'rotate', 'revoke', 'grant-write', 'revoke-write', 'verify', 'list-backups', 'rollback')]
+    [ValidateSet('status', 'add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write', 'verify', 'list-backups', 'rollback')]
     [string]$Action = 'status',
     [string]$ClientId,
     [string]$Tool,
@@ -9,12 +9,12 @@ param(
     [string]$BackupFile,
     [switch]$Latest,
     [string]$SshHost = 'macmini',
-    [string]$RemoteRoot = '~/pump-cost-accounting-system',
-    [int]$ExpectedToolCount = 45
+    [string]$RemoteRoot = '~/pump-cost-accounting-system'
 )
 
 $ErrorActionPreference = 'Stop'
 $applyConfirmation = 'APPLY_MCP_IDENTITY_CHANGE'
+$approveWriteConfirmation = 'APPROVE_NEW_MCP_WRITE_TOOL'
 $rollbackConfirmation = 'ROLLBACK_MCP_IDENTITY_CHANGE'
 
 if ($SshHost -notmatch '^[a-zA-Z0-9._-]+$') { throw 'Invalid SshHost' }
@@ -29,10 +29,6 @@ if ($ClientTokenEnvVar -and $ClientTokenEnvVar -notmatch '^[A-Za-z_][A-Za-z0-9_]
 if ($BackupFile -and $BackupFile -notmatch '^[/~a-zA-Z0-9_ .-]+$') {
     throw 'Invalid BackupFile'
 }
-if ($ExpectedToolCount -lt 0 -or $ExpectedToolCount -gt 1000) {
-    throw 'ExpectedToolCount must be an integer from 0 to 1000'
-}
-
 function New-McpToken {
     $bytes = New-Object byte[] 48
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -67,7 +63,7 @@ function Restart-Api {
 
 function Verify-AllIdentities {
     $args = "verify --env-file .env --url http://127.0.0.1:3002/mcp"
-    $args += " --host xuxinqi.xin --expect-tool-count $ExpectedToolCount"
+    $args += " --host xuxinqi.xin --protocol-version 2026-07-28 --expect-configured-catalog"
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $result = $raw | ConvertFrom-Json
     if (-not $result.success) { throw 'MCP identity live verification failed' }
@@ -100,10 +96,10 @@ process.stdout.write(token);
     return $token
 }
 
-if ($Action -in @('add', 'rotate', 'revoke', 'grant-write', 'revoke-write') -and -not $ClientId) {
+if ($Action -in @('add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write') -and -not $ClientId) {
     throw "$Action requires -ClientId"
 }
-if ($Action -in @('grant-write', 'revoke-write') -and -not $Tool) {
+if ($Action -in @('approve-write', 'grant-write', 'revoke-write') -and -not $Tool) {
     throw "$Action requires -Tool"
 }
 if ($Action -in @('add', 'rotate') -and -not $ClientTokenEnvVar) {
@@ -137,9 +133,16 @@ if ($Action -in @('add', 'rotate')) {
     if ($Apply) { $args += " --apply --confirm $applyConfirmation" }
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $remoteResult = $raw | ConvertFrom-Json
-} elseif ($Action -in @('grant-write', 'revoke-write')) {
+} elseif ($Action -in @('approve-write', 'grant-write', 'revoke-write')) {
     $args = "$Action --env-file .env --client-id $ClientId --tool $Tool"
-    if ($Apply) { $args += " --apply --confirm $applyConfirmation" }
+    if ($Apply) {
+        $confirmation = if ($Action -eq 'approve-write') {
+            $approveWriteConfirmation
+        } else {
+            $applyConfirmation
+        }
+        $args += " --apply --confirm $confirmation"
+    }
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $remoteResult = $raw | ConvertFrom-Json
 } elseif ($Action -eq 'rollback') {
@@ -157,7 +160,7 @@ if ($Action -in @('add', 'rotate')) {
     $remoteResult = $raw | ConvertFrom-Json
 }
 
-if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'grant-write', 'revoke-write', 'rollback')) {
+if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write', 'rollback')) {
     $remoteResult | ConvertTo-Json -Depth 20
     exit 0
 }

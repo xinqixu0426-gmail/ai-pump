@@ -16,6 +16,7 @@ const {
 } = require('../api/services/environment.cjs');
 
 const APPLY_CONFIRMATION = 'APPLY_MCP_IDENTITY_CHANGE';
+const APPROVE_WRITE_CONFIRMATION = 'APPROVE_NEW_MCP_WRITE_TOOL';
 const ROLLBACK_CONFIRMATION = 'ROLLBACK_MCP_IDENTITY_CHANGE';
 const CLIENT_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -123,7 +124,7 @@ function validateTokenInput(token) {
 }
 
 function planIdentityChange({ command, envText, clientId, token, tool }) {
-    if (!['add', 'rotate', 'revoke', 'grant-write', 'revoke-write'].includes(command)) {
+    if (!['add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write'].includes(command)) {
         throw new Error(`不支持的身份变更命令: ${command}`);
     }
     const normalizedClientId = assertClientId(clientId);
@@ -162,6 +163,29 @@ function planIdentityChange({ command, envText, clientId, token, tool }) {
             nextText = setEnvValue(nextText, 'MCP_WRITE_ENABLED', 'false');
             writeDisabled = true;
         }
+    } else if (command === 'approve-write') {
+        if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
+        if (!normalizedTool) throw new Error('首次批准写工具必须提供 tool');
+        const { MCP_WRITE_TOOL_NAMES } = require('../api/mcp/catalog.cjs');
+        if (!MCP_WRITE_TOOL_NAMES.includes(normalizedTool)) {
+            throw new Error(`MCP 写工具不在权威目录: ${normalizedTool}`);
+        }
+        const approvedWriteTools = new Set(Object.values(allowlists).flat());
+        if (approvedWriteTools.has(normalizedTool)) {
+            throw new Error(`MCP 写工具已进入灰度集合；请使用 grant-write: ${normalizedTool}`);
+        }
+        const currentTools = allowlists[normalizedClientId] || [];
+        allowlists[normalizedClientId] = [...currentTools, normalizedTool];
+        const nextWriteClientIds = writeClientIds.includes(normalizedClientId)
+            ? writeClientIds
+            : [...writeClientIds, normalizedClientId];
+        nextText = setEnvValue(nextText, 'MCP_WRITE_ENABLED', 'true');
+        nextText = setEnvValue(nextText, 'MCP_WRITE_CLIENT_IDS', nextWriteClientIds.join(','));
+        nextText = setEnvValue(
+            nextText,
+            'MCP_WRITE_TOOL_ALLOWLISTS',
+            JSON.stringify(allowlists)
+        );
     } else if (command === 'grant-write') {
         if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
         if (!normalizedTool) throw new Error('授予写权限必须提供 tool');
@@ -224,9 +248,12 @@ function planIdentityChange({ command, envText, clientId, token, tool }) {
             change: command === 'add' ? 'identity-added'
                 : command === 'rotate' ? 'credential-rotated'
                     : command === 'revoke' ? 'identity-revoked'
-                        : command === 'grant-write' ? 'write-tool-granted'
+                        : command === 'approve-write' ? 'write-tool-approved'
+                            : command === 'grant-write' ? 'write-tool-granted'
                             : 'write-tool-revoked',
-            tool: ['grant-write', 'revoke-write'].includes(command) ? normalizedTool : null,
+            tool: ['approve-write', 'grant-write', 'revoke-write'].includes(command)
+                ? normalizedTool
+                : null,
             removedWriteTools: command === 'revoke' ? removedWriteTools : [],
             writeDisabled,
             before: identitySummary(env),
@@ -288,6 +315,40 @@ function atomicWriteEnv(envFile, text, mode = 0o600) {
     }
 }
 
+function acquireEnvChangeLock(envFile) {
+    const lockPath = `${path.resolve(envFile)}.mcp-identities.lock`;
+    let descriptor;
+    try {
+        descriptor = fs.openSync(lockPath, 'wx', 0o600);
+        fs.writeFileSync(descriptor, `${process.pid}\n`, 'utf8');
+    } catch (error) {
+        if (descriptor !== undefined) {
+            fs.closeSync(descriptor);
+            fs.rmSync(lockPath, { force: true });
+        }
+        if (error?.code === 'EEXIST') {
+            throw new Error('另一个 MCP identity 配置变更正在执行；请确认后重试');
+        }
+        throw error;
+    }
+    let released = false;
+    return () => {
+        if (released) return;
+        released = true;
+        try {
+            fs.closeSync(descriptor);
+        } finally {
+            fs.rmSync(lockPath, { force: true });
+        }
+    };
+}
+
+function requiredConfirmationForCommand(command) {
+    return command === 'approve-write'
+        ? APPROVE_WRITE_CONFIRMATION
+        : APPLY_CONFIRMATION;
+}
+
 function executeIdentityChange({
     command,
     envFile,
@@ -299,26 +360,42 @@ function executeIdentityChange({
     backupRoot,
     now,
 }) {
-    const artifact = readEnvArtifact(envFile);
-    const planned = planIdentityChange({
-        command,
-        envText: artifact.text,
-        clientId,
-        token,
-        tool,
-    });
-    if (!apply) return { applied: false, backup: null, ...planned.plan };
-    if (confirmation !== APPLY_CONFIRMATION) {
-        throw new Error(`写入必须提供 --confirm ${APPLY_CONFIRMATION}`);
+    if (!apply) {
+        const artifact = readEnvArtifact(envFile);
+        const planned = planIdentityChange({
+            command,
+            envText: artifact.text,
+            clientId,
+            token,
+            tool,
+        });
+        return { applied: false, backup: null, ...planned.plan };
     }
-    const backup = createEnvBackup(artifact, {
-        backupRoot,
-        reason: command,
-        clientId,
-        now,
-    });
-    atomicWriteEnv(artifact.path, planned.nextText, artifact.mode);
-    return { applied: true, backup, ...planned.plan };
+    const requiredConfirmation = requiredConfirmationForCommand(command);
+    if (confirmation !== requiredConfirmation) {
+        throw new Error(`写入必须提供 --confirm ${requiredConfirmation}`);
+    }
+    const releaseLock = acquireEnvChangeLock(envFile);
+    try {
+        const artifact = readEnvArtifact(envFile);
+        const planned = planIdentityChange({
+            command,
+            envText: artifact.text,
+            clientId,
+            token,
+            tool,
+        });
+        const backup = createEnvBackup(artifact, {
+            backupRoot,
+            reason: command,
+            clientId,
+            now,
+        });
+        atomicWriteEnv(artifact.path, planned.nextText, artifact.mode);
+        return { applied: true, backup, ...planned.plan };
+    } finally {
+        releaseLock();
+    }
 }
 
 function listIdentityBackups(envFile, backupRoot = defaultBackupRoot(envFile)) {
@@ -376,19 +453,27 @@ function executeRollback({
     confirmation,
     now,
 }) {
-    const planned = planRollback({ envFile, backupRoot, file, latest });
-    if (!apply) return { applied: false, safetyBackup: null, ...planned.plan };
+    if (!apply) {
+        const planned = planRollback({ envFile, backupRoot, file, latest });
+        return { applied: false, safetyBackup: null, ...planned.plan };
+    }
     if (confirmation !== ROLLBACK_CONFIRMATION) {
         throw new Error(`回滚必须提供 --confirm ${ROLLBACK_CONFIRMATION}`);
     }
-    const safetyBackup = createEnvBackup(planned.current, {
-        backupRoot,
-        reason: 'rollback-safety',
-        clientId: 'all',
-        now,
-    });
-    atomicWriteEnv(planned.current.path, planned.backup.text, planned.current.mode);
-    return { applied: true, safetyBackup, ...planned.plan };
+    const releaseLock = acquireEnvChangeLock(envFile);
+    try {
+        const planned = planRollback({ envFile, backupRoot, file, latest });
+        const safetyBackup = createEnvBackup(planned.current, {
+            backupRoot,
+            reason: 'rollback-safety',
+            clientId: 'all',
+            now,
+        });
+        atomicWriteEnv(planned.current.path, planned.backup.text, planned.current.mode);
+        return { applied: true, safetyBackup, ...planned.plan };
+    } finally {
+        releaseLock();
+    }
 }
 
 function parseRpcPayload(text) {
@@ -438,6 +523,7 @@ async function verifyModernIdentity({
     host,
     protocolVersion,
     expectedToolCount,
+    expectedToolNames,
     timeoutMs,
 }) {
     const client = new Client(
@@ -460,8 +546,9 @@ async function verifyModernIdentity({
             : null;
         const toolCountMatches = expectedToolCount === undefined
             || tools.length === expectedToolCount;
+        const catalog = compareToolCatalog(tools, expectedToolNames);
         const protocolMatches = negotiated === protocolVersion;
-        return {
+        const result = {
             clientId: entry.clientId,
             initialized: true,
             toolsListed: true,
@@ -469,8 +556,10 @@ async function verifyModernIdentity({
             protocolMatches,
             toolCount: tools.length,
             toolCountMatches,
-            success: protocolMatches && toolCountMatches,
+            success: protocolMatches && toolCountMatches && catalog.matches,
         };
+        if (expectedToolNames !== undefined) Object.assign(result, catalog.details);
+        return result;
     } catch (error) {
         return {
             clientId: entry.clientId,
@@ -492,6 +581,47 @@ async function verifyModernIdentity({
     }
 }
 
+function configuredToolNamesForClient(env, clientId, protocolVersion) {
+    const {
+        MCP_READ_ONLY_TOOL_NAMES,
+        MCP_WRITE_TOOL_NAMES,
+    } = require('../api/mcp/catalog.cjs');
+    const configuredWriteTools = protocolVersion === '2026-07-28'
+        ? getMcpWriteToolsForClient(clientId, env)
+        : [];
+    const unknown = configuredWriteTools.filter(name => !MCP_WRITE_TOOL_NAMES.includes(name));
+    if (unknown.length > 0) {
+        throw new Error(`MCP 写工具白名单包含未知工具: ${clientId}/${unknown.join(',')}`);
+    }
+    return [...MCP_READ_ONLY_TOOL_NAMES, ...configuredWriteTools];
+}
+
+function compareToolCatalog(tools, expectedToolNames) {
+    if (expectedToolNames === undefined) return { matches: true, details: {} };
+    const actualNames = tools.map(tool => String(tool?.name || '').trim());
+    const expectedSet = new Set(expectedToolNames);
+    const actualSet = new Set(actualNames);
+    const duplicateToolNames = [...new Set(actualNames.filter((name, index) => (
+        actualNames.indexOf(name) !== index
+    )))].sort();
+    const missingToolNames = expectedToolNames.filter(name => !actualSet.has(name)).sort();
+    const unexpectedToolNames = actualNames.filter(name => !expectedSet.has(name)).sort();
+    const matches = duplicateToolNames.length === 0
+        && missingToolNames.length === 0
+        && unexpectedToolNames.length === 0
+        && actualNames.length === expectedToolNames.length;
+    return {
+        matches,
+        details: {
+            catalogMatches: matches,
+            expectedToolCount: expectedToolNames.length,
+            missingToolNames,
+            unexpectedToolNames,
+            duplicateToolNames,
+        },
+    };
+}
+
 async function verifyLiveIdentities({
     env,
     url,
@@ -499,6 +629,7 @@ async function verifyLiveIdentities({
     clientId,
     protocolVersion = '2025-06-18',
     expectedToolCount,
+    expectConfiguredCatalog = false,
     timeoutMs = 15000,
 }) {
     const entries = parseMcpServiceTokens(env)
@@ -507,6 +638,9 @@ async function verifyLiveIdentities({
     const results = [];
     let requestId = 1;
     for (const entry of entries) {
+        const expectedToolNames = expectConfiguredCatalog
+            ? configuredToolNamesForClient(env, entry.clientId, protocolVersion)
+            : undefined;
         if (protocolVersion === '2026-07-28') {
             results.push(await verifyModernIdentity({
                 entry,
@@ -514,6 +648,7 @@ async function verifyLiveIdentities({
                 host,
                 protocolVersion,
                 expectedToolCount,
+                expectedToolNames,
                 timeoutMs,
             }));
             continue;
@@ -547,7 +682,8 @@ async function verifyLiveIdentities({
         const tools = listed.payload?.result?.tools || [];
         const toolCountMatches = expectedToolCount === undefined
             || tools.length === expectedToolCount;
-        results.push({
+        const catalog = compareToolCatalog(tools, expectedToolNames);
+        const result = {
             clientId: entry.clientId,
             initialized: initialized.status === 200 && !initialized.payload?.error,
             toolsListed: listed.status === 200 && !listed.payload?.error,
@@ -557,14 +693,18 @@ async function verifyLiveIdentities({
                 && listed.status === 200
                 && !initialized.payload?.error
                 && !listed.payload?.error
-                && toolCountMatches,
-        });
+                && toolCountMatches
+                && catalog.matches,
+        };
+        if (expectedToolNames !== undefined) Object.assign(result, catalog.details);
+        results.push(result);
     }
     return results;
 }
 
 module.exports = {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     assertClientId,
     atomicWriteEnv,

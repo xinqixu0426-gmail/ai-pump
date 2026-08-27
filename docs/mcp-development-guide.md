@@ -139,7 +139,7 @@ npm run mcp:identity -- verify --env-file .env
 npm run mcp:identity -- list-backups --env-file .env
 ```
 
-`add`、`rotate`、`revoke`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
+`add`、`rotate`、`revoke`、`approve-write`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
 只能通过 stdin 或命名环境变量取得 token，命令显式拒绝 `--token <明文>`：
 
 ```bash
@@ -155,15 +155,28 @@ node scripts/manage-mcp-identities.cjs rotate \
 
 每次正式变更先在 `backups/config/mcp-identities/` 创建完整 `.env` 安全备份；Unix/macOS
 目录权限为 `700`、文件权限为 `600`，不生成含 token、token 指纹或 token 哈希的备份元数据。
-新配置先复用 `validateMcpConfiguration()` 验证，再以同目录临时文件原子替换。撤销身份会同时
+正式写入以同目录排他 lockfile 保护“读取 → 规划 → 备份 → 原子替换”完整临界区；发现另一个身份
+变更正在执行时 fail-closed，不创建备份也不覆盖配置，回滚同样使用该锁。进程异常遗留锁时不得自动
+删除；先确认没有身份管理进程运行，并核对 `status` 与最近备份后再由运维人员清理。新配置先复用 `validateMcpConfiguration()`
+验证，再以同目录临时文件原子替换。撤销身份会同时
 删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
 自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
 
-`grant-write` 只能把已经存在于当前生产灰度集合中的写工具授予另一个已登记身份，不能借此
-引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该身份最后一个写工具时同时把身份
-移出 `MCP_WRITE_CLIENT_IDS`：
+`approve-write` 是把一个已完成代码审计和本地 17/17 验收、但尚未进入生产灰度集合的权威写工具
+首次开放给一个明确身份的唯一入口。它只接受 `api/mcp/catalog.cjs` 中的正式写工具，并使用独立强确认词
+`APPROVE_NEW_MCP_WRITE_TOOL`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
+中的写工具授予另一个已登记身份，不能借此引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该
+身份最后一个写工具时同时把身份移出 `MCP_WRITE_CLIENT_IDS`：
 
 ```bash
+# 首次进入生产灰度：先预览，再使用独立确认词执行
+node scripts/manage-mcp-identities.cjs approve-write \
+  --env-file .env --client-id hermes --tool adjust_part_stock
+node scripts/manage-mcp-identities.cjs approve-write \
+  --env-file .env --client-id hermes --tool adjust_part_stock \
+  --apply --confirm APPROVE_NEW_MCP_WRITE_TOOL
+
+# 已灰度工具再授权给其他身份
 node scripts/manage-mcp-identities.cjs grant-write \
   --env-file .env --client-id codex --tool sync_factory_knowledge
 node scripts/manage-mcp-identities.cjs grant-write \
@@ -184,13 +197,21 @@ node scripts/manage-mcp-identities.cjs rollback \
 
 Windows 日常维护 Mac Mini 使用包装命令；它在内存生成 48 字节随机 token，通过 SSH stdin
 传给服务端，不把 token 放入参数或输出。远端写入成功后才更新指定的 Windows User 环境变量，
-随后重启 API 并以 2025 兼容协议逐身份执行 `initialize + tools/list`。重启或在线验证失败时，
+随后重启 API，并以 2026-07-28 官方 SDK 会话逐身份列目录。验证器从同一权威 MCP catalog 和该身份
+实际 allowlist 推导完整期望名称集合，不使用统一数量常量；因此允许 Hermes 50、其他身份 49 这类
+异构目录，也会拒绝“数量相同但名称错误”、重复工具、缺失工具或越权工具。重启或在线验证失败时，
 命令自动恢复服务端备份和原客户端环境变量：
 
 ```powershell
 # 查询和在线验证
 npm run mcp:identity:macmini -- -Action status
 npm run mcp:identity:macmini -- -Action verify
+
+# 首次开放新的生产灰度写工具；必须先预览，再 Apply
+npm run mcp:identity:macmini -- -Action approve-write `
+  -ClientId hermes -Tool adjust_part_stock
+npm run mcp:identity:macmini -- -Action approve-write `
+  -ClientId hermes -Tool adjust_part_stock -Apply
 
 # 将当前已灰度的写工具授权给另一个身份；同样先预览，再 Apply
 npm run mcp:identity:macmini -- -Action grant-write `
@@ -232,8 +253,8 @@ npm run mcp:identity:macmini -- -Action rollback `
   -Apply
 ```
 
-身份命令只管理认证映射和现有写权限投影，不负责扩大写工具集合。新增写工具仍必须走本指南
-第 3、4 节的 capability、确认、隔离验收和单独生产授权流程。
+`approve-write` 只落实已经明确授权的生产灰度配置，不替代本指南第 3、4 节的 capability、确认、隔离
+验收和发布门禁。未完成这些前置条件时不得使用该命令；每次只首次批准一个工具给一个身份。
 
 ## 6. 官方依据
 

@@ -8,6 +8,7 @@ const { spawnSync } = require('node:child_process');
 const dotenv = require('dotenv');
 const {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     executeIdentityChange,
     executeRollback,
@@ -15,8 +16,12 @@ const {
     listIdentityBackups,
     planIdentityChange,
     quoteEnvValue,
+    readEnvArtifact,
     verifyLiveIdentities,
 } = require('../scripts/mcp-identity-config.cjs');
+const {
+    MCP_READ_ONLY_TOOL_NAMES,
+} = require('../api/mcp/catalog.cjs');
 
 const TOKEN_HERMES = 'hermes-token-0123456789abcdef0123456789';
 const TOKEN_CODEX = 'codex-token-0123456789abcdef01234567890';
@@ -205,6 +210,185 @@ test('MCP 身份管理：按身份授予和撤销单个写工具且不扩大其�
     assert.equal(revoked.plan.writeDisabled, false);
 });
 
+test('MCP 身份管理：首次批准权威写工具只扩大目标身份', () => {
+    const approved = planIdentityChange({
+        command: 'approve-write',
+        envText: envText(),
+        clientId: 'hermes',
+        tool: 'adjust_part_stock',
+    });
+    const env = dotenv.parse(approved.nextText);
+    assert.equal(approved.plan.change, 'write-tool-approved');
+    assert.equal(approved.plan.tool, 'adjust_part_stock');
+    assert.deepEqual(JSON.parse(env.MCP_WRITE_TOOL_ALLOWLISTS), {
+        hermes: ['sync_factory_knowledge', 'adjust_part_stock'],
+    });
+    assert.deepEqual(approved.plan.after.identities, [
+        { clientId: 'codex', access: 'read-only', writeTools: [] },
+        {
+            clientId: 'hermes',
+            access: 'read-write',
+            writeTools: ['sync_factory_knowledge', 'adjust_part_stock'],
+        },
+    ]);
+});
+
+test('MCP 身份管理：首次批准拒绝未知、只读、已灰度工具和未知身份', () => {
+    for (const tool of ['unknown_write_tool', 'search_parts']) {
+        assert.throws(() => planIdentityChange({
+            command: 'approve-write',
+            envText: envText(),
+            clientId: 'hermes',
+            tool,
+        }), /不在权威目录/);
+    }
+    assert.throws(() => planIdentityChange({
+        command: 'approve-write',
+        envText: envText(),
+        clientId: 'codex',
+        tool: 'sync_factory_knowledge',
+    }), /请使用 grant-write/);
+    assert.throws(() => planIdentityChange({
+        command: 'approve-write',
+        envText: envText(),
+        clientId: 'missing-agent',
+        tool: 'adjust_part_stock',
+    }), /identity 不存在/);
+});
+
+test('MCP 身份管理：首次批准使用独立强确认并在失败前不创建备份', () => {
+    const fixture = tempFixture();
+    try {
+        for (const confirmation of ['yes', APPLY_CONFIRMATION]) {
+            assert.throws(() => executeIdentityChange({
+                command: 'approve-write',
+                envFile: fixture.envFile,
+                clientId: 'hermes',
+                tool: 'adjust_part_stock',
+                apply: true,
+                confirmation,
+                backupRoot: fixture.backupRoot,
+            }), new RegExp(APPROVE_WRITE_CONFIRMATION));
+        }
+        assert.deepEqual(listIdentityBackups(fixture.envFile, fixture.backupRoot), []);
+        const applied = executeIdentityChange({
+            command: 'approve-write',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tool: 'adjust_part_stock',
+            apply: true,
+            confirmation: APPROVE_WRITE_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        });
+        assert.equal(applied.applied, true);
+        assert.equal(fs.existsSync(applied.backup), true);
+        assert.equal(fs.readFileSync(applied.backup, 'utf8'), envText());
+        const appliedEnv = dotenv.parse(fs.readFileSync(fixture.envFile, 'utf8'));
+        assert.equal(JSON.parse(appliedEnv.MCP_SERVICE_TOKENS).codex, TOKEN_CODEX);
+        assert.deepEqual(
+            JSON.parse(appliedEnv.MCP_WRITE_TOOL_ALLOWLISTS).hermes,
+            ['sync_factory_knowledge', 'adjust_part_stock']
+        );
+        assert.equal(identitySummary(appliedEnv).valid, true);
+        if (process.platform !== 'win32') {
+            assert.equal((fs.statSync(applied.backup).mode & 0o777), 0o600);
+        }
+    } finally {
+        fixture.cleanup();
+    }
+});
+
+test('MCP 身份管理：并发配置锁存在时 fail-closed 且不创建备份', () => {
+    const fixture = tempFixture();
+    const lockPath = `${fixture.envFile}.mcp-identities.lock`;
+    try {
+        const before = fs.readFileSync(fixture.envFile, 'utf8');
+        fs.writeFileSync(lockPath, 'another-process\n', { flag: 'wx' });
+        assert.throws(() => executeIdentityChange({
+            command: 'approve-write',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tool: 'adjust_part_stock',
+            apply: true,
+            confirmation: APPROVE_WRITE_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        }), /另一个 MCP identity 配置变更正在执行/);
+        assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), before);
+        assert.deepEqual(listIdentityBackups(fixture.envFile, fixture.backupRoot), []);
+    } finally {
+        fs.rmSync(lockPath, { force: true });
+        fixture.cleanup();
+    }
+});
+
+test('MCP 身份管理：首次批准后可从对应备份完整回滚', () => {
+    const fixture = tempFixture();
+    try {
+        const approved = executeIdentityChange({
+            command: 'approve-write',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tool: 'adjust_part_stock',
+            apply: true,
+            confirmation: APPROVE_WRITE_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        });
+        const restored = executeRollback({
+            envFile: fixture.envFile,
+            backupRoot: fixture.backupRoot,
+            file: approved.backup,
+            apply: true,
+            confirmation: ROLLBACK_CONFIRMATION,
+        });
+        assert.equal(restored.applied, true);
+        assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), envText());
+        assert.deepEqual(identitySummary(readEnvArtifact(fixture.envFile).env).identities, [
+            { clientId: 'codex', access: 'read-only', writeTools: [] },
+            {
+                clientId: 'hermes',
+                access: 'read-write',
+                writeTools: ['sync_factory_knowledge'],
+            },
+        ]);
+    } finally {
+        fixture.cleanup();
+    }
+});
+
+test('MCP 身份管理：回滚遇并发配置锁时不覆盖当前权限或创建安全备份', () => {
+    const fixture = tempFixture();
+    const lockPath = `${fixture.envFile}.mcp-identities.lock`;
+    try {
+        const approved = executeIdentityChange({
+            command: 'approve-write',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tool: 'adjust_part_stock',
+            apply: true,
+            confirmation: APPROVE_WRITE_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        });
+        const current = fs.readFileSync(fixture.envFile, 'utf8');
+        const backupsBefore = listIdentityBackups(fixture.envFile, fixture.backupRoot);
+        fs.writeFileSync(lockPath, 'another-process\n', { flag: 'wx' });
+        assert.throws(() => executeRollback({
+            envFile: fixture.envFile,
+            backupRoot: fixture.backupRoot,
+            file: approved.backup,
+            apply: true,
+            confirmation: ROLLBACK_CONFIRMATION,
+        }), /另一个 MCP identity 配置变更正在执行/);
+        assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), current);
+        assert.deepEqual(
+            listIdentityBackups(fixture.envFile, fixture.backupRoot),
+            backupsBefore
+        );
+    } finally {
+        fs.rmSync(lockPath, { force: true });
+        fixture.cleanup();
+    }
+});
+
 test('MCP 身份管理：写工具授权拒绝未知工具、未知身份和重复授权', () => {
     assert.throws(() => planIdentityChange({
         command: 'grant-write',
@@ -356,6 +540,57 @@ test('MCP 身份管理：live verify 逐身份握手和列目录但不返回凭�
     }
 });
 
+test('MCP 身份管理：2025 精确目录按协议保持只读且忽略现代写 allowlist', async () => {
+    const server = http.createServer((request, response) => {
+        const chunks = [];
+        request.on('data', chunk => chunks.push(chunk));
+        request.on('end', () => {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            const result = body.method === 'initialize'
+                ? {
+                    protocolVersion: '2025-06-18',
+                    capabilities: { tools: {} },
+                    serverInfo: { name: 'test-mcp', version: '1.0.0' },
+                }
+                : { tools: MCP_READ_ONLY_TOOL_NAMES.map(name => ({ name })) };
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }));
+        });
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const address = server.address();
+        const result = await verifyLiveIdentities({
+            env: dotenv.parse(envText()),
+            url: `http://127.0.0.1:${address.port}/mcp`,
+            protocolVersion: '2025-06-18',
+            expectConfiguredCatalog: true,
+        });
+        assert.equal(result.every(item => item.success), true);
+        assert.deepEqual(result.map(item => ({
+            clientId: item.clientId,
+            toolCount: item.toolCount,
+            expectedToolCount: item.expectedToolCount,
+            catalogMatches: item.catalogMatches,
+        })), [
+            {
+                clientId: 'hermes',
+                toolCount: MCP_READ_ONLY_TOOL_NAMES.length,
+                expectedToolCount: MCP_READ_ONLY_TOOL_NAMES.length,
+                catalogMatches: true,
+            },
+            {
+                clientId: 'codex',
+                toolCount: MCP_READ_ONLY_TOOL_NAMES.length,
+                expectedToolCount: MCP_READ_ONLY_TOOL_NAMES.length,
+                catalogMatches: true,
+            },
+        ]);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
 test('MCP 身份管理：2026 live verify 使用官方 SDK 会话并核对协商版本', async () => {
     const server = http.createServer((request, response) => {
         if (request.method === 'DELETE') {
@@ -414,6 +649,122 @@ test('MCP 身份管理：2026 live verify 使用官方 SDK 会话并核对协商
     }
 });
 
+test('MCP 身份管理：2026 精确核对生产 50/49 异构目录和目录变异', async () => {
+    let corruptCodexCatalog = null;
+    const server = http.createServer((request, response) => {
+        if (request.method === 'DELETE') {
+            response.writeHead(200).end();
+            return;
+        }
+        const chunks = [];
+        request.on('data', chunk => chunks.push(chunk));
+        request.on('end', () => {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            if (body.method === 'notifications/initialized') {
+                response.writeHead(202).end();
+                return;
+            }
+            const token = String(request.headers.authorization || '').replace(/^Bearer\s+/, '');
+            let result;
+            if (body.method === 'server/discover') {
+                result = {
+                    supportedVersions: ['2026-07-28'],
+                    capabilities: { tools: {} },
+                    serverInfo: { name: 'test-mcp-modern', version: '1.0.0' },
+                };
+            } else {
+                const names = token === TOKEN_HERMES
+                    ? [...MCP_READ_ONLY_TOOL_NAMES, 'sync_factory_knowledge', 'adjust_part_stock']
+                    : [...MCP_READ_ONLY_TOOL_NAMES, 'sync_factory_knowledge'];
+                if (token === TOKEN_CODEX) {
+                    if (corruptCodexCatalog === 'same-count') {
+                        names[names.length - 1] = 'unexpected_same_count_tool';
+                    } else if (corruptCodexCatalog === 'duplicate') {
+                        names.push(names[0]);
+                    } else if (corruptCodexCatalog === 'missing') {
+                        names.pop();
+                    } else if (corruptCodexCatalog === 'extra') {
+                        names.push('unexpected_extra_tool');
+                    } else if (corruptCodexCatalog === 'empty') {
+                        names.push('');
+                    }
+                }
+                result = {
+                    resultType: 'complete',
+                    ttlMs: 0,
+                    cacheScope: 'private',
+                    tools: names.map(name => ({ name, inputSchema: { type: 'object' } })),
+                };
+            }
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }));
+        });
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const address = server.address();
+        const options = {
+            env: dotenv.parse(envText({
+                MCP_WRITE_CLIENT_IDS: 'hermes,codex',
+                MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+                    hermes: ['sync_factory_knowledge', 'adjust_part_stock'],
+                    codex: ['sync_factory_knowledge'],
+                }),
+            })),
+            url: `http://127.0.0.1:${address.port}/mcp`,
+            protocolVersion: '2026-07-28',
+            expectConfiguredCatalog: true,
+        };
+        const valid = await verifyLiveIdentities(options);
+        assert.deepEqual(valid.map(item => ({
+            clientId: item.clientId,
+            toolCount: item.toolCount,
+            expectedToolCount: item.expectedToolCount,
+            catalogMatches: item.catalogMatches,
+            success: item.success,
+        })), [
+            {
+                clientId: 'hermes',
+                toolCount: MCP_READ_ONLY_TOOL_NAMES.length + 2,
+                expectedToolCount: MCP_READ_ONLY_TOOL_NAMES.length + 2,
+                catalogMatches: true,
+                success: true,
+            },
+            {
+                clientId: 'codex',
+                toolCount: MCP_READ_ONLY_TOOL_NAMES.length + 1,
+                expectedToolCount: MCP_READ_ONLY_TOOL_NAMES.length + 1,
+                catalogMatches: true,
+                success: true,
+            },
+        ]);
+
+        corruptCodexCatalog = 'same-count';
+        const invalid = await verifyLiveIdentities(options);
+        const codex = invalid.find(item => item.clientId === 'codex');
+        assert.equal(codex.toolCount, MCP_READ_ONLY_TOOL_NAMES.length + 1);
+        assert.equal(codex.toolCountMatches, true);
+        assert.equal(codex.catalogMatches, false);
+        assert.deepEqual(codex.missingToolNames, ['sync_factory_knowledge']);
+        assert.deepEqual(codex.unexpectedToolNames, ['unexpected_same_count_tool']);
+        assert.equal(codex.success, false);
+
+        for (const mode of ['duplicate', 'missing', 'extra', 'empty']) {
+            corruptCodexCatalog = mode;
+            const mutated = await verifyLiveIdentities(options);
+            const item = mutated.find(result => result.clientId === 'codex');
+            assert.equal(item.catalogMatches, false, mode);
+            assert.equal(item.success, false, mode);
+            if (mode === 'duplicate') assert.deepEqual(item.duplicateToolNames, ['full_calculate']);
+            if (mode === 'missing') assert.deepEqual(item.missingToolNames, ['sync_factory_knowledge']);
+            if (mode === 'extra') assert.deepEqual(item.unexpectedToolNames, ['unexpected_extra_tool']);
+            if (mode === 'empty') assert.deepEqual(item.unexpectedToolNames, ['']);
+        }
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
 test('MCP 身份管理 CLI：显式拒绝命令行明文 token 且错误不回显值', () => {
     const fixture = tempFixture();
     try {
@@ -442,9 +793,10 @@ test('MCP 身份管理 CLI：help 正常退出并列出安全确认词', () => {
     assert.equal(result.stderr, '');
     assert.match(
         result.stdout,
-        /status\|add\|rotate\|revoke\|grant-write\|revoke-write\|verify\|list-backups\|rollback/
+        /status\|add\|rotate\|revoke\|approve-write\|grant-write\|revoke-write\|verify\|list-backups\|rollback/
     );
     assert.match(result.stdout, new RegExp(APPLY_CONFIRMATION));
+    assert.match(result.stdout, new RegExp(APPROVE_WRITE_CONFIRMATION));
     assert.match(result.stdout, new RegExp(ROLLBACK_CONFIRMATION));
 });
 
@@ -526,6 +878,38 @@ test('MCP 身份管理 CLI：写工具授权默认预览且确认后原子写入
     }
 });
 
+test('MCP 身份管理 CLI：首次批准默认预览且只接受独立确认词', () => {
+    const fixture = tempFixture();
+    try {
+        const cli = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities.cjs');
+        const args = [
+            cli,
+            'approve-write',
+            '--env-file', fixture.envFile,
+            '--backup-root', fixture.backupRoot,
+            '--client-id', 'hermes',
+            '--tool', 'adjust_part_stock',
+        ];
+        const preview = spawnSync(process.execPath, args, { encoding: 'utf8' });
+        assert.equal(preview.status, 0);
+        assert.equal(JSON.parse(preview.stdout).applied, false);
+
+        const wrong = spawnSync(process.execPath, [
+            ...args, '--apply', '--confirm', APPLY_CONFIRMATION,
+        ], { encoding: 'utf8' });
+        assert.notEqual(wrong.status, 0);
+        assert.match(wrong.stderr, new RegExp(APPROVE_WRITE_CONFIRMATION));
+
+        const applied = spawnSync(process.execPath, [
+            ...args, '--apply', '--confirm', APPROVE_WRITE_CONFIRMATION,
+        ], { encoding: 'utf8' });
+        assert.equal(applied.status, 0, applied.stderr);
+        assert.equal(JSON.parse(applied.stdout).applied, true);
+    } finally {
+        fixture.cleanup();
+    }
+});
+
 test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境变量', () => {
     const scriptPath = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1');
     const script = fs.readFileSync(scriptPath, 'utf8');
@@ -533,9 +917,13 @@ test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境�
     assert.match(script, /GetEnvironmentVariable\(\$ClientTokenEnvVar, 'User'\)/);
     assert.match(script, /SetEnvironmentVariable\(\$ClientTokenEnvVar/);
     assert.match(script, /APPLY_MCP_IDENTITY_CHANGE/);
+    assert.match(script, /APPROVE_NEW_MCP_WRITE_TOOL/);
     assert.match(script, /ROLLBACK_MCP_IDENTITY_CHANGE/);
     assert.match(script, /grant-write/);
+    assert.match(script, /approve-write/);
     assert.match(script, /revoke-write/);
+    assert.match(script, /--expect-configured-catalog/);
+    assert.doesNotMatch(script, /ExpectedToolCount/);
     assert.doesNotMatch(script, /--token\s+\$/);
     assert.doesNotMatch(script, /Write-(Output|Host).*Token/i);
 });

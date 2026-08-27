@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     executeIdentityChange,
     executeRollback,
@@ -72,8 +73,9 @@ function publicResult(result) {
 }
 
 function usage() {
-    return '用法: status|add|rotate|revoke|grant-write|revoke-write|verify|list-backups|rollback；'
-        + `写入确认 ${APPLY_CONFIRMATION}；回滚确认 ${ROLLBACK_CONFIRMATION}`;
+    return '用法: status|add|rotate|revoke|approve-write|grant-write|revoke-write|verify|list-backups|rollback；'
+        + `一般写入确认 ${APPLY_CONFIRMATION}；首次批准写工具确认 ${APPROVE_WRITE_CONFIRMATION}；`
+        + `回滚确认 ${ROLLBACK_CONFIRMATION}`;
 }
 
 async function main() {
@@ -93,14 +95,14 @@ async function main() {
             envFile,
             ...identitySummary(readEnvArtifact(envFile).env),
         };
-    } else if (['add', 'rotate', 'revoke', 'grant-write', 'revoke-write'].includes(command)) {
+    } else if (['add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write'].includes(command)) {
         result = executeIdentityChange({
             command,
             envFile,
             backupRoot,
             clientId: value(options, 'client-id', { required: true }),
             token: ['add', 'rotate'].includes(command) ? readToken(options) : undefined,
-            tool: ['grant-write', 'revoke-write'].includes(command)
+            tool: ['approve-write', 'grant-write', 'revoke-write'].includes(command)
                 ? value(options, 'tool', { required: true })
                 : undefined,
             apply: booleanOption(options, 'apply'),
@@ -131,6 +133,7 @@ async function main() {
             clientId: value(options, 'client-id'),
             protocolVersion: value(options, 'protocol-version') || '2025-06-18',
             expectedToolCount,
+            expectConfiguredCatalog: booleanOption(options, 'expect-configured-catalog'),
             timeoutMs,
         }) : [];
         result = {
