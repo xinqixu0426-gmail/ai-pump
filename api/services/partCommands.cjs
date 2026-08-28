@@ -22,17 +22,31 @@ const {
     parseNonNegativeNumber,
     parsePositiveId,
 } = require('./validation.cjs');
+const {
+    normalizeBusinessSettingValue,
+} = require('./businessSettingCommands.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('parts.create').capabilityId;
 const BATCH_CREATE_CAPABILITY_ID = requireBusinessCapability(
     'parts.batch_create'
 ).capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('parts.update').capabilityId;
+const PROFILE_SAVE_CAPABILITY_ID = requireBusinessCapability(
+    'parts.save_profile'
+).capabilityId;
 const DELETE_CAPABILITY_ID = requireBusinessCapability('parts.delete').capabilityId;
+const BATCH_DELETE_CAPABILITY_ID = requireBusinessCapability(
+    'parts.batch_delete'
+).capabilityId;
 const BATCH_PRICE_CAPABILITY_ID = requireBusinessCapability(
     'parts.batch_update_prices'
 ).capabilityId;
 const MAX_BATCH_CREATE_PARTS = 100;
+const MAX_BATCH_DELETE_PARTS = 100;
+const PART_FORM_SETTING_KEYS = new Set([
+    'cable_accessories',
+    'float_accessory_delta',
+]);
 
 function partCommandError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
@@ -269,6 +283,99 @@ function requireExplicitIdempotency(commandContext) {
     }
 }
 
+function normalizePartBusinessSettings(input = {}) {
+    const requested = Array.isArray(input.businessSettings)
+        ? input.businessSettings
+        : [];
+    if (requested.length > PART_FORM_SETTING_KEYS.size) {
+        throw partCommandError(
+            'part_business_settings_limit_exceeded',
+            `零件保存最多同时更新 ${PART_FORM_SETTING_KEYS.size} 个业务设置`,
+            400
+        );
+    }
+    const seen = new Set();
+    return requested.map((item, index) => {
+        const key = String(item?.key || '').trim();
+        if (!PART_FORM_SETTING_KEYS.has(key)) {
+            throw partCommandError(
+                'part_business_setting_key_invalid',
+                `businessSettings[${index}].key 不是零件表单允许更新的设置`,
+                400
+            );
+        }
+        if (seen.has(key)) {
+            throw partCommandError(
+                'part_business_setting_duplicate',
+                `设置项 ${key} 在同一次零件保存中重复`,
+                400
+            );
+        }
+        seen.add(key);
+        return {
+            key,
+            value: normalizeBusinessSettingValue(key, item?.value),
+            expectedUpdatedAt: normalizeExpectedUpdatedAt(
+                item?.expectedUpdatedAt,
+                `businessSettings[${index}].expectedUpdatedAt`
+            ),
+        };
+    });
+}
+
+function inspectPartBusinessSettings(dependencies, settings) {
+    return settings.map(setting => {
+        const current = dependencies.db.prepare(`
+            SELECT key, value, updated_at
+            FROM system_settings
+            WHERE key = ?
+        `).get(setting.key);
+        if (current) {
+            if (!setting.expectedUpdatedAt) {
+                throw partCommandError(
+                    'business_setting_version_required',
+                    `设置项 ${setting.key} 的 expectedUpdatedAt 为必填项`,
+                    400
+                );
+            }
+            assertExpectedUpdatedAt(
+                current,
+                setting.expectedUpdatedAt,
+                `设置项 ${setting.key}`
+            );
+        } else if (setting.expectedUpdatedAt) {
+            throw partCommandError(
+                'business_setting_not_found',
+                `设置项 "${setting.key}" 不存在`,
+                404
+            );
+        }
+        return { setting, current };
+    });
+}
+
+function applyPartBusinessSettings(dependencies, settings, auditContext) {
+    const results = [];
+    for (const { setting, current } of inspectPartBusinessSettings(
+        dependencies,
+        settings
+    )) {
+        const write = dependencies.setSetting(
+            setting.key,
+            setting.value,
+            auditContext
+        );
+        results.push({
+            key: setting.key,
+            value: write.value,
+            updatedAt: write.updatedAt,
+            previousValue: current?.value ?? null,
+            auditId: write.auditId || null,
+        });
+    }
+    return results;
+}
+
 function executeConfirmedPartBatchCreate(
     dependencies,
     input = {},
@@ -375,13 +482,14 @@ function cascadePumpShellTemplateModel(dependencies, current, updates, auditCont
 
 function executePartCreate(dependencies, input = {}, commandContext = {}) {
     const normalized = normalizeCreateInput(dependencies, input);
+    const businessSettings = normalizePartBusinessSettings(input);
     const duplicatePolicy = input.duplicatePolicy === 'reject' ? 'reject' : 'allow';
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'part', eventType: 'created' }),
-        input: { ...normalized, duplicatePolicy },
+        input: { ...normalized, duplicatePolicy, businessSettings },
         execute: ({ auditContext }) => {
             const existing = duplicatePolicy === 'reject'
                 ? findActivePartByIdentity(dependencies.db, normalized)
@@ -409,9 +517,21 @@ function executePartCreate(dependencies, input = {}, commandContext = {}) {
             const part = dependencies.partRow(
                 dependencies.db.prepare('SELECT * FROM parts WHERE id = ?').get(partId)
             );
+            const settings = applyPartBusinessSettings(
+                dependencies,
+                businessSettings,
+                auditContext
+            );
             return {
-                data: { part },
-                resource: { type: 'part', ids: [partId] },
+                data: { part, businessSettings: settings },
+                resource: {
+                    type: 'part',
+                    ids: [partId],
+                    related: settings.map(setting => ({
+                        type: 'businessSetting',
+                        id: setting.key,
+                    })),
+                },
                 changes: [{
                     resourceType: 'part',
                     resourceId: partId,
@@ -422,9 +542,16 @@ function executePartCreate(dependencies, input = {}, commandContext = {}) {
                         price: part.price,
                         stock: part.stock,
                     },
-                }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                }, ...settings.map(setting => ({
+                    resourceType: 'businessSetting',
+                    resourceId: setting.key,
+                    field: 'value',
+                    from: setting.previousValue,
+                    to: setting.value,
+                }))],
+                auditIds: [write.auditId, ...settings.map(setting => setting.auditId)]
+                    .filter(Boolean),
+                requiredAuditCount: 1 + settings.length,
             };
         },
     });
@@ -444,25 +571,26 @@ function executePartUpdate(
     );
     const current = getPartRecord(dependencies.db, partId);
     const updates = normalizeUpdateInput(dependencies, input, current);
+    const businessSettings = normalizePartBusinessSettings(input);
     const includesStock = Object.hasOwn(updates, 'stock');
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: UPDATE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'part', eventType: 'updated' }),
-        input: { partId, expectedUpdatedAt, updates },
+        input: { partId, expectedUpdatedAt, updates, businessSettings },
         warnings: [
             ...(commandContext.warnings || []),
             ...versionCompatibilityWarning(partId, expectedUpdatedAt),
             ...(includesStock ? [{
                 code: 'part_stock_patch_compatibility',
-                message: '普通零件 PATCH 的库存字段仅为兼容；新调用必须使用 /api/parts/batch-stock',
+                message: '普通零件 PATCH 的库存字段仅为兼容；新库存增减调用必须使用 /api/parts/batch-stock，资料页整单保存使用 /api/parts/:id/save',
             }] : []),
         ],
         execute: ({ auditContext }) => {
             const record = getPartRecord(dependencies.db, partId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
-            if (Object.keys(updates).length === 0) {
+            if (Object.keys(updates).length === 0 && businessSettings.length === 0) {
                 return {
                     data: { part: dependencies.partRow(record) },
                     resource: { type: 'part', ids: [partId] },
@@ -475,12 +603,9 @@ function executePartUpdate(
                     }],
                 };
             }
-            const write = dependencies.safeUpdate(
-                'parts',
-                partId,
-                updates,
-                auditContext
-            );
+            const write = Object.keys(updates).length > 0
+                ? dependencies.safeUpdate('parts', partId, updates, auditContext)
+                : { auditId: null };
             const linkedTemplates = cascadePumpShellTemplateModel(
                 dependencies,
                 record,
@@ -490,16 +615,22 @@ function executePartUpdate(
             const part = dependencies.partRow(
                 dependencies.db.prepare('SELECT * FROM parts WHERE id = ?').get(partId)
             );
+            const settings = applyPartBusinessSettings(
+                dependencies,
+                businessSettings,
+                auditContext
+            );
             return {
                 data: {
                     part,
                     linkedTemplateIds: linkedTemplates.map(item => item.templateId),
+                    businessSettings: settings,
                 },
                 resource: { type: 'part', ids: [partId] },
                 changes: [{
                     resourceType: 'part',
                     resourceId: partId,
-                    field: includesStock ? 'fieldsIncludingLegacyStock' : 'fields',
+                    field: includesStock ? 'fieldsIncludingStock' : 'fields',
                     from: null,
                     to: Object.keys(updates),
                 }, ...linkedTemplates.map(item => ({
@@ -508,13 +639,186 @@ function executePartUpdate(
                     field: 'shellModel',
                     from: item.from,
                     to: item.to,
+                })), ...settings.map(setting => ({
+                    resourceType: 'businessSetting',
+                    resourceId: setting.key,
+                    field: 'value',
+                    from: setting.previousValue,
+                    to: setting.value,
                 }))],
-                auditIds: [write.auditId, ...linkedTemplates.map(item => item.auditId)]
+                auditIds: [
+                    write.auditId,
+                    ...linkedTemplates.map(item => item.auditId),
+                    ...settings.map(setting => setting.auditId),
+                ]
                     .filter(Boolean),
-                requiredAuditCount: 1 + linkedTemplates.length,
+                requiredAuditCount:
+                    (Object.keys(updates).length > 0 ? 1 : 0)
+                    + linkedTemplates.length
+                    + settings.length,
             };
         },
     });
+}
+
+function normalizeBatchDeleteItems(value) {
+    if (!Array.isArray(value) || value.length === 0) {
+        throw partCommandError('parts_required', 'parts 数组不能为空', 400);
+    }
+    if (value.length > MAX_BATCH_DELETE_PARTS) {
+        throw partCommandError(
+            'parts_limit_exceeded',
+            `单次最多删除 ${MAX_BATCH_DELETE_PARTS} 个零件`,
+            400
+        );
+    }
+    const seen = new Set();
+    return value.map((item, index) => {
+        const partId = parsePositiveId(item?.partId);
+        if (!partId) {
+            throw partCommandError(
+                'part_id_invalid',
+                `parts[${index}].partId 必须是正整数`,
+                400
+            );
+        }
+        if (seen.has(partId)) {
+            throw partCommandError(
+                'duplicate_part_delete',
+                `零件 #${partId} 在同一批删除中重复`,
+                400
+            );
+        }
+        seen.add(partId);
+        const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+            item?.expectedUpdatedAt,
+            `parts[${index}].expectedUpdatedAt`
+        );
+        if (!expectedUpdatedAt) {
+            throw partCommandError(
+                'expected_updated_at_required',
+                `parts[${index}].expectedUpdatedAt 为必填项`,
+                400
+            );
+        }
+        return { partId, expectedUpdatedAt };
+    });
+}
+
+function buildPartBatchDeletePreview(dependencies, input = {}, subject) {
+    const parts = normalizeBatchDeleteItems(input.parts).map(item => {
+        const record = getPartRecord(dependencies.db, item.partId);
+        assertExpectedUpdatedAt(record, item.expectedUpdatedAt, `零件 #${item.partId}`);
+        return {
+            ...item,
+            model: record.model,
+            supplier: record.supplier,
+        };
+    });
+    const previewHash = requestHash({
+        parts: parts.map(({ partId, expectedUpdatedAt }) => ({ partId, expectedUpdatedAt })),
+    });
+    const confirmation = issueBusinessConfirmation({
+        capabilityId: BATCH_DELETE_CAPABILITY_ID,
+        input: {
+            parts: parts.map(({ partId, expectedUpdatedAt }) => ({
+                partId,
+                expectedUpdatedAt,
+            })),
+            previewHash,
+        },
+        subject,
+    });
+    return {
+        capabilityId: BATCH_DELETE_CAPABILITY_ID,
+        preview: true,
+        ...confirmation,
+        previewHash,
+        suggestedIdempotencyKey: `part-batch-delete:${confirmation.operationId}`,
+        deleteCount: parts.length,
+        parts,
+        changes: parts.map(part => ({
+            resourceType: 'part',
+            resourceId: part.partId,
+            field: 'deletedAt',
+            from: null,
+            to: 'pending',
+        })),
+        warnings: [],
+    };
+}
+
+function executePartBatchDelete(dependencies, input = {}, commandContext = {}) {
+    const parts = normalizeBatchDeleteItems(input.parts);
+    return executePersistentCommand({
+        db: dependencies.db,
+        ...commandContext,
+        capabilityId: BATCH_DELETE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'deleted' }),
+        input: { parts },
+        execute: ({ auditContext }) => {
+            const records = parts.map(item => {
+                const record = getPartRecord(dependencies.db, item.partId);
+                assertExpectedUpdatedAt(record, item.expectedUpdatedAt, `零件 #${item.partId}`);
+                return record;
+            });
+            const deletedAt = new Date().toISOString();
+            const auditIds = [];
+            for (const record of records) {
+                const write = dependencies.safeUpdate(
+                    'parts',
+                    record.id,
+                    { deleted_at: deletedAt },
+                    auditContext
+                );
+                if (write.auditId) auditIds.push(write.auditId);
+            }
+            return {
+                data: {
+                    deletedCount: records.length,
+                    partIds: records.map(record => Number(record.id)),
+                    deletedAt,
+                },
+                resource: {
+                    type: 'part',
+                    ids: records.map(record => Number(record.id)),
+                },
+                changes: records.map(record => ({
+                    resourceType: 'part',
+                    resourceId: Number(record.id),
+                    field: 'deletedAt',
+                    from: null,
+                    to: deletedAt,
+                })),
+                auditIds,
+                requiredAuditCount: records.length,
+            };
+        },
+    });
+}
+
+function executeConfirmedPartBatchDelete(
+    dependencies,
+    input = {},
+    commandContext = {},
+    subject
+) {
+    requireExplicitIdempotency(commandContext);
+    const confirmation = consumeBusinessConfirmation({
+        confirmationToken: input.confirmationToken,
+        capabilityId: BATCH_DELETE_CAPABILITY_ID,
+        subject,
+        idempotencyKey: commandContext.idempotencyKey,
+    });
+    return executePartBatchDelete(
+        dependencies,
+        { parts: confirmation.input.parts },
+        {
+            ...commandContext,
+            capabilityId: BATCH_DELETE_CAPABILITY_ID,
+            operationId: confirmation.operationId,
+        }
+    );
 }
 
 function executePartDelete(
@@ -564,6 +868,205 @@ function executePartDelete(
             };
         },
     });
+}
+
+function normalizedPartProfileSave(dependencies, partIdValue, input = {}) {
+    const partId = parsePositiveId(partIdValue);
+    if (!partId) throw partCommandError('part_id_invalid', '非法零件ID', 400);
+    const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+        input.expectedUpdatedAt,
+        'expectedUpdatedAt'
+    );
+    if (!expectedUpdatedAt) {
+        throw partCommandError(
+            'expected_updated_at_required',
+            'expectedUpdatedAt 为必填项',
+            400
+        );
+    }
+    const current = getPartRecord(dependencies.db, partId);
+    const updates = normalizeUpdateInput(dependencies, input, current);
+    if (!Object.hasOwn(updates, 'stock')) {
+        throw partCommandError(
+            'part_target_stock_required',
+            '零件资料保存必须提供目标库存 stock',
+            400
+        );
+    }
+    const businessSettings = normalizePartBusinessSettings(input);
+    return { partId, expectedUpdatedAt, current, updates, businessSettings };
+}
+
+function buildPartProfileSavePreview(dependencies, partIdValue, input = {}, subject) {
+    const normalized = normalizedPartProfileSave(dependencies, partIdValue, input);
+    assertExpectedUpdatedAt(
+        normalized.current,
+        normalized.expectedUpdatedAt,
+        `零件 #${normalized.partId}`
+    );
+    const settingSnapshots = inspectPartBusinessSettings(
+        dependencies,
+        normalized.businessSettings
+    );
+    const commandInput = {
+        partId: normalized.partId,
+        expectedUpdatedAt: normalized.expectedUpdatedAt,
+        updates: normalized.updates,
+        businessSettings: normalized.businessSettings,
+    };
+    const previewHash = requestHash(commandInput);
+    const confirmation = issueBusinessConfirmation({
+        capabilityId: PROFILE_SAVE_CAPABILITY_ID,
+        input: { ...commandInput, previewHash },
+        subject,
+    });
+    const fieldChanges = Object.entries(normalized.updates)
+        .filter(([field, value]) => normalized.current[field] !== value)
+        .map(([field, value]) => ({
+            resourceType: 'part',
+            resourceId: normalized.partId,
+            field,
+            from: normalized.current[field] ?? null,
+            to: value,
+        }));
+    return {
+        capabilityId: PROFILE_SAVE_CAPABILITY_ID,
+        preview: true,
+        ...confirmation,
+        previewHash,
+        suggestedIdempotencyKey: `part-profile-save:${confirmation.operationId}`,
+        partId: normalized.partId,
+        model: normalized.current.model,
+        changes: [
+            ...fieldChanges,
+            ...settingSnapshots.map(({ setting, current }) => ({
+                resourceType: 'businessSetting',
+                resourceId: setting.key,
+                field: 'value',
+                from: current?.value ?? null,
+                to: setting.value,
+            })),
+        ],
+        warnings: [],
+    };
+}
+
+function executePartProfileSave(
+    dependencies,
+    input = {},
+    commandContext = {}
+) {
+    const partId = parsePositiveId(input.partId);
+    if (!partId) throw partCommandError('part_id_invalid', '非法零件ID', 400);
+    const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+        input.expectedUpdatedAt,
+        'expectedUpdatedAt'
+    );
+    const updates = input.updates || {};
+    const businessSettings = normalizePartBusinessSettings({
+        businessSettings: input.businessSettings,
+    });
+    return executePersistentCommand({
+        db: dependencies.db,
+        ...commandContext,
+        capabilityId: PROFILE_SAVE_CAPABILITY_ID,
+        businessChange: standardBusinessChange({ domain: 'part', eventType: 'updated' }),
+        input: { partId, expectedUpdatedAt, updates, businessSettings },
+        execute: ({ auditContext }) => {
+            const record = getPartRecord(dependencies.db, partId);
+            assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
+            inspectPartBusinessSettings(dependencies, businessSettings);
+            const write = dependencies.safeUpdate('parts', partId, updates, auditContext);
+            const linkedTemplates = cascadePumpShellTemplateModel(
+                dependencies,
+                record,
+                updates,
+                auditContext
+            );
+            const settings = applyPartBusinessSettings(
+                dependencies,
+                businessSettings,
+                auditContext
+            );
+            const part = dependencies.partRow(
+                dependencies.db.prepare('SELECT * FROM parts WHERE id = ?').get(partId)
+            );
+            const auditIds = [
+                write.auditId,
+                ...linkedTemplates.map(item => item.auditId),
+                ...settings.map(setting => setting.auditId),
+            ].filter(Boolean);
+            return {
+                data: {
+                    part,
+                    linkedTemplateIds: linkedTemplates.map(item => item.templateId),
+                    businessSettings: settings,
+                },
+                resource: {
+                    type: 'part',
+                    ids: [partId],
+                    related: settings.map(setting => ({
+                        type: 'businessSetting',
+                        id: setting.key,
+                    })),
+                },
+                changes: [{
+                    resourceType: 'part',
+                    resourceId: partId,
+                    field: 'profileIncludingTargetStock',
+                    from: null,
+                    to: Object.keys(updates),
+                }, ...linkedTemplates.map(item => ({
+                    resourceType: 'pump_shell_template',
+                    resourceId: item.templateId,
+                    field: 'shellModel',
+                    from: item.from,
+                    to: item.to,
+                })), ...settings.map(setting => ({
+                    resourceType: 'businessSetting',
+                    resourceId: setting.key,
+                    field: 'value',
+                    from: setting.previousValue,
+                    to: setting.value,
+                }))],
+                auditIds,
+                requiredAuditCount: 1 + linkedTemplates.length + settings.length,
+            };
+        },
+    });
+}
+
+function executeConfirmedPartProfileSave(
+    dependencies,
+    partIdValue,
+    input = {},
+    commandContext = {},
+    subject
+) {
+    requireExplicitIdempotency(commandContext);
+    const confirmation = consumeBusinessConfirmation({
+        confirmationToken: input.confirmationToken,
+        capabilityId: PROFILE_SAVE_CAPABILITY_ID,
+        subject,
+        idempotencyKey: commandContext.idempotencyKey,
+    });
+    const requestedPartId = parsePositiveId(partIdValue);
+    if (!requestedPartId || requestedPartId !== confirmation.input.partId) {
+        throw partCommandError(
+            'part_profile_confirmation_resource_mismatch',
+            '确认凭证与零件资源不匹配，请重新预览',
+            409
+        );
+    }
+    return executePartProfileSave(
+        dependencies,
+        confirmation.input,
+        {
+            ...commandContext,
+            capabilityId: PROFILE_SAVE_CAPABILITY_ID,
+            operationId: confirmation.operationId,
+        }
+    );
 }
 
 function normalizePriceUpdates(value) {
@@ -724,18 +1227,26 @@ function executePartPriceBatch(
 }
 
 module.exports = {
+    BATCH_DELETE_CAPABILITY_ID,
     BATCH_CREATE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
+    PROFILE_SAVE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
+    buildPartBatchDeletePreview,
     buildPartPricePreview,
+    buildPartProfileSavePreview,
     executeConfirmedPartBatchCreate,
+    executeConfirmedPartBatchDelete,
+    executeConfirmedPartProfileSave,
     executePartBatchCreate,
     executePartCreate,
     executePartDelete,
+    executePartBatchDelete,
     executePartPriceBatch,
+    executePartProfileSave,
     executePartUpdate,
     normalizeBatchCreateParts,
 };

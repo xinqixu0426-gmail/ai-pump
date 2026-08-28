@@ -218,7 +218,7 @@ test('文档契约：当前技术债只保留未完成事项并明确巨型组�
 
     assert.match(debt, /只保留尚未完成/);
     assert.match(debt, /87\/100/);
-    assert.doesNotMatch(debt, /recipes-view\.tsx/);
+    assert.match(debt, /recipes-view\.tsx/);
     assert.match(debt, /ai-view\.tsx/);
     assert.match(debt, /需要，但应渐进拆分，禁止一次性重写/);
     assert.doesNotMatch(debt, /qty=0/);
@@ -232,6 +232,7 @@ test('文档契约：当前技术债只保留未完成事项并明确巨型组�
     assert.doesNotMatch(bomEngine, /component\.qty \|\| 1/);
     assert.match(shellEditor, /type="number" min="0\.01" step="0\.01" title=\{row\.componentType/);
     assert.match(stateBoundary, /超过约 1,500 行/);
+    assert.match(stateBoundary, /technical-debt\.md#3-p1巨型组件瘦身/);
     assert.match(stateBoundary, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md/);
     assert.match(docsReadme, /\[当前技术债与优化清单\]\(\.\/technical-debt\.md\)/);
 });
@@ -391,6 +392,34 @@ test('Next UI 契约：详情编辑面板统一通过 SlideOver 映射标准 Dra
     assert.match(dialog, /createPortal/);
     assert.match(dialog, /rounded-panel/);
     assert.match(dialog, /border-l/);
+});
+
+test('Next UI 契约：AI 浮动入口不得截获业务弹层操作，删除文案必须符合持久化事实', () => {
+    const appShell = readUtf8('apps/web-next/components/app-shell.tsx');
+    const dialog = readUtf8('apps/web-next/components/ui/dialog.tsx');
+    const guide = readUtf8('docs/ui-component-guide.md');
+    const softDeleteViews = [
+        'apps/web-next/components/parts-view.tsx',
+        'apps/web-next/components/quotations-view.tsx',
+        'apps/web-next/components/recipes-view.tsx',
+        'apps/web-next/components/technical-data-editor.tsx',
+        'apps/web-next/components/order-execution-records-panel.tsx',
+    ];
+
+    assert.match(dialog, /base: 'z-50'/);
+    assert.match(appShell, /!aiPanelOpen && !mobileNavOpen/);
+    assert.match(appShell, /right-5 z-40 inline-flex/);
+    assert.doesNotMatch(appShell, /right-5 z-\[90\]/);
+    for (const viewPath of softDeleteViews) {
+        const source = readUtf8(viewPath);
+        assert.doesNotMatch(source, /将被永久删除|此操作无法撤销|历史状态无法恢复/, viewPath);
+    }
+    assert.match(
+        readUtf8('apps/web-next/components/coils-view.tsx'),
+        /将被永久删除，此操作无法撤销；系统审计日志仍会保留/
+    );
+    assert.match(guide, /软删除只说明资源会从当前业务列表中移除、历史审计仍保留/);
+    assert.match(guide, /未打开的全局浮动入口必须低于基础 Dialog\/Drawer\/SlideOver/);
 });
 
 test('Next UI 契约：P0 表单、面板和反馈使用统一基础组件', () => {
@@ -842,6 +871,7 @@ test('Next UI 契约：管理看板释放主区宽度并提供可追溯下钻', 
 test('Next UI 契约：P0 全局导航按业务域分组并统一页面骨架', () => {
     const shell = readUtf8('apps/web-next/components/app-shell.tsx');
     const nav = readUtf8('apps/web-next/components/ui/nav-item.tsx');
+    const dialog = readUtf8('apps/web-next/components/ui/dialog.tsx');
     const pageHeader = readUtf8('apps/web-next/components/ui/page-header.tsx');
     const metricCard = readUtf8('apps/web-next/components/ui/metric-card.tsx');
     const dashboard = readUtf8('apps/web-next/components/dashboard-view.tsx');
@@ -869,7 +899,17 @@ test('Next UI 契约：P0 全局导航按业务域分组并统一页面骨架', 
     assert.doesNotMatch(shell, /setAiPanelOpen\(media\.matches/);
     assert.match(shell, /sticky top-0 hidden h-screen w-56/);
     assert.match(shell, /mobileNavOpen/);
-    assert.match(shell, /event\.key === 'Escape'/);
+    assert.match(shell, /useSearchParams/);
+    assert.match(shell, /buildCurrentHref\(pathname, searchParams\)/);
+    assert.match(shell, /navigationHrefMatches\(currentHref, href\)/);
+    assert.match(shell, /dedicatedDashboardViewActive/);
+    assert.match(shell, /<Suspense fallback=\{<AppNavigationContent/);
+    assert.doesNotMatch(shell, /setCurrentHref|window\.location\.search/);
+    assert.match(shell, /<Drawer[\s\S]*side="left"[\s\S]*ariaLabel="移动端主导航"/);
+    assert.doesNotMatch(shell, /document\.addEventListener\('keydown'/);
+    assert.match(dialog, /const previousFocus = document\.activeElement/);
+    assert.match(dialog, /event\.key !== 'Tab'/);
+    assert.match(dialog, /previousFocus\?\.focus\(\{ preventScroll: true \}\)/);
     assert.match(nav, /export function NavSection/);
     assert.match(nav, /aria-current/);
     assert.match(pageHeader, /export function PageHeader/);
@@ -915,6 +955,7 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
     const dialog = readUtf8('apps/web-next/components/ui/dialog.tsx');
     const confirmDiscard = readUtf8('apps/web-next/hooks/use-confirm-discard.ts');
     const formError = readUtf8('apps/web-next/components/ui/form-error.tsx');
+    const coilsView = readUtf8('apps/web-next/components/coils-view.tsx');
     const formViews = [
         readUtf8('apps/web-next/components/orders-view.tsx'),
         readUtf8('apps/web-next/components/quotations-view.tsx'),
@@ -950,6 +991,20 @@ test('Next UI 契约：P2 长表单保护未保存修改并固定关键操作', 
     assert.match(formViews[0], /configurationPreviewCoordinatorRef\.current\.clear\(id\)/);
     assert.match(formViews[0], /setCalculatingItemIds\(current => removeCalculatingItemId\(current, id\)\)/);
     assert.match(formViews[0], /setDraftItems\(current => removeOrderDraftItem\(current, id\)\)/);
+    assert.match(coilsView, /useConfirmDiscard/);
+    assert.match(coilsView, /<form onSubmit=\{submitCoil\} onChange=\{markFormDirty\}/);
+    assert.match(coilsView, /onClose=\{requestDrawerClose\}/);
+    assert.equal((coilsView.match(/onClick=\{requestDrawerClose\}/g) || []).length, 2);
+    assert.match(coilsView, /await load\(true\);\s*formSessionRef\.current \+= 1;\s*resetFormDirty\(\);\s*setDrawerOpen\(false\);/);
+    assert.match(coilsView, /formDirty \? '有未保存修改' : '尚未修改'/);
+    assert.match(coilsView, /title="放弃未保存修改？"/);
+    assert.match(coilsView, /layer="top"/);
+    assert.match(coilsView, /const formSessionRef = useRef\(0\)/);
+    assert.match(coilsView, /const requestId = \+\+autoFillRequestRef\.current/);
+    assert.match(coilsView, /formSession !== formSessionRef\.current \|\| requestId !== autoFillRequestRef\.current/);
+    assert.match(coilsView, /const autoFillControlledFields = new Set<keyof CoilFormState>/);
+    assert.match(coilsView, /autoFillControlledFields\.has\(key\)/);
+    assert.match(coilsView, /event\.preventDefault\(\);[\s\S]*autoFillRequestRef\.current \+= 1;[\s\S]*setSaving\(true\)/);
 });
 
 test('Next UI 契约：P1 高频 CRUD 使用统一字段与确认弹层', () => {
@@ -1144,7 +1199,7 @@ test('Next UI 契约：业务页面使用自适应三栏工作台并提供可复
     assert.match(shell, /aiPanelPinned/);
     assert.match(shell, /aiPanelFullscreen/);
     assert.match(shell, /aria-label="展开业务 AI 助手"/);
-    assert.match(shell, /fixed bottom-\[max\(1\.25rem,env\(safe-area-inset-bottom\)\)\] right-5 z-\[90\]/);
+    assert.match(shell, /fixed bottom-\[max\(1\.25rem,env\(safe-area-inset-bottom\)\)\] right-5 z-40/);
     assert.match(assistantPanel, /调整 AI 助手宽度/);
     assert.match(assistantPanel, /固定 AI 助手到右侧/);
     assert.match(assistantPanel, /全屏显示 AI 助手/);
@@ -1156,7 +1211,7 @@ test('Next UI 契约：业务页面使用自适应三栏工作台并提供可复
     assert.match(shell, /label="供应链"/);
     assert.match(shell, /label="产品工程"/);
     assert.match(shell, /label="系统"/);
-    assert.match(shell, /fixed inset-y-0 left-0/);
+    assert.match(shell, /<Drawer[\s\S]*side="left"/);
     assert.match(shell, /aria-label="打开主导航"/);
     assert.match(aiView, /variant\?: 'workspace' \| 'panel'/);
     assert.match(aiView, /进入 AI 工作台/);
@@ -1501,7 +1556,12 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     assert.match(partsView, /buildPartNotes/);
     assert.match(partsView, /finalPartModel/);
     assert.match(partsView, /getSettingValue/);
-    assert.match(partsView, /setSettingValue/);
+    assert.match(partsView, /partBusinessSettingUpdate/);
+    assert.match(partsView, /touchedSettingsFieldsRef/);
+    assert.match(partsView, /settingsLoadSessionRef/);
+    assert.match(partsView, /mergeUntouchedPartSettings/);
+    assert.match(partsView, /function updateSettingsForm/);
+    assert.doesNotMatch(partsView, /setSettingValue/);
     for (const label of ['电容容量', '线径', '成品电缆插头 / 规格费用', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
         assert.match(partsView, new RegExp(label));
     }
@@ -1821,8 +1881,8 @@ test('Next UI 契约：通用附件和配方测试报告支持受控文件粘贴
     assert.match(factoryAttachments, /if \(event\.clipboardData\.files\.length === 0\) return;\s+event\.preventDefault\(\)/);
     assert.match(factoryAttachments, /selectClipboardFile\(event\.clipboardData\.files/);
     assert.match(factoryAttachments, /void upload\(decision\.file, decision\.notice\)/);
-    assert.match(factoryAttachments, /const stored = await uploadFactoryFile\(file\)/);
-    assert.match(factoryAttachments, /await archiveFactoryFile\(stored\.id/);
+    assert.match(factoryAttachments, /await uploadBusinessAttachment\(file/);
+    assert.doesNotMatch(factoryAttachments, /uploadFactoryFile|archiveFactoryFile/);
     assert.match(factoryAttachments, /if \(!file \|\| locked \|\| !targetId\) return/);
 
     assert.match(technicalDataEditor, /onPaste=\{handleTestReportPaste\}/);
@@ -2387,7 +2447,9 @@ test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正
     assert.match(inlineResolution, /function reusablePartFromRows/);
     assert.match(inlineResolution, /const identityRows = rows\.filter/);
     assert.match(inlineResolution, /const categoryConflict = identityRows\.find/);
-    assert.match(inlineResolution, /beforeCreate\) await beforeCreate\(\)/);
+    assert.doesNotMatch(inlineResolution, /beforeCreate/);
+    assert.match(inlineCreate, /partBusinessSettingUpdate/);
+    assert.match(inlineCreate, /businessSettings/);
     assert.match(inlineResolution, /const afterRows = await readParts\(\)/);
     assert.match(inlineResolution, /duplicatePolicy: 'reject'/);
     assert.match(inlineResolution, /const recovered = reusablePartFromRows/);
@@ -2416,6 +2478,19 @@ test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正
     assert.match(inlineCreate, /为了完成当前模板或配方，请输入大于 0 的目录单价/);
     assert.match(inlineCreate, /初始库存必须是大于或等于 0 的整数/);
     assert.match(inlineCreate, /保存并选中/);
+    assert.match(inlineCreate, /useConfirmDiscard/);
+    assert.match(inlineCreate, /function updateDraft\(patch: Partial<Draft>\) \{[\s\S]*touchedSettingsFieldsRef\.current\.add\(key\);[\s\S]*markDirty\(\)/);
+    assert.match(inlineCreate, /<Dialog open=\{open\} onClose=\{requestClose\}/);
+    assert.equal((inlineCreate.match(/onClick=\{requestClose\}/g) || []).length, 2);
+    assert.match(inlineCreate, /onResolved\(result\);\s*resetDirty\(\);/);
+    assert.match(inlineCreate, /dirty \? '有未保存修改' : '尚未修改'/);
+    assert.match(inlineCreate, /title="放弃未保存修改？"/);
+    assert.match(inlineCreate, /message: '当前零件建档有尚未保存的修改，确定放弃吗？'/);
+    assert.match(inlineCreate, /layer="top"/);
+    assert.match(inlineCreate, /const settingsControlledFields = new Set<keyof Draft>/);
+    assert.match(inlineCreate, /touchedSettingsFieldsRef\.current\.add\(key\)/);
+    assert.match(inlineCreate, /!touched\.has\('standardCableAccessoryFee'\)/);
+    assert.match(inlineCreate, /!touched\.has\('floatAccessoryDelta'\)/);
     assert.doesNotMatch(inlineCreate, /\bfetch\s*\(/);
     assert.match(partCommands, /duplicatePolicy === 'reject'/);
     assert.match(partCommands, /findActivePartByIdentity\(dependencies\.db, normalized\)/);
@@ -2651,6 +2726,7 @@ test('Next UI 契约：新产品入口串联复制配方、现有模板和全新
 
 test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖原生 datalist', () => {
     const editableValueSelect = readUtf8('apps/web-next/components/recipe/EditableValueSelect.tsx');
+    const editableValueSelectState = readUtf8('apps/web-next/components/recipe/editable-value-select-state.ts');
     const templateEditor = readUtf8('apps/web-next/components/recipe/PumpShellTemplateEditor.tsx');
     const shellCostEditor = readUtf8('apps/web-next/components/recipe/ShellCostEditor.tsx');
     const recipeDataTable = readUtf8('apps/web-next/components/recipe/RecipeDataTable.tsx');
@@ -2658,7 +2734,16 @@ test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖
     const inlinePartDialog = readUtf8('apps/web-next/components/recipe/InlinePartCreateDialog.tsx');
 
     assert.match(editableValueSelect, /onKeyUp=\{\(event\) => \{[\s\S]*event\.key === 'Backspace' \|\| event\.key === 'Delete'/);
-    assert.match(editableValueSelect, /if \(event\.key === 'ArrowDown'\) setOpen\(true\)/);
+    assert.match(editableValueSelect, /event\.key === 'ArrowDown' \|\| event\.key === 'ArrowUp'/);
+    assert.match(editableValueSelect, /event\.key === 'Enter' && listboxOpen && activeOptionIsValid/);
+    assert.match(editableValueSelect, /if \(listboxOpen\) \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);/);
+    assert.match(editableValueSelect, /aria-activedescendant=\{listboxOpen && activeOptionIsValid/);
+    assert.match(editableValueSelect, /id=\{`\$\{listboxId\}-option-\$\{index\}`\}/);
+    assert.match(editableValueSelect, /onMouseEnter=\{\(\) => setActiveOptionIndex\(index\)\}/);
+    assert.match(editableValueSelect, /scrollIntoView\(\{ block: 'nearest' \}\)/);
+    assert.match(editableValueSelect, /moveActiveOptionIndex/);
+    assert.match(editableValueSelectState, /direction: 'next' \| 'previous'/);
+    assert.match(editableValueSelectState, /return \(currentIndex \+ 1\) % optionCount/);
     assert.match(editableValueSelect, /Array<string \| \{ value: string; label: string \}>/);
 
     for (const source of [templateEditor, shellCostEditor, recipeDataTable, inlinePartDialog]) {
@@ -2721,7 +2806,15 @@ test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中
     assert.match(batchDialog, /existing\.price !== candidate\.price/);
     assert.match(batchDialog, /await confirmPartBatchCreate\(preview\)[\s\S]*await getAllParts\(\)/);
     assert.match(batchDialog, /勿重复提交本批建档/);
-    assert.match(batchDialog, /setCommitted\(true\)[\s\S]*await confirmPartBatchCreate\(preview\)/);
+    assert.match(batchDialog, /setCommitted\(true\);\s*try \{\s*await confirmPartBatchCreate\(preview\);\s*resetDirty\(\);/);
+    assert.match(batchDialog, /useConfirmDiscard/);
+    assert.match(batchDialog, /function updateRow\([\s\S]*markDirty\(\)/);
+    assert.match(batchDialog, /onClose=\{requestClose\}/);
+    assert.match(batchDialog, /onClick=\{requestClose\}/);
+    assert.match(batchDialog, /dirty \? '有未保存修改' : '尚未修改'/);
+    assert.match(batchDialog, /message: '当前集中建档草稿有尚未保存的修改，确定放弃吗？'/);
+    assert.match(batchDialog, /title="放弃未保存修改？"/);
+    assert.match(batchDialog, /layer="top"/);
     assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreatePreview>>\('\/api\/parts\/batch-create-preview'/);
     assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreateReceipt>>\('\/api\/parts\/batch-create'/);
     assert.match(partsClient, /'Idempotency-Key': preview\.suggestedIdempotencyKey/);

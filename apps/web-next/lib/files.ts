@@ -93,6 +93,16 @@ export type ArchiveFactoryFileResult = {
   deduplicated: boolean;
 };
 
+export type UploadBusinessAttachmentResult = {
+  file: FactoryFile;
+  link: FactoryFileLink;
+  deduplicated: boolean;
+  operationId: string;
+  status?: string;
+  operationStatus?: string;
+  auditIds: number[];
+};
+
 export type ArchiveFactoryFilePreview = {
   capabilityId: 'files.archive';
   operationId: string;
@@ -134,6 +144,61 @@ export async function uploadFactoryFile(file: File): Promise<FactoryFile> {
   });
   if (!result.success || !result.data) throw new Error(result.error || '上传文件失败');
   return rememberFactoryFileVersion(result.data);
+}
+
+function appendArchiveInput(formData: FormData, input: ArchiveFactoryFileInput) {
+  formData.append('targetType', input.targetType);
+  if (input.targetId) formData.append('targetId', String(input.targetId));
+  if (input.relationRole) formData.append('relationRole', input.relationRole);
+  if (input.title) formData.append('title', input.title);
+  if (input.note) formData.append('note', input.note);
+  if (input.source) formData.append('source', input.source);
+}
+
+export async function uploadBusinessAttachment(
+  file: File,
+  input: ArchiveFactoryFileInput
+): Promise<UploadBusinessAttachmentResult> {
+  const previewBody = new FormData();
+  previewBody.append('file', file);
+  appendArchiveInput(previewBody, input);
+  const preview = await proxyRequest<ApiResponse<{
+    confirmationToken: string;
+    suggestedIdempotencyKey: string;
+  }>>('/api/files/business-attachment-preview', {
+    method: 'POST',
+    body: previewBody,
+  });
+  if (!preview.success || !preview.data) {
+    throw new Error(preview.error || '生成业务附件上传预览失败');
+  }
+
+  const commandBody = new FormData();
+  commandBody.append('file', file);
+  commandBody.append('confirmationToken', preview.data.confirmationToken);
+  const result = await proxyRequest<ApiResponse<UploadBusinessAttachmentResult>>(
+    '/api/files/business-attachment',
+    {
+      method: 'POST',
+      headers: {
+        'Idempotency-Key': preview.data.suggestedIdempotencyKey,
+      },
+      body: commandBody,
+    }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '上传并归档业务附件失败');
+  }
+  const status = result.data.status || result.data.operationStatus;
+  if (status !== 'completed'
+    || !result.data.operationId
+    || result.data.auditIds.length === 0
+    || !result.data.file?.id
+    || !result.data.link?.id) {
+    throw new Error('业务附件回执不完整，请刷新附件列表并检查业务变更记录');
+  }
+  rememberFactoryFileVersion(result.data.file);
+  return result.data;
 }
 
 export async function getFactoryFile(id: number): Promise<FactoryFile> {

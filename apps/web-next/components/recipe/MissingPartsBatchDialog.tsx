@@ -8,9 +8,10 @@ import {
   type MissingPartCandidate,
 } from '@/components/recipe/missing-part-candidates';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { FormError } from '@/components/ui/form-error';
 import { selectInputValueOnFocus } from '@/components/ui/field';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import {
   confirmPartBatchCreate,
   getAllParts,
@@ -76,6 +77,21 @@ export function MissingPartsBatchDialog({
   const [busy, setBusy] = useState(false);
   const [committed, setCommitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const {
+    dirty,
+    discardPromptOpen,
+    discardMessage,
+    markDirty,
+    resetDirty,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+  } = useConfirmDiscard({
+    open,
+    busy,
+    onDiscard: onClose,
+    message: '当前集中建档草稿有尚未保存的修改，确定放弃吗？',
+  });
   const uniqueSuppliers = useMemo(
     () => Array.from(new Set(supplierOptions.map((item) => item.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
     [supplierOptions]
@@ -83,15 +99,17 @@ export function MissingPartsBatchDialog({
 
   useEffect(() => {
     if (!open) return;
+    resetDirty();
     setRows(candidates);
     setPreview(null);
     setAlreadyExistingCount(0);
     setBusy(false);
     setCommitted(false);
     setError(null);
-  }, [candidates, open]);
+  }, [candidates, open, resetDirty]);
 
   function updateRow(key: string, patch: Partial<MissingPartCandidate>) {
+    markDirty();
     setRows((current) => current.map((row) => row.key === key ? { ...row, ...patch } : row));
     setPreview(null);
     setAlreadyExistingCount(0);
@@ -124,6 +142,7 @@ export function MissingPartsBatchDialog({
       setAlreadyExistingCount(rows.length - unresolvedRows.length);
       if (unresolvedRows.length === 0) {
         await onCompleted(rows, freshParts);
+        resetDirty();
         return;
       }
       setPreview(await previewPartBatchCreate(uniqueBatchInputs(unresolvedRows)));
@@ -141,6 +160,7 @@ export function MissingPartsBatchDialog({
     setCommitted(true);
     try {
       await confirmPartBatchCreate(preview);
+      resetDirty();
       let freshParts: Part[];
       try {
         freshParts = await getAllParts();
@@ -160,9 +180,10 @@ export function MissingPartsBatchDialog({
   }
 
   return (
+    <>
     <Dialog
       open={open}
-      onClose={() => !busy && onClose()}
+      onClose={requestClose}
       closeOnBackdrop={!busy}
       size="xl"
       layer="top"
@@ -235,7 +256,8 @@ export function MissingPartsBatchDialog({
         ) : null}
       </DialogBody>
       <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>取消</Button>
+        <div className="mr-auto text-xs text-muted" aria-live="polite">{dirty ? '有未保存修改' : '尚未修改'}</div>
+        <Button type="button" variant="ghost" onClick={requestClose} disabled={busy}>取消</Button>
         {preview ? (
           <Button type="button" variant="primary" onClick={() => void confirmCreate()} disabled={busy || committed} icon={<PackagePlus size={15} />}>
             {busy ? '建档并回读中' : '确认集中建档'}
@@ -247,5 +269,18 @@ export function MissingPartsBatchDialog({
         )}
       </DialogFooter>
     </Dialog>
+    <ConfirmDialog
+      open={discardPromptOpen}
+      title="放弃未保存修改？"
+      description={discardMessage}
+      confirmLabel="放弃修改"
+      cancelLabel="继续编辑"
+      confirmVariant="danger"
+      busy={busy}
+      onConfirm={confirmDiscard}
+      onClose={cancelDiscard}
+      layer="top"
+    />
+    </>
   );
 }

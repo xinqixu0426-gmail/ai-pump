@@ -551,7 +551,7 @@ export function OrderExecutionRecordsPanel({
           : confirmTarget?.kind === 'revoke'
             ? '已确认版本将停止作为正式知识供 AI 检索；当前草稿和附件会继续保留。'
             : confirmTarget?.kind === 'delete'
-              ? `尚未确认的草稿“${editingRecord?.title || draft.title || '未命名执行事实'}”将被永久删除，此操作无法撤销。`
+              ? `尚未确认的草稿“${editingRecord?.title || draft.title || '未命名执行事实'}”将从当前执行档案列表中移除，历史审计记录仍会保留。`
               : '继续 AI 归纳会用所选附件生成的新内容覆盖事实说明中尚未保存的修改，覆盖后无法自动恢复。'}
         confirmLabel={confirmTarget?.kind === 'confirm'
           ? '确认进入知识库'

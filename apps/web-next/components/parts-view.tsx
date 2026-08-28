@@ -22,8 +22,8 @@ import {
   deleteParts,
   getAllParts,
   getSettingValue,
+  partBusinessSettingUpdate,
   partStockStatus,
-  setSettingValue,
   updatePart,
   type Part,
   type PartInput,
@@ -49,6 +49,11 @@ import {
   wirePrefixForCategory,
 } from '@/lib/part-form-rules';
 import { money } from '@/lib/format';
+import {
+  mergeUntouchedPartSettings,
+  partSettingFields,
+  type PartSettingField,
+} from '@/lib/part-settings-form-state';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
@@ -272,6 +277,8 @@ export function PartsView({
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const collapseInitializedRef = useRef(false);
+  const touchedSettingsFieldsRef = useRef(new Set<PartSettingField>());
+  const settingsLoadSessionRef = useRef(0);
   const {
     dirty: formDirty,
     discardPromptOpen,
@@ -339,15 +346,15 @@ export function PartsView({
   useEffect(() => {
     if (!drawerOpen) return;
     let active = true;
+    const session = settingsLoadSessionRef.current;
 
     async function loadCategorySettings() {
       if (isCableMode) {
         try {
           const value = await getSettingValue('cable_accessories');
           const parsed = parseCableSetting(value);
-          if (!active || !parsed) return;
-          setForm((current) => ({
-            ...current,
+          if (!active || session !== settingsLoadSessionRef.current || !parsed) return;
+          setForm((current) => mergeUntouchedPartSettings(current, touchedSettingsFieldsRef.current, {
             standardCableAccessoryName: current.standardCableAccessoryName || parsed.standardName,
             standardCableAccessoryFee: current.standardCableAccessoryFee || parsed.standardFee,
             xinjieCableAccessoryName: current.xinjieCableAccessoryName || parsed.xinjieName,
@@ -361,9 +368,8 @@ export function PartsView({
       if (isFloatMode) {
         try {
           const value = await getSettingValue('float_accessory_delta');
-          if (!active) return;
-          setForm((current) => ({
-            ...current,
+          if (!active || session !== settingsLoadSessionRef.current) return;
+          setForm((current) => mergeUntouchedPartSettings(current, touchedSettingsFieldsRef.current, {
             floatAccessoryDelta: current.floatAccessoryDelta || String(parseFloatAccessoryDelta(value)),
           }));
         } catch {
@@ -442,6 +448,8 @@ export function PartsView({
 
   function openCreateDrawer() {
     resetFormDirty();
+    settingsLoadSessionRef.current += 1;
+    touchedSettingsFieldsRef.current = new Set();
     setEditingPart(null);
     setForm(emptyForm);
     setFormError(null);
@@ -450,10 +458,19 @@ export function PartsView({
 
   function openEditDrawer(part: Part) {
     resetFormDirty();
+    settingsLoadSessionRef.current += 1;
+    touchedSettingsFieldsRef.current = new Set();
     setEditingPart(part);
     setForm(formFromPart(part));
     setFormError(null);
     setDrawerOpen(true);
+  }
+
+  function updateSettingsForm(patch: Partial<Record<PartSettingField, string>>) {
+    for (const field of partSettingFields) {
+      if (patch[field] !== undefined) touchedSettingsFieldsRef.current.add(field);
+    }
+    setForm((current) => ({ ...current, ...patch }));
   }
 
   function buildNotesPayload() {
@@ -489,20 +506,27 @@ export function PartsView({
     setError(null);
 
     try {
+      const businessSettings = [];
       if (isCableMode) {
-        await setSettingValue('cable_accessories', buildCableAccessorySettingsValue({
+        businessSettings.push(partBusinessSettingUpdate('cable_accessories', buildCableAccessorySettingsValue({
           standardCableAccessoryName: form.standardCableAccessoryName,
           standardCableAccessoryFee: form.standardCableAccessoryFee,
           xinjieCableAccessoryName: form.xinjieCableAccessoryName,
           xinjieCableAccessoryFee: form.xinjieCableAccessoryFee,
-        }));
+        })));
       }
 
       if (isFloatMode) {
-        await setSettingValue('float_accessory_delta', String(parseFloatAccessoryDelta(form.floatAccessoryDelta)));
+        businessSettings.push(partBusinessSettingUpdate(
+          'float_accessory_delta',
+          String(parseFloatAccessoryDelta(form.floatAccessoryDelta))
+        ));
       }
 
-      const input = formToInput(form, finalModel, buildNotesPayload());
+      const input = {
+        ...formToInput(form, finalModel, buildNotesPayload()),
+        businessSettings,
+      };
       await (editingPart ? updatePart(editingPart, input) : createPart(input));
       await load(true);
       resetFormDirty();
@@ -1058,7 +1082,7 @@ export function PartsView({
                     <span className="text-xs font-medium text-muted">第一种名称</span>
                     <input
                       value={form.standardCableAccessoryName}
-                      onChange={(event) => setForm((current) => ({ ...current, standardCableAccessoryName: event.target.value }))}
+                      onChange={(event) => updateSettingsForm({ standardCableAccessoryName: event.target.value })}
                       className={textInputClass()}
                     />
                   </label>
@@ -1066,7 +1090,7 @@ export function PartsView({
                     <span className="text-xs font-medium text-muted">第一种费用</span>
                     <input
                       value={form.standardCableAccessoryFee}
-                      onChange={(event) => setForm((current) => ({ ...current, standardCableAccessoryFee: event.target.value }))}
+                      onChange={(event) => updateSettingsForm({ standardCableAccessoryFee: event.target.value })}
                       onFocus={selectInputValueOnFocus}
                       type="number"
                       min="0"
@@ -1078,7 +1102,7 @@ export function PartsView({
                     <span className="text-xs font-medium text-muted">第二种名称</span>
                     <input
                       value={form.xinjieCableAccessoryName}
-                      onChange={(event) => setForm((current) => ({ ...current, xinjieCableAccessoryName: event.target.value }))}
+                      onChange={(event) => updateSettingsForm({ xinjieCableAccessoryName: event.target.value })}
                       className={textInputClass()}
                     />
                   </label>
@@ -1086,7 +1110,7 @@ export function PartsView({
                     <span className="text-xs font-medium text-muted">第二种费用</span>
                     <input
                       value={form.xinjieCableAccessoryFee}
-                      onChange={(event) => setForm((current) => ({ ...current, xinjieCableAccessoryFee: event.target.value }))}
+                      onChange={(event) => updateSettingsForm({ xinjieCableAccessoryFee: event.target.value })}
                       onFocus={selectInputValueOnFocus}
                       type="number"
                       min="0"
@@ -1105,7 +1129,7 @@ export function PartsView({
                   <span className="text-sm font-medium text-ink">新界式浮球加价</span>
                   <input
                     value={form.floatAccessoryDelta}
-                    onChange={(event) => setForm((current) => ({ ...current, floatAccessoryDelta: event.target.value }))}
+                    onChange={(event) => updateSettingsForm({ floatAccessoryDelta: event.target.value })}
                     onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
@@ -1232,9 +1256,9 @@ export function PartsView({
         description={pendingAction?.kind === 'duplicate'
           ? `同一分类中已经存在零件“${pendingAction.model}”。继续创建可能导致报价和库存选择时难以区分。`
           : pendingAction?.kind === 'delete-selected'
-            ? '选中的零件将被永久删除，此操作无法撤销。'
+            ? '选中的零件将从当前零件目录中移除，历史审计记录仍会保留。'
             : pendingAction?.kind === 'delete'
-              ? `零件“${pendingAction.part.model || pendingAction.part.id}”将被永久删除，此操作无法撤销。`
+              ? `零件“${pendingAction.part.model || pendingAction.part.id}”将从当前零件目录中移除，历史审计记录仍会保留。`
               : ''}
         confirmLabel={pendingAction?.kind === 'duplicate' ? '仍然创建' : '确认删除'}
         confirmVariant={pendingAction?.kind === 'duplicate' ? 'primary' : 'danger'}

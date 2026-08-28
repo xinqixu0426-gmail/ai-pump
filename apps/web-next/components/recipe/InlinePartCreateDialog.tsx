@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
+import { ConfirmDialog, Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import {
   BUILTIN_CATEGORIES,
   DEFAULT_FLOAT_ACCESSORY_DELTA,
@@ -21,7 +22,12 @@ import {
   validatePartForm,
   wirePrefixForCategory,
 } from '@/lib/part-form-rules';
-import { getSettingValue, setSettingValue, type Part, type PartInput } from '@/lib/parts';
+import {
+  getSettingValue,
+  partBusinessSettingUpdate,
+  type Part,
+  type PartInput,
+} from '@/lib/parts';
 
 export type InlinePartCreateSeed = {
   contextLabel: string;
@@ -40,8 +46,7 @@ type InlinePartCreateDialogProps = {
   supplierOptions: string[];
   onClose: () => void;
   onResolve: (
-    input: PartInput,
-    beforeCreate?: () => Promise<void>
+    input: PartInput
   ) => Promise<{ part: Part; created: boolean }>;
   onResolved: (result: { part: Part; created: boolean }) => void;
 };
@@ -68,6 +73,13 @@ type Draft = {
 };
 
 const categoryOptions = BUILTIN_CATEGORIES.filter((category) => category !== '线圈转子');
+const settingsControlledFields = new Set<keyof Draft>([
+  'standardCableAccessoryName',
+  'standardCableAccessoryFee',
+  'xinjieCableAccessoryName',
+  'xinjieCableAccessoryFee',
+  'floatAccessoryDelta',
+]);
 
 function parseCableSetting(value: string) {
   try {
@@ -131,6 +143,22 @@ export function InlinePartCreateDialog({
   const [saving, setSaving] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const touchedSettingsFieldsRef = useRef(new Set<keyof Draft>());
+  const {
+    dirty,
+    discardPromptOpen,
+    discardMessage,
+    markDirty,
+    resetDirty,
+    requestClose,
+    confirmDiscard,
+    cancelDiscard,
+  } = useConfirmDiscard({
+    open,
+    busy: saving,
+    onDiscard: onClose,
+    message: '当前零件建档有尚未保存的修改，确定放弃吗？',
+  });
   const wirePrefix = wirePrefixForCategory(draft.category);
   const isWireMode = Boolean(wirePrefix);
   const isCableMode = draft.category === '电缆线';
@@ -159,10 +187,12 @@ export function InlinePartCreateDialog({
 
   useEffect(() => {
     if (!open) return;
+    resetDirty();
+    touchedSettingsFieldsRef.current = new Set();
     setDraft(draftFromSeed(seed));
     setError(null);
     setSaving(false);
-  }, [open, seed]);
+  }, [open, resetDirty, seed]);
 
   useEffect(() => {
     if (!open) return;
@@ -174,13 +204,14 @@ export function InlinePartCreateDialog({
     ]).then(([cableValue, floatValue]) => {
       if (cancelled) return;
       const cable = parseCableSetting(cableValue);
+      const touched = touchedSettingsFieldsRef.current;
       setDraft((current) => ({
         ...current,
-        standardCableAccessoryName: cable.standardName,
-        standardCableAccessoryFee: cable.standardFee,
-        xinjieCableAccessoryName: cable.xinjieName,
-        xinjieCableAccessoryFee: cable.xinjieFee,
-        floatAccessoryDelta: String(parseFloatAccessoryDelta(floatValue)),
+        ...(!touched.has('standardCableAccessoryName') ? { standardCableAccessoryName: cable.standardName } : {}),
+        ...(!touched.has('standardCableAccessoryFee') ? { standardCableAccessoryFee: cable.standardFee } : {}),
+        ...(!touched.has('xinjieCableAccessoryName') ? { xinjieCableAccessoryName: cable.xinjieName } : {}),
+        ...(!touched.has('xinjieCableAccessoryFee') ? { xinjieCableAccessoryFee: cable.xinjieFee } : {}),
+        ...(!touched.has('floatAccessoryDelta') ? { floatAccessoryDelta: String(parseFloatAccessoryDelta(floatValue)) } : {}),
       }));
     }).catch((settingsError) => {
       if (!cancelled) setError(settingsError instanceof Error ? settingsError.message : '专用零件设置加载失败');
@@ -193,6 +224,10 @@ export function InlinePartCreateDialog({
   }, [open]);
 
   function updateDraft(patch: Partial<Draft>) {
+    for (const key of Object.keys(patch) as Array<keyof Draft>) {
+      if (settingsControlledFields.has(key)) touchedSettingsFieldsRef.current.add(key);
+    }
+    markDirty();
     setDraft((current) => ({ ...current, ...patch }));
     setError(null);
   }
@@ -255,24 +290,26 @@ export function InlinePartCreateDialog({
         screwPricingEnabled: draft.screwPricingEnabled,
         screwDiameter: draft.screwDiameter,
       });
-      const beforeCreate = async () => {
-        if (!Number.isFinite(Number(draft.price)) || Number(draft.price) <= 0) {
-          throw new Error('为了完成当前模板或配方，请输入大于 0 的目录单价');
-        }
-        if (!Number.isInteger(Number(draft.stock)) || Number(draft.stock) < 0) {
-          throw new Error('初始库存必须是大于或等于 0 的整数');
-        }
-        if (isCableMode) {
-          await setSettingValue('cable_accessories', buildCableAccessorySettingsValue({
+      if (!Number.isFinite(Number(draft.price)) || Number(draft.price) <= 0) {
+        throw new Error('为了完成当前模板或配方，请输入大于 0 的目录单价');
+      }
+      if (!Number.isInteger(Number(draft.stock)) || Number(draft.stock) < 0) {
+        throw new Error('初始库存必须是大于或等于 0 的整数');
+      }
+      const businessSettings = [];
+      if (isCableMode) {
+        businessSettings.push(partBusinessSettingUpdate('cable_accessories', buildCableAccessorySettingsValue({
             standardCableAccessoryName: draft.standardCableAccessoryName,
             standardCableAccessoryFee: draft.standardCableAccessoryFee,
             xinjieCableAccessoryName: draft.xinjieCableAccessoryName,
             xinjieCableAccessoryFee: draft.xinjieCableAccessoryFee,
-          }));
-        } else if (isFloatMode) {
-          await setSettingValue('float_accessory_delta', String(parseFloatAccessoryDelta(draft.floatAccessoryDelta)));
-        }
-      };
+          })));
+      } else if (isFloatMode) {
+        businessSettings.push(partBusinessSettingUpdate(
+          'float_accessory_delta',
+          String(parseFloatAccessoryDelta(draft.floatAccessoryDelta))
+        ));
+      }
       const result = await onResolve({
         model: modelPreview,
         category: draft.category,
@@ -281,8 +318,10 @@ export function InlinePartCreateDialog({
         price: Number(draft.price),
         stock: Number(draft.stock),
         notes: structuredNotes ? JSON.stringify(structuredNotes) : draft.rawNotes.trim(),
-      }, beforeCreate);
+        businessSettings,
+      });
       onResolved(result);
+      resetDirty();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '零件建档失败');
     } finally {
@@ -291,14 +330,15 @@ export function InlinePartCreateDialog({
   }
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} size="lg" layer="top" closeOnBackdrop={!saving} ariaLabelledBy="inline-part-create-title">
+    <>
+    <Dialog open={open} onClose={requestClose} size="lg" layer="top" closeOnBackdrop={!saving} ariaLabelledBy="inline-part-create-title">
       <form onSubmit={submit}>
         <DialogHeader>
           <div>
             <h2 id="inline-part-create-title" className="text-lg font-semibold text-ink">新增零件并选中</h2>
             <div className="mt-1 text-sm text-muted">{seed?.contextLabel || '当前配置'} · 保存后自动回到当前草稿</div>
           </div>
-          <button type="button" aria-label="关闭" disabled={saving} onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-slate-50 disabled:opacity-60">
+          <button type="button" aria-label="关闭" disabled={saving} onClick={requestClose} className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-slate-50 disabled:opacity-60">
             <X size={16} />
           </button>
         </DialogHeader>
@@ -391,12 +431,26 @@ export function InlinePartCreateDialog({
           ) : null}
         </DialogBody>
         <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
+          <div className="mr-auto text-xs text-muted" aria-live="polite">{dirty ? '有未保存修改' : '尚未修改'}</div>
+          <Button type="button" variant="ghost" onClick={requestClose} disabled={saving}>取消</Button>
           <Button type="submit" variant="primary" disabled={saving || loadingSettings} icon={<Save size={15} />}>
             {saving ? '保存中' : loadingSettings ? '加载设置中' : '保存并选中'}
           </Button>
         </DialogFooter>
       </form>
     </Dialog>
+    <ConfirmDialog
+      open={discardPromptOpen}
+      title="放弃未保存修改？"
+      description={discardMessage}
+      confirmLabel="放弃修改"
+      cancelLabel="继续编辑"
+      confirmVariant="danger"
+      busy={saving}
+      onConfirm={confirmDiscard}
+      onClose={cancelDiscard}
+      layer="top"
+    />
+    </>
   );
 }

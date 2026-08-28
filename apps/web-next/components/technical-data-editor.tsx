@@ -440,7 +440,7 @@ export function TechnicalDataEditor({
         open={Boolean(deleteFileTarget)}
         title="删除测试报告？"
         description={deleteFileTarget
-          ? `测试报告“${deleteFileTarget.originalName}”及其解析结果将被永久删除，此操作无法撤销。`
+          ? `测试报告“${deleteFileTarget.originalName}”及其解析结果将从当前配方中移除，历史审计记录仍会保留。`
           : ''}
         confirmLabel="删除报告"
         confirmVariant="danger"

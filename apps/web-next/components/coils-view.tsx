@@ -13,6 +13,7 @@ import { FormError } from '@/components/ui/form-error';
 import { InlineNotice } from '@/components/ui/notice';
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel';
 import { PageHeader } from '@/components/ui/page-header';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { money } from '@/lib/format';
 import {
   calculateCoilCost,
@@ -73,6 +74,20 @@ const emptyForm: CoilFormState = {
   auxWireGauge: '',
   auxWireData: '',
 };
+
+const autoFillControlledFields = new Set<keyof CoilFormState>([
+  'spec',
+  'diameterMm',
+  'material',
+  'slotType',
+  'unitPrice',
+  'wireWeight',
+  'copperBase',
+  'coilFee',
+  'rotorFee',
+  'defaultWireGauge',
+  'defaultCapacitor',
+]);
 
 function numberValue(value: string): number {
   const parsed = Number(value);
@@ -158,6 +173,25 @@ export function CoilsView() {
   const [stockNote, setStockNote] = useState('');
   const [stockMovements, setStockMovements] = useState<CoilStockMovement[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
+  const formSessionRef = useRef(0);
+  const autoFillRequestRef = useRef(0);
+  const {
+    dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: () => {
+      formSessionRef.current += 1;
+      setDrawerOpen(false);
+    },
+  });
 
   async function load(force = false) {
     setError(null);
@@ -242,6 +276,9 @@ export function CoilsView() {
   }, [coils]);
 
   function updateForm(patch: Partial<CoilFormState>) {
+    if ((Object.keys(patch) as Array<keyof CoilFormState>).some((key) => autoFillControlledFields.has(key))) {
+      autoFillRequestRef.current += 1;
+    }
     setForm((current) => ({ ...current, ...patch }));
   }
 
@@ -252,16 +289,18 @@ export function CoilsView() {
     }
     const normalizedMaterial = (material || '钢带').trim();
     if (!spec.trim()) {
-      setForm((current) => ({
-        ...current,
+      updateForm({
         spec,
         diameterMm,
         material: normalizedMaterial,
-      }));
+      });
       return;
     }
+    const formSession = formSessionRef.current;
+    const requestId = ++autoFillRequestRef.current;
     try {
       const draft = await getCoilSpecDraft(spec.trim(), numberValue(diameterMm), normalizedMaterial, slotType);
+      if (formSession !== formSessionRef.current || requestId !== autoFillRequestRef.current) return;
       setForm((current) => ({
         ...current,
         spec,
@@ -277,27 +316,28 @@ export function CoilsView() {
         defaultCapacitor: draft.defaultCapacitor || current.defaultCapacitor,
       }));
     } catch (err) {
+      if (formSession !== formSessionRef.current || requestId !== autoFillRequestRef.current) return;
       setError(err instanceof Error ? err.message : '线圈规格草稿生成失败');
     }
   }
 
   function updateFormMaterial(material: string) {
+    updateForm({ material });
     if (!editingCoil && form.spec.trim()) {
       void autoFillFromSpec(form.spec, form.diameterMm, material, form.slotType);
-      return;
     }
-    setForm((current) => ({ ...current, material }));
   }
 
   function updateFormSlotType(slotType: '小眼' | '国标眼') {
+    updateForm({ slotType });
     if (!editingCoil && form.spec.trim()) {
       void autoFillFromSpec(form.spec, form.diameterMm, form.material, slotType);
-      return;
     }
-    updateForm({ slotType });
   }
 
   function openCreateDrawer() {
+    formSessionRef.current += 1;
+    resetFormDirty();
     setEditingCoil(null);
     const material = materials[0] || '钢带';
     setForm({
@@ -310,6 +350,8 @@ export function CoilsView() {
   }
 
   function openEditDrawer(coil: CoilRecord) {
+    formSessionRef.current += 1;
+    resetFormDirty();
     setEditingCoil(coil);
     setForm(formFromCoil(coil));
     setFormError(null);
@@ -388,6 +430,7 @@ export function CoilsView() {
       setFormError('规格俗称、定子直径、片数和单片价不能为空');
       return;
     }
+    autoFillRequestRef.current += 1;
     setSaving(true);
     setFormError(null);
     setError(null);
@@ -415,6 +458,8 @@ export function CoilsView() {
       if (editingCoil) await updateCoil(editingCoil, payload);
       else await createCoil(payload);
       await load(true);
+      formSessionRef.current += 1;
+      resetFormDirty();
       setDrawerOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '线圈记录保存失败');
@@ -838,10 +883,10 @@ export function CoilsView() {
 
       <SlideOver
         open={drawerOpen}
-        onClose={() => !saving && setDrawerOpen(false)}
+        onClose={requestDrawerClose}
         ariaLabel={editingCoil ? '编辑线圈记录' : '新增线圈记录'}
       >
-        <form onSubmit={submitCoil} className="flex min-h-full flex-col">
+        <form onSubmit={submitCoil} onChange={markFormDirty} className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-line p-5">
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Coil</div>
@@ -851,7 +896,7 @@ export function CoilsView() {
               type="button"
               aria-label="关闭"
               disabled={saving}
-              onClick={() => setDrawerOpen(false)}
+              onClick={requestDrawerClose}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
               <X size={16} />
@@ -946,16 +991,32 @@ export function CoilsView() {
               </Field>
             </div>
           </div>
-          <div className="flex justify-end gap-2 border-t border-line p-5">
-            <Button type="button" variant="ghost" onClick={() => setDrawerOpen(false)} disabled={saving}>
-              取消
-            </Button>
-            <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
-              {saving ? '保存中' : '保存记录'}
-            </Button>
+          <div className="flex items-center justify-between gap-3 border-t border-line p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
+                取消
+              </Button>
+              <Button type="submit" variant="primary" disabled={saving} icon={<Save size={15} />}>
+                {saving ? '保存中' : '保存记录'}
+              </Button>
+            </div>
           </div>
         </form>
       </SlideOver>
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
 
       <SlideOver
         open={Boolean(stockCoil)}
@@ -1057,7 +1118,7 @@ export function CoilsView() {
         open={Boolean(deleteTarget)}
         title="删除线圈记录？"
         description={deleteTarget
-          ? `线圈“${deleteTarget.spec} / ${deleteTarget.sheets}片 / ${deleteTarget.material} / ${deleteTarget.slotType}”将被永久删除。已有库存或被业务数据引用时，后端仍会执行最终校验。`
+          ? `线圈“${deleteTarget.spec} / ${deleteTarget.sheets}片 / ${deleteTarget.material} / ${deleteTarget.slotType}”将被永久删除，此操作无法撤销；系统审计日志仍会保留。已有库存或被业务数据引用时，后端仍会执行最终校验。`
           : ''}
         confirmLabel="删除线圈"
         confirmVariant="danger"

@@ -444,6 +444,33 @@ function inspectFactoryFileArchive(fileIdValue, input = {}, options = {}) {
     };
 }
 
+function normalizeFactoryFileBusinessAttachmentTarget(input = {}, options = {}) {
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const targetType = text(input.targetType, 60);
+    if (!TARGET_TYPES.has(targetType) || targetType === 'knowledge_document') {
+        const error = new Error('上传即归档只支持已存在的业务对象');
+        error.statusCode = 400;
+        throw error;
+    }
+    const targetId = positiveId(input.targetId, '业务对象ID');
+    const target = targetSummary(targetType, targetId, accessors);
+    if (!target) throw notFound('归档目标不存在或已删除');
+    return {
+        targetType,
+        targetId,
+        relationRole: RELATION_ROLES.has(text(input.relationRole, 60))
+            ? text(input.relationRole, 60)
+            : DEFAULT_ROLES[targetType],
+        title: text(input.title, 160),
+        note: text(input.note, 1000),
+        source: SOURCES.has(text(input.source, 40))
+            ? text(input.source, 40)
+            : 'business_page',
+        target,
+        targetUpdatedAt: archiveTargetVersion(targetType, targetId, accessors),
+    };
+}
+
 function createKnowledgeDocumentForFile(file, input, accessors, auditContext) {
     if (!['parsed', 'metadata_only'].includes(file.parser_status)) {
         const error = new Error('文件尚未解析完成，不能归档到知识库');
@@ -695,6 +722,7 @@ module.exports = {
     deleteFactoryFileLink,
     factoryFileLinkRow,
     inspectFactoryFileArchive,
+    normalizeFactoryFileBusinessAttachmentTarget,
     listFactoryFileLinks,
     searchFactoryFileArchiveTargets,
 };

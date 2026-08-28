@@ -30,9 +30,12 @@ const {
     executeFactoryFileLinkDelete,
 } = require('../services/factoryFileCommands.cjs');
 const {
+    BUSINESS_ATTACHMENT_UPLOAD_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     PARSE_CAPABILITY_ID,
     UPLOAD_CAPABILITY_ID,
+    buildFactoryFileBusinessAttachmentPreview,
+    executeConfirmedFactoryFileBusinessAttachmentUpload,
     executeFactoryFileDelete,
     executeFactoryFileParse,
     executeFactoryFileUpload,
@@ -119,6 +122,101 @@ router.post('/', (req, res) => {
                 data: {
                     ...result,
                     ...currentFile,
+                    parseOperationId,
+                },
+                deduplicated: result.deduplicated,
+                parseWarning,
+            });
+        } catch (error) {
+            sendCommandError(res, error);
+        }
+    });
+});
+
+router.post('/business-attachment-preview', (req, res) => {
+    upload.single('file')(req, res, uploadError => {
+        if (uploadError) {
+            const message = uploadError.code === 'LIMIT_FILE_SIZE'
+                ? '文件不能超过 10MB'
+                : uploadError.message;
+            return res.status(400).json({ success: false, error: message });
+        }
+        try {
+            if (!req.file?.buffer?.length) {
+                return res.status(400).json({ success: false, error: '请选择文件' });
+            }
+            const data = buildFactoryFileBusinessAttachmentPreview(
+                fileCommandDependencies,
+                {
+                    ...req.body,
+                    buffer: req.file.buffer,
+                    originalName: req.file.originalname,
+                    mimeType: req.file.mimetype,
+                },
+                commandActorKey(req)
+            );
+            res.json({ success: true, data });
+        } catch (error) {
+            sendCommandError(res, error);
+        }
+    });
+});
+
+router.post('/business-attachment', (req, res) => {
+    upload.single('file')(req, res, async uploadError => {
+        if (uploadError) {
+            const message = uploadError.code === 'LIMIT_FILE_SIZE'
+                ? '文件不能超过 10MB'
+                : uploadError.message;
+            return res.status(400).json({ success: false, error: message });
+        }
+        try {
+            if (!req.file?.buffer?.length) {
+                return res.status(400).json({ success: false, error: '请选择文件' });
+            }
+            const commandContext = commandContextFromRequest(
+                req,
+                BUSINESS_ATTACHMENT_UPLOAD_CAPABILITY_ID
+            );
+            const result = executeConfirmedFactoryFileBusinessAttachmentUpload(
+                fileCommandDependencies,
+                {
+                    confirmationToken: req.body?.confirmationToken,
+                    buffer: req.file.buffer,
+                    originalName: req.file.originalname,
+                    mimeType: req.file.mimetype,
+                    sourceType: 'direct_upload',
+                },
+                commandContext,
+                commandActorKey(req)
+            );
+            let parseWarning = '';
+            let parseOperationId = null;
+            if (needsFactoryFileParsing(result.file)) {
+                try {
+                    const parsed = await executeFactoryFileParse(
+                        fileCommandDependencies,
+                        result.file.id,
+                        { expectedUpdatedAt: result.file.updatedAt },
+                        {
+                            actorKey: commandContext.actorKey,
+                            idempotencyKey: `business-attachment-parse:${result.operationId}`,
+                            operationId: `${result.operationId}:parse`,
+                            requestId: commandContext.requestId,
+                            warnings: [],
+                        }
+                    );
+                    parseOperationId = parsed.operationId;
+                } catch (error) {
+                    parseWarning = error.message;
+                    parseOperationId = error.receipt?.operationId || null;
+                }
+            }
+            res.status(result.idempotentReplay || result.deduplicated ? 200 : 201).json({
+                success: true,
+                data: {
+                    ...result,
+                    file: getFactoryFile(result.file.id),
                     parseOperationId,
                 },
                 deduplicated: result.deduplicated,

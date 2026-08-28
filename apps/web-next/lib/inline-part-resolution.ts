@@ -4,7 +4,6 @@ type ResolveInlineCatalogPartInput = {
   input: PartInput;
   readParts: () => Promise<Part[]>;
   createPart: (input: PartInput) => Promise<Part>;
-  beforeCreate?: () => Promise<void>;
 };
 
 export type InlineCatalogPartResolution = {
@@ -44,7 +43,6 @@ export async function resolveInlineCatalogPart({
   input,
   readParts,
   createPart,
-  beforeCreate,
 }: ResolveInlineCatalogPartInput): Promise<InlineCatalogPartResolution> {
   const model = input.model.trim();
   const supplier = input.supplier.trim();
@@ -52,7 +50,6 @@ export async function resolveInlineCatalogPart({
   const existing = reusablePartFromRows(beforeRows, input, model, supplier);
   if (existing) return { part: existing, created: false, rows: beforeRows };
 
-  if (beforeCreate) await beforeCreate();
   let created: Part;
   try {
     created = await createPart({

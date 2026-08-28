@@ -77,10 +77,10 @@ test('就地建档 resolver 使用正式拒重策略并在写后回读正式目�
     const { resolveInlineCatalogPart } = await loadResolver();
     const created = part({ id: 3, supplier: '供应商B', price: 9 });
     let reads = 0;
-    let beforeCreateCalls = 0;
     let submitted;
+    const businessSettings = [{ key: 'cable_accessories', value: '护套', expectedUpdatedAt: 'v1' }];
     const result = await resolveInlineCatalogPart({
-        input: input({ supplier: '供应商B', price: 9 }),
+        input: input({ supplier: '供应商B', price: 9, businessSettings }),
         readParts: async () => {
             reads += 1;
             return reads === 1 ? [part()] : [created, part()];
@@ -89,13 +89,10 @@ test('就地建档 resolver 使用正式拒重策略并在写后回读正式目�
             submitted = value;
             return created;
         },
-        beforeCreate: async () => {
-            beforeCreateCalls += 1;
-        },
     });
     assert.equal(reads, 2);
-    assert.equal(beforeCreateCalls, 1);
     assert.equal(submitted.duplicatePolicy, 'reject');
+    assert.deepEqual(submitted.businessSettings, businessSettings);
     assert.equal(result.created, true);
     assert.equal(result.part.id, created.id);
     assert.deepEqual(result.rows.map((row) => row.id), [3, 1]);
