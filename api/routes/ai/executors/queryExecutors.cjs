@@ -595,7 +595,9 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             return executePartDelete(args, {
                 internalFetch,
                 getJson,
+                postJson,
                 deleteJson,
+                confirmationContext: options.confirmationContext,
             });
         }
 

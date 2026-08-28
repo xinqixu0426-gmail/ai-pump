@@ -640,9 +640,12 @@ test('API 静态契约：AI 零件写操作必须委托独立 service 和正式 
     assert.doesNotMatch(queryExecutor, /batch-stock-preview|prices-preview|requestedStockDelta|percentChange \/ 100|零件新建成功|找不到零件/);
     assert.doesNotMatch(executor, /partUpdateInputError|stockDelta/);
     assert.match(partExecution, /postJson\(\s*internalFetch,\s*'\/api\/parts'/);
-    assert.match(partExecution, /deleteJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{target\.id \?\? target\.Id\}`/);
+    assert.match(partExecution, /postJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{partId\}\/delete-preview`/);
+    assert.match(partExecution, /confirmationContext\?\.kind === 'part_delete_target'/);
+    assert.match(partExecution, /deleteJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{context\.partId\}`/);
     assert.match(partExecution, /patchJson\(\s*internalFetch,\s*`\/api\/parts\/\$\{targetId\}`/);
-    assert.match(partExecution, /expectedUpdatedAt: target\.updatedAt \|\| target\.UpdatedAt/);
+    assert.match(partExecution, /expectedUpdatedAt: context\.expectedUpdatedAt/);
+    assert.match(partExecution, /previewHash: context\.preview\.previewHash/);
     assert.doesNotMatch(partExecution, /function partUpdateInputError/);
     assert.doesNotMatch(partExecution, /一次 update_part 不能同时修改零件资料和库存/);
     assert.match(partExecution, /preview\.suggestedIdempotencyKey/);

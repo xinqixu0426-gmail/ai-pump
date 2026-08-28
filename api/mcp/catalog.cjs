@@ -71,6 +71,7 @@ const MCP_WRITE_TOOL_NAMES = Object.freeze([
     'adjust_coil_stock',
     'batch_create_parts',
     'adjust_part_stock',
+    'delete_part',
     'batch_update_prices',
     'generate_rotor_drawing',
     'print_rotor_drawing',
@@ -86,6 +87,7 @@ const MCP_POTENTIALLY_DESTRUCTIVE_TOOL_NAMES = Object.freeze([
     'delete_recipe',
     'adjust_coil_stock',
     'adjust_part_stock',
+    'delete_part',
     'batch_update_prices',
     'print_rotor_drawing',
 ]);

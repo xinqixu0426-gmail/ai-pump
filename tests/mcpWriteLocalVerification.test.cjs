@@ -79,10 +79,10 @@ function receipt(name, sequence, idempotentReplay = false) {
     };
 }
 
-test('MCP 写工具本地验收清单与正式目录严格保持 18/18 一致', () => {
+test('MCP 写工具本地验收清单与正式目录严格保持 19/19 一致', () => {
     const manifestNames = MCP_WRITE_ACCEPTANCE_CASES.map(item => item.name);
     assert.deepEqual(manifestNames, MCP_WRITE_TOOL_NAMES);
-    assert.equal(new Set(manifestNames).size, 18);
+    assert.equal(new Set(manifestNames).size, 19);
 
     const tools = new Map(listMcpTools({ includeWrite: true }).map(tool => [tool.name, tool]));
     for (const item of MCP_WRITE_ACCEPTANCE_CASES) {

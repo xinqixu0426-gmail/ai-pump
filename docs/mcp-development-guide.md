@@ -43,22 +43,22 @@ npm run verify:mcp-local
 为容纳两个客户端在一分钟内连续执行 90 次只读工具调用及写验收，隔离进程把测试限流设为
 600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
 
-涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 18 工具写入矩阵：
+涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 19 工具写入矩阵：
 
 ```bash
 npm run verify:mcp-write-local
 ```
 
-该门禁先把 `api/mcp/catalog.cjs` 的 18 个正式写工具与验收清单做严格集合比对，并用快速矩阵逐工具验证
+该门禁先把 `api/mcp/catalog.cjs` 的 19 个正式写工具与验收清单做严格集合比对，并用快速矩阵逐工具验证
 `mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
 正式执行证据、确认层重放、拒绝后无副作用。矩阵通过后，`scripts/run-mcp-write-local-e2e.cjs`
-创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端，让全部 18 个工具逐一经过
+创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端，让全部 19 个工具逐一经过
 MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Query/数据库回读；同时真实调用 2025
 只读工具、尝试并拒绝其隐藏写工具。`create_order/adjust_part_stock/batch_update_prices/sync_factory_knowledge`
 会把同一份 2026 `requestState + inputResponses` 再提交一次，核对 `idempotentReplay=true`、原 operation/audit
 不变且数据库零新增；订单、库存、配方、文件和打印各有一个真实失败样本，核对失败回执与零副作用。
 `delete_recipe` 会删除同轮创建的临时配方，核对正式删除 Preview、版本绑定、operation/audit、详情 404、
-列表数量精确减一、其他配方与零件目录不变。
+列表数量精确减一、其他配方与零件目录不变；`delete_part` 会删除同轮批量创建并完成库存和价格验收的临时零件，核对正式删除 Preview、唯一目标、版本与哈希绑定、operation/audit、目录不可见和其他零件不变。
 报价转订单会核对客户、来源说明和明细，打印替身会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
 线圈、文件和知识都只写临时库；FreeCAD 及 macOS `lp`、Windows Sumatra/Edge/rundll32 打印后端均由
 进程替身拦截，未知外部命令 fail-closed，并回读异步终态。测试不会读取生产 MCP token、连接 Mac Mini、
@@ -122,7 +122,7 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 ## 4. 变更边界
 
 - V1 白名单覆盖注册表中全部已登记、无需确认的安全 Query/Preview；目录测试保证新增安全读能力不会静默遗漏，写工具、资源和 Prompt 不因客户端支持而自动开放。
-- V2 可授权写目录当前显式审核 18 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或工具未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS` 时，该工具不会出现在 `tools/list`，直接调用也由执行层拒绝。
+- V2 可授权写目录当前显式审核 19 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或工具未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS` 时，该工具不会出现在 `tools/list`，直接调用也由执行层拒绝。
 - 写调用第一轮只执行正式 Preview 并签发主体绑定的短时确认；2026 客户端通过 `input_required`/form elicitation 展示给用户，明确接受后才由共享确认执行 service 调用正式 API。Agent 的文字、第二个“确认工具”或客户端自报名称都不能授权执行。
 - 多轮 `requestState` 使用官方 SDK HMAC codec，并绑定已验证服务身份和方法；客户端篡改、换身份、换参数、过期或并发重放都会拒绝。状态密钥为单进程临时密钥，服务重启后未完成确认自动失效，符合当前 Mac Mini 单进程部署；改为多实例前必须配置共享持久状态。
 - 2025 无状态客户端没有服务端到客户端 elicitation 回路，因此只读兼容不变，写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。不能用普通 tool 参数或 Agent 文字降级绕过确认。
@@ -164,7 +164,7 @@ node scripts/manage-mcp-identities.cjs rotate \
 删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
 自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
 
-`approve-write` 是把一个已完成代码审计和本地 18/18 验收、但尚未进入生产灰度集合的权威写工具
+`approve-write` 是把一个已完成代码审计和本地 19/19 验收、但尚未进入生产灰度集合的权威写工具
 首次开放给一个明确身份的唯一入口。它只接受 `api/mcp/catalog.cjs` 中的正式写工具，并使用独立强确认词
 `APPROVE_NEW_MCP_WRITE_TOOL`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
 中的写工具授予另一个已登记身份，不能借此引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该

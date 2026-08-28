@@ -1071,6 +1071,11 @@ async function run() {
             catalogSideEffects: 0,
         };
 
+        const partIdsBeforePartCreate = (await apiRequest(
+            '读取零件删除验收基线目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
         const createdPartModel = `MCP-WRITE-PART-${unique}`;
         const createdPartCategory = `MCP-WRITE-CATEGORY-${unique}`;
         await callWrite('batch_create_parts', {
@@ -1112,6 +1117,43 @@ async function run() {
             `/api/parts?keyword=${encodeURIComponent(createdPartModel)}`
         )).payload.data.find(part => part.model === createdPartModel);
         assert(Number(createdPart.price) === 12.35, `零件调价回读异常: ${createdPart.price}`);
+
+        const deletePartCall = await callWriteWithReplay('delete_part', {
+            partId: createdPart.id,
+            model: createdPart.model,
+            supplier: createdPart.supplier,
+        });
+        const deletedPartMatches = (await apiRequest(
+            '回读已删除零件目录',
+            'GET',
+            `/api/parts?keyword=${encodeURIComponent(createdPartModel)}`
+        )).payload.data.filter(part => Number(part.id) === Number(createdPart.id));
+        assert(deletedPartMatches.length === 0, 'delete_part 后目标零件仍在正式目录可见');
+        const partIdsAfterPartDelete = (await apiRequest(
+            '核对零件删除后完整目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
+        strictAssert.deepEqual(
+            partIdsAfterPartDelete,
+            partIdsBeforePartCreate,
+            'delete_part 未精确恢复零件目录或误删其他零件'
+        );
+        report.partDeletion = {
+            name: 'delete_part_cleanup',
+            status: 'passed',
+            partId: Number(createdPart.id),
+            model: createdPart.model,
+            operationId: deletePartCall.receipt.operationId,
+            confirmationOperationId: deletePartCall.receipt.confirmationOperationId,
+            formalCapabilityIds: deletePartCall.receipt.formalCapabilityIds,
+            formalOperationIds: deletePartCall.receipt.formalOperationIds,
+            auditIds: deletePartCall.receipt.auditIds,
+            idempotentReplay: deletePartCall.receipt.idempotentReplay,
+            readbackVisible: false,
+            partCountDelta: 0,
+            unrelatedPartSideEffects: 0,
+        };
 
         await callWrite('adjust_coil_stock', {
             items: [{
@@ -1250,6 +1292,13 @@ async function run() {
         const deleteRecipeCall = await callWrite('delete_recipe', {
             recipeName: createdRecipeName,
         });
+        await callWriteFailure('delete_part', {
+            partId: 2147483647,
+            model: `MCP-MISSING-PART-${unique}`,
+            supplier: 'MCP-LOCAL',
+        }, {
+            expectedCode: 'part_delete_target_not_found',
+        });
         assert(
             Number(deleteRecipeCall.receipt.result?.recipeId) === createdRecipeId,
             'delete_recipe 回执目标与确认目标不一致'
@@ -1329,6 +1378,7 @@ async function run() {
             ['update_order_item', 1],
             ['adjust_part_stock', 0],
             ['update_recipe', 0],
+            ['delete_part', 0],
             ['archive_factory_file', 1],
             ['print_rotor_drawing', 1],
         ]);
@@ -1338,8 +1388,8 @@ async function run() {
                 `${name} 失败路径原生确认次数异常: ${confirmationCounts.failure.get(name) || 0}`
             );
         }
-        assert(report.idempotencyReplays.length === 4, '真实幂等重放样本不是4个');
-        assert(report.failedCalls.length === 5, '真实业务失败样本不是5个');
+        assert(report.idempotencyReplays.length === 5, '真实幂等重放样本不是5个');
+        assert(report.failedCalls.length === 6, '真实业务失败样本不是6个');
 
         const persistentEvidence = await verifyPersistentReceipts(databasePath, [
             ...report.tools,

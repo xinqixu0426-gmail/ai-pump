@@ -16,6 +16,7 @@ const {
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 const {
     preparePartBatchCreate,
+    preparePartDelete,
     preparePartPriceBatch,
     preparePartStockAdjustment,
 } = require('../../services/aiPartExecution.cjs');
@@ -43,6 +44,7 @@ const WRITE_PREFLIGHTS = Object.freeze({
     adjust_part_stock: preparePartStockAdjustment,
     batch_create_parts: preparePartBatchCreate,
     batch_update_prices: preparePartPriceBatch,
+    delete_part: preparePartDelete,
     delete_recipe: prepareRecipeDelete,
     update_recipe: prepareRecipeUpdate,
 });

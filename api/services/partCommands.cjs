@@ -60,6 +60,84 @@ function getPartRecord(db, partId) {
     return record;
 }
 
+function resolvePartDeleteTarget(dependencies, partIdValue, input = {}, options = {}) {
+    const partId = parsePositiveId(partIdValue);
+    if (!partId) throw partCommandError('part_id_invalid', '非法零件ID', 400);
+    const current = getPartRecord(dependencies.db, partId);
+    const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+        input.expectedUpdatedAt,
+        'expectedUpdatedAt'
+    );
+    if (options.requireVersion === true && !current.updated_at) {
+        throw partCommandError(
+            'part_delete_version_missing',
+            `零件 #${partId} 缺少版本字段，不能生成删除预览`,
+            409
+        );
+    }
+    assertExpectedUpdatedAt(current, expectedUpdatedAt, `零件 #${partId}`);
+    return {
+        current,
+        expectedUpdatedAt: expectedUpdatedAt || current.updated_at || null,
+        partId,
+    };
+}
+
+function partDeletePreviewHash(partId, expectedUpdatedAt) {
+    return requestHash({
+        capabilityId: DELETE_CAPABILITY_ID,
+        partId,
+        expectedUpdatedAt,
+        action: 'soft_delete',
+    });
+}
+
+function buildPartDeletePreview(dependencies, partIdValue, input = {}) {
+    const target = resolvePartDeleteTarget(
+        dependencies,
+        partIdValue,
+        input,
+        { requireVersion: true }
+    );
+    const normalizedInput = {
+        partId: target.partId,
+        expectedUpdatedAt: target.expectedUpdatedAt,
+    };
+    return {
+        preview: true,
+        capabilityId: DELETE_CAPABILITY_ID,
+        normalizedInput,
+        target: {
+            id: target.partId,
+            model: target.current.model,
+            supplier: target.current.supplier,
+            category: target.current.category,
+            price: Number(target.current.price || 0),
+            stock: Number(target.current.stock || 0),
+            updatedAt: target.expectedUpdatedAt,
+        },
+        changes: [{
+            resourceType: 'part',
+            resourceId: target.partId,
+            field: 'deletedAt',
+            from: null,
+            to: 'soft_deleted',
+        }],
+        impact: {
+            deleteMode: 'soft_delete',
+            partListVisibility: 'hidden',
+            inventoryMovementCreated: false,
+            recipeSnapshotsChanged: 0,
+            historicalOperationsPreserved: true,
+        },
+        warnings: [],
+        previewHash: partDeletePreviewHash(
+            normalizedInput.partId,
+            normalizedInput.expectedUpdatedAt
+        ),
+    };
+}
+
 function normalizePartModel(value) {
     const model = String(value || '').trim();
     if (!model) throw partCommandError('part_model_required', '零件型号不能为空', 400);
@@ -833,19 +911,39 @@ function executePartDelete(
         input.expectedUpdatedAt,
         'expectedUpdatedAt'
     );
+    const expectedPreviewHash = normalizePreviewHash(input.previewHash);
+    if (!expectedUpdatedAt) {
+        throw partCommandError(
+            'part_delete_version_required',
+            '删除零件前必须先取得正式预览并提交 expectedUpdatedAt',
+            400
+        );
+    }
+    if (!expectedPreviewHash) {
+        throw partCommandError(
+            'part_delete_preview_required',
+            '删除零件前必须先取得正式预览并提交 previewHash',
+            400
+        );
+    }
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: DELETE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'part', eventType: 'deleted' }),
-        input: { partId, expectedUpdatedAt },
-        warnings: [
-            ...(commandContext.warnings || []),
-            ...versionCompatibilityWarning(partId, expectedUpdatedAt),
-        ],
+        input: { partId, expectedUpdatedAt, previewHash: expectedPreviewHash },
+        warnings: [...(commandContext.warnings || [])],
         execute: ({ auditContext }) => {
-            const record = getPartRecord(dependencies.db, partId);
-            assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
+            const target = resolvePartDeleteTarget(
+                dependencies,
+                partId,
+                { expectedUpdatedAt }
+            );
+            assertPreviewHash(
+                expectedPreviewHash,
+                partDeletePreviewHash(partId, target.expectedUpdatedAt),
+                '零件删除预览已经变化，请重新预览并确认'
+            );
             const deletedAt = new Date().toISOString();
             const write = dependencies.safeUpdate(
                 'parts',
@@ -1236,6 +1334,7 @@ module.exports = {
     UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
     buildPartBatchDeletePreview,
+    buildPartDeletePreview,
     buildPartPricePreview,
     buildPartProfileSavePreview,
     executeConfirmedPartBatchCreate,

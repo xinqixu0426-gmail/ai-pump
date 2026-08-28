@@ -3589,12 +3589,21 @@ async function testCrossModuleWriteFlow(baseResources) {
         'GET',
         '/api/parts'
     )).payload.data.find(item => item.id === part.id);
+    const partDeletePreview = (await request(
+        '生成测试零件删除预览',
+        'POST',
+        `/api/parts/${part.id}/delete-preview`,
+        { expectedUpdatedAt: partBeforeDelete.updatedAt }
+    )).payload.data;
+    assert(partDeletePreview.preview === true, '零件删除预览未声明 preview=true');
+    assert(partDeletePreview.previewHash, '零件删除预览缺少 previewHash');
     const partDeleteReceipt = (await request(
         '删除测试零件正式命令',
         'DELETE',
         `/api/parts/${part.id}`,
         {
             expectedUpdatedAt: partBeforeDelete.updatedAt,
+            previewHash: partDeletePreview.previewHash,
             idempotencyKey: `deep:part-delete:${unique}`,
         }
     )).payload.data;

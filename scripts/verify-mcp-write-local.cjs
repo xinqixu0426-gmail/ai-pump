@@ -75,12 +75,14 @@ const requiredReplayTools = [
     'create_order',
     'adjust_part_stock',
     'batch_update_prices',
+    'delete_part',
     'sync_factory_knowledge',
 ];
 const requiredFailureTools = [
     'update_order_item',
     'adjust_part_stock',
     'update_recipe',
+    'delete_part',
     'archive_factory_file',
     'print_rotor_drawing',
 ];
@@ -132,7 +134,7 @@ const report = {
     physicalSideEffects: false,
     temporaryDatabaseCleaned: true,
     coverage: {
-        toolsExpected: 17,
+        toolsExpected: MCP_WRITE_ACCEPTANCE_CASES.length,
         toolsCovered: MCP_WRITE_ACCEPTANCE_CASES.length,
         protocolMatrix: {
             status: matrixPassed ? 'passed' : 'failed',
@@ -185,7 +187,7 @@ const report = {
             'decline or false confirmation without side effect',
         ],
         transport: '2025/2026 clients use real localhost Streamable HTTP transports',
-        businessExecution: 'all 17 tools traverse MCP elicitation, formal executor/API, temporary SQLite operation/audit, and readback; external commands are counted stubs',
+        businessExecution: `all ${MCP_WRITE_ACCEPTANCE_CASES.length} tools traverse MCP elicitation, formal executor/API, temporary SQLite operation/audit, and readback; external commands are counted stubs`,
     },
     testFiles: files,
     tools: MCP_WRITE_ACCEPTANCE_CASES.map(item => ({

@@ -1167,6 +1167,8 @@ test('关键 API 静态接线契约：零件资料整单保存和批量删除使
     assert.match(route, /router\.post\('\/batch-delete-preview'/);
     assert.match(route, /router\.post\('\/batch-delete'/);
     assert.match(route, /executeConfirmedPartBatchDelete/);
+    assert.match(route, /router\.post\('\/:id\/delete-preview'/);
+    assert.match(route, /previewHash:\s*req\.body\?\.previewHash/);
     assert.match(service, /function executePartProfileSave/);
     assert.match(service, /applyPartBusinessSettings/);
     assert.match(service, /function executePartBatchDelete/);
@@ -1174,6 +1176,8 @@ test('关键 API 静态接线契约：零件资料整单保存和批量删除使
     assert.match(webClient, /partBusinessSettingUpdate/);
     assert.match(webClient, /\/api\/parts\/batch-delete-preview/);
     assert.match(webClient, /\/api\/parts\/batch-delete/);
+    assert.match(webClient, /\/api\/parts\/\$\{part\.id\}\/delete-preview/);
+    assert.match(webClient, /previewHash:\s*preview\.data\.previewHash/);
     assert.doesNotMatch(webClient, /Promise\.all\(parts\.map\(\(part\) => deletePart/);
 });
 

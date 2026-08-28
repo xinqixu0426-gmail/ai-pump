@@ -109,29 +109,198 @@ async function executePartBatchCreate(args = {}, dependencies = {}) {
     };
 }
 
+function partDeleteError(code, message, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.details = details;
+    return error;
+}
+
+function resolvePartDeleteTarget(parts = [], args = {}) {
+    const partId = Number(args.partId);
+    const model = String(args.model || '').trim();
+    const supplier = String(args.supplier || '').trim();
+    const normalizedModel = model.toLocaleLowerCase();
+    const normalizedSupplier = supplier.toLocaleLowerCase();
+    let matches = (Array.isArray(parts) ? parts : []).filter((part) => {
+        const candidateId = Number(part.id ?? part.Id);
+        if (Number.isInteger(partId) && partId > 0 && candidateId !== partId) return false;
+        return String(part.model || '').trim().toLocaleLowerCase() === normalizedModel;
+    });
+    if (supplier) {
+        matches = matches.filter(part => (
+            String(part.supplier || '').trim().toLocaleLowerCase() === normalizedSupplier
+        ));
+    }
+    if (matches.length === 0) {
+        throw partDeleteError(
+            'part_delete_target_not_found',
+            Number.isInteger(partId) && partId > 0
+                ? `找不到零件 #${partId}，或其型号/供应商与请求不一致`
+                : `找不到零件: ${model}`,
+            { partId: Number.isInteger(partId) && partId > 0 ? partId : null, model, supplier }
+        );
+    }
+    if (matches.length > 1) {
+        throw partDeleteError(
+            'part_delete_target_ambiguous',
+            `型号“${model}”匹配到多个正式零件，请提供 partId 或供应商后重试`,
+            {
+                candidates: matches.slice(0, 10).map(part => ({
+                    partId: Number(part.id ?? part.Id),
+                    model: part.model,
+                    supplier: part.supplier,
+                })),
+            }
+        );
+    }
+    return matches[0];
+}
+
+async function preparePartDelete(args = {}, dependencies = {}) {
+    const {
+        internalFetch,
+        getJson,
+        postJson,
+    } = dependencies;
+    const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
+    const target = resolvePartDeleteTarget(allParts, args);
+    const partId = Number(target.id ?? target.Id);
+    const expectedUpdatedAt = target.updatedAt ?? target.UpdatedAt;
+    if (!expectedUpdatedAt) {
+        throw partDeleteError(
+            'part_delete_version_missing',
+            '正式零件缺少版本字段，不能生成删除确认',
+            { partId }
+        );
+    }
+    const preview = await postJson(
+        internalFetch,
+        `/api/parts/${partId}/delete-preview`,
+        { expectedUpdatedAt },
+        '零件删除预览失败'
+    );
+    if (
+        preview?.preview !== true
+        || preview?.capabilityId !== 'parts.delete'
+        || Number(preview?.target?.id) !== partId
+        || preview?.normalizedInput?.expectedUpdatedAt !== expectedUpdatedAt
+        || !preview?.previewHash
+        || !Array.isArray(preview?.changes)
+        || !Array.isArray(preview?.warnings)
+    ) {
+        throw partDeleteError(
+            'part_delete_preview_incomplete',
+            '正式零件删除预览不完整，不能生成删除确认',
+            { partId }
+        );
+    }
+    if (preview.warnings.length > 0) {
+        throw partDeleteError(
+            'part_delete_preview_warning',
+            '正式零件删除预览包含警告，不能生成删除确认',
+            { partId, warnings: preview.warnings }
+        );
+    }
+    return {
+        args: {
+            ...args,
+            partId,
+            model: preview.target.model,
+            supplier: preview.target.supplier,
+        },
+        confirmationRows: [
+            { label: '正式零件', value: `${preview.target.model}（#${partId}）` },
+            { label: '供应商', value: preview.target.supplier || '-' },
+            { label: '类别', value: preview.target.category || '-' },
+            { label: '当前价格', value: preview.target.price, suffix: ' 元' },
+            { label: '当前库存', value: preview.target.stock },
+            { label: '版本', value: preview.normalizedInput.expectedUpdatedAt },
+            { label: '删除方式', value: '软删除；历史 operation/audit 保留' },
+            { label: '配方快照/库存流水', value: '不变' },
+        ],
+        executionContext: {
+            kind: 'part_delete_target',
+            partId,
+            model: preview.target.model,
+            supplier: preview.target.supplier,
+            expectedUpdatedAt: preview.normalizedInput.expectedUpdatedAt,
+            preview,
+        },
+    };
+}
+
 async function executePartDelete(args = {}, dependencies = {}) {
     const {
         internalFetch,
         getJson,
+        postJson,
         deleteJson,
+        confirmationContext,
     } = dependencies;
-    const { model } = args;
-    const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
-    const target = allParts.find(part => (part.model || '') === model);
-    if (!target) {
-        return { success: false, error: `找不到零件: ${model}` };
-    }
+    const prepared = confirmationContext?.kind === 'part_delete_target'
+        ? { executionContext: confirmationContext }
+        : await preparePartDelete(args, { internalFetch, getJson, postJson });
+    const context = prepared.executionContext;
 
-    await deleteJson(
+    const saved = await deleteJson(
         internalFetch,
-        `/api/parts/${target.id ?? target.Id}`,
+        `/api/parts/${context.partId}`,
         '零件删除失败',
-        { expectedUpdatedAt: target.updatedAt || target.UpdatedAt }
+        {
+            expectedUpdatedAt: context.expectedUpdatedAt,
+            previewHash: context.preview.previewHash,
+        }
     );
+    const auditIds = Array.isArray(saved.auditIds)
+        ? saved.auditIds.filter(Boolean)
+        : saved.auditId
+            ? [saved.auditId]
+            : [];
+    if (
+        !saved.operationId
+        || saved.status !== 'completed'
+        || auditIds.length === 0
+        || Number(saved.partId) !== context.partId
+        || !Array.isArray(saved.changes)
+        || !saved.changes.some(change => (
+            change.resourceType === 'part'
+            && Number(change.resourceId) === context.partId
+            && change.field === 'deletedAt'
+        ))
+    ) {
+        throw partDeleteError(
+            'part_delete_receipt_missing',
+            '正式零件删除 API 未返回完整且匹配的 operation/audit 回执，不能声明删除成功',
+            { partId: context.partId }
+        );
+    }
+    const readback = await getJson(
+        internalFetch,
+        `/api/parts?keyword=${encodeURIComponent(context.model)}`,
+        '零件删除后回读失败'
+    );
+    if ((Array.isArray(readback) ? readback : []).some(part => Number(part.id ?? part.Id) === context.partId)) {
+        throw partDeleteError(
+            'part_delete_readback_mismatch',
+            '正式零件删除回执已返回，但目录回读仍能看到目标零件',
+            { partId: context.partId }
+        );
+    }
     return {
         success: true,
-        message: `零件"${model}"已删除`,
-        model,
+        message: `零件"${context.model}"已删除`,
+        partId: context.partId,
+        model: context.model,
+        supplier: context.supplier,
+        operationId: saved.operationId,
+        formalOperationId: saved.operationId,
+        auditId: auditIds[0],
+        auditIds,
+        status: saved.status,
+        changes: saved.changes,
+        warnings: Array.isArray(saved.warnings) ? saved.warnings : [],
+        readback: { visible: false },
     };
 }
 
@@ -940,9 +1109,11 @@ module.exports = {
     assertPartPriceCommandReceipt,
     assertPartStockCommandReceipt,
     preparePartBatchCreate,
+    preparePartDelete,
     preparePartPriceBatch,
     preparePartStockAdjustment,
     resolvePartPriceTargets,
+    resolvePartDeleteTarget,
     resolvePartStockTargets,
     similarPartCandidates,
     verifyPartStockReadback,

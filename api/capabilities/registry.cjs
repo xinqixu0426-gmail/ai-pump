@@ -744,7 +744,9 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         outputSchema: 'CommandReceipt<PartDeleteResult>',
         sourceOfTruth: 'parts+recipeSnapshots',
         riskLevel: 'medium',
-        supportsPreview: false,
+        supportsPreview: true,
+        previewPath: '/api/parts/:id/delete-preview',
+        concurrencyControl: 'expectedUpdatedAt+confirmationToken_bound_delete_preview',
     }),
     'parts.save_profile': defineBusinessCapability({
         capabilityId: 'parts.save_profile',

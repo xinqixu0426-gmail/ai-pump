@@ -100,6 +100,12 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
         isolation: 'formal API stub + in-memory parts database',
     },
     {
+        name: 'delete_part',
+        args: { partId: 1, model: 'MCP-LOCAL-PART', supplier: '本地验收' },
+        businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/partCommands.test.cjs'],
+        isolation: 'formal delete preview/API + in-memory parts database',
+    },
+    {
         name: 'batch_update_prices',
         args: { targets: [{ partId: 1 }], absoluteChange: 0.01 },
         businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/partCommands.test.cjs'],

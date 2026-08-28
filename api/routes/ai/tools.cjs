@@ -1404,11 +1404,13 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'delete_part',
-            description: '删除一个零件。当用户说"删掉零件XX"时使用',
+            description: '软删除一个明确零件。优先传正式 partId，并保留完整型号和供应商供用户核对；仅按型号调用时若存在多个同型号记录会停止并要求澄清。调用后必须显示正式删除预览确认卡片',
             parameters: {
                 type: 'object',
                 properties: {
-                    model: { type: 'string', description: '要删除的零件型号' }
+                    partId: { type: 'integer', minimum: 1, description: '正式零件 ID（推荐；必须来自本轮正式查询）' },
+                    model: { type: 'string', description: '要删除的完整零件型号' },
+                    supplier: { type: 'string', description: '供应商；同型号存在多条时用于唯一绑定' }
                 },
                 required: ['model']
             }

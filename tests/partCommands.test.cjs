@@ -12,6 +12,7 @@ const {
     UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
     buildPartBatchDeletePreview,
+    buildPartDeletePreview,
     buildPartProfileSavePreview,
     buildPartPricePreview,
     executeConfirmedPartBatchCreate,
@@ -245,21 +246,109 @@ test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删�
             () => executePartDelete(
                 fixture.dependencies,
                 created.part.id,
-                { expectedUpdatedAt: created.part.updatedAt },
+                {
+                    expectedUpdatedAt: created.part.updatedAt,
+                    previewHash: '0'.repeat(64),
+                },
                 commandContext(DELETE_CAPABILITY_ID, 'delete-stale')
             ),
             error => error.code === 'resource_version_conflict'
         );
+        const deletePreview = buildPartDeletePreview(
+            fixture.dependencies,
+            created.part.id,
+            { expectedUpdatedAt: updated.part.updatedAt }
+        );
+        assert.equal(deletePreview.preview, true);
+        assert.equal(deletePreview.capabilityId, DELETE_CAPABILITY_ID);
+        assert.equal(deletePreview.target.id, created.part.id);
+        assert.equal(deletePreview.target.model, input.model);
+        assert.equal(deletePreview.normalizedInput.expectedUpdatedAt, updated.part.updatedAt);
+        assert.ok(deletePreview.previewHash);
+        assert.equal(fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?')
+            .get(created.part.id).deleted_at, null);
         const deleted = executePartDelete(
             fixture.dependencies,
             created.part.id,
-            { expectedUpdatedAt: updated.part.updatedAt },
+            {
+                expectedUpdatedAt: updated.part.updatedAt,
+                previewHash: deletePreview.previewHash,
+            },
             commandContext(DELETE_CAPABILITY_ID, 'delete')
         );
         assert.equal(deleted.deleted, 1);
         assert.ok(deleted.auditId);
         assert.ok(fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?')
             .get(created.part.id).deleted_at);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('零件删除预览绑定版本和哈希，漂移或错误哈希时零副作用', () => {
+    const fixture = createFixture();
+    try {
+        const seeded = seedPart(fixture, 'DELETE-PREVIEW-PART', 10);
+        const preview = buildPartDeletePreview(
+            fixture.dependencies,
+            seeded.part.id,
+            { expectedUpdatedAt: seeded.part.updatedAt }
+        );
+        assert.equal(preview.target.supplier, '供应商A');
+        assert.equal(preview.impact.recipeSnapshotsChanged, 0);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 1);
+
+        assert.throws(
+            () => executePartDelete(
+                fixture.dependencies,
+                seeded.part.id,
+                {
+                    expectedUpdatedAt: seeded.part.updatedAt,
+                    previewHash: '0'.repeat(64),
+                },
+                commandContext(DELETE_CAPABILITY_ID, 'delete-bad-hash')
+            ),
+            error => error.code === 'preview_changed'
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?').get(seeded.part.id).deleted_at,
+            null
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT COUNT(*) AS count FROM api_operations WHERE capability_id = 'parts.delete'").get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('零件删除正式命令缺少版本或预览哈希时 fail-closed 且零副作用', () => {
+    const fixture = createFixture();
+    try {
+        const seeded = seedPart(fixture, 'DELETE-REQUIRES-PREVIEW', 10);
+        for (const [input, code] of [
+            [{ previewHash: '0'.repeat(64) }, 'part_delete_version_required'],
+            [{ expectedUpdatedAt: seeded.part.updatedAt }, 'part_delete_preview_required'],
+        ]) {
+            assert.throws(
+                () => executePartDelete(
+                    fixture.dependencies,
+                    seeded.part.id,
+                    input,
+                    commandContext(DELETE_CAPABILITY_ID, `delete-missing-${code}`)
+                ),
+                error => error.code === code
+            );
+        }
+        assert.equal(
+            fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?').get(seeded.part.id).deleted_at,
+            null
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT COUNT(*) AS count FROM api_operations WHERE capability_id = 'parts.delete'").get().count,
+            0
+        );
     } finally {
         fixture.db.close();
     }

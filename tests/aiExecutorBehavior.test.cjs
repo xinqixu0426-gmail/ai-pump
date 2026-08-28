@@ -235,13 +235,52 @@ test('AI executor 行为：新建和删除零件只调用正式 CRUD API', async
                 data: [{
                     id: 11,
                     model: '新零件',
+                    category: '其他',
+                    supplier: '-',
+                    price: 3.5,
+                    stock: 0,
                     updatedAt: '2026-08-03 11:00:00',
                 }],
             });
         }
-        if (call.method === 'DELETE' && call.url.endsWith('/api/parts/11')) {
+        if (call.method === 'POST' && call.url.endsWith('/api/parts/11/delete-preview')) {
             assert.deepEqual(call.body, { expectedUpdatedAt: '2026-08-03 11:00:00' });
-            return jsonResponse({ success: true, data: commandData('parts.delete', { deleted: 1 }) });
+            return jsonResponse({
+                success: true,
+                data: {
+                    preview: true,
+                    capabilityId: 'parts.delete',
+                    normalizedInput: { partId: 11, expectedUpdatedAt: '2026-08-03 11:00:00' },
+                    target: {
+                        id: 11,
+                        model: '新零件',
+                        category: '其他',
+                        supplier: '-',
+                        price: 3.5,
+                        stock: 0,
+                    },
+                    previewHash: 'part-delete-preview-hash',
+                    changes: [{ resourceType: 'part', resourceId: 11, field: 'deletedAt' }],
+                    warnings: [],
+                },
+            });
+        }
+        if (call.method === 'DELETE' && call.url.endsWith('/api/parts/11')) {
+            assert.deepEqual(call.body, {
+                expectedUpdatedAt: '2026-08-03 11:00:00',
+                previewHash: 'part-delete-preview-hash',
+            });
+            return jsonResponse({
+                success: true,
+                data: commandData('parts.delete', {
+                    deleted: 1,
+                    partId: 11,
+                    changes: [{ resourceType: 'part', resourceId: 11, field: 'deletedAt' }],
+                }),
+            });
+        }
+        if (call.method === 'GET' && call.url.includes('/api/parts?keyword=')) {
+            return jsonResponse({ success: true, data: [] });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
@@ -254,7 +293,9 @@ test('AI executor 行为：新建和删除零件只调用正式 CRUD API', async
     assert.equal(deleted.success, true);
     assert.deepEqual(deleteCalls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/parts',
+        'POST /api/parts/11/delete-preview',
         'DELETE /api/parts/11',
+        'GET /api/parts?keyword=%E6%96%B0%E9%9B%B6%E4%BB%B6',
     ]);
 });
 

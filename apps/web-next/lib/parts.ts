@@ -207,12 +207,25 @@ export async function updatePart(part: Part, input: PartInput): Promise<Part> {
 
 export async function deletePart(part: Part): Promise<void> {
   if (!part.updatedAt) throw new Error('零件版本缺失，请刷新列表后再删除');
+  const preview = await proxyRequest<ApiResponse<{
+    previewHash: string;
+    normalizedInput: { expectedUpdatedAt: string };
+  }>>(`/api/parts/${part.id}/delete-preview`, {
+    method: 'POST',
+    body: JSON.stringify({ expectedUpdatedAt: part.updatedAt }),
+  });
+  if (!preview.success || !preview.data?.previewHash) {
+    throw new Error(preview.error || '生成零件删除预览失败');
+  }
   const result = await proxyRequest<ApiResponse<unknown>>(`/api/parts/${part.id}`, {
     method: 'DELETE',
     headers: {
       'Idempotency-Key': createIdempotencyKey(`part-delete:${part.id}`),
     },
-    body: JSON.stringify({ expectedUpdatedAt: part.updatedAt }),
+    body: JSON.stringify({
+      expectedUpdatedAt: preview.data.normalizedInput.expectedUpdatedAt,
+      previewHash: preview.data.previewHash,
+    }),
   });
   if (!result.success) throw new Error(result.error || '零件删除失败');
 }

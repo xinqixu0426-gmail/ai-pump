@@ -31,6 +31,7 @@ const {
     UPDATE_CAPABILITY_ID: PART_UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
     buildPartBatchDeletePreview,
+    buildPartDeletePreview,
     buildPartPricePreview,
     buildPartProfileSavePreview,
     executeConfirmedPartBatchCreate,
@@ -237,6 +238,19 @@ router.patch('/:id', (req, res) => {
     } catch (error) { sendCommandError(res, error); }
 });
 
+router.post('/:id/delete-preview', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法零件ID' });
+        const data = buildPartDeletePreview(
+            partDependencies(),
+            id,
+            req.body || {}
+        );
+        res.json({ success: true, data });
+    } catch (error) { sendCommandError(res, error); }
+});
+
 router.delete('/:id', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -248,6 +262,7 @@ router.delete('/:id', (req, res) => {
                 expectedUpdatedAt: req.body?.expectedUpdatedAt
                     ?? req.query?.expectedUpdatedAt
                     ?? req.headers['if-unmodified-since'],
+                previewHash: req.body?.previewHash,
             },
             commandContextFromRequest(req, PART_DELETE_CAPABILITY_ID)
         );
