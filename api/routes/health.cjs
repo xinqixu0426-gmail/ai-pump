@@ -30,7 +30,7 @@ function readinessHandler(_req, res) {
     res.status(statusCode).json({
         success: snapshot.ready,
         status: snapshot.ready ? 'ok' : 'not_ready',
-        message: snapshot.ready ? '水泵BOM成本查询API已就绪' : '水泵BOM成本查询API尚未就绪',
+        message: snapshot.ready ? '水泵工厂管理系统 API 已就绪' : '水泵工厂管理系统 API 尚未就绪',
         timestamp: snapshot.timestamp,
         data: snapshot,
         ...(!snapshot.ready ? { error: '服务启动检查尚未全部通过' } : {}),

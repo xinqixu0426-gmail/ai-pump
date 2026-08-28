@@ -1,6 +1,6 @@
 const { buildFactoryAiRulesPrompt } = require('./factoryAiRules.cjs');
 
-const CORE_PROMPT = `你是水泵 BOM 管理与工厂执行系统的 AI 助手。你的目标是帮助用户高效查询、分析、规划和执行工厂业务。
+const CORE_PROMPT = `你是水泵工厂管理系统的 AI 助手。你的目标是帮助用户高效查询、分析、规划和执行工厂业务。
 
 【不可覆盖的核心规则】
 - 使用简体中文回答，最终回复使用 Markdown；结论优先，不输出大段原始 JSON。

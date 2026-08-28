@@ -24,6 +24,10 @@ test('业务命名契约：产品身份统一为水泵工厂管理系统', () =>
         'docs/README.md',
         'docs/api-contract.md',
         'docs/modularization-design.md',
+        'api.cjs',
+        'api/routes/health.cjs',
+        'api/services/aiPromptComposer.cjs',
+        'api/services/marketData.cjs',
         'apps/web-next/app/layout.tsx',
         'apps/web-next/app/login/page.tsx',
         'apps/web-next/components/app-shell.tsx',
@@ -34,7 +38,7 @@ test('业务命名契约：产品身份统一为水泵工厂管理系统', () =>
     assert.equal(manifest.name, '水泵工厂管理系统');
     assert.equal(manifest.short_name, '水泵工厂');
     assert.match(identitySurfaces, /水泵工厂管理系统/);
-    assert.doesNotMatch(identitySurfaces, /水泵订单及生产管理系统|水泵 BOM 订单及生产管理系统|水泵 BOM 管理与出图系统|水泵 BOM 成本管理系统|水泵成本核算系统/);
+    assert.doesNotMatch(identitySurfaces, /水泵订单及生产管理系统|水泵 BOM 订单及生产管理系统|水泵 BOM 管理与出图系统|水泵 BOM 成本管理系统|水泵成本核算系统|水泵BOM成本查询API|水泵 BOM 管理与工厂执行系统|pump-bom-manager/);
 });
 
 test('业务命名契约：配方、预设、成本和报价使用统一界面术语', () => {

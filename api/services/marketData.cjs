@@ -72,7 +72,7 @@ async function fetchUsdCnyRate(fetchWithPolicy) {
         const response = await fetchWithPolicy(
             'https://api.exchangerate-api.com/v4/latest/USD',
             {
-                headers: { 'User-Agent': 'pump-bom-manager/1.0' },
+                headers: { 'User-Agent': 'pump-factory-management/1.0' },
             },
             {
                 timeoutMs: MARKET_TIMEOUT_MS,

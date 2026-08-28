@@ -1,5 +1,5 @@
 /**
- * 水泵BOM成本查询API — 入口文件
+ * 水泵工厂管理系统 API — 入口文件
  * 路由已按模块拆分到 api/routes/ 目录
  */
 
@@ -253,7 +253,7 @@ app.use((error, req, res, next) => {
 // ── 启动 ──
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`========================================`);
-    console.log(`水泵BOM成本查询API已启动`);
+    console.log(`水泵工厂管理系统 API 已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
     console.log(`运行平台: ${process.platform} | 环境模式: ${IS_PRODUCTION ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
     console.log(`========================================`);
