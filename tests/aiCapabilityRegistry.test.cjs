@@ -60,6 +60,31 @@ test('AI 能力注册表：全部工具唯一登记且具备强制契约字段',
     }
 });
 
+test('AI 工具目录：人类可读 schema 使用规范业务术语且保留稳定字段名', () => {
+    const tool = name => AI_TOOLS.find(item => item.function.name === name)?.function;
+    const createPart = tool('create_part');
+    const updatePart = tool('update_part');
+    const updateOrderItem = tool('update_order_item');
+    const createRecipe = tool('create_recipe');
+    const updateRecipe = tool('update_recipe');
+    const searchFileTargets = tool('search_factory_file_archive_targets');
+
+    assert.match(createPart.parameters.properties.price.description, /目录成本价/);
+    assert.match(updatePart.parameters.properties.price.description, /目录成本价/);
+    assert.match(updateOrderItem.parameters.properties.unitPrice.description, /销售单价/);
+    assert.match(createRecipe.parameters.properties.name.description, /成品型号/);
+    assert.match(createRecipe.parameters.properties.spec.description, /配置摘要/);
+    assert.match(updateRecipe.parameters.properties.newName.description, /新成品型号/);
+    assert.match(updateRecipe.parameters.properties.newSpec.description, /新配置摘要/);
+    assert.match(searchFileTargets.description, /可关联的真实业务资料对象/);
+    assert.doesNotMatch(searchFileTargets.description, /可归档的真实业务对象|归档前/);
+
+    assert.ok(Object.hasOwn(createPart.parameters.properties, 'price'));
+    assert.ok(Object.hasOwn(updateOrderItem.parameters.properties, 'unitPrice'));
+    assert.ok(Object.hasOwn(createRecipe.parameters.properties, 'name'));
+    assert.ok(Object.hasOwn(createRecipe.parameters.properties, 'spec'));
+});
+
 test('AI 能力注册表：每个写工具必须关联已登记的正式业务能力', () => {
     const writeCapabilities = listAiCapabilities()
         .filter(capability => capability.access === 'write');

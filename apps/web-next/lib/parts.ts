@@ -59,7 +59,7 @@ type PartCommandRow = PartRow & {
 
 type PartApiInput = Omit<PartInput, 'catalogUnitCost' | 'remark'> & {
   price: number;
-  notes?: string;
+  remark?: string;
 };
 
 export type PartStockStatus = 'out' | 'low' | 'ok';
@@ -95,7 +95,7 @@ export function partInputToApi(input: PartInput): PartApiInput {
   return {
     ...rest,
     price: catalogUnitCost,
-    notes: remark,
+    remark,
   };
 }
 

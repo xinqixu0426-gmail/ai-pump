@@ -93,7 +93,8 @@ test('业务命名契约：零件页面模型统一 remark 和 catalogUnitCost�
     assert.match(partType, /remark: string/);
     assert.doesNotMatch(partType, /\bprice:|\bnotes:/);
     assert.match(partsClient, /type PartRow = \{[\s\S]*?notes\?: string/);
-    assert.match(partsClient, /function partInputToApi[\s\S]*price: catalogUnitCost,[\s\S]*notes: remark/);
+    assert.match(partsClient, /function partInputToApi[\s\S]*price: catalogUnitCost,[\s\S]*remark,/);
+    assert.doesNotMatch(partsClient, /function partInputToApi[\s\S]*notes: remark/);
     assert.match(db, /function partRow[\s\S]*remark: r\.remark \|\| '', notes: r\.remark \|\| ''/);
     assert.match(db, /remark: body\.remark \?\? body\.notes \?\? ''/);
 });
