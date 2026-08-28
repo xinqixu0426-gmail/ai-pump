@@ -299,7 +299,7 @@ test('配方 Query 对非法 ID 和不存在资源返回稳定 400/404', () => {
             error => (
                 error instanceof RecipeQueryError
                 && error.statusCode === 404
-                && error.message === '型号变体不存在'
+                && error.message === '常用配置预设不存在'
             )
         );
     } finally {

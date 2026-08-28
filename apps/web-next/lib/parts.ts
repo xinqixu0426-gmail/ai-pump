@@ -6,11 +6,10 @@ export type Part = {
   model: string;
   category: string;
   subcategory?: string;
-  price: number;
+  catalogUnitCost: number;
   supplier: string;
   stock: number;
-  notes?: string;
-  remark?: string;
+  remark: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -19,10 +18,10 @@ export type PartInput = {
   model: string;
   category: string;
   subcategory?: string;
-  price: number;
+  catalogUnitCost: number;
   supplier: string;
   stock: number;
-  notes?: string;
+  remark?: string;
   duplicatePolicy?: 'allow' | 'reject';
   businessSettings?: PartBusinessSettingUpdate[];
 };
@@ -58,6 +57,11 @@ type PartCommandRow = PartRow & {
   }>;
 };
 
+type PartApiInput = Omit<PartInput, 'catalogUnitCost' | 'remark'> & {
+  price: number;
+  notes?: string;
+};
+
 export type PartStockStatus = 'out' | 'low' | 'ok';
 
 export function partStockStatus(part: Part): { status: PartStockStatus; label: string; className: string } {
@@ -77,13 +81,21 @@ export function rowToPart(row: PartRow): Part {
     model: row.model || '',
     category: row.category || '未分类',
     subcategory: row.subcategory || '',
-    price: Number(row.price) || 0,
+    catalogUnitCost: Number(row.price) || 0,
     supplier: row.supplier || '',
     stock: Number(row.stock) || 0,
-    notes: row.notes || row.remark || '',
-    remark: row.remark || row.notes || '',
+    remark: row.remark ?? row.notes ?? '',
     createdAt: row.createdAt || row.CreatedAt,
     updatedAt: row.updatedAt || row.UpdatedAt,
+  };
+}
+
+export function partInputToApi(input: PartInput): PartApiInput {
+  const { catalogUnitCost, remark, ...rest } = input;
+  return {
+    ...rest,
+    price: catalogUnitCost,
+    notes: remark,
   };
 }
 
@@ -99,7 +111,7 @@ export async function createPart(input: PartInput): Promise<Part> {
     headers: {
       'Idempotency-Key': createIdempotencyKey('part-create'),
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify(partInputToApi(input)),
   });
   if (!result.success || !result.data) throw new Error(result.error || '零件创建失败');
   rememberPartBusinessSettings(result.data.businessSettings);
@@ -108,7 +120,7 @@ export async function createPart(input: PartInput): Promise<Part> {
 
 export type PartBatchCreateInput = Pick<
   PartInput,
-  'model' | 'category' | 'subcategory' | 'price' | 'supplier' | 'stock' | 'notes'
+  'model' | 'category' | 'subcategory' | 'catalogUnitCost' | 'supplier' | 'stock' | 'remark'
 >;
 
 export type PartBatchCreatePreview = {
@@ -121,7 +133,7 @@ export type PartBatchCreatePreview = {
   createCount: number;
   skippedCount: number;
   parts: PartBatchCreateInput[];
-  skippedExisting: PartRow[];
+  skippedExisting: Part[];
   warnings: Array<{ code: string; message: string; resourceId?: number }>;
 };
 
@@ -130,7 +142,7 @@ export type PartBatchCreateReceipt = {
   status?: string;
   operationStatus?: string;
   createdCount: number;
-  parts: PartRow[];
+  parts: Part[];
   auditIds: number[];
   warnings?: Array<{ code?: string; message?: string }>;
   idempotentReplay?: boolean;
@@ -139,20 +151,35 @@ export type PartBatchCreateReceipt = {
 export async function previewPartBatchCreate(
   parts: PartBatchCreateInput[]
 ): Promise<PartBatchCreatePreview> {
-  const result = await proxyRequest<ApiResponse<PartBatchCreatePreview>>('/api/parts/batch-create-preview', {
+  const result = await proxyRequest<ApiResponse<Omit<PartBatchCreatePreview, 'parts' | 'skippedExisting'> & {
+    parts: PartRow[];
+    skippedExisting: PartRow[];
+  }>>('/api/parts/batch-create-preview', {
     method: 'POST',
-    body: JSON.stringify({ parts }),
+    body: JSON.stringify({ parts: parts.map(partInputToApi) }),
   });
   if (!result.success || !result.data) {
     throw new Error(result.error || '生成零件批量建档预览失败');
   }
-  return result.data;
+  return {
+    ...result.data,
+    parts: result.data.parts.map((row) => ({
+      model: row.model || '',
+      category: row.category || '未分类',
+      subcategory: row.subcategory || '',
+      catalogUnitCost: Number(row.price) || 0,
+      supplier: row.supplier || '',
+      stock: Number(row.stock) || 0,
+      remark: row.remark ?? row.notes ?? '',
+    })),
+    skippedExisting: result.data.skippedExisting.map(rowToPart),
+  };
 }
 
 export async function confirmPartBatchCreate(
   preview: Pick<PartBatchCreatePreview, 'confirmationToken' | 'suggestedIdempotencyKey'>
 ): Promise<PartBatchCreateReceipt> {
-  const result = await proxyRequest<ApiResponse<PartBatchCreateReceipt>>('/api/parts/batch-create', {
+  const result = await proxyRequest<ApiResponse<Omit<PartBatchCreateReceipt, 'parts'> & { parts: PartRow[] }>>('/api/parts/batch-create', {
     method: 'POST',
     headers: {
       'Idempotency-Key': preview.suggestedIdempotencyKey,
@@ -172,7 +199,10 @@ export async function confirmPartBatchCreate(
     || result.data.auditIds.length < result.data.createdCount) {
     throw new Error('零件批量建档回执不完整，请勿重复提交并检查业务变更记录');
   }
-  return result.data;
+  return {
+    ...result.data,
+    parts: result.data.parts.map(rowToPart),
+  };
 }
 
 export async function updatePart(part: Part, input: PartInput): Promise<Part> {
@@ -183,7 +213,7 @@ export async function updatePart(part: Part, input: PartInput): Promise<Part> {
   }>>(`/api/parts/${part.id}/save-preview`, {
     method: 'POST',
     body: JSON.stringify({
-      ...input,
+      ...partInputToApi(input),
       expectedUpdatedAt: part.updatedAt,
     }),
   });

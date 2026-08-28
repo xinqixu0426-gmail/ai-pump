@@ -32,6 +32,21 @@
 - `npm run verify:api-contract`、`npm test`、`npm run test:deep-api` 和 `npm run build` 通过；
 - 至少完成一次真实浏览器桌面和移动端回归，并记录结果。
 
+### 2.2 历史命名兼容退役
+
+当前 Web 业务模型统一使用 `id/createdAt/updatedAt`；零件说明统一为 `remark`，零件目录成本在页面模型中统一为 `catalogUnitCost`。数据库字段、`/api/model-variants`、`modelVariantId/modelName`、capability ID 和部署路径仍是稳定技术标识，不因界面术语调整而改名。
+
+为避免破坏已有 AI、MCP 和外部调用，后端 Row Adapter 暂时保留 `Id/CreatedAt/UpdatedAt`，零件接口暂时保留 `notes` 兼容字段。它们只允许出现在明确的适配器、规范化器和兼容测试中，不得重新进入页面状态或新调用代码。
+
+退役旧别名前必须同时满足：
+
+- 完成仓库内调用方盘点，并确认页面和正式客户端只使用规范字段；
+- 结合外部调用和 MCP 运行记录确认兼容字段已无实际消费者；
+- 在 `api-reference.md` 标记废弃窗口，并提供至少一个兼容周期；
+- 删除旧字段后，API 契约、深层 API、AI/MCP 与完整 Web 构建全部通过。
+
+这项债务不授权直接修改数据库列、公开路径或 capability ID；若确需迁移，必须作为独立 API 兼容任务实施。
+
 ## 3. P1：巨型组件瘦身
 
 ### 3.1 是否需要瘦身

@@ -545,7 +545,7 @@ function assertRecipeBomPrices(parts) {
         return name || model || '未命名项目';
     });
     const remaining = unpricedParts.length - labels.length;
-    const error = new Error(`配方 BOM 存在未定价项目：${labels.join('、')}${remaining > 0 ? `等 ${unpricedParts.length} 项` : ''}。请先在零件库补齐对应型号和单价后再保存。`);
+    const error = new Error(`配方 BOM 存在未定价项目：${labels.join('、')}${remaining > 0 ? `等 ${unpricedParts.length} 项` : ''}。请先在零件库补齐对应型号和目录成本价后再保存。`);
     error.statusCode = 400;
     error.code = 'RECIPE_BOM_UNPRICED';
     error.items = unpricedParts;
@@ -595,7 +595,7 @@ function renderRecipeCostSnapshot(parts, input = {}) {
             const qty = Number(part.qty || 1);
             const base = `${part.name || part.model}: ¥${price.toFixed(2)} × ${qty} = ¥${(price * qty).toFixed(2)}`;
             if (part.name === '线圈转子') {
-                return `${base}（材质: ${part.material || coilMaterial || '钢带'}，槽眼: ${part.slotType || '小眼'}，单价: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
+                return `${base}（材质: ${part.material || coilMaterial || '钢带'}，槽眼: ${part.slotType || '小眼'}，定子单片成本: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
             }
             if (part.dynamicRule === 'longScrewByBarrelLength') {
                 const pricingText = part.costSource === 'screw_pricing' || part.costSource === 'screw_formula'

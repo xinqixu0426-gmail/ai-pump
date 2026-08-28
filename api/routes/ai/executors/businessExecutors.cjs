@@ -441,7 +441,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'analyze_recipe_configuration': {
             if (!args.recipeId && !normalizeText(args.recipeName)) {
-                return { success: false, error: '请提供配方ID或完整配方名称' };
+                return { success: false, error: '请提供配方编号或完整成品型号' };
             }
             const data = await postJson(internalFetch, '/api/quality/recipe-analysis', {
                 recipeId: args.recipeId,
@@ -703,13 +703,13 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const data = await getJson(
                 internalFetch,
                 `/api/files/archive-targets?${query.toString()}`,
-                '文件归档目标读取失败'
+                '资料关联对象读取失败'
             );
             return {
                 success: true,
                 intent: 'factory_file_archive_targets',
-                summary: `找到 ${Array.isArray(data) ? data.length : 0} 个可归档目标。`,
-                display: { mode: 'compact', title: '文件归档目标' },
+                summary: `找到 ${Array.isArray(data) ? data.length : 0} 个可关联的业务资料对象。`,
+                display: { mode: 'compact', title: '可关联的业务资料' },
                 data,
             };
         }
@@ -728,7 +728,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     tags: args.tags,
                     source: 'ai_chat',
                 },
-                '工厂文件归档预览失败'
+                '业务资料关联预览失败'
             );
             const data = await postJson(
                 internalFetch,
@@ -737,13 +737,13 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     confirmationToken: preview.confirmationToken,
                     idempotencyKey: preview.suggestedIdempotencyKey,
                 },
-                '工厂文件归档失败'
+                '业务资料关联失败'
             );
             return {
                 success: true,
                 intent: 'factory_file_archived',
-                summary: `文件已归档到${data.link?.target?.label || '指定业务对象'}。`,
-                display: { mode: 'compact', title: '文件归档结果' },
+                summary: `文件已关联到${data.link?.target?.label || '指定业务对象'}。`,
+                display: { mode: 'compact', title: '资料关联结果' },
                 data,
             };
         }

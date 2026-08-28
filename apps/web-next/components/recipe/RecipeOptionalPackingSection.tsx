@@ -82,7 +82,7 @@ export function RecipeOptionalPackingSection({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">选配件</div>
-              <div className="mt-1 text-xs text-slate-500">保存到 extraPartsJson，可添加电容、密封件、螺丝、铭牌等额外物料。</div>
+              <div className="mt-1 text-xs text-slate-500">保存为配方选配件，可添加电容、密封件、螺丝、铭牌等额外物料。</div>
             </div>
             <Button type="button" size="sm" onClick={onAddOptionalPart} disabled={saving} icon={<Plus size={14} />}>
               添加选配件

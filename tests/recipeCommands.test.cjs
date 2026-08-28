@@ -301,6 +301,11 @@ test('配方创建绑定预览、持久幂等和强审计并保持完整资源�
         const replay = executeRecipeCreate(fixture.dependencies, draft, context);
 
         assert.equal(first.recipe.name, '测试配方');
+        assert.equal(first.recipe.spec, 'V1');
+        assert.deepEqual(
+            fixture.db.prepare('SELECT name, spec FROM recipes WHERE id = ?').get(first.recipe.id),
+            { name: '测试配方', spec: 'V1' }
+        );
         assert.equal(first.recipe.savedTotalCost, 7);
         assert.equal(first.recipe.coilWireWeight, 0.45);
         assert.equal(first.status, 'completed');
@@ -372,6 +377,7 @@ test('配方更新使用当前版本、预览绑定和持久幂等', () => {
             context
         );
         assert.equal(first.recipe.name, '修改后配方');
+        assert.equal(first.recipe.spec, 'V1');
         assert.equal(first.recipe.savedTotalCost, 8);
         assert.equal(first.recipe.updatedAt, NEXT_UPDATED_AT);
         assert.equal(replay.idempotentReplay, true);

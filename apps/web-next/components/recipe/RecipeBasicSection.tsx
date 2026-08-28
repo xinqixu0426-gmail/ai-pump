@@ -61,7 +61,7 @@ export function RecipeBasicSection({
     <WorkspaceSection
       id="recipe-basic-section"
       title="1. 泵壳与产品"
-      description="选择泵壳模板并填写产品名称；模板固定搭配会自动进入 BOM。"
+      description="选择泵壳模板并填写成品型号；模板固定搭配会自动进入 BOM。"
       status={complete ? 'complete' : 'warning'}
       badge={complete ? '已完成' : '待完善'}
       badgeTone={complete ? 'green' : 'amber'}
@@ -69,7 +69,7 @@ export function RecipeBasicSection({
       <div className="space-y-3">
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block md:col-span-2">
-            <span className="text-xs font-medium text-muted">配方名称</span>
+            <span className="text-xs font-medium text-muted">成品型号</span>
             <input
               value={form.name}
               onChange={(event) => onChange({ name: event.target.value })}
@@ -79,12 +79,12 @@ export function RecipeBasicSection({
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-muted">规格</span>
+            <span className="text-xs font-medium text-muted">配置摘要</span>
             <input
               value={form.spec}
               onChange={(event) => onChange({ spec: event.target.value })}
               className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-              placeholder="可选"
+              placeholder="可选，用于补充关键配置"
             />
           </label>
         </div>

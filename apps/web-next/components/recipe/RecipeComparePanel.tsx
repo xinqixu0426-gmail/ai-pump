@@ -181,7 +181,7 @@ export function RecipeComparePanel({
                   <table className="min-w-full border-separate border-spacing-0 text-sm">
                     <tbody>
                       {[
-                        ['配方名称', compareRecipes[0].name || '-', compareRecipes[1].name || '-'],
+                        ['成品型号', compareRecipes[0].name || '-', compareRecipes[1].name || '-'],
                         ['规格', compareRecipes[0].spec || '-', compareRecipes[1].spec || '-'],
                         ['泵壳模板', compareRecipes[0].templateId ? templateNameMap.get(compareRecipes[0].templateId) || '-' : '-', compareRecipes[1].templateId ? templateNameMap.get(compareRecipes[1].templateId) || '-' : '-'],
                         ['保存成本', money(compareRecipes[0].savedTotalCost || 0), money(compareRecipes[1].savedTotalCost || 0)],

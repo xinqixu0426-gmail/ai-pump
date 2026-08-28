@@ -1,7 +1,7 @@
 {
-  "name": "pump-bom-manager",
+  "name": "pump-factory-management",
   "version": "1.0.0",
-  "description": "水泵BOM管理系统 - 零件录入、配方组装、成本自动计算",
+  "description": "水泵工厂管理系统 - 零件、模板、配方、报价、订单与生产协同",
   "type": "module",
   "scripts": {
     "dev": "npm run web-next:dev:primary",

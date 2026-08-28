@@ -37,7 +37,7 @@ export function PartsResult({ name, result }: { name: string; result: Record<str
         <KeyValueRows rows={[
           { label: '型号', value: part.model },
           { label: '类别', value: part.category },
-          { label: '单价', value: money(part.price) || part.price },
+          { label: '目录成本价', value: money(part.price) || part.price },
           { label: '库存', value: part.stock },
           { label: '供应商', value: part.supplier },
         ]} />
@@ -53,7 +53,7 @@ export function PartsResult({ name, result }: { name: string; result: Record<str
         columns={[
           { key: 'model', label: '型号' },
           { key: 'category', label: '类别' },
-          { key: 'price', label: '单价', render: (row) => money(row.price) || textValue(row.price) },
+          { key: 'price', label: '目录成本价', render: (row) => money(row.price) || textValue(row.price) },
           { key: 'stock', label: '库存' },
           { key: 'supplier', label: '供应商' },
         ]}
@@ -70,8 +70,8 @@ export function RecipesResult({ result }: { result: Record<string, unknown> }) {
     return (
       <>
         <KeyValueRows rows={[
-          { label: '配方', value: recipe.name || result.recipeName },
-          { label: '规格', value: recipe.spec },
+          { label: '成品型号', value: recipe.name || result.recipeName },
+          { label: '配置摘要', value: recipe.spec },
           { label: '零件数', value: recipe.partsCount || result.partsCount },
           { label: '成本', value: money(recipe.totalCost || result.newCost) || recipe.totalCost || result.newCost },
         ]} />
@@ -83,8 +83,8 @@ export function RecipesResult({ result }: { result: Record<string, unknown> }) {
     <DataTable
       rows={rows}
       columns={[
-        { key: 'name', label: '配方' },
-        { key: 'spec', label: '规格' },
+        { key: 'name', label: '成品型号' },
+        { key: 'spec', label: '配置摘要' },
         { key: 'savedCost', label: '保存成本', render: (row) => money(row.savedCost) || textValue(row.savedCost) },
       ]}
       emptyText="暂无配方"
@@ -100,8 +100,8 @@ export function CostResult({ result }: { result: Record<string, unknown> }) {
     <>
       <MetricGrid metrics={metrics} />
       <KeyValueRows rows={[
-        { label: '配方', value: data.recipeName || data.name || data.recipeSpec },
-        { label: '规格', value: data.spec },
+        { label: '成品型号', value: data.recipeName || data.name || data.recipeSpec },
+        { label: '配置摘要', value: data.spec },
         { label: '线圈', value: data.coilSpec || data.resolvedSpec },
         { label: '说明', value: data.message },
       ]} />
@@ -111,7 +111,7 @@ export function CostResult({ result }: { result: Record<string, unknown> }) {
           columns={[
             { key: 'model', label: '零件' },
             { key: 'qty', label: '数量' },
-            { key: 'price', label: '单价', render: (row) => money(row.price ?? row.snapshotPrice ?? row.unitPrice) || textValue(row.price ?? row.snapshotPrice ?? row.unitPrice) },
+            { key: 'price', label: 'BOM 快照单价', render: (row) => money(row.price ?? row.snapshotPrice ?? row.unitPrice) || textValue(row.price ?? row.snapshotPrice ?? row.unitPrice) },
             { key: 'cost', label: '金额', render: (row) => money(row.cost ?? row.totalCost) || textValue(row.cost ?? row.totalCost) },
           ]}
         />
@@ -158,7 +158,7 @@ export function OrderResult({ name, result }: { name: string; result: Record<str
             { key: 'recipeName', label: '型号' },
             { key: 'qty', label: '数量' },
             { key: 'unitCost', label: '成本', render: (row) => money(row.unitCost) || textValue(row.unitCost) },
-            { key: 'unitPrice', label: '出厂价', render: (row) => money(row.unitPrice) || textValue(row.unitPrice) },
+            { key: 'unitPrice', label: '销售单价', render: (row) => money(row.unitPrice) || textValue(row.unitPrice) },
           ]}
         />
       ) : null}

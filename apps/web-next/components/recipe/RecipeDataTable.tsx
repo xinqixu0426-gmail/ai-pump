@@ -85,7 +85,7 @@ export function RecipeDataTable({
             <th className="px-2.5 py-2 font-medium">数量</th>
             {isPacking ? <th className="px-2.5 py-2 font-medium">类型</th> : null}
             <th className="px-2.5 py-2 font-medium">价格类型</th>
-            <th className="px-2.5 py-2 font-medium">单价</th>
+            <th className="px-2.5 py-2 font-medium">目录成本价</th>
             <th className="px-2.5 py-2 font-medium">金额</th>
             <th className="px-2.5 py-2 font-medium">操作</th>
           </tr>
@@ -168,7 +168,7 @@ export function RecipeDataTable({
                   min="0"
                   step="0.01"
                   disabled={row.costSource !== 'manual'}
-                  placeholder="单价"
+                  placeholder="目录成本价"
                   className="h-8 w-full rounded-md border border-line px-2 text-sm text-slate-900 outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
                 />
               </td>

@@ -222,7 +222,7 @@ function buildRecipeBomDraft(input, context) {
                 const subassemblyContents = normalizeSubassemblyContents(component);
                 const isSubassembly = isSubassemblyComponent(component);
                 const baseFormula = component.pricingMode === 'lengthCm'
-                    ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/型号变体）' : ''}`
+                    ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/常用配置预设）' : ''}`
                     : `${component.name}: ${unitCost}×${qty}`;
                 bomParts.push({
                     model: component.model || component.name,

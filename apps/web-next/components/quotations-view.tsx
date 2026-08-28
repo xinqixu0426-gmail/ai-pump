@@ -542,7 +542,7 @@ export function QuotationsView() {
       const catalogPrice = parts.find((part) => (
         part.model === basePart.model
         && (!basePart.supplier || part.supplier === basePart.supplier)
-      ))?.price;
+      ))?.catalogUnitCost;
       return {
         ...(basePart.partId ? { partId: basePart.partId } : {}),
         model: basePart.model,
@@ -856,7 +856,7 @@ export function QuotationsView() {
                         <div className="mt-1 text-base font-semibold text-ink">{quotationAmountText(quotation.totalPrice)}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-muted">含税出厂价</div>
+                        <div className="text-muted">含税销售单价</div>
                         <div className="mt-1 text-base font-semibold text-ink">{quotationAmountText(quotationTaxIncludedFactoryPrice(quotation))}</div>
                       </div>
                       <div className="text-muted">成本 {quotationAmountText(quotation.totalCost)}</div>
@@ -897,7 +897,7 @@ export function QuotationsView() {
                   <th className="border-b border-line px-4 py-3">状态</th>
                   <th className="hidden border-b border-line px-4 py-3 text-right min-[1440px]:table-cell">总成本</th>
                   <th className="border-b border-line px-4 py-3 text-right">总报价</th>
-                  <th className="hidden border-b border-line px-4 py-3 text-right min-[1440px]:table-cell">含税出厂价</th>
+                  <th className="hidden border-b border-line px-4 py-3 text-right min-[1440px]:table-cell">含税销售单价</th>
                   <th className="border-b border-line px-4 py-3">创建</th>
                   <th className="border-b border-line px-4 py-3 text-right">操作</th>
                 </tr>
@@ -1030,8 +1030,8 @@ export function QuotationsView() {
                         <th className="w-32 border-b border-line px-4 py-3">包材</th>
                         <th className="border-b border-line px-4 py-3">表面处理</th>
                         <th className="border-b border-line px-4 py-3">转子工艺</th>
-                        <th className="border-b border-line px-4 py-3 text-right" title="单位成本">单价</th>
-                        <th className="border-b border-line px-4 py-3 text-right" title="产品出厂单价">出厂价</th>
+                        <th className="border-b border-line px-4 py-3 text-right">单位成本</th>
+                        <th className="border-b border-line px-4 py-3 text-right">销售单价</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1086,7 +1086,7 @@ export function QuotationsView() {
                 <div className="flex items-center justify-between gap-3 border-b border-line p-4">
                   <div>
                     <div className="text-sm font-semibold text-ink">客户询价资料</div>
-                    <div className="mt-1 text-xs text-muted">保存报价时归档的原始附件和经人工核对的摘要，只读展示。</div>
+                    <div className="mt-1 text-xs text-muted">随报价保存的原始附件和经人工核对的摘要，只读展示。</div>
                   </div>
                   {viewInquiry?.availableFiles.length ? (
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
@@ -1113,7 +1113,7 @@ export function QuotationsView() {
                           <span className="min-w-0 truncate">{file.originalName}</span>
                           <Download size={14} className="shrink-0 text-muted" />
                         </a>
-                      )) : <div className="text-sm text-muted">未归档原始附件。</div>}
+                      )) : <div className="text-sm text-muted">没有随报价保存的原始附件。</div>}
                     </div>
                     <div>
                       <div className="text-xs font-semibold uppercase tracking-wide text-muted">询价要求摘要</div>
@@ -1123,7 +1123,7 @@ export function QuotationsView() {
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 text-sm text-muted">这张报价没有归档询价附件或摘要。</div>
+                  <div className="p-4 text-sm text-muted">这张报价没有保存询价附件或摘要。</div>
                 )}
               </section>
 
@@ -1191,7 +1191,7 @@ export function QuotationsView() {
                         <th className="border-b border-line px-4 py-3">产品</th>
                         <th className="border-b border-line px-4 py-3 text-right">数量</th>
                         <th className="border-b border-line px-4 py-3 text-right">成本</th>
-                        <th className="border-b border-line px-4 py-3 text-right">单价</th>
+                        <th className="border-b border-line px-4 py-3 text-right">销售单价</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1495,7 +1495,7 @@ export function QuotationsView() {
                         </div>
                       </label>
                       <label className="block text-xs text-muted">
-                        出厂单价
+                        销售单价
                         <input
                           value={Number(item.unitPrice || 0)}
                           onChange={(event) => updateDraftItem(item.id, { unitPrice: Number(event.target.value) })}

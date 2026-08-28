@@ -59,7 +59,7 @@ export function AiAttachmentArchiveController({
         if (active) setLinks(rows);
       })
       .catch((loadError) => {
-        if (active) setError((loadError as Error).message || '读取归档记录失败');
+        if (active) setError((loadError as Error).message || '读取资料关联记录失败');
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -80,7 +80,7 @@ export function AiAttachmentArchiveController({
     } catch (searchError) {
       setTargets([]);
       setTargetId('');
-      setError((searchError as Error).message || '查找归档目标失败');
+      setError((searchError as Error).message || '查找资料关联对象失败');
     } finally {
       setSearching(false);
     }
@@ -89,7 +89,7 @@ export function AiAttachmentArchiveController({
   async function saveArchive() {
     if (!attachment || saving) return;
     if (targetType !== 'knowledge_document' && !Number(targetId)) {
-      setError('请先搜索并选择一个归档目标');
+      setError('请先搜索并选择一个资料关联对象');
       return;
     }
     setSaving(true);
@@ -107,12 +107,12 @@ export function AiAttachmentArchiveController({
       });
       setSuccess(
         result.deduplicated
-          ? `这个文件已经归档到 ${result.link.target?.label || archiveTargetLabel(targetType)}`
-          : `已归档到 ${result.link.target?.label || archiveTargetLabel(targetType)}`
+          ? `这个文件已经关联到 ${result.link.target?.label || archiveTargetLabel(targetType)}`
+          : `已关联到 ${result.link.target?.label || archiveTargetLabel(targetType)}`
       );
       setLinks(await listFactoryFileLinks(attachment.id));
     } catch (saveError) {
-      setError((saveError as Error).message || '归档文件失败');
+      setError((saveError as Error).message || '关联文件失败');
     } finally {
       setSaving(false);
     }

@@ -1385,7 +1385,9 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.doesNotMatch(recipesView, /id="recipe-basic-section"/);
     assert.match(recipeEditor, /保存配方/);
     assert.match(recipeBasicSection, /1\. 泵壳与产品/);
-    assert.match(recipeBasicSection, /配方名称/);
+    assert.match(recipeBasicSection, /成品型号/);
+    assert.match(recipeBasicSection, /配置摘要/);
+    assert.doesNotMatch(recipeBasicSection, /配方名称/);
     assert.match(recipeBasicSection, /泵壳模板/);
     assert.match(recipeCoilSection, /2\. 线圈转子/);
     assert.match(recipeDynamicConfigSection, /3\. 浮球与电缆/);
@@ -1553,7 +1555,7 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     const partsLib = readUtf8('apps/web-next/lib/parts.ts');
 
     assert.match(partsView, /validatePartForm/);
-    assert.match(partsView, /buildPartNotes/);
+    assert.match(partsView, /buildPartRemark/);
     assert.match(partsView, /finalPartModel/);
     assert.match(partsView, /getSettingValue/);
     assert.match(partsView, /partBusinessSettingUpdate/);
@@ -1697,7 +1699,7 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     assert.doesNotMatch(settingsRoute, /coil_material_prices/);
     assert.match(db, /DELETE FROM system_settings WHERE key = \?/);
     assert.match(db, /run\('coil_material_prices'\)/);
-    assert.match(coilsView, /改单价/);
+    assert.match(coilsView, /改定子单片成本/);
     assert.match(coilsView, /saveGroupPrice/);
     assert.match(coilsLib, /updateCoilSpecPrice/);
     assert.match(coilsLib, /\/api\/coils\/spec-price-preview/);
@@ -1793,7 +1795,7 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /packingPartsJson/);
     assert.match(quotationsView, /包装/);
     assert.match(quotationsView, /报价配置/);
-    assert.match(quotationsView, /含税出厂价/);
+    assert.match(quotationsView, /含税销售单价/);
     assert.match(quotationsView, /quotationTaxIncludedFactoryPrice/);
     assert.match(quotationsView, /function PackingHoverSummary/);
     assert.match(quotationsView, /createPortal/);
@@ -1801,8 +1803,8 @@ test('Next UI 契约：报价动态覆盖必须走后端 cost-preview', () => {
     assert.match(quotationsView, /onMouseEnter/);
     assert.match(quotationsView, /onFocus/);
     assert.match(quotationsView, /\{rows\.length\} 项包材/);
-    assert.match(quotationsView, /title="单位成本">单价/);
-    assert.match(quotationsView, /title="产品出厂单价">出厂价/);
+    assert.match(quotationsView, />单位成本<\/th>/);
+    assert.match(quotationsView, />销售单价<\/th>/);
     assert.match(quotationsView, /money\(Number\(item\.unitCost \|\| 0\)\)/);
     assert.match(quotationsView, /money\(Number\(item\.unitPrice \|\| 0\)\)/);
     assert.doesNotMatch(quotationsView, /setDraftItems\(\(current\) => \[\.\.\.current, item\]\)/);
@@ -2157,7 +2159,7 @@ test('Next UI 契约：泵壳模板工作区独立派生列表成本并展示详
     assert.doesNotMatch(recipesView, /const templateRows = useMemo/);
     assert.doesNotMatch(recipesView, /templateDetail|setTemplateDetail/);
     assert.match(templateWorkspace, /const rows = useMemo/);
-    assert.match(templateWorkspace, /Number\(catalogPart\?\.price \|\| 0\) > 0/);
+    assert.match(templateWorkspace, /Number\(catalogPart\?\.catalogUnitCost \|\| 0\) > 0/);
     assert.match(templateWorkspace, /Number\(component\.unitCost \|\| 0\)/);
     assert.match(templateWorkspace, /<SlideOver open=\{Boolean\(detail\)\}/);
     assert.match(templateWorkspace, /onReuse\(row\.template\)/);
@@ -2471,11 +2473,11 @@ test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正
     assert.match(optionalPacking, /isCatalogMissing=\{\(row\) => isCatalogMissing\('packing', row\)\}/);
     assert.match(recipeTable, /零件库未找到 · 新增并选中/);
     assert.match(inlineCreate, /validatePartForm/);
-    assert.match(inlineCreate, /buildPartNotes/);
+    assert.match(inlineCreate, /buildPartRemark/);
     assert.match(inlineCreate, /PACKAGING_SUBCATEGORIES/);
     assert.match(inlineCreate, /seed\?\.categoryScope === 'locked'/);
     assert.match(inlineCreate, /category !== '包装'/);
-    assert.match(inlineCreate, /为了完成当前模板或配方，请输入大于 0 的目录单价/);
+    assert.match(inlineCreate, /为了完成当前模板或配方，请输入大于 0 的目录成本价/);
     assert.match(inlineCreate, /初始库存必须是大于或等于 0 的整数/);
     assert.match(inlineCreate, /保存并选中/);
     assert.match(inlineCreate, /useConfirmDiscard/);
@@ -2515,7 +2517,7 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsView, /defaultWireGauge:\s*draft\.defaultWireGauge/);
     assert.match(coilsView, /defaultCapacitor:\s*draft\.defaultCapacitor/);
     assert.match(coilsView, /disabled=\{Boolean\(editingCoil\)\}/);
-    assert.match(coilsView, /单片价请在定子组合里批量修改/);
+    assert.match(coilsView, /定子单片成本请在定子组合里批量修改/);
     assert.match(coilsView, /定子直径 mm/);
     assert.match(coilsView, /国标眼/);
     assert.match(coilsView, /schemeStatus/);
@@ -2803,7 +2805,7 @@ test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中
 
     assert.match(batchDialog, /await getAllParts\(\)[\s\S]*previewPartBatchCreate/);
     assert.match(batchDialog, /partIdentityKey\(part\) === identityKey\(row\)/);
-    assert.match(batchDialog, /existing\.price !== candidate\.price/);
+    assert.match(batchDialog, /existing\.catalogUnitCost !== candidate\.catalogUnitCost/);
     assert.match(batchDialog, /await confirmPartBatchCreate\(preview\)[\s\S]*await getAllParts\(\)/);
     assert.match(batchDialog, /勿重复提交本批建档/);
     assert.match(batchDialog, /setCommitted\(true\);\s*try \{\s*await confirmPartBatchCreate\(preview\);\s*resetDirty\(\);/);
@@ -2815,8 +2817,8 @@ test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中
     assert.match(batchDialog, /message: '当前集中建档草稿有尚未保存的修改，确定放弃吗？'/);
     assert.match(batchDialog, /title="放弃未保存修改？"/);
     assert.match(batchDialog, /layer="top"/);
-    assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreatePreview>>\('\/api\/parts\/batch-create-preview'/);
-    assert.match(partsClient, /proxyRequest<ApiResponse<PartBatchCreateReceipt>>\('\/api\/parts\/batch-create'/);
+    assert.match(partsClient, /proxyRequest<ApiResponse<Omit<PartBatchCreatePreview,[\s\S]*?>>\('\/api\/parts\/batch-create-preview'/);
+    assert.match(partsClient, /proxyRequest<ApiResponse<Omit<PartBatchCreateReceipt,[\s\S]*?>>\('\/api\/parts\/batch-create'/);
     assert.match(partsClient, /'Idempotency-Key': preview\.suggestedIdempotencyKey/);
     assert.match(recipesView, /setParts\(freshParts\)/);
     assert.match(recipesView, /updateOptionalDraftPart/);

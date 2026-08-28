@@ -219,7 +219,7 @@ function executeFactoryFileBusinessAttachmentUpload(
     if (requestHash(commandInput) !== input.previewHash) {
         throw fileLifecycleError(
             'factory_file_business_attachment_preview_changed',
-            '文件或归档目标已变化，请重新预览后上传',
+            '文件或业务资料关联目标已变化，请重新预览后上传',
             409
         );
     }
@@ -239,7 +239,7 @@ function executeFactoryFileBusinessAttachmentUpload(
                 if (liveTarget.targetUpdatedAt !== target.targetUpdatedAt) {
                     throw fileLifecycleError(
                         'factory_file_archive_target_version_conflict',
-                        '归档目标已变化，请重新预览后上传',
+                        '业务资料关联目标已变化，请重新预览后上传',
                         409
                     );
                 }

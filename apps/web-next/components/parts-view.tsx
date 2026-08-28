@@ -36,14 +36,14 @@ import {
   DEFAULT_STANDARD_CABLE_ACCESSORY_NAME,
   DEFAULT_XINJIE_CABLE_ACCESSORY_NAME,
   buildCableAccessorySettingsValue,
-  buildPartNotes,
+  buildPartRemark,
   finalPartModel,
   isCapacitorCategory,
   modelFieldsFromPart,
   parseCableAccessoryMeta,
   parseFloatAccessoryDelta,
   parsePumpShellMeta,
-  parseScrewPricingMetaFromNotes,
+  parseScrewPricingMetaFromRemark,
   validatePartForm,
   wireOptionsFromParts,
   wirePrefixForCategory,
@@ -86,9 +86,9 @@ type PartFormState = {
   category: string;
   subcategory: string;
   supplier: string;
-  price: string;
+  catalogUnitCost: string;
   stock: string;
-  rawNotes: string;
+  rawRemark: string;
   wireGauge: string;
   capacitorUf: string;
   standardCableAccessoryFee: string;
@@ -117,9 +117,9 @@ const emptyForm: PartFormState = {
   category: '轴承',
   subcategory: '',
   supplier: '',
-  price: '0',
+  catalogUnitCost: '0',
   stock: '0',
-  rawNotes: '',
+  rawRemark: '',
   wireGauge: '',
   capacitorUf: '',
   standardCableAccessoryFee: '',
@@ -167,9 +167,9 @@ function numericText(value: unknown): string {
 
 function formFromPart(part: Part): PartFormState {
   const modelFields = modelFieldsFromPart(part);
-  const cableMeta = parseCableAccessoryMeta(part.notes);
-  const screwMeta = parseScrewPricingMetaFromNotes(part.notes);
-  const pumpShellMeta = parsePumpShellMeta(part.notes);
+  const cableMeta = parseCableAccessoryMeta(part.remark);
+  const screwMeta = parseScrewPricingMetaFromRemark(part.remark);
+  const pumpShellMeta = parsePumpShellMeta(part.remark);
 
   return {
     ...emptyForm,
@@ -177,9 +177,9 @@ function formFromPart(part: Part): PartFormState {
     category: part.category || '轴承',
     subcategory: part.subcategory || '',
     supplier: part.supplier,
-    price: String(part.price),
+    catalogUnitCost: String(part.catalogUnitCost),
     stock: String(part.stock),
-    rawNotes: part.notes || part.remark || '',
+    rawRemark: part.remark,
     wireGauge: modelFields.wireGauge,
     capacitorUf: modelFields.capacitorUf,
     standardCableAccessoryFee: cableMeta.standardFee,
@@ -217,15 +217,15 @@ function resetAfterContinue(form: PartFormState): PartFormState {
   };
 }
 
-function formToInput(form: PartFormState, model: string, notes: string): PartInput {
+function formToInput(form: PartFormState, model: string, remark: string): PartInput {
   return {
     model,
     category: form.category.trim() || '轴承',
     subcategory: form.category === '包装' ? form.subcategory : '',
     supplier: form.supplier.trim(),
-    price: Math.max(0, Number(form.price) || 0),
+    catalogUnitCost: Math.max(0, Number(form.catalogUnitCost) || 0),
     stock: Math.max(0, Number(form.stock) || 0),
-    notes,
+    remark,
   };
 }
 
@@ -396,7 +396,7 @@ export function PartsView({
         stock === quickFilter ||
         (quickFilter === 'attention' && (stock === 'low' || stock === 'out')) ||
         (quickFilter === 'noSupplier' && !part.supplier.trim()) ||
-        (quickFilter === 'noPrice' && part.price <= 0);
+        (quickFilter === 'noPrice' && part.catalogUnitCost <= 0);
       return matchesQuery && matchesCategory && matchesQuick;
     });
   }, [parts, query, category, quickFilter]);
@@ -433,7 +433,7 @@ export function PartsView({
   }, [groupedParts, initialQuery, loading]);
 
   const stats = useMemo(() => {
-    const totalValue = parts.reduce((sum, part) => sum + part.price * part.stock, 0);
+    const totalValue = parts.reduce((sum, part) => sum + part.catalogUnitCost * part.stock, 0);
     const low = parts.filter((part) => partStockStatus(part).status === 'low').length;
     const out = parts.filter((part) => partStockStatus(part).status === 'out').length;
     return { totalValue, low, out };
@@ -473,8 +473,8 @@ export function PartsView({
     setForm((current) => ({ ...current, ...patch }));
   }
 
-  function buildNotesPayload() {
-    const structured = buildPartNotes({
+  function buildRemarkPayload() {
+    const structured = buildPartRemark({
       category: form.category,
       isCableMode,
       isScrewMode,
@@ -497,7 +497,7 @@ export function PartsView({
       screwPricingEnabled: form.screwPricingEnabled,
       screwDiameter: form.screwDiameter,
     });
-    return structured ? JSON.stringify(structured) : form.rawNotes.trim();
+    return structured ? JSON.stringify(structured) : form.rawRemark.trim();
   }
 
   async function persistPart(continueEntry: boolean, finalModel: string) {
@@ -524,7 +524,7 @@ export function PartsView({
       }
 
       const input = {
-        ...formToInput(form, finalModel, buildNotesPayload()),
+        ...formToInput(form, finalModel, buildRemarkPayload()),
         businessSettings,
       };
       await (editingPart ? updatePart(editingPart, input) : createPart(input));
@@ -549,7 +549,7 @@ export function PartsView({
     const errors = validatePartForm({
       category: form.category,
       model: form.model,
-      price: form.price,
+      catalogUnitCost: form.catalogUnitCost,
       supplier: form.supplier,
       isCapacitorMode,
       capacitorUf: form.capacitorUf,
@@ -623,16 +623,16 @@ export function PartsView({
 
   function exportSelectedCsv() {
     if (selectedParts.length === 0) return;
-    const header = ['型号', '分类', '二级分类', '单价', '供应商', '库存', '备注'];
+    const header = ['型号', '分类', '二级分类', '目录成本价', '供应商', '库存', '备注'];
     const escapeCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const rows = selectedParts.map((part) => [
       part.model,
       part.category,
       part.subcategory || '',
-      part.price,
+      part.catalogUnitCost,
       part.supplier,
       part.stock,
-      part.notes || part.remark || '',
+      part.remark,
     ].map(escapeCell).join(','));
     const blob = new Blob(['\uFEFF', [header.map(escapeCell).join(','), ...rows].join('\n')], {
       type: 'text/csv;charset=utf-8;',
@@ -855,7 +855,7 @@ export function PartsView({
                             <th className="border-b border-line px-4 py-2.5">型号</th>
                             <th className="border-b border-line px-4 py-2.5">分类</th>
                             <th className="border-b border-line px-4 py-2.5">供应商</th>
-                            <th className="border-b border-line px-4 py-2.5 text-right">单价</th>
+                            <th className="border-b border-line px-4 py-2.5 text-right">目录成本价</th>
                             <th className="border-b border-line px-4 py-2.5 text-right">库存</th>
                             <th className="border-b border-line px-4 py-2.5">状态</th>
                             <th className="border-b border-line px-4 py-2.5 text-right">操作</th>
@@ -879,7 +879,7 @@ export function PartsView({
                                 </td>
                                 <td className="border-b border-line px-4 py-2.5">{categoryPill(part.category, part.subcategory)}</td>
                                 <td className="border-b border-line px-4 py-2.5 text-muted">{part.supplier || '-'}</td>
-                                <td className="border-b border-line px-4 py-2.5 text-right font-medium text-ink">{money(part.price)}</td>
+                                <td className="border-b border-line px-4 py-2.5 text-right font-medium text-ink">{money(part.catalogUnitCost)}</td>
                                 <td className="border-b border-line px-4 py-2.5 text-right text-muted">{part.stock}</td>
                                 <td className="whitespace-nowrap border-b border-line px-4 py-2.5">
                                   <StatusBadge tone={stock.status === 'out' ? 'red' : stock.status === 'low' ? 'amber' : 'green'}>{stock.label}</StatusBadge>
@@ -1051,10 +1051,10 @@ export function PartsView({
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="单价" required>
+              <Field label="目录成本价" required>
                 <Input
-                  value={form.price}
-                  onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
+                  value={form.catalogUnitCost}
+                  onChange={(event) => setForm((current) => ({ ...current, catalogUnitCost: event.target.value }))}
                   type="number"
                   min="0"
                   step="0.001"
@@ -1119,7 +1119,7 @@ export function PartsView({
                     />
                   </label>
                 </div>
-                {smallHelp('保存电缆零件时会同步更新全局 cable_accessories 设置，配方成本会读取同一口径。')}
+                {smallHelp('保存电缆零件时会同步更新全局电缆铜套配置，配方成本会读取同一口径。')}
               </section>
             ) : null}
 
@@ -1137,7 +1137,7 @@ export function PartsView({
                     className={textInputClass()}
                   />
                 </label>
-                {smallHelp('保存浮球零件时会同步更新全局 float_accessory_delta 设置。')}
+                {smallHelp('保存浮球零件时会同步更新全局新界式浮球附加费。')}
               </section>
             ) : null}
 
@@ -1165,7 +1165,7 @@ export function PartsView({
                     />
                   </label>
                 ) : null}
-                {smallHelp('启用后 notes 会写入 screwPricing，成本引擎可按 6*长度 这类型号自动计算长螺丝单价。')}
+                {smallHelp('启用后会保存长螺丝计价规则，成本引擎可按 6*长度 这类型号自动计算目录成本价。')}
               </section>
             ) : null}
 
@@ -1204,8 +1204,8 @@ export function PartsView({
             {!isCableMode && !isScrewMode && !isPumpShellMode ? (
               <Field label="备注">
                 <Textarea
-                  value={form.rawNotes}
-                  onChange={(event) => setForm((current) => ({ ...current, rawNotes: event.target.value }))}
+                  value={form.rawRemark}
+                  onChange={(event) => setForm((current) => ({ ...current, rawRemark: event.target.value }))}
                   rows={4}
                   className="resize-none"
                   placeholder="供应说明或临时备注"

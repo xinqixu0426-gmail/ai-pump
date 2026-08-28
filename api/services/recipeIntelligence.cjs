@@ -173,7 +173,7 @@ function resolveRecipe(input, recipes) {
     const matches = recipes.filter(recipe => normalize(recipe.name).includes(requestedName));
     if (matches.length === 1) return matches[0];
     if (matches.length > 1) {
-        throw inputError(`配方名称不明确，请从以下名称中选择：${matches.slice(0, 8).map(recipe => recipe.name).join('、')}`);
+        throw inputError(`成品型号不明确，请从以下型号中选择：${matches.slice(0, 8).map(recipe => recipe.name).join('、')}`);
     }
     throw inputError(`未找到配方：${input.recipeName}`);
 }
@@ -534,7 +534,7 @@ function analyzeRecipeConfiguration(input = {}, options = {}) {
     const catalogParts = options.parts || getDb().dbGetAllParts();
     const target = resolveRecipe(input, recipes);
     const targetParts = recipeParts(target);
-    if (!targetParts) throw inputError('目标配方 partsJson 解析失败');
+    if (!targetParts) throw inputError('目标配方 BOM 快照解析失败');
 
     const targetId = recipeId(target);
     const similar = recipes

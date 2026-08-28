@@ -350,7 +350,7 @@ function createCostQueries({
             throw new CostQueryError(
                 Number.isInteger(selectorId) && selectorId > 0
                     ? `未找到配方ID ${selectorId}`
-                    : `未找到名称包含“${selectorName}”的配方；泵壳模板名不能作为配方名称`,
+                    : `未找到成品型号包含“${selectorName}”的配方；泵壳模板名不能作为成品型号`,
                 404,
                 'FULL_ESTIMATE_RECIPE_NOT_FOUND',
                 { recipeId: Number.isInteger(selectorId) && selectorId > 0 ? selectorId : null, recipeName: selectorName || null }
@@ -358,7 +358,7 @@ function createCostQueries({
         }
         if (candidates.length > 1) {
             throw new CostQueryError(
-                `配方名称“${selectorName}”匹配到 ${candidates.length} 条记录，请改用 recipeId 或完整名称`,
+                `成品型号“${selectorName}”匹配到 ${candidates.length} 条记录，请改用 recipeId 或完整型号`,
                 409,
                 'FULL_ESTIMATE_RECIPE_AMBIGUOUS',
                 {

@@ -285,7 +285,7 @@ test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
             () => fixture.queries.calculateFullEstimate({ recipeName: 'V750-大脚板-2寸' }),
             error => error.code === 'FULL_ESTIMATE_RECIPE_NOT_FOUND'
                 && error.statusCode === 404
-                && /泵壳模板名不能作为配方名称/.test(error.message)
+                && /泵壳模板名不能作为成品型号/.test(error.message)
         );
     } finally {
         fixture.db.close();

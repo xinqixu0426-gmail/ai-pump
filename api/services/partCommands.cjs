@@ -485,7 +485,7 @@ function normalizeUpdateInput(dependencies, input, current) {
         subcategory: input.subcategory ?? current.subcategory,
         model: input.model ?? current.model,
         supplier: input.supplier ?? current.supplier,
-        notes: input.notes ?? input.remark ?? current.remark,
+        remark: input.remark ?? input.notes ?? current.remark,
     });
     return {
         ...(input.model === undefined ? {} : { model: normalizePartModel(fields.model) }),

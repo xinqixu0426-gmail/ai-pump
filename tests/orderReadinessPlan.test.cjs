@@ -105,7 +105,7 @@ test('订单处理方案：按采购阶段区分下单、到货和入库责任',
 test('订单处理方案：价格风险要求补充业务决定，不擅自修改售价', () => {
     const result = buildOrderReadinessPlan(readiness({
         verdict: 'needs_review',
-        warnings: [{ code: 'price_below_cost', title: 'V750 出厂价低于成本' }],
+        warnings: [{ code: 'price_below_cost', title: 'V750 销售单价低于成本' }],
     }), { now });
 
     assert.equal(result.steps.length, 1);

@@ -84,9 +84,9 @@ function addReference(refs: TechnicalReferenceField[], id: string, label: string
 export function findShellMetaForTemplate(template: PumpShellTemplate | null | undefined, parts: Part[]): PumpShellMeta | null {
   if (!template) return null;
   const shellPart = findShellPartForTemplate(template.shellModel, parts);
-  if (!shellPart?.notes) return null;
+  if (!shellPart?.remark) return null;
   try {
-    const parsed = JSON.parse(shellPart.notes);
+    const parsed = JSON.parse(shellPart.remark);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as PumpShellMeta : null;
   } catch {
     return null;

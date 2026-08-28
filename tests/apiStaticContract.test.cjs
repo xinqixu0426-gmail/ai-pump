@@ -1499,7 +1499,7 @@ test('API 静态契约：V7.1 管理事项生命周期后台追踪且查看接�
     assert.doesNotMatch(workbench, /safeInsert|safeUpdate|softDelete|hardDelete/);
     assert.match(api, /startManagementActionLifecycleMonitor\(\)/);
     assert.match(dashboard, /occurrenceCount/);
-    assert.match(dashboard, /自动归档记录/);
+    assert.match(dashboard, /自动解决记录/);
 });
 
 test('API 静态契约：V7.2 今日执行队列可解释排序且保持只读', () => {
@@ -1563,7 +1563,7 @@ test('API 静态契约：V7.4 业务写入后自动复查并统一汇总处理�
     assert.match(tools, /自动归档/);
     assert.match(prompt, /progress\.resolvedItems/);
     assert.match(dashboard, /自动复查进展/);
-    assert.match(dashboard, /自动归档记录/);
+    assert.match(dashboard, /自动解决记录/);
 });
 
 test('API 静态契约：V8.2 报价转单只复用确认、事务接口和实时复查', () => {
@@ -2005,8 +2005,8 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     assert.match(fileLib, /deleteFactoryFileLink/);
     assert.match(aiView, /AiAttachmentArchiveController/);
     assert.match(aiAttachmentArchive, /AttachmentArchiveDialog/);
-    assert.match(aiDialogs, /归档附件/);
-    assert.match(aiDialogs, /已有归档/);
+    assert.match(aiDialogs, /关联业务资料/);
+    assert.match(aiDialogs, /已有关联/);
     assert.match(attachmentPanel, /source: 'business_page'/);
     assert.match(attachmentPanel, /uploadBusinessAttachment/);
     assert.doesNotMatch(attachmentPanel, /uploadFactoryFile|archiveFactoryFile/);

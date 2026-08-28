@@ -233,7 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen min-w-0">
       <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-line bg-white lg:flex">
         <div className="border-b border-line px-5 py-5">
-          <div className="text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
+          <div className="text-sm font-semibold text-ink">水泵工厂管理系统</div>
           <div className="mt-0.5 text-xs text-muted">生产管理系统</div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{navigation}</div>
@@ -249,7 +249,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileNavOpen(true)}
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
+            <div className="truncate text-sm font-semibold text-ink">水泵工厂管理系统</div>
             <div className="truncate text-[11px] text-muted">生产管理系统</div>
           </div>
         </header>
@@ -264,7 +264,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex h-16 items-center justify-between border-b border-line px-4">
             <div>
-              <div className="text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
+              <div className="text-sm font-semibold text-ink">水泵工厂管理系统</div>
               <div className="text-xs text-muted">全部业务入口</div>
             </div>
             <Button

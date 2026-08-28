@@ -181,7 +181,7 @@ function buildOrderReadinessPlan(readiness = {}, options = {}) {
         steps.push(createStep('review_order_cost_price', {
             category: 'cost',
             reason: findingTitles(warnings, costCodes).join('；'),
-            expectedResult: '订单锁定成本和出厂价经过业务确认；需要调整时再明确目标价格。',
+            expectedResult: '订单锁定成本和销售单价经过业务确认；需要调整时再明确目标价格。',
             priority: 'review',
             mode: 'needs_input',
             status: 'needs_input',

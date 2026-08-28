@@ -47,7 +47,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-md bg-ink text-white">
             <Lock size={22} aria-hidden="true" />
           </div>
-          <h1 className="text-xl font-semibold text-ink">水泵管理系统</h1>
+          <h1 className="text-xl font-semibold text-ink">水泵工厂管理系统</h1>
           <p className="mt-1 text-sm text-muted">请输入访问密码</p>
         </div>
 

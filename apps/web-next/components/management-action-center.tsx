@@ -134,7 +134,7 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
           <div className="mt-1 text-xs leading-5 text-muted">{center.summary}</div>
           {progress ? (
             <div className="mt-1 text-xs leading-5 text-muted">
-              自动复查进展：最近 {progress.windowHours} 小时归档 {progress.resolvedCount} 项，当前仍待处理 {progress.unresolvedCount} 项。
+              自动复查进展：最近 {progress.windowHours} 小时已解决 {progress.resolvedCount} 项，当前仍待处理 {progress.unresolvedCount} 项。
             </div>
           ) : null}
         </div>
@@ -143,7 +143,7 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
             <StatusBadge key={item.label} tone={item.tone}>{item.label} {item.value}</StatusBadge>
           ))}
           {progress && progress.resolvedCount > 0 ? (
-            <StatusBadge tone="green">近 {progress.windowHours} 小时归档 {progress.resolvedCount}</StatusBadge>
+            <StatusBadge tone="green">近 {progress.windowHours} 小时已解决 {progress.resolvedCount}</StatusBadge>
           ) : null}
           {progress && progress.recurringCount > 0 ? (
             <StatusBadge tone="orange">反复出现 {progress.recurringCount}</StatusBadge>
@@ -306,7 +306,7 @@ export function ManagementActionCenterView({ center, loading, error }: Props) {
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <History size={16} />
-              自动归档记录
+              自动解决记录
             </div>
             <div className="text-xs text-muted">
               {progress

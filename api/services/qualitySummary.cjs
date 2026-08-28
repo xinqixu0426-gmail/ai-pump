@@ -89,7 +89,7 @@ function buildDataQualitySummary(options = {}) {
 
     const missingPriceParts = parts
         .filter(part => Number(part.price || 0) <= 0)
-        .map(part => row('part', part.id, part.model || `零件 #${part.id}`, '零件价格为 0 或未填写，会影响成本和报价。', '/parts', { category: part.category, supplier: part.supplier }));
+        .map(part => row('part', part.id, part.model || `零件 #${part.id}`, '目录成本价为 0 或未填写，会影响成本和报价。', '/parts', { category: part.category, supplier: part.supplier }));
 
     const missingSupplierParts = parts
         .filter(part => isMissingSupplier(part.supplier))
@@ -107,7 +107,7 @@ function buildDataQualitySummary(options = {}) {
     for (const recipe of recipes) {
         const partsJson = parseJsonArray(recipe.partsJson);
         if (!partsJson) {
-            recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, 'partsJson 解析失败，无法可靠计算 BOM。', '/recipes', { reason: 'bad_parts_json' }));
+            recipeIssues.push(row('recipe', recipe.id, recipe.name || `配方 #${recipe.id}`, 'BOM 快照解析失败，无法可靠计算成本。', '/recipes', { reason: 'bad_parts_json' }));
             continue;
         }
         if (partsJson.length === 0) {
@@ -159,7 +159,7 @@ function buildDataQualitySummary(options = {}) {
 
     const variantIssues = variants
         .filter(variant => variant.templateId && !templateIdSet.has(Number(variant.templateId)))
-        .map(variant => row('variant', variant.id, variant.modelName || `型号变体 #${variant.id}`, '型号变体引用的模板不存在。', '/recipes', { templateId: variant.templateId }));
+        .map(variant => row('variant', variant.id, variant.modelName || `常用配置预设 #${variant.id}`, '常用配置预设引用的模板不存在。', '/recipes', { templateId: variant.templateId }));
 
     const coilIssues = [];
     for (const coil of coils) {
@@ -183,13 +183,13 @@ function buildDataQualitySummary(options = {}) {
         .map(quotation => row('quotation', quotation.id, `报价 #${quotation.id}`, '报价总成本或总价为 0，历史报价参考价值较低。', '/quotations', { totalCost: quotation.totalCost, totalPrice: quotation.totalPrice }));
 
     const issues = [
-        issue('missing_price_parts', '零件缺少价格', 'danger', missingPriceParts, '补齐零件单价，避免成本和报价失真。'),
+        issue('missing_price_parts', '零件缺少目录成本价', 'danger', missingPriceParts, '补齐零件目录成本价，避免成本和报价失真。'),
         issue('missing_supplier_parts', '零件缺少供应商', 'warning', missingSupplierParts, '补齐供应商，采购计划才能稳定分组。'),
         issue('out_of_stock_parts', '零件库存为 0', 'warning', outOfStockParts, '优先处理常用件库存，避免生产计划中断。'),
         issue('duplicate_parts', '同分类重复零件', 'warning', duplicateParts, '合并重复型号或明确供应商差异，避免 AI 取价歧义。'),
         issue('recipe_integrity', '配方完整性问题', 'danger', recipeIssues, '修复 BOM、保存成本、模板和线圈引用。'),
         issue('template_integrity', '泵壳模板问题', 'danger', templateIssues, '整体报价模板需引用零件库泵壳；自由组合模板需为每个计入组件绑定真实零件。'),
-        issue('variant_integrity', '型号变体问题', 'warning', variantIssues, '修正型号变体的模板引用。'),
+        issue('variant_integrity', '常用配置预设问题', 'warning', variantIssues, '修正常用配置预设的模板引用。'),
         issue('coil_defaults', '线圈默认参数缺失', 'warning', coilIssues, '补齐线圈成本、电容和线径，提升自动联动质量。'),
         issue('customer_defaults', '客户默认利润率缺失', 'info', customerIssues, '给常用客户设置默认利润率，报价更稳定。'),
         issue('quotation_integrity', '历史报价金额异常', 'warning', quotationIssues, '修正总成本或总价为 0 的报价。'),

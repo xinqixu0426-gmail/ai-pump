@@ -91,6 +91,7 @@
 
 ## 数据治理
 
+- `parts.remark` 是零件目录备注的唯一数据库事实；HTTP 兼容期可同时返回旧别名 `notes`，Web 只使用 `remark`。BOM JSON 行中的 `notes` 是保存时生成的快照说明，与零件目录备注不是同一字段，不能互相覆盖。
 - `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
 - `system_settings.stainless_shaft_joint_default_cost` 保存报价和订单启用不锈钢接轴时的默认加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。该配置不新增表或迁移，不写入模板、配方或线圈基础成本；最终采用值冻结在报价/订单 JSON 快照中。
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
@@ -119,7 +120,7 @@
 - `factory_file_links` 保存文件与客户、报价、订单、配方、配方检查反馈、AI 回答反馈或知识资料的逻辑关联。订单客户原始资料使用 `customer_requirement`，现场图片、质量记录和交付凭证使用 `execution_evidence`。业务目标由归档服务按固定类型查询校验，不使用动态表名；同一有效文件、目标和关系角色唯一，解除关联使用 `deleted_at`，被有效关联的文件不能直接删除。归档到知识库时只创建或复用 `knowledge_documents` 引用，不复制 `file_blob`。
 - `order_requirement_summaries` 对每张订单只保存一条当前记录。`draft_text/source_file_ids_json` 是可反复修改的工作草稿，`confirmed_text/confirmed_source_file_ids_json/confirmed_at` 是最后一次人工确认版本；知识同步只读取确认版本。确认后继续编辑草稿时，旧确认版本保持可检索，直到重新确认或明确撤销。
 - `quotation_attachment_summaries` 对每张报价最多保存一条在新建报价表单中经人工核对的询价摘要。`source_file_ids_json` 只能引用本次报价保存的 `quotation_source` 附件且最多 4 个；摘要与报价、附件关联、持久化 operation 和强审计在 `quotations.create` 同一事务提交。建单后仅通过正式 Query 只读查看，不提供独立上传或编辑入口，也不自动进入知识库。
-- `quotations.items_json` 的明细数量在报价阶段允许为 `null`；此时明细仍保存单位成本、出厂单价、BOM 和成本快照，但报价顶层 `total_cost/total_price` 同样为 `NULL`，表示总金额尚未形成而不是 0 元。客户确认后，最终数量在报价转订单预览和命令中提交并绑定预览哈希，不回写原报价的单价快照。
+- `quotations.items_json` 的明细数量在报价阶段允许为 `null`；此时明细仍保存单位成本、销售单价、BOM 和成本快照，但报价顶层 `total_cost/total_price` 同样为 `NULL`，表示总金额尚未形成而不是 0 元。客户确认后，最终数量在报价转订单预览和命令中提交并绑定预览哈希，不回写原报价的单价快照。
 - `order_execution_records` 对同一订单保存多条时间线事实。当前 `phase/record_type/title/draft_text/occurred_at/source_file_ids_json` 与 `confirmed_*` 快照独立；知识同步只读取未删除且 `confirmed_text` 非空的记录。已确认记录必须先撤销确认才能软删除。
 - `runtime_settings` 只保存系统初始化页白名单内的 AI 与知识检索运行参数，不参与工厂知识同步；API Key 通过 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密，接口不返回原文或密文。
 - 文件上传必须在写库前完成大小、文件名、允许扩展名、真实内容签名和 UTF-8/Excel 结构检查；只有 `parser_status=parsed` 的 PDF 文字层或 OCR 文字可以进入 AI 上下文。OCR 无可靠文字时保存为 `metadata_only + ocrApplied=true`，不得推断原图参数。

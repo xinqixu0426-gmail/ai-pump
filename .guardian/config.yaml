@@ -26,7 +26,7 @@ workflow:
     - "docs"
 
 project:
-  name: "水泵 BOM 订单及生产管理系统"
+  name: "水泵工厂管理系统"
   sourceRoots:
     - "api"
     - "apps/web-next"

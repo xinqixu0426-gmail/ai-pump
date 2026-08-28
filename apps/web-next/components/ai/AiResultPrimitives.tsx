@@ -201,7 +201,7 @@ export function pickMetrics(source: Record<string, unknown>) {
   const candidates: Array<[string, unknown, 'money' | 'number' | 'text' | 'percent']> = [
     ['总成本', source.totalCost ?? source.savedTotalCost ?? source.cost, 'money'],
     ['单位成本', source.unitCost, 'money'],
-    ['出厂价', source.unitPrice ?? source.totalPrice, 'money'],
+    ['销售单价', source.unitPrice ?? source.totalPrice, 'money'],
     ['利润', source.totalProfit ?? source.profit, 'money'],
     ['利润率', source.profitMargin ?? source.margin, 'percent'],
     ['数量', source.count ?? source.qty ?? source.quantity, 'number'],

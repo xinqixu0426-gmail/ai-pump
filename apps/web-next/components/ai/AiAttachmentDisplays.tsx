@@ -52,8 +52,8 @@ export function AiMessageAttachments({
               size="sm"
               className={`h-8 w-8 px-0 ${role === 'user' ? 'md:text-slate-200 md:hover:bg-white/10 md:hover:text-white' : ''}`}
               icon={<Archive size={14} />}
-              aria-label={`归档 ${attachment.originalName}`}
-              title="归档到业务资料"
+              aria-label={`关联 ${attachment.originalName} 到业务资料`}
+              title="关联到业务资料"
               onClick={() => onArchive(attachment)}
             />
           </span>

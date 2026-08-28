@@ -77,7 +77,7 @@ router.patch('/:id', (req, res) => {
         if (!id) {
             return res.status(400).json({
                 success: false,
-                error: '非法型号变体ID',
+                error: '非法常用配置预设编号',
             });
         }
         const result = executeModelVariantUpdate(
@@ -105,7 +105,7 @@ router.delete('/:id', (req, res) => {
         if (!id) {
             return res.status(400).json({
                 success: false,
-                error: '非法型号变体ID',
+                error: '非法常用配置预设编号',
             });
         }
         const result = executeModelVariantDelete(

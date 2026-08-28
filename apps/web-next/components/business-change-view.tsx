@@ -17,7 +17,7 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 
 const domainLabels: Record<BusinessChangeDomain, string> = {
   order: '订单', quotation: '报价', purchasing: '采购', part: '零件', recipe: '配方', template: '泵壳模板', coil: '线圈', customer: '客户',
-  model_variant: '型号变体', quality: '质量规则', rotor: '转子档案', settings: '业务设置', file: '文件资料', knowledge: '知识资料', workflow: '业务工作流',
+  model_variant: '常用配置预设', quality: '质量规则', rotor: '转子档案', settings: '业务设置', file: '文件资料', knowledge: '知识资料', workflow: '业务工作流',
 };
 
 const eventMeta: Record<BusinessChangeEventType, { label: string; tone: StatusBadgeTone }> = {

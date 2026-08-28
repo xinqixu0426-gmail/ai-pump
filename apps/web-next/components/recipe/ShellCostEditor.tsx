@@ -92,7 +92,7 @@ type ShellCostEditorProps = {
   onCreateCatalogPart: (input: {
     model: string;
     supplier: string;
-    price: number;
+    catalogUnitCost: number;
   }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
   onBundleCostChange: (value: string) => void;
   onBundleNoteChange: (value: string) => void;
@@ -105,7 +105,7 @@ export type ShellComponentCatalogPart = {
   id: number;
   model: string;
   supplier: string;
-  price: number;
+  catalogUnitCost: number;
 };
 
 function normalizedCatalogText(value: string | undefined) {
@@ -174,15 +174,15 @@ export function ShellCostEditor({
   async function createCatalogPart(row: ShellComponentFormRow) {
     const model = String(row.model || '').trim();
     const supplier = String(row.supplier || '').trim();
-    const price = Number(row.unitCost || 0);
+    const catalogUnitCost = Number(row.unitCost || 0);
     setCatalogSavingRowId(row.id);
     setCatalogNotice(row.id, null);
     try {
-      const result = await onCreateCatalogPart({ model, supplier, price });
+      const result = await onCreateCatalogPart({ model, supplier, catalogUnitCost });
       updateComponentRow(row.id, {
         model: result.part.model,
         supplier: result.part.supplier,
-        unitCost: result.part.price,
+        unitCost: result.part.catalogUnitCost,
       });
       setCatalogNotice(row.id, {
         tone: 'success',
@@ -231,7 +231,7 @@ export function ShellCostEditor({
       }
       if (patch.supplier !== undefined && patch.model === undefined && patch.unitCost === undefined) {
         const exact = findCatalogPart(catalogParts, String(next.model || ''), String(patch.supplier || ''));
-        next.unitCost = exact ? Number(exact.price || 0) : 0;
+        next.unitCost = exact ? Number(exact.catalogUnitCost || 0) : 0;
       }
       if (patch.name !== undefined) {
         if (row.componentType === 'subassembly') return next;
@@ -635,7 +635,7 @@ export function ShellCostEditor({
           ) : null}
           {componentRows.length > 0 ? (
             <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-muted">
-              单件和小套件型号只检索“泵壳搭配”类别。可以直接输入新型号、供应商和正数单价，再存入零件库（初始库存为 0）；选择已有型号会带入目录价。小套件组成项的参考单价仅作查询和比较，不重复计价或扣库存；不锈钢拉伸筒按型号变体中的机筒长度计价。
+              单件和小套件型号只检索“泵壳搭配”类别。可以直接输入新型号、供应商和正数单价，再存入零件库（初始库存为 0）；选择已有型号会带入目录价。小套件组成项的参考单价仅作查询和比较，不重复计价或扣库存；不锈钢拉伸筒按常用配置预设中的机筒长度计价。
             </div>
           ) : null}
         </div>

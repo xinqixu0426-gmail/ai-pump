@@ -187,7 +187,7 @@ export async function uploadBusinessAttachment(
     }
   );
   if (!result.success || !result.data) {
-    throw new Error(result.error || '上传并归档业务附件失败');
+    throw new Error(result.error || '上传并关联业务附件失败');
   }
   const status = result.data.status || result.data.operationStatus;
   if (status !== 'completed'
@@ -230,13 +230,13 @@ export async function searchFactoryFileArchiveTargets(
   const result = await proxyRequest<ApiResponse<FactoryFileArchiveTarget[]>>(
     `/api/files/archive-targets?${params.toString()}`
   );
-  if (!result.success || !result.data) throw new Error(result.error || '读取归档目标失败');
+  if (!result.success || !result.data) throw new Error(result.error || '读取资料关联对象失败');
   return result.data;
 }
 
 export async function listFactoryFileLinks(id: number): Promise<FactoryFileLink[]> {
   const result = await proxyRequest<ApiResponse<FactoryFileLink[]>>(`/api/files/${id}/links`);
-  if (!result.success || !result.data) throw new Error(result.error || '读取文件归档记录失败');
+  if (!result.success || !result.data) throw new Error(result.error || '读取文件关联记录失败');
   return result.data;
 }
 
@@ -265,7 +265,7 @@ export async function archiveFactoryFile(
     }
   );
   if (!preview.success || !preview.data) {
-    throw new Error(preview.error || '归档文件预览失败');
+    throw new Error(preview.error || '生成文件关联预览失败');
   }
   const result = await proxyRequest<ApiResponse<ArchiveFactoryFileResult>>(`/api/files/${id}/archive`, {
     method: 'POST',
@@ -276,7 +276,7 @@ export async function archiveFactoryFile(
       confirmationToken: preview.data.confirmationToken,
     }),
   });
-  if (!result.success || !result.data) throw new Error(result.error || '归档文件失败');
+  if (!result.success || !result.data) throw new Error(result.error || '关联文件失败');
   return result.data;
 }
 

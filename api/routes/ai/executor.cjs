@@ -85,7 +85,7 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '型号', args.model);
             addRow(rows, '类别', args.category);
             addRow(rows, '供应商', args.supplier);
-            addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
+            addRow(rows, '目录成本价', args.price, hasValue(args.price) ? ' 元' : '');
             addRow(rows, '库存', args.stock);
             break;
         case 'update_part':
@@ -93,7 +93,7 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '类别', args.category);
             addRow(rows, '二级分类', args.subcategory);
             addRow(rows, '供应商', args.supplier);
-            addRow(rows, '单价', args.price, hasValue(args.price) ? ' 元' : '');
+            addRow(rows, '目录成本价', args.price, hasValue(args.price) ? ' 元' : '');
             break;
         case 'batch_create_parts':
             addRow(rows, '新增数量', Array.isArray(args.parts) ? args.parts.length : 0);
@@ -178,20 +178,20 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '订单ID', args.orderId);
             addRow(rows, '配方', args.recipeName);
             addRow(rows, '数量', args.qty);
-            addRow(rows, '出厂价', args.unitPrice, hasValue(args.unitPrice) ? ' 元' : '');
+            addRow(rows, '销售单价', args.unitPrice, hasValue(args.unitPrice) ? ' 元' : '');
             addRow(rows, '利润率', args.profitMargin);
             addRow(rows, '修改原因', args.reason);
             break;
         case 'create_recipe':
-            addRow(rows, '配方名称', args.name);
-            addRow(rows, '规格', args.spec);
+            addRow(rows, '成品型号', args.name);
+            addRow(rows, '配置摘要', args.spec);
             addRow(rows, '零件', previewItems(args.parts, 'model'));
             break;
         case 'update_recipe':
-            addRow(rows, '配方名称', args.recipeName);
-            addRow(rows, '新名称', args.newName);
-            addRow(rows, '新规格', args.newSpec);
-            addRow(rows, '清空规格', args.clearSpec === true ? '是' : '');
+            addRow(rows, '当前成品型号', args.recipeName);
+            addRow(rows, '新成品型号', args.newName);
+            addRow(rows, '新配置摘要', args.newSpec);
+            addRow(rows, '清空配置摘要', args.clearSpec === true ? '是' : '');
             addRow(rows, '添加零件', previewItems(args.addParts, 'model'));
             addRow(rows, '移除零件', Array.isArray(args.removeParts) ? args.removeParts.join('，') : '');
             addRow(rows, '修改数量', previewItems(args.updateParts, 'model'));
@@ -210,8 +210,8 @@ function buildConfirmationRows(toolName, args = {}) {
                 knowledge_document: '知识库资料',
             };
             addRow(rows, '文件ID', args.fileId);
-            addRow(rows, '归档到', targetLabels[args.targetType] || args.targetType);
-            addRow(rows, '业务对象ID', args.targetId);
+            addRow(rows, '关联到业务资料', targetLabels[args.targetType] || args.targetType);
+            addRow(rows, '业务对象编号', args.targetId);
             addRow(rows, '标题', args.title);
             addRow(rows, '资料类型', args.documentType);
             addRow(rows, '说明', args.note);

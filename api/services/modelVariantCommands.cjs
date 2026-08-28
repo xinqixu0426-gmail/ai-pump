@@ -167,7 +167,7 @@ function getActiveModelVariant(db, modelVariantId) {
     if (!row) {
         throw modelVariantCommandError(
             'model_variant_not_found',
-            '型号变体不存在',
+            '常用配置预设不存在',
             404
         );
     }
@@ -340,7 +340,7 @@ function executeModelVariantUpdate(
     if (!modelVariantId) {
         throw modelVariantCommandError(
             'model_variant_id_invalid',
-            '非法型号变体ID',
+            '非法常用配置预设编号',
             400
         );
     }
@@ -434,7 +434,7 @@ function executeModelVariantDelete(
     if (!modelVariantId) {
         throw modelVariantCommandError(
             'model_variant_id_invalid',
-            '非法型号变体ID',
+            '非法常用配置预设编号',
             400
         );
     }

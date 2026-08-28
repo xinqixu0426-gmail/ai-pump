@@ -171,7 +171,7 @@ function buildQuotationSavePayloadDraft(dependencies, body = {}) {
         }],
         warnings: quantitiesConfirmed ? [] : [{
             code: 'quotation_quantity_pending',
-            message: '客户数量尚未确认，报价仅保存单位成本和出厂单价，不生成总金额',
+            message: '客户数量尚未确认，报价仅保存单位成本和销售单价，不生成总金额',
         }],
     };
 }

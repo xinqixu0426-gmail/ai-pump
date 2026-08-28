@@ -119,7 +119,7 @@ function buildFactoryFileArchivePreview(
         warnings: inspection.action === 'deduplicated'
             ? [{
                 code: 'file_link_already_exists',
-                message: '该文件已经按相同角色归档到目标，执行不会重复创建记录',
+                message: '该文件已经按相同角色关联到目标，执行不会重复创建记录',
             }]
             : [],
     };
@@ -164,7 +164,7 @@ function executeConfirmedFactoryFileArchive(
             if (currentHash !== confirmation.input.previewHash) {
                 throw factoryFileCommandError(
                     'factory_file_archive_preview_stale',
-                    '文件、归档目标或现有关联在预览后已变化，请重新预览',
+                    '文件、业务资料关联目标或现有关联在预览后已变化，请重新预览',
                     409
                 );
             }

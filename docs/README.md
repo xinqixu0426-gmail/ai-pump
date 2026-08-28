@@ -1,4 +1,4 @@
-# 水泵 BOM 订单及生产管理系统
+# 水泵工厂管理系统
 
 > 当前版本说明，更新于 2026-08-23。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
 
@@ -36,10 +36,29 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 - 泵壳模板、产品配方、客户可选配置范围和历史常用配置预设；
 - 客户、报价、订单、采购清单和生产待办；
 - 新建报价前上传客户询价附件，并用图片、Word、Excel、PDF 多模态模型归纳报价要求；
-- 转子参数、自动出图、历史归档和打印；
+- 转子参数、自动出图、出图历史记录和打印；
 - AI 查询及受控写操作。
 
 核心目标是让配方成本、报价、订单和采购都引用同一套基础数据，减少重复录入和口径差异。
+
+### 1.1 业务术语与命名边界
+
+用户界面、应用层领域对象和稳定技术标识按以下口径区分。界面优先使用工厂业务语言；历史 API 路径、数据库字段和运行标识仅在兼容边界保留，不能反向决定页面文案。
+
+| 业务对象 | 用户界面 | 应用层领域名 | 稳定兼容标识 |
+|---|---|---|---|
+| 产品 | 水泵工厂管理系统；简称“水泵工厂” | `pump-factory-*` package metadata | Mac Mini 路径和 `com.pumpfactory.*` daemon 不改名 |
+| 配方主标识 | 成品型号 | 表单和局部变量按成品型号理解 | 配方 API/SQLite 继续使用 `name` |
+| 配方补充信息 | 配置摘要 | 表单和局部变量按配置摘要理解 | 配方 API/SQLite 继续使用 `spec` |
+| 历史型号变体 | 常用配置预设；字段为“预设名称” | 配方页面使用预设语义 | `/api/model-variants`、`modelVariantId/modelName` 和 capability ID 保持兼容 |
+| 零件价格 | 目录成本价 | Web 零件对象使用 `catalogUnitCost` | API/SQLite 继续使用 `price` |
+| 线圈价格 | 定子单片成本、线圈套成本 | 页面按成本组成解释 | API/SQLite 继续使用 `unitPrice/cost`、`unit_price/cost` |
+| 报价/订单价格 | 销售单价 | 报价和订单域的 `unitPrice` | API 字段保持 `unitPrice` |
+| 配方物料 | BOM 快照、选配件 | 解析后局部变量使用 BOM 语义 | `partsJson/extraPartsJson` 是稳定持久化兼容字段 |
+| 零件说明 | 备注 | 零件目录对象只暴露 `remark` | API 暂时兼容 `notes`；BOM 行 `notes` 是独立快照说明 |
+| 文件与任务动作 | 文件“关联到业务资料”；任务“已解决/已关闭” | 按对象区分动作 | `files.archive` 等稳定技术标识暂不改名 |
+
+新增命名必须先确定业务含义，再选择代码名。`draft` 只表示可继续编辑或持久化的草稿，`preview` 表示确定性只读试算；现有路径在完成调用方迁移和兼容周期前不因文案优化而重命名。
 
 ## 2. 业务流程
 
@@ -112,7 +131,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 组合包材按完整有效清单保存：外包装在纸箱/木箱中选择，泡沫和珍珠棉独立启用，说明书、贴纸等固定包材继续沿用。
 - 报价界面使用利润率百分比（如 10%），保存及价格计算仍兼容历史加价倍数（如 1.10）。
 - 新建报价表单通过默认收起、可展开为右侧辅助面板的“询价助手”上传图片、Word、Excel、PDF、CSV 和文本附件；多模态模型可生成单文件或最多 4 个来源的联合要求摘要，并独立展示待确认事项，主报价表单保持可操作。创建报价时原件和摘要一并归档，不自动修改正式报价字段。
-- 报价保存前通过 `POST /api/quotations/save-payload-draft` 由后端重新试算，统一生成含完整 BOM/成本快照的 `itemsJson`、单位成本、出厂单价、`previewHash` 和建议幂等键。报价阶段数量可空；数量未全部确认时 `totalCost/totalPrice` 保持 `null`，页面只展示单价并标记总金额待定，不会默认按 1 台计价。新增/修改必须复用该预览，服务端保存时再次调用正式成本逻辑，不信任浏览器提交的成本和合计金额。
+- 报价保存前通过 `POST /api/quotations/save-payload-draft` 由后端重新试算，统一生成含完整 BOM/成本快照的 `itemsJson`、单位成本、销售单价、`previewHash` 和建议幂等键。报价阶段数量可空；数量未全部确认时 `totalCost/totalPrice` 保持 `null`，页面只展示单价并标记总金额待定，不会默认按 1 台计价。新增/修改必须复用该预览，服务端保存时再次调用正式成本逻辑，不信任浏览器提交的成本和合计金额。
 - 报价按 `草稿 → 报价中 → 已接受 → 已转订单` 流转；已拒绝、已转订单和已过时为终态，只有已接受报价可以通过事务接口转单。
 - 报价列表由正式只读能力 `GET /api/quotations?status?&customerName?&limit?` 持有筛选语义；页面和 AI 需要某一状态时直接传状态条件，不读取全部报价后自行归类。
 - 新建报价时上传的客户询价附件、人工核对后的 AI 摘要和最多 4 个摘要来源会进入同一个保存预览哈希，并与报价及强审计同事务归档；报价详情通过 `GET /api/quotations/:id/inquiry-summary` 只读查看，不在建单后开放二次上传或编辑。
@@ -258,7 +277,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、材质配置、成本计算与成品库存流水；列表、定子组合、规格草稿/选项和库存流水统一由纯读 `coilQueries` 提供，已有库存或库存流水的方案禁止删除 |
 | 市场指标 | `/api/market-indicators` | 只读查询外部实时铜价、铝价、美元汇率及数据库已采用值；手动同步通过同域 maintenance API 原子提交 |
 | 模板 | `/api/templates` | Query/Command 分层；`templateQueries` 只读聚合模板、零件目录、关联配方、默认配方和成本草稿，`templateCommands` 执行 CRUD |
-| 型号变体 | `/api/model-variants` | 历史兼容 CRUD；保存时可自动沉淀长螺丝规格，写入使用持久幂等、资源版本、事务回执和强审计 |
+| 常用配置预设（历史路径） | `/api/model-variants` | 历史兼容 CRUD；保存时可自动沉淀长螺丝规格，写入使用持久幂等、资源版本、事务回执和强审计 |
 | 配方 | `/api/recipes` | Query/Preview、CRUD、BOM 草稿、保存成本快照、成本与覆盖试算 |
 | 客户/报价 | `/api/customers`、`/api/customers/:id/context`、`/api/quotations` | CRUD 与正式客户历史聚合 |
 | 订单 | `/api/orders` | CRUD、历史售价、采购清单、单订单准备检查和全部活动订单准备总览 |
@@ -267,18 +286,18 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 质量与经营异常 | `/api/quality` | 基础资料健康度、报价和订单经营异常提醒，以及配方智能检查 |
 | 统一文件 | `/api/files` | V9 原文件上传、PDF/Excel/CSV 定位解析、图片与扫描 PDF OCR、报价映射草稿、业务页附件、知识归档、真实类型识别、SHA-256 去重和下载 |
 | 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、独立资料导入、搜索和详情读取，供 AI 检索 |
-| 业务变更 | `/api/business-changes` | 跨订单、报价、采购、零件、配方、模板、线圈、客户、型号变体、质量规则、转子档案、业务设置、文件、知识资料和工作流的追加型业务历史；结构化精确查询并投影到知识/向量检索 |
+| 业务变更 | `/api/business-changes` | 跨订单、报价、采购、零件、配方、模板、线圈、客户、常用配置预设、质量规则、转子档案、业务设置、文件、知识资料和工作流的追加型业务历史；结构化精确查询并投影到知识/向量检索 |
 | 设置 | `/api/settings/:key`、`/api/settings/runtime` | `settingsQueries` 只读提供业务白名单、公开运行快照和 AI 连接探测；两类写入都使用幂等、版本、事务回执和强审计，运行配置提交成功后才应用进程环境 |
 | AI | `/api/ai` | 对话、工具调用、会话和评测；模型流解析与工具消息协议由独立 service 统一 |
 | 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 48 个只读工具，包含模板、报价完整详情和统一业务变更历史；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
 
-配方、订单、模板和型号变体的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
+配方、订单、模板和常用配置预设的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
 
 ## 5. 数据安全与自动任务
 
 - 所有动态 UPDATE 必须走 `safeUpdate()`：表名白名单、列名校验、参数化 SQL、更新时间和审计日志。
 - 正式业务资源 INSERT 必须走 `safeInsert()`：表名白名单、列名校验、参数化 SQL和审计日志。
-- 订单、配方、零件、客户、报价和型号变体使用软删除。
+- 订单、配方、零件、客户、报价和常用配置预设使用软删除。
 - 线圈、模板和转子历史没有软删除列，使用 `hardDelete()` 并记录审计。
 - 系统初始化、`system_settings` / `config` 的 UPSERT 仍是基础设施边界；新增业务资源表不得绕过 `safeInsert()`。
 - 零件索引缓存 10 秒；零件变更后必须主动失效。
@@ -308,7 +327,7 @@ POST /api/rotor/save
 ```
 
 - `/draw-preview` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。`/draw` 只消费服务端绑定的确认凭证。
-- `/template-draft` 根据泵壳模板和可选型号变体生成出图表单草稿，不写库；用于统一带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注。
+- `/template-draft` 根据泵壳模板和可选常用配置预设生成出图表单草稿，不写库；用于统一带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注。请求仍使用历史兼容字段 `variantId`。
 - `/recipe-draft`、`/template-draft`、`/order-pump-models` 和 `/link-targets` 的正式数据聚合统一由 `rotorQueries` 执行；路由不再解析订单 JSON 或直接拼装配方/模板草稿。
 - `/save` 接收同一套结构化参数，仅保存到历史，不启动 FreeCAD。
 - `/chat` 接收自然语言，可能返回 `need_params`、安全警告或 `confirmation_required`；DeepSeek 只提取候选参数，`rotorNaturalLanguage` 再调用确定性 `rotorParameters` 做纠偏、校验和安全提示。模型输出不是图纸事实，只有正式 `/draw-preview` 绑定并经用户确认的参数才能进入出图命令。
@@ -316,7 +335,7 @@ POST /api/rotor/save
 - `/draw-preview`、`/save` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
 - `GET /api/rotor/history` 历史列表标准输出 camelCase 字段，包括 `jobId`、`drawingName`、`fcParamsJson`、`fileUrl`、`linkedPumpModel`、`createdAt`。
 - `PATCH /api/rotor/history/:id/name` 用于重命名历史图纸，请求体 `{ "drawingName": "..." }`，成功返回 `{ "success": true, "data": { "drawingName": "..." } }`。
-- 转子出图工作台只从泵壳模板带入参数，不再显示或加载型号变体；出图历史在 Web 端可关联订单型号或配方，保存时仍写入 `linked_pump_model` 文本字段。后端旧变体参数只保留历史兼容。
+- 转子出图工作台只从泵壳模板带入参数，不再显示或加载常用配置预设；出图历史在 Web 端可关联订单型号或配方，保存时仍写入 `linked_pump_model` 文本字段。后端旧 Model Variant 参数只保留历史兼容。
 - FreeCAD 默认最多同时执行 2 个任务。
 - 图纸和状态写入 `rotor_drawings`，PDF 位于 `public/drawings/`。
 - FreeCAD 和打印外部动作统一由 `rotorExternalCommands` 执行。业务确认 token 与登录主体、能力、服务端参数及唯一幂等键绑定；`api_operations` 在外部动作前保存 accepted 回执，随后更新 processing/completed/failed。
