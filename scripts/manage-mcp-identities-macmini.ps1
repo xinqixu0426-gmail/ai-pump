@@ -1,8 +1,9 @@
 param(
-    [ValidateSet('status', 'add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write', 'verify', 'list-backups', 'rollback')]
+    [ValidateSet('status', 'add', 'rotate', 'revoke', 'approve-write', 'approve-write-batch', 'grant-write', 'revoke-write', 'verify', 'list-backups', 'rollback')]
     [string]$Action = 'status',
     [string]$ClientId,
     [string]$Tool,
+    [string]$Tools,
     [string]$ClientTokenEnvVar,
     [switch]$UseExistingToken,
     [switch]$Apply,
@@ -15,6 +16,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $applyConfirmation = 'APPLY_MCP_IDENTITY_CHANGE'
 $approveWriteConfirmation = 'APPROVE_NEW_MCP_WRITE_TOOL'
+$approveWriteBatchConfirmation = 'APPROVE_NEW_MCP_WRITE_TOOLS_BATCH'
 $rollbackConfirmation = 'ROLLBACK_MCP_IDENTITY_CHANGE'
 
 if ($SshHost -notmatch '^[a-zA-Z0-9._-]+$') { throw 'Invalid SshHost' }
@@ -23,6 +25,17 @@ if ($ClientId -and $ClientId -notmatch '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$') {
     throw 'Invalid ClientId'
 }
 if ($Tool -and $Tool -notmatch '^[a-z][a-z0-9_]{0,63}$') { throw 'Invalid Tool' }
+$batchTools = @()
+if ($Tools) {
+    $batchTools = @($Tools.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($batchTools.Count -eq 0) { throw 'Invalid Tools' }
+    foreach ($batchTool in $batchTools) {
+        if ($batchTool -notmatch '^[a-z][a-z0-9_]{0,63}$') { throw 'Invalid Tools' }
+    }
+    if (@($batchTools | Select-Object -Unique).Count -ne $batchTools.Count) {
+        throw 'Duplicate Tools'
+    }
+}
 if ($ClientTokenEnvVar -and $ClientTokenEnvVar -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
     throw 'Invalid ClientTokenEnvVar'
 }
@@ -96,11 +109,14 @@ process.stdout.write(token);
     return $token
 }
 
-if ($Action -in @('add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write') -and -not $ClientId) {
+if ($Action -in @('add', 'rotate', 'revoke', 'approve-write', 'approve-write-batch', 'grant-write', 'revoke-write') -and -not $ClientId) {
     throw "$Action requires -ClientId"
 }
 if ($Action -in @('approve-write', 'grant-write', 'revoke-write') -and -not $Tool) {
     throw "$Action requires -Tool"
+}
+if ($Action -eq 'approve-write-batch' -and $batchTools.Count -eq 0) {
+    throw "$Action requires -Tools"
 }
 if ($Action -in @('add', 'rotate') -and -not $ClientTokenEnvVar) {
     throw "$Action requires -ClientTokenEnvVar"
@@ -145,6 +161,15 @@ if ($Action -in @('add', 'rotate')) {
     }
     $raw = Invoke-MacMini -Command (IdentityCommand $args)
     $remoteResult = $raw | ConvertFrom-Json
+} elseif ($Action -eq 'approve-write-batch') {
+    $args = "$Action --env-file .env --client-id $ClientId --tools $($batchTools -join ',')"
+    if ($Apply) {
+        $args += " --apply --confirm $approveWriteBatchConfirmation"
+        $args += " --restart-and-verify --url http://127.0.0.1:3002/mcp"
+        $args += " --host xuxinqi.xin --protocol-version 2026-07-28"
+    }
+    $raw = Invoke-MacMini -Command (IdentityCommand $args)
+    $remoteResult = $raw | ConvertFrom-Json
 } elseif ($Action -eq 'rollback') {
     $selector = if ($BackupFile) { "--file '$BackupFile'" } elseif ($Latest) { '--latest' } else {
         throw 'rollback requires -BackupFile or -Latest'
@@ -160,7 +185,7 @@ if ($Action -in @('add', 'rotate')) {
     $remoteResult = $raw | ConvertFrom-Json
 }
 
-if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write', 'rollback')) {
+if (-not $Apply -or $Action -notin @('add', 'rotate', 'revoke', 'approve-write', 'approve-write-batch', 'grant-write', 'revoke-write', 'rollback')) {
     $remoteResult | ConvertTo-Json -Depth 20
     exit 0
 }
@@ -174,15 +199,19 @@ try {
         $restoredToken = Read-RemoteIdentityToken -Identity $ClientId
         [Environment]::SetEnvironmentVariable($ClientTokenEnvVar, $restoredToken, 'User')
     }
-    Restart-Api
-    $verified = Verify-AllIdentities
+    if ($Action -eq 'approve-write-batch') {
+        $verified = $remoteResult.verification
+    } else {
+        Restart-Api
+        $verified = Verify-AllIdentities
+    }
 } catch {
     $rollbackSource = if ($remoteResult.backup) {
         [string]$remoteResult.backup
     } elseif ($remoteResult.safetyBackup) {
         [string]$remoteResult.safetyBackup
     } else { $null }
-    if ($rollbackSource) {
+    if ($rollbackSource -and $Action -ne 'approve-write-batch') {
         Restore-RemoteBackup -File $rollbackSource
     }
     if ($ClientTokenEnvVar) {
@@ -196,6 +225,7 @@ try {
     action = $Action
     clientId = $ClientId
     tool = $Tool
+    tools = $batchTools
     applied = $true
     backup = if ($remoteResult.backup) { $remoteResult.backup } else { $remoteResult.safetyBackup }
     clientEnvironmentUpdated = [bool]$ClientTokenEnvVar

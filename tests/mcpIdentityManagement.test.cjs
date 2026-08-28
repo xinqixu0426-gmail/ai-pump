@@ -8,9 +8,11 @@ const { spawnSync } = require('node:child_process');
 const dotenv = require('dotenv');
 const {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_BATCH_CONFIRMATION,
     APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     executeIdentityChange,
+    executeVerifiedIdentityChange,
     executeRollback,
     identitySummary,
     listIdentityBackups,
@@ -22,11 +24,15 @@ const {
 const {
     MCP_READ_ONLY_TOOL_NAMES,
 } = require('../api/mcp/catalog.cjs');
+const {
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+} = require('../scripts/mcp-write-acceptance-manifest.cjs');
 
 const TOKEN_HERMES = 'hermes-token-0123456789abcdef0123456789';
 const TOKEN_CODEX = 'codex-token-0123456789abcdef01234567890';
 const TOKEN_CLAUDE = 'claude-token-0123456789abcdef0123456789';
 const TOKEN_ROTATED = 'rotated-token-0123456789abcdef01234567';
+const BATCH_TOOLS = [...MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES];
 
 function envText(overrides = {}) {
     const values = {
@@ -231,6 +237,176 @@ test('MCP 身份管理：首次批准权威写工具只扩大目标身份', () =
             writeTools: ['sync_factory_knowledge', 'adjust_part_stock'],
         },
     ]);
+});
+
+test('MCP 身份管理：批量首次批准在一个计划中完整扩大目标身份', () => {
+    const approved = planIdentityChange({
+        command: 'approve-write-batch',
+        envText: envText(),
+        clientId: 'hermes',
+        tools: BATCH_TOOLS,
+    });
+    const env = dotenv.parse(approved.nextText);
+    assert.equal(approved.plan.change, 'write-tools-approved-batch');
+    assert.equal(approved.plan.tool, null);
+    assert.deepEqual(approved.plan.tools, BATCH_TOOLS);
+    assert.deepEqual(JSON.parse(env.MCP_WRITE_TOOL_ALLOWLISTS), {
+        hermes: ['sync_factory_knowledge', ...BATCH_TOOLS],
+    });
+    assert.deepEqual(approved.plan.after.identities.find(item => item.clientId === 'codex'), {
+        clientId: 'codex',
+        access: 'read-only',
+        writeTools: [],
+    });
+});
+
+test('MCP 身份管理：批量首次批准对空、重复、未知和已灰度工具整批拒绝', () => {
+    for (const tools of [
+        [],
+        ['create_order', 'create_order'],
+        BATCH_TOOLS.slice(0, -1),
+        ['create_order', 'unknown_write_tool'],
+        ['create_order', 'search_parts'],
+        ['create_order', 'sync_factory_knowledge'],
+    ]) {
+        assert.throws(() => planIdentityChange({
+            command: 'approve-write-batch',
+            envText: envText(),
+            clientId: 'hermes',
+            tools,
+        }), /至少一个|不能重复|精确一致|不在权威目录|已进入灰度集合/);
+    }
+    assert.throws(() => planIdentityChange({
+        command: 'approve-write-batch',
+        envText: envText(),
+        clientId: 'missing-agent',
+        tools: BATCH_TOOLS,
+    }), /identity 不存在/);
+    assert.throws(() => planIdentityChange({
+        command: 'approve-write-batch',
+        envText: envText({
+            MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+                hermes: ['sync_factory_knowledge', BATCH_TOOLS[0]],
+            }),
+        }),
+        clientId: 'hermes',
+        tools: BATCH_TOOLS,
+    }), /已进入灰度集合/);
+});
+
+test('MCP 身份管理：批量首次批准只接受独立强确认并只创建一份备份', () => {
+    const fixture = tempFixture();
+    try {
+        for (const confirmation of [APPLY_CONFIRMATION, APPROVE_WRITE_CONFIRMATION]) {
+            assert.throws(() => executeIdentityChange({
+                command: 'approve-write-batch',
+                envFile: fixture.envFile,
+                clientId: 'hermes',
+                tools: BATCH_TOOLS,
+                apply: true,
+                confirmation,
+                backupRoot: fixture.backupRoot,
+            }), new RegExp(APPROVE_WRITE_BATCH_CONFIRMATION));
+        }
+        assert.deepEqual(listIdentityBackups(fixture.envFile, fixture.backupRoot), []);
+        const applied = executeIdentityChange({
+            command: 'approve-write-batch',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tools: BATCH_TOOLS,
+            apply: true,
+            confirmation: APPROVE_WRITE_BATCH_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        });
+        assert.equal(applied.applied, true);
+        assert.equal(listIdentityBackups(fixture.envFile, fixture.backupRoot).length, 1);
+        assert.equal(fs.readFileSync(applied.backup, 'utf8'), envText());
+        assert.deepEqual(
+            JSON.parse(dotenv.parse(fs.readFileSync(fixture.envFile, 'utf8')).MCP_WRITE_TOOL_ALLOWLISTS).hermes,
+            ['sync_factory_knowledge', ...BATCH_TOOLS]
+        );
+    } finally {
+        fixture.cleanup();
+    }
+});
+
+test('MCP 身份管理：批量在线核验期间持续持锁且失败后整体恢复', async () => {
+    const fixture = tempFixture();
+    try {
+        const original = fs.readFileSync(fixture.envFile, 'utf8');
+        const phases = [];
+        await assert.rejects(executeVerifiedIdentityChange({
+            command: 'approve-write-batch',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tools: BATCH_TOOLS,
+            apply: true,
+            confirmation: APPROVE_WRITE_BATCH_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+            verify: async ({ phase }) => {
+                phases.push(phase);
+                assert.throws(() => executeIdentityChange({
+                    command: 'grant-write',
+                    envFile: fixture.envFile,
+                    clientId: 'codex',
+                    tool: 'sync_factory_knowledge',
+                    apply: true,
+                    confirmation: APPLY_CONFIRMATION,
+                    backupRoot: fixture.backupRoot,
+                }), /配置变更正在执行/);
+                if (phase === 'applied') throw new Error('simulated live verification failure');
+                return { success: true };
+            },
+        }), /在线核验失败，已恢复原配置/);
+        assert.deepEqual(phases, ['applied', 'rolled-back']);
+        assert.equal(fs.readFileSync(fixture.envFile, 'utf8'), original);
+        assert.equal(listIdentityBackups(fixture.envFile, fixture.backupRoot).length, 1);
+    } finally {
+        fixture.cleanup();
+    }
+});
+
+test('MCP 身份管理：批量在线核验成功后才释放配置锁', async () => {
+    const fixture = tempFixture();
+    try {
+        const applied = await executeVerifiedIdentityChange({
+            command: 'approve-write-batch',
+            envFile: fixture.envFile,
+            clientId: 'hermes',
+            tools: BATCH_TOOLS,
+            apply: true,
+            confirmation: APPROVE_WRITE_BATCH_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+            verify: async ({ phase }) => {
+                assert.equal(phase, 'applied');
+                assert.throws(() => executeIdentityChange({
+                    command: 'grant-write',
+                    envFile: fixture.envFile,
+                    clientId: 'codex',
+                    tool: 'sync_factory_knowledge',
+                    apply: true,
+                    confirmation: APPLY_CONFIRMATION,
+                    backupRoot: fixture.backupRoot,
+                }), /配置变更正在执行/);
+                return { success: true, live: [{ clientId: 'hermes', success: true }] };
+            },
+        });
+        assert.equal(applied.applied, true);
+        assert.equal(applied.verification.success, true);
+        assert.equal(listIdentityBackups(fixture.envFile, fixture.backupRoot).length, 1);
+        const delegated = executeIdentityChange({
+            command: 'grant-write',
+            envFile: fixture.envFile,
+            clientId: 'codex',
+            tool: 'create_order',
+            apply: true,
+            confirmation: APPLY_CONFIRMATION,
+            backupRoot: fixture.backupRoot,
+        });
+        assert.equal(delegated.applied, true);
+    } finally {
+        fixture.cleanup();
+    }
 });
 
 test('MCP 身份管理：首次批准拒绝未知、只读、已灰度工具和未知身份', () => {
@@ -793,10 +969,11 @@ test('MCP 身份管理 CLI：help 正常退出并列出安全确认词', () => {
     assert.equal(result.stderr, '');
     assert.match(
         result.stdout,
-        /status\|add\|rotate\|revoke\|approve-write\|grant-write\|revoke-write\|verify\|list-backups\|rollback/
+        /status\|add\|rotate\|revoke\|approve-write\|approve-write-batch\|grant-write\|revoke-write\|verify\|list-backups\|rollback/
     );
     assert.match(result.stdout, new RegExp(APPLY_CONFIRMATION));
     assert.match(result.stdout, new RegExp(APPROVE_WRITE_CONFIRMATION));
+    assert.match(result.stdout, new RegExp(APPROVE_WRITE_BATCH_CONFIRMATION));
     assert.match(result.stdout, new RegExp(ROLLBACK_CONFIRMATION));
 });
 
@@ -910,6 +1087,46 @@ test('MCP 身份管理 CLI：首次批准默认预览且只接受独立确认词
     }
 });
 
+test('MCP 身份管理 CLI：批量首次批准整批预览并只接受批量确认词', () => {
+    const fixture = tempFixture();
+    try {
+        const cli = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities.cjs');
+        const args = [
+            cli,
+            'approve-write-batch',
+            '--env-file', fixture.envFile,
+            '--backup-root', fixture.backupRoot,
+            '--client-id', 'hermes',
+            '--tools', BATCH_TOOLS.join(','),
+        ];
+        const preview = spawnSync(process.execPath, args, { encoding: 'utf8' });
+        assert.equal(preview.status, 0, preview.stderr);
+        const previewResult = JSON.parse(preview.stdout);
+        assert.equal(previewResult.applied, false);
+        assert.deepEqual(previewResult.tools, BATCH_TOOLS);
+
+        const wrong = spawnSync(process.execPath, [
+            ...args, '--apply', '--confirm', APPROVE_WRITE_CONFIRMATION,
+            '--restart-and-verify',
+        ], { encoding: 'utf8' });
+        assert.notEqual(wrong.status, 0);
+        assert.match(wrong.stderr, new RegExp(APPROVE_WRITE_BATCH_CONFIRMATION));
+
+        const unverified = spawnSync(process.execPath, [
+            ...args, '--apply', '--confirm', APPROVE_WRITE_BATCH_CONFIRMATION,
+        ], { encoding: 'utf8' });
+        assert.notEqual(unverified.status, 0);
+        assert.match(unverified.stderr, /必须使用 --restart-and-verify/);
+        assert.equal(listIdentityBackups(fixture.envFile, fixture.backupRoot).length, 0);
+        assert.deepEqual(
+            JSON.parse(dotenv.parse(fs.readFileSync(fixture.envFile, 'utf8')).MCP_WRITE_TOOL_ALLOWLISTS).hermes,
+            ['sync_factory_knowledge']
+        );
+    } finally {
+        fixture.cleanup();
+    }
+});
+
 test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境变量', () => {
     const scriptPath = path.resolve(__dirname, '..', 'scripts', 'manage-mcp-identities-macmini.ps1');
     const script = fs.readFileSync(scriptPath, 'utf8');
@@ -918,9 +1135,13 @@ test('MCP 身份管理 Mac Mini 包装器：凭证只走 stdin 或受控环境�
     assert.match(script, /SetEnvironmentVariable\(\$ClientTokenEnvVar/);
     assert.match(script, /APPLY_MCP_IDENTITY_CHANGE/);
     assert.match(script, /APPROVE_NEW_MCP_WRITE_TOOL/);
+    assert.match(script, /APPROVE_NEW_MCP_WRITE_TOOLS_BATCH/);
     assert.match(script, /ROLLBACK_MCP_IDENTITY_CHANGE/);
     assert.match(script, /grant-write/);
     assert.match(script, /approve-write/);
+    assert.match(script, /approve-write-batch/);
+    assert.match(script, /--tools/);
+    assert.match(script, /--restart-and-verify/);
     assert.match(script, /revoke-write/);
     assert.match(script, /--expect-configured-catalog/);
     assert.doesNotMatch(script, /ExpectedToolCount/);

@@ -33,7 +33,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 已进入多 Agent 模式后，日常新增、轮换、撤销和回滚不得手工编辑生产 `.env`；Windows 端使用 `npm run mcp:identity:macmini -- -Action <...>`，Mac Mini 本机使用 `npm run mcp:identity -- <...>`。所有写操作先 dry-run，再显式 `-Apply`/`--apply`；token 只能来自 SSH stdin、命名环境变量或包装器内存生成，不得放入命令行参数、聊天、日志或报告。正式变更必须保留 `backups/config/mcp-identities/` 权限受限备份，并在 API 重启后按身份精确核对由权威 catalog 与实际 allowlist 推导出的完整工具名集合，不得用统一工具数量代替。完整命令和回滚流程见 `docs/mcp-development-guide.md`。
 - MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后的初始灰度配置示例为 `MCP_WRITE_CLIENT_IDS=<clientId,...>` 与 `MCP_WRITE_TOOL_ALLOWLISTS={"clientId":["sync_factory_knowledge"]}`；每个身份只获得数组中明确列出的写工具，不再默认看到全部 19 个。缺少映射、空列表、未知身份或未知工具会使 API 启动失败。首次只向支持 2026 form elicitation 的客户端开放一个可回滚工具；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
 - 任何批准生产 MCP 写能力的发布，必须先在待发布 commit 上通过 `npm run verify:mcp-write-local` 并检查 `logs/mcp-write-local-latest.json` 为 `passed`、`toolsCovered=19`、`productionTouched=false`。该本地门禁不授权修改生产 `.env`；启用开关、身份和逐工具 allowlist 仍需本次发布单独明确批准。
-- 首次把一个新的权威写工具加入生产灰度集合必须使用 `approve-write`，每次只指定一个身份和一个工具，先 dry-run，再以独立确认词执行；已进入灰度集合后才可用 `grant-write` 授权给其他身份。禁止手工编辑 `.env` 或用普通配置确认词绕过首次批准门卫。
+- 首次把新的权威写工具加入生产灰度集合，日常增量默认使用 `approve-write`，每次只指定一个身份和一个工具。固定候选集已整体通过代码审计、19/19 localhost 成功路径及逐工具原生拒绝零副作用验收，且输入集合与 `scripts/mcp-write-acceptance-manifest.cjs` 当前候选清单精确一致时，可使用 `approve-write-batch` 对一个身份整批首次批准；列表中任一工具缺失、多余、未知、重复或已灰度都必须整批拒绝。两种入口都先 dry-run，再使用各自独立确认词执行；Mac Mini 批量执行在同一个远端进程和配置锁内只产生一份配置备份、一次原子替换、一次 API 重启和一次全身份精确目录核对，失败时恢复该备份并再次重启核验，达到终态后才释放锁。已进入灰度集合后才可用 `grant-write` 授权给其他身份。禁止手工编辑 `.env` 或用普通配置确认词绕过首次批准门卫。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
 
 ```bash
@@ -161,7 +161,7 @@ SQLite，让 19/19 写工具逐一经过正式 executor/API、operation/audit �
 做无重复、无遗漏分区；候选按订单与报价转单、文件归档、转子出图与打印三个场景汇总，并逐项验证
 原生 decline 后数据库和外部命令零副作用。物理外部命令由跨平台替身隔离，未知命令 fail-closed。
 不得为了通过门禁临时打开生产写开关，也不得把本地通过等同于生产写入已授权；生产仍需
-`approve-write` 首次批准、按身份精确工具名验证和独立人工灰度。生产验收使用专用灰度数据；
+`approve-write` 单项首次批准或满足整批前置条件时使用 `approve-write-batch` 原子批准，并继续按身份精确工具名验证和独立人工灰度。生产验收使用专用灰度数据；
 `execute_factory_workflow_step` 默认只验拒绝，`archive_factory_file` 只使用专用 canary 文件，
 `print_rotor_drawing` 默认只验拒绝，不得用 localhost 打印替身成功代替物理设备授权。
 

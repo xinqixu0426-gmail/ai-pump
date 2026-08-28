@@ -17,6 +17,7 @@ const {
 
 const APPLY_CONFIRMATION = 'APPLY_MCP_IDENTITY_CHANGE';
 const APPROVE_WRITE_CONFIRMATION = 'APPROVE_NEW_MCP_WRITE_TOOL';
+const APPROVE_WRITE_BATCH_CONFIRMATION = 'APPROVE_NEW_MCP_WRITE_TOOLS_BATCH';
 const ROLLBACK_CONFIRMATION = 'ROLLBACK_MCP_IDENTITY_CHANGE';
 const CLIENT_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 const ENV_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -123,8 +124,27 @@ function validateTokenInput(token) {
     return normalized;
 }
 
-function planIdentityChange({ command, envText, clientId, token, tool }) {
-    if (!['add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write'].includes(command)) {
+function normalizeBatchTools(tools) {
+    const values = Array.isArray(tools) ? tools : String(tools || '').split(',');
+    const normalized = values.map(value => String(value || '').trim()).filter(Boolean);
+    if (normalized.length === 0) throw new Error('批量首次批准必须提供至少一个工具');
+    if (new Set(normalized).size !== normalized.length) {
+        throw new Error('批量首次批准工具列表不能重复');
+    }
+    const {
+        MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+    } = require('./mcp-write-acceptance-manifest.cjs');
+    const expected = [...MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES].sort();
+    const actual = [...normalized].sort();
+    if (actual.length !== expected.length
+        || actual.some((name, index) => name !== expected[index])) {
+        throw new Error('批量首次批准必须与当前已验收候选清单精确一致');
+    }
+    return normalized;
+}
+
+function planIdentityChange({ command, envText, clientId, token, tool, tools }) {
+    if (!['add', 'rotate', 'revoke', 'approve-write', 'approve-write-batch', 'grant-write', 'revoke-write'].includes(command)) {
         throw new Error(`不支持的身份变更命令: ${command}`);
     }
     const normalizedClientId = assertClientId(clientId);
@@ -135,6 +155,9 @@ function planIdentityChange({ command, envText, clientId, token, tool }) {
     const allowlists = parseMcpWriteToolAllowlists(env);
     const removedWriteTools = allowlists[normalizedClientId] || [];
     const normalizedTool = String(tool || '').trim();
+    const normalizedTools = command === 'approve-write-batch'
+        ? normalizeBatchTools(tools)
+        : [];
     let nextText = envText;
     let writeDisabled = false;
 
@@ -163,19 +186,26 @@ function planIdentityChange({ command, envText, clientId, token, tool }) {
             nextText = setEnvValue(nextText, 'MCP_WRITE_ENABLED', 'false');
             writeDisabled = true;
         }
-    } else if (command === 'approve-write') {
+    } else if (command === 'approve-write' || command === 'approve-write-batch') {
         if (!exists) throw new Error(`MCP identity 不存在: ${normalizedClientId}`);
-        if (!normalizedTool) throw new Error('首次批准写工具必须提供 tool');
         const { MCP_WRITE_TOOL_NAMES } = require('../api/mcp/catalog.cjs');
-        if (!MCP_WRITE_TOOL_NAMES.includes(normalizedTool)) {
-            throw new Error(`MCP 写工具不在权威目录: ${normalizedTool}`);
+        const requestedTools = command === 'approve-write-batch'
+            ? normalizedTools
+            : [normalizedTool];
+        if (!normalizedTool && command === 'approve-write') {
+            throw new Error('首次批准写工具必须提供 tool');
+        }
+        const unknownTools = requestedTools.filter(name => !MCP_WRITE_TOOL_NAMES.includes(name));
+        if (unknownTools.length > 0) {
+            throw new Error(`MCP 写工具不在权威目录: ${unknownTools.join(',')}`);
         }
         const approvedWriteTools = new Set(Object.values(allowlists).flat());
-        if (approvedWriteTools.has(normalizedTool)) {
-            throw new Error(`MCP 写工具已进入灰度集合；请使用 grant-write: ${normalizedTool}`);
+        const alreadyApproved = requestedTools.filter(name => approvedWriteTools.has(name));
+        if (alreadyApproved.length > 0) {
+            throw new Error(`MCP 写工具已进入灰度集合；请使用 grant-write: ${alreadyApproved.join(',')}`);
         }
         const currentTools = allowlists[normalizedClientId] || [];
-        allowlists[normalizedClientId] = [...currentTools, normalizedTool];
+        allowlists[normalizedClientId] = [...currentTools, ...requestedTools];
         const nextWriteClientIds = writeClientIds.includes(normalizedClientId)
             ? writeClientIds
             : [...writeClientIds, normalizedClientId];
@@ -249,11 +279,13 @@ function planIdentityChange({ command, envText, clientId, token, tool }) {
                 : command === 'rotate' ? 'credential-rotated'
                     : command === 'revoke' ? 'identity-revoked'
                         : command === 'approve-write' ? 'write-tool-approved'
+                            : command === 'approve-write-batch' ? 'write-tools-approved-batch'
                             : command === 'grant-write' ? 'write-tool-granted'
                             : 'write-tool-revoked',
             tool: ['approve-write', 'grant-write', 'revoke-write'].includes(command)
                 ? normalizedTool
                 : null,
+            tools: command === 'approve-write-batch' ? normalizedTools : [],
             removedWriteTools: command === 'revoke' ? removedWriteTools : [],
             writeDisabled,
             before: identitySummary(env),
@@ -344,9 +376,11 @@ function acquireEnvChangeLock(envFile) {
 }
 
 function requiredConfirmationForCommand(command) {
-    return command === 'approve-write'
-        ? APPROVE_WRITE_CONFIRMATION
-        : APPLY_CONFIRMATION;
+    return command === 'approve-write-batch'
+        ? APPROVE_WRITE_BATCH_CONFIRMATION
+        : command === 'approve-write'
+            ? APPROVE_WRITE_CONFIRMATION
+            : APPLY_CONFIRMATION;
 }
 
 function executeIdentityChange({
@@ -355,6 +389,7 @@ function executeIdentityChange({
     clientId,
     token,
     tool,
+    tools,
     apply = false,
     confirmation,
     backupRoot,
@@ -368,6 +403,7 @@ function executeIdentityChange({
             clientId,
             token,
             tool,
+            tools,
         });
         return { applied: false, backup: null, ...planned.plan };
     }
@@ -384,6 +420,7 @@ function executeIdentityChange({
             clientId,
             token,
             tool,
+            tools,
         });
         const backup = createEnvBackup(artifact, {
             backupRoot,
@@ -393,6 +430,76 @@ function executeIdentityChange({
         });
         atomicWriteEnv(artifact.path, planned.nextText, artifact.mode);
         return { applied: true, backup, ...planned.plan };
+    } finally {
+        releaseLock();
+    }
+}
+
+async function executeVerifiedIdentityChange({
+    command,
+    envFile,
+    clientId,
+    token,
+    tool,
+    tools,
+    apply = false,
+    confirmation,
+    backupRoot,
+    now,
+    verify,
+}) {
+    if (!apply) {
+        return executeIdentityChange({
+            command,
+            envFile,
+            clientId,
+            token,
+            tool,
+            tools,
+            apply,
+            confirmation,
+            backupRoot,
+            now,
+        });
+    }
+    const requiredConfirmation = requiredConfirmationForCommand(command);
+    if (confirmation !== requiredConfirmation) {
+        throw new Error(`写入必须提供 --confirm ${requiredConfirmation}`);
+    }
+    if (typeof verify !== 'function') throw new Error('受验证配置变更缺少 verify 回调');
+
+    const releaseLock = acquireEnvChangeLock(envFile);
+    try {
+        const artifact = readEnvArtifact(envFile);
+        const planned = planIdentityChange({
+            command,
+            envText: artifact.text,
+            clientId,
+            token,
+            tool,
+            tools,
+        });
+        const backup = createEnvBackup(artifact, {
+            backupRoot,
+            reason: command,
+            clientId,
+            now,
+        });
+        atomicWriteEnv(artifact.path, planned.nextText, artifact.mode);
+        try {
+            const verification = await verify({ phase: 'applied', plan: planned.plan });
+            return { applied: true, backup, verification, ...planned.plan };
+        } catch (verificationError) {
+            atomicWriteEnv(artifact.path, artifact.text, artifact.mode);
+            try {
+                await verify({ phase: 'rolled-back', plan: planned.plan });
+            } catch (rollbackError) {
+                throw new Error(
+                    `MCP 配置在线核验失败且回滚核验失败: ${verificationError.message}; ${rollbackError.message}`
+                );
+            }
+            throw new Error(`MCP 配置在线核验失败，已恢复原配置: ${verificationError.message}`);
+        }
     } finally {
         releaseLock();
     }
@@ -704,6 +811,7 @@ async function verifyLiveIdentities({
 
 module.exports = {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_BATCH_CONFIRMATION,
     APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     assertClientId,
@@ -711,6 +819,7 @@ module.exports = {
     createEnvBackup,
     defaultBackupRoot,
     executeIdentityChange,
+    executeVerifiedIdentityChange,
     executeRollback,
     identitySummary,
     listIdentityBackups,

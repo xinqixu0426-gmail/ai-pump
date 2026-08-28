@@ -491,6 +491,31 @@ function databaseSnapshot(databasePath) {
     }
 }
 
+async function waitForDatabaseSnapshotToSettle(databasePath, {
+    timeoutMs = 2500,
+    intervalMs = 50,
+    stableSamples = 8,
+} = {}) {
+    const startedAt = Date.now();
+    let previous = null;
+    let stableCount = 0;
+    while (Date.now() - startedAt <= timeoutMs) {
+        const current = {
+            snapshot: databaseSnapshot(databasePath),
+            content: databaseContentDigest(databasePath),
+        };
+        if (previous && JSON.stringify(current) === JSON.stringify(previous)) {
+            stableCount += 1;
+            if (stableCount >= stableSamples) return current;
+        } else {
+            stableCount = 0;
+        }
+        previous = current;
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('MCP localhost 验收数据库在限定时间内未稳定');
+}
+
 function databaseContentDigest(databasePath) {
     const db = new Database(databasePath, { readonly: true });
     try {
@@ -673,6 +698,7 @@ async function run() {
             env: {
                 ...process.env,
                 NODE_ENV: 'development',
+                NODE_TEST_CONTEXT: 'mcp-write-local-e2e',
                 PORT: String(port),
                 NEXT_ORIGIN: `http://127.0.0.1:${unusedNextPort}`,
                 BEHIND_PROXY: 'false',
@@ -924,7 +950,7 @@ async function run() {
             assert(firstReceipt.idempotentReplay === false, `${name} 首次执行被误报为重放`);
             recordSuccessfulTool(name, firstReceipt, Date.now() - started);
 
-            const beforeReplay = databaseSnapshot(databasePath);
+            const beforeReplay = await waitForDatabaseSnapshotToSettle(databasePath);
             const replayResult = await manualClient.request({
                 method: 'tools/call',
                 params: continuation,
@@ -943,7 +969,7 @@ async function run() {
                 `${name} 重放 auditIds 漂移`
             );
             strictAssert.deepEqual(
-                databaseSnapshot(databasePath),
+                await waitForDatabaseSnapshotToSettle(databasePath),
                 beforeReplay,
                 `${name} 幂等重放产生了数据库副作用`
             );
@@ -960,7 +986,7 @@ async function run() {
             activeTool = name;
             responseMode = 'accept';
             activeCallKind = 'failure';
-            const before = databaseSnapshot(databasePath);
+            const before = await waitForDatabaseSnapshotToSettle(databasePath);
             const externalBefore = readStubEvents(stubLogPath).length;
             try {
                 const result = await modernClient.callTool({ name, arguments: args });
@@ -977,7 +1003,7 @@ async function run() {
                     );
                 }
                 strictAssert.deepEqual(
-                    databaseSnapshot(databasePath),
+                    await waitForDatabaseSnapshotToSettle(databasePath),
                     before,
                     `${name} 失败路径产生了数据库副作用`
                 );
@@ -1004,8 +1030,7 @@ async function run() {
                 MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.includes(name),
                 `${name} 不属于本轮批次候选工具`
             );
-            const before = databaseSnapshot(databasePath);
-            const contentBefore = databaseContentDigest(databasePath);
+            const before = await waitForDatabaseSnapshotToSettle(databasePath);
             const treeBefore = externalTreeSnapshot(tempDir);
             const externalBefore = readStubEvents(stubLogPath).length;
             const declined = await callWrite(name, args, { responseMode: 'decline' });
@@ -1015,15 +1040,9 @@ async function run() {
                 `${name} 拒绝回执错误`
             );
             strictAssert.deepEqual(
-                databaseSnapshot(databasePath),
+                await waitForDatabaseSnapshotToSettle(databasePath),
                 before,
                 `${name} 拒绝确认后产生了数据库副作用`
-            );
-            const contentAfter = databaseContentDigest(databasePath);
-            strictAssert.deepEqual(
-                contentAfter,
-                contentBefore,
-                `${name} 拒绝确认后改变了数据库记录内容`
             );
             strictAssert.deepEqual(
                 externalTreeSnapshot(tempDir),
@@ -1041,9 +1060,9 @@ async function run() {
                 confirmationPresented: true,
                 sideEffects: 0,
                 externalSideEffects: 0,
-                databaseDigest: contentBefore.sha256,
-                databaseTables: contentBefore.tables,
-                databaseRows: contentBefore.rows,
+                databaseDigest: before.content.sha256,
+                databaseTables: before.content.tables,
+                databaseRows: before.content.rows,
                 externalFiles: treeBefore.length,
             });
         }

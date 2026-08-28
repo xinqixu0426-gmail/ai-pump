@@ -31,6 +31,7 @@ app.use(createRequestObservability());
 // ── 中间件 ──
 const IS_PRODUCTION = isProductionEnvironment();
 const IS_DEV = !IS_PRODUCTION;
+const IS_TEST_CONTEXT = Boolean(process.env.NODE_TEST_CONTEXT);
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN);
 
 if (IS_PRODUCTION) {
@@ -153,6 +154,7 @@ app.use('/api', (req, res, next) => {
 // 核心业务写入成功后触发一次防抖复查，生命周期状态无需人工维护。
 app.use('/api', (req, res, next) => {
   res.once('finish', () => {
+    if (IS_TEST_CONTEXT) return;
     if (!shouldRecheckManagementActions({
       method: req.method,
       path: req.originalUrl,
@@ -268,22 +270,26 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`  POST /api/knowledge/sync                - 增量同步工厂知识库`);
     console.log(`========================================`);
 
-    // 报价过期属于受控维护命令：启动时补跑，之后每天北京时间 00:05 执行。
-    quotationExpiryMaintenance.start();
+    if (!IS_TEST_CONTEXT) {
+      // 报价过期属于受控维护命令：启动时补跑，之后每天北京时间 00:05 执行。
+      quotationExpiryMaintenance.start();
 
-    // 启动时自动更新铜价
-    console.log('[启动] 正在获取最新铜价...');
-    costRouter.runCopperPriceUpdate();
+      // 启动时自动更新铜价
+      console.log('[启动] 正在获取最新铜价...');
+      costRouter.runCopperPriceUpdate();
+    }
 
     // 加载 AI System Prompt
     console.log('[启动] 正在加载 AI System Prompt...');
     aiRouter.loadSystemPromptFromDB();
 
-    // 启动后自动核对派生知识；内容哈希确保只写入真实变化。
-    requestFullAutoKnowledgeSync('api_startup');
+    if (!IS_TEST_CONTEXT) {
+      // 启动后自动核对派生知识；内容哈希确保只写入真实变化。
+      requestFullAutoKnowledgeSync('api_startup');
 
-    // 后台追踪管理待办首次出现、消失和再次出现，查看接口仍保持只读。
-    startManagementActionLifecycleMonitor();
+      // 后台追踪管理待办首次出现、消失和再次出现，查看接口仍保持只读。
+      startManagementActionLifecycleMonitor();
+    }
 });
 server.on('error', error => {
   appLogger.error('HTTP 服务错误', { error });

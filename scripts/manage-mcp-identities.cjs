@@ -1,10 +1,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const {
     APPLY_CONFIRMATION,
+    APPROVE_WRITE_BATCH_CONFIRMATION,
     APPROVE_WRITE_CONFIRMATION,
     ROLLBACK_CONFIRMATION,
     executeIdentityChange,
+    executeVerifiedIdentityChange,
     executeRollback,
     identitySummary,
     listIdentityBackups,
@@ -73,9 +76,50 @@ function publicResult(result) {
 }
 
 function usage() {
-    return '用法: status|add|rotate|revoke|approve-write|grant-write|revoke-write|verify|list-backups|rollback；'
+    return '用法: status|add|rotate|revoke|approve-write|approve-write-batch|grant-write|revoke-write|verify|list-backups|rollback；'
         + `一般写入确认 ${APPLY_CONFIRMATION}；首次批准写工具确认 ${APPROVE_WRITE_CONFIRMATION}；`
+        + `批量首次批准确认 ${APPROVE_WRITE_BATCH_CONFIRMATION}；`
         + `回滚确认 ${ROLLBACK_CONFIRMATION}`;
+}
+
+async function restartMacMiniApiAndVerify(envFile, options) {
+    const restarted = spawnSync('/bin/launchctl', [
+        'kickstart', '-k', 'system/com.pumpfactory.api',
+    ], { encoding: 'utf8' });
+    if (restarted.status !== 0) {
+        throw new Error(`API 重启失败: ${String(restarted.stderr || '').trim()}`);
+    }
+
+    const readyUrl = value(options, 'ready-url') || 'http://127.0.0.1:3002/api/health/ready';
+    const deadline = Date.now() + 60_000;
+    let ready = false;
+    while (Date.now() < deadline) {
+        try {
+            const response = await fetch(readyUrl);
+            if (response.ok) {
+                ready = true;
+                break;
+            }
+        } catch {
+            // API restart window; retry until the bounded deadline.
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (!ready) throw new Error('API 重启后未在 60 秒内就绪');
+
+    const artifact = readEnvArtifact(envFile);
+    const live = await verifyLiveIdentities({
+        env: artifact.env,
+        url: value(options, 'url') || 'http://127.0.0.1:3002/mcp',
+        host: value(options, 'host') || 'xuxinqi.xin',
+        protocolVersion: value(options, 'protocol-version') || '2026-07-28',
+        expectConfiguredCatalog: true,
+        timeoutMs: 15_000,
+    });
+    if (!live.every(item => item.success)) {
+        throw new Error('MCP identity 在线目录核验失败');
+    }
+    return { success: true, live };
 }
 
 async function main() {
@@ -95,8 +139,8 @@ async function main() {
             envFile,
             ...identitySummary(readEnvArtifact(envFile).env),
         };
-    } else if (['add', 'rotate', 'revoke', 'approve-write', 'grant-write', 'revoke-write'].includes(command)) {
-        result = executeIdentityChange({
+    } else if (['add', 'rotate', 'revoke', 'approve-write', 'approve-write-batch', 'grant-write', 'revoke-write'].includes(command)) {
+        const change = {
             command,
             envFile,
             backupRoot,
@@ -105,9 +149,28 @@ async function main() {
             tool: ['approve-write', 'grant-write', 'revoke-write'].includes(command)
                 ? value(options, 'tool', { required: true })
                 : undefined,
+            tools: command === 'approve-write-batch'
+                ? value(options, 'tools', { required: true })
+                : undefined,
             apply: booleanOption(options, 'apply'),
             confirmation: value(options, 'confirm'),
-        });
+        };
+        const restartAndVerify = booleanOption(options, 'restart-and-verify');
+        if (restartAndVerify && command !== 'approve-write-batch') {
+            throw new Error('--restart-and-verify 仅允许 approve-write-batch 使用');
+        }
+        if (restartAndVerify && !change.apply) {
+            throw new Error('--restart-and-verify 必须与 --apply 一起使用');
+        }
+        if (command === 'approve-write-batch' && change.apply && !restartAndVerify) {
+            throw new Error('approve-write-batch --apply 必须使用 --restart-and-verify 完成受控远端事务');
+        }
+        result = restartAndVerify
+            ? await executeVerifiedIdentityChange({
+                ...change,
+                verify: () => restartMacMiniApiAndVerify(envFile, options),
+            })
+            : executeIdentityChange(change);
         result = { success: true, envFile, ...result };
     } else if (command === 'verify') {
         const artifact = readEnvArtifact(envFile);

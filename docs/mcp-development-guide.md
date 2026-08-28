@@ -40,6 +40,8 @@ npm run verify:mcp-local
 `sync_factory_knowledge` 正式 Preview → form elicitation → Command → operation/audit
 回执闭环。所有写入只发生在临时数据库副本，完成后停止子进程并清理临时目录，
 不修改源数据库。
+隔离 API 显式设置 `NODE_TEST_CONTEXT`，因此不启动报价过期、启动铜价同步、自动知识同步或管理待办
+生命周期后台任务；验收中的每一条数据库变化都只能来自当前 MCP 调用，避免把后台维护尾写误判为工具副作用。
 为容纳两个客户端在一分钟内连续执行 90 次只读工具调用及写验收，隔离进程把测试限流设为
 600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
 
@@ -141,7 +143,7 @@ npm run mcp:identity -- verify --env-file .env
 npm run mcp:identity -- list-backups --env-file .env
 ```
 
-`add`、`rotate`、`revoke`、`approve-write`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
+`add`、`rotate`、`revoke`、`approve-write`、`approve-write-batch`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
 只能通过 stdin 或命名环境变量取得 token，命令显式拒绝 `--token <明文>`：
 
 ```bash
@@ -165,10 +167,17 @@ node scripts/manage-mcp-identities.cjs rotate \
 自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
 
 `approve-write` 是把一个已完成代码审计和本地 19/19 验收、但尚未进入生产灰度集合的权威写工具
-首次开放给一个明确身份的唯一入口。它只接受 `api/mcp/catalog.cjs` 中的正式写工具，并使用独立强确认词
-`APPROVE_NEW_MCP_WRITE_TOOL`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
+首次开放给一个明确身份的默认入口。一个已按权威验收清单完成整批代码审计、19/19 localhost 成功路径和候选项逐项
+原生拒绝零副作用验证的固定批次，可以改用 `approve-write-batch` 一次性首次开放给一个明确身份。批量命令要求输入集合与
+`scripts/mcp-write-acceptance-manifest.cjs` 当前候选清单精确一致（顺序不限）、非空、无重复、全部属于正式写目录且均未进入任何
+生产灰度集合；任一项不符合就整批拒绝。未来批次必须先更新该具名权威验收清单及其测试，不能把任意 catalog 子集直接批量开放。
+它以一个排他锁、一份备份和一次原子替换提交完整集合，不循环执行单工具授权。单工具和批量入口分别使用独立强确认词
+`APPROVE_NEW_MCP_WRITE_TOOL`、`APPROVE_NEW_MCP_WRITE_TOOLS_BATCH`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
 中的写工具授予另一个已登记身份，不能借此引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该
 身份最后一个写工具时同时把身份移出 `MCP_WRITE_CLIENT_IDS`：
+
+批量正式执行强制要求 `--restart-and-verify`；缺少该参数时 CLI 在写配置前拒绝。日常从 Windows 操作时优先使用
+`mcp:identity:macmini` 包装器，由它自动补齐固定的 Mac Mini 重启和在线核验参数。
 
 ```bash
 # 首次进入生产灰度：先预览，再使用独立确认词执行
@@ -177,6 +186,18 @@ node scripts/manage-mcp-identities.cjs approve-write \
 node scripts/manage-mcp-identities.cjs approve-write \
   --env-file .env --client-id hermes --tool adjust_part_stock \
   --apply --confirm APPROVE_NEW_MCP_WRITE_TOOL
+
+# 已完成同一批次整体审计与隔离验收后，整批首次开放；先预览，再一次原子执行
+BATCH_TOOLS=execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing,print_rotor_drawing
+node scripts/manage-mcp-identities.cjs approve-write-batch \
+  --env-file .env --client-id hermes \
+  --tools "$BATCH_TOOLS"
+node scripts/manage-mcp-identities.cjs approve-write-batch \
+  --env-file .env --client-id hermes \
+  --tools "$BATCH_TOOLS" \
+  --apply --confirm APPROVE_NEW_MCP_WRITE_TOOLS_BATCH \
+  --restart-and-verify --url http://127.0.0.1:3002/mcp \
+  --host xuxinqi.xin --protocol-version 2026-07-28
 
 # 已灰度工具再授权给其他身份
 node scripts/manage-mcp-identities.cjs grant-write \
@@ -214,6 +235,13 @@ npm run mcp:identity:macmini -- -Action approve-write `
   -ClientId hermes -Tool adjust_part_stock
 npm run mcp:identity:macmini -- -Action approve-write `
   -ClientId hermes -Tool adjust_part_stock -Apply
+
+# 固定批次已整体通过隔离验收时，一次预览、一次 Apply、一次 API 重启和全身份核对
+$batchTools = 'execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing,print_rotor_drawing'
+npm run mcp:identity:macmini -- -Action approve-write-batch `
+  -ClientId hermes -Tools $batchTools
+npm run mcp:identity:macmini -- -Action approve-write-batch `
+  -ClientId hermes -Tools $batchTools -Apply
 
 # 将当前已灰度的写工具授权给另一个身份；同样先预览，再 Apply
 npm run mcp:identity:macmini -- -Action grant-write `
@@ -255,8 +283,11 @@ npm run mcp:identity:macmini -- -Action rollback `
   -Apply
 ```
 
-`approve-write` 只落实已经明确授权的生产灰度配置，不替代本指南第 3、4 节的 capability、确认、隔离
-验收和发布门禁。未完成这些前置条件时不得使用该命令；每次只首次批准一个工具给一个身份。
+`approve-write` 和 `approve-write-batch` 只落实已经明确授权的生产灰度配置，不替代本指南第 3、4 节的 capability、确认、隔离
+验收和发布门禁。未完成这些前置条件时不得使用任一命令。日常增量默认每次只首次批准一个工具给一个身份；只有固定候选集已完成
+整体审计、完整 localhost 成功路径和逐工具拒绝零副作用验证，并与当前权威候选清单精确一致时，才可对一个身份使用批量入口。
+Mac Mini 批量命令在同一个远端进程和同一个配置锁内完成原子写入、一次 API 重启及所有身份精确目录核对；在线核验失败时先从该次
+唯一备份整体恢复并再次重启核验，达到终态后才释放锁，避免回滚覆盖并发身份变更。
 
 ## 6. 官方依据
 
