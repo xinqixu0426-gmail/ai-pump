@@ -76,6 +76,12 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
         isolation: 'in-memory recipe database',
     },
     {
+        name: 'delete_recipe',
+        args: { recipeName: '本地验收配方' },
+        businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/recipeCommands.test.cjs'],
+        isolation: 'formal delete preview/API + in-memory recipe database',
+    },
+    {
         name: 'adjust_coil_stock',
         args: { items: [{ model: '12-120', changeQty: 1 }], note: 'MCP 本地验收' },
         businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/coilInventory.test.cjs'],

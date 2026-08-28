@@ -233,7 +233,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
-- 通用 MCP：默认关闭，以 Bearer service token 提供 48 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，以真实 localhost Streamable HTTP、2025/2026 双客户端、临时 SQLite、operation/audit/Query 回读覆盖 17/17，并额外验证代表性正式幂等重放、业务失败零副作用和 `accepted_async` 终态。FreeCAD 及 macOS/Windows 打印后端只走 fail-closed 外部命令替身；本地通过不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
+- 通用 MCP：默认关闭，以 Bearer service token 提供 48 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，以真实 localhost Streamable HTTP、2025/2026 双客户端、临时 SQLite、operation/audit/Query 回读覆盖 18/18，并额外验证代表性正式幂等重放、业务失败零副作用、配方软删除回读和 `accepted_async` 终态。FreeCAD 及 macOS/Windows 打印后端只走 fail-closed 外部命令替身；本地通过不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。
 - 部署环境判断、端口、CORS 来源和内部 API 超时统一由 `api/services/environment.cjs` 解析；无效数值在启动或发布校验阶段直接失败，避免运行时出现隐蔽超时。
@@ -374,7 +374,7 @@ POST /api/rotor/save
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
 - AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 103 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“意图信封 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
-- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 48 项只读白名单及 17 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
+- 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 48 项只读白名单及 18 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。`delete_recipe` 也必须先取得正式软删除 Preview 并绑定目标版本，不能因已有 DELETE Command 绕过准入。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
 - 零件资料修改与库存调整是两个独立 Command；AI 的 `update_part` 只接受资料字段，库存统一走 `adjust_part_stock`。报价转订单、采购下单/入库、配方保存、转子出图、文件归档和知识同步均调用对应正式 service。

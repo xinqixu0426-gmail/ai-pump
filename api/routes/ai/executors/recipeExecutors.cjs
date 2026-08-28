@@ -543,7 +543,11 @@ async function prepareRecipeUpdate(args = {}, dependencies = {}) {
 }
 
 async function prepareRecipeDelete(args = {}, dependencies = {}) {
-    const { internalFetch, getJson: readJson = getJson } = dependencies;
+    const {
+        internalFetch,
+        getJson: readJson = getJson,
+        postJson: writeJson = postJson,
+    } = dependencies;
     const recipes = await readJson(internalFetch, '/api/recipes', '配方列表读取失败');
     const recipe = resolveRecipeWriteTarget(recipes, args.recipeName, 'delete');
     const recipeId = Number(recipe.id ?? recipe.Id);
@@ -554,18 +558,50 @@ async function prepareRecipeDelete(args = {}, dependencies = {}) {
             '正式配方缺少版本字段，不能生成删除确认'
         );
     }
+    const preview = await writeJson(
+        internalFetch,
+        `/api/recipes/${recipeId}/delete-preview`,
+        { expectedUpdatedAt },
+        '配方删除预览失败'
+    );
+    if (
+        preview?.preview !== true
+        || preview?.capabilityId !== 'recipes.delete'
+        || Number(preview?.target?.id) !== recipeId
+        || preview?.normalizedInput?.expectedUpdatedAt !== expectedUpdatedAt
+        || !preview?.previewHash
+        || !Array.isArray(preview?.changes)
+        || !Array.isArray(preview?.warnings)
+    ) {
+        throw recipeUpdateError(
+            'recipe_delete_preview_incomplete',
+            '正式删除预览不完整，不能生成删除确认'
+        );
+    }
+    if (preview.warnings.length > 0) {
+        throw recipeUpdateError(
+            'recipe_delete_preview_warning',
+            '正式删除预览包含警告，不能生成删除确认',
+            { warnings: preview.warnings }
+        );
+    }
     return {
-        args: { ...args, recipeName: recipe.name },
+        args: { ...args, recipeName: preview.target.name },
         confirmationRows: [
-            { label: '正式配方', value: `${recipe.name}（#${recipeId}）` },
-            { label: '规格', value: recipe.spec || '-' },
-            { label: '版本', value: expectedUpdatedAt },
+            { label: '正式配方', value: `${preview.target.name}（#${recipeId}）` },
+            { label: '规格', value: preview.target.spec || '-' },
+            { label: '版本', value: preview.normalizedInput.expectedUpdatedAt },
+            { label: 'BOM 条数', value: preview.target.partsCount },
+            { label: '保存成本', value: preview.target.savedTotalCost, suffix: ' 元' },
+            { label: '删除方式', value: '软删除；历史 operation/audit 保留' },
+            { label: '库存/零件目录', value: '不变' },
         ],
         executionContext: {
             kind: 'recipe_delete_target',
             recipeId,
-            recipeName: recipe.name,
-            expectedUpdatedAt,
+            recipeName: preview.target.name,
+            expectedUpdatedAt: preview.normalizedInput.expectedUpdatedAt,
+            preview,
         },
     };
 }
@@ -658,7 +694,10 @@ async function executeRecipeTool(toolName, args, internalFetch, options = {}) {
                 internalFetch,
                 `/api/recipes/${context.recipeId}`,
                 '配方删除失败',
-                { expectedUpdatedAt: context.expectedUpdatedAt }
+                {
+                    expectedUpdatedAt: context.expectedUpdatedAt,
+                    previewHash: context.preview.previewHash,
+                }
             );
             return {
                 success: true,

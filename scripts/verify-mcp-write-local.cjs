@@ -51,7 +51,7 @@ if (matrixResult.stderr) process.stderr.write(matrixResult.stderr);
 let e2eResult = null;
 let e2eReport = null;
 if (matrixResult.status === 0) {
-    console.log('快速矩阵通过，开始 17 个写工具的真实 localhost MCP → API → SQLite 回读闭环。');
+    console.log(`快速矩阵通过，开始 ${MCP_WRITE_ACCEPTANCE_CASES.length} 个写工具的真实 localhost MCP → API → SQLite 回读闭环。`);
     e2eResult = spawnSync(process.execPath, ['scripts/run-mcp-write-local-e2e.cjs'], {
         cwd: ROOT,
         env: isolatedEnv,
@@ -201,4 +201,4 @@ fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(`脱敏报告：${path.relative(ROOT, reportPath)}`);
 
 if (!passed) process.exit(matrixResult.status || e2eResult?.status || 1);
-console.log('MCP 写工具本地隔离验收通过：17/17。');
+console.log(`MCP 写工具本地隔离验收通过：${MCP_WRITE_ACCEPTANCE_CASES.length}/${MCP_WRITE_ACCEPTANCE_CASES.length}。`);

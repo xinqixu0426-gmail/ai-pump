@@ -340,6 +340,84 @@ function getRecipeRecord(db, recipeId) {
     return record;
 }
 
+function resolveRecipeDeleteTarget(dependencies, recipeIdValue, input = {}, options = {}) {
+    const recipeId = parsePositiveId(recipeIdValue);
+    if (!recipeId) throw recipeCommandError('recipe_id_invalid', '非法配方ID', 400);
+    const current = getRecipeRecord(dependencies.db, recipeId);
+    const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+        input.expectedUpdatedAt,
+        'expectedUpdatedAt'
+    );
+    if (options.requireVersion === true && !current.updated_at) {
+        throw recipeCommandError(
+            'recipe_delete_version_missing',
+            `配方 #${recipeId} 缺少版本字段，不能生成删除预览`,
+            409
+        );
+    }
+    assertExpectedUpdatedAt(current, expectedUpdatedAt, `配方 #${recipeId}`);
+    return {
+        current,
+        expectedUpdatedAt: expectedUpdatedAt || current.updated_at || null,
+        recipeId,
+    };
+}
+
+function recipeDeletePreviewHash(recipeId, expectedUpdatedAt) {
+    return requestHash({
+        capabilityId: DELETE_CAPABILITY_ID,
+        recipeId,
+        expectedUpdatedAt,
+        action: 'soft_delete',
+    });
+}
+
+function buildRecipeDeletePreview(dependencies, recipeIdValue, input = {}) {
+    const target = resolveRecipeDeleteTarget(
+        dependencies,
+        recipeIdValue,
+        input,
+        { requireVersion: true }
+    );
+    const partsCount = parseJsonArray(target.current.parts_json).length;
+    const normalizedInput = {
+        recipeId: target.recipeId,
+        expectedUpdatedAt: target.expectedUpdatedAt,
+    };
+    return {
+        preview: true,
+        capabilityId: DELETE_CAPABILITY_ID,
+        normalizedInput,
+        target: {
+            id: target.recipeId,
+            name: target.current.name,
+            spec: target.current.spec || '',
+            updatedAt: target.expectedUpdatedAt,
+            partsCount,
+            savedTotalCost: Number(target.current.saved_total_cost || 0),
+        },
+        changes: [{
+            resourceType: 'recipe',
+            resourceId: target.recipeId,
+            field: 'deletedAt',
+            from: null,
+            to: 'soft_deleted',
+        }],
+        impact: {
+            deleteMode: 'soft_delete',
+            recipeListVisibility: 'hidden',
+            partsChanged: 0,
+            inventoryChanged: false,
+            historicalOperationsPreserved: true,
+        },
+        warnings: [],
+        previewHash: recipeDeletePreviewHash(
+            normalizedInput.recipeId,
+            normalizedInput.expectedUpdatedAt
+        ),
+    };
+}
+
 function buildRecipeSavePayloadDraft(dependencies, body = {}) {
     const form = body.form || {};
     if (typeof dependencies.buildRecipeBomDraft !== 'function') {
@@ -784,11 +862,19 @@ function executeRecipeDelete(
         input.expectedUpdatedAt,
         'expectedUpdatedAt'
     );
+    const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const compatibilityWarnings = [];
     if (!expectedUpdatedAt) {
         compatibilityWarnings.push({
             code: 'expected_updated_at_missing_compatibility',
             message: `配方 #${recipeId} 未提供 expectedUpdatedAt，并发删除保护未启用`,
+            resourceId: recipeId,
+        });
+    }
+    if (!expectedPreviewHash) {
+        compatibilityWarnings.push({
+            code: 'preview_hash_missing_compatibility',
+            message: `配方 #${recipeId} 未提供 previewHash，删除内容与确认预览未绑定`,
             resourceId: recipeId,
         });
     }
@@ -800,14 +886,23 @@ function executeRecipeDelete(
         input: {
             recipeId,
             expectedUpdatedAt,
+            previewHash: expectedPreviewHash,
         },
         warnings: [
             ...(commandContext.warnings || []),
             ...compatibilityWarnings,
         ],
         execute: ({ auditContext }) => {
-            const current = getRecipeRecord(dependencies.db, recipeId);
-            assertExpectedUpdatedAt(current, expectedUpdatedAt, `配方 #${recipeId}`);
+            const target = resolveRecipeDeleteTarget(
+                dependencies,
+                recipeId,
+                { expectedUpdatedAt }
+            );
+            assertPreviewHash(
+                expectedPreviewHash,
+                recipeDeletePreviewHash(recipeId, target.expectedUpdatedAt),
+                '配方删除预览已经变化，请重新预览并确认'
+            );
             const deletedAt = new Date().toISOString();
             const write = dependencies.safeUpdate(
                 'recipes',
@@ -853,6 +948,7 @@ module.exports = {
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
+    buildRecipeDeletePreview,
     buildRecipeSavePayloadDraft,
     executeRecipeCreate,
     executeRecipeDelete,

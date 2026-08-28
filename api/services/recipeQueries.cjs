@@ -105,7 +105,11 @@ function createRecipeQueries({
             throw new RecipeQueryError('非法配方ID');
         }
         const recipe = recipeRow(
-            db.prepare('SELECT * FROM recipes WHERE id = ?').get(recipeId)
+            db.prepare(`
+                SELECT *
+                FROM recipes
+                WHERE id = ? AND deleted_at IS NULL
+            `).get(recipeId)
         );
         if (!recipe) {
             throw new RecipeQueryError('配方不存在', 404);

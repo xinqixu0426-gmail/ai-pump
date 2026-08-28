@@ -18,6 +18,7 @@ const {
     CREATE_CAPABILITY_ID: RECIPE_CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID: RECIPE_DELETE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID: RECIPE_UPDATE_CAPABILITY_ID,
+    buildRecipeDeletePreview,
     buildRecipeSavePayloadDraft,
     executeRecipeCreate,
     executeRecipeDelete,
@@ -280,6 +281,21 @@ router.post('/', (req, res) => {
             data: legacyRecipeCommandResponse(result),
             createdLongScrewParts: result.createdLongScrewParts,
         });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/:id/delete-preview', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法配方ID' });
+        const data = buildRecipeDeletePreview(
+            recipeCommandDependencies(),
+            id,
+            req.body || {}
+        );
+        res.json({ success: true, data });
     } catch (error) {
         sendCommandError(res, error);
     }

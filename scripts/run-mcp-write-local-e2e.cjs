@@ -1233,10 +1233,86 @@ async function run() {
         const printCall = await callWrite('print_rotor_drawing', { jobId: drawingJobId });
         assert(printCall.receipt.result?.jobId === drawingJobId, '打印回执 jobId 与完成任务不一致');
 
-        assert(report.tools.length === MCP_WRITE_TOOL_NAMES.length, '实际成功工具数不是17');
+        const recipesBeforeDelete = (await apiRequest(
+            '读取配方删除前目录',
+            'GET',
+            '/api/recipes'
+        )).payload.data;
+        assert(
+            recipesBeforeDelete.some(recipe => Number(recipe.id) === createdRecipeId),
+            '配方删除前目标不存在'
+        );
+        const partIdsBeforeRecipeDelete = (await apiRequest(
+            '读取配方删除前零件目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
+        const deleteRecipeCall = await callWrite('delete_recipe', {
+            recipeName: createdRecipeName,
+        });
+        assert(
+            Number(deleteRecipeCall.receipt.result?.recipeId) === createdRecipeId,
+            'delete_recipe 回执目标与确认目标不一致'
+        );
+        const deletedReadback = await apiRequest(
+            '回读已删除配方',
+            'GET',
+            `/api/recipes/${createdRecipeId}`,
+            undefined,
+            [404]
+        );
+        assert(deletedReadback.payload?.success === false, '已删除配方详情未返回正式不存在');
+        const recipesAfterDelete = (await apiRequest(
+            '读取配方删除后目录',
+            'GET',
+            '/api/recipes'
+        )).payload.data;
+        assert(recipesAfterDelete.length === recipesBeforeDelete.length - 1, '配方删除后目录数量不是精确-1');
+        assert(
+            !recipesAfterDelete.some(recipe => Number(recipe.id) === createdRecipeId),
+            '软删除配方仍出现在正式目录'
+        );
+        strictAssert.deepEqual(
+            recipesAfterDelete.map(recipe => Number(recipe.id)).sort((left, right) => left - right),
+            recipesBeforeDelete
+                .filter(recipe => Number(recipe.id) !== createdRecipeId)
+                .map(recipe => Number(recipe.id))
+                .sort((left, right) => left - right),
+            '配方删除误影响其他配方'
+        );
+        const partIdsAfterRecipeDelete = (await apiRequest(
+            '读取配方删除后零件目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
+        strictAssert.deepEqual(
+            partIdsAfterRecipeDelete,
+            partIdsBeforeRecipeDelete,
+            '配方删除意外新增或删除零件目录记录'
+        );
+        report.recipeDeletion = {
+            name: 'delete_recipe_cleanup',
+            status: 'passed',
+            recipeId: createdRecipeId,
+            recipeName: createdRecipeName,
+            operationId: deleteRecipeCall.receipt.operationId,
+            confirmationOperationId: deleteRecipeCall.receipt.confirmationOperationId,
+            formalCapabilityIds: deleteRecipeCall.receipt.formalCapabilityIds,
+            formalOperationIds: deleteRecipeCall.receipt.formalOperationIds,
+            auditIds: deleteRecipeCall.receipt.auditIds,
+            idempotentReplay: deleteRecipeCall.receipt.idempotentReplay,
+            readbackStatus: deletedReadback.response.status,
+            recipeCountDelta: -1,
+            partCatalogSideEffects: 0,
+        };
+
+        assert(
+            report.tools.length === MCP_WRITE_TOOL_NAMES.length,
+            `实际成功工具数不是${MCP_WRITE_TOOL_NAMES.length}`
+        );
         assert(
             MCP_WRITE_TOOL_NAMES.every(name => report.tools.some(item => item.name === name)),
-            '17个写工具未全部完成真实localhost调用'
+            `${MCP_WRITE_TOOL_NAMES.length}个写工具未全部完成真实localhost调用`
         );
         for (const name of MCP_WRITE_TOOL_NAMES) {
             const expectedCount = name === 'update_recipe' ? 2 : 1;

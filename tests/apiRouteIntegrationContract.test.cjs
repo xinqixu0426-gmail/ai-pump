@@ -65,6 +65,30 @@ test('关键 API 集成契约：/api/recipes/bom-draft 只生成 BOM 草稿不�
     assertNoWrites(queries);
 });
 
+test('关键 API 集成契约：/api/recipes/:id/delete-preview 复用配方命令校验且不写库', () => {
+    const route = readUtf8('api/routes/recipes.cjs');
+    const commands = readUtf8('api/services/recipeCommands.cjs');
+    const routeSection = sliceBetween(
+        route,
+        "router.post('/:id/delete-preview'",
+        "router.delete('/:id'"
+    );
+    const previewSection = sliceBetween(
+        commands,
+        'function buildRecipeDeletePreview',
+        'function buildRecipeSavePayloadDraft'
+    );
+
+    assert.match(routeSection, /buildRecipeDeletePreview\(/);
+    assert.match(routeSection, /res\.json\(\{ success: true, data \}\)/);
+    assert.match(previewSection, /resolveRecipeDeleteTarget\(/);
+    assert.match(previewSection, /preview: true/);
+    assert.match(previewSection, /changes:/);
+    assert.match(previewSection, /warnings: \[\]/);
+    assertNoWrites(routeSection);
+    assertNoWrites(previewSection);
+});
+
 test('关键 API 集成契约：/api/recipes/:id/cost-preview 使用配方快照和动态试算服务', () => {
     const source = readUtf8('api/routes/cost.cjs');
     const queries = readUtf8('api/services/costQueries.cjs');

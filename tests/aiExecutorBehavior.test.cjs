@@ -890,8 +890,47 @@ test('AI executor 行为：删除配方在确认前唯一绑定 ID 和版本，�
                 }],
             });
         }
-        if (call.url.endsWith('/api/recipes/59') && call.method === 'DELETE') {
+        if (call.url.endsWith('/api/recipes/59/delete-preview') && call.method === 'POST') {
             assert.deepEqual(call.body, { expectedUpdatedAt: '2026-08-26T00:00:00.000Z' });
+            return jsonResponse({
+                success: true,
+                data: {
+                    preview: true,
+                    capabilityId: 'recipes.delete',
+                    normalizedInput: {
+                        recipeId: 59,
+                        expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                    },
+                    target: {
+                        id: 59,
+                        name: '待删除配方-正式名称',
+                        spec: '删除规格',
+                        updatedAt: '2026-08-26T00:00:00.000Z',
+                        partsCount: 3,
+                        savedTotalCost: 136,
+                    },
+                    changes: [{
+                        resourceType: 'recipe',
+                        resourceId: 59,
+                        field: 'deletedAt',
+                        from: null,
+                        to: 'soft_deleted',
+                    }],
+                    impact: {
+                        deleteMode: 'soft_delete',
+                        partsChanged: 0,
+                        inventoryChanged: false,
+                    },
+                    warnings: [],
+                    previewHash: 'a'.repeat(64),
+                },
+            });
+        }
+        if (call.url.endsWith('/api/recipes/59') && call.method === 'DELETE') {
+            assert.deepEqual(call.body, {
+                expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                previewHash: 'a'.repeat(64),
+            });
             return jsonResponse({ success: true, data: commandData('recipes.delete') });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -904,6 +943,8 @@ test('AI executor 行为：删除配方在确认前唯一绑定 ID 和版本，�
     assert.equal(pending.requiresConfirmation, true);
     assert.equal(pending.confirmation.args.recipeName, '待删除配方-正式名称');
     assert(pending.confirmation.rows.some(row => row.label === '正式配方' && row.value.includes('#59')));
+    assert(pending.confirmation.rows.some(row => row.label === 'BOM 条数' && row.value === 3));
+    assert(pending.confirmation.rows.some(row => row.label === '删除方式' && /软删除/.test(row.value)));
     const consumed = consumeAiToolConfirmation({
         confirmationToken: pending.confirmation.confirmationToken,
         subject: 'recipe-delete-subject',
@@ -922,6 +963,7 @@ test('AI executor 行为：删除配方在确认前唯一绑定 ID 和版本，�
     assert.equal(result.recipeName, '待删除配方-正式名称');
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/recipes',
+        'POST /api/recipes/59/delete-preview',
         'DELETE /api/recipes/59',
     ]);
 });

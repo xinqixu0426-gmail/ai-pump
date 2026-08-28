@@ -78,6 +78,16 @@ function createFixture() {
             '国标眼',
             NULL
         );
+        INSERT INTO recipes VALUES (
+            2,
+            'DELETED-RECIPE',
+            '[]',
+            '',
+            0,
+            '冷轧',
+            '国标眼',
+            '2026-08-28T00:00:00.000Z'
+        );
         INSERT INTO recipe_technical_files VALUES (1, 1, NULL);
         INSERT INTO parts VALUES
             (10, '6201', '甲', '轴承', 5, NULL, NULL),
@@ -266,6 +276,14 @@ test('配方 Query 对非法 ID 和不存在资源返回稳定 400/404', () => {
                 error instanceof RecipeQueryError
                 && error.statusCode === 400
                 && error.message === '非法配方ID'
+            )
+        );
+        assert.throws(
+            () => fixture.queries.getRecipe(2),
+            error => (
+                error instanceof RecipeQueryError
+                && error.statusCode === 404
+                && error.message === '配方不存在'
             )
         );
         assert.throws(

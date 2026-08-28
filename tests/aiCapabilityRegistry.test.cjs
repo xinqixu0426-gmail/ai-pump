@@ -270,6 +270,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             'confirmationToken_bound_snapshot',
             'confirmationToken_bound_absence_snapshot',
             'confirmationToken_bound_inventory_snapshot',
+            'expectedUpdatedAt+confirmationToken_bound_delete_preview',
             'external_snapshot_at_execution_time',
             'content_sha256_deduplication',
             'expectedUpdatedAt+parser_status_lock',
@@ -496,9 +497,12 @@ test('AI 能力注册表：配方创建、修改和删除已委托持久化正�
     assert.equal(updateRecipe.sourceOfTruth, 'recipeService');
     assert.equal(updateRecipe.contractStatus, 'current');
 
-    assert.equal(deleteRecipe.supportsPreview, false);
+    assert.equal(deleteRecipe.supportsPreview, true);
     assert.match(deleteRecipe.idempotency, /persistent/);
-    assert.equal(deleteRecipe.concurrencyControl, 'expectedUpdatedAt');
+    assert.equal(
+        deleteRecipe.concurrencyControl,
+        'expectedUpdatedAt+confirmationToken_bound_delete_preview'
+    );
     assert.equal(deleteRecipe.sourceOfTruth, 'recipeService');
     assert.equal(deleteRecipe.contractStatus, 'current');
 });

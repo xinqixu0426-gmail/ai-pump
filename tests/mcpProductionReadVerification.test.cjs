@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
     MCP_READ_ONLY_TOOL_NAMES,
+    MCP_WRITE_TOOL_NAMES,
 } = require('../api/mcp/catalog.cjs');
 const {
     REPRESENTATIVE_CALL_NAMES,
@@ -209,7 +210,10 @@ test('生产 MCP 全领域只读验收：允许当前身份显式授权的单个
     assert.equal(report.toolDirectory.readToolCount, 48);
     assert.equal(report.toolDirectory.writeToolCount, 1);
     assert.deepEqual(report.toolDirectory.writeTools, ['sync_factory_knowledge']);
-    assert.equal(report.toolDirectory.hiddenWriteToolCount, 16);
+    assert.equal(
+        report.toolDirectory.hiddenWriteToolCount,
+        MCP_WRITE_TOOL_NAMES.length - 1
+    );
     assert.deepEqual(client.calls.map(call => call.name), REPRESENTATIVE_CALL_NAMES);
 });
 

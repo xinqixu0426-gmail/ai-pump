@@ -1303,7 +1303,9 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         outputSchema: 'CommandReceipt<RecipeDeleteResult>',
         sourceOfTruth: 'recipes+factoryRuleLearning',
         riskLevel: 'high',
-        supportsPreview: false,
+        supportsPreview: true,
+        previewPath: '/api/recipes/:id/delete-preview',
+        concurrencyControl: 'expectedUpdatedAt+confirmationToken_bound_delete_preview',
     }),
     'recipes.technical_files.upload': defineBusinessCapability({
         capabilityId: 'recipes.technical_files.upload',

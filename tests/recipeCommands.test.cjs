@@ -6,6 +6,7 @@ const {
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
+    buildRecipeDeletePreview,
     buildRecipeSavePayloadDraft,
     executeRecipeCreate,
     executeRecipeDelete,
@@ -426,6 +427,77 @@ test('配方更新版本冲突时不写业务表、审计或 operation', () => {
     }
 });
 
+test('配方删除预览绑定正式目标和版本且不产生任何写副作用', () => {
+    const fixture = createFixture();
+    try {
+        const createDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput());
+        const created = executeRecipeCreate(
+            fixture.dependencies,
+            createDraft,
+            commandContext(CREATE_CAPABILITY_ID, 'seed-delete-preview')
+        );
+        const before = Object.fromEntries([
+            'recipes',
+            'audit_log',
+            'api_operations',
+            'business_change_events',
+        ].map(table => [
+            table,
+            fixture.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count,
+        ]));
+
+        const preview = buildRecipeDeletePreview(
+            fixture.dependencies,
+            created.recipe.id,
+            { expectedUpdatedAt: created.recipe.updatedAt }
+        );
+
+        assert.equal(preview.preview, true);
+        assert.equal(preview.capabilityId, DELETE_CAPABILITY_ID);
+        assert.deepEqual(preview.normalizedInput, {
+            recipeId: created.recipe.id,
+            expectedUpdatedAt: created.recipe.updatedAt,
+        });
+        assert.equal(preview.target.name, created.recipe.name);
+        assert.equal(preview.target.partsCount, 1);
+        assert.equal(
+            preview.target.savedTotalCost,
+            created.recipe.savedTotalCost
+        );
+        assert.equal(preview.impact.deleteMode, 'soft_delete');
+        assert.equal(preview.impact.partsChanged, 0);
+        assert.equal(preview.impact.inventoryChanged, false);
+        assert.deepEqual(preview.warnings, []);
+        assert.ok(preview.previewHash);
+        for (const [table, count] of Object.entries(before)) {
+            assert.equal(
+                fixture.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count,
+                count,
+                `${table} 被删除预览意外写入`
+            );
+        }
+        assert.equal(
+            fixture.db.prepare('SELECT deleted_at FROM recipes WHERE id = ?')
+                .get(created.recipe.id).deleted_at,
+            null
+        );
+        assert.throws(
+            () => buildRecipeDeletePreview(
+                fixture.dependencies,
+                created.recipe.id,
+                { expectedUpdatedAt: '2026-08-01T00:00:00.000Z' }
+            ),
+            error => error.code === 'resource_version_conflict' && error.statusCode === 409
+        );
+        assert.throws(
+            () => buildRecipeDeletePreview(fixture.dependencies, 999999, {}),
+            error => error.code === 'recipe_not_found' && error.statusCode === 404
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('配方删除使用版本、持久幂等和强审计并保持软删除', () => {
     const fixture = createFixture();
     try {
@@ -436,7 +508,15 @@ test('配方删除使用版本、持久幂等和强审计并保持软删除', ()
             commandContext(CREATE_CAPABILITY_ID, 'seed-delete')
         );
         const context = commandContext(DELETE_CAPABILITY_ID, 'delete');
-        const input = { expectedUpdatedAt: created.recipe.updatedAt };
+        const preview = buildRecipeDeletePreview(
+            fixture.dependencies,
+            created.recipe.id,
+            { expectedUpdatedAt: created.recipe.updatedAt }
+        );
+        const input = {
+            expectedUpdatedAt: created.recipe.updatedAt,
+            previewHash: preview.previewHash,
+        };
         const first = executeRecipeDelete(
             fixture.dependencies,
             created.recipe.id,
@@ -461,6 +541,51 @@ test('配方删除使用版本、持久幂等和强审计并保持软删除', ()
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count,
             2
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方删除预览哈希不匹配时保持有效且不留下 operation 或审计', () => {
+    const fixture = createFixture();
+    try {
+        const createDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput());
+        const created = executeRecipeCreate(
+            fixture.dependencies,
+            createDraft,
+            commandContext(CREATE_CAPABILITY_ID, 'seed-delete-preview-conflict')
+        );
+        const auditCountBefore = fixture.db.prepare(
+            'SELECT COUNT(*) AS count FROM audit_log'
+        ).get().count;
+        assert.throws(
+            () => executeRecipeDelete(
+                fixture.dependencies,
+                created.recipe.id,
+                {
+                    expectedUpdatedAt: created.recipe.updatedAt,
+                    previewHash: 'f'.repeat(64),
+                },
+                commandContext(DELETE_CAPABILITY_ID, 'delete-preview-conflict')
+            ),
+            error => error.code === 'preview_changed' && error.statusCode === 409
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT deleted_at FROM recipes WHERE id = ?')
+                .get(created.recipe.id).deleted_at,
+            null
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count,
+            auditCountBefore
+        );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM api_operations
+                WHERE capability_id = ?
+            `).get(DELETE_CAPABILITY_ID).count,
+            0
         );
     } finally {
         fixture.db.close();

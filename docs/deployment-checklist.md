@@ -31,7 +31,7 @@ export PATH=/opt/homebrew/bin:$PATH
 - 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
 - 如启用通用 MCP，设置 `MCP_ENABLED=true`。单 Agent 配置 `MCP_CLIENT_ID + MCP_TOKEN`；多个 Agent 使用 `MCP_SERVICE_TOKENS` JSON 为 Hermes、Codex 等分别分配独立 token。每个 token 至少 32 字符，不得跨 Agent 复用，也不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `MCP_ALLOWED_HOSTS`。
 - 已进入多 Agent 模式后，日常新增、轮换、撤销和回滚不得手工编辑生产 `.env`；Windows 端使用 `npm run mcp:identity:macmini -- -Action <...>`，Mac Mini 本机使用 `npm run mcp:identity -- <...>`。所有写操作先 dry-run，再显式 `-Apply`/`--apply`；token 只能来自 SSH stdin、命名环境变量或包装器内存生成，不得放入命令行参数、聊天、日志或报告。正式变更必须保留 `backups/config/mcp-identities/` 权限受限备份，并在 API 重启后按身份精确核对由权威 catalog 与实际 allowlist 推导出的完整工具名集合，不得用统一工具数量代替。完整命令和回滚流程见 `docs/mcp-development-guide.md`。
-- MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后还必须同时设置 `MCP_WRITE_CLIENT_IDS=<clientId,...>` 与 `MCP_WRITE_TOOL_ALLOWLISTS={"clientId":["sync_factory_knowledge"]}`；每个身份只获得数组中明确列出的写工具，不再默认看到全部 17 个。缺少映射、空列表、未知身份或未知工具会使 API 启动失败。首次只向支持 2026 form elicitation 的客户端开放一个可回滚工具；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
+- MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后还必须同时设置 `MCP_WRITE_CLIENT_IDS=<clientId,...>` 与 `MCP_WRITE_TOOL_ALLOWLISTS={"clientId":["sync_factory_knowledge"]}`；每个身份只获得数组中明确列出的写工具，不再默认看到全部 18 个。缺少映射、空列表、未知身份或未知工具会使 API 启动失败。首次只向支持 2026 form elicitation 的客户端开放一个可回滚工具；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
 - 任何批准生产 MCP 写能力的发布，必须先在待发布 commit 上通过 `npm run verify:mcp-write-local` 并检查 `logs/mcp-write-local-latest.json` 为 `passed`、`toolsCovered=17`、`productionTouched=false`。该本地门禁不授权修改生产 `.env`；启用开关、身份和逐工具 allowlist 仍需本次发布单独明确批准。
 - 首次把一个新的权威写工具加入生产灰度集合必须使用 `approve-write`，每次只指定一个身份和一个工具，先 dry-run，再以独立确认词执行；已进入灰度集合后才可用 `grant-write` 授权给其他身份。禁止手工编辑 `.env` 或用普通配置确认词绕过首次批准门卫。
 - 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
@@ -156,7 +156,7 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 
 若本次发布包含 MCP 写目录、确认协议或 executor/command 变更，部署前还必须执行
 `npm run verify:mcp-write-local`。它通过真实 localhost Streamable HTTP、2025/2026 双客户端和临时
-SQLite，让 17/17 写工具逐一经过正式 executor/API、operation/audit 与 Query/数据库回读，并覆盖代表性
+SQLite，让 18/18 写工具逐一经过正式 executor/API、operation/audit 与 Query/数据库回读，并覆盖代表性
 正式幂等重放、业务失败零副作用和 `accepted_async` 终态；物理外部命令由跨平台替身隔离，未知命令
 fail-closed。不得为了通过门禁临时打开生产写开关，也不得把本地通过等同于生产写入已授权；生产仍需
 `approve-write` 首次批准、按身份精确工具名验证和独立人工灰度。
