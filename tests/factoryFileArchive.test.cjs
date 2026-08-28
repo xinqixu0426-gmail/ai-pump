@@ -18,6 +18,11 @@ const {
 const {
     resetBusinessConfirmationsForTests,
 } = require('../api/services/businessConfirmation.cjs');
+const {
+    BUSINESS_ATTACHMENT_UPLOAD_CAPABILITY_ID,
+    buildFactoryFileBusinessAttachmentPreview,
+    executeConfirmedFactoryFileBusinessAttachmentUpload,
+} = require('../api/services/factoryFileLifecycleCommands.cjs');
 
 const NOW = '2026-07-29T08:00:00.000Z';
 
@@ -367,6 +372,131 @@ test('文件归档正式命令：预览后目标版本变化时拒绝写入', ()
             accessors.db.prepare(
                 'SELECT COUNT(*) AS count FROM factory_file_links'
             ).get().count,
+            0
+        );
+    } finally {
+        resetBusinessConfirmationsForTests();
+        accessors.db.close();
+    }
+});
+
+test('业务附件 Service 在同一事务创建文件与关联并支持幂等重放', () => {
+    resetBusinessConfirmationsForTests();
+    const accessors = createAccessors();
+    try {
+        const recipeId = insertRecipe(accessors, 'ATTACHMENT-ATOMIC');
+        const input = {
+            buffer: Buffer.from('atomic attachment', 'utf8'),
+            originalName: 'atomic.txt',
+            mimeType: 'text/plain',
+            targetType: 'recipe',
+            targetId: recipeId,
+            relationRole: 'technical_reference',
+            title: '原子附件',
+            source: 'business_page',
+        };
+        const preview = buildFactoryFileBusinessAttachmentPreview(
+            accessors,
+            input,
+            'user:file-command-test'
+        );
+        const context = {
+            ...commandContext(
+                BUSINESS_ATTACHMENT_UPLOAD_CAPABILITY_ID,
+                'file-business-attachment:test-1'
+            ),
+            idempotencyKey: preview.suggestedIdempotencyKey,
+        };
+        const commandInput = {
+            buffer: input.buffer,
+            originalName: input.originalName,
+            mimeType: input.mimeType,
+            confirmationToken: preview.confirmationToken,
+        };
+        const first = executeConfirmedFactoryFileBusinessAttachmentUpload(
+            accessors,
+            commandInput,
+            context,
+            'user:file-command-test'
+        );
+        const replay = executeConfirmedFactoryFileBusinessAttachmentUpload(
+            accessors,
+            commandInput,
+            context,
+            'user:file-command-test'
+        );
+        assert.equal(first.file.originalName, 'atomic.txt');
+        assert.equal(first.link.targetId, recipeId);
+        assert.equal(first.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            accessors.db.prepare('SELECT COUNT(*) AS count FROM factory_files WHERE deleted_at IS NULL').get().count,
+            1
+        );
+        assert.equal(
+            accessors.db.prepare('SELECT COUNT(*) AS count FROM factory_file_links WHERE deleted_at IS NULL').get().count,
+            1
+        );
+    } finally {
+        resetBusinessConfirmationsForTests();
+        accessors.db.close();
+    }
+});
+
+test('业务附件关联写失败会回滚刚存储的文件和上传审计', () => {
+    resetBusinessConfirmationsForTests();
+    const accessors = createAccessors();
+    try {
+        const recipeId = insertRecipe(accessors, 'ATTACHMENT-ROLLBACK');
+        const input = {
+            buffer: Buffer.from('rollback attachment', 'utf8'),
+            originalName: 'rollback.txt',
+            mimeType: 'text/plain',
+            targetType: 'recipe',
+            targetId: recipeId,
+            relationRole: 'technical_reference',
+            source: 'business_page',
+        };
+        const preview = buildFactoryFileBusinessAttachmentPreview(
+            accessors,
+            input,
+            'user:file-command-test'
+        );
+        const failingAccessors = {
+            ...accessors,
+            safeInsert(table, values, context) {
+                if (table === 'factory_file_links') {
+                    throw new Error('injected archive link failure');
+                }
+                return accessors.safeInsert(table, values, context);
+            },
+        };
+        assert.throws(
+            () => executeConfirmedFactoryFileBusinessAttachmentUpload(
+                failingAccessors,
+                {
+                    buffer: input.buffer,
+                    originalName: input.originalName,
+                    mimeType: input.mimeType,
+                    confirmationToken: preview.confirmationToken,
+                },
+                {
+                    ...commandContext(
+                        BUSINESS_ATTACHMENT_UPLOAD_CAPABILITY_ID,
+                        'file-business-attachment:rollback'
+                    ),
+                    idempotencyKey: preview.suggestedIdempotencyKey,
+                },
+                'user:file-command-test'
+            ),
+            /injected archive link failure/
+        );
+        assert.equal(
+            accessors.db.prepare("SELECT COUNT(*) AS count FROM factory_files WHERE original_name = 'rollback.txt'").get().count,
+            0
+        );
+        assert.equal(
+            accessors.db.prepare('SELECT COUNT(*) AS count FROM factory_file_links').get().count,
             0
         );
     } finally {

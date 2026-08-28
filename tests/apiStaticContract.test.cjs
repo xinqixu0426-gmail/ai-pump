@@ -8,7 +8,7 @@ const repoRoot = path.join(__dirname, '..');
 
 function walkFiles(dir, predicate, files = []) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (entry.isDirectory() && ['node_modules', '.next', '.next-dev', 'dist', 'build'].includes(entry.name)) continue;
+        if (entry.isDirectory() && ['node_modules', '.next', '.next-dev', '.next-preview', 'dist', 'build'].includes(entry.name)) continue;
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) walkFiles(fullPath, predicate, files);
         else if (predicate(fullPath)) files.push(fullPath);
@@ -2005,8 +2005,8 @@ test('API 静态契约：V9.5-V10.3 文件归档关联业务对象且知识写�
     assert.match(aiDialogs, /归档附件/);
     assert.match(aiDialogs, /已有归档/);
     assert.match(attachmentPanel, /source: 'business_page'/);
-    assert.match(attachmentPanel, /uploadFactoryFile/);
-    assert.match(attachmentPanel, /archiveFactoryFile/);
+    assert.match(attachmentPanel, /uploadBusinessAttachment/);
+    assert.doesNotMatch(attachmentPanel, /uploadFactoryFile|archiveFactoryFile/);
     assert.match(attachmentPanel, /deleteFactoryFileLink/);
     assert.match(customersView, /targetType="customer"/);
     assert.match(quotationsView, /QuotationAttachmentSummaryPanel/);

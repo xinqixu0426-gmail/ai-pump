@@ -1145,13 +1145,36 @@ test('关键 API 集成契约：/api/parts/batch-stock 是唯一标准库存增�
     assert.match(service, /safeUpdate\('parts', item\.partId, \{ stock: nextStock \}, auditContext\)/);
     assert.match(service, /assertExpectedUpdatedAt/);
     assert.match(partService, /part_stock_patch_compatibility/);
-    assert.match(partService, /新调用必须使用 \/api\/parts\/batch-stock/);
+    assert.match(partService, /新库存增减调用必须使用 \/api\/parts\/batch-stock/);
     assert.match(aiExecutor, /executePartUpdate/);
     assert.match(aiPartExecution, /\/api\/parts\/batch-stock-preview/);
     assert.match(aiPartExecution, /\/api\/parts\/batch-stock/);
-    assert.match(webClient, /\/api\/parts\/batch-stock-preview/);
-    assert.match(webClient, /\/api\/parts\/batch-stock/);
+    assert.match(webClient, /\/api\/parts\/\$\{part\.id\}\/save-preview/);
+    assert.match(webClient, /\/api\/parts\/\$\{part\.id\}\/save/);
+    assert.doesNotMatch(webClient, /function replacePartStock/);
     assert.doesNotMatch(section, /\bdb\.prepare\(\s*`?\s*UPDATE\b/i);
+});
+
+test('关键 API 静态接线契约：零件资料整单保存和批量删除使用正式预览与原子命令', () => {
+    const route = readUtf8('api/routes/parts.cjs');
+    const service = readUtf8('api/services/partCommands.cjs');
+    const webClient = readUtf8('apps/web-next/lib/parts.ts');
+
+    assert.match(route, /router\.post\('\/:id\/save-preview'/);
+    assert.match(route, /router\.post\('\/:id\/save'/);
+    assert.match(route, /buildPartProfileSavePreview/);
+    assert.match(route, /executeConfirmedPartProfileSave/);
+    assert.match(route, /router\.post\('\/batch-delete-preview'/);
+    assert.match(route, /router\.post\('\/batch-delete'/);
+    assert.match(route, /executeConfirmedPartBatchDelete/);
+    assert.match(service, /function executePartProfileSave/);
+    assert.match(service, /applyPartBusinessSettings/);
+    assert.match(service, /function executePartBatchDelete/);
+    assert.match(service, /const records = parts\.map/);
+    assert.match(webClient, /partBusinessSettingUpdate/);
+    assert.match(webClient, /\/api\/parts\/batch-delete-preview/);
+    assert.match(webClient, /\/api\/parts\/batch-delete/);
+    assert.doesNotMatch(webClient, /Promise\.all\(parts\.map\(\(part\) => deletePart/);
 });
 
 test('关键 API 集成契约：批量零件建档使用预览、确认和原子正式命令', () => {

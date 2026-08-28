@@ -6,10 +6,9 @@ import { Download, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, Paper
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import {
-  archiveFactoryFile,
   deleteFactoryFileLink,
   listFactoryFileLinksForTarget,
-  uploadFactoryFile,
+  uploadBusinessAttachment,
   type FactoryFileArchiveTargetType,
   type FactoryFileLink,
 } from '@/lib/files';
@@ -100,8 +99,7 @@ export function FactoryFileAttachments({
     setError('');
     setMessage('');
     try {
-      const stored = await uploadFactoryFile(file);
-      await archiveFactoryFile(stored.id, {
+      await uploadBusinessAttachment(file, {
         targetType,
         targetId,
         relationRole,

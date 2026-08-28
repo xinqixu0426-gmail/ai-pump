@@ -7,6 +7,7 @@ const {
     extractPartFields,
     safeInsert,
     safeUpdate,
+    setSetting,
     invalidatePartsCache,
 } = require('../db.cjs');
 const { parsePositiveId } = require('../services/validation.cjs');
@@ -22,13 +23,19 @@ const {
 const { listParts } = require('../services/partQueries.cjs');
 const {
     BATCH_CREATE_CAPABILITY_ID: PART_BATCH_CREATE_CAPABILITY_ID,
+    BATCH_DELETE_CAPABILITY_ID: PART_BATCH_DELETE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID: PART_CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID: PART_DELETE_CAPABILITY_ID,
+    PROFILE_SAVE_CAPABILITY_ID: PART_PROFILE_SAVE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID: PART_UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
+    buildPartBatchDeletePreview,
     buildPartPricePreview,
+    buildPartProfileSavePreview,
     executeConfirmedPartBatchCreate,
+    executeConfirmedPartBatchDelete,
+    executeConfirmedPartProfileSave,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,
@@ -46,6 +53,7 @@ function partDependencies() {
         partRow,
         safeInsert,
         safeUpdate,
+        setSetting,
     };
 }
 
@@ -127,6 +135,34 @@ router.post('/batch-create', (req, res) => {
     }
 });
 
+router.post('/batch-delete-preview', (req, res) => {
+    try {
+        const data = buildPartBatchDeletePreview(
+            partDependencies(),
+            req.body || {},
+            commandActorKey(req)
+        );
+        res.json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/batch-delete', (req, res) => {
+    try {
+        const result = executeConfirmedPartBatchDelete(
+            partDependencies(),
+            req.body || {},
+            commandContextFromRequest(req, PART_BATCH_DELETE_CAPABILITY_ID),
+            commandActorKey(req)
+        );
+        invalidatePartsCache();
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
 router.post('/prices-preview', (req, res) => {
     try {
         res.json({
@@ -147,6 +183,40 @@ router.patch('/prices', (req, res) => {
         );
         invalidatePartsCache();
         res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/:id/save-preview', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法零件ID' });
+        const data = buildPartProfileSavePreview(
+            partDependencies(),
+            id,
+            req.body || {},
+            commandActorKey(req)
+        );
+        res.json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/:id/save', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法零件ID' });
+        const result = executeConfirmedPartProfileSave(
+            partDependencies(),
+            id,
+            req.body || {},
+            commandContextFromRequest(req, PART_PROFILE_SAVE_CAPABILITY_ID),
+            commandActorKey(req)
+        );
+        invalidatePartsCache();
+        res.json({ success: true, data: legacyPartCommandResponse(result) });
     } catch (error) {
         sendCommandError(res, error);
     }

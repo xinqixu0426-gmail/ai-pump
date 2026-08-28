@@ -1,6 +1,6 @@
 # 当前技术债与优化清单
 
-> 更新于 2026-08-12。
+> 更新于 2026-08-27。
 >
 > 本文只保留尚未完成、会影响正确性、维护成本或下一阶段演进的事项。已经完成或失效的整改过程由 Git 历史保存，不继续留在当前文档中。
 
@@ -42,9 +42,10 @@
 
 | 文件 | 当前规模 | 主要耦合 |
 |---|---:|---|
-| `apps/web-next/components/ai-view.tsx` | 588 行 | 页面级编排、对话发送、工具结果回写、工厂配置与知识同步；独立展示和局部状态已拆出 |
-| `apps/web-next/components/knowledge-view.tsx` | 1,642 行 | 知识资料、回归评测、反馈处理、向量健康和详情弹层 |
-| `apps/web-next/components/quotations-view.tsx` | 1,413 行 | 报价列表、编辑、成本覆盖、包装配置和转单 |
+| `apps/web-next/components/recipes-view.tsx` | 2,436 行 | 配方列表、草稿编排、模板入口、就地建档、成本/BOM 预览和多类弹层 |
+| `apps/web-next/components/quotations-view.tsx` | 1,736 行 | 报价列表、编辑、成本覆盖、包装配置和转单 |
+| `apps/web-next/components/knowledge-view.tsx` | 1,584 行 | 知识资料、回归评测、反馈处理、向量健康和详情弹层 |
+| `apps/web-next/components/ai-view.tsx` | 825 行 | 页面级编排、对话发送、工具结果回写、工厂配置与知识同步；独立展示和局部状态已拆出 |
 
 问题不只是行数，而是一个文件同时承担多个独立变化原因：
 
@@ -95,15 +96,16 @@
 - 第四批已完成：附件能力读取、上传和临时文件清理迁入 `useAiAttachments.ts`，消息附件与待发送预览迁入 `AiAttachmentDisplays.tsx`，归档查询和保存状态迁入 `AiAttachmentArchiveController.tsx`；
 - 临时附件仅在会话消息保存成功后转为持久关联，上传失败和主动丢弃仍清理未引用文件；归档控制器继续通过 `lib/files.ts` 调用正式 API；
 - 第五批已完成：消息区迁入 `AiMessageList.tsx`，输入区迁入 `AiComposer.tsx`，语音识别生命周期迁入 `useAiSpeechInput.ts`，回答反馈状态与保存迁入 `useAiAnswerFeedback.ts`；
-- `ai-view.tsx` 已由最初 3,409 行降至 588 行，当前只保留页面级跨模块协调、标准对话发送、工具结果回写、工厂配置和知识同步；
+- `ai-view.tsx` 已由最初 3,409 行降至 825 行；后续新增编排使规模较第一阶段收口时回升，当前仍只保留页面级跨模块协调、标准对话发送、工具结果回写、工厂配置和知识同步；
 - 第一阶段到此结束。后续不得仅为降低行数继续机械拆分；只有出现新的独立变化原因、明显状态耦合或测试边界时，才启动第二阶段。
 
-#### 第二批：`knowledge-view.tsx` 与 `quotations-view.tsx`
+#### 第二批：`recipes-view.tsx`、`quotations-view.tsx` 与 `knowledge-view.tsx`
 
 状态：**可选优化，暂缓实施。**
 
-这两个工作台目前没有已确认的正确性阻塞，继续瘦身的收益主要是降低后续维护成本，不是当前发布前置条件。只有在新增功能明显扩大状态耦合、同一区域频繁产生回归，或单次修改需要跨越多个独立业务区时再恢复：
+这三个工作台目前没有已确认的正确性阻塞，继续瘦身的收益主要是降低后续维护成本，不是当前发布前置条件。只有在新增功能明显扩大状态耦合、同一区域频繁产生回归，或单次修改需要跨越多个独立业务区时再恢复：
 
+- `recipes-view.tsx` 按资源加载、草稿编排、模板/目录协调和弹层状态拆分；
 - `knowledge-view.tsx` 按资料、评测、反馈治理和运行健康拆分；
 - `quotations-view.tsx` 按列表、编辑草稿、成本覆盖和转单流程拆分。
 

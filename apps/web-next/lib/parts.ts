@@ -24,6 +24,13 @@ export type PartInput = {
   stock: number;
   notes?: string;
   duplicatePolicy?: 'allow' | 'reject';
+  businessSettings?: PartBusinessSettingUpdate[];
+};
+
+export type PartBusinessSettingUpdate = {
+  key: 'cable_accessories' | 'float_accessory_delta';
+  value: string;
+  expectedUpdatedAt: string | null;
 };
 
 type PartRow = {
@@ -41,6 +48,14 @@ type PartRow = {
   updatedAt?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
+};
+
+type PartCommandRow = PartRow & {
+  businessSettings?: Array<{
+    key: PartBusinessSettingUpdate['key'];
+    value: string;
+    updatedAt: string;
+  }>;
 };
 
 export type PartStockStatus = 'out' | 'low' | 'ok';
@@ -79,7 +94,7 @@ export async function getAllParts(): Promise<Part[]> {
 }
 
 export async function createPart(input: PartInput): Promise<Part> {
-  const result = await proxyRequest<ApiResponse<PartRow>>('/api/parts', {
+  const result = await proxyRequest<ApiResponse<PartCommandRow>>('/api/parts', {
     method: 'POST',
     headers: {
       'Idempotency-Key': createIdempotencyKey('part-create'),
@@ -87,6 +102,7 @@ export async function createPart(input: PartInput): Promise<Part> {
     body: JSON.stringify(input),
   });
   if (!result.success || !result.data) throw new Error(result.error || '零件创建失败');
+  rememberPartBusinessSettings(result.data.businessSettings);
   return rowToPart(result.data);
 }
 
@@ -159,57 +175,33 @@ export async function confirmPartBatchCreate(
   return result.data;
 }
 
-async function replacePartStock(part: Part, targetStock: number): Promise<Part> {
-  const delta = targetStock - part.stock;
-  if (delta === 0) return part;
-  const previewResult = await proxyRequest<ApiResponse<{
-    confirmationToken: string;
-    suggestedIdempotencyKey: string;
-  }>>('/api/parts/batch-stock-preview', {
-    method: 'POST',
-    body: JSON.stringify({
-      operations: [{ partId: part.id, delta }],
-      note: '零件资料页库存调整',
-    }),
-  });
-  if (!previewResult.success || !previewResult.data) {
-    throw new Error(previewResult.error || '生成零件库存调整预览失败');
-  }
-  const commandResult = await proxyRequest<ApiResponse<{
-    parts?: PartRow[];
-  }>>('/api/parts/batch-stock', {
-    method: 'POST',
-    headers: {
-      'Idempotency-Key': previewResult.data.suggestedIdempotencyKey,
-    },
-    body: JSON.stringify({
-      confirmationToken: previewResult.data.confirmationToken,
-      idempotencyKey: previewResult.data.suggestedIdempotencyKey,
-    }),
-  });
-  const updated = commandResult.data?.parts?.[0];
-  if (!commandResult.success || !updated) {
-    throw new Error(commandResult.error || '零件库存调整失败');
-  }
-  return rowToPart(updated);
-}
-
 export async function updatePart(part: Part, input: PartInput): Promise<Part> {
   if (!part.updatedAt) throw new Error('零件版本缺失，请刷新列表后再保存');
-  const stockAdjustedPart = await replacePartStock(part, input.stock);
-  if (!stockAdjustedPart.updatedAt) throw new Error('库存调整后零件版本缺失，请刷新列表');
-  const { stock: _stock, ...metadataInput } = input;
-  const result = await proxyRequest<ApiResponse<PartRow>>(`/api/parts/${part.id}`, {
-    method: 'PATCH',
+  const preview = await proxyRequest<ApiResponse<{
+    confirmationToken: string;
+    suggestedIdempotencyKey: string;
+  }>>(`/api/parts/${part.id}/save-preview`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...input,
+      expectedUpdatedAt: part.updatedAt,
+    }),
+  });
+  if (!preview.success || !preview.data) {
+    throw new Error(preview.error || '生成零件资料保存预览失败');
+  }
+  const result = await proxyRequest<ApiResponse<PartCommandRow>>(`/api/parts/${part.id}/save`, {
+    method: 'POST',
     headers: {
-      'Idempotency-Key': createIdempotencyKey(`part-update:${part.id}`),
+      'Idempotency-Key': preview.data.suggestedIdempotencyKey,
     },
     body: JSON.stringify({
-      ...metadataInput,
-      expectedUpdatedAt: stockAdjustedPart.updatedAt,
+      confirmationToken: preview.data.confirmationToken,
+      idempotencyKey: preview.data.suggestedIdempotencyKey,
     }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '零件保存失败');
+  rememberPartBusinessSettings(result.data.businessSettings);
   return rowToPart(result.data);
 }
 
@@ -227,10 +219,72 @@ export async function deletePart(part: Part): Promise<void> {
 
 export async function deleteParts(parts: Part[]): Promise<void> {
   if (parts.length === 0) return;
-  await Promise.all(parts.map((part) => deletePart(part)));
+  const missingVersion = parts.find(part => !part.updatedAt);
+  if (missingVersion) throw new Error(`零件“${missingVersion.model}”版本缺失，请刷新后再删除`);
+  const preview = await proxyRequest<ApiResponse<{
+    confirmationToken: string;
+    suggestedIdempotencyKey: string;
+    deleteCount: number;
+  }>>('/api/parts/batch-delete-preview', {
+    method: 'POST',
+    body: JSON.stringify({
+      parts: parts.map(part => ({
+        partId: part.id,
+        expectedUpdatedAt: part.updatedAt,
+      })),
+    }),
+  });
+  if (!preview.success || !preview.data) {
+    throw new Error(preview.error || '生成零件批量删除预览失败');
+  }
+  const result = await proxyRequest<ApiResponse<{
+    status?: string;
+    operationStatus?: string;
+    operationId: string;
+    deletedCount: number;
+    auditIds: number[];
+  }>>('/api/parts/batch-delete', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': preview.data.suggestedIdempotencyKey,
+    },
+    body: JSON.stringify({
+      confirmationToken: preview.data.confirmationToken,
+      idempotencyKey: preview.data.suggestedIdempotencyKey,
+    }),
+  });
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '零件批量删除失败');
+  }
+  const status = result.data.status || result.data.operationStatus;
+  if (status !== 'completed'
+    || result.data.deletedCount !== parts.length
+    || result.data.auditIds.length < parts.length) {
+    throw new Error('零件批量删除回执不完整，请刷新列表并检查业务变更记录');
+  }
 }
 
 const settingVersions = new Map<string, string | null>();
+
+function rememberPartBusinessSettings(settings?: PartCommandRow['businessSettings']) {
+  for (const setting of settings || []) {
+    settingVersions.set(setting.key, setting.updatedAt || null);
+  }
+}
+
+export function partBusinessSettingUpdate(
+  key: PartBusinessSettingUpdate['key'],
+  value: unknown
+): PartBusinessSettingUpdate {
+  if (!settingVersions.has(key)) {
+    throw new Error(`设置项 ${key} 的版本尚未加载，请刷新表单后重试`);
+  }
+  return {
+    key,
+    value: typeof value === 'string' ? value : JSON.stringify(value),
+    expectedUpdatedAt: settingVersions.get(key) || null,
+  };
+}
 
 export async function getSettingValue(key: string): Promise<string> {
   const result = await proxyRequest<ApiResponse<{ value: string; updatedAt?: string | null }>>(`/api/settings/${key}`);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   BarChart3,
   Bot,
@@ -30,11 +30,13 @@ import {
 } from '@/components/ai/assistant-panel';
 import { NavItem, NavSection } from '@/components/ui/nav-item';
 import { Button } from '@/components/ui/button';
+import { Drawer } from '@/components/ui/dialog';
 import {
   AI_PAGE_CONTEXT_EVENT,
   readCurrentAiPageContext,
   type AiPageContext,
 } from '@/lib/page-context';
+import { buildCurrentHref, navigationHrefMatches } from '@/lib/navigation-state';
 
 const salesNavItems = [
   { href: '/customers', label: '客户', icon: UsersRound },
@@ -66,6 +68,85 @@ const AI_PANEL_STORAGE = {
   width: 'pump.ai-panel.width',
 } as const;
 
+function AppNavigationContent({
+  pathname,
+  currentHref,
+  onNavigate,
+}: {
+  pathname: string;
+  currentHref: string;
+  onNavigate: () => void;
+}) {
+  function isNavItemActive(href: string) {
+    if (href.includes('?')) return navigationHrefMatches(currentHref, href);
+    if (href === '/dashboard') {
+      const dedicatedDashboardViewActive = systemNavItems
+        .filter((item) => item.href.startsWith('/dashboard?'))
+        .some((item) => navigationHrefMatches(currentHref, item.href));
+      return pathname === href && !dedicatedDashboardViewActive;
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  return (
+    <nav className="space-y-4" aria-label="主导航">
+      <NavItem
+        href="/dashboard"
+        label="看板"
+        icon={BarChart3}
+        active={isNavItemActive('/dashboard')}
+        onNavigate={onNavigate}
+      />
+      <NavSection
+        label="销售"
+        icon={UsersRound}
+        active={salesNavItems.some((item) => isNavItemActive(item.href))}
+        items={salesNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
+        onNavigate={onNavigate}
+      />
+      <NavSection
+        label="供应链"
+        icon={Truck}
+        active={supplyNavItems.some((item) => isNavItemActive(item.href))}
+        items={supplyNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
+        onNavigate={onNavigate}
+      />
+      <NavSection
+        label="产品工程"
+        icon={Layers3}
+        active={engineeringNavItems.some((item) => isNavItemActive(item.href))}
+        items={engineeringNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
+        onNavigate={onNavigate}
+      />
+      <NavItem
+        href="/ai"
+        label="AI"
+        icon={Bot}
+        active={isNavItemActive('/ai')}
+        onNavigate={onNavigate}
+      />
+      <NavSection
+        label="系统"
+        icon={Settings2}
+        active={systemNavItems.some((item) => isNavItemActive(item.href))}
+        items={systemNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
+        onNavigate={onNavigate}
+      />
+    </nav>
+  );
+}
+
+function RouteAwareAppNavigation({ pathname, onNavigate }: { pathname: string; onNavigate: () => void }) {
+  const searchParams = useSearchParams();
+  return (
+    <AppNavigationContent
+      pathname={pathname}
+      currentHref={buildCurrentHref(pathname, searchParams)}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAiWorkspace = pathname === '/ai';
@@ -77,7 +158,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [aiPanelPreferencesLoaded, setAiPanelPreferencesLoaded] = useState(false);
   const [isWideViewport, setIsWideViewport] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [currentHref, setCurrentHref] = useState(pathname);
   const [pageContext, setPageContext] = useState<AiPageContext | null>(null);
 
   useEffect(() => {
@@ -105,23 +185,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileNavOpen(false);
-    setCurrentHref(`${pathname}${window.location.search}`);
   }, [pathname]);
 
   useEffect(() => {
-    if (!mobileNavOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.getElementById('mobile-nav-close')?.focus();
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMobileNavOpen(false);
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
+    const desktopNavigation = window.matchMedia('(min-width: 1024px)');
+    const closeMobileNavigation = () => {
+      if (desktopNavigation.matches) setMobileNavOpen(false);
     };
-  }, [mobileNavOpen]);
+    closeMobileNavigation();
+    desktopNavigation.addEventListener('change', closeMobileNavigation);
+    return () => desktopNavigation.removeEventListener('change', closeMobileNavigation);
+  }, []);
 
   useEffect(() => {
     const syncPageContext = () => setPageContext(readCurrentAiPageContext());
@@ -139,64 +213,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!open) setAiPanelFullscreen(false);
   }
 
-  function isNavItemActive(href: string) {
-    if (href.includes('?')) return currentHref === href;
-    if (href === '/dashboard') return currentHref === '/dashboard';
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
-  function handleNavigation(href: string) {
-    setCurrentHref(href);
+  function handleNavigation() {
     setMobileNavOpen(false);
   }
 
   const aiPanelDocked = aiPanelOpen && aiPanelPinned && isWideViewport && !aiPanelFullscreen;
 
   const navigation = (
-    <nav className="space-y-4" aria-label="主导航">
-      <NavItem
-        href="/dashboard"
-        label="看板"
-        icon={BarChart3}
-        active={isNavItemActive('/dashboard')}
-        onNavigate={handleNavigation}
-      />
-      <NavSection
-        label="销售"
-        icon={UsersRound}
-        active={salesNavItems.some((item) => isNavItemActive(item.href))}
-        items={salesNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
-        onNavigate={handleNavigation}
-      />
-      <NavSection
-        label="供应链"
-        icon={Truck}
-        active={supplyNavItems.some((item) => isNavItemActive(item.href))}
-        items={supplyNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
-        onNavigate={handleNavigation}
-      />
-      <NavSection
-        label="产品工程"
-        icon={Layers3}
-        active={engineeringNavItems.some((item) => isNavItemActive(item.href))}
-        items={engineeringNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
-        onNavigate={handleNavigation}
-      />
-      <NavItem
-        href="/ai"
-        label="AI"
-        icon={Bot}
-        active={isNavItemActive('/ai')}
-        onNavigate={handleNavigation}
-      />
-      <NavSection
-        label="系统"
-        icon={Settings2}
-        active={systemNavItems.some((item) => isNavItemActive(item.href))}
-        items={systemNavItems.map((item) => ({ ...item, active: isNavItemActive(item.href) }))}
-        onNavigate={handleNavigation}
-      />
-    </nav>
+    <Suspense fallback={<AppNavigationContent pathname={pathname} currentHref={pathname} onNavigate={handleNavigation} />}>
+      <RouteAwareAppNavigation pathname={pathname} onNavigate={handleNavigation} />
+    </Suspense>
   );
 
   if (pathname === '/login') {
@@ -228,38 +254,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        {mobileNavOpen ? (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-40 bg-slate-950/25 lg:hidden"
-              aria-label="关闭主导航遮罩"
+        <Drawer
+          open={mobileNavOpen}
+          onClose={() => setMobileNavOpen(false)}
+          side="left"
+          width="sm"
+          ariaLabel="移动端主导航"
+          panelClassName="flex !w-[min(20rem,88vw)] !max-w-none flex-col lg:hidden"
+        >
+          <div className="flex h-16 items-center justify-between border-b border-line px-4">
+            <div>
+              <div className="text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
+              <div className="text-xs text-muted">全部业务入口</div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={18} />}
+              aria-label="关闭主导航"
               onClick={() => setMobileNavOpen(false)}
             />
-            <aside
-              className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,88vw)] flex-col border-r border-line bg-white shadow-xl lg:hidden"
-              role="dialog"
-              aria-modal="true"
-              aria-label="移动端主导航"
-            >
-              <div className="flex h-16 items-center justify-between border-b border-line px-4">
-                <div>
-                  <div className="text-sm font-semibold text-ink">水泵 BOM 管理助手</div>
-                  <div className="text-xs text-muted">全部业务入口</div>
-                </div>
-                <Button
-                  id="mobile-nav-close"
-                  variant="ghost"
-                  size="sm"
-                  icon={<X size={18} />}
-                  aria-label="关闭主导航"
-                  onClick={() => setMobileNavOpen(false)}
-                />
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{navigation}</div>
-            </aside>
-          </>
-        ) : null}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{navigation}</div>
+        </Drawer>
 
         <main className={isAiWorkspace ? 'p-0 lg:px-5 lg:py-5' : 'px-3 py-4 md:px-5 md:py-5'}>
           {isFullWorkspace ? (
@@ -270,10 +287,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               style={{ gridTemplateColumns: aiPanelDocked ? `minmax(0, 1fr) ${aiPanelWidth}px` : 'minmax(0, 1fr)' }}
             >
               <div className="min-w-0">{children}</div>
-              {!aiPanelOpen ? (
+              {!aiPanelOpen && !mobileNavOpen ? (
                 <button
                   type="button"
-                  className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-[90] inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-700 bg-ink text-white shadow-xl transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+                  className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full border border-slate-700 bg-ink text-white shadow-xl transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
                   aria-label="展开业务 AI 助手"
                   title="展开业务 AI 助手"
                   onClick={() => setAiPanelVisibility(true)}

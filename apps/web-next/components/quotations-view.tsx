@@ -1721,7 +1721,7 @@ export function QuotationsView() {
         open={Boolean(deleteTarget)}
         title="删除报价？"
         description={deleteTarget
-          ? `报价 #${deleteTarget.id} 将被永久删除。客户档案不会被删除，但该报价的明细和历史状态无法恢复。`
+          ? `报价 #${deleteTarget.id} 将从当前报价列表中移除，历史审计记录仍会保留；客户档案不会受到影响。`
           : ''}
         confirmLabel="删除报价"
         confirmVariant="danger"

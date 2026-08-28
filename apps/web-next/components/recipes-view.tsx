@@ -442,14 +442,12 @@ export function RecipesView() {
   }, [readPartsFresh]);
 
   const resolveCatalogPart = useCallback(async (
-    input: PartInput,
-    beforeCreate?: () => Promise<void>
+    input: PartInput
   ): Promise<{ part: Part; created: boolean }> => {
     const result = await resolveInlineCatalogPart({
       input,
       readParts: readPartsFresh,
       createPart,
-      beforeCreate,
     });
     setParts(result.rows);
     return { part: result.part, created: result.created };
@@ -2410,7 +2408,7 @@ export function RecipesView() {
             ? '删除泵壳模板？'
             : '删除常用配置？'}
         description={deleteTarget?.kind === 'recipe'
-          ? `配方“${deleteTarget.item.name || deleteTarget.item.id}”及其当前配置将被永久删除，此操作无法撤销。`
+          ? `配方“${deleteTarget.item.name || deleteTarget.item.id}”及其当前配置将从当前配方列表中移除，历史审计记录仍会保留。`
           : deleteTarget?.kind === 'template'
             ? `泵壳模板“${deleteTarget.item.shellModel || deleteTarget.item.id}”将被删除；如果仍被配方引用，后端会拒绝执行。`
             : deleteTarget?.kind === 'variant'

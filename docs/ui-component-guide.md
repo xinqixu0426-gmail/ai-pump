@@ -13,6 +13,8 @@
 | 空结果 | `EmptyState` | 明确“当前没有什么”和下一步操作 |
 | 宽表格 | `TableScrollArea` | 提供键盘焦点与窄屏滑动提示 |
 
+全局导航活动态必须由当前 URL 派生：普通业务入口按 `pathname` 匹配，带查询参数的入口通过 `useSearchParams` 匹配其声明参数并允许附加上下文参数。不得把点击过的 `href` 保存为另一份导航事实，否则同路径页签切换、外部链接及浏览器前进后退会留下错误高亮。
+
 ```tsx
 <PageHeader
   title="客户"
@@ -40,6 +42,8 @@
 
 字段状态由基础组件维护。业务页面只提供值、变更事件、禁用状态和业务错误，不复制高度、焦点环或错误颜色。
 
+允许自由输入并提供目录候选的字段统一使用 `EditableValueSelect`：焦点或点击展开候选，`ArrowUp` / `ArrowDown` 移动活动项，`Enter` 选中，`Escape` 先关闭候选且不得联动关闭父弹层；连续使用 `Backspace` / `Delete` 编辑时关闭候选但不阻断输入。输入焦点保留在 `combobox` 上，通过 `aria-activedescendant` 关联当前候选，鼠标点击和键盘选择必须走同一个 `onChange` 业务入口。
+
 数字输入按编辑意图显式选择交互：数量、片数、默认工资和目录名义规格等通常整体替换的原子值，使用 `Input selectOnFirstFocus`；暂未迁移到 `Input` 的存量原生控件复用 `selectInputValueOnFocus`。首次鼠标或 Tab 聚焦会选中当前值，保持焦点后的再次点击仍可精确定位。利润率、销售价、采购价、线重和连续测量或按位修订的精密尺寸等字段保留浏览器原生光标行为；只读、禁用以及型号/规格等数字外观文本不得启用整值选择。小数步进本身不能决定分类，例如目录中的螺丝直径是整体替换的名义规格，而拉伸筒基准长度是精密尺寸。该能力必须按字段显式开启，不得根据 `type="number"` 全局套用。
 
 同一种交互只能有一个基础组件入口。业务页面不得直接编写 `type="checkbox"`，也不得维护 `inputClass`、`selectClass`、`controlClass` 等视觉样式常量。确实需要紧凑尺寸、错误态或其他通用变体时，先给 `components/ui/` 中的基础组件增加明确属性，再由所有业务页面复用；页面传入的 `className` 只用于网格跨度、外边距和对齐等布局调整。
@@ -60,14 +64,16 @@
 ```tsx
 <ConfirmDialog
   open={Boolean(deleteTarget)}
-  title="删除客户？"
-  description="客户资料将被永久删除，此操作不可撤销。"
+  title="删除零件？"
+  description="零件将从当前零件目录中移除，历史审计记录仍会保留。"
   confirmLabel="确认删除"
   confirmVariant="danger"
-  onConfirm={deleteCustomer}
+  onConfirm={deletePart}
   onClose={() => setDeleteTarget(null)}
 />
 ```
+
+删除确认必须按实际持久化语义描述后果：使用 `deleted_at` 的软删除只说明资源会从当前业务列表中移除、历史审计仍保留，不得写成“永久删除”或“无法撤销”，也不得在没有正式恢复入口时承诺用户可自行恢复。只有确实执行物理清理的动作才能使用不可恢复文案，并应明确会被清理的对象。未打开的全局浮动入口必须低于基础 Dialog/Drawer/SlideOver；需要主动覆盖业务弹层的工作区必须通过明确的专用层级实现。
 
 ## 4. AI 组件边界
 

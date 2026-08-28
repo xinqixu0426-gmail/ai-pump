@@ -86,9 +86,13 @@ app.use(cookieParser());
 // 网页保存的运行设置覆盖 .env 默认值；部署鉴权密钥仍只允许来自环境变量。
 require('./api/services/runtimeConfig.cjs').initializeRuntimeSettings();
 
-// 静态文件服务 — 转子出图 PDF 下载
+// 静态文件服务 — 转子出图 PDF 下载（沿用现有 URL，但必须先通过登录鉴权）
 const path = require('path');
-app.use('/drawings', express.static(path.join(__dirname, 'public/drawings')));
+app.use(
+  '/drawings',
+  authMiddleware,
+  express.static(path.join(__dirname, 'public/drawings'))
+);
 
 // ── 登录接口限流（防暴力破解） ──
 const loginLimiter = rateLimit({

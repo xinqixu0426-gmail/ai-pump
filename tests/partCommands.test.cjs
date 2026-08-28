@@ -4,13 +4,19 @@ const Database = require('better-sqlite3');
 const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
 const {
     BATCH_CREATE_CAPABILITY_ID,
+    BATCH_DELETE_CAPABILITY_ID,
     BATCH_PRICE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
+    PROFILE_SAVE_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
     buildPartBatchCreatePreview,
+    buildPartBatchDeletePreview,
+    buildPartProfileSavePreview,
     buildPartPricePreview,
     executeConfirmedPartBatchCreate,
+    executeConfirmedPartBatchDelete,
+    executeConfirmedPartProfileSave,
     executePartCreate,
     executePartDelete,
     executePartPriceBatch,
@@ -66,6 +72,11 @@ function createFixture() {
             shell_model TEXT UNIQUE,
             updated_at TEXT
         );
+        CREATE TABLE system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
     `);
     let version = 0;
 
@@ -118,6 +129,25 @@ function createFixture() {
         };
     }
 
+    function setSetting(key, value, context) {
+        const current = db.prepare(
+            'SELECT key, value, updated_at FROM system_settings WHERE key = ?'
+        ).get(key);
+        const updatedAt = nextUpdatedAt();
+        db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        `).run(key, String(value), updatedAt);
+        return {
+            key,
+            value: String(value),
+            updatedAt,
+            auditId: writeAudit('system_settings', null, context),
+            created: !current,
+        };
+    }
+
     const dependencies = {
         db,
         extractPartFields(body) {
@@ -148,6 +178,7 @@ function createFixture() {
         },
         safeInsert,
         safeUpdate,
+        setSetting,
     };
     return { db, dependencies };
 }
@@ -660,5 +691,402 @@ test('零件批量调价版本冲突或强审计缺失时不产生部分写入',
         `).get().count, 0);
     } finally {
         fixture.db.close();
+    }
+});
+
+test('零件资料整单保存将目标库存、资料和业务设置原子提交并安全重放', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('float_accessory_delta', '1.5', '2026-08-01T00:00:00.000Z')
+        `).run();
+        const created = seedPart(fixture, 'PROFILE-1', 10);
+        const preview = buildPartProfileSavePreview(
+            fixture.dependencies,
+            created.part.id,
+            {
+                model: 'PROFILE-1A',
+                category: '浮球',
+                price: 12,
+                supplier: '供应商A',
+                stock: 9,
+                notes: '整单保存',
+                expectedUpdatedAt: created.part.updatedAt,
+                businessSettings: [{
+                    key: 'float_accessory_delta',
+                    value: '2.5',
+                    expectedUpdatedAt: '2026-08-01T00:00:00.000Z',
+                }],
+            },
+            'jwt:part-test'
+        );
+        const context = {
+            ...commandContext(PROFILE_SAVE_CAPABILITY_ID, 'profile-save'),
+            idempotencyKey: preview.suggestedIdempotencyKey,
+        };
+        const saved = executeConfirmedPartProfileSave(
+            fixture.dependencies,
+            created.part.id,
+            { confirmationToken: preview.confirmationToken },
+            context,
+            'jwt:part-test'
+        );
+        const replay = executeConfirmedPartProfileSave(
+            fixture.dependencies,
+            created.part.id,
+            { confirmationToken: preview.confirmationToken },
+            context,
+            'jwt:part-test'
+        );
+        assert.equal(saved.part.model, 'PROFILE-1A');
+        assert.equal(saved.part.stock, 9);
+        assert.equal(saved.part.price, 12);
+        assert.equal(saved.businessSettings[0].value, '2.5');
+        assert.equal(saved.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            fixture.db.prepare('SELECT stock FROM parts WHERE id = ?').get(created.part.id).stock,
+            9
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT value FROM system_settings WHERE key = 'float_accessory_delta'").get().value,
+            '2.5'
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
+    }
+});
+
+test('零件新建将表单业务设置同事务提交，设置失败时不留下零件或 operation', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('cable_accessories', ?, '2026-08-01T00:00:00.000Z')
+        `).run(JSON.stringify({
+            standard: { name: '旧标准附件', fee: 1 },
+            xinjie: { name: '旧鑫捷附件', fee: 2 },
+        }));
+        const nextCableAccessories = JSON.stringify({
+            standard: { name: '新标准附件', fee: 3 },
+            xinjie: { name: '新鑫捷附件', fee: 4 },
+        });
+        const input = {
+            model: 'CREATE-WITH-SETTING',
+            category: '电缆',
+            price: 8,
+            supplier: '供应商A',
+            stock: 2,
+            duplicatePolicy: 'reject',
+            businessSettings: [{
+                key: 'cable_accessories',
+                value: nextCableAccessories,
+                expectedUpdatedAt: '2026-08-01T00:00:00.000Z',
+            }],
+        };
+        const context = commandContext(CREATE_CAPABILITY_ID, 'create-with-setting');
+        const created = executePartCreate(fixture.dependencies, input, context);
+        const replay = executePartCreate(fixture.dependencies, input, context);
+        assert.equal(created.part.model, input.model);
+        assert.equal(created.businessSettings[0].value, nextCableAccessories);
+        assert.equal(created.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE model = ?')
+                .get(input.model).count,
+            1
+        );
+
+        const failingDependencies = {
+            ...fixture.dependencies,
+            setSetting() {
+                throw new Error('injected create setting failure');
+            },
+        };
+        const failingInput = {
+            ...input,
+            model: 'CREATE-WITH-SETTING-ROLLBACK',
+            businessSettings: [{
+                ...input.businessSettings[0],
+                expectedUpdatedAt: fixture.db.prepare(
+                    "SELECT updated_at FROM system_settings WHERE key = 'cable_accessories'"
+                ).get().updated_at,
+            }],
+        };
+        assert.throws(
+            () => executePartCreate(
+                failingDependencies,
+                failingInput,
+                commandContext(CREATE_CAPABILITY_ID, 'create-setting-rollback')
+            ),
+            /injected create setting failure/
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE model = ?')
+                .get(failingInput.model).count,
+            0
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT value FROM system_settings WHERE key = 'cable_accessories'").get().value,
+            nextCableAccessories
+        );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM api_operations
+                WHERE idempotency_key = 'part:command:create-setting-rollback'
+            `).get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('零件资料整单保存的设置写失败会回滚已经执行的零件更新', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('float_accessory_delta', '1.5', '2026-08-01T00:00:00.000Z')
+        `).run();
+        const created = seedPart(fixture, 'PROFILE-ROLLBACK', 10);
+        const preview = buildPartProfileSavePreview(
+            fixture.dependencies,
+            created.part.id,
+            {
+                model: created.part.model,
+                category: '浮球',
+                price: 15,
+                supplier: created.part.supplier,
+                stock: 11,
+                expectedUpdatedAt: created.part.updatedAt,
+                businessSettings: [{
+                    key: 'float_accessory_delta',
+                    value: '3.5',
+                    expectedUpdatedAt: '2026-08-01T00:00:00.000Z',
+                }],
+            },
+            'jwt:part-test'
+        );
+        const failingDependencies = {
+            ...fixture.dependencies,
+            setSetting() {
+                throw new Error('injected setting failure');
+            },
+        };
+        assert.throws(
+            () => executeConfirmedPartProfileSave(
+                failingDependencies,
+                created.part.id,
+                { confirmationToken: preview.confirmationToken },
+                {
+                    ...commandContext(PROFILE_SAVE_CAPABILITY_ID, 'profile-rollback'),
+                    idempotencyKey: preview.suggestedIdempotencyKey,
+                },
+                'jwt:part-test'
+            ),
+            /injected setting failure/
+        );
+        const current = fixture.db.prepare('SELECT price, stock FROM parts WHERE id = ?')
+            .get(created.part.id);
+        assert.deepEqual(current, { price: 10, stock: 5 });
+        assert.equal(
+            fixture.db.prepare("SELECT value FROM system_settings WHERE key = 'float_accessory_delta'").get().value,
+            '1.5'
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
+    }
+});
+
+test('零件资料整单保存拒绝过期预览，资料写失败时设置和 operation 均不改变', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES ('float_accessory_delta', '1.5', '2026-08-01T00:00:00.000Z')
+        `).run();
+        const created = seedPart(fixture, 'PROFILE-FAILURES', 10);
+        const input = {
+            model: created.part.model,
+            category: '浮球',
+            price: 15,
+            supplier: created.part.supplier,
+            stock: 11,
+            expectedUpdatedAt: created.part.updatedAt,
+            businessSettings: [{
+                key: 'float_accessory_delta',
+                value: '3.5',
+                expectedUpdatedAt: '2026-08-01T00:00:00.000Z',
+            }],
+        };
+        const stalePreview = buildPartProfileSavePreview(
+            fixture.dependencies,
+            created.part.id,
+            input,
+            'jwt:part-test'
+        );
+        executePartUpdate(
+            fixture.dependencies,
+            created.part.id,
+            { price: 12, expectedUpdatedAt: created.part.updatedAt },
+            commandContext(UPDATE_CAPABILITY_ID, 'profile-stale-change')
+        );
+        assert.throws(
+            () => executeConfirmedPartProfileSave(
+                fixture.dependencies,
+                created.part.id,
+                { confirmationToken: stalePreview.confirmationToken },
+                {
+                    ...commandContext(PROFILE_SAVE_CAPABILITY_ID, 'profile-stale'),
+                    idempotencyKey: stalePreview.suggestedIdempotencyKey,
+                },
+                'jwt:part-test'
+            ),
+            error => error.code === 'resource_version_conflict'
+        );
+        assert.deepEqual(
+            fixture.db.prepare('SELECT price, stock FROM parts WHERE id = ?').get(created.part.id),
+            { price: 12, stock: 5 }
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT value FROM system_settings WHERE key = 'float_accessory_delta'").get().value,
+            '1.5'
+        );
+
+        const current = fixture.db.prepare('SELECT updated_at FROM parts WHERE id = ?')
+            .get(created.part.id);
+        const writeFailurePreview = buildPartProfileSavePreview(
+            fixture.dependencies,
+            created.part.id,
+            { ...input, expectedUpdatedAt: current.updated_at },
+            'jwt:part-test'
+        );
+        const failingDependencies = {
+            ...fixture.dependencies,
+            safeUpdate() {
+                throw new Error('injected profile write failure');
+            },
+        };
+        assert.throws(
+            () => executeConfirmedPartProfileSave(
+                failingDependencies,
+                created.part.id,
+                { confirmationToken: writeFailurePreview.confirmationToken },
+                {
+                    ...commandContext(PROFILE_SAVE_CAPABILITY_ID, 'profile-write-failure'),
+                    idempotencyKey: writeFailurePreview.suggestedIdempotencyKey,
+                },
+                'jwt:part-test'
+            ),
+            /injected profile write failure/
+        );
+        assert.deepEqual(
+            fixture.db.prepare('SELECT price, stock FROM parts WHERE id = ?').get(created.part.id),
+            { price: 12, stock: 5 }
+        );
+        assert.equal(
+            fixture.db.prepare("SELECT value FROM system_settings WHERE key = 'float_accessory_delta'").get().value,
+            '1.5'
+        );
+        assert.equal(
+            fixture.db.prepare(`
+                SELECT COUNT(*) AS count FROM api_operations
+                WHERE idempotency_key IN (
+                    'part:command:profile-stale',
+                    'part:command:profile-write-failure'
+                )
+            `).get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
+    }
+});
+
+test('零件批量删除先完整校验版本，冲突时整批零删除，成功后支持幂等重放', () => {
+    resetBusinessConfirmationsForTests();
+    const fixture = createFixture();
+    try {
+        const first = seedPart(fixture, 'DELETE-BATCH-1', 10);
+        const second = seedPart(fixture, 'DELETE-BATCH-2', 11);
+        const parts = [first.part, second.part].map(part => ({
+            partId: part.id,
+            expectedUpdatedAt: part.updatedAt,
+        }));
+        const stalePreview = buildPartBatchDeletePreview(
+            fixture.dependencies,
+            { parts },
+            'jwt:part-test'
+        );
+        executePartUpdate(
+            fixture.dependencies,
+            second.part.id,
+            { price: 12, expectedUpdatedAt: second.part.updatedAt },
+            commandContext(UPDATE_CAPABILITY_ID, 'batch-delete-conflict')
+        );
+        assert.throws(
+            () => executeConfirmedPartBatchDelete(
+                fixture.dependencies,
+                { confirmationToken: stalePreview.confirmationToken },
+                {
+                    ...commandContext(BATCH_DELETE_CAPABILITY_ID, 'batch-delete-stale'),
+                    idempotencyKey: stalePreview.suggestedIdempotencyKey,
+                },
+                'jwt:part-test'
+            ),
+            error => error.code === 'resource_version_conflict'
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE deleted_at IS NULL').get().count,
+            2
+        );
+
+        const currentRows = fixture.db.prepare(
+            'SELECT id, updated_at FROM parts WHERE deleted_at IS NULL ORDER BY id'
+        ).all();
+        const preview = buildPartBatchDeletePreview(
+            fixture.dependencies,
+            {
+                parts: currentRows.map(row => ({
+                    partId: row.id,
+                    expectedUpdatedAt: row.updated_at,
+                })),
+            },
+            'jwt:part-test'
+        );
+        const context = {
+            ...commandContext(BATCH_DELETE_CAPABILITY_ID, 'batch-delete'),
+            idempotencyKey: preview.suggestedIdempotencyKey,
+        };
+        const deleted = executeConfirmedPartBatchDelete(
+            fixture.dependencies,
+            { confirmationToken: preview.confirmationToken },
+            context,
+            'jwt:part-test'
+        );
+        const replay = executeConfirmedPartBatchDelete(
+            fixture.dependencies,
+            { confirmationToken: preview.confirmationToken },
+            context,
+            'jwt:part-test'
+        );
+        assert.equal(deleted.deletedCount, 2);
+        assert.equal(deleted.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE deleted_at IS NULL').get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+        resetBusinessConfirmationsForTests();
     }
 });
