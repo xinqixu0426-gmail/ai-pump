@@ -8,6 +8,61 @@ const COMMON_PROTOCOL_TESTS = Object.freeze([
     'tests/aiCapabilityRegistry.test.cjs',
 ]);
 
+// Baseline accepted before this batch. This is a test cohort, not a projection
+// of the live production allowlist; deployment verification reads that state
+// from the authenticated endpoint.
+const MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES = Object.freeze([
+    'sync_factory_knowledge',
+    'create_recipe',
+    'update_recipe',
+    'delete_recipe',
+    'adjust_coil_stock',
+    'batch_create_parts',
+    'adjust_part_stock',
+    'delete_part',
+    'batch_update_prices',
+]);
+
+const MCP_BATCH_WRITE_SCENARIOS = Object.freeze([
+    Object.freeze({
+        id: 'order_and_workflow',
+        title: '订单与报价转单',
+        tools: Object.freeze([
+            'execute_order_readiness_action',
+            'execute_factory_workflow_step',
+            'generate_purchase_list',
+            'create_order',
+            'add_recipe_to_order',
+            'remove_recipe_from_order',
+            'update_order_item',
+        ]),
+        cleanup: 'destroy_temporary_database',
+        productionBoundary: 'dedicated gray data only; quotation conversion is decline-only in production',
+    }),
+    Object.freeze({
+        id: 'file_archive',
+        title: '文件归档',
+        tools: Object.freeze(['archive_factory_file']),
+        cleanup: 'destroy_temporary_database',
+        productionBoundary: 'dedicated canary file only',
+    }),
+    Object.freeze({
+        id: 'rotor_output',
+        title: '转子出图与打印',
+        tools: Object.freeze(['generate_rotor_drawing', 'print_rotor_drawing']),
+        cleanup: 'destroy_temporary_directory',
+        productionBoundary: 'print command is decline-only; localhost execution must use fail-closed stubs',
+    }),
+]);
+
+const MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES = Object.freeze(
+    MCP_BATCH_WRITE_SCENARIOS.flatMap(scenario => scenario.tools)
+);
+
+function batchScenarioForTool(name) {
+    return MCP_BATCH_WRITE_SCENARIOS.find(scenario => scenario.tools.includes(name)) || null;
+}
+
 const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     {
         name: 'execute_order_readiness_action',
@@ -135,7 +190,11 @@ function acceptanceTestFiles() {
 
 module.exports = {
     COMMON_PROTOCOL_TESTS,
+    MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    MCP_BATCH_WRITE_SCENARIOS,
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
     MCP_WRITE_ACCEPTANCE_CASES,
     ROOT,
     acceptanceTestFiles,
+    batchScenarioForTool,
 };

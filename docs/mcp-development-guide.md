@@ -49,14 +49,14 @@ npm run verify:mcp-local
 npm run verify:mcp-write-local
 ```
 
-该门禁先把 `api/mcp/catalog.cjs` 的 19 个正式写工具与验收清单做严格集合比对，并用快速矩阵逐工具验证
+该门禁先把 `api/mcp/catalog.cjs` 的 19 个正式写工具与验收清单做严格集合比对，并把本轮之前已完成人工验收的 9 项作为测试基线；批次候选 10 项按订单与报价转单、文件归档、转子出图与打印三个场景汇总，两组必须无重复、无遗漏。该分组不推断实时生产 allowlist，生产权限仍由部署后认证目录验证。快速矩阵逐工具验证
 `mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
 正式执行证据、确认层重放、拒绝后无副作用。矩阵通过后，`scripts/run-mcp-write-local-e2e.cjs`
-创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端，让全部 19 个工具逐一经过
+创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端；2026 写客户端只取一次目录快照，让全部 19 个工具逐一经过
 MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Query/数据库回读；同时真实调用 2025
 只读工具、尝试并拒绝其隐藏写工具。`create_order/adjust_part_stock/batch_update_prices/sync_factory_knowledge`
 会把同一份 2026 `requestState + inputResponses` 再提交一次，核对 `idempotentReplay=true`、原 operation/audit
-不变且数据库零新增；订单、库存、配方、文件和打印各有一个真实失败样本，核对失败回执与零副作用。
+不变且数据库零新增；批次候选 10 项还逐一走原生拒绝，并以前后全库逻辑摘要、受控外部文件树及命令替身计数核对零副作用，三个场景分别给出成功、拒绝和清理状态。订单、库存、配方、文件和打印各有一个真实失败样本，核对失败回执与零副作用。
 `delete_recipe` 会删除同轮创建的临时配方，核对正式删除 Preview、版本绑定、operation/audit、详情 404、
 列表数量精确减一、其他配方与零件目录不变；`delete_part` 会删除同轮批量创建并完成库存和价格验收的临时零件，核对正式删除 Preview、唯一目标、版本与哈希绑定、operation/audit、目录不可见和其他零件不变。
 报价转订单会核对客户、来源说明和明细，打印替身会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
@@ -64,7 +64,7 @@ MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Q
 进程替身拦截，未知外部命令 fail-closed，并回读异步终态。测试不会读取生产 MCP token、连接 Mac Mini、
 修改正式数据库或调用物理打印机。综合报告写入 `logs/mcp-write-local-latest.json`，逐工具证据写入
 `logs/mcp-write-local-e2e-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
-生产 `MCP_WRITE_ENABLED` 仍保持关闭，直到负责人明确批准并另做一笔可回滚的生产验收。
+生产写授权不因本地通过而改变，直到负责人明确批准。生产批量灰度仍须使用专用数据；报价转单默认只验拒绝，物理打印只验拒绝，不能把 stub 成功当成真实设备授权。
 
 Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
 后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、

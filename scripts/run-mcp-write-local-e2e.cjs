@@ -1,4 +1,5 @@
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -23,6 +24,12 @@ const {
     MCP_WRITE_TOOL_NAMES,
 } = require('../api/mcp/catalog.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
+const {
+    MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    MCP_BATCH_WRITE_SCENARIOS,
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+    batchScenarioForTool,
+} = require('./mcp-write-acceptance-manifest.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const REPORT_PATH = path.join(ROOT, 'logs', 'mcp-write-local-e2e-latest.json');
@@ -484,6 +491,66 @@ function databaseSnapshot(databasePath) {
     }
 }
 
+function databaseContentDigest(databasePath) {
+    const db = new Database(databasePath, { readonly: true });
+    try {
+        db.pragma('busy_timeout = 5000');
+        const tables = db.prepare(`
+            SELECT name
+            FROM sqlite_schema
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
+        `).all().map(row => String(row.name));
+        const hash = crypto.createHash('sha256');
+        let rows = 0;
+        for (const table of tables) {
+            const quoted = `"${table.replaceAll('"', '""')}"`;
+            const serializedRows = db.prepare(`SELECT * FROM ${quoted}`).all()
+                .map(row => JSON.stringify(row))
+                .sort();
+            hash.update(table);
+            hash.update('\0');
+            for (const serialized of serializedRows) {
+                hash.update(serialized);
+                hash.update('\0');
+            }
+            rows += serializedRows.length;
+        }
+        return {
+            tables: tables.length,
+            rows,
+            sha256: hash.digest('hex'),
+        };
+    } finally {
+        db.close();
+    }
+}
+
+function externalTreeSnapshot(tempDir) {
+    const roots = ['public/drawings', 'freecad'];
+    const files = [];
+    function visit(absoluteDir) {
+        if (!fs.existsSync(absoluteDir)) return;
+        for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
+            const absolutePath = path.join(absoluteDir, entry.name);
+            if (entry.isDirectory()) {
+                visit(absolutePath);
+                continue;
+            }
+            assert(entry.isFile(), `隔离外部目录出现非文件项: ${absolutePath}`);
+            const content = fs.readFileSync(absolutePath);
+            files.push({
+                path: path.relative(tempDir, absolutePath).split(path.sep).join('/'),
+                bytes: content.length,
+                sha256: crypto.createHash('sha256').update(content).digest('hex'),
+            });
+        }
+    }
+    for (const root of roots) visit(path.join(tempDir, ...root.split('/')));
+    files.sort((left, right) => left.path.localeCompare(right.path));
+    return files;
+}
+
 function readStubEvents(stubLogPath) {
     return fs.existsSync(stubLogPath)
         ? fs.readFileSync(stubLogPath, 'utf8')
@@ -556,7 +623,7 @@ async function run() {
     const databasePath = path.join(tempDir, 'pump.db');
     const stubLogPath = path.join(tempDir, 'external-stub.jsonl');
     const report = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         suite: 'mcp-write-localhost-e2e',
         status: 'running',
         startedAt: startedAt.toISOString(),
@@ -570,7 +637,11 @@ async function run() {
         toolsExpected: MCP_WRITE_TOOL_NAMES.length,
         toolsPassed: 0,
         tools: [],
-        rejectedCall: null,
+        directorySnapshot: null,
+        previouslyAcceptedTools: MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+        candidateTools: MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+        declinedCalls: [],
+        scenarios: [],
         legacyCompatibility: null,
         idempotencyReplays: [],
         failedCalls: [],
@@ -729,6 +800,12 @@ async function run() {
             { name: 'mcp-local-write-e2e', version: '2.0.0' },
             { versionNegotiation: { mode: 'auto' } }
         );
+        let modernListCalls = 0;
+        const originalModernListTools = modernClient.listTools.bind(modernClient);
+        modernClient.listTools = (...args) => {
+            modernListCalls += 1;
+            return originalModernListTools(...args);
+        };
         modernClient.registerCapabilities({ elicitation: { form: {} } });
         modernClient.setRequestHandler('elicitation/create', async request => {
             assert(activeTool, '收到无法关联工具的 MCP 确认请求');
@@ -753,6 +830,14 @@ async function run() {
                 .every(tool => tool.annotations?.readOnlyHint === false),
             'localhost 写工具 readOnlyHint 不正确'
         );
+        report.directorySnapshot = {
+            protocolVersion: report.protocolVersion,
+            listCalls: modernListCalls,
+            readTools: MCP_READ_ONLY_TOOL_NAMES.length,
+            writeTools: MCP_WRITE_TOOL_NAMES.length,
+            totalTools: listed.tools.length,
+            names: listed.tools.map(tool => tool.name),
+        };
 
         manualClient = new ModernMcpClient(
             { name: 'mcp-local-write-replay-e2e', version: '2.0.0' },
@@ -769,12 +854,6 @@ async function run() {
             manualClient.getNegotiatedProtocolVersion() === '2026-07-28',
             '手动重放客户端未协商到 2026-07-28'
         );
-        const manualTools = await manualClient.listTools();
-        assert(
-            manualTools.tools.map(tool => tool.name).join('\0') === expectedNames.join('\0'),
-            '手动重放客户端工具目录不完整'
-        );
-
         function recordSuccessfulTool(name, receipt, durationMs) {
             report.tools.push({
                 name,
@@ -920,84 +999,122 @@ async function run() {
             }
         }
 
-        const unique = `${Date.now().toString(36)}-${process.pid}`;
-        const declinedPartModel = `MCP-DECLINED-${unique}`;
-        const declined = await callWrite('batch_create_parts', {
-            parts: [{
-                model: declinedPartModel,
-                category: 'MCP拒绝验收',
-                price: 1,
-                supplier: 'MCP-LOCAL',
-            }],
-        }, { responseMode: 'decline' });
-        assert(declined?.isError !== true, '用户拒绝不应返回协议错误');
-        assert(declined?.structuredContent?.code === 'mcp_write_declined', '拒绝回执错误');
-        const partsAfterDecline = (await apiRequest(
-            'MCP拒绝后回读零件',
-            'GET',
-            `/api/parts?keyword=${encodeURIComponent(declinedPartModel)}`
-        )).payload.data;
-        assert(partsAfterDecline.length === 0, '拒绝确认后仍创建了零件');
-        report.rejectedCall = {
-            name: 'batch_create_parts',
-            code: 'mcp_write_declined',
-            sideEffects: 0,
-        };
+        async function declineWrite(name, args) {
+            assert(
+                MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.includes(name),
+                `${name} 不属于本轮批次候选工具`
+            );
+            const before = databaseSnapshot(databasePath);
+            const contentBefore = databaseContentDigest(databasePath);
+            const treeBefore = externalTreeSnapshot(tempDir);
+            const externalBefore = readStubEvents(stubLogPath).length;
+            const declined = await callWrite(name, args, { responseMode: 'decline' });
+            assert(declined?.isError !== true, `${name} 用户拒绝不应返回协议错误`);
+            assert(
+                declined?.structuredContent?.code === 'mcp_write_declined',
+                `${name} 拒绝回执错误`
+            );
+            strictAssert.deepEqual(
+                databaseSnapshot(databasePath),
+                before,
+                `${name} 拒绝确认后产生了数据库副作用`
+            );
+            const contentAfter = databaseContentDigest(databasePath);
+            strictAssert.deepEqual(
+                contentAfter,
+                contentBefore,
+                `${name} 拒绝确认后改变了数据库记录内容`
+            );
+            strictAssert.deepEqual(
+                externalTreeSnapshot(tempDir),
+                treeBefore,
+                `${name} 拒绝确认后改变了隔离外部文件树`
+            );
+            assert(
+                readStubEvents(stubLogPath).length === externalBefore,
+                `${name} 拒绝确认后触发了外部命令`
+            );
+            report.declinedCalls.push({
+                name,
+                scenario: batchScenarioForTool(name)?.id || null,
+                code: 'mcp_write_declined',
+                confirmationPresented: true,
+                sideEffects: 0,
+                externalSideEffects: 0,
+                databaseDigest: contentBefore.sha256,
+                databaseTables: contentBefore.tables,
+                databaseRows: contentBefore.rows,
+                externalFiles: treeBefore.length,
+            });
+        }
 
-        const createdOrderCall = await callWriteWithReplay('create_order', {
+        const unique = `${Date.now().toString(36)}-${process.pid}`;
+        const createOrderArgs = {
             customerName: FIXTURE.customerName,
             contractNo: `MCP-LOCAL-${unique}`,
             status: '待确认',
             // Deliberately exceed the seeded stock so confirm_order has a
             // deterministic pending-purchase state for the editable-order tools.
             items: [{ recipeName: FIXTURE.recipeA, qty: 30 }],
-        });
+        };
+        await declineWrite('create_order', createOrderArgs);
+        const createdOrderCall = await callWriteWithReplay('create_order', createOrderArgs);
         const orderId = Number(createdOrderCall.receipt.result?.order?.id);
         assert(orderId > 0, 'create_order 未返回订单ID');
         let order = (await apiRequest('回读新建订单', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(order.status === '待确认', 'create_order 未固定进入待确认');
         assert(parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeA), '新订单缺少配方A');
 
-        await callWrite('execute_order_readiness_action', {
+        const readinessArgs = {
             orderId,
             actionId: 'confirm_order',
-        });
+        };
+        await declineWrite('execute_order_readiness_action', readinessArgs);
+        await callWrite('execute_order_readiness_action', readinessArgs);
         order = (await apiRequest('回读订单确认结果', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(order.status === '待采购', `订单准备动作未进入待采购，实际为 ${order.status}`);
 
-        await callWrite('add_recipe_to_order', {
+        const addRecipeArgs = {
             orderId,
             recipeName: FIXTURE.recipeB,
             qty: 2,
             reason: 'MCP localhost 验收追加产品',
-        });
+        };
+        await declineWrite('add_recipe_to_order', addRecipeArgs);
+        await callWrite('add_recipe_to_order', addRecipeArgs);
         order = (await apiRequest('回读订单追加产品', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeB), '追加配方未回读到');
 
-        await callWrite('update_order_item', {
+        const updateOrderItemArgs = {
             orderId,
             recipeName: FIXTURE.recipeB,
             qty: 3,
             reason: 'MCP localhost 验收修改数量',
-        });
+        };
+        await declineWrite('update_order_item', updateOrderItemArgs);
+        await callWrite('update_order_item', updateOrderItemArgs);
         order = (await apiRequest('回读订单产品修改', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(
             parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeB && Number(item.qty) === 3),
             '订单产品数量回读不一致'
         );
 
-        await callWrite('generate_purchase_list', {
+        const purchaseListArgs = {
             orderId,
             reason: 'MCP localhost 验收重新生成采购清单',
-        });
+        };
+        await declineWrite('generate_purchase_list', purchaseListArgs);
+        await callWrite('generate_purchase_list', purchaseListArgs);
         order = (await apiRequest('回读采购清单', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(parseJsonArray(order.purchaseListJson).length > 0, '采购清单未生成');
 
-        await callWrite('remove_recipe_from_order', {
+        const removeRecipeArgs = {
             orderId,
             recipeName: FIXTURE.recipeB,
             reason: 'MCP localhost 验收移除产品',
-        });
+        };
+        await declineWrite('remove_recipe_from_order', removeRecipeArgs);
+        await callWrite('remove_recipe_from_order', removeRecipeArgs);
         order = (await apiRequest('回读订单移除产品', 'GET', `/api/orders/${orderId}`)).payload.data;
         assert(!parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeB), '移除配方后仍存在');
         assert(parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeA), '移除配方误删了其他产品');
@@ -1171,13 +1288,15 @@ async function run() {
         )).payload.data;
         assert(coils.length === 1 && Number(coils[0].stock) === 8, '线圈库存回读不一致');
 
-        await callWrite('archive_factory_file', {
+        const archiveArgs = {
             fileId: fixtureIds.fileId,
             targetType: 'recipe',
             targetId: createdRecipeId,
             title: 'MCP localhost 技术资料',
             note: 'MCP localhost 归档验收',
-        });
+        };
+        await declineWrite('archive_factory_file', archiveArgs);
+        await callWrite('archive_factory_file', archiveArgs);
         const fileLinks = (await apiRequest(
             '回读文件归档关联',
             'GET',
@@ -1228,11 +1347,13 @@ async function run() {
             fixtureIds.customerId,
             fixtureIds.recipeAId
         );
-        await callWrite('execute_factory_workflow_step', {
+        const workflowArgs = {
             workflowType: 'quotation_to_order',
             quotationId: acceptedQuotation.id,
             actionId: 'convert_quotation',
-        });
+        };
+        await declineWrite('execute_factory_workflow_step', workflowArgs);
+        await callWrite('execute_factory_workflow_step', workflowArgs);
         const quotationReadback = (await apiRequest(
             '回读报价转订单结果',
             'GET',
@@ -1262,17 +1383,23 @@ async function run() {
             );
         }
 
-        const drawingCall = await callWrite('generate_rotor_drawing', {
+        const drawingArgs = {
             upper_bearing: '303',
             lower_bearing: '6304',
             piece_count: 160,
-        }, { allowedStatuses: ['accepted', 'processing', 'completed'] });
+        };
+        await declineWrite('generate_rotor_drawing', drawingArgs);
+        const drawingCall = await callWrite('generate_rotor_drawing', drawingArgs, {
+            allowedStatuses: ['accepted', 'processing', 'completed'],
+        });
         const drawingJobId = String(drawingCall.receipt.result?.jobId || '');
         assert(drawingJobId, 'generate_rotor_drawing 未返回 jobId');
         const drawingStatus = await waitForRotorJob(drawingJobId);
         assert(drawingStatus.fileUrl, '出图替身完成后缺少 fileUrl');
 
-        const printCall = await callWrite('print_rotor_drawing', { jobId: drawingJobId });
+        const printArgs = { jobId: drawingJobId };
+        await declineWrite('print_rotor_drawing', printArgs);
+        const printCall = await callWrite('print_rotor_drawing', printArgs);
         assert(printCall.receipt.result?.jobId === drawingJobId, '打印回执 jobId 与完成任务不一致');
 
         const recipesBeforeDelete = (await apiRequest(
@@ -1359,6 +1486,8 @@ async function run() {
             report.tools.length === MCP_WRITE_TOOL_NAMES.length,
             `实际成功工具数不是${MCP_WRITE_TOOL_NAMES.length}`
         );
+        assert(modernListCalls === 1, `2026 写客户端目录读取次数不是1: ${modernListCalls}`);
+        report.directorySnapshot.listCalls = modernListCalls;
         assert(
             MCP_WRITE_TOOL_NAMES.every(name => report.tools.some(item => item.name === name)),
             `${MCP_WRITE_TOOL_NAMES.length}个写工具未全部完成真实localhost调用`
@@ -1371,9 +1500,19 @@ async function run() {
             );
         }
         assert(
-            confirmationCounts.decline.get('batch_create_parts') === 1,
-            'batch_create_parts 拒绝路径原生确认次数异常'
+            report.declinedCalls.length === MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.length,
+            `批次候选拒绝样本不是${MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.length}个`
         );
+        for (const name of MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES) {
+            assert(
+                confirmationCounts.decline.get(name) === 1,
+                `${name} 拒绝路径原生确认次数异常`
+            );
+            assert(
+                report.declinedCalls.some(item => item.name === name && item.sideEffects === 0),
+                `${name} 缺少拒绝零副作用证据`
+            );
+        }
         const expectedFailureConfirmations = new Map([
             ['update_order_item', 1],
             ['adjust_part_stock', 0],
@@ -1415,6 +1554,27 @@ async function run() {
             printerCalls: stubEvents.filter(event => event.kind === 'printer').length,
             physicalCalls: 0,
         };
+        report.scenarios = MCP_BATCH_WRITE_SCENARIOS.map(scenario => {
+            const successfulTools = scenario.tools.filter(name => (
+                report.tools.some(item => item.name === name && item.status === 'passed')
+            ));
+            const declinedTools = scenario.tools.filter(name => (
+                report.declinedCalls.some(item => item.name === name && item.sideEffects === 0)
+            ));
+            const passed = successfulTools.length === scenario.tools.length
+                && declinedTools.length === scenario.tools.length;
+            assert(passed, `${scenario.id} 场景未完成成功与拒绝双路径`);
+            return {
+                id: scenario.id,
+                title: scenario.title,
+                status: 'passed',
+                tools: scenario.tools,
+                successfulTools,
+                declinedTools,
+                cleanup: scenario.cleanup,
+                productionBoundary: scenario.productionBoundary,
+            };
+        });
 
         report.status = 'passed';
         report.toolsPassed = report.tools.length;

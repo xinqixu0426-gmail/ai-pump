@@ -14,6 +14,9 @@ const {
     verifyMcpRequestState,
 } = require('../api/mcp/write.cjs');
 const {
+    MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    MCP_BATCH_WRITE_SCENARIOS,
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
     MCP_WRITE_ACCEPTANCE_CASES,
     acceptanceTestFiles,
 } = require('../scripts/mcp-write-acceptance-manifest.cjs');
@@ -106,6 +109,32 @@ test('MCP 写工具本地验收清单与正式目录严格保持 19/19 一致', 
         assert.deepEqual(validateAiToolArgs(item.name, item.args), item.args, item.name);
     }
     assert.ok(acceptanceTestFiles().includes('tests/mcp.test.cjs'));
+});
+
+test('MCP 写工具批量验收范围精确分成既有验收基线9项和3场景候选10项', () => {
+    const catalogNames = MCP_WRITE_ACCEPTANCE_CASES.map(item => item.name);
+    const combined = [
+        ...MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+        ...MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+    ];
+    assert.equal(MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES.length, 9);
+    assert.equal(MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.length, 10);
+    assert.equal(MCP_BATCH_WRITE_SCENARIOS.length, 3);
+    assert.equal(new Set(combined).size, 19);
+    assert.deepEqual(new Set(combined), new Set(catalogNames));
+    assert.deepEqual(
+        MCP_BATCH_WRITE_SCENARIOS.flatMap(scenario => scenario.tools),
+        MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES
+    );
+    assert.deepEqual(
+        MCP_BATCH_WRITE_SCENARIOS.map(scenario => scenario.id),
+        ['order_and_workflow', 'file_archive', 'rotor_output']
+    );
+    assert.match(
+        MCP_BATCH_WRITE_SCENARIOS.find(scenario => scenario.id === 'rotor_output')
+            .productionBoundary,
+        /decline-only/
+    );
 });
 
 for (const [index, item] of MCP_WRITE_ACCEPTANCE_CASES.entries()) {

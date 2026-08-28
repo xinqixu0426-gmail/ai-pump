@@ -4,6 +4,9 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const {
+    MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    MCP_BATCH_WRITE_SCENARIOS,
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
     MCP_WRITE_ACCEPTANCE_CASES,
     ROOT,
     acceptanceTestFiles,
@@ -105,6 +108,32 @@ const businessFailurePassed = requiredFailureTools.every(name => failureEvidence
     && typeof item?.code === 'string'
     && item.code.length > 0
 )));
+const declinedEvidence = Array.isArray(e2eReport?.declinedCalls)
+    ? e2eReport.declinedCalls
+    : [];
+const remainingDeclinesPassed = MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.every(name => declinedEvidence.some(item => (
+    item?.name === name
+    && item?.code === 'mcp_write_declined'
+    && item?.confirmationPresented === true
+    && item?.sideEffects === 0
+    && item?.externalSideEffects === 0
+    && typeof item?.databaseDigest === 'string'
+    && /^[a-f0-9]{64}$/.test(item.databaseDigest)
+    && Number(item?.databaseTables) > 0
+)));
+const scenarioEvidence = Array.isArray(e2eReport?.scenarios) ? e2eReport.scenarios : [];
+const scenariosPassed = MCP_BATCH_WRITE_SCENARIOS.every(expected => scenarioEvidence.some(actual => (
+    actual?.id === expected.id
+    && actual?.status === 'passed'
+    && expected.tools.every(name => actual.successfulTools?.includes(name))
+    && expected.tools.every(name => actual.declinedTools?.includes(name))
+)));
+const partitionPassed = new Set([
+    ...MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    ...MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+]).size === MCP_WRITE_ACCEPTANCE_CASES.length
+    && MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES.length + MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.length
+        === MCP_WRITE_ACCEPTANCE_CASES.length;
 const legacyCompatibilityPassed = e2eReport?.legacyCompatibility?.listedReadTools === 48
     && e2eReport?.legacyCompatibility?.readCall === 'passed'
     && e2eReport?.legacyCompatibility?.hiddenWrite === 'rejected'
@@ -115,16 +144,21 @@ const e2ePassed = e2eResult?.status === 0
     && e2eReport?.productionTouched === false
     && e2eReport?.physicalSideEffects === false
     && e2eReport?.temporaryDatabaseCleaned === true
+    && e2eReport?.directorySnapshot?.listCalls === 1
+    && e2eReport?.directorySnapshot?.writeTools === MCP_WRITE_ACCEPTANCE_CASES.length
     && e2eReport?.persistentEvidence?.operationsVerified === MCP_WRITE_ACCEPTANCE_CASES.length + 1
     && e2eReport?.persistentEvidence?.integrity === 'ok'
     && e2eReport?.persistentEvidence?.foreignKeyViolations === 0
     && legacyCompatibilityPassed
     && idempotencyReplayPassed
-    && businessFailurePassed;
+    && businessFailurePassed
+    && partitionPassed
+    && remainingDeclinesPassed
+    && scenariosPassed;
 const passed = matrixPassed && e2ePassed;
 const completedAt = new Date();
 const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     suite: 'mcp-write-local-isolated-acceptance',
     status: passed ? 'passed' : 'failed',
     startedAt: startedAt.toISOString(),
@@ -132,10 +166,14 @@ const report = {
     durationMs: completedAt.getTime() - startedAt.getTime(),
     productionTouched: false,
     physicalSideEffects: false,
-    temporaryDatabaseCleaned: true,
+    temporaryDatabaseCleaned: e2eReport?.temporaryDatabaseCleaned === true,
+    cleanupError: e2eReport?.cleanupError || null,
     coverage: {
         toolsExpected: MCP_WRITE_ACCEPTANCE_CASES.length,
         toolsCovered: MCP_WRITE_ACCEPTANCE_CASES.length,
+        previouslyAcceptedTools: MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+        candidateTools: MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+        partition: partitionPassed ? 'passed' : 'failed',
         protocolMatrix: {
             status: matrixPassed ? 'passed' : 'failed',
             testFiles: files,
@@ -168,7 +206,22 @@ const report = {
                     sideEffects: item.sideEffects,
                 })),
             },
-            declinedCallSideEffects: e2eReport.rejectedCall?.sideEffects ?? null,
+            directorySnapshot: e2eReport.directorySnapshot || null,
+            remainingDeclines: {
+                status: remainingDeclinesPassed ? 'passed' : 'failed',
+                required: MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+                verified: declinedEvidence.map(item => ({
+                    name: item.name,
+                    code: item.code,
+                    sideEffects: item.sideEffects,
+                    externalSideEffects: item.externalSideEffects,
+                    databaseDigest: item.databaseDigest,
+                    databaseTables: item.databaseTables,
+                    databaseRows: item.databaseRows,
+                    externalFiles: item.externalFiles,
+                })),
+            },
+            scenarios: scenarioEvidence,
             freecadStubCalls: e2eReport.externalStub?.freecadCalls ?? 0,
             printerStubCalls: e2eReport.externalStub?.printerCalls ?? 0,
             report: path.relative(ROOT, e2eReportPath),
