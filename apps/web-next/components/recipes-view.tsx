@@ -192,7 +192,7 @@ type RecipeSelection = RecipeSelectionRow;
 
 function packagingMaterialForCatalogPart(part?: Part): string {
   if (!part) return '';
-  const identity = `${part.model || ''} ${part.notes || ''}`;
+  const identity = `${part.model || ''} ${part.remark || ''}`;
   if (identity.includes('珍珠棉')) return '珍珠棉';
   if (identity.includes('泡沫') || part.subcategory === '内衬') return '泡沫';
   if (identity.includes('木箱')) return '木箱';
@@ -456,22 +456,22 @@ export function RecipesView() {
   const createShellComponentPart = useCallback(async (input: {
     model: string;
     supplier: string;
-    price: number;
+    catalogUnitCost: number;
   }) => {
     const model = input.model.trim();
     const supplier = input.supplier.trim();
-    const price = Number(input.price);
+    const catalogUnitCost = Number(input.catalogUnitCost);
     if (!model) throw new Error('请先填写零件型号');
     if (!supplier) throw new Error('请先填写供应商');
-    if (!Number.isFinite(price) || price <= 0) throw new Error('请输入大于 0 的零件单价');
+    if (!Number.isFinite(catalogUnitCost) || catalogUnitCost <= 0) throw new Error('请输入大于 0 的目录成本价');
 
     return resolveCatalogPart({
       model,
       category: SHELL_COMPONENT_CATEGORY,
-      price,
+      catalogUnitCost,
       supplier,
       stock: 0,
-      notes: '从泵壳模板自由搭配中就地建档',
+      remark: '从泵壳模板自由搭配中就地建档',
     });
   }, [resolveCatalogPart]);
 
@@ -712,7 +712,7 @@ export function RecipesView() {
       annotations.push({
         label: '不锈钢拉伸筒',
         value: `${Number(stainlessBarrelPart.qty || 0)} cm`,
-        note: partFormulaLine(stainlessBarrelPart) || '长度来自配方/型号变体',
+        note: partFormulaLine(stainlessBarrelPart) || '长度来自配方/常用配置预设',
         tone: 'blue',
       });
     }
@@ -803,7 +803,7 @@ export function RecipesView() {
     return Array.from(grouped.entries())
       .map(([model, rows]) => ({
         model,
-        rows: rows.sort((left, right) => left.price - right.price),
+        rows: rows.sort((left, right) => left.catalogUnitCost - right.catalogUnitCost),
       }))
       .sort((left, right) => left.model.localeCompare(right.model, 'zh-Hans-CN'));
   }, [parts]);
@@ -920,7 +920,7 @@ export function RecipesView() {
   const laborCostComplete = laborCostWarnings.length === 0;
   const missingConfigHints = useMemo(() => {
     const hints: string[] = [];
-    if (!form.name.trim()) hints.push('未填写配方名称');
+    if (!form.name.trim()) hints.push('未填写成品型号');
     if (!form.templateId) hints.push('未选择泵壳模板');
     if (!form.coilSpec || !form.coilSheets) hints.push('线圈规格或片数不完整');
     if (form.hasCable && (!form.cableWire || !form.cableLength)) hints.push('电缆线径或长度不完整');
@@ -1099,8 +1099,8 @@ export function RecipesView() {
     const exact = supplier
       ? candidates.find((part) => String(part.supplier || '').trim() === String(supplier).trim())
       : null;
-    if (exact) return Number(exact.price || 0);
-    return candidates.length === 1 ? Number(candidates[0].price || 0) : 0;
+    if (exact) return Number(exact.catalogUnitCost || 0);
+    return candidates.length === 1 ? Number(candidates[0].catalogUnitCost || 0) : 0;
   }
 
   function stablePartId(model: string, supplier: string, category?: string): number | undefined {
@@ -1286,7 +1286,7 @@ export function RecipesView() {
         supplier: row.supplier,
         category: inferredCategory,
         subcategory: kind === 'packing' ? packagingSubcategoryForDraft(row) : '',
-        price: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
+        catalogUnitCost: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
         stock: 0,
         categoryScope: kind === 'packing' || knownOptionalCategory ? 'locked' : 'non-packaging',
       },
@@ -1323,8 +1323,8 @@ export function RecipesView() {
       setTemplateForm((current) => ({
         ...current,
         shellModel: part.model,
-        bundleCost: current.costMode === 'bundle' && part.price > 0
-          ? String(part.price)
+        bundleCost: current.costMode === 'bundle' && part.catalogUnitCost > 0
+          ? String(part.catalogUnitCost)
           : current.bundleCost,
       }));
     } else if (target.kind === 'template-fixed' && target.rowId) {
@@ -1381,13 +1381,13 @@ export function RecipesView() {
             next = {
               ...next,
               shellModel: part.model,
-              bundleCost: next.costMode === 'bundle' ? String(part.price) : next.bundleCost,
+              bundleCost: next.costMode === 'bundle' ? String(part.catalogUnitCost) : next.bundleCost,
             };
           } else if (candidate.targetKind === 'template-component' && candidate.rowId) {
             next = {
               ...next,
               componentRows: next.componentRows.map((row) => row.id === candidate.rowId
-                ? { ...row, model: part.model, supplier: part.supplier, unitCost: part.price }
+                ? { ...row, model: part.model, supplier: part.supplier, unitCost: part.catalogUnitCost }
                 : row),
             };
           } else if (candidate.targetKind === 'template-fixed' && candidate.rowId) {
@@ -1529,7 +1529,7 @@ export function RecipesView() {
         contextLabel: '泵壳模板整套泵壳',
         model: templateForm.shellModel,
         category: '泵壳',
-        price: Number(templateForm.bundleCost || 0),
+        catalogUnitCost: Number(templateForm.bundleCost || 0),
         stock: 0,
         categoryScope: 'locked',
       },
@@ -1549,7 +1549,7 @@ export function RecipesView() {
         model: row.model,
         supplier: row.supplier || '',
         category: category || '配件',
-        price: 0,
+        catalogUnitCost: 0,
         stock: 0,
         categoryScope: category ? 'locked' : 'non-packaging',
       },
@@ -1810,7 +1810,7 @@ export function RecipesView() {
 
   async function saveRecipe(options: { skipIntelligenceCheck?: boolean } = {}) {
     if (!form.name.trim()) {
-      setFormError('配方名称不能为空');
+      setFormError('成品型号不能为空');
       return;
     }
     if (recipeSaveBlockedByWarnings) {

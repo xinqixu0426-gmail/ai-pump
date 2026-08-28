@@ -91,7 +91,7 @@ function partRow(r) {
     if (!r) return r;
     return {
         id: r.id, Id: r.id, model: r.model, category: r.category, subcategory: r.subcategory || '', price: r.price,
-        supplier: r.supplier, stock: r.stock, notes: r.remark || '',
+        supplier: r.supplier, stock: r.stock, remark: r.remark || '', notes: r.remark || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at
     };
@@ -588,7 +588,7 @@ function extractPartFields(body) {
         price: body.price ?? 0,
         supplier: body.supplier || '-',
         stock: body.stock ?? 0,
-        remark: body.notes || body.remark || '',
+        remark: body.remark ?? body.notes ?? '',
     };
 }
 

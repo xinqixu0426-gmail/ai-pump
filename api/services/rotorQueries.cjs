@@ -131,14 +131,14 @@ function buildTemplateRotorDraft(
         if (!variant) {
             throw rotorQueryError(
                 'variant_not_found',
-                '型号变体不存在',
+                '常用配置预设不存在',
                 404
             );
         }
         if (Number(variant.template_id) !== Number(templateId)) {
             throw rotorQueryError(
                 'variant_template_mismatch',
-                '型号变体不属于该模板',
+                '常用配置预设不属于该模板',
                 400
             );
         }
@@ -200,7 +200,7 @@ function listRotorLinkTargets(db) {
             id: String(row.id),
             label: row.model_name,
             value: `变体:${row.model_name}`,
-            secondary: details || '型号变体',
+            secondary: details || '常用配置预设',
         });
     });
 

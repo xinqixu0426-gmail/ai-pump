@@ -243,7 +243,7 @@ test('V9.5 文件归档：拒绝不存在的业务对象和未完成解析的知
                 targetType: 'recipe',
                 targetId: 999,
             }, { dbAccessors: accessors }),
-            /归档目标不存在/
+            /业务资料关联目标不存在/
         );
         assert.throws(
             () => archiveFactoryFile(pendingFileId, {

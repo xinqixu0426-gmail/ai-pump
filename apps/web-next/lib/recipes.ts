@@ -601,7 +601,7 @@ export async function deleteTemplate(template: PumpShellTemplate): Promise<void>
 
 export async function getAllModelVariants(): Promise<PumpModelVariant[]> {
   const result = await proxyRequest<ApiResponse<VariantRow[]>>('/api/model-variants');
-  if (!result.success) throw new Error(result.error || '型号变体加载失败');
+  if (!result.success) throw new Error(result.error || '常用配置预设加载失败');
   return (result.data || []).map(rowToVariant);
 }
 

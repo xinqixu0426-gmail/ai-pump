@@ -31,8 +31,8 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '正式配方ID，已知时优先使用' },
-                    recipeName: { type: 'string', description: '正式配方名称或可唯一匹配的名称片段；不是泵壳模板名' },
-                    pumphousing_model: { type: 'string', description: '兼容字段：实际含义为配方名称片段，已废弃；泵壳模板应使用 preview_pump_shell_cost' },
+                    recipeName: { type: 'string', description: '正式成品型号或可唯一匹配的名称片段；不是泵壳模板名' },
+                    pumphousing_model: { type: 'string', description: '兼容字段：实际含义为成品型号片段，已废弃；泵壳模板应使用 preview_pump_shell_cost' },
                     stator: { type: 'string', description: '定子规格-片数，如"12-120"' },
                     hasFloat: { type: 'boolean', description: '是否带浮球' },
                     cableLength: { type: 'number', description: '电缆长度（米）' },
@@ -175,11 +175,11 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_all_recipes',
-            description: '从正式配方 API 获取成品配方/产品型号列表，可按配方名称或规格筛选。只有用户明确询问配方、产品配方或成品型号时使用；电缆、电容、油封、机筒、轴承等具体物料名称或物料类别属于零件库，应使用 search_parts。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。',
+            description: '从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。只有用户明确询问配方、产品配方或成品型号时使用；电缆、电容、油封、机筒、轴承等具体物料名称或物料类别属于零件库，应使用 search_parts。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。',
             parameters: {
                 type: 'object',
                 properties: {
-                    keyword: { type: 'string', description: '配方名称或规格关键词（可选）' },
+                    keyword: { type: 'string', description: '成品型号或配置摘要关键词（可选）' },
                     hasTechnicalFiles: { type: 'boolean', description: '是否只返回至少关联一份有效技术档案或测试报告的配方' }
                 }
             }
@@ -194,7 +194,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，未提供ID时用于匹配' },
+                    recipeName: { type: 'string', description: '成品型号或可唯一匹配的简称，未提供ID时用于匹配' },
                     includeCurrentCost: { type: 'boolean', description: '是否同时查询当前完整成本' }
                 },
                 anyOf: [
@@ -213,7 +213,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，未提供ID时用于匹配' }
+                    recipeName: { type: 'string', description: '成品型号或可唯一匹配的简称，未提供ID时用于匹配' }
                 },
                 anyOf: [
                     { type: 'object', properties: {}, required: ['recipeId'] },
@@ -272,7 +272,7 @@ const AI_TOOLS = [
                     model: { type: 'string', description: '型号/名称' },
                     category: { type: 'string', description: '类别（如 轴承、螺丝、密封件、电容 等），默认"其他"' },
                     subcategory: { type: 'string', description: '包装二级分类：外包装、内衬或固定包材；仅 category=包装 时使用' },
-                    price: { type: 'number', description: '单价（元）' },
+                    price: { type: 'number', description: '目录成本价（元）' },
                     supplier: { type: 'string', description: '供应商名称，默认"-"' },
                     stock: { type: 'number', description: '初始库存数量，默认0' }
                 },
@@ -292,14 +292,14 @@ const AI_TOOLS = [
                         type: 'array',
                         minItems: 1,
                         maxItems: 100,
-                        description: '待新增零件，必须完整保留用户确认的型号、单价、供应商和库存',
+                        description: '待新增零件，必须完整保留用户确认的型号、目录成本价、供应商和库存',
                         items: {
                             type: 'object',
                             properties: {
                                 model: { type: 'string', description: '型号/名称' },
                                 category: { type: 'string', description: '类别，默认其他' },
                                 subcategory: { type: 'string', description: '包装二级分类，仅 category=包装 时使用' },
-                                price: { type: 'number', description: '单价（元）' },
+                                price: { type: 'number', description: '目录成本价（元）' },
                                 supplier: { type: 'string', description: '供应商，默认-' },
                                 stock: { type: 'number', description: '初始库存，默认0' },
                                 remark: { type: 'string', description: '备注（可选）' }
@@ -433,7 +433,7 @@ const AI_TOOLS = [
                         items: {
                             type: 'object',
                             properties: {
-                                recipeName: { type: 'string', description: '配方名称（尽量精确）' },
+                                recipeName: { type: 'string', description: '成品型号（尽量精确）' },
                                 qty: { type: 'number', description: '需要的数量' }
                             },
                             required: ['recipeName', 'qty']
@@ -453,7 +453,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单的ID号码' },
-                    recipeName: { type: 'string', description: '要添加的配方名称或泵壳型号' },
+                    recipeName: { type: 'string', description: '要添加的成品型号或泵壳型号' },
                     qty: { type: 'number', description: '数量' },
                     reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
@@ -470,7 +470,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     model: { type: 'string', description: '要修改的零件型号/名称（用于查找）' },
-                    price: { type: 'number', description: '新的单价（可选）' },
+                    price: { type: 'number', description: '新的目录成本价（可选）' },
                     supplier: { type: 'string', description: '新的供应商（可选）' },
                     category: { type: 'string', description: '新的类别（可选）' },
                     subcategory: { type: 'string', description: '新的包装二级分类（可选）' }
@@ -532,7 +532,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    recipeName: { type: 'string', description: '要移除的配方名称' },
+                    recipeName: { type: 'string', description: '要移除的成品型号' },
                     reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
                 required: ['orderId', 'recipeName', 'reason']
@@ -543,14 +543,14 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_order_item',
-            description: '修改订单中某个配方的数量或出厂价。当用户说"把订单5里V750改成3台"或"V750出厂价改成120"时使用',
+            description: '修改订单中某个配方的数量或销售单价。当用户说"把订单5里V750改成3台"或"V750销售单价改成120"时使用',
             parameters: {
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    recipeName: { type: 'string', description: '要修改的配方名称' },
+                    recipeName: { type: 'string', description: '要修改的成品型号' },
                     qty: { type: 'number', description: '新数量（可选）' },
-                    unitPrice: { type: 'number', description: '新出厂价（可选）' },
+                    unitPrice: { type: 'number', description: '新销售单价（可选）' },
                     profitMargin: { type: 'number', description: '新利润率倍数如1.15（可选）' },
                     reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
@@ -596,8 +596,8 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    name: { type: 'string', description: '配方名称' },
-                    spec: { type: 'string', description: '规格（如1寸、1.5寸）' },
+                    name: { type: 'string', description: '成品型号' },
+                    spec: { type: 'string', description: '配置摘要（如1寸、1.5寸）' },
                     parts: {
                         type: 'array',
                         description: '零件列表',
@@ -623,7 +623,7 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    recipeName: { type: 'string', description: '要删除的配方名称' }
+                    recipeName: { type: 'string', description: '要删除的成品型号' }
                 },
                 required: ['recipeName']
             }
@@ -633,14 +633,14 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_recipe',
-            description: '修改配方信息（名称、规格、增减零件）。当用户说"把V750配方里的XX换成YY"或"给V750配方加个零件"时使用',
+            description: '修改配方信息（成品型号、配置摘要、增减零件）。当用户说"把V750配方里的XX换成YY"或"给V750配方加个零件"时使用',
             parameters: {
                 type: 'object',
                 properties: {
-                    recipeName: { type: 'string', description: '要修改的配方名称（用于查找）' },
-                    newName: { type: 'string', description: '新名称（可选）' },
-                    newSpec: { type: 'string', minLength: 0, description: '新规格（可选）；可传空字符串清空规格。跨客户端清空时优先使用 clearSpec=true' },
-                    clearSpec: { type: 'boolean', description: '设为 true 时明确清空规格；不要与非空 newSpec 同时使用' },
+                    recipeName: { type: 'string', description: '要修改的成品型号（用于查找）' },
+                    newName: { type: 'string', description: '新成品型号（可选）' },
+                    newSpec: { type: 'string', minLength: 0, description: '新配置摘要（可选）；可传空字符串清空配置摘要。跨客户端清空时优先使用 clearSpec=true' },
+                    clearSpec: { type: 'boolean', description: '设为 true 时明确清空配置摘要；不要与非空 newSpec 同时使用' },
                     addParts: {
                         type: 'array',
                         description: '要添加的零件（可选）',
@@ -677,12 +677,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'build_recipe_bom_draft',
-            description: '生成配方 BOM 草稿，不写库。适合用户给出泵壳模板/型号变体、线圈规格片数、机筒长度、浮球、电缆等参数时，先让系统按标准规则生成泵壳、长螺丝、线圈、电容、电缆等联动项目。',
+            description: '生成配方 BOM 草稿，不写库。适合用户给出泵壳模板/常用配置预设、线圈规格片数、机筒长度、浮球、电缆等参数时，先让系统按标准规则生成泵壳、长螺丝、线圈、电容、电缆等联动项目。',
             parameters: {
                 type: 'object',
                 properties: {
                     templateId: { type: 'number', description: '泵壳模板ID，可选' },
-                    modelVariantId: { type: 'number', description: '型号变体ID，可选' },
+                    modelVariantId: { type: 'number', description: '常用配置预设编号，可选；字段名为历史兼容标识' },
                     customBarrelLength: { type: 'number', description: '机筒长度 mm，可触发不锈钢泵壳整体价和长螺丝联动' },
                     longScrewExtraLength: { type: 'number', description: '长螺丝补偿长度 mm，可选' },
                     coilSpec: { type: 'string', description: '线圈规格，如12' },
@@ -710,7 +710,7 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
-                    recipeName: { type: 'string', description: '配方名称或可唯一匹配的简称，名称匹配忽略大小写；多条命中时返回候选' },
+                    recipeName: { type: 'string', description: '成品型号或可唯一匹配的简称，名称匹配忽略大小写；多条命中时返回候选' },
                     overrides: { ...COST_OVERRIDE_SCHEMA, description: '标准成本覆盖项对象' },
                     customBarrelLength: { type: 'number' },
                     coilSheets: { type: 'number' },
@@ -860,7 +860,7 @@ const AI_TOOLS = [
                     customerName: { type: 'string', description: '客户名称' },
                     customerId: { type: 'integer', minimum: 1, description: '客户ID，可选' },
                     keyword: { type: 'string', description: '型号/配方关键词，可选' },
-                    recipeName: { type: 'string', description: '配方名称关键词，可选' },
+                    recipeName: { type: 'string', description: '成品型号关键词，可选' },
                     model: { type: 'string', description: '型号关键词，可选' },
                     limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回条数' }
                 },
@@ -880,11 +880,11 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     leftRecipeId: { type: 'number', description: '基准配方ID' },
-                    leftRecipeName: { type: 'string', description: '基准配方名称' },
+                    leftRecipeName: { type: 'string', description: '基准成品型号' },
                     rightRecipeId: { type: 'number', description: '对比配方ID' },
-                    rightRecipeName: { type: 'string', description: '对比配方名称' },
-                    recipe1: { type: 'string', description: '基准配方名称兼容字段' },
-                    recipe2: { type: 'string', description: '对比配方名称兼容字段' },
+                    rightRecipeName: { type: 'string', description: '对比成品型号' },
+                    recipe1: { type: 'string', description: '基准成品型号兼容字段' },
+                    recipe2: { type: 'string', description: '对比成品型号兼容字段' },
                     limit: { type: 'number', description: '返回差异项数量' }
                 }
             }
@@ -1110,7 +1110,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'check_order_readiness',
-            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和出厂价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
+            description: '实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和销售单价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1229,16 +1229,16 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_factory_file_archive_targets',
-            description: '为聊天附件查找可归档的真实业务对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。归档前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
+            description: '为聊天附件查找可关联的真实业务资料对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。关联前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。',
             parameters: {
                 type: 'object',
                 properties: {
                     targetType: {
                         type: 'string',
                         enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback'],
-                        description: '归档目标类型'
+                        description: '业务资料关联目标类型'
                     },
-                    query: { type: 'string', description: '客户名、合同号、配方名、报价客户名或问题关键词，可为空以读取最近对象' },
+                    query: { type: 'string', description: '客户名、合同号、成品型号、报价客户名或问题关键词，可为空以读取最近对象' },
                     limit: { type: 'number', description: '最多返回条数，默认20，最大50' }
                 },
                 required: ['targetType']
@@ -1249,7 +1249,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'archive_factory_file',
-            description: '把聊天中已经上传的工厂文件正式归档到知识库、客户、报价、订单、配方或质量问题。只能使用附件上下文中的精确 fileId；客户、报价、订单、配方和质量问题必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
+            description: '把聊天中已经上传的工厂文件正式关联到客户、报价、订单、配方或质量问题；知识库目标使用资料归档语义。只能使用附件上下文中的精确 fileId；业务对象必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1257,7 +1257,7 @@ const AI_TOOLS = [
                     targetType: {
                         type: 'string',
                         enum: ['customer', 'quotation', 'order', 'recipe', 'recipe_analysis_feedback', 'ai_answer_feedback', 'knowledge_document'],
-                        description: '归档目标类型'
+                        description: '业务资料关联目标类型'
                     },
                     targetId: { type: 'number', description: '业务对象ID；归档到知识库时省略' },
                     title: { type: 'string', description: '归档标题，归档到知识库时建议明确填写' },
@@ -1378,10 +1378,10 @@ const AI_TOOLS = [
                         description: '库存状态：low=1到5，out=0或负数，attention=不超过5（含缺货），ok=大于5'
                     },
                     limit: { type: 'integer', minimum: 1, maximum: 100, description: '仅当用户明确要求最近或前 N 项，或配合 sortBy/sortOrder 取最值排名时传入' },
-                    minPrice: { type: 'number', description: '最低单价（可选）' },
-                    maxPrice: { type: 'number', description: '最高单价（可选）' },
-                    priceBelow: { type: 'number', description: '单价严格低于该值（可选）' },
-                    priceAbove: { type: 'number', description: '单价严格高于该值（可选）' },
+                    minPrice: { type: 'number', description: '最低目录成本价（可选）' },
+                    maxPrice: { type: 'number', description: '最高目录成本价（可选）' },
+                    priceBelow: { type: 'number', description: '目录成本价严格低于该值（可选）' },
+                    priceAbove: { type: 'number', description: '目录成本价严格高于该值（可选）' },
                     minStock: { type: 'number', description: '最低库存（可选）' },
                     maxStock: { type: 'number', description: '最高库存（可选）' },
                     stockBelow: { type: 'number', description: '库存严格低于该值（可选）' },
@@ -1389,7 +1389,7 @@ const AI_TOOLS = [
                     sortBy: {
                         type: 'string',
                         enum: ['price', 'stock', 'model', 'updatedAt'],
-                        description: '排序字段：price=单价，stock=库存，model=型号，updatedAt=最近更新时间。最值/排名问题必传'
+                        description: '排序字段：price=目录成本价，stock=库存，model=型号，updatedAt=最近更新时间。最值/排名问题必传'
                     },
                     sortOrder: {
                         type: 'string',

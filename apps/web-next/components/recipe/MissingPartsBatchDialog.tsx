@@ -46,7 +46,7 @@ function uniqueBatchInputs(candidates: MissingPartCandidate[]): PartBatchCreateI
       if (existing.category !== candidate.category || existing.subcategory !== candidate.subcategory) {
         throw new Error(`型号“${candidate.model}”和供应商“${candidate.supplier}”被分到多个分类，请分别调整供应商或使用单条建档`);
       }
-      if (existing.price !== candidate.price || existing.stock !== candidate.stock) {
+      if (existing.catalogUnitCost !== candidate.catalogUnitCost || existing.stock !== candidate.stock) {
         throw new Error(`型号“${candidate.model}”和供应商“${candidate.supplier}”在多行使用了不同价格，请统一后再集中建档`);
       }
       continue;
@@ -58,9 +58,9 @@ function uniqueBatchInputs(candidates: MissingPartCandidate[]): PartBatchCreateI
     category: candidate.category,
     subcategory: candidate.subcategory || undefined,
     supplier: candidate.supplier.trim(),
-    price: candidate.price,
+    catalogUnitCost: candidate.catalogUnitCost,
     stock: candidate.stock,
-    notes: `从${candidate.contextLabel}集中补齐零件`,
+    remark: `从${candidate.contextLabel}集中补齐零件`,
   }));
 }
 
@@ -121,7 +121,7 @@ export function MissingPartsBatchDialog({
     for (const row of rows) {
       if (!row.model.trim()) throw new Error(`${row.contextLabel}缺少零件型号`);
       if (!row.supplier.trim()) throw new Error(`请填写“${row.model}”的供应商`);
-      if (!Number.isFinite(row.price) || row.price <= 0) throw new Error(`请填写“${row.model}”大于 0 的单价`);
+      if (!Number.isFinite(row.catalogUnitCost) || row.catalogUnitCost <= 0) throw new Error(`请填写“${row.model}”大于 0 的目录成本价`);
       if (row.category === '包装' && !row.subcategory) throw new Error(`请选择“${row.model}”的包装二级分类`);
     }
   }
@@ -220,10 +220,10 @@ export function MissingPartsBatchDialog({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-muted">目录单价</span>
+                <span className="text-xs font-medium text-muted">目录成本价</span>
                 <input
-                  value={Number.isFinite(row.price) ? String(row.price) : ''}
-                  onChange={(event) => updateRow(row.key, { price: Number(event.target.value) })}
+                  value={Number.isFinite(row.catalogUnitCost) ? String(row.catalogUnitCost) : ''}
+                  onChange={(event) => updateRow(row.key, { catalogUnitCost: Number(event.target.value) })}
                   onFocus={selectInputValueOnFocus}
                   type="number"
                   min="0.01"

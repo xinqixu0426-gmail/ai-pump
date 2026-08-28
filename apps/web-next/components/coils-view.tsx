@@ -762,7 +762,7 @@ export function CoilsView() {
                       {collapsed ? <ChevronRight size={16} className="shrink-0 text-muted" /> : <ChevronDown size={16} className="shrink-0 text-muted" />}
                       <span className="min-w-0">
                         <span className="block truncate font-medium text-ink">{group.key}</span>
-                        <span className="mt-0.5 block text-xs text-muted">{group.rows.length} 条 · 当前单片价 {money(group.rows[0]?.unitPrice || 0)}</span>
+                        <span className="mt-0.5 block text-xs text-muted">{group.rows.length} 条 · 当前定子单片成本 {money(group.rows[0]?.unitPrice || 0)}</span>
                       </span>
                     </button>
                     {editingGroupKey === group.key ? (
@@ -800,7 +800,7 @@ export function CoilsView() {
                         }}
                         icon={<Pencil size={14} />}
                       >
-                        改单价
+                        改定子单片成本
                       </Button>
                     )}
                   </div>
@@ -810,11 +810,11 @@ export function CoilsView() {
                         <tr>
                           <th className="px-4 py-2.5 font-medium">片数</th>
                           <th className="px-4 py-2.5 font-medium">方案</th>
-                          <th className="px-4 py-2.5 font-medium">单片价</th>
+                          <th className="px-4 py-2.5 font-medium">定子单片成本</th>
                           <th className="px-4 py-2.5 font-medium">线重</th>
                           <th className="px-4 py-2.5 font-medium">铜价基数</th>
                           <th className="px-4 py-2.5 font-medium">加工费</th>
-                          <th className="px-4 py-2.5 font-medium">总成本</th>
+                          <th className="px-4 py-2.5 font-medium">线圈套成本</th>
                           <th className="px-4 py-2.5 font-medium">库存</th>
                           <th className="px-4 py-2.5 font-medium">默认搭配电缆线径</th>
                           <th className="px-4 py-2.5 font-medium">绕组数据</th>
@@ -950,8 +950,8 @@ export function CoilsView() {
                 <Input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" />
               </Field>
               <Field
-                label="单片价"
-                hint={editingCoil ? '单片价请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
+                label="定子单片成本"
+                hint={editingCoil ? '定子单片成本请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
               >
                 <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} selectOnFirstFocus />
               </Field>

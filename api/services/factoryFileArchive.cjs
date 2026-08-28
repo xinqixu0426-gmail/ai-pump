@@ -255,7 +255,7 @@ function searchFactoryFileArchiveTargets(params = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const targetType = text(params.targetType, 60);
     if (!SEARCHABLE_TARGET_TYPES.has(targetType)) {
-        throw new Error('不支持的归档目标类型');
+        throw new Error('不支持的业务资料关联目标类型');
     }
     const requestedLimit = Number(params.limit);
     const limit = Number.isInteger(requestedLimit) && requestedLimit > 0
@@ -327,7 +327,7 @@ function inspectFactoryFileArchive(fileIdValue, input = {}, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const fileId = positiveId(fileIdValue, '文件ID');
     const targetType = text(input.targetType, 60);
-    if (!TARGET_TYPES.has(targetType)) throw new Error('不支持的归档目标类型');
+    if (!TARGET_TYPES.has(targetType)) throw new Error('不支持的业务资料关联目标类型');
     const relationRole = RELATION_ROLES.has(text(input.relationRole, 60))
         ? text(input.relationRole, 60)
         : DEFAULT_ROLES[targetType];
@@ -385,7 +385,7 @@ function inspectFactoryFileArchive(fileIdValue, input = {}, options = {}) {
         targetId = positiveId(input.targetId, '业务对象ID');
         normalizedInput.targetId = targetId;
         target = targetSummary(targetType, targetId, accessors);
-        if (!target) throw notFound('归档目标不存在或已删除');
+        if (!target) throw notFound('业务资料关联目标不存在或已删除');
     }
 
     const activeLink = targetId
@@ -454,7 +454,7 @@ function normalizeFactoryFileBusinessAttachmentTarget(input = {}, options = {}) 
     }
     const targetId = positiveId(input.targetId, '业务对象ID');
     const target = targetSummary(targetType, targetId, accessors);
-    if (!target) throw notFound('归档目标不存在或已删除');
+    if (!target) throw notFound('业务资料关联目标不存在或已删除');
     return {
         targetType,
         targetId,
@@ -618,7 +618,7 @@ function archiveFactoryFile(fileIdValue, input = {}, options = {}) {
         } else {
             targetId = inspected.targetId;
             if (!targetSummary(targetType, targetId, accessors)) {
-                throw notFound('归档目标不存在或已删除');
+                throw notFound('业务资料关联目标不存在或已删除');
             }
         }
         const linked = upsertLink(

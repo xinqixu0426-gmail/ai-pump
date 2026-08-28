@@ -26,7 +26,7 @@ function resolveRecipeWriteTarget(recipes, recipeName, operation = 'update') {
     if (!query) {
         throw recipeUpdateError(
             `${codePrefix}_target_required`,
-            `缺少要${action}的配方名称`
+            `缺少要${action}的成品型号`
         );
     }
     const candidates = Array.isArray(recipes) ? recipes : [];
@@ -35,7 +35,7 @@ function resolveRecipeWriteTarget(recipes, recipeName, operation = 'update') {
     if (exact.length > 1) {
         throw recipeUpdateError(
             `${codePrefix}_target_ambiguous`,
-            `配方名称“${recipeName}”匹配到多个正式配方，不能生成${action}确认`,
+            `成品型号“${recipeName}”匹配到多个正式配方，不能生成${action}确认`,
             { candidates: exact.slice(0, 10).map(recipe => ({ id: recipe.id ?? recipe.Id, name: recipe.name })) }
         );
     }
@@ -49,7 +49,7 @@ function resolveRecipeWriteTarget(recipes, recipeName, operation = 'update') {
     }
     throw recipeUpdateError(
         `${codePrefix}_target_ambiguous`,
-        `配方名称“${recipeName}”匹配到多个正式配方，请使用完整名称`,
+        `成品型号“${recipeName}”匹配到多个正式配方，请使用完整型号`,
         { candidates: partial.slice(0, 10).map(recipe => ({ id: recipe.id ?? recipe.Id, name: recipe.name })) }
     );
 }
@@ -481,7 +481,7 @@ async function buildRecipeUpdatePreparation(args = {}, dependencies = {}) {
             ? (recipe.spec || '')
             : String(newSpec).trim();
     if (!targetName) {
-        throw recipeUpdateError('recipe_update_name_required', '配方名称不能为空');
+        throw recipeUpdateError('recipe_update_name_required', '成品型号不能为空');
     }
     if (targetName !== recipe.name) {
         const duplicateName = allRecipes.find(candidate => (
@@ -491,7 +491,7 @@ async function buildRecipeUpdatePreparation(args = {}, dependencies = {}) {
         if (duplicateName) {
             throw recipeUpdateError(
                 'recipe_update_name_conflict',
-                `配方名称“${targetName}”已存在，不能生成修改确认`
+                `成品型号“${targetName}”已存在，不能生成修改确认`
             );
         }
     }
@@ -627,7 +627,7 @@ async function executeRecipeTool(toolName, args, internalFetch, options = {}) {
     switch (toolName) {
         case 'create_recipe': {
             const { name, spec = '', parts = [] } = args;
-            if (!name) return { success: false, error: '缺少配方名称' };
+            if (!name) return { success: false, error: '缺少成品型号' };
 
             try {
                 const recipeParts = buildAiRecipeParts(parts, await loadParts(internalFetch));

@@ -124,7 +124,7 @@ type PumpShellTemplateEditorProps = {
   onCreateShellComponentPart: (input: {
     model: string;
     supplier: string;
-    price: number;
+    catalogUnitCost: number;
   }) => Promise<{ part: ShellComponentCatalogPart; created: boolean }>;
   onOpenCreateShellPart: () => void;
   onOpenCreateFixedPart: (row: TemplatePartFormRow, category: string | null) => void;
@@ -168,8 +168,8 @@ export function PumpShellTemplateEditor({
 
   function selectShell(shellModel: string) {
     const shellOption = shellCatalogOptions.find((option) => option.model === shellModel);
-    const referencePrice = shellOption?.rows.find((part) => part.price > 0)?.price;
-    const isStainlessShell = shellOption?.rows.some((part) => parsePumpShellMeta(part.notes).isStainless) === true;
+    const referencePrice = shellOption?.rows.find((part) => part.catalogUnitCost > 0)?.catalogUnitCost;
+    const isStainlessShell = shellOption?.rows.some((part) => parsePumpShellMeta(part.remark).isStainless) === true;
     onFormChange((current) => ({
       ...current,
       shellModel,
@@ -183,8 +183,8 @@ export function PumpShellTemplateEditor({
   }
 
   function selectCostMode(costMode: TemplateFormState['costMode']) {
-    const referencePrice = selectedShellParts.find((part) => part.price > 0)?.price;
-    const isStainlessShell = selectedShellParts.some((part) => parsePumpShellMeta(part.notes).isStainless);
+    const referencePrice = selectedShellParts.find((part) => part.catalogUnitCost > 0)?.catalogUnitCost;
+    const isStainlessShell = selectedShellParts.some((part) => parsePumpShellMeta(part.remark).isStainless);
     onFormChange((current) => ({
       ...current,
       costMode,
@@ -396,7 +396,7 @@ export function PumpShellTemplateEditor({
                           const hasTemplate = templates.some((template) => (
                             template.shellModel === option.model && template.id !== editingTemplate?.id
                           ));
-                          const prices = option.rows.filter((part) => part.price > 0).map((part) => part.price);
+                          const prices = option.rows.filter((part) => part.catalogUnitCost > 0).map((part) => part.catalogUnitCost);
                           const priceText = prices.length > 0 ? money(Math.min(...prices)) : '未定价';
                           return (
                             <option key={option.model} value={option.model} disabled={hasTemplate}>
@@ -441,7 +441,7 @@ export function PumpShellTemplateEditor({
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-slate-50 px-3 py-2 text-xs text-muted">
                 <span className="font-medium text-ink">零件库参考价格</span>
                 {selectedShellParts.map((part) => (
-                  <span key={part.id}>{part.supplier || '未填写供应商'}：{money(part.price)}</span>
+                  <span key={part.id}>{part.supplier || '未填写供应商'}：{money(part.catalogUnitCost)}</span>
                 ))}
               </div>
             ) : null}
@@ -471,7 +471,7 @@ export function PumpShellTemplateEditor({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-ink">3. 固定配件</div>
-                <div className="mt-1 text-xs text-muted">轴承、油封、螺丝等固定装配件，保存到 partsJson。</div>
+                <div className="mt-1 text-xs text-muted">轴承、油封、螺丝等固定装配件会保存到模板 BOM。</div>
               </div>
               <Button type="button" size="sm" onClick={addPartRow} icon={<Plus size={14} />}>添加配件</Button>
             </div>

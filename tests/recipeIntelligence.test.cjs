@@ -221,7 +221,7 @@ test('配方智能分析支持未保存草稿并拒绝含糊名称', () => {
     ];
     assert.throws(
         () => analyzeRecipeConfiguration({ recipeName: 'V750' }, { recipes, parts: [] }),
-        /配方名称不明确/
+        /成品型号不明确/
     );
 
     const result = analyzeRecipeConfiguration({

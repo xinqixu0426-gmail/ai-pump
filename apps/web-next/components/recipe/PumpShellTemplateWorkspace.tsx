@@ -71,8 +71,8 @@ export function PumpShellTemplateWorkspace({
               part.model === component.model
               && (!component.supplier || part.supplier === component.supplier)
             ));
-            const unitCost = Number(catalogPart?.price || 0) > 0
-              ? Number(catalogPart?.price || 0)
+            const unitCost = Number(catalogPart?.catalogUnitCost || 0) > 0
+              ? Number(catalogPart?.catalogUnitCost || 0)
               : Number(component.unitCost || 0);
             return sum + unitCost * Number(component.qty ?? 1);
           }, 0);

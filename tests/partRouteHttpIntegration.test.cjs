@@ -17,6 +17,7 @@ process.env.JWT_SECRET = 'part-route-http-integration-secret';
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
+const typescript = require('../apps/web-next/node_modules/typescript');
 const authMiddleware = require('../api/authMiddleware.cjs');
 const partsRouter = require('../api/routes/parts.cjs');
 const { db, stopBackupScheduler } = require('../api/db.cjs');
@@ -25,6 +26,48 @@ let server;
 let baseUrl;
 let primaryCookie;
 let secondaryCookie;
+
+const partsClientSource = typescript.transpileModule(
+    fs.readFileSync(path.join(__dirname, '..', 'apps', 'web-next', 'lib', 'parts.ts'), 'utf8'),
+    {
+        compilerOptions: {
+            module: typescript.ModuleKind.CommonJS,
+            target: typescript.ScriptTarget.ES2020,
+        },
+    }
+).outputText;
+
+function loadLivePartsClient() {
+    const loaded = { exports: {} };
+    const api = {
+        createIdempotencyKey(prefix) {
+            return `${prefix}:http:${Date.now()}:${Math.random()}`;
+        },
+        async proxyRequest(pathname, options = {}) {
+            const response = await fetch(`${baseUrl}${pathname}`, {
+                ...options,
+                headers: {
+                    accept: 'application/json',
+                    connection: 'close',
+                    cookie: primaryCookie,
+                    ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+                    ...(options.headers || {}),
+                },
+                signal: AbortSignal.timeout(5000),
+            });
+            return response.json();
+        },
+    };
+    new Function('exports', 'require', 'module', partsClientSource)(
+        loaded.exports,
+        request => {
+            if (request === './api') return api;
+            throw new Error(`不允许的测试依赖: ${request}`);
+        },
+        loaded,
+    );
+    return loaded.exports;
+}
 
 function authCookie(userId) {
     const token = jwt.sign(
@@ -199,6 +242,42 @@ test('零件资料保存真实 HTTP 链路绑定认证主体、幂等键和标�
     assert.equal(replay.response.status, 200);
     assert.equal(replay.payload.data.idempotentReplay, true);
     assert.equal(replay.payload.data.operationId, saved.payload.data.operationId);
+});
+
+test('零件页面规范字段经真实 HTTP 创建、编辑和回读保持一致', async () => {
+    const client = loadLivePartsClient();
+    const created = await client.createPart({
+        model: 'HTTP-CANONICAL-ROUNDTRIP',
+        category: 'HTTP集成测试',
+        catalogUnitCost: 18.6,
+        supplier: '规范字段供应商',
+        stock: 4,
+        remark: '规范备注-创建',
+    });
+
+    assert.equal(created.catalogUnitCost, 18.6);
+    assert.equal(created.remark, '规范备注-创建');
+    const afterCreate = (await client.getAllParts()).find(part => part.id === created.id);
+    assert.equal(afterCreate.catalogUnitCost, 18.6);
+    assert.equal(afterCreate.remark, '规范备注-创建');
+
+    const updated = await client.updatePart(afterCreate, {
+        model: afterCreate.model,
+        category: afterCreate.category,
+        subcategory: afterCreate.subcategory,
+        catalogUnitCost: 21.35,
+        supplier: afterCreate.supplier,
+        stock: afterCreate.stock,
+        remark: '规范备注-编辑',
+    });
+    assert.equal(updated.catalogUnitCost, 21.35);
+    assert.equal(updated.remark, '规范备注-编辑');
+
+    const afterUpdate = (await client.getAllParts()).find(part => part.id === created.id);
+    assert.equal(afterUpdate.catalogUnitCost, 21.35);
+    assert.equal(afterUpdate.remark, '规范备注-编辑');
+    assert.equal(afterUpdate.price, undefined);
+    assert.equal(afterUpdate.notes, undefined);
 });
 
 test('零件批量删除真实 HTTP 链路在版本冲突时整批回滚并可安全重放', async () => {

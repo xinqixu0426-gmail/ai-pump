@@ -15,7 +15,7 @@ import {
   DEFAULT_XINJIE_CABLE_ACCESSORY_NAME,
   PACKAGING_SUBCATEGORIES,
   buildCableAccessorySettingsValue,
-  buildPartNotes,
+  buildPartRemark,
   capacitorValueFromModel,
   finalPartModel,
   parseFloatAccessoryDelta,
@@ -35,7 +35,7 @@ export type InlinePartCreateSeed = {
   category?: string;
   subcategory?: string;
   supplier?: string;
-  price?: number;
+  catalogUnitCost?: number;
   stock?: number;
   categoryScope?: 'locked' | 'non-packaging' | 'editable';
 };
@@ -56,9 +56,9 @@ type Draft = {
   category: string;
   subcategory: string;
   supplier: string;
-  price: string;
+  catalogUnitCost: string;
   stock: string;
-  rawNotes: string;
+  rawRemark: string;
   capacitorUf: string;
   wireGauge: string;
   standardCableAccessoryFee: string;
@@ -114,9 +114,9 @@ function draftFromSeed(seed: InlinePartCreateSeed | null): Draft {
       ? (seed?.subcategory || PACKAGING_SUBCATEGORIES[0])
       : '',
     supplier: String(seed?.supplier || ''),
-    price: String(seed?.price ?? 0),
+    catalogUnitCost: String(seed?.catalogUnitCost ?? 0),
     stock: String(seed?.stock ?? 0),
-    rawNotes: '',
+    rawRemark: '',
     capacitorUf: category === '电容' ? String(capacitorValueFromModel(model) ?? '') : '',
     wireGauge: wirePrefix && model.startsWith(wirePrefix) ? model.slice(wirePrefix.length) : '',
     standardCableAccessoryFee: '0',
@@ -237,7 +237,7 @@ export function InlinePartCreateDialog({
     const errors = validatePartForm({
       category: draft.category,
       model: draft.model,
-      price: draft.price,
+      catalogUnitCost: draft.catalogUnitCost,
       supplier: draft.supplier,
       isCapacitorMode,
       capacitorUf: draft.capacitorUf,
@@ -267,7 +267,7 @@ export function InlinePartCreateDialog({
     setSaving(true);
     setError(null);
     try {
-      const structuredNotes = buildPartNotes({
+      const structuredRemark = buildPartRemark({
         category: draft.category,
         isCableMode,
         isScrewMode,
@@ -290,8 +290,8 @@ export function InlinePartCreateDialog({
         screwPricingEnabled: draft.screwPricingEnabled,
         screwDiameter: draft.screwDiameter,
       });
-      if (!Number.isFinite(Number(draft.price)) || Number(draft.price) <= 0) {
-        throw new Error('为了完成当前模板或配方，请输入大于 0 的目录单价');
+      if (!Number.isFinite(Number(draft.catalogUnitCost)) || Number(draft.catalogUnitCost) <= 0) {
+        throw new Error('为了完成当前模板或配方，请输入大于 0 的目录成本价');
       }
       if (!Number.isInteger(Number(draft.stock)) || Number(draft.stock) < 0) {
         throw new Error('初始库存必须是大于或等于 0 的整数');
@@ -315,9 +315,9 @@ export function InlinePartCreateDialog({
         category: draft.category,
         subcategory: isPackagingMode ? draft.subcategory : '',
         supplier: draft.supplier.trim(),
-        price: Number(draft.price),
+        catalogUnitCost: Number(draft.catalogUnitCost),
         stock: Number(draft.stock),
-        notes: structuredNotes ? JSON.stringify(structuredNotes) : draft.rawNotes.trim(),
+        remark: structuredRemark ? JSON.stringify(structuredRemark) : draft.rawRemark.trim(),
         businessSettings,
       });
       onResolved(result);
@@ -373,8 +373,8 @@ export function InlinePartCreateDialog({
                 placeholder="供应商名称"
               />
             </Field>
-            <Field label="目录单价" required>
-              <Input value={draft.price} onChange={(event) => updateDraft({ price: event.target.value })} type="number" min="0" step="0.01" />
+            <Field label="目录成本价" required>
+              <Input value={draft.catalogUnitCost} onChange={(event) => updateDraft({ catalogUnitCost: event.target.value })} type="number" min="0" step="0.01" />
             </Field>
             <Field label="初始库存" hint="配方建档通常保持 0，实际到货后再通过库存入库。">
               <Input value={draft.stock} onChange={(event) => updateDraft({ stock: event.target.value })} type="number" min="0" step="1" />
@@ -427,7 +427,7 @@ export function InlinePartCreateDialog({
             </section>
           ) : null}
           {!isCableMode && !isScrewMode && !isPumpShellMode ? (
-            <Field label="备注"><Textarea value={draft.rawNotes} onChange={(event) => updateDraft({ rawNotes: event.target.value })} rows={3} placeholder="供应说明或临时备注" /></Field>
+            <Field label="备注"><Textarea value={draft.rawRemark} onChange={(event) => updateDraft({ rawRemark: event.target.value })} rows={3} placeholder="供应说明或临时备注" /></Field>
           ) : null}
         </DialogBody>
         <DialogFooter>

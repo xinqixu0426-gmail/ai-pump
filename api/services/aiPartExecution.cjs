@@ -12,7 +12,7 @@ async function executePartCreate(args = {}, dependencies = {}) {
         stock = 0,
     } = args;
     if (!model || price === undefined) {
-        return { success: false, error: '缺少必要参数：型号或单价' };
+        return { success: false, error: '缺少必要参数：型号或目录成本价' };
     }
 
     const saved = await postJson(
@@ -529,7 +529,7 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     const changes = [];
     if (price !== undefined) {
         updates.price = price;
-        changes.push(`单价: ${target.price} → ${price}`);
+        changes.push(`目录成本价: ${target.price} → ${price}`);
     }
     if (supplier !== undefined) {
         updates.supplier = supplier;

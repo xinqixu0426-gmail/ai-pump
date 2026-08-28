@@ -478,11 +478,11 @@ async function executeOrderTool(toolName, args, internalFetch) {
             if (!item) return { success: false, error: `订单${orderId}中未找到"${recipeName}"` };
             const changes = [];
             if (qty !== undefined) { changes.push(`数量: ${item.qty} → ${qty}`); item.qty = qty; }
-            if (unitPrice !== undefined) { changes.push(`出厂价: ${item.unitPrice} → ${unitPrice}`); item.unitPrice = unitPrice; }
+            if (unitPrice !== undefined) { changes.push(`销售单价: ${item.unitPrice} → ${unitPrice}`); item.unitPrice = unitPrice; }
             if (profitMargin !== undefined) {
                 changes.push(`利润率: ${item.profitMargin} → ${profitMargin}`);
                 item.profitMargin = profitMargin;
-                if (unitPrice === undefined) { item.unitPrice = Math.round(item.unitCost * profitMargin * 100) / 100; changes.push(`出厂价自动调整为: ${item.unitPrice}`); }
+                if (unitPrice === undefined) { item.unitPrice = Math.round(item.unitCost * profitMargin * 100) / 100; changes.push(`销售单价自动调整为: ${item.unitPrice}`); }
             }
             if (changes.length === 0) return { success: false, error: '没有指定要修改的字段' };
             try {

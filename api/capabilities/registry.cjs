@@ -174,7 +174,7 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     build_quotation_draft: '生成报价草稿',
     search_customer_history: '查询客户历史',
     explain_cost_change: '解释成本差异',
-    search_factory_file_archive_targets: '查找文件归档目标',
+    search_factory_file_archive_targets: '查找业务资料关联目标',
     archive_factory_file: '归档工厂文件',
     get_all_recipes: '读取配方列表',
     get_recipe_detail: '读取配方明细',

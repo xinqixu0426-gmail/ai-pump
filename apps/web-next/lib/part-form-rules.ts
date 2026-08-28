@@ -43,7 +43,7 @@ export type CableAccessoryMetaForm = {
 export type PartFormValidationInput = {
   category: string;
   model: string;
-  price: string;
+  catalogUnitCost: string;
   supplier: string;
   isCapacitorMode: boolean;
   capacitorUf: string;
@@ -61,7 +61,7 @@ export type PartFormValidationInput = {
   screwDiameter: string;
 };
 
-export type PartNotesInput = {
+export type PartRemarkInput = {
   category: string;
   isCableMode: boolean;
   isScrewMode: boolean;
@@ -135,8 +135,8 @@ export function wireOptionsFromParts(parts: Part[], prefix: string): string[] {
   return Array.from(wires).sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b));
 }
 
-export function parsePumpShellMeta(notes?: string): PumpShellMeta {
-  const meta = parseJsonObject(notes);
+export function parsePumpShellMeta(remark?: string): PumpShellMeta {
+  const meta = parseJsonObject(remark);
   return {
     isStainless: Boolean(meta.isStainless),
     openOffset: optionalNumber(String(meta.openOffset ?? '')),
@@ -153,8 +153,8 @@ export function parsePumpShellMeta(notes?: string): PumpShellMeta {
   };
 }
 
-export function parseCableAccessoryMeta(notes?: string): CableAccessoryMetaForm {
-  const meta = parseJsonObject(notes);
+export function parseCableAccessoryMeta(remark?: string): CableAccessoryMetaForm {
+  const meta = parseJsonObject(remark);
   const fees = readRecord(meta.cableAccessoryFees);
   const names = readRecord(meta.cableAccessoryNames);
   const standardFee = nonNegativeString(fees.standard);
@@ -171,8 +171,8 @@ export function parseCableAccessoryMeta(notes?: string): CableAccessoryMetaForm 
   };
 }
 
-export function parseScrewPricingMetaFromNotes(notes?: string): ScrewPricingMeta | null {
-  const pricing = readRecord(parseJsonObject(notes).screwPricing);
+export function parseScrewPricingMetaFromRemark(remark?: string): ScrewPricingMeta | null {
+  const pricing = readRecord(parseJsonObject(remark).screwPricing);
   if (!pricing.enabled) return null;
   const diameter = Number(pricing.diameter);
   if (!Number.isFinite(diameter) || diameter <= 0) return null;
@@ -225,7 +225,7 @@ export function validatePartForm(input: PartFormValidationInput): Record<string,
     errors.model = '型号不能为空';
   }
   if (!input.category.trim()) errors.category = '请选择类别';
-  if (!input.price || Number.isNaN(Number(input.price)) || Number(input.price) < 0) errors.price = '请输入有效价格';
+  if (!input.catalogUnitCost || Number.isNaN(Number(input.catalogUnitCost)) || Number(input.catalogUnitCost) < 0) errors.catalogUnitCost = '请输入有效的目录成本价';
   if (input.isCableMode && input.standardCableAccessoryFee && (Number.isNaN(Number(input.standardCableAccessoryFee)) || Number(input.standardCableAccessoryFee) < 0)) errors.standardCableAccessoryFee = '请输入有效的普通铜套配件费';
   if (input.isCableMode && input.xinjieCableAccessoryFee && (Number.isNaN(Number(input.xinjieCableAccessoryFee)) || Number(input.xinjieCableAccessoryFee) < 0)) errors.xinjieCableAccessoryFee = '请输入有效的新界式铜套配件费';
   if (input.isCableMode && !input.standardCableAccessoryName.trim()) errors.standardCableAccessoryName = '请输入第一种配件费名称';
@@ -236,7 +236,7 @@ export function validatePartForm(input: PartFormValidationInput): Record<string,
   return errors;
 }
 
-export function buildPartNotes(input: PartNotesInput): Record<string, unknown> | null {
+export function buildPartRemark(input: PartRemarkInput): Record<string, unknown> | null {
   if (input.category === '泵壳') {
     return {
       isStainless: input.isStainless,

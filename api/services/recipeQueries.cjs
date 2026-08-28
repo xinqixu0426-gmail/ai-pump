@@ -218,7 +218,7 @@ function createRecipeQueries({
     function getModelVariantDraft(rawModelVariantId) {
         const modelVariantId = parsePositiveId(rawModelVariantId);
         if (!modelVariantId) {
-            throw new RecipeQueryError('非法型号变体ID');
+            throw new RecipeQueryError('非法常用配置预设编号');
         }
         const variant = modelVariantRow(db.prepare(`
             SELECT *
@@ -226,7 +226,7 @@ function createRecipeQueries({
             WHERE id = ? AND deleted_at IS NULL
         `).get(modelVariantId));
         if (!variant) {
-            throw new RecipeQueryError('型号变体不存在', 404);
+            throw new RecipeQueryError('常用配置预设不存在', 404);
         }
         const { template } = loadTemplateContext(variant.templateId);
         const paintingWage = template?.paintingWage ?? null;

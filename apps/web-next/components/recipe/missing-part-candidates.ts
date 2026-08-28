@@ -20,7 +20,7 @@ export type MissingPartCandidate = {
   supplier: string;
   category: string;
   subcategory: string;
-  price: number;
+  catalogUnitCost: number;
   stock: number;
   matchScope: 'exact-category' | 'non-packaging';
 };
@@ -68,7 +68,7 @@ export function collectTemplateMissingPartCandidates(
       supplier: '',
       category: '泵壳',
       subcategory: '',
-      price: Number(form.bundleCost || 0),
+      catalogUnitCost: Number(form.bundleCost || 0),
       stock: 0,
       matchScope: 'exact-category',
     });
@@ -88,7 +88,7 @@ export function collectTemplateMissingPartCandidates(
           supplier: row.supplier?.trim() || '',
           category: SHELL_COMPONENT_CATEGORY,
           subcategory: '',
-          price: Number(row.unitCost || 0),
+          catalogUnitCost: Number(row.unitCost || 0),
           stock: 0,
           matchScope: 'exact-category',
         });
@@ -109,7 +109,7 @@ export function collectTemplateMissingPartCandidates(
         supplier: row.supplier?.trim() || '',
         category: inferredCategory || '配件',
         subcategory: '',
-        price: 0,
+        catalogUnitCost: 0,
         stock: 0,
         matchScope: inferredCategory ? 'exact-category' : 'non-packaging',
       });
@@ -137,7 +137,7 @@ export function collectRecipeMissingPartCandidates(
         supplier: row.supplier.trim(),
         category: inferredCategory || '配件',
         subcategory: '',
-        price: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
+        catalogUnitCost: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
         stock: 0,
         matchScope: inferredCategory ? 'exact-category' : 'non-packaging',
       };
@@ -155,7 +155,7 @@ export function collectRecipeMissingPartCandidates(
       supplier: row.supplier.trim(),
       category: '包装',
       subcategory: packagingSubcategoryForDraft(row),
-      price: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
+      catalogUnitCost: row.costSource === 'manual' ? Number(row.snapshotPrice || 0) : 0,
       stock: 0,
       matchScope: 'exact-category',
     }));

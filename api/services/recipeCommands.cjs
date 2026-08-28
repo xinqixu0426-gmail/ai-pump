@@ -220,7 +220,7 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
         ...recipeBodyToDb(input),
     };
     const name = String(source.name || '').trim();
-    if (!name) throw recipeCommandError('recipe_name_required', '配方名称不能为空', 400);
+    if (!name) throw recipeCommandError('recipe_name_required', '成品型号不能为空', 400);
 
     const parts = parseJsonArray(source.parts_json);
     if (parts.length === 0) {

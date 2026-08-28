@@ -126,7 +126,7 @@ export function AttachmentArchiveDialog({
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
-            <h2 id="file-archive-title" className="text-base font-semibold text-ink">归档附件</h2>
+            <h2 id="file-archive-title" className="text-base font-semibold text-ink">关联业务资料</h2>
             <div className="mt-1 truncate text-xs text-muted">{attachment.originalName}</div>
           </div>
           <Button
@@ -143,7 +143,7 @@ export function AttachmentArchiveDialog({
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <label className="block">
-            <span className="text-xs font-medium text-muted">归档位置</span>
+            <span className="text-xs font-medium text-muted">关联对象</span>
             <select
               value={targetType}
               onChange={event => onTargetTypeChange(event.target.value as FactoryFileArchiveTargetType)}
@@ -243,7 +243,7 @@ export function AttachmentArchiveDialog({
           )}
 
           <label className="block">
-            <span className="text-xs font-medium text-muted">归档说明（可选）</span>
+            <span className="text-xs font-medium text-muted">关联说明（可选）</span>
             <textarea
               value={note}
               onChange={event => onNoteChange(event.target.value)}
@@ -257,7 +257,7 @@ export function AttachmentArchiveDialog({
           <div className="rounded-md border border-line bg-slate-50 p-3">
             <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
               <Archive size={14} />
-              已有归档
+              已有关联
             </div>
             {loading ? (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted">
@@ -274,7 +274,7 @@ export function AttachmentArchiveDialog({
                 ))}
               </div>
             ) : (
-              <div className="mt-2 text-xs text-muted">尚未归档</div>
+              <div className="mt-2 text-xs text-muted">尚未关联</div>
             )}
           </div>
 
@@ -300,7 +300,7 @@ export function AttachmentArchiveDialog({
             onClick={() => void onSave()}
             disabled={loading || saving}
           >
-            {saving ? '归档中' : '确认归档'}
+            {saving ? '关联中' : '确认关联'}
           </Button>
         </div>
       </div>

@@ -278,7 +278,7 @@ export function ModelVariantCompatibilityPanel({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.modelName.trim()) {
-      setFormError('配置名称不能为空');
+      setFormError('预设名称不能为空');
       return;
     }
     if (!form.templateId) {
@@ -340,7 +340,7 @@ export function ModelVariantCompatibilityPanel({
               <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                   <tr>
-                    <th className="border-b border-line px-4 py-3">配置名称</th>
+                    <th className="border-b border-line px-4 py-3">预设名称</th>
                     <th className="border-b border-line px-4 py-3">泵壳模板</th>
                     <th className="border-b border-line px-4 py-3">线圈</th>
                     <th className="border-b border-line px-4 py-3">机筒/长螺丝</th>
@@ -404,7 +404,7 @@ export function ModelVariantCompatibilityPanel({
         <form onSubmit={submit} className="flex min-h-full flex-col">
           <div className="flex items-start justify-between gap-4 border-b border-line p-5">
             <div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Variant</div>
+              <div className="text-xs font-medium tracking-wide text-muted">常用配置预设</div>
               <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
                 {editorTarget?.mode === 'edit' ? '编辑常用配置' : '新建常用配置'}
               </h2>
@@ -430,7 +430,7 @@ export function ModelVariantCompatibilityPanel({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
-                <span className="text-sm font-medium text-ink">配置名称</span>
+                <span className="text-sm font-medium text-ink">预设名称</span>
                 <input
                   value={form.modelName}
                   onChange={(event) => updateForm({ modelName: event.target.value })}

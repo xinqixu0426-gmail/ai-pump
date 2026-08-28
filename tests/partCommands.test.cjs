@@ -158,7 +158,7 @@ function createFixture() {
                 price: body.price ?? 0,
                 supplier: body.supplier || '-',
                 stock: body.stock ?? 0,
-                remark: body.notes || body.remark || '',
+                remark: body.remark ?? body.notes ?? '',
             };
         },
         partRow(row) {
@@ -171,6 +171,7 @@ function createFixture() {
                 supplier: row.supplier,
                 stock: row.stock,
                 remark: row.remark,
+                notes: row.remark,
                 createdAt: row.created_at,
                 updatedAt: row.updated_at,
                 deletedAt: row.deleted_at,
@@ -220,11 +221,15 @@ test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删�
             price: 12.5,
             supplier: '供应商A',
             stock: 3,
+            remark: '规范零件说明',
+            notes: '旧字段不应覆盖规范字段',
         };
         const created = executePartCreate(fixture.dependencies, input, context);
         const replay = executePartCreate(fixture.dependencies, input, context);
         assert.equal(created.capabilityId, CREATE_CAPABILITY_ID);
         assert.equal(created.part.subcategory, '外包装');
+        assert.equal(created.part.remark, '规范零件说明');
+        assert.equal(created.part.notes, '规范零件说明');
         assert.ok(created.auditId);
         assert.equal(replay.idempotentReplay, true);
         assert.equal(replay.part.id, created.part.id);

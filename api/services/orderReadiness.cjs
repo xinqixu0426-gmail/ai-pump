@@ -364,8 +364,8 @@ function buildOrderReadiness(options = {}) {
             const finding = issue(
                 'price_below_cost',
                 'high',
-                `${label} 出厂价低于成本`,
-                `单位出厂价 ${roundMoney(unitPrice)} 元低于锁定成本 ${roundMoney(unitCost)} 元。`,
+                `${label} 销售单价低于成本`,
+                `销售单价 ${roundMoney(unitPrice)} 元低于锁定成本 ${roundMoney(unitCost)} 元。`,
                 '确认是否允许亏损交付。',
                 '/orders'
             );
@@ -377,7 +377,7 @@ function buildOrderReadiness(options = {}) {
                 'margin_too_low',
                 'medium',
                 `${label} 利润偏薄`,
-                `单位出厂价与锁定成本的倍率为 ${(unitPrice / unitCost).toFixed(3)}。`,
+                `销售单价与锁定成本的倍率为 ${(unitPrice / unitCost).toFixed(3)}。`,
                 '确认客户折扣和最低利润要求。',
                 '/orders'
             );

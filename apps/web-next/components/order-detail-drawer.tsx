@@ -757,7 +757,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                     </div>
                     <div className="mt-3 grid gap-2 text-sm text-muted md:grid-cols-4">
                       <div>单台成本 <b className="text-ink">{money(item.unitCost)}</b></div>
-                      <div>出厂价 <b className="text-ink">{money(item.unitPrice)}</b></div>
+                      <div>销售单价 <b className="text-ink">{money(item.unitPrice)}</b></div>
                       <div>利润率 <b className="text-ink">{Math.round(((item.profitMargin || 1) - 1) * 100)}%</b></div>
                       <div className="md:text-right">小计 <b className="text-ink">{money(item.unitPrice * item.qty)}</b></div>
                     </div>
@@ -779,7 +779,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
                 <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-4">
                   <div>锁定成本 <b className="text-ink">{money(localOrder.totalCost)}</b></div>
                   <div>采购价差 <b className={procurementVariance > 0 ? 'text-rose-700' : 'text-emerald-700'}>{money(procurementVariance)}</b></div>
-                  <div>总出厂价 <b className="text-ink">{money(localOrder.totalPrice)}</b></div>
+                  <div>销售总额 <b className="text-ink">{money(localOrder.totalPrice)}</b></div>
                   <div>调整后利润 <b className="text-ink">{money(localOrder.totalProfit - procurementVariance)}</b></div>
                 </div>
               </div>

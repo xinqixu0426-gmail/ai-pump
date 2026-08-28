@@ -58,7 +58,7 @@ const ENTITY_LABEL_CONFIG = Object.freeze({
     coil: { table: 'coils', column: 'spec', prefix: '线圈' },
     customer: { table: 'customers', column: 'name', prefix: '客户' },
     purchasing: { table: null, column: null, prefix: '采购业务' },
-    model_variant: { table: 'pump_model_variants', column: 'model_name', prefix: '型号变体' },
+    model_variant: { table: 'pump_model_variants', column: 'model_name', prefix: '常用配置预设' },
     quality: { table: null, column: null, prefix: '质量规则' },
     rotor: { table: null, column: null, prefix: '转子档案' },
     settings: { table: null, column: null, prefix: '系统设置' },

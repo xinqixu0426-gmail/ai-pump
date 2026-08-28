@@ -112,7 +112,7 @@ test('后端 BOM draft 可组装模板、长螺丝、线圈、电容和动态配
     const barrel = result.parts.find(part => part.name === '不锈钢拉伸筒(按cm)');
     assert.equal(barrel.qty, 19);
     assert.equal(barrel.snapshotPrice, 0.8);
-    assert.equal(barrel.formula, '不锈钢拉伸筒: 0.8×19cm（长度来自配方/型号变体）');
+    assert.equal(barrel.formula, '不锈钢拉伸筒: 0.8×19cm（长度来自配方/常用配置预设）');
 
     const coil = result.parts.find(part => part.name === '线圈转子');
     assert.equal(coil.model, 'Y90-10');
