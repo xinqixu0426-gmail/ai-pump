@@ -486,6 +486,169 @@ test('AI executor 行为：修改配方在确认前唯一绑定正式目标和�
     ]);
 });
 
+test('AI executor 行为：修改配方支持显式空字符串和 clearSpec 清空规格', async () => {
+    for (const { args, expectedArg } of [
+        { args: { newSpec: '' }, expectedArg: ['newSpec', ''] },
+        { args: { clearSpec: true }, expectedArg: ['clearSpec', true] },
+    ]) {
+        const currentPart = {
+            partId: 7,
+            model: '正式零件A',
+            supplier: '正式供应商',
+            qty: 1,
+            snapshotPrice: 3.5,
+        };
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({
+                    success: true,
+                    data: [{
+                        id: 36,
+                        name: 'MCP清空规格配方',
+                        spec: '临时规格',
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        packingPartsJson: '[]',
+                        technicalDataJson: '{}',
+                        savedTotalCost: 3.5,
+                        updatedAt: '2026-08-26T00:00:00.000Z',
+                    }],
+                });
+            }
+            if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+                assert.equal(call.body.form.spec, '');
+                return jsonResponse({
+                    success: true,
+                    data: {
+                        capabilityId: 'recipes.update',
+                        recipeId: 36,
+                        name: 'MCP清空规格配方',
+                        spec: '',
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        packingPartsJson: '[]',
+                        technicalDataJson: '{}',
+                        savedTotalCost: 3.5,
+                        expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                        previewHash: `recipe-clear-spec-${expectedArg[0]}`,
+                        suggestedIdempotencyKey: `recipe-clear-spec:${expectedArg[0]}`,
+                        changes: [{ resourceType: 'recipe', resourceId: 36, field: 'spec', from: '临时规格', to: '' }],
+                        warnings: [],
+                    },
+                });
+            }
+            return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+        });
+
+        const result = await executeToolCall('update_recipe', {
+            recipeName: 'MCP清空规格配方',
+            ...args,
+        }, {
+            allowWrite: false,
+            confirmationSubject: `recipe-clear-spec-${expectedArg[0]}`,
+        });
+
+        assert.equal(result.success, true);
+        assert.equal(result.requiresConfirmation, true);
+        assert.equal(result.confirmation.args[expectedArg[0]], expectedArg[1]);
+        assert(result.confirmation.rows.some(row => row.label === '规格' && row.value === '临时规格 → -'));
+        const consumed = consumeAiToolConfirmation({
+            confirmationToken: result.confirmation.confirmationToken,
+            subject: `recipe-clear-spec-${expectedArg[0]}`,
+            expectedToolName: 'update_recipe',
+            expectedArgs: result.confirmation.args,
+        });
+        assert.equal(consumed.executionContext.draft.spec, '');
+        assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+            'GET /api/recipes',
+            'POST /api/recipes/save-payload-draft',
+        ]);
+    }
+});
+
+test('AI executor 行为：clearSpec 与非空 newSpec 冲突时确认前拒绝', async () => {
+    const currentPart = {
+        partId: 7,
+        model: '正式零件A',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 3.5,
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 37,
+                    name: 'MCP规格冲突配方',
+                    spec: '旧规格',
+                    partsJson: JSON.stringify([currentPart]),
+                    extraPartsJson: JSON.stringify([currentPart]),
+                    paintingWage: null,
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: 'MCP规格冲突配方',
+        newSpec: '新规格',
+        clearSpec: true,
+    }, { allowWrite: false, confirmationSubject: 'recipe-spec-conflict-subject' });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_update_spec_change_conflict');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+    ]);
+});
+
+test('AI executor 行为：配方规格无实际变化时不签发确认或正式草稿', async () => {
+    for (const scenario of [
+        { name: '相同规格', currentSpec: '当前规格', args: { newSpec: '当前规格' } },
+        { name: '已为空规格', currentSpec: '', args: { clearSpec: true } },
+        { name: '未提供修改', currentSpec: '当前规格', args: {} },
+    ]) {
+        const currentPart = {
+            partId: 7,
+            model: '正式零件A',
+            supplier: '正式供应商',
+            qty: 1,
+            snapshotPrice: 3.5,
+        };
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({
+                    success: true,
+                    data: [{
+                        id: 38,
+                        name: `MCP无变化配方-${scenario.name}`,
+                        spec: scenario.currentSpec,
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        paintingWage: null,
+                    }],
+                });
+            }
+            return jsonResponse({ success: false, error: '不应生成正式草稿或执行写入' }, 500);
+        });
+
+        const result = await executeToolCall('update_recipe', {
+            recipeName: `MCP无变化配方-${scenario.name}`,
+            ...scenario.args,
+        }, { allowWrite: false, confirmationSubject: `recipe-no-change-${scenario.name}` });
+
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'recipe_update_no_changes');
+        assert.equal(Object.hasOwn(result, 'confirmation'), false);
+        assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+            'GET /api/recipes',
+        ]);
+    }
+});
+
 test('AI executor 行为：修改配方名称多匹配时不签发确认或正式草稿', async () => {
     const calls = installFetchStub(call => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {

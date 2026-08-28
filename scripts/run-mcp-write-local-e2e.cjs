@@ -1005,7 +1005,7 @@ async function run() {
         const createdRecipeName = `MCP-WRITE-RECIPE-${unique}`;
         const createdRecipeCall = await callWrite('create_recipe', {
             name: createdRecipeName,
-            spec: 'MCP-LOCAL-1',
+            spec: '',
             parts: [{ model: FIXTURE.partModel, qty: 1 }],
         });
         const createdRecipeId = Number(createdRecipeCall.receipt.result?.recipe?.id);
@@ -1033,7 +1033,7 @@ async function run() {
         assert(updatedRecipe.spec === 'MCP-LOCAL-2', '配方修改回读不一致');
         const recoveryCall = await callWrite('update_recipe', {
             recipeName: createdRecipeName,
-            newSpec: recipeBaseline.spec,
+            clearSpec: true,
         }, { record: false });
         const recoveredRecipe = (await apiRequest(
             '回读配方恢复',

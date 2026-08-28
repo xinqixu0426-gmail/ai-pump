@@ -373,6 +373,7 @@ async function buildRecipeUpdatePreparation(args = {}, dependencies = {}) {
         recipeName,
         newName,
         newSpec,
+        clearSpec = false,
         addParts = [],
         removeParts = [],
         updateParts = [],
@@ -467,8 +468,18 @@ async function buildRecipeUpdatePreparation(args = {}, dependencies = {}) {
         }
     }
 
+    if (clearSpec === true && newSpec !== undefined && String(newSpec).trim() !== '') {
+        throw recipeUpdateError(
+            'recipe_update_spec_change_conflict',
+            'clearSpec=true 时不能同时提供非空 newSpec'
+        );
+    }
     const targetName = newName === undefined ? recipe.name : String(newName).trim();
-    const targetSpec = newSpec === undefined ? (recipe.spec || '') : String(newSpec).trim();
+    const targetSpec = clearSpec === true
+        ? ''
+        : newSpec === undefined
+            ? (recipe.spec || '')
+            : String(newSpec).trim();
     if (!targetName) {
         throw recipeUpdateError('recipe_update_name_required', '配方名称不能为空');
     }

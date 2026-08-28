@@ -639,7 +639,8 @@ const AI_TOOLS = [
                 properties: {
                     recipeName: { type: 'string', description: '要修改的配方名称（用于查找）' },
                     newName: { type: 'string', description: '新名称（可选）' },
-                    newSpec: { type: 'string', description: '新规格（可选）' },
+                    newSpec: { type: 'string', minLength: 0, description: '新规格（可选）；可传空字符串清空规格。跨客户端清空时优先使用 clearSpec=true' },
+                    clearSpec: { type: 'boolean', description: '设为 true 时明确清空规格；不要与非空 newSpec 同时使用' },
                     addParts: {
                         type: 'array',
                         description: '要添加的零件（可选）',

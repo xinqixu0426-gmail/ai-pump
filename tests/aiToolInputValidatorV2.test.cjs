@@ -61,6 +61,23 @@ test('V2 工具输入：按 AI_TOOLS schema 统一规范化所有字段', () => 
         spec: '12',
         sheets: 220,
     });
+
+    assert.deepEqual(validateAiToolArgs('update_recipe', {
+        recipeName: ' 测试配方 ',
+        newSpec: '',
+    }), {
+        recipeName: '测试配方',
+        newSpec: '',
+    });
+    assert.deepEqual(validateAiToolArgs('update_recipe', {
+        recipeName: '测试配方',
+        clearSpec: true,
+    }), {
+        recipeName: '测试配方',
+        clearSpec: true,
+    });
+    assert.deepEqual(validateAiToolArgs('search_parts', { keyword: '' }), {});
+    assert.deepEqual(validateAiToolArgs('search_parts', { keyword: '   ' }), {});
 });
 
 test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执行前拒绝', () => {
@@ -77,6 +94,14 @@ test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执�
 });
 
 test('V2 写工具输入：拒绝空白目标、空批次、零变动和冲突调价方式', () => {
+    assert.throws(
+        () => validateAiToolArgs('update_recipe', { clearSpec: true }),
+        /args\.recipeName 为必填字段/
+    );
+    assert.throws(
+        () => validateAiToolArgs('update_recipe', { recipeName: '', clearSpec: true }),
+        /args\.recipeName 为必填字段/
+    );
     assert.throws(
         () => validateAiToolArgs('adjust_part_stock', { items: [] }),
         /至少需要 1 项/

@@ -189,6 +189,7 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '配方名称', args.recipeName);
             addRow(rows, '新名称', args.newName);
             addRow(rows, '新规格', args.newSpec);
+            addRow(rows, '清空规格', args.clearSpec === true ? '是' : '');
             addRow(rows, '添加零件', previewItems(args.addParts, 'model'));
             addRow(rows, '移除零件', Array.isArray(args.removeParts) ? args.removeParts.join('，') : '');
             addRow(rows, '修改数量', previewItems(args.updateParts, 'model'));
