@@ -351,7 +351,8 @@ test('AI executor 行为：修改无模板配方会更新保存的可选零件�
             return jsonResponse({
                 success: true,
                 data: {
-                    id: 31,
+                    capabilityId: 'recipes.update',
+                    recipeId: 31,
                     name: 'MCP配方A',
                     spec: '1寸',
                     partsJson: JSON.stringify([{ ...currentPart, qty: 3 }]),
@@ -359,6 +360,8 @@ test('AI executor 行为：修改无模板配方会更新保存的可选零件�
                     expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
                     previewHash: 'recipe-update-preview-hash',
                     suggestedIdempotencyKey: 'recipe-update:test',
+                    changes: [],
+                    warnings: [],
                 },
             });
         }
@@ -370,6 +373,18 @@ test('AI executor 行为：修改无模板配方会更新保存的可选零件�
                     name: 'MCP配方A',
                     spec: '1寸',
                 }),
+            });
+        }
+        if (call.url.endsWith('/api/recipes/31') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 31,
+                    name: 'MCP配方A',
+                    spec: '1寸',
+                    partsJson: JSON.stringify([{ ...currentPart, qty: 3 }]),
+                    extraPartsJson: JSON.stringify([{ ...currentPart, qty: 3 }]),
+                },
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -385,7 +400,602 @@ test('AI executor 行为：修改无模板配方会更新保存的可选零件�
         'GET /api/recipes',
         'POST /api/recipes/save-payload-draft',
         'PATCH /api/recipes/31',
+        'GET /api/recipes/31',
     ]);
+});
+
+test('AI executor 行为：修改配方在确认前唯一绑定正式目标和保存草稿', async () => {
+    const currentPart = {
+        partId: 7,
+        model: '正式零件A',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 3.5,
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 35,
+                    name: 'MCP配方正式名称',
+                    spec: '旧规格',
+                    partsJson: JSON.stringify([currentPart]),
+                    extraPartsJson: JSON.stringify([currentPart]),
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    savedTotalCost: 3.5,
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            assert.equal(call.body.recipeId, 35);
+            assert.equal(call.body.expectedUpdatedAt, '2026-08-26T00:00:00.000Z');
+            assert.equal(call.body.form.spec, '新规格');
+            return jsonResponse({
+                success: true,
+                data: {
+                    capabilityId: 'recipes.update',
+                    recipeId: 35,
+                    name: 'MCP配方正式名称',
+                    spec: '新规格',
+                    partsJson: JSON.stringify([currentPart]),
+                    extraPartsJson: JSON.stringify([currentPart]),
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    savedTotalCost: 3.5,
+                    expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                    previewHash: 'recipe-update-bound-preview',
+                    suggestedIdempotencyKey: 'recipe-update:bound-preview',
+                    changes: [{ resourceType: 'recipe', resourceId: 35, field: 'snapshot' }],
+                    warnings: [],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '正式名称',
+        newSpec: '新规格',
+    }, {
+        allowWrite: false,
+        confirmationSubject: 'recipe-preflight-subject',
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.requiresConfirmation, true);
+    assert.equal(result.confirmation.args.recipeName, 'MCP配方正式名称');
+    assert(result.confirmation.rows.some(row => row.label === '正式配方' && row.value.includes('#35')));
+    assert(result.confirmation.rows.some(row => row.label === '规格' && row.value === '旧规格 → 新规格'));
+    assert(result.confirmation.rows.some(row => row.label === '保存成本' && row.value === '3.5 元 → 3.5 元'));
+    assert.equal(Object.hasOwn(result.confirmation, 'executionContext'), false);
+    const consumed = consumeAiToolConfirmation({
+        confirmationToken: result.confirmation.confirmationToken,
+        subject: 'recipe-preflight-subject',
+        expectedToolName: 'update_recipe',
+        expectedArgs: result.confirmation.args,
+    });
+    assert.equal(consumed.executionContext.kind, 'recipe_update_preview');
+    assert.equal(consumed.executionContext.recipeId, 35);
+    assert.equal(consumed.executionContext.draft.previewHash, 'recipe-update-bound-preview');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'POST /api/recipes/save-payload-draft',
+    ]);
+});
+
+test('AI executor 行为：修改配方支持显式空字符串和 clearSpec 清空规格', async () => {
+    for (const { args, expectedArg } of [
+        { args: { newSpec: '' }, expectedArg: ['newSpec', ''] },
+        { args: { clearSpec: true }, expectedArg: ['clearSpec', true] },
+    ]) {
+        const currentPart = {
+            partId: 7,
+            model: '正式零件A',
+            supplier: '正式供应商',
+            qty: 1,
+            snapshotPrice: 3.5,
+        };
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({
+                    success: true,
+                    data: [{
+                        id: 36,
+                        name: 'MCP清空规格配方',
+                        spec: '临时规格',
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        packingPartsJson: '[]',
+                        technicalDataJson: '{}',
+                        savedTotalCost: 3.5,
+                        updatedAt: '2026-08-26T00:00:00.000Z',
+                    }],
+                });
+            }
+            if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+                assert.equal(call.body.form.spec, '');
+                return jsonResponse({
+                    success: true,
+                    data: {
+                        capabilityId: 'recipes.update',
+                        recipeId: 36,
+                        name: 'MCP清空规格配方',
+                        spec: '',
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        packingPartsJson: '[]',
+                        technicalDataJson: '{}',
+                        savedTotalCost: 3.5,
+                        expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                        previewHash: `recipe-clear-spec-${expectedArg[0]}`,
+                        suggestedIdempotencyKey: `recipe-clear-spec:${expectedArg[0]}`,
+                        changes: [{ resourceType: 'recipe', resourceId: 36, field: 'spec', from: '临时规格', to: '' }],
+                        warnings: [],
+                    },
+                });
+            }
+            return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+        });
+
+        const result = await executeToolCall('update_recipe', {
+            recipeName: 'MCP清空规格配方',
+            ...args,
+        }, {
+            allowWrite: false,
+            confirmationSubject: `recipe-clear-spec-${expectedArg[0]}`,
+        });
+
+        assert.equal(result.success, true);
+        assert.equal(result.requiresConfirmation, true);
+        assert.equal(result.confirmation.args[expectedArg[0]], expectedArg[1]);
+        assert(result.confirmation.rows.some(row => row.label === '规格' && row.value === '临时规格 → -'));
+        const consumed = consumeAiToolConfirmation({
+            confirmationToken: result.confirmation.confirmationToken,
+            subject: `recipe-clear-spec-${expectedArg[0]}`,
+            expectedToolName: 'update_recipe',
+            expectedArgs: result.confirmation.args,
+        });
+        assert.equal(consumed.executionContext.draft.spec, '');
+        assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+            'GET /api/recipes',
+            'POST /api/recipes/save-payload-draft',
+        ]);
+    }
+});
+
+test('AI executor 行为：clearSpec 与非空 newSpec 冲突时确认前拒绝', async () => {
+    const currentPart = {
+        partId: 7,
+        model: '正式零件A',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 3.5,
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 37,
+                    name: 'MCP规格冲突配方',
+                    spec: '旧规格',
+                    partsJson: JSON.stringify([currentPart]),
+                    extraPartsJson: JSON.stringify([currentPart]),
+                    paintingWage: null,
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: 'MCP规格冲突配方',
+        newSpec: '新规格',
+        clearSpec: true,
+    }, { allowWrite: false, confirmationSubject: 'recipe-spec-conflict-subject' });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_update_spec_change_conflict');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+    ]);
+});
+
+test('AI executor 行为：配方规格无实际变化时不签发确认或正式草稿', async () => {
+    for (const scenario of [
+        { name: '相同规格', currentSpec: '当前规格', args: { newSpec: '当前规格' } },
+        { name: '已为空规格', currentSpec: '', args: { clearSpec: true } },
+        { name: '未提供修改', currentSpec: '当前规格', args: {} },
+    ]) {
+        const currentPart = {
+            partId: 7,
+            model: '正式零件A',
+            supplier: '正式供应商',
+            qty: 1,
+            snapshotPrice: 3.5,
+        };
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({
+                    success: true,
+                    data: [{
+                        id: 38,
+                        name: `MCP无变化配方-${scenario.name}`,
+                        spec: scenario.currentSpec,
+                        partsJson: JSON.stringify([currentPart]),
+                        extraPartsJson: JSON.stringify([currentPart]),
+                        paintingWage: null,
+                    }],
+                });
+            }
+            return jsonResponse({ success: false, error: '不应生成正式草稿或执行写入' }, 500);
+        });
+
+        const result = await executeToolCall('update_recipe', {
+            recipeName: `MCP无变化配方-${scenario.name}`,
+            ...scenario.args,
+        }, { allowWrite: false, confirmationSubject: `recipe-no-change-${scenario.name}` });
+
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'recipe_update_no_changes');
+        assert.equal(Object.hasOwn(result, 'confirmation'), false);
+        assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+            'GET /api/recipes',
+        ]);
+    }
+});
+
+test('AI executor 行为：修改配方名称多匹配时不签发确认或正式草稿', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 51, name: 'V750-A' },
+                    { id: 52, name: 'V750-B' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: 'V750',
+        newSpec: '新规格',
+    }, { allowWrite: false, confirmationSubject: 'recipe-ambiguous-subject' });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_update_target_ambiguous');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+    ]);
+});
+
+test('AI executor 行为：修改配方拒绝超过 15 项和重复的零件目标', async t => {
+    const recipe = {
+        id: 53,
+        name: '边界配方',
+        spec: '旧规格',
+        partsJson: '[]',
+        extraPartsJson: '[]',
+        packingPartsJson: '[]',
+        technicalDataJson: '{}',
+        updatedAt: '2026-08-26T00:00:00.000Z',
+    };
+
+    await t.test('合计超过 15 项时在生成草稿前拒绝', async () => {
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [recipe] });
+            }
+            return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+        });
+        const result = await executeToolCall('update_recipe', {
+            recipeName: '边界配方',
+            addParts: Array.from({ length: 8 }, (_, index) => ({ model: `新增-${index}`, qty: 1 })),
+            removeParts: Array.from({ length: 8 }, (_, index) => `移除-${index}`),
+        }, { allowWrite: false, confirmationSubject: 'recipe-limit-subject' });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'recipe_update_too_many_part_changes');
+        assert.equal(Object.hasOwn(result, 'confirmation'), false);
+        assert.equal(calls.length, 1);
+    });
+
+    await t.test('同一目标跨增删改重复时在生成草稿前拒绝', async () => {
+        const calls = installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [recipe] });
+            }
+            return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+        });
+        const result = await executeToolCall('update_recipe', {
+            recipeName: '边界配方',
+            addParts: [{ model: '同一零件', qty: 1 }],
+            removeParts: ['同一零件'],
+        }, { allowWrite: false, confirmationSubject: 'recipe-duplicate-subject' });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'recipe_update_duplicate_part_target');
+        assert.equal(Object.hasOwn(result, 'confirmation'), false);
+        assert.equal(calls.length, 1);
+    });
+});
+
+test('AI executor 行为：修改配方的目标、名称和新增零件必须唯一且正式存在', async t => {
+    const persistedPart = {
+        partId: 90,
+        model: '现有可选零件',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 1,
+    };
+    const baseRecipe = {
+        id: 54,
+        name: '唯一配方',
+        spec: '旧规格',
+        partsJson: JSON.stringify([persistedPart]),
+        extraPartsJson: JSON.stringify([persistedPart]),
+        packingPartsJson: '[]',
+        technicalDataJson: '{}',
+        updatedAt: '2026-08-26T00:00:00.000Z',
+    };
+    const cases = [
+        {
+            name: '目标不存在',
+            args: { recipeName: '不存在配方', newSpec: '新规格' },
+            recipes: [baseRecipe],
+            code: 'recipe_update_target_not_found',
+            expectedCalls: 1,
+        },
+        {
+            name: '新名称冲突',
+            args: { recipeName: '唯一配方', newName: '已有配方' },
+            recipes: [baseRecipe, { id: 55, name: '已有配方' }],
+            code: 'recipe_update_name_conflict',
+            expectedCalls: 1,
+        },
+        {
+            name: '新增零件不存在',
+            args: { recipeName: '唯一配方', addParts: [{ model: '不存在零件', qty: 1 }] },
+            recipes: [baseRecipe],
+            parts: [],
+            code: 'recipe_part_not_found',
+            expectedCalls: 2,
+        },
+        {
+            name: '新增零件多匹配',
+            args: { recipeName: '唯一配方', addParts: [{ model: '通用件', qty: 1 }] },
+            recipes: [baseRecipe],
+            parts: [{ id: 1, model: '通用件-A' }, { id: 2, model: '通用件-B' }],
+            code: 'recipe_part_ambiguous',
+            expectedCalls: 2,
+        },
+    ];
+
+    for (const scenario of cases) {
+        await t.test(scenario.name, async () => {
+            const calls = installFetchStub(call => {
+                if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+                    return jsonResponse({ success: true, data: scenario.recipes });
+                }
+                if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                    return jsonResponse({ success: true, data: scenario.parts });
+                }
+                return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+            });
+            const result = await executeToolCall('update_recipe', scenario.args, {
+                allowWrite: false,
+                confirmationSubject: `recipe-invalid-${scenario.code}`,
+            });
+            assert.equal(result.success, false);
+            assert.equal(result.code, scenario.code);
+            assert.equal(Object.hasOwn(result, 'confirmation'), false);
+            assert.equal(calls.length, scenario.expectedCalls);
+        });
+    }
+});
+
+test('AI executor 行为：修改配方的正式草稿警告会阻止确认', async () => {
+    const persistedPart = {
+        partId: 91,
+        model: '警告配方零件',
+        supplier: '正式供应商',
+        qty: 1,
+        snapshotPrice: 1,
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 56,
+                    name: '警告配方',
+                    spec: '旧规格',
+                    partsJson: JSON.stringify([persistedPart]),
+                    extraPartsJson: JSON.stringify([persistedPart]),
+                    packingPartsJson: '[]',
+                    technicalDataJson: '{}',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/save-payload-draft') && call.method === 'POST') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    capabilityId: 'recipes.update',
+                    recipeId: 56,
+                    expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+                    previewHash: 'warning-preview',
+                    suggestedIdempotencyKey: 'recipe-update:warning',
+                    changes: [],
+                    warnings: [{ code: 'cost_incomplete', message: '成本资料不完整' }],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '警告配方',
+        newSpec: '新规格',
+    }, { allowWrite: false, confirmationSubject: 'recipe-warning-subject' });
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_update_preview_warning');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.equal(calls.length, 2);
+});
+
+test('AI executor 行为：历史喷漆工资未迁移时不生成配方修改确认', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 58,
+                    name: '历史喷漆工资配方',
+                    spec: '旧规格',
+                    paintingWage: 6,
+                    partsJson: '[]',
+                    extraPartsJson: '[]',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: '不应生成正式草稿' }, 500);
+    });
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '历史喷漆工资配方',
+        newSpec: '新规格',
+    }, { allowWrite: false, confirmationSubject: 'recipe-painting-migration-subject' });
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_legacy_painting_wage_migration_required');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：删除配方在确认前唯一绑定 ID 和版本，确认后不再按名称选目标', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 59,
+                    name: '待删除配方-正式名称',
+                    spec: '删除规格',
+                    updatedAt: '2026-08-26T00:00:00.000Z',
+                }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/59') && call.method === 'DELETE') {
+            assert.deepEqual(call.body, { expectedUpdatedAt: '2026-08-26T00:00:00.000Z' });
+            return jsonResponse({ success: true, data: commandData('recipes.delete') });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const pending = await executeToolCall('delete_recipe', {
+        recipeName: '正式名称',
+    }, { allowWrite: false, confirmationSubject: 'recipe-delete-subject' });
+    assert.equal(pending.success, true);
+    assert.equal(pending.requiresConfirmation, true);
+    assert.equal(pending.confirmation.args.recipeName, '待删除配方-正式名称');
+    assert(pending.confirmation.rows.some(row => row.label === '正式配方' && row.value.includes('#59')));
+    const consumed = consumeAiToolConfirmation({
+        confirmationToken: pending.confirmation.confirmationToken,
+        subject: 'recipe-delete-subject',
+        expectedToolName: 'delete_recipe',
+        expectedArgs: pending.confirmation.args,
+    });
+    const result = await executeToolCall('delete_recipe', {
+        recipeName: '执行阶段名称被改变也不能重选目标',
+    }, {
+        allowWrite: true,
+        operationId: consumed.operationId,
+        confirmationContext: consumed.executionContext,
+    });
+    assert.equal(result.success, true);
+    assert.equal(result.recipeId, 59);
+    assert.equal(result.recipeName, '待删除配方-正式名称');
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'DELETE /api/recipes/59',
+    ]);
+});
+
+test('AI executor 行为：删除配方多匹配时不签发确认', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 60, name: '删除目标-A', updatedAt: '2026-08-26T00:00:00.000Z' },
+                    { id: 61, name: '删除目标-B', updatedAt: '2026-08-26T00:00:00.000Z' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: '不应删除任何配方' }, 500);
+    });
+    const result = await executeToolCall('delete_recipe', {
+        recipeName: '删除目标',
+    }, { allowWrite: false, confirmationSubject: 'recipe-delete-ambiguous-subject' });
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'recipe_delete_target_ambiguous');
+    assert.equal(Object.hasOwn(result, 'confirmation'), false);
+    assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：确认后的配方修改只执行冻结草稿并对版本漂移 fail-closed', async () => {
+    const frozenDraft = {
+        capabilityId: 'recipes.update',
+        recipeId: 57,
+        name: '冻结配方',
+        spec: '已确认规格',
+        partsJson: '[]',
+        extraPartsJson: '[]',
+        packingPartsJson: '[]',
+        technicalDataJson: '{}',
+        savedCostDetails: '{}',
+        configurationPolicyJson: '{}',
+        expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
+        previewHash: 'frozen-preview',
+        suggestedIdempotencyKey: 'recipe-update:frozen',
+        changes: [],
+        warnings: [],
+    };
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes/57') && call.method === 'PATCH') {
+            assert.deepEqual(call.body, frozenDraft);
+            return jsonResponse({
+                success: false,
+                code: 'resource_version_conflict',
+                error: '配方已被其他操作修改，请重新预览并确认',
+            }, 409);
+        }
+        return jsonResponse({ success: false, error: '版本冲突后不应继续回读或重新生成草稿' }, 500);
+    });
+
+    const result = await executeToolCall('update_recipe', {
+        recipeName: '被篡改的参数不会生效',
+        newSpec: '未确认规格',
+    }, {
+        allowWrite: true,
+        operationId: 'operation-update-version-drift',
+        confirmationContext: {
+            kind: 'recipe_update_preview',
+            recipeId: 57,
+            recipeName: '冻结配方',
+            requestedChanges: [{ label: '规格', value: '旧规格 → 已确认规格' }],
+            draft: frozenDraft,
+        },
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'resource_version_conflict');
+    assert.equal(calls.length, 1);
 });
 
 test('AI executor 行为：模板和动态配置配方更新名称时不会把生成 BOM 当作可选零件重复保存', async () => {
@@ -433,7 +1043,8 @@ test('AI executor 行为：模板和动态配置配方更新名称时不会把�
             return jsonResponse({
                 success: true,
                 data: {
-                    id: 41,
+                    capabilityId: 'recipes.update',
+                    recipeId: 41,
                     name: call.body.form.name,
                     spec: call.body.form.spec,
                     partsJson: JSON.stringify(generatedParts.map(part => ({
@@ -444,6 +1055,8 @@ test('AI executor 行为：模板和动态配置配方更新名称时不会把�
                     expectedUpdatedAt: '2026-08-26T00:00:00.000Z',
                     previewHash: `recipe-dynamic-preview-${draftCalls}`,
                     suggestedIdempotencyKey: `recipe-update:dynamic-${draftCalls}`,
+                    changes: [],
+                    warnings: [],
                 },
             });
         }
@@ -458,6 +1071,21 @@ test('AI executor 行为：模板和动态配置配方更新名称时不会把�
                     name: '动态配方A-改名',
                     spec: '旧规格',
                 }),
+            });
+        }
+        if (call.url.endsWith('/api/recipes/41') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 41,
+                    name: '动态配方A-改名',
+                    spec: '旧规格',
+                    partsJson: JSON.stringify(generatedParts.map(part => ({
+                        ...part,
+                        snapshotPrice: part.snapshotPrice + 0.5,
+                    }))),
+                    extraPartsJson: '[]',
+                },
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -475,6 +1103,7 @@ test('AI executor 行为：模板和动态配置配方更新名称时不会把�
         'POST /api/recipes/save-payload-draft',
         'POST /api/recipes/save-payload-draft',
         'PATCH /api/recipes/41',
+        'GET /api/recipes/41',
     ]);
 });
 
@@ -1199,15 +1828,70 @@ test('AI executor 行为：库存命令回执与正式回读不一致时拒绝�
     assert.equal(calls.length, 4);
 });
 
+test('AI executor 行为：库存命令 changes 必须与预览形成无重复的精确集合', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const scenarios = [
+        [
+            { resourceId: 7, field: 'stock', from: 4, to: 5 },
+            { resourceId: 7, field: 'stock', from: 4, to: 5 },
+        ],
+        [{ resourceId: 7, field: 'stock', from: 4, to: 5 }],
+        [
+            { resourceId: 7, field: 'stock', from: 3, to: 5 },
+            { resourceId: 8, field: 'stock', from: 6, to: 7 },
+        ],
+    ];
+    for (const changes of scenarios) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 7, model: 'A', stock: 4 },
+                    { id: 8, model: 'B', stock: 6 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/batch-stock-preview')) {
+                return jsonResponse({ success: true, data: {
+                    confirmationToken: 'stock-set-token',
+                    suggestedIdempotencyKey: 'stock-set-key',
+                    operations: [
+                        { partId: 7, model: 'A', currentStock: 4, nextStock: 5, delta: 1 },
+                        { partId: 8, model: 'B', currentStock: 6, nextStock: 7, delta: 1 },
+                    ],
+                    warnings: [],
+                } });
+            }
+            if (call.url.endsWith('/api/parts/batch-stock')) {
+                return jsonResponse({ success: true, data: {
+                    operationId: 'formal-stock-set-operation',
+                    capabilityId: 'inventory.parts.batch_adjust_stock',
+                    status: 'completed',
+                    updatedCount: 2,
+                    changes,
+                    auditIds: [702, 703],
+                } });
+            }
+            return jsonResponse({ success: false, error: '不应回读库存' }, 500);
+        });
+        const result = await executeToolCall('adjust_part_stock', {
+            items: [{ model: 'A', changeQty: 1 }, { model: 'B', changeQty: 1 }],
+        }, { allowWrite: true });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'part_stock_result_mismatch');
+        assert.equal(calls.filter(call => call.url.endsWith('/api/parts')).length, 1);
+    }
+});
+
 test('AI executor 行为：批量调价生成候选价后必须经正式预览和原子命令', async () => {
     process.env.INTERNAL_SECRET = 'test-secret';
+    let partsReadCount = 0;
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            partsReadCount += 1;
             return jsonResponse({
                 success: true,
                 data: [
-                    { id: 7, model: '轴承A', category: '轴承', price: 10 },
-                    { id: 8, model: '轴承B', category: '轴承', price: 12.34 },
+                    { id: 7, model: '轴承A', category: '轴承', supplier: '甲厂', price: partsReadCount === 1 ? 10 : 11 },
+                    { id: 8, model: '轴承B', category: '轴承', supplier: '乙厂', price: partsReadCount === 1 ? 12.34 : 13.57 },
                     { id: 9, model: '螺丝A', category: '螺丝', price: 1 },
                 ],
             });
@@ -1226,6 +1910,11 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
                         { partId: 7, price: 11, expectedUpdatedAt: 'v1' },
                         { partId: 8, price: 13.57, expectedUpdatedAt: 'v2' },
                     ],
+                    changes: [
+                        { resourceType: 'part', resourceId: 7, field: 'price', from: 10, to: 11 },
+                        { resourceType: 'part', resourceId: 8, field: 'price', from: 12.34, to: 13.57 },
+                    ],
+                    warnings: [],
                     previewHash: 'price-hash',
                     suggestedIdempotencyKey: 'price-key',
                 },
@@ -1242,7 +1931,13 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
             });
             return jsonResponse({
                 success: true,
-                data: commandData('parts.batch_update_prices', { updatedCount: 2 }),
+                data: commandData('parts.batch_update_prices', {
+                    updatedCount: 2,
+                    changes: [
+                        { resourceType: 'part', resourceId: 7, field: 'price', from: 10, to: 11 },
+                        { resourceType: 'part', resourceId: 8, field: 'price', from: 12.34, to: 13.57 },
+                    ],
+                }),
             });
         }
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
@@ -1258,14 +1953,250 @@ test('AI executor 行为：批量调价生成候选价后必须经正式预览�
     assert.equal(result.count, 2);
     assert.equal(result.changeType, '+10%');
     assert.deepEqual(result.details, [
-        { model: '轴承A', oldPrice: 10, newPrice: 11 },
-        { model: '轴承B', oldPrice: 12.34, newPrice: 13.57 },
+        { partId: 7, model: '轴承A', supplier: '甲厂', oldPrice: 10, newPrice: 11 },
+        { partId: 8, model: '轴承B', supplier: '乙厂', oldPrice: 12.34, newPrice: 13.57 },
     ]);
+    assert.equal(result.status, 'completed');
+    assert.equal(result.changes.length, 2);
+    assert.deepEqual(result.warnings, []);
+    assert.equal(result.readback[0].price, 11);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/parts',
         'POST /api/parts/prices-preview',
         'PATCH /api/parts/prices',
+        'GET /api/parts',
     ]);
+});
+
+test('AI executor 行为：明确调价目标必须正式唯一绑定并在确认后回读', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    let partsReadCount = 0;
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            partsReadCount += 1;
+            return jsonResponse({ success: true, data: [
+                { id: 21, model: 'MCP-轴承-A', supplier: '甲厂', category: '轴承', price: partsReadCount === 1 ? 10 : 10.01 },
+                { id: 22, model: 'MCP-轴承-B', supplier: '乙厂', category: '轴承', price: partsReadCount === 1 ? 20 : 20.01 },
+            ] });
+        }
+        if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+            assert.deepEqual(call.body, {
+                updates: [
+                    { partId: 21, price: 10.01 },
+                    { partId: 22, price: 20.01 },
+                ],
+            });
+            return jsonResponse({ success: true, data: {
+                updates: [
+                    { partId: 21, price: 10.01, expectedUpdatedAt: 'v21' },
+                    { partId: 22, price: 20.01, expectedUpdatedAt: 'v22' },
+                ],
+                changes: [
+                    { resourceType: 'part', resourceId: 21, field: 'price', from: 10, to: 10.01 },
+                    { resourceType: 'part', resourceId: 22, field: 'price', from: 20, to: 20.01 },
+                ],
+                warnings: [],
+                previewHash: 'target-price-hash',
+                suggestedIdempotencyKey: 'target-price-key',
+            } });
+        }
+        if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+            return jsonResponse({ success: true, data: commandData('parts.batch_update_prices', {
+                updatedCount: 2,
+                changes: [
+                    { resourceType: 'part', resourceId: 21, field: 'price', from: 10, to: 10.01 },
+                    { resourceType: 'part', resourceId: 22, field: 'price', from: 20, to: 20.01 },
+                ],
+            }) });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('batch_update_prices', {
+        targets: [
+            { partId: 21 },
+            { model: ' MCP-轴承-B ', supplier: ' 乙厂 ' },
+        ],
+        absoluteChange: 0.01,
+    }, { allowWrite: true, operationId: 'operation-target-prices' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 2);
+    assert.equal(result.category, null);
+    assert.equal(result.changeType, '+0.01元');
+    assert.deepEqual(result.readback.map(item => item.price), [10.01, 20.01]);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/parts',
+        'POST /api/parts/prices-preview',
+        'PATCH /api/parts/prices',
+        'GET /api/parts',
+    ]);
+});
+
+test('AI executor 行为：明确调价目标与正式预览漂移时不生成确认卡', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 25, model: '预览漂移-A', supplier: '甲厂', category: '轴承', price: 10 },
+                { id: 26, model: '预览漂移-B', supplier: '乙厂', category: '轴承', price: 20 },
+            ] });
+        }
+        if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+            return jsonResponse({ success: true, data: {
+                updates: [{ partId: 25, price: 10.01, expectedUpdatedAt: 'v25' }],
+                changes: [
+                    { resourceType: 'part', resourceId: 25, field: 'price', from: 10.02, to: 10.01 },
+                ],
+                warnings: [{ code: 'part_not_found_skipped', resourceId: 26 }],
+                previewHash: 'drift-price-hash',
+                suggestedIdempotencyKey: 'drift-price-key',
+            } });
+        }
+        return jsonResponse({ success: false, error: '不应执行调价命令' }, 500);
+    });
+
+    const result = await executeToolCall('batch_update_prices', {
+        targets: [{ partId: 25 }, { partId: 26 }],
+        absoluteChange: 0.01,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'part_price_preview_target_drift');
+    assert.equal(calls.some(call => call.url.endsWith('/api/parts/prices')), false);
+});
+
+test('AI executor 行为：明确调价目标歧义、重复或缺价时不生成正式预览', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 31, model: '重复型号', supplier: '同厂', category: '配件', price: 1 },
+                { id: 32, model: '重复型号', supplier: '同厂', category: '配件', price: 2 },
+                { id: 33, model: '缺价型号', supplier: '同厂', category: '配件', price: null },
+            ] });
+        }
+        return jsonResponse({ success: false, error: '不应调用调价预览或命令' }, 500);
+    });
+
+    for (const [args, code] of [
+        [{ targets: [{ model: '重复型号', supplier: '同厂' }], absoluteChange: 1 }, 'part_price_target_ambiguous'],
+        [{ targets: [{ partId: 31 }, { partId: 31 }], absoluteChange: 1 }, 'part_price_target_duplicate'],
+        [{ targets: [{ partId: 33 }], absoluteChange: 1 }, 'part_price_current_price_missing'],
+        [{ targets: [{ partId: 999 }], absoluteChange: 1 }, 'part_price_target_not_found'],
+    ]) {
+        const result = await executeToolCall('batch_update_prices', args, { allowWrite: false });
+        assert.equal(result.success, false);
+        assert.equal(result.code, code);
+    }
+    assert.equal(calls.every(call => call.method === 'GET'), true);
+});
+
+test('AI executor 行为：调价回执或正式价格回读不完整时拒绝报成功', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    for (const scenario of ['missing-receipt', 'readback-mismatch']) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 41, model: '验收轴承', supplier: '验收厂', category: '轴承', price: 10 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+                return jsonResponse({ success: true, data: {
+                    updates: [{ partId: 41, price: 10.01, expectedUpdatedAt: 'v41' }],
+                    changes: [
+                        { resourceType: 'part', resourceId: 41, field: 'price', from: 10, to: 10.01 },
+                    ],
+                    warnings: [],
+                    previewHash: `price-${scenario}`,
+                    suggestedIdempotencyKey: `price-key-${scenario}`,
+                } });
+            }
+            if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+                const data = {
+                    updatedCount: 1,
+                    changes: [
+                        { resourceType: 'part', resourceId: 41, field: 'price', from: 10, to: 10.01 },
+                    ],
+                };
+                return jsonResponse({ success: true, data: scenario === 'missing-receipt'
+                    ? data
+                    : commandData('parts.batch_update_prices', data) });
+            }
+            return jsonResponse({ success: false, error: 'unexpected call' }, 500);
+        });
+
+        const result = await executeToolCall('batch_update_prices', {
+            targets: [{ partId: 41 }],
+            absoluteChange: 0.01,
+        }, { allowWrite: true, operationId: `operation-${scenario}` });
+
+        assert.equal(result.success, false);
+        assert.equal(
+            result.code,
+            scenario === 'missing-receipt'
+                ? 'part_price_receipt_missing'
+                : 'part_price_readback_mismatch'
+        );
+        assert.equal(
+            calls.filter(call => call.url.endsWith('/api/parts') && call.method === 'GET').length,
+            scenario === 'missing-receipt' ? 1 : 2
+        );
+    }
+});
+
+test('AI executor 行为：调价命令 changes 必须与预览形成无重复的精确集合', async () => {
+    process.env.INTERNAL_SECRET = 'test-secret';
+    const scenarios = [
+        [
+            { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+            { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+        ],
+        [{ resourceId: 51, field: 'price', from: 10, to: 10.01 }],
+        [
+            { resourceId: 51, field: 'price', from: 9.99, to: 10.01 },
+            { resourceId: 52, field: 'price', from: 20, to: 20.01 },
+        ],
+    ];
+    for (const changes of scenarios) {
+        const calls = installFetchStub((call) => {
+            if (call.url.endsWith('/api/parts') && call.method === 'GET') {
+                return jsonResponse({ success: true, data: [
+                    { id: 51, model: '集合轴承-A', supplier: '甲厂', price: 10 },
+                    { id: 52, model: '集合轴承-B', supplier: '乙厂', price: 20 },
+                ] });
+            }
+            if (call.url.endsWith('/api/parts/prices-preview') && call.method === 'POST') {
+                return jsonResponse({ success: true, data: {
+                    updates: [
+                        { partId: 51, price: 10.01, expectedUpdatedAt: 'v51' },
+                        { partId: 52, price: 20.01, expectedUpdatedAt: 'v52' },
+                    ],
+                    changes: [
+                        { resourceId: 51, field: 'price', from: 10, to: 10.01 },
+                        { resourceId: 52, field: 'price', from: 20, to: 20.01 },
+                    ],
+                    warnings: [],
+                    previewHash: 'price-set-hash',
+                    suggestedIdempotencyKey: 'price-set-key',
+                } });
+            }
+            if (call.url.endsWith('/api/parts/prices') && call.method === 'PATCH') {
+                return jsonResponse({ success: true, data: commandData('parts.batch_update_prices', {
+                    updatedCount: 2,
+                    changes,
+                }) });
+            }
+            return jsonResponse({ success: false, error: '不应回读价格' }, 500);
+        });
+        const result = await executeToolCall('batch_update_prices', {
+            targets: [{ partId: 51 }, { partId: 52 }],
+            absoluteChange: 0.01,
+        }, { allowWrite: true, operationId: 'operation-price-set' });
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'part_price_result_mismatch');
+        assert.equal(calls.filter(call => call.url.endsWith('/api/parts')).length, 1);
+    }
 });
 
 test('AI executor 行为：线圈库存未确认时先正式预览再显示标准方案', async () => {

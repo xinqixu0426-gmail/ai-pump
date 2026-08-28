@@ -95,7 +95,7 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     },
     {
         name: 'batch_update_prices',
-        args: { category: '本地验收分类', percentChange: 1 },
+        args: { targets: [{ partId: 1 }], absoluteChange: 0.01 },
         businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/partCommands.test.cjs'],
         isolation: 'formal API stub + in-memory parts database',
     },

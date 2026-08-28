@@ -113,7 +113,7 @@ const e2ePassed = e2eResult?.status === 0
     && e2eReport?.productionTouched === false
     && e2eReport?.physicalSideEffects === false
     && e2eReport?.temporaryDatabaseCleaned === true
-    && e2eReport?.persistentEvidence?.operationsVerified === MCP_WRITE_ACCEPTANCE_CASES.length
+    && e2eReport?.persistentEvidence?.operationsVerified === MCP_WRITE_ACCEPTANCE_CASES.length + 1
     && e2eReport?.persistentEvidence?.integrity === 'ok'
     && e2eReport?.persistentEvidence?.foreignKeyViolations === 0
     && legacyCompatibilityPassed

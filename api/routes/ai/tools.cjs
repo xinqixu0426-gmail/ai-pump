@@ -639,10 +639,12 @@ const AI_TOOLS = [
                 properties: {
                     recipeName: { type: 'string', description: '要修改的配方名称（用于查找）' },
                     newName: { type: 'string', description: '新名称（可选）' },
-                    newSpec: { type: 'string', description: '新规格（可选）' },
+                    newSpec: { type: 'string', minLength: 0, description: '新规格（可选）；可传空字符串清空规格。跨客户端清空时优先使用 clearSpec=true' },
+                    clearSpec: { type: 'boolean', description: '设为 true 时明确清空规格；不要与非空 newSpec 同时使用' },
                     addParts: {
                         type: 'array',
                         description: '要添加的零件（可选）',
+                        maxItems: 15,
                         items: {
                             type: 'object',
                             properties: { model: { type: 'string' }, qty: { type: 'number' } },
@@ -652,11 +654,13 @@ const AI_TOOLS = [
                     removeParts: {
                         type: 'array',
                         description: '要移除的零件型号列表（可选）',
+                        maxItems: 15,
                         items: { type: 'string' }
                     },
                     updateParts: {
                         type: 'array',
                         description: '要修改数量的零件（可选）',
+                        maxItems: 15,
                         items: {
                             type: 'object',
                             properties: { model: { type: 'string' }, qty: { type: 'number' } },
@@ -1414,15 +1418,35 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'batch_update_prices',
-            description: '按类别批量调整零件价格。当用户说"把所有轴承涨价10%""密封件统一降2元"时使用',
+            description: '按类别或明确零件目标批量调整价格。当用户说"把所有轴承涨价10%"或指定一个/多个正式零件调价时使用；明确目标必须用partId，或同时提供完整型号和供应商',
             parameters: {
                 type: 'object',
                 oneOf: [
                     { type: 'object', properties: {}, required: ['category', 'percentChange'] },
                     { type: 'object', properties: {}, required: ['category', 'absoluteChange'] },
+                    { type: 'object', properties: {}, required: ['targets', 'percentChange'] },
+                    { type: 'object', properties: {}, required: ['targets', 'absoluteChange'] },
                 ],
                 properties: {
                     category: { type: 'string', minLength: 1, description: '零件类别' },
+                    targets: {
+                        type: 'array',
+                        minItems: 1,
+                        maxItems: 8,
+                        description: '明确零件目标，灰度阶段最多8项且确认卡会完整展示；每项只能使用partId，或同时提供完整型号和供应商',
+                        items: {
+                            type: 'object',
+                            oneOf: [
+                                { type: 'object', properties: {}, required: ['partId'] },
+                                { type: 'object', properties: {}, required: ['model', 'supplier'] },
+                            ],
+                            properties: {
+                                partId: { type: 'integer', minimum: 1, description: '从本轮正式零件查询取得的零件ID；服务端仍会重新回读确认' },
+                                model: { type: 'string', minLength: 1, description: '数据库中的完整零件型号' },
+                                supplier: { type: 'string', minLength: 1, description: '数据库中的完整供应商名称' },
+                            },
+                        },
+                    },
                     percentChange: { type: 'number', description: '百分比变化（如10表示涨10%，-5表示降5%）' },
                     absoluteChange: { type: 'number', description: '绝对值变化（如2表示涨2元，-1表示降1元），与percentChange二选一' }
                 }

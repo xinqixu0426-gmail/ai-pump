@@ -42,7 +42,7 @@
 | 流程 | 主要入口 | 是否写库 | 写入内容 |
 |---|---|---:|---|
 | 零件查询/新增/修改/删除 | `/api/parts`、`/api/parts/:id` | 查询否/写入是 | 查询由正式 `parts.list` 按关键词、类别、供应商、库存状态、数量和价格/库存数值边界筛选；无 `limit` 时返回全部，低库存统一为 1–5。正式 command 使用持久幂等，更新/删除绑定 `expectedUpdatedAt` 并通过 `safeUpdate` 软删除 |
-| 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务 |
+| 零件批量调价 | `/api/parts/prices-preview` → `/api/parts/prices` | 预览否、执行是 | 只改 `parts.price`；AI/MCP 可按类别或用 `targets` 明确 1–8 个零件，后者先经正式 Query 以 `partId` 或完整 `model+supplier` 唯一绑定，再要求正式 Preview 无跳过、warning 或价格漂移并完整展示确认。预览绑定逐项版本和价格，整批价格、operation 与逐项强审计同一事务；执行后核对精确 changes 集合并回读正式价格 |
 | 批量库存增减 | `/api/parts/batch-stock-preview` → `/api/parts/batch-stock` | 预览否、执行是 | 只改 `parts.stock`；服务端确认 token 绑定 `partId/delta/expectedUpdatedAt`，库存、operation 和强审计同一事务；AI 的单个/多个型号统一经 `adjust_part_stock` 生成一张确认卡，缺少 operation/audit 回执不得报成功；普通 PATCH 的 `stock` 只保留历史兼容 |
 | 线圈新增/修改/删除 | `/api/coils`、`/api/coils/:id` | 是 | 定子组合、绕组方案状态、可选绕组技术备忘和计算后的 `cost` |
 | 模板新增/修改/删除 | `/api/templates`、`/api/templates/:id` | 是 | 泵壳模板、组件结构、工资默认值、转子默认参数；持久幂等，修改/删除绑定版本，模板与 operation/强审计同事务；任何历史配方引用都会阻止硬删除 |
@@ -50,7 +50,7 @@
 | 模板列表查询 | `GET /api/templates?shellModel?&description?&limit?` | 否 | 正式 `templates.list` 按型号、描述筛选；AI 不把模板查询误路由到零件或知识库 |
 | BOM 草稿 | `/api/recipes/bom-draft` | 否 | 只生成标准化 BOM 草稿 |
 | 配方成本草稿 | `/api/recipes/cost-draft` | 否 | 只生成保存前成本快照草稿 |
-| 配方保存/修改/删除 | `/api/recipes`、`/api/recipes/:id` | 是 | 配方 BOM、成本快照、技术参数和客户可选配置范围；可能自动新增缺失长螺丝零件 |
+| 配方保存/修改/删除 | `/api/recipes/save-payload-draft` → `/api/recipes`、`/api/recipes/:id` | 预览否、执行是 | 配方 BOM、成本快照、技术参数和客户可选配置范围；可能自动新增缺失长螺丝零件。AI/MCP `update_recipe` 在确认前通过正式 Query 唯一绑定配方并生成整份保存草稿，明确清空规格使用 `clearSpec:true`（兼容 `newSpec:""`），确认 token 绑定版本与 Preview，确认后直接执行绑定 payload 并回读包含包装箱型/工资迁移状态的完整快照；旧喷漆工资未迁移时先停止。AI 删除同样绑定稳定 ID/版本后再确认，不会按名称重选目标 |
 | 当前配方成本参考 | `/api/recipes/:id/cost`、`/api/recipes/current-costs` | 否 | 单配方入口只重算保存 `partsJson` 的当前配件参考价；批量当日入口按当前模板和配方参数重建完整 BOM 后重算 |
 | 报价/订单配置试算 | `/api/recipes/:id/cost-preview` | 否 | 先按配方自己的配置范围校验，再按配方快照和受控覆盖项试算；包材按稳定零件 ID 和正式目录重新定价，不信任客户端快照价 |
 | 客户新增/修改/删除 | `/api/customers`、`/api/customers/:id` | 是 | 持久幂等；修改/删除使用 `expectedUpdatedAt`；存在活动订单时禁止删除，历史订单和报价继续按稳定 ID 保留，客户与强审计同事务 |

@@ -82,7 +82,16 @@ function normalizeObject(value, schema, path) {
         }
     }
     for (const [key, raw] of Object.entries(value)) {
-        if (raw === undefined || raw === null || raw === '') continue;
+        if (raw === undefined || raw === null) continue;
+        if (
+            typeof raw === 'string'
+            && raw.trim() === ''
+            && !(
+                properties[key]?.type === 'string'
+                && Object.hasOwn(properties[key], 'minLength')
+                && properties[key].minLength === 0
+            )
+        ) continue;
         normalized[key] = normalizeBySchema(raw, properties[key], `${path}.${key}`);
     }
     return normalized;

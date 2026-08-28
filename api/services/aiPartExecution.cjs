@@ -160,6 +160,44 @@ function partStockInputError(code, message, details = {}) {
     return error;
 }
 
+function assertExactPartFieldChanges({
+    expectedChanges = [],
+    actualChanges = [],
+    field,
+    errorCode,
+    errorMessage,
+}) {
+    if (expectedChanges.length === 0 || actualChanges.length !== expectedChanges.length) {
+        throw partStockInputError(errorCode, errorMessage);
+    }
+    const expectedById = new Map();
+    for (const change of expectedChanges) {
+        const resourceId = Number(change.resourceId);
+        if (!Number.isInteger(resourceId) || expectedById.has(resourceId)) {
+            throw partStockInputError(errorCode, errorMessage);
+        }
+        expectedById.set(resourceId, change);
+    }
+    const seenIds = new Set();
+    for (const change of actualChanges) {
+        const resourceId = Number(change.resourceId);
+        const expected = expectedById.get(resourceId);
+        if (
+            !expected
+            || seenIds.has(resourceId)
+            || change.field !== field
+            || Number(change.from) !== Number(expected.from)
+            || Number(change.to) !== Number(expected.to)
+        ) {
+            throw partStockInputError(errorCode, errorMessage);
+        }
+        seenIds.add(resourceId);
+    }
+    if (seenIds.size !== expectedById.size) {
+        throw partStockInputError(errorCode, errorMessage);
+    }
+}
+
 function normalizePartStockItems(args = {}) {
     const items = Array.isArray(args.items) ? args.items : [];
     if (items.length === 0 || items.length > 100) {
@@ -306,28 +344,18 @@ async function verifyPartStockReadback({
         );
     }
 
-    const expectedById = new Map(previewOperations.map(operation => [
-        Number(operation.partId),
-        {
-            model: String(operation.model || ''),
-            delta: Number(operation.delta),
-            nextStock: Number(operation.nextStock),
-        },
-    ]));
-    for (const change of resultChanges) {
-        const expected = expectedById.get(Number(change.resourceId));
-        if (
-            !expected
-            || Number(change.delta) !== expected.delta
-            || Number(change.to) !== expected.nextStock
-            || Number(change.from) + Number(change.delta) !== Number(change.to)
-        ) {
-            throw partStockInputError(
-                'part_stock_result_mismatch',
-                '正式库存 API 返回的型号、增量或结果库存与确认内容不一致，不能声明成功'
-            );
-        }
-    }
+    assertExactPartFieldChanges({
+        expectedChanges: previewOperations.map(operation => ({
+            resourceId: operation.partId,
+            field: 'stock',
+            from: operation.currentStock,
+            to: operation.nextStock,
+        })),
+        actualChanges: resultChanges,
+        field: 'stock',
+        errorCode: 'part_stock_result_mismatch',
+        errorMessage: '正式库存 API 返回的零件、原库存或结果库存与确认内容不一致，不能声明成功',
+    });
 
     const currentParts = await getJson(internalFetch, '/api/parts', '零件库存回读失败');
     const readback = previewOperations.map(operation => {
@@ -547,29 +575,245 @@ async function executePartUpdate(args = {}, dependencies = {}) {
     };
 }
 
+function partPriceInputError(code, message, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.details = details;
+    return error;
+}
+
+function normalizedPartIdentityText(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLocaleLowerCase('zh-CN');
+}
+
+function resolvePartPriceTargets(args = {}, allParts = []) {
+    const hasCategory = typeof args.category === 'string' && args.category.trim().length > 0;
+    const hasTargets = Array.isArray(args.targets);
+    if (hasCategory === hasTargets) {
+        throw partPriceInputError(
+            'part_price_selector_invalid',
+            'category 与 targets 必须且只能提供一种'
+        );
+    }
+
+    if (hasCategory) {
+        const category = args.category.trim();
+        const targets = allParts.filter(part => (
+            (part.category || '') === category
+            || (part.category || '').includes(category)
+        ));
+        if (targets.length === 0) {
+            throw partPriceInputError(
+                'part_price_category_not_found',
+                `没有找到类别包含"${category}"的零件`,
+                { category }
+            );
+        }
+        return { mode: 'category', category, targets };
+    }
+
+    if (args.targets.length === 0 || args.targets.length > 8) {
+        throw partPriceInputError(
+            'part_price_targets_invalid',
+            'targets 必须包含 1 到 8 个明确零件目标'
+        );
+    }
+    const resolved = args.targets.map((selector, index) => {
+        const partId = Number(selector?.partId);
+        const hasPartId = Number.isInteger(partId) && partId > 0;
+        const model = String(selector?.model || '').trim();
+        const supplier = String(selector?.supplier || '').trim();
+        const hasIdentity = Boolean(model && supplier);
+        if (hasPartId === hasIdentity) {
+            throw partPriceInputError(
+                'part_price_target_selector_invalid',
+                `targets[${index}] 必须且只能使用 partId，或同时提供 model 和 supplier`,
+                { index }
+            );
+        }
+        const matches = hasPartId
+            ? allParts.filter(part => Number(part.id ?? part.Id) === partId)
+            : allParts.filter(part => (
+                normalizedPartIdentityText(part.model) === normalizedPartIdentityText(model)
+                && normalizedPartIdentityText(part.supplier) === normalizedPartIdentityText(supplier)
+            ));
+        if (matches.length === 0) {
+            throw partPriceInputError(
+                'part_price_target_not_found',
+                hasPartId
+                    ? `未找到零件 #${partId}`
+                    : `未找到型号"${model}"且供应商为"${supplier}"的零件`,
+                { index, partId: hasPartId ? partId : undefined, model, supplier }
+            );
+        }
+        if (matches.length > 1) {
+            throw partPriceInputError(
+                'part_price_target_ambiguous',
+                `targets[${index}] 匹配到多个正式零件，已停止整批调价`,
+                {
+                    index,
+                    candidates: matches.slice(0, 10).map(part => ({
+                        partId: part.id ?? part.Id,
+                        model: part.model,
+                        supplier: part.supplier,
+                    })),
+                }
+            );
+        }
+        const target = matches[0];
+        if (
+            target.price === undefined
+            || target.price === null
+            || target.price === ''
+            || !Number.isFinite(Number(target.price))
+        ) {
+            throw partPriceInputError(
+                'part_price_current_price_missing',
+                `零件"${target.model}"缺少有效当前价格，不能生成调价确认`,
+                { partId: target.id ?? target.Id, model: target.model }
+            );
+        }
+        return target;
+    });
+    const resolvedIds = resolved.map(part => Number(part.id ?? part.Id));
+    if (new Set(resolvedIds).size !== resolvedIds.length) {
+        throw partPriceInputError(
+            'part_price_target_duplicate',
+            '多个目标解析到同一个零件，已停止整批调价'
+        );
+    }
+    return { mode: 'targets', category: null, targets: resolved };
+}
+
+function assertPartPriceCommandReceipt(result = {}) {
+    const auditIds = Array.isArray(result.auditIds)
+        ? result.auditIds.filter(Boolean)
+        : result.auditId
+            ? [result.auditId]
+            : [];
+    if (!result.operationId || result.status !== 'completed' || auditIds.length === 0) {
+        throw partPriceInputError(
+            'part_price_receipt_missing',
+            '正式调价 API 未返回完整 operation/audit 回执，不能声明调价成功'
+        );
+    }
+    return auditIds;
+}
+
+function bindTargetPricePreview(selection, details, preview) {
+    if (selection.mode !== 'targets') return details;
+    const previewUpdates = Array.isArray(preview?.updates) ? preview.updates : [];
+    const previewChanges = Array.isArray(preview?.changes) ? preview.changes : [];
+    const warnings = Array.isArray(preview?.warnings) ? preview.warnings : [];
+    const errorMessage = '正式调价预览与明确目标或候选价格不一致，不能生成确认卡';
+    if (
+        warnings.length > 0
+        || previewUpdates.length !== details.length
+        || previewChanges.length !== details.length
+    ) {
+        throw partPriceInputError('part_price_preview_target_drift', errorMessage);
+    }
+    assertExactPartFieldChanges({
+        expectedChanges: details.map(detail => ({
+            resourceId: detail.partId,
+            field: 'price',
+            from: detail.oldPrice,
+            to: detail.newPrice,
+        })),
+        actualChanges: previewChanges,
+        field: 'price',
+        errorCode: 'part_price_preview_target_drift',
+        errorMessage,
+    });
+    const updatesById = new Map();
+    for (const update of previewUpdates) {
+        const partId = Number(update.partId);
+        if (updatesById.has(partId)) {
+            throw partPriceInputError('part_price_preview_target_drift', errorMessage);
+        }
+        updatesById.set(partId, update);
+    }
+    const identityById = new Map(details.map(detail => [Number(detail.partId), detail]));
+    return previewChanges.map(change => {
+        const partId = Number(change.resourceId);
+        const identity = identityById.get(partId);
+        const update = updatesById.get(partId);
+        if (!identity || !update || Number(update.price) !== Number(change.to)) {
+            throw partPriceInputError('part_price_preview_target_drift', errorMessage);
+        }
+        return {
+            partId,
+            model: identity.model,
+            supplier: identity.supplier,
+            oldPrice: Number(change.from),
+            newPrice: Number(change.to),
+        };
+    });
+}
+
+async function verifyPartPriceReadback({ internalFetch, getJson, preview, result }) {
+    const updates = Array.isArray(preview?.updates) ? preview.updates : [];
+    const previewChanges = Array.isArray(preview?.changes) ? preview.changes : [];
+    const changes = Array.isArray(result?.changes) ? result.changes : [];
+    if (
+        updates.length === 0
+        || previewChanges.length !== updates.length
+        || Number(result.updatedCount) !== updates.length
+        || changes.length !== updates.length
+    ) {
+        throw partPriceInputError(
+            'part_price_result_mismatch',
+            '正式调价 API 返回的变更数量与确认内容不一致，不能声明成功'
+        );
+    }
+    assertExactPartFieldChanges({
+        expectedChanges: previewChanges,
+        actualChanges: changes,
+        field: 'price',
+        errorCode: 'part_price_result_mismatch',
+        errorMessage: '正式调价 API 返回的零件、原价格或结果价格与确认内容不一致，不能声明成功',
+    });
+    const currentParts = await getJson(internalFetch, '/api/parts', '零件价格回读失败');
+    return updates.map(update => {
+        const part = currentParts.find(candidate => (
+            Number(candidate.id ?? candidate.Id) === Number(update.partId)
+        ));
+        if (!part || Number(part.price) !== Number(update.price)) {
+            throw partPriceInputError(
+                'part_price_readback_mismatch',
+                `零件 #${update.partId} 价格回读与正式命令结果不一致，不能声明成功`
+            );
+        }
+        return {
+            partId: part.id ?? part.Id,
+            model: part.model,
+            supplier: part.supplier,
+            price: Number(part.price),
+        };
+    });
+}
+
 async function preparePartPriceBatch(args = {}, dependencies = {}) {
     const {
         internalFetch,
         getJson,
         postJson,
     } = dependencies;
-    const {
-        category,
-        percentChange,
-        absoluteChange,
-    } = args;
-    if (percentChange === undefined && absoluteChange === undefined) {
-        throw new Error('需要指定percentChange或absoluteChange');
+    const { percentChange, absoluteChange } = args;
+    if ((percentChange === undefined) === (absoluteChange === undefined)) {
+        throw partPriceInputError(
+            'part_price_change_invalid',
+            'percentChange 与 absoluteChange 必须且只能提供一种'
+        );
     }
 
     const allParts = await getJson(internalFetch, '/api/parts', '零件列表读取失败');
-    const targets = allParts.filter(part => (
-        (part.category || '') === category
-        || (part.category || '').includes(category)
-    ));
-    if (targets.length === 0) {
-        throw new Error(`没有找到类别包含"${category}"的零件`);
-    }
+    const selection = resolvePartPriceTargets(args, allParts);
+    const { category, targets } = selection;
 
     const updates = [];
     const details = [];
@@ -583,7 +827,13 @@ async function preparePartPriceBatch(args = {}, dependencies = {}) {
         }
         if (newPrice < 0) newPrice = 0;
         updates.push({ partId: part.id ?? part.Id, price: newPrice });
-        details.push({ model: part.model, oldPrice, newPrice });
+        details.push({
+            partId: part.id ?? part.Id,
+            model: part.model,
+            supplier: part.supplier || '',
+            oldPrice,
+            newPrice,
+        });
     }
 
     const preview = await postJson(
@@ -592,27 +842,46 @@ async function preparePartPriceBatch(args = {}, dependencies = {}) {
         { updates },
         '批量调价预览失败'
     );
-    if (!preview?.previewHash || !preview?.suggestedIdempotencyKey || !Array.isArray(preview.updates)) {
+    if (
+        !preview?.previewHash
+        || !preview?.suggestedIdempotencyKey
+        || !Array.isArray(preview.updates)
+        || !Array.isArray(preview.changes)
+    ) {
         const error = new Error('正式批量调价预览没有返回完整版本和幂等凭证');
         error.code = 'part_price_preview_invalid';
         throw error;
     }
+    const confirmedDetails = bindTargetPricePreview(selection, details, preview);
     return {
-        args,
+        args: selection.mode === 'targets'
+            ? {
+                ...args,
+                targets: targets.map(part => ({ partId: part.id ?? part.Id })),
+            }
+            : args,
         confirmationRows: [
-            { label: '正式命中类别', value: `${category}（${targets.length} 个零件）` },
-            ...details.slice(0, 8).map(item => ({
-                label: item.model,
+            {
+                label: selection.mode === 'category' ? '正式命中类别' : '正式命中目标',
+                value: selection.mode === 'category'
+                    ? `${category}（${targets.length} 个零件）`
+                    : `${targets.length} 个明确零件`,
+            },
+            ...(selection.mode === 'targets' ? confirmedDetails : confirmedDetails.slice(0, 8)).map(item => ({
+                label: `${item.model}${item.supplier ? `（${item.supplier}）` : ''}`,
                 value: `${item.oldPrice} 元 → ${item.newPrice} 元`,
             })),
         ],
         executionContext: {
             kind: 'part_price_preview',
             updates: preview.updates,
+            changes: preview.changes,
+            warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
             previewHash: preview.previewHash,
             idempotencyKey: preview.suggestedIdempotencyKey,
             category,
-            details,
+            selectorMode: selection.mode,
+            details: confirmedDetails,
             targetCount: targets.length,
         },
     };
@@ -629,18 +898,35 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
         previewHash: preview.previewHash,
         idempotencyKey: preview.idempotencyKey,
     }, '批量调价失败');
-    const { category, details, targetCount } = preview;
+    const auditIds = assertPartPriceCommandReceipt(result);
+    const readback = await verifyPartPriceReadback({
+        internalFetch,
+        getJson,
+        preview,
+        result,
+    });
+    const { category, selectorMode, details, targetCount } = preview;
     const { percentChange, absoluteChange } = args;
 
     return {
         success: true,
-        message: `已批量更新${result.updatedCount ?? targetCount}个"${category}"类零件的价格`,
+        message: selectorMode === 'targets'
+            ? `已更新 ${result.updatedCount ?? targetCount} 个明确零件的价格`
+            : `已批量更新${result.updatedCount ?? targetCount}个"${category}"类零件的价格`,
         category,
         count: result.updatedCount ?? targetCount,
         changeType: percentChange !== undefined
             ? `${percentChange > 0 ? '+' : ''}${percentChange}%`
             : `${absoluteChange > 0 ? '+' : ''}${absoluteChange}元`,
         details,
+        operationId: result.operationId,
+        formalOperationId: result.operationId,
+        auditId: auditIds[0],
+        auditIds,
+        status: result.status,
+        changes: result.changes,
+        warnings: Array.isArray(result.warnings) ? result.warnings : [],
+        readback,
     };
 }
 
@@ -651,10 +937,12 @@ module.exports = {
     executePartPriceBatch,
     executePartStockAdjustment,
     executePartUpdate,
+    assertPartPriceCommandReceipt,
     assertPartStockCommandReceipt,
     preparePartBatchCreate,
     preparePartPriceBatch,
     preparePartStockAdjustment,
+    resolvePartPriceTargets,
     resolvePartStockTargets,
     similarPartCandidates,
     verifyPartStockReadback,
