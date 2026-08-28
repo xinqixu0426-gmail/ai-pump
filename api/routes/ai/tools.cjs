@@ -643,6 +643,7 @@ const AI_TOOLS = [
                     addParts: {
                         type: 'array',
                         description: '要添加的零件（可选）',
+                        maxItems: 15,
                         items: {
                             type: 'object',
                             properties: { model: { type: 'string' }, qty: { type: 'number' } },
@@ -652,11 +653,13 @@ const AI_TOOLS = [
                     removeParts: {
                         type: 'array',
                         description: '要移除的零件型号列表（可选）',
+                        maxItems: 15,
                         items: { type: 'string' }
                     },
                     updateParts: {
                         type: 'array',
                         description: '要修改数量的零件（可选）',
+                        maxItems: 15,
                         items: {
                             type: 'object',
                             properties: { model: { type: 'string' }, qty: { type: 'number' } },

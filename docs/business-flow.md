@@ -48,7 +48,7 @@
 | 模板列表查询 | `GET /api/templates?shellModel?&description?&limit?` | 否 | 正式 `templates.list` 按型号、描述筛选；AI 不把模板查询误路由到零件或知识库 |
 | BOM 草稿 | `/api/recipes/bom-draft` | 否 | 只生成标准化 BOM 草稿 |
 | 配方成本草稿 | `/api/recipes/cost-draft` | 否 | 只生成保存前成本快照草稿 |
-| 配方保存/修改/删除 | `/api/recipes`、`/api/recipes/:id` | 是 | 配方 BOM、成本快照、技术参数和客户可选配置范围；可能自动新增缺失长螺丝零件 |
+| 配方保存/修改/删除 | `/api/recipes/save-payload-draft` → `/api/recipes`、`/api/recipes/:id` | 预览否、执行是 | 配方 BOM、成本快照、技术参数和客户可选配置范围；可能自动新增缺失长螺丝零件。AI/MCP `update_recipe` 在确认前通过正式 Query 唯一绑定配方并生成整份保存草稿，确认 token 绑定版本与 Preview，确认后直接执行绑定 payload 并回读包含包装箱型/工资迁移状态的完整快照；旧喷漆工资未迁移时先停止。AI 删除同样绑定稳定 ID/版本后再确认，不会按名称重选目标 |
 | 当前配方成本参考 | `/api/recipes/:id/cost`、`/api/recipes/current-costs` | 否 | 单配方入口只重算保存 `partsJson` 的当前配件参考价；批量当日入口按当前模板和配方参数重建完整 BOM 后重算 |
 | 报价/订单配置试算 | `/api/recipes/:id/cost-preview` | 否 | 先按配方自己的配置范围校验，再按配方快照和受控覆盖项试算；包材按稳定零件 ID 和正式目录重新定价，不信任客户端快照价 |
 | 客户新增/修改/删除 | `/api/customers`、`/api/customers/:id` | 是 | 持久幂等；修改/删除使用 `expectedUpdatedAt`；存在活动订单时禁止删除，历史订单和报价继续按稳定 ID 保留，客户与强审计同事务 |

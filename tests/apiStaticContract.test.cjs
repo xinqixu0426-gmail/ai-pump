@@ -623,7 +623,8 @@ test('API 静态契约：AI 低风险 CRUD 写操作必须复用标准 API', () 
     assert.match(orderExecutor, /getJson\(internalFetch,\s*`\/api\/orders\/\$\{id\}`/);
     assert.match(orderExecutor, /patchJson\(internalFetch,\s*`\/api\/orders\/\$\{order\.id \?\? order\.Id\}`/);
 
-    assert.match(recipeExecutor, /deleteJson\(\s*internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
+    assert.match(recipeExecutor, /confirmationContext\?\.kind === 'recipe_delete_target'/);
+    assert.match(recipeExecutor, /deleteJson\(\s*internalFetch,\s*`\/api\/recipes\/\$\{context\.recipeId\}`/);
     assert.doesNotMatch(recipeExecutor, /softDelete\('recipes'/);
 });
 
@@ -683,10 +684,13 @@ test('API 静态契约：AI 配方保存必须复用配方草稿和标准写接�
     assert.match(recipeExecutor, /\/api\/recipes\/save-payload-draft/);
     assert.match(recipeExecutor, /optionalParts/);
     assert.match(recipeExecutor, /postJson\(internalFetch,\s*'\/api\/recipes'/);
-    assert.match(recipeExecutor, /patchJson\(internalFetch,\s*`\/api\/recipes\/\$\{recipe\.id \?\? recipe\.Id\}`/);
-    assert.match(recipeExecutor, /recipeId: recipe\.id \?\? recipe\.Id/);
-    assert.match(recipeExecutor, /expectedUpdatedAt: recipe\.updatedAt \?\? recipe\.UpdatedAt/);
-    assert.match(recipeExecutor, /\{ expectedUpdatedAt: recipe\.updatedAt \?\? recipe\.UpdatedAt \}/);
+    assert.match(recipeExecutor, /confirmationContext\?\.kind === 'recipe_update_preview'/);
+    assert.match(recipeExecutor, /`\/api\/recipes\/\$\{context\.recipeId\}`/);
+    assert.match(recipeExecutor, /context\.draft/);
+    assert.match(recipeExecutor, /`\/api\/recipes\/\$\{context\.recipeId\}`,[\s\S]*'配方修改后回读失败'/);
+    assert.match(recipeExecutor, /recipeId: Number\(recipe\.id \?\? recipe\.Id\)/);
+    assert.match(recipeExecutor, /const expectedUpdatedAt = recipe\.updatedAt \?\? recipe\.UpdatedAt/);
+    assert.match(recipeExecutor, /\{ expectedUpdatedAt: context\.expectedUpdatedAt \}/);
     assert.doesNotMatch(recipeExecutor, /safeInsert\('recipes'|safeUpdate\('recipes'/);
 });
 

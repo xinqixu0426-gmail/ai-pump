@@ -8,7 +8,11 @@ const {
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
 const { executeOrderTool } = require('./executors/orderExecutors.cjs');
-const { executeRecipeTool } = require('./executors/recipeExecutors.cjs');
+const {
+    executeRecipeTool,
+    prepareRecipeDelete,
+    prepareRecipeUpdate,
+} = require('./executors/recipeExecutors.cjs');
 const { executeBusinessTool } = require('./executors/businessExecutors.cjs');
 const {
     preparePartBatchCreate,
@@ -39,6 +43,8 @@ const WRITE_PREFLIGHTS = Object.freeze({
     adjust_part_stock: preparePartStockAdjustment,
     batch_create_parts: preparePartBatchCreate,
     batch_update_prices: preparePartPriceBatch,
+    delete_recipe: prepareRecipeDelete,
+    update_recipe: prepareRecipeUpdate,
 });
 
 function attachReadProvenance(capability, result) {
@@ -175,13 +181,20 @@ function buildConfirmationRows(toolName, args = {}) {
             addRow(rows, '修改原因', args.reason);
             break;
         case 'create_recipe':
-        case 'update_recipe':
             addRow(rows, '配方名称', args.name);
             addRow(rows, '规格', args.spec);
             addRow(rows, '零件', previewItems(args.parts, 'model'));
             break;
+        case 'update_recipe':
+            addRow(rows, '配方名称', args.recipeName);
+            addRow(rows, '新名称', args.newName);
+            addRow(rows, '新规格', args.newSpec);
+            addRow(rows, '添加零件', previewItems(args.addParts, 'model'));
+            addRow(rows, '移除零件', Array.isArray(args.removeParts) ? args.removeParts.join('，') : '');
+            addRow(rows, '修改数量', previewItems(args.updateParts, 'model'));
+            break;
         case 'delete_recipe':
-            addRow(rows, '删除配方', args.name);
+            addRow(rows, '删除配方', args.recipeName);
             break;
         case 'archive_factory_file': {
             const targetLabels = {

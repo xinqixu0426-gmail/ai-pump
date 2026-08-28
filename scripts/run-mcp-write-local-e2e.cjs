@@ -54,6 +54,42 @@ function assert(condition, message) {
     if (!condition) throw new Error(message);
 }
 
+function normalizedJsonValue(value) {
+    const stripVolatileTimestamps = input => {
+        if (Array.isArray(input)) return input.map(stripVolatileTimestamps);
+        if (!input || typeof input !== 'object') return input;
+        return Object.fromEntries(Object.entries(input)
+            .filter(([key]) => !['generatedAt', 'createdAt', 'updatedAt'].includes(key))
+            .map(([key, nested]) => [key, stripVolatileTimestamps(nested)]));
+    };
+    if (typeof value !== 'string') return stripVolatileTimestamps(value ?? null);
+    try {
+        return stripVolatileTimestamps(JSON.parse(value));
+    } catch {
+        return value;
+    }
+}
+
+function recipeBusinessSnapshot(recipe = {}) {
+    const scalarFields = [
+        'id', 'name', 'spec', 'savedTotalCost', 'templateId', 'coilSpec', 'coilSheets',
+        'coilMaterial', 'coilSlotType', 'coilWireWeight', 'hasFloat', 'floatWire',
+        'floatAccessoryType', 'hasCable', 'cableLength', 'cableWire',
+        'cableAccessoryType', 'customBarrelLength', 'longScrewExtraLength',
+        'modelVariantId', 'impellerModel', 'impellerThickness', 'impellerDiameter',
+        'impellerBladeCount', 'assemblyWage', 'packingWage', 'surfaceTreatmentMode',
+        'surfaceTreatmentCost', 'managementFee', 'boxType', 'paintingWage',
+    ];
+    const jsonFields = [
+        'partsJson', 'extraPartsJson', 'packingPartsJson', 'savedCostDetails',
+        'technicalDataJson', 'configurationPolicyJson',
+    ];
+    return {
+        ...Object.fromEntries(scalarFields.map(field => [field, recipe[field] ?? null])),
+        ...Object.fromEntries(jsonFields.map(field => [field, normalizedJsonValue(recipe[field])])),
+    };
+}
+
 function createFixtureDatabase(databasePath) {
     const db = new Database(databasePath);
     try {
@@ -538,6 +574,7 @@ async function run() {
         legacyCompatibility: null,
         idempotencyReplays: [],
         failedCalls: [],
+        recipeRecovery: null,
         persistentEvidence: null,
         externalStub: null,
     };
@@ -767,7 +804,9 @@ async function run() {
                     name,
                     options.allowedStatuses || ['completed']
                 );
-                recordSuccessfulTool(name, receipt, Date.now() - started);
+                if (options.record !== false) {
+                    recordSuccessfulTool(name, receipt, Date.now() - started);
+                }
                 return { result, receipt };
             } finally {
                 activeTool = '';
@@ -971,15 +1010,66 @@ async function run() {
         });
         const createdRecipeId = Number(createdRecipeCall.receipt.result?.recipe?.id);
         assert(createdRecipeId > 0, 'create_recipe 未返回配方ID');
+        const recipeBaseline = (await apiRequest(
+            '读取配方修改基线',
+            'GET',
+            `/api/recipes/${createdRecipeId}`
+        )).payload.data;
+        const recipeBaselineSnapshot = recipeBusinessSnapshot(recipeBaseline);
+        const partIdsBeforeRecipeUpdate = (await apiRequest(
+            '读取配方修改前零件目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
         await callWrite('update_recipe', {
             recipeName: createdRecipeName,
             newSpec: 'MCP-LOCAL-2',
         });
-        const recipes = (await apiRequest('回读配方修改', 'GET', '/api/recipes')).payload.data;
-        assert(
-            recipes.some(recipe => recipe.id === createdRecipeId && recipe.spec === 'MCP-LOCAL-2'),
-            '配方修改回读不一致'
+        const updatedRecipe = (await apiRequest(
+            '回读配方修改',
+            'GET',
+            `/api/recipes/${createdRecipeId}`
+        )).payload.data;
+        assert(updatedRecipe.spec === 'MCP-LOCAL-2', '配方修改回读不一致');
+        const recoveryCall = await callWrite('update_recipe', {
+            recipeName: createdRecipeName,
+            newSpec: recipeBaseline.spec,
+        }, { record: false });
+        const recoveredRecipe = (await apiRequest(
+            '回读配方恢复',
+            'GET',
+            `/api/recipes/${createdRecipeId}`
+        )).payload.data;
+        strictAssert.deepEqual(
+            recipeBusinessSnapshot(recoveredRecipe),
+            recipeBaselineSnapshot,
+            '配方恢复后完整业务快照未回到 baseline'
         );
+        const partIdsAfterRecipeRecovery = (await apiRequest(
+            '读取配方恢复后零件目录',
+            'GET',
+            '/api/parts'
+        )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
+        strictAssert.deepEqual(
+            partIdsAfterRecipeRecovery,
+            partIdsBeforeRecipeUpdate,
+            '配方修改和恢复意外新增或删除了零件目录记录'
+        );
+        report.recipeRecovery = {
+            name: 'update_recipe_recovery',
+            status: 'passed',
+            baselineSpec: recipeBaseline.spec,
+            temporarySpec: updatedRecipe.spec,
+            restoredSpec: recoveredRecipe.spec,
+            operationId: recoveryCall.receipt.operationId,
+            confirmationOperationId: recoveryCall.receipt.confirmationOperationId,
+            formalCapabilityIds: recoveryCall.receipt.formalCapabilityIds,
+            formalOperationIds: recoveryCall.receipt.formalOperationIds,
+            auditIds: recoveryCall.receipt.auditIds,
+            idempotentReplay: recoveryCall.receipt.idempotentReplay,
+            snapshotRestored: true,
+            catalogSideEffects: 0,
+        };
 
         const createdPartModel = `MCP-WRITE-PART-${unique}`;
         const createdPartCategory = `MCP-WRITE-CATEGORY-${unique}`;
@@ -1149,8 +1239,9 @@ async function run() {
             '17个写工具未全部完成真实localhost调用'
         );
         for (const name of MCP_WRITE_TOOL_NAMES) {
+            const expectedCount = name === 'update_recipe' ? 2 : 1;
             assert(
-                confirmationCounts.success.get(name) === 1,
+                confirmationCounts.success.get(name) === expectedCount,
                 `${name} 成功路径原生确认次数异常: ${confirmationCounts.success.get(name) || 0}`
             );
         }
@@ -1161,7 +1252,7 @@ async function run() {
         const expectedFailureConfirmations = new Map([
             ['update_order_item', 1],
             ['adjust_part_stock', 0],
-            ['update_recipe', 1],
+            ['update_recipe', 0],
             ['archive_factory_file', 1],
             ['print_rotor_drawing', 1],
         ]);
@@ -1174,7 +1265,10 @@ async function run() {
         assert(report.idempotencyReplays.length === 4, '真实幂等重放样本不是4个');
         assert(report.failedCalls.length === 5, '真实业务失败样本不是5个');
 
-        const persistentEvidence = await verifyPersistentReceipts(databasePath, report.tools);
+        const persistentEvidence = await verifyPersistentReceipts(databasePath, [
+            ...report.tools,
+            report.recipeRecovery,
+        ]);
         assert(persistentEvidence.integrity === 'ok', '隔离数据库完整性失败');
         assert(persistentEvidence.foreignKeyViolations === 0, '隔离数据库存在外键违规');
         report.persistentEvidence = persistentEvidence;
