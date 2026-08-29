@@ -145,6 +145,14 @@ async function executeCostTool(toolName, args, internalFetch) {
                     drawParams,
                     '出图预览失败'
                 );
+                if (Array.isArray(preview.warnings) && preview.warnings.length > 0) {
+                    return {
+                        success: false,
+                        code: 'rotor_draw_preview_warning',
+                        error: '正式出图预览包含安全警报，请调整参数后重新确认',
+                        warnings: preview.warnings,
+                    };
+                }
                 const result = await postJson(
                     internalFetch,
                     '/api/rotor/draw',

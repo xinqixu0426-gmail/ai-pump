@@ -1400,7 +1400,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         recordsBusinessChange: false,
         domain: 'drawing',
         inputSchema: 'POST /api/rotor/draw',
-        outputSchema: 'ExternalCommandReceipt<RotorDrawingJob>',
+        outputSchema: 'ExternalCommandReceipt<RotorDrawingJob>; preview=RotorDrawPreview<StructuredSafetyWarnings>',
         sourceOfTruth: 'rotorParameters+rotor_drawings+FreeCAD',
         riskLevel: 'high',
         supportsPreview: true,

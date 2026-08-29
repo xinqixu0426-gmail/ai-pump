@@ -4019,6 +4019,40 @@ test('AI executor 行为：确认转子出图后通过模板草稿 API 补全参
     ]);
 });
 
+test('AI executor 行为：正式转子 Preview 含警报时停止且不调用出图命令', async () => {
+    const warnings = [{
+        code: 'rotor_stator_clearance_low',
+        severity: 'danger',
+        message: '线圈与上轴承端盖距离过短（30.0mm < 35mm），可能会导致漏电或干涉',
+    }];
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/rotor/draw-preview') && call.method === 'POST') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    confirmationToken: 'formal-confirmation-token',
+                    suggestedIdempotencyKey: 'rotor-draw:operation-warning',
+                    warnings,
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('generate_rotor_drawing', {
+        piece_count: 160,
+        bearing_span: 140,
+        stack_offset: 30,
+    }, { allowWrite: true });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'rotor_draw_preview_warning');
+    assert.deepEqual(result.warnings, warnings);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'POST /api/rotor/draw-preview',
+    ]);
+});
+
 test('AI executor 行为：配方对比统一复用完整当前成本差异 API', async () => {
     installFetchStub((call) => {
         if (call.url.endsWith('/api/cost/recipe-difference') && call.method === 'POST') {

@@ -2713,15 +2713,19 @@ test('Next UI 契约：P0 工作区响应式、长列表分页和辅助历史抽
     assert.match(guidelines, /一个纵向滚动容器/);
 });
 
-test('Next UI 契约：P1 配方窄屏首屏和质量问题聚焦保持紧凑', () => {
+test('Next UI 契约：P1 配方窄屏首屏、桌面列宽和质量问题聚焦保持紧凑', () => {
     const recipeWorkspace = readUtf8('apps/web-next/components/recipe/RecipeWorkspace.tsx');
     const qualityView = readUtf8('apps/web-next/components/quality-view.tsx');
     const guidelines = readUtf8('docs/ui-refactor-guidelines.md');
 
     assert.match(recipeWorkspace, /sm:hidden/);
-    assert.match(recipeWorkspace, /min-\[1180px\]:hidden/);
+    assert.match(recipeWorkspace, /divide-y divide-line min-\[1180px\]:hidden/);
     assert.match(recipeWorkspace, /hidden overflow-x-auto min-\[1180px\]:block/);
-    assert.match(recipeWorkspace, /min-w-\[1020px\]/);
+    assert.match(recipeWorkspace, /min-w-\[1020px\] table-fixed[^"\n]*min-\[1440px\]:min-w-\[1144px\]/);
+    assert.match(recipeWorkspace, /w-20 border-b border-line px-3 py-2">创建/);
+    assert.match(recipeWorkspace, /w-36 border-b border-line px-4 py-2 text-right min-\[1440px\]:w-72">操作/);
+    assert.match(recipeWorkspace, /w-7 px-0 min-\[1440px\]:w-auto min-\[1440px\]:px-2\.5/);
+    assert.match(recipeWorkspace, /hidden min-\[1440px\]:inline">查看/);
     assert.match(recipeWorkspace, /保存成本 \{money\(stats\.totalSavedCost\)\}/);
     assert.match(qualityView, /const itemLimit = activeKey === 'all' \? 4 : 12/);
     assert.match(qualityView, /focusIssueGroup/);
@@ -2819,7 +2823,7 @@ test('Next UI 契约：新产品入口串联复制配方、现有模板和全新
     assert.match(templateEditor, /name=\{!editingTemplate \? 'continueToRecipe' : undefined\}/);
     assert.match(templateEditor, /保存模板并创建配方/);
 
-    assert.equal((recipeWorkspace.match(/>复制<\/Button>/g) || []).length, 2);
+    assert.equal((recipeWorkspace.match(/onClick=\{\(\) => onClone\(row\.recipe\)\}/g) || []).length, 2);
     assert.equal((recipesView.match(/useConfirmDiscard\(/g) || []).length, 2);
     assert.match(recipesView, /onClose=\{requestRecipeClose\}/);
     assert.match(recipesView, /onClose=\{requestTemplateClose\}/);

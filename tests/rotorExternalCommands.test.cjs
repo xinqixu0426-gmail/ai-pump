@@ -5,6 +5,7 @@ const {
     resetBusinessConfirmationsForTests,
 } = require('../api/services/businessConfirmation.cjs');
 const {
+    buildDrawPreview,
     createRotorExternalCommands,
 } = require('../api/services/rotorExternalCommands.cjs');
 
@@ -135,6 +136,100 @@ test.beforeEach(() => {
     resetBusinessConfirmationsForTests();
 });
 
+test('转子外部命令：正式 Preview 统一返回长度和安全间隙警报', () => {
+    const incomplete = buildDrawPreview(
+        { bearing_span: 140 },
+        'user:warning-incomplete'
+    );
+    assert.deepEqual(
+        incomplete.warnings.map(warning => warning.code),
+        ['rotor_length_parameters_incomplete']
+    );
+    assert.deepEqual(
+        incomplete.warnings[0].details.missingParameters.map(item => item.name),
+        ['上轴承深度', '叶轮开档', '叶轮厚度', '螺纹长度']
+    );
+    assert.equal(incomplete.warnings[0].details.calculatedTotalMm, 140);
+
+    const unsafe = buildDrawPreview({
+        upper_bearing: '6202',
+        piece_count: 160,
+        bearing_span: 140,
+        stack_offset: 30,
+        impeller_span: 80,
+        impeller_depth: 9,
+        thread_length: 20,
+    }, 'user:warning-clearance');
+    assert.deepEqual(
+        unsafe.warnings.map(warning => warning.code),
+        ['rotor_stator_clearance_low']
+    );
+    assert.equal(unsafe.warnings[0].severity, 'danger');
+    assert.equal(unsafe.warnings[0].details.clearanceMm, 30);
+    assert.equal(unsafe.warnings[0].details.thresholdMm, 35);
+
+    const boundary = buildDrawPreview({
+        upper_bearing: '6202',
+        piece_count: 160,
+        bearing_span: 145,
+        stack_offset: 30,
+        impeller_span: 80,
+        impeller_depth: 9,
+        thread_length: 20,
+    }, 'user:warning-boundary');
+    assert.deepEqual(boundary.warnings, []);
+
+    const justBelowBoundary = buildDrawPreview({
+        piece_count: 160,
+        bearing_span: 144.96,
+        stack_offset: 30,
+    }, 'user:warning-just-below-boundary');
+    assert.deepEqual(
+        justBelowBoundary.warnings.map(warning => warning.code),
+        ['rotor_length_parameters_incomplete', 'rotor_stator_clearance_low']
+    );
+
+    const precisionBoundary = buildDrawPreview({
+        piece_count: 160,
+        bearing_span: 144.999,
+        stack_offset: 30,
+    }, 'user:warning-precision-boundary');
+    const precisionWarning = precisionBoundary.warnings.find(
+        warning => warning.code === 'rotor_stator_clearance_low'
+    );
+    assert.ok(
+        Math.abs(precisionWarning.details.clearanceMm - 34.999) < 1e-9
+    );
+    assert.match(precisionWarning.message, /34\.999mm < 35mm/);
+    assert.doesNotMatch(precisionWarning.message, /35\.0mm < 35mm/);
+});
+
+test('转子外部命令：明确填写的非法数值会阻止 Preview', () => {
+    for (const invalidValue of ['160片', true, false, [], {}]) {
+        assert.throws(
+            () => buildDrawPreview(
+                { piece_count: invalidValue, bearing_span: 140 },
+                `user:invalid-number:${typeof invalidValue}`
+            ),
+            error => (
+                error.code === 'rotor_parameters_invalid'
+                && error.statusCode === 400
+                && /转子片数必须是 1–1000 之间的数字/.test(error.message)
+            )
+        );
+    }
+    assert.throws(
+        () => buildDrawPreview(
+            { piece_count: 1001, bearing_span: 140 },
+            'user:out-of-range'
+        ),
+        error => (
+            error.code === 'rotor_parameters_invalid'
+            && /转子片数必须是 1–1000 之间的数字/.test(error.message)
+        )
+    );
+});
+
 test('转子外部命令：出图 Preview 绑定参数且相同 key 不创建第二个任务', () => {
     const fixture = createFixture();
     let launches = 0;
@@ -211,6 +306,10 @@ test('转子外部命令：打印先审计且相同 key 不重复发送', () => 
             'print-job-1',
             'user:test-session'
         );
+        assert.deepEqual(preview.warnings, [{
+            code: 'external_print_side_effect',
+            message: '确认后将向当前服务器的默认打印机发送一次打印任务',
+        }]);
         const input = { confirmationToken: preview.confirmationToken };
         const first = service.executePrint(
             input,

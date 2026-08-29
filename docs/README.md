@@ -316,7 +316,8 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 
 ```text
 POST /api/rotor/draw-preview（或 /chat 整理自然语言参数）
-  -> 页面/AI 核对预览并取得 confirmationToken
+  -> rotorParameters 统一校验参数并生成确认前安全警报
+  -> 页面核对全部警报并取得 confirmationToken；AI 遇警报停止执行
   -> POST /api/rotor/draw（Idempotency-Key + confirmationToken）
   -> operation、queued 记录和强审计原子提交
   -> 返回 jobId 并启动 FreeCAD
@@ -329,11 +330,11 @@ POST /api/rotor/save
   -> 保存暂定参数到 rotor_drawings(status=saved)
 ```
 
-- `/draw-preview` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。`/draw` 只消费服务端绑定的确认凭证。
+- `/draw-preview` 接收结构化参数，至少提供一项；缺失参数可以由泵壳模板补全。已明确填写但不是数字或超出受控范围的参数会直接拒绝，不再静默丢弃。正式预览统一返回结构化 `warnings`：总长度五项只填写部分时提示缺失项与部分合计；`开档 - 片数 / 2 - 定位 < 35mm` 时提示线圈与上轴承端盖净距风险。Web 必须展示全部警报并让用户明确确认风险；AI 遇到警报不得继续调用正式出图命令。`/draw` 只消费服务端绑定的确认凭证。
 - `/template-draft` 根据泵壳模板和可选常用配置预设生成出图表单草稿，不写库；用于统一带入轴承、油封、泵壳 notes 默认参数、不锈钢机筒开档和图纸备注。请求仍使用历史兼容字段 `variantId`。
 - `/recipe-draft`、`/template-draft`、`/order-pump-models` 和 `/link-targets` 的正式数据聚合统一由 `rotorQueries` 执行；路由不再解析订单 JSON 或直接拼装配方/模板草稿。
 - `/save` 接收同一套结构化参数，仅保存到历史，不启动 FreeCAD。
-- `/chat` 接收自然语言，可能返回 `need_params`、安全警告或 `confirmation_required`；DeepSeek 只提取候选参数，`rotorNaturalLanguage` 再调用确定性 `rotorParameters` 做纠偏、校验和安全提示。模型输出不是图纸事实，只有正式 `/draw-preview` 绑定并经用户确认的参数才能进入出图命令。
+- `/chat` 接收自然语言，可能返回 `need_params`、安全警告或 `confirmation_required`；DeepSeek 只提取候选参数，`rotorNaturalLanguage` 再调用确定性 `rotorParameters` 做纠偏和校验，并复用与正式 `/draw-preview` 相同的安全检查器。模型输出不是图纸事实，只有正式 `/draw-preview` 绑定并经用户确认的参数才能进入出图命令。
 - `/draw-preview`、`/save` 和 `/chat` 可接收 `drawingName` 作为图纸名称，写入 `rotor_drawings.drawing_name`；前端下载 PDF 时用该名称作为文件名。
 - `/draw-preview`、`/save` 和 `/chat` 可接收 `drawingText` / `drawing_text` 作为图纸显示文字，生成 PDF 时写入转子图纸底部区域。
 - `GET /api/rotor/history` 历史列表标准输出 camelCase 字段，包括 `jobId`、`drawingName`、`fcParamsJson`、`fileUrl`、`linkedPumpModel`、`createdAt`。
@@ -342,6 +343,7 @@ POST /api/rotor/save
 - FreeCAD 默认最多同时执行 2 个任务。
 - 图纸和状态写入 `rotor_drawings`，PDF 位于 `public/drawings/`。
 - FreeCAD 和打印外部动作统一由 `rotorExternalCommands` 执行。业务确认 token 与登录主体、能力、服务端参数及唯一幂等键绑定；`api_operations` 在外部动作前保存 accepted 回执，随后更新 processing/completed/failed。
+- 打印 Preview 返回“将向默认打印机发送任务”的外部副作用警报，Web 在打印确认框中展示该警报后才允许发送。
 - 删除历史记录时先原子提交数据库删除、operation 和强审计，再在受控 `public/drawings` 目录清理对应 PDF；清理失败会返回 warning 并留下可回收文件。
 - 常用轴承输入如 `201/6201`、`202/6202`、`203/6203` 会自动标准化。
 

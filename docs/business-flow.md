@@ -68,7 +68,9 @@
 | 采购进度与分批入库 | `/api/orders/:id/purchase-items/progress-draft`、`/api/orders/:id/purchase-items/progress` | 预览否/执行是 | 保存前由正式预览绑定订单版本、平衡计划、数量与库存影响；仅入库增量在统一命令事务内增加库存 |
 | 一次性全部入库 | `/api/orders/:id/complete-purchase-draft`、`/api/orders/:id/complete-purchase` | 预览否/执行是 | 先用正式平衡计划预览并绑定版本与物料哈希，再把剩余计划登记为下单、到货和入库，并进入采购完成 |
 | 配方库存状态 | `/api/recipes/:id/inventory-status` | 否 | 普通配件读取零件库，线圈转子读取独立线圈库存；只返回当前库存和状态 |
-| 转子出图 | `/api/rotor/draw`、`/api/rotor/chat` | 是 | 写入出图任务和历史记录 |
+| 转子出图 | `/api/rotor/draw-preview` → `/api/rotor/draw` | 预览否/执行是 | 正式预览统一校验参数并返回全部安全警报；Web 展示警报后由用户明确确认，AI 遇警报停止执行；确认后才登记任务、历史和审计并启动 FreeCAD |
+| 转子自然语言整理 | `/api/rotor/chat` | 否 | DeepSeek 只提取候选参数，确定性服务复用正式 Preview 的共享警报；返回警报或确认凭证，不直接启动 FreeCAD |
+| 转子打印 | `/api/rotor/print/:jobId/preview` → `/api/rotor/print/:jobId` | 预览否/执行外部副作用 | 预览校验成功图纸和文件版本并展示默认打印机警报；确认后才发送打印任务 |
 | 转子参数暂存 | `/api/rotor/save` | 是 | 保存 `status=saved` 的历史记录 |
 
 ## 4. 成本快照规则

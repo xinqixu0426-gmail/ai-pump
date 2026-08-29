@@ -420,16 +420,16 @@ export function RecipeWorkspace({
                     </div>
                   </div>
                   <div className="flex flex-wrap justify-end gap-1">
-                    <Button className="h-7" size="sm" variant="ghost" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
-                    <Button className="h-7" size="sm" variant="secondary" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
-                    <Button className="h-7" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />}>复制</Button>
+                    <Button className="h-7" size="sm" variant="ghost" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={16} />}>查看</Button>
+                    <Button className="h-7" size="sm" variant="secondary" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={16} />}>编辑</Button>
+                    <Button className="h-7" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={16} />}>复制</Button>
                     <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void onRemove(row.recipe)} icon={<Trash2 size={14} />} />
                   </div>
                 </article>
               ))}
             </div>
             <div className="hidden overflow-x-auto min-[1180px]:block">
-            <table className="w-full min-w-[1020px] table-fixed border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[1020px] table-fixed border-separate border-spacing-0 text-left text-sm min-[1440px]:min-w-[1144px]">
               <thead className="whitespace-nowrap bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                 <tr>
                   <th className="w-10 border-b border-line px-3 py-2">对比</th>
@@ -438,8 +438,8 @@ export function RecipeWorkspace({
                   <th className="w-32 border-b border-line px-3 py-2">技术参数</th>
                   <th className="w-48 border-b border-line px-3 py-2 text-right">成本（当日 / 保存）</th>
                   <th className="w-20 border-b border-line px-3 py-2">铜价</th>
-                  <th className="w-14 border-b border-line px-3 py-2">创建</th>
-                  <th className="w-48 border-b border-line px-4 py-2 text-right">操作</th>
+                  <th className="w-20 border-b border-line px-3 py-2">创建</th>
+                  <th className="w-36 border-b border-line px-4 py-2 text-right min-[1440px]:w-72">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -507,9 +507,9 @@ export function RecipeWorkspace({
                       <td className="whitespace-nowrap border-b border-line px-3 py-2 text-muted">{dateShort(row.recipe.createdAt)}</td>
                       <td className="border-b border-line px-3 py-2">
                         <div className="flex justify-end gap-1">
-                          <Button className="h-7" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={14} />}>查看</Button>
-                          <Button className="h-7" size="sm" variant="secondary" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={14} />}>编辑</Button>
-                          <Button className="h-7" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={14} />}>复制</Button>
+                          <Button className="h-7 w-7 px-0 min-[1440px]:w-auto min-[1440px]:px-2.5" size="sm" variant="ghost" aria-label={`查看${row.recipe.name || '配方'}详情`} title="查看详情" disabled={saving} onClick={() => onView(row.recipe)} icon={<Eye size={16} />}><span className="hidden min-[1440px]:inline">查看</span></Button>
+                          <Button className="h-7 w-7 px-0 min-[1440px]:w-auto min-[1440px]:px-2.5" size="sm" variant="secondary" aria-label={`编辑${row.recipe.name || '配方'}`} title="编辑" disabled={saving} onClick={() => onEdit(row.recipe)} icon={<Pencil size={16} />}><span className="hidden min-[1440px]:inline">编辑</span></Button>
+                          <Button className="h-7 w-7 px-0 min-[1440px]:w-auto min-[1440px]:px-2.5" size="sm" variant="ghost" aria-label={`复制${row.recipe.name || '配方'}`} title="复制为新配方" disabled={saving} onClick={() => onClone(row.recipe)} icon={<Copy size={16} />}><span className="hidden min-[1440px]:inline">复制</span></Button>
                           <Button className="h-7 w-7 px-0 text-slate-400 hover:text-rose-700" size="sm" variant="ghost" aria-label={`删除${row.recipe.name || '配方'}`} title="删除" disabled={saving} onClick={() => void onRemove(row.recipe)} icon={<Trash2 size={14} />} />
                         </div>
                       </td>

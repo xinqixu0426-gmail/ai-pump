@@ -1,6 +1,7 @@
 const https = require('https');
 const {
     buildFcParams,
+    buildRotorSafetyWarnings,
     normalizeDrawingName,
     normalizeDrawingText,
 } = require('./rotorParameters.cjs');
@@ -121,86 +122,37 @@ function applyDeterministicCorrections(message, input) {
 }
 
 function buildSafetyWarning(fcParams, extracted) {
-    let hasWarning = false;
+    const warnings = buildRotorSafetyWarnings(fcParams);
+    if (warnings.length === 0) return null;
     const warning = {
         status: 'warning',
         extracted,
+        warnings,
     };
-    const requiredLengthParams = [
-        {
-            key: 'upper_bearing_depth',
-            name: '上轴承深度',
-            value: fcParams.upper_bearing_depth,
-        },
-        {
-            key: 'bearing_span',
-            name: '开档',
-            value: fcParams.bearing_span,
-        },
-        {
-            key: 'bearing_to_impeller',
-            name: '叶轮开档',
-            value: fcParams.bearing_to_impeller,
-        },
-        {
-            key: 'impeller_depth',
-            name: '叶轮厚度',
-            value: fcParams.impeller_depth,
-        },
-        {
-            key: 'thread_length',
-            name: '螺纹长度',
-            value: fcParams.thread_length,
-        },
-    ];
-    const missingLengthParams = requiredLengthParams.filter(
-        item => item.value == null
+    const lengthWarning = warnings.find(
+        item => item.code === 'rotor_length_parameters_incomplete'
     );
-    const providedLengthParams = requiredLengthParams.filter(
-        item => item.value != null
-    );
-    if (
-        providedLengthParams.length > 0
-        && missingLengthParams.length > 0
-    ) {
-        const calculatedTotal = requiredLengthParams.reduce(
-            (sum, item) => sum + (item.value || 0),
-            0
-        );
-        hasWarning = true;
+    if (lengthWarning) {
         warning.missing_length = {
-            missing_params: missingLengthParams.map(item => ({
-                key: item.key,
+            missing_params: lengthWarning.details.missingParameters,
+            components: lengthWarning.details.components.map(item => ({
                 name: item.name,
+                value: item.value ?? 0,
+                missing: item.missing,
             })),
-            components: requiredLengthParams.map(item => ({
-                name: item.name,
-                value: item.value != null ? item.value : 0,
-                missing: item.value == null,
-            })),
-            calculated_total: calculatedTotal,
+            calculated_total: lengthWarning.details.calculatedTotalMm,
         };
     }
-
-    const bearingSpan = fcParams.bearing_span;
-    const pieceCount = fcParams.piece_count;
-    const stackOffset = fcParams.stack_offset;
-    if (
-        bearingSpan != null
-        && pieceCount != null
-        && stackOffset != null
-    ) {
-        const clearance = bearingSpan - (pieceCount / 2) - stackOffset;
-        if (clearance < 35) {
-            hasWarning = true;
-            warning.stator_clearance = {
-                message:
-                    `线圈与上轴承端盖距离过短（${clearance.toFixed(1)}mm < 35mm），可能会导致漏电或干涉`,
-                clearance: Math.round(clearance * 10) / 10,
-            };
-        }
+    const clearanceWarning = warnings.find(
+        item => item.code === 'rotor_stator_clearance_low'
+    );
+    if (clearanceWarning) {
+        warning.stator_clearance = {
+            message: clearanceWarning.message,
+            clearance: clearanceWarning.details.clearanceMm,
+        };
     }
-    return hasWarning ? warning : null;
+    return warning;
 }
 
 function applySupplements(fcParams, supplements) {
