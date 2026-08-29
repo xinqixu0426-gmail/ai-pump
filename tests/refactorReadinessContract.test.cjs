@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const repoRoot = path.join(__dirname, '..');
 
@@ -48,10 +49,102 @@ test('ADF 契约：模型路由清单必须与启用的 reviewer profiles 保持
         assert.match(profile, /^sandbox_mode = "read-only"$/m);
     }
 
-    assert.match(readUtf8('.agents/skills/adf-workflow/SKILL.md'), /references\/model-routing\.md/);
+    const workflowSkill = readUtf8('.agents/skills/adf-workflow/SKILL.md');
+    const routingGuide = readUtf8('.agents/skills/adf-workflow/references/model-routing.md');
+    assert.match(workflowSkill, /references\/model-routing\.md/);
+    assert.match(workflowSkill, /Skip the delivery workflow for read-only outcomes/);
+    assert.match(workflowSkill, /do not create a Task Contract, start a Guardian session/);
+    assert.match(routingGuide, /Static agent profiles cannot inspect a weekly Spark quota/);
+    assert.match(routingGuide, /falls back to Luna and suppresses repeated/);
+    assert.match(routingGuide, /never estimate or invent token usage/);
     assert.match(readUtf8('AGENTS.md'), /references\/model-routing\.md/);
     assert.doesNotMatch(readUtf8('AGENTS.md'), /\b(?:Luna|Terra|Sol)\b/);
 });
+
+test('ADF 契约：Guardian 验证按模块分流且只复用纯仓库契约', () => {
+    const config = readUtf8('.guardian/config.yaml');
+    const verification = config.split(/\r?\nverification:\r?\n/)[1].split(/\r?\nexceptions:/)[0];
+    const commandBlock = (id) => {
+        const marker = `    - id: "${id}"`;
+        const start = verification.indexOf(marker);
+        assert.notEqual(start, -1, `${id} command should exist`);
+        const remainder = verification.slice(start + marker.length);
+        const next = remainder.search(/\r?\n    - id:/);
+        return next === -1 ? remainder : remainder.slice(0, next);
+    };
+
+    assert.match(config, /sourceRoots:[\s\S]*- "shared"/);
+    assert.match(config, /- id: "api"[\s\S]*- "shared\/\*\*"/);
+    assert.match(config, /- id: "api-contract"[\s\S]*changedPaths:[\s\S]*- "shared\/\*\*"/);
+    assert.match(config, /- id: "business-workflow"[\s\S]*changedPaths:[\s\S]*- "shared\/packagingSemantics\.cjs"/);
+    assert.match(config, /technicalDebt:[\s\S]*scanPaths:[\s\S]*- "shared\/\*\*"/);
+    assert.match(commandBlock('governance-contract'), /modules: \["governance", "documentation"\]/);
+    assert.match(commandBlock('api-contract'), /modules: \["api"\]/);
+    assert.match(commandBlock('lint'), /modules: \["api", "web", "tests", "tooling"\]/);
+    assert.match(commandBlock('tests'), /modules: \["api", "web", "tests", "tooling", "freecad"\]/);
+    assert.match(commandBlock('deep-api'), /modules: \["api", "tooling"\]/);
+    assert.match(commandBlock('web-build'), /modules: \["api", "web", "tooling"\]/);
+    assert.match(readUtf8('apps/web-next/lib/recipe-packing.cjs'), /shared\/packagingSemantics\.cjs/);
+    assert.equal((verification.match(/reusePassedEvidence: true/g) || []).length, 2);
+    for (const id of ['lint', 'tests', 'deep-api', 'web-build']) {
+        assert.doesNotMatch(commandBlock(id), /reusePassedEvidence/);
+    }
+});
+
+if (process.env.AI_DEV_FRAMEWORK_ROOT) {
+    test('ADF 契约：Guardian Core 动态选择完整模块路由矩阵', async () => {
+        const frameworkRoot = process.env.AI_DEV_FRAMEWORK_ROOT;
+        const configModulePath = path.join(frameworkRoot, 'guardian/dist/src/config.js');
+        const verificationModulePath = path.join(frameworkRoot, 'guardian/dist/src/verification.js');
+        const utilModulePath = path.join(frameworkRoot, 'guardian/dist/src/util.js');
+        for (const modulePath of [configModulePath, verificationModulePath, utilModulePath]) {
+            assert.ok(fs.existsSync(modulePath), `built Guardian Core module should exist: ${modulePath}`);
+        }
+
+        const [{ loadConfig }, { verificationCommandSelected }, { matchesAnyGlob }] = await Promise.all([
+            import(pathToFileURL(configModulePath).href),
+            import(pathToFileURL(verificationModulePath).href),
+            import(pathToFileURL(utilModulePath).href),
+        ]);
+        const config = loadConfig(repoRoot);
+        const selectedIds = (phase, modules) => config.verification.commands
+            .filter((command) => verificationCommandSelected(command, phase, {
+                modules,
+                paths: [],
+                changeTypes: ['config'],
+            }))
+            .map((command) => command.id)
+            .sort();
+        const expectedRoutes = [
+            ['focused', ['governance'], ['governance-contract']],
+            ['focused', ['documentation'], ['governance-contract']],
+            ['focused', ['api'], ['api-contract']],
+            ['commit', ['governance'], ['governance-contract']],
+            ['commit', ['api'], ['api-contract', 'lint', 'tests']],
+            ['commit', ['web'], ['lint', 'tests']],
+            ['commit', ['tests'], ['lint', 'tests']],
+            ['commit', ['freecad'], ['tests']],
+            ['push', ['api'], ['api-contract', 'deep-api', 'lint', 'tests', 'web-build']],
+            ['push', ['web'], ['lint', 'tests', 'web-build']],
+            ['push', ['tests'], ['lint', 'tests']],
+            ['push', ['tooling'], ['deep-api', 'lint', 'tests', 'web-build']],
+            ['push', ['freecad'], ['tests']],
+        ];
+        for (const [phase, modules, expected] of expectedRoutes) {
+            assert.deepEqual(selectedIds(phase, modules), [...expected].sort(), `${phase}/${modules.join(',')}`);
+        }
+
+        const sharedModules = config.project.modules
+            .filter((module) => matchesAnyGlob('shared/packagingSemantics.cjs', module.paths))
+            .map((module) => module.id)
+            .sort();
+        assert.deepEqual(sharedModules, ['api']);
+        assert.deepEqual(
+            selectedIds('push', sharedModules),
+            ['api-contract', 'deep-api', 'lint', 'tests', 'web-build'].sort(),
+        );
+    });
+}
 
 test('文档契约：当前核心文档必须存在并被 README 引用', () => {
     const readme = readUtf8('docs/README.md');

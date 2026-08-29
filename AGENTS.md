@@ -6,6 +6,9 @@
 
 - 项目代码、SQLite schema、API 契约、测试和 `docs/` 权威文档保存业务事实。
 - 非简单任务统一使用仓库内 `.agents/skills/adf-workflow/`；L2/L3 在实现前形成被 Git ignore 的 Task Contract。
+- 纯回答、只读审计、解释、诊断和状态查询不进入 delivery workflow：不创建
+  Task Contract 或 Guardian session，不运行独立交付 review 或 gate；只在状态相关时
+  运行 `doctor` 和最少的只读证据命令。
 - Main Codex 默认是唯一业务代码写入者；按风险使用只读 Explorer 和独立 Architecture/Test/Docs Reviewer，整改后重跑受影响 review。
 - Subagent 模型按 `.agents/skills/adf-workflow/references/model-routing.md` 分层，Main Codex 对 L3 风险判断和最终交付负责。
 - Bugfix 必须追踪完整调用链和同类模式，在最低正确公共层修复，并覆盖缺陷家族、失败路径和边界。
@@ -101,7 +104,7 @@
 - 开始 API 变更前必须完整阅读 `docs/api-contract.md` 和 `docs/api-sop.md`，并把“能力登记 → schema/validation → service → route/调用方 → 测试 → 文档”纳入当前实施范围；不能把 API 当作业务功能的附带实现而跳过契约。
 - 所有 API 必须遵守 `docs/api-contract.md`；API 新增和修改同时必须执行 `docs/api-sop.md`。
 - API 新增、修改、废弃或兼容层调整后，必须同步更新 `docs/api-reference.md`；涉及业务/API 概览时同时更新 `docs/README.md`。
-- API 变更至少必须运行 `npm run verify:api-contract` 和 `npm test`；涉及业务 API/数据库时运行 `npm run test:deep-api`，涉及 Web 契约时运行 `npm run build`。
+- API 变更至少必须运行 `npm run verify:api-contract` 和 `npm test`；准备 push 时，API、`shared/**` 及根工具链变更同时运行 `npm run test:deep-api` 和 `npm run build`，仅 Web 变更运行 `npm run build`。
 - 能力登记、实现、文档和自动化契约测试任一缺失，API 变更不视为完成。
 
 # ADF v0.3 开发工作流
@@ -129,6 +132,6 @@ $guardian = Join-Path $env:AI_DEV_FRAMEWORK_ROOT "scripts\guardian.ps1"
 - 交付完成且当前报告仍有效后运行 `guardian complete`。它验证 effective gate；gate 至少为 commit 时再验证完整 commit，gate 为 push 时还验证本地 push tracking evidence，然后归档并清除 active lifecycle。
 - 项目级 `.codex/hooks.json` 只有在 Codex 中 review/trust 后才生效；首次设置用户级 `AI_DEV_FRAMEWORK_ROOT` 后需要重启 Codex，让 Hook 子进程继承环境变量。Hook 文件存在不等于已经启用。
 
-`.guardian/config.yaml` 中的验证按阶段递增：focused 包含 API 契约，commit 增加 lint 和完整测试，push 再增加 deep API 与 Web build。涉及 AI tool、executor、知识检索或 AI 发布门禁时，仍按 `docs/ai-learning-release-gate-guide.md` 单独运行 `npm run verify:ai-release`，不得用普通 push gate 冒充真实 AI 验收。
+`.guardian/config.yaml` 中的验证按阶段和任务模块共同选择：治理/文档使用轻量静态契约，API 任务运行 API 契约，业务 commit 保留 lint 与完整测试；API、`shared/**` 及根工具链 push 同时运行 deep API 与 Web build，Web-only push 运行 Web build。只有纯仓库内容契约可显式复用同一 session 的严格匹配通过证据；完整测试、deep API 和 build 不复用。涉及 AI tool、executor、知识检索或 AI 发布门禁时，仍按 `docs/ai-learning-release-gate-guide.md` 单独运行 `npm run verify:ai-release`，不得用普通 push gate 冒充真实 AI 验收。
 
 Guardian session、历史报告和 Task Contract 属于本地执行证据并由 ignore 规则保护。最终报告必须分别说明 implemented、tested、built、documented、committed、pushed、deployed、verified；未运行不能描述为通过，push 不能描述为部署。

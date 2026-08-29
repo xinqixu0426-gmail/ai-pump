@@ -10,6 +10,17 @@ evidence, and the project responsible for business truth. Main Codex is the only
 default business-code writer; delegate read-only exploration and review according
 to risk.
 
+## Skip the delivery workflow for read-only outcomes
+
+If the requested outcome is only an answer, audit, explanation, diagnosis or
+status report, do not create a Task Contract, start a Guardian session, run
+independent delivery reviews, or execute focused/commit/push gates. Use
+`guardian doctor` only when lifecycle/config state is relevant, plus the minimum
+read-only repository commands needed for evidence. A single bounded Explorer is
+optional only when it materially reduces total discovery context; it does not
+turn the request into a delivery workflow. If the user later asks for a change,
+begin a new classified workflow from the verified current state.
+
 ## Route the task
 
 Classify the task as `feature`, `bugfix`, `refactor`, `docs`, `config`, `release`,

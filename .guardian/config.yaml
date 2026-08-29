@@ -29,6 +29,7 @@ project:
   name: "水泵工厂管理系统"
   sourceRoots:
     - "api"
+    - "shared"
     - "apps/web-next"
     - "freecad"
     - "scripts"
@@ -51,6 +52,7 @@ project:
       paths:
         - "api.cjs"
         - "api/**"
+        - "shared/**"
     - id: "web"
       paths:
         - "apps/web-next/**"
@@ -101,6 +103,7 @@ documentation:
   mappings:
     - id: "api-contract"
       changedPaths:
+        - "shared/**"
         - "api/routes/**"
         - "api/capabilities/**"
         - "api/services/*Commands.cjs"
@@ -161,6 +164,7 @@ documentation:
 
     - id: "business-workflow"
       changedPaths:
+        - "shared/packagingSemantics.cjs"
         - "api/services/order*.cjs"
         - "api/services/quotation*.cjs"
         - "api/services/recipe*.cjs"
@@ -239,6 +243,7 @@ architecture:
 
 technicalDebt:
   scanPaths:
+    - "shared/**"
     - "api/**"
     - "apps/web-next/**"
     - "freecad/**"
@@ -259,30 +264,49 @@ technicalDebt:
 
 verification:
   commands:
+    - id: "governance-contract"
+      run: "node --test tests/refactorReadinessContract.test.cjs"
+      phase: "focused"
+      kind: "contract"
+      reusePassedEvidence: true
+      when:
+        modules: ["governance", "documentation"]
+      timeoutSeconds: 180
     - id: "api-contract"
       run: "npm run verify:api-contract"
       phase: "focused"
       kind: "contract"
+      reusePassedEvidence: true
+      when:
+        modules: ["api"]
       timeoutSeconds: 180
     - id: "lint"
       run: "npm run lint"
       phase: "commit"
       kind: "other"
+      when:
+        modules: ["api", "web", "tests", "tooling"]
       timeoutSeconds: 600
     - id: "tests"
       run: "npm test"
       phase: "commit"
       kind: "test"
+      when:
+        modules: ["api", "web", "tests", "tooling", "freecad"]
       timeoutSeconds: 900
     - id: "deep-api"
       run: "npm run test:deep-api"
       phase: "push"
       kind: "test"
+      when:
+        modules: ["api", "tooling"]
       timeoutSeconds: 1200
     - id: "web-build"
       run: "npm run build"
       phase: "push"
       kind: "build"
+      when:
+        modules: ["api", "web", "tooling"]
       timeoutSeconds: 1800
 
 exceptions: []

@@ -22,6 +22,12 @@ the same bounded read-only roles only when it is available and has sufficient qu
 If Terra is unavailable, use the selected Main Codex model rather than silently
 dropping review.
 
+Static agent profiles cannot inspect a weekly Spark quota. An orchestrator may try
+Spark once for an eligible bounded role after the expected reset window; on a quota
+or availability error it immediately falls back to Luna and suppresses repeated
+Spark attempts until the next expected reset. This fallback never changes Terra or
+Main Codex responsibilities and never skips the required evidence question.
+
 ## Escalate by judgment risk
 
 Luna may collect the inventory and deterministic evidence, but it must not decide
@@ -48,6 +54,9 @@ final synthesis and must inspect evidence before acting.
   summaries, implementation narration, and unchanged-state updates.
 - Rerun only the reviewer whose conclusion or evidence fingerprint changed.
 
-Calibrate routing on real tasks. Track false negatives, remediation findings,
-total tokens, latency, and review disagreement. Upgrade a role when quality drops;
-do not promote every role to the strongest model because one task was difficult.
+Calibrate routing on real tasks. When the host exposes it, record role, model,
+effort, duration, outcome, fallback, accepted findings, false negatives and review
+disagreement in ignored local execution metadata. Record exact token counts only
+when the host provides them; never estimate or invent token usage. Upgrade a role
+when quality drops; do not promote every role to the strongest model because one
+task was difficult.
