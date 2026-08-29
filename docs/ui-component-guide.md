@@ -78,10 +78,10 @@
 ## 4. AI 组件边界
 
 - `AiView` 负责会话状态和工作台编排。
-- `AiMessageList` 是唯一消息列表结构。
-- `AiComposer` 是唯一消息输入结构。
+- `AiMessageList` 是唯一消息列表结构，并以稳定 props 边界隔离历史搜索、弹层和输入区等无关状态更新。
+- `AiComposer` 是唯一消息输入结构，也是草稿、语音识别和输入焦点的状态所有者；逐字输入不得回写 `AiView`，跨区模板、新会话和初始提示词通过其受控句柄协调。
 - `AiConversationSidebars` 负责历史会话。
-- `MarkdownContent`、`StreamingText` 位于 `components/ai/ai-text.tsx`，同时供 AI 消息和知识库诊断复用。
+- `MarkdownContent`、`StreamingText` 位于 `components/ai/ai-text.tsx`，同时供 AI 消息和知识库诊断复用；内容未变化时必须保持记忆化，避免父级状态更新重复解析 Markdown。
 - 不再建立 `prompt-kit` 聊天容器、消息气泡或输入外壳；业务结果继续使用 `AiWorkflowResults`、`AiAnswerProcess` 等正式组件。
 
 ## 5. 业务组合组件

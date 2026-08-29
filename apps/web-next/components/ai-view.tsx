@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowDown,
@@ -50,16 +50,21 @@ import {
 } from '@/components/ai/useAiMessageStream';
 import { useAiAttachments } from '@/components/ai/useAiAttachments';
 import { AiAttachmentArchiveController } from '@/components/ai/AiAttachmentArchiveController';
-import { AiComposer } from '@/components/ai/AiComposer';
+import { AiComposer, type AiComposerHandle } from '@/components/ai/AiComposer';
 import { AiMessageList } from '@/components/ai/AiMessageList';
 import { useAiAnswerFeedback } from '@/components/ai/useAiAnswerFeedback';
-import { useAiSpeechInput } from '@/components/ai/useAiSpeechInput';
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 const MAX_AI_STREAM_ATTEMPTS = 2;
+
+function useStableEvent<Args extends unknown[], Result>(handler: (...args: Args) => Result) {
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+  return useCallback((...args: Args) => handlerRef.current(...args), []);
+}
 
 type AiViewProps = {
   variant?: 'workspace' | 'panel';
@@ -125,7 +130,6 @@ export function AiView({
     markAttachmentsPersisted,
     discardAllPendingAttachments,
   } = useAiAttachments(initialAttachmentId);
-  const [input, setInput] = useState('');
   const [asideMode, setAsideMode] = useState<AiAsideMode>('history');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeSampleCategory, setActiveSampleCategory] = useState<AiSampleCategory>('常用');
@@ -142,7 +146,7 @@ export function AiView({
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
   const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const initialPromptAppliedRef = useRef(false);
   const restoredConversationRef = useRef(false);
@@ -157,13 +161,6 @@ export function AiView({
     openConversation,
     clearRestorableConversation,
   };
-  const {
-    speechSupported,
-    isListening,
-    speechError,
-    stopVoiceInput,
-    toggleVoiceInput,
-  } = useAiSpeechInput(input, setInput);
   const aiRoutingStatusText = capabilitiesLoading
     ? '正在读取路由配置'
     : capabilitiesError
@@ -209,15 +206,16 @@ export function AiView({
     if (loading || !restoreComposerFocusAfterSendRef.current) return;
     const frame = window.requestAnimationFrame(() => {
       const composer = composerRef.current;
+      const composerElement = composer?.element();
       const activeElement = document.activeElement;
       const userMovedFocus = Boolean(
         activeElement
         && activeElement !== document.body
-        && activeElement !== composer
+        && activeElement !== composerElement
       );
       const hasFinePointer = window.matchMedia?.('(pointer: fine)').matches ?? true;
       if (composer && !userMovedFocus && hasFinePointer) {
-        composer.focus({ preventScroll: true });
+        composer.focus();
       }
       restoreComposerFocusAfterSendRef.current = false;
     });
@@ -228,7 +226,7 @@ export function AiView({
     const prompt = initialPrompt.trim();
     if (!prompt || initialPromptAppliedRef.current) return;
     initialPromptAppliedRef.current = true;
-    setInput(prompt);
+    composerRef.current?.replace(prompt);
   }, [initialPrompt]);
 
   useEffect(() => {
@@ -242,15 +240,18 @@ export function AiView({
     void restoreConversationActionsRef.current.openConversation(restorableConversationId);
   }, [conversations, historyLoading, restorableConversationId]);
 
-  async function sendMessage(text: string, options?: { retryAssistantId?: string; attachments?: AiAttachment[] }) {
+  async function sendMessage(text: string, options?: {
+    retryAssistantId?: string;
+    attachments?: AiAttachment[];
+    onDraftPersisted?: (persisted: boolean) => void;
+  }) {
     const retryAssistantId = options?.retryAssistantId;
     const retrying = Boolean(retryAssistantId && activeConversationId);
     const attachments = retrying ? (options?.attachments || []) : pendingAttachments;
     const content = text.trim() || (attachments.length > 0 ? '请查看我上传的附件。' : '');
     if (!content || loading || uploadingAttachment || sendInFlightRef.current) return;
-    restoreComposerFocusAfterSendRef.current = document.activeElement === composerRef.current;
+    restoreComposerFocusAfterSendRef.current = composerRef.current?.isFocused() || false;
     sendInFlightRef.current = true;
-    if (isListening) stopVoiceInput();
 
     const userItem: ChatItem = { id: makeId(), role: 'user', content, attachments };
     const assistantId = makeId();
@@ -281,7 +282,6 @@ export function AiView({
       ? current.map((item) => (item.id === streamAssistantId ? { ...assistantItem, id: streamAssistantId } : item))
       : [...current, userItem, assistantItem]);
     if (!retrying) {
-      setInput('');
       clearPendingAttachments();
     }
     autoFollowRef.current = true;
@@ -306,12 +306,14 @@ export function AiView({
         });
         markAttachmentsPersisted(attachments);
       }
+      options?.onDraftPersisted?.(true);
       setHistoryError('');
     } catch (error) {
       const message = (error as Error).message || '保存会话失败';
       updateAssistant(streamAssistantId, (item) => ({ ...item, status: 'error', statusMessage: message, content: message, retryable: false }));
       setHistoryError(message);
       restorePendingAttachments(attachments);
+      options?.onDraftPersisted?.(false);
       setLoading(false);
       sendInFlightRef.current = false;
       return;
@@ -409,17 +411,16 @@ export function AiView({
   }
 
   function hasPendingDraft() {
-    return Boolean(input.trim() || pendingAttachments.length > 0);
+    return Boolean(composerRef.current?.hasDraft() || pendingAttachments.length > 0);
   }
 
   function performStartNewConversation() {
     if (loading) return;
-    if (isListening) stopVoiceInput();
     discardAllPendingAttachments();
     clearActiveConversation();
     setItems([]);
     resetFeedback();
-    setInput('');
+    composerRef.current?.clear();
     setAsideMode('history');
     setMobileSidebarOpen(false);
     window.requestAnimationFrame(() => composerRef.current?.focus());
@@ -437,7 +438,7 @@ export function AiView({
     const opened = await loadConversation(id);
     if (!opened) return;
     discardAllPendingAttachments();
-    setInput('');
+    composerRef.current?.clear();
     setFeedbackByMessageId(opened.feedbackByMessageId);
     setItems(opened.items);
     autoFollowRef.current = true;
@@ -494,7 +495,7 @@ export function AiView({
   }
 
   function applyTaskTemplate(prompt: string) {
-    setInput((current) => current.trim() ? `${current.trimEnd()}\n${prompt}` : prompt);
+    composerRef.current?.append(prompt);
     setMobileSidebarOpen(false);
     window.requestAnimationFrame(() => composerRef.current?.focus());
   }
@@ -556,6 +557,23 @@ export function AiView({
       setKnowledgeSyncing(false);
     }
   }
+
+  const runMessageSample = useStableEvent((prompt: string) => void sendMessage(prompt));
+  const confirmMessageTool = useStableEvent((messageId: string, index: number, result: AiToolResult) => {
+    replaceToolResult(messageId, index, result);
+  });
+  const retryMessage = useStableEvent((item: ChatItem) => retryAssistant(item));
+  const markMessageHelpful = useStableEvent((item: ChatItem) => void markAnswerHelpful(item));
+  const reportMessageIssue = useStableEvent((item: ChatItem) => openAnswerIssue(item));
+  const scrollMessages = useStableEvent(() => handleMessageScroll());
+  const sendComposerDraft = useStableEvent((text: string) => new Promise<boolean>((resolve) => {
+    const content = text.trim() || (pendingAttachments.length > 0 ? '请查看我上传的附件。' : '');
+    if (!content || loading || uploadingAttachment || sendInFlightRef.current) {
+      resolve(false);
+      return;
+    }
+    void sendMessage(text, { onDraftPersisted: resolve }).catch(() => resolve(false));
+  }));
 
   return (
     <div className={`min-h-0 bg-white ${isPanel ? 'h-full' : 'lg:bg-transparent'}`}>
@@ -680,13 +698,13 @@ export function AiView({
               feedbackByMessageId={feedbackByMessageId}
               feedbackSaving={feedbackSaving}
               scrollRef={scrollRef}
-              onRunSample={(prompt) => void sendMessage(prompt)}
+              onRunSample={runMessageSample}
               onArchive={setArchiveAttachment}
-              onConfirmed={replaceToolResult}
-              onRetry={retryAssistant}
-              onMarkHelpful={(item) => void markAnswerHelpful(item)}
-              onReportIssue={openAnswerIssue}
-              onScroll={handleMessageScroll}
+              onConfirmed={confirmMessageTool}
+              onRetry={retryMessage}
+              onMarkHelpful={markMessageHelpful}
+              onReportIssue={reportMessageIssue}
+              onScroll={scrollMessages}
             />
 
             {showJumpToLatest ? (
@@ -702,26 +720,19 @@ export function AiView({
             ) : null}
 
             <AiComposer
+              ref={composerRef}
               panel={isPanel}
               pageContext={pageContext}
-              input={input}
               loading={loading}
               pendingAttachments={pendingAttachments}
               uploadingAttachment={uploadingAttachment}
               attachmentError={attachmentError}
               aiCapabilities={aiCapabilities}
-              speechSupported={speechSupported}
-              isListening={isListening}
-              speechError={speechError}
               fileInputRef={fileInputRef}
-              composerRef={composerRef}
-              onInputChange={setInput}
               onSelectAttachments={(files) => void selectAttachments(files)}
               onRemoveAttachment={discardPendingAttachment}
-              onStopVoice={stopVoiceInput}
-              onToggleVoice={toggleVoiceInput}
               onStop={stopStream}
-              onSend={(text) => void sendMessage(text)}
+              onSend={sendComposerDraft}
             />
           </section>
         </div>

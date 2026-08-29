@@ -1,60 +1,119 @@
 'use client';
 
-import type { RefObject } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState, type RefObject } from 'react';
 import { Loader2, Mic, MicOff, Paperclip, ReceiptText, Send, X } from 'lucide-react';
 import type { AiAttachment, AiCapabilities } from '@/lib/ai';
 import type { AiPageContext } from '@/lib/page-context';
 import { AiPendingAttachmentStrip } from '@/components/ai/AiAttachmentDisplays';
+import { restoreRejectedDraft } from '@/components/ai/ai-composer-state';
+import { useAiSpeechInput } from '@/components/ai/useAiSpeechInput';
 import { Button } from '@/components/ui/button';
 
-export function AiComposer({
-  panel,
-  pageContext,
-  input,
-  loading,
-  pendingAttachments,
-  uploadingAttachment,
-  attachmentError,
-  aiCapabilities,
-  speechSupported,
-  isListening,
-  speechError,
-  fileInputRef,
-  composerRef,
-  onInputChange,
-  onSelectAttachments,
-  onRemoveAttachment,
-  onStopVoice,
-  onToggleVoice,
-  onStop,
-  onSend,
-}: {
+export type AiComposerHandle = {
+  append: (value: string) => void;
+  clear: () => void;
+  element: () => HTMLTextAreaElement | null;
+  focus: () => void;
+  hasDraft: () => boolean;
+  isFocused: () => boolean;
+  replace: (value: string) => void;
+};
+
+type AiComposerProps = {
   panel: boolean;
   pageContext: AiPageContext | null;
-  input: string;
   loading: boolean;
   pendingAttachments: AiAttachment[];
   uploadingAttachment: boolean;
   attachmentError: string;
   aiCapabilities: AiCapabilities | null;
-  speechSupported: boolean;
-  isListening: boolean;
-  speechError: string;
   fileInputRef: RefObject<HTMLInputElement>;
-  composerRef: RefObject<HTMLTextAreaElement>;
-  onInputChange: (value: string) => void;
   onSelectAttachments: (files: FileList | null) => void;
   onRemoveAttachment: (attachment: AiAttachment) => void;
-  onStopVoice: () => void;
-  onToggleVoice: () => void;
   onStop: () => void;
-  onSend: (input: string) => void;
-}) {
+  onSend: (input: string) => Promise<boolean>;
+};
+
+export const AiComposer = forwardRef<AiComposerHandle, AiComposerProps>(function AiComposer({
+  panel,
+  pageContext,
+  loading,
+  pendingAttachments,
+  uploadingAttachment,
+  attachmentError,
+  aiCapabilities,
+  fileInputRef,
+  onSelectAttachments,
+  onRemoveAttachment,
+  onStop,
+  onSend,
+}, ref) {
+  const [input, setInput] = useState('');
+  const inputValueRef = useRef('');
+  const submitInFlightRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const {
+    speechSupported,
+    isListening,
+    speechError,
+    stopVoiceInput,
+    toggleVoiceInput,
+  } = useAiSpeechInput(input, setInput);
+  inputValueRef.current = input;
+
+  function stopVoiceAndSetInput(value: string | ((current: string) => string)) {
+    stopVoiceInput();
+    setInput(value);
+  }
+
+  async function submitDraft() {
+    if ((!input.trim() && pendingAttachments.length === 0) || uploadingAttachment || loading || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    stopVoiceInput();
+    const submittedDraft = input;
+    setInput('');
+    let persisted = false;
+    try {
+      persisted = await onSend(submittedDraft);
+    } catch {
+      persisted = false;
+    } finally {
+      submitInFlightRef.current = false;
+    }
+    if (!persisted) {
+      setInput((current) => restoreRejectedDraft(submittedDraft, current));
+    }
+  }
+
+  useImperativeHandle(ref, () => ({
+    append(value) {
+      stopVoiceAndSetInput((current) => current.trim() ? `${current.trimEnd()}\n${value}` : value);
+    },
+    clear() {
+      stopVoiceAndSetInput('');
+    },
+    element() {
+      return textareaRef.current;
+    },
+    focus() {
+      textareaRef.current?.focus({ preventScroll: true });
+    },
+    hasDraft() {
+      return Boolean(inputValueRef.current.trim());
+    },
+    isFocused() {
+      return document.activeElement === textareaRef.current;
+    },
+    replace(value) {
+      stopVoiceAndSetInput(value);
+    },
+  }));
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSend(input);
+        void submitDraft();
       }}
       className={`ai-mobile-composer shrink-0 border-t border-line bg-white ${panel ? 'p-3' : 'px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 md:p-4'}`}
     >
@@ -90,11 +149,11 @@ export function AiComposer({
           title="上传文件或图片"
         />
         <textarea
-          ref={composerRef}
+          ref={textareaRef}
           value={input}
           onChange={(event) => {
-            if (isListening) onStopVoice();
-            onInputChange(event.target.value);
+            if (isListening) stopVoiceInput();
+            setInput(event.target.value);
           }}
           placeholder={panel ? '输入问题…' : '输入要查询或处理的事情...'}
           rows={1}
@@ -103,7 +162,7 @@ export function AiComposer({
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
-              onSend(input);
+              void submitDraft();
             }
           }}
         />
@@ -112,7 +171,7 @@ export function AiComposer({
           variant="secondary"
           className={`h-10 w-10 shrink-0 rounded-full px-0 md:h-9 md:w-9 ${isListening ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100' : ''}`}
           icon={isListening ? <MicOff size={17} /> : <Mic size={17} />}
-          onClick={onToggleVoice}
+          onClick={toggleVoiceInput}
           disabled={loading || !speechSupported}
           aria-label={isListening ? '停止语音输入' : '开始语音输入'}
           aria-pressed={isListening}
@@ -140,4 +199,6 @@ export function AiComposer({
       ) : null}
     </form>
   );
-}
+});
+
+AiComposer.displayName = 'AiComposer';

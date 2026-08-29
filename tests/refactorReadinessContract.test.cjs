@@ -736,10 +736,10 @@ test('Next UI 契约：AI 工作台保护中文输入、草稿和长回答阅读
     assert.match(aiView, /当前还有未发送内容/);
     assert.match(aiView, /retryAssistantId/);
     assert.match(aiView, /function applyTaskTemplate/);
-    assert.match(aiView, /current\.trimEnd\(\)/);
+    assert.match(composer, /current\.trimEnd\(\)/);
     assert.match(aiView, /restoreComposerFocusAfterSendRef/);
-    assert.match(aiView, /composer\.focus\(\{ preventScroll: true \}\)/);
-    assert.match(aiView, /document\.activeElement === composerRef\.current/);
+    assert.match(composer, /focus\(\{ preventScroll: true \}\)/);
+    assert.match(composer, /document\.activeElement === textareaRef\.current/);
     assert.match(aiView, /activeElement !== document\.body/);
     assert.match(messageList, /重新回答/);
     assert.match(messageList, /不会重复保存提问/);
@@ -1178,8 +1178,8 @@ test('Next UI 契约：P3 删除重复 AI 外壳并拆分知识库大型弹层',
     const knowledgeModel = readUtf8('apps/web-next/components/knowledge/knowledge-view-model.ts');
     const componentGuide = readUtf8('docs/ui-component-guide.md');
 
-    assert.match(aiText, /export function MarkdownContent/);
-    assert.match(aiText, /export function StreamingText/);
+    assert.match(aiText, /export const MarkdownContent = memo\(function MarkdownContent/);
+    assert.match(aiText, /export const StreamingText = memo\(function StreamingText/);
     assert.match(aiMessageList, /from '@\/components\/ai\/ai-text'/);
     assert.ok(!fs.existsSync(path.join(repoRoot, 'apps/web-next/components/prompt-kit/basic-chat.tsx')));
     assert.doesNotMatch(knowledgeView, /components\/prompt-kit/);
@@ -2443,7 +2443,7 @@ test('Next UI 契约：AI 消息、输入、语音和反馈状态按职责拆分
 
     assert.match(aiView, /<AiMessageList/);
     assert.match(aiView, /<AiComposer/);
-    assert.match(aiView, /useAiSpeechInput\(input, setInput\)/);
+    assert.match(composer, /useAiSpeechInput\(input, setInput\)/);
     assert.match(aiView, /useAiAnswerFeedback\(setHistoryError\)/);
     assert.match(messageList, /<StreamingText/);
     assert.match(messageList, /这条回答是否可靠/);
@@ -2455,6 +2455,32 @@ test('Next UI 契约：AI 消息、输入、语音和反馈状态按职责拆分
     assert.doesNotMatch(messageList, /proxyRequest|proxyFetch|fetch\(/);
     assert.doesNotMatch(composer, /proxyRequest|proxyFetch|fetch\(/);
     assert.doesNotMatch(aiView, /function toggleVoiceInput|function markAnswerHelpful|<StreamingText/);
+});
+
+test('Next UI 契约：AI 高频输入与历史筛选不牵连消息和 Markdown 重渲染', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const composer = readUtf8('apps/web-next/components/ai/AiComposer.tsx');
+    const aiText = readUtf8('apps/web-next/components/ai/ai-text.tsx');
+    const composerState = readUtf8('apps/web-next/components/ai/ai-composer-state.ts');
+
+    assert.match(composer, /const \[input, setInput\] = useState\(''\)/);
+    assert.match(composer, /forwardRef<AiComposerHandle, AiComposerProps>/);
+    assert.match(composer, /useImperativeHandle\(ref/);
+    assert.match(composer, /persisted = await onSend\(submittedDraft\)/);
+    assert.match(composer, /if \(!persisted\)/);
+    assert.match(composer, /restoreRejectedDraft\(submittedDraft, current\)/);
+    assert.match(composerState, /currentDraft\.trim\(\)/);
+    assert.doesNotMatch(aiView, /const \[input, setInput\] = useState/);
+    assert.doesNotMatch(aiView, /useAiSpeechInput/);
+    assert.match(aiView, /function useStableEvent/);
+    assert.match(aiView, /onRunSample=\{runMessageSample\}/);
+    assert.match(aiView, /onSend=\{sendComposerDraft\}/);
+    assert.match(aiView, /onDraftPersisted\?\.\(true\)/);
+    assert.match(aiView, /onDraftPersisted\?\.\(false\)/);
+    assert.match(messageList, /export const AiMessageList = memo\(function AiMessageList/);
+    assert.match(aiText, /export const MarkdownContent = memo\(function MarkdownContent/);
+    assert.match(aiText, /export const StreamingText = memo\(function StreamingText/);
 });
 
 test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () => {

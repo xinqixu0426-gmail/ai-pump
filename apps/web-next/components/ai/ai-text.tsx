@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   id: _id,
   children,
   className,
@@ -86,9 +86,11 @@ export function MarkdownContent({
       </ReactMarkdown>
     </div>
   );
-}
+});
 
-export function StreamingText({
+MarkdownContent.displayName = 'MarkdownContent';
+
+export const StreamingText = memo(function StreamingText({
   id,
   text,
   streaming = false,
@@ -140,7 +142,9 @@ export function StreamingText({
   }, [id, streaming]);
 
   return <MarkdownContent id={id} className={className}>{displayText}</MarkdownContent>;
-}
+});
+
+StreamingText.displayName = 'StreamingText';
 
 function safeHref(value: string) {
   const href = value.trim();

@@ -1,6 +1,6 @@
 'use client';
 
-import type { RefObject } from 'react';
+import { memo, type RefObject } from 'react';
 import { Bot, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound } from 'lucide-react';
 import type { AiAnswerFeedback, AiAttachment, AiToolResult } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
@@ -10,7 +10,7 @@ import { StreamingText } from '@/components/ai/ai-text';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 
-export function AiMessageList({
+export const AiMessageList = memo(function AiMessageList({
   items,
   panel,
   loading,
@@ -168,4 +168,6 @@ export function AiMessageList({
       })}
     </div>
   );
-}
+});
+
+AiMessageList.displayName = 'AiMessageList';
