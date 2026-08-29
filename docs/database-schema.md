@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `68`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+当前版本为 `69`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -88,6 +88,7 @@
 | 66 | `immutable_order_revisions` | 为订单修订增加数据库级更新、删除拒绝触发器，确保历史只能追加 |
 | 67 | `cross_domain_business_change_memory` | 增加追加型跨业务变更事件和实体引用；安全补录现有订单修订，不从旧审计猜测其他领域历史 |
 | 68 | `external_cloud_connections` | 保留已发布 WPS OAuth 连接表的迁移兼容墓碑；功能已弃用，不再提供业务入口 |
+| 69 | `coil_pricing_modes` | 为线圈方案增加计算计价/供应商套件价模式；历史记录统一回填为计算计价，套件模式由数据库约束和业务命令共同要求价格大于 0 |
 
 ## 数据治理
 
@@ -95,6 +96,7 @@
 - `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
 - `system_settings.stainless_shaft_joint_default_cost` 保存报价和订单启用不锈钢接轴时的默认加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。该配置不新增表或迁移，不写入模板、配方或线圈基础成本；最终采用值冻结在报价/订单 JSON 快照中。
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
+- `coils.pricing_mode` 只允许 `calculated/kit`；历史记录默认为 `calculated`。数据库约束和业务命令都要求 `kit` 模式的 `kit_price` 大于 0 且 `cost = kit_price`；该模式不使用定子、铜价、线重或加工费计算，也不参与铜价同步、定子单片价批量更新及其他片数的插值/外推。
 - `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。
 - `audit_log.request_id/operation_id/capability_id` 把一次 HTTP 请求、业务命令和各资源审计串联起来。未接入统一命令执行器的历史写入口仍使用尽力审计，不能宣称具备强审计回执。
 - `coils.stock` 保存线圈转子成品套数，`coil_stock_movements` 保存手工调整和订单采购入库流水；库存不得为负数。

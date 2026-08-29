@@ -645,8 +645,8 @@ test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历
 
         const second = runMigrations(db, { now: FIXED_NOW });
         assert.deepEqual(second.appliedVersions, []);
-        assert.equal(second.currentVersion, 68);
-        assert.equal(db.pragma('user_version', { simple: true }), 68);
+        assert.equal(second.currentVersion, 69);
+        assert.equal(db.pragma('user_version', { simple: true }), 69);
         assert.deepEqual(
             db.prepare(`
                 SELECT provider, external_user_id, external_user_name
@@ -669,6 +669,57 @@ test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历
         assert.throws(
             () => runMigrations(db, { now: FIXED_NOW }),
             /迁移 68 校验失败/
+        );
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：Schema 69 为历史线圈补充计算计价默认值和套件价约束', () => {
+    const db = openMemoryDatabase();
+    try {
+        db.exec(`
+            CREATE TABLE coils (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                spec TEXT NOT NULL,
+                sheets INTEGER NOT NULL,
+                cost REAL DEFAULT 0
+            );
+            INSERT INTO coils (spec, sheets, cost)
+            VALUES ('历史规格', 120, 88);
+        `);
+        MIGRATIONS.at(-1).up(db);
+        const columns = new Set(db.pragma('table_info(coils)').map(column => column.name));
+        assert.equal(columns.has('pricing_mode'), true);
+        assert.equal(columns.has('kit_price'), true);
+
+        assert.deepEqual(
+            db.prepare('SELECT pricing_mode, kit_price, cost FROM coils WHERE id = 1').get(),
+            { pricing_mode: 'calculated', kit_price: 0, cost: 88 }
+        );
+        assert.throws(
+            () => db.prepare(`
+                UPDATE coils SET pricing_mode = 'unknown' WHERE id = ?
+            `).run(1),
+            /CHECK constraint failed/
+        );
+        assert.throws(
+            () => db.prepare(`
+                UPDATE coils SET kit_price = -1 WHERE id = ?
+            `).run(1),
+            /CHECK constraint failed/
+        );
+        assert.throws(
+            () => db.prepare(`
+                UPDATE coils SET pricing_mode = 'kit', kit_price = 0 WHERE id = 1
+            `).run(),
+            /kit price must be positive and equal cost/
+        );
+        assert.throws(
+            () => db.prepare(`
+                UPDATE coils SET pricing_mode = 'kit', kit_price = 5, cost = 4 WHERE id = 1
+            `).run(),
+            /kit price must be positive and equal cost/
         );
     } finally {
         db.close();

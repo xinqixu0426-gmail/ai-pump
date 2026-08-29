@@ -9,6 +9,9 @@ function buildCopperPriceUpdates(coils, copperPricePerTon) {
     }
     const copperPricePerKg = (pricePerTon / 1000).toFixed(2);
     const updates = (coils || []).flatMap((coil) => {
+        if (String(coil.pricing_mode || coil.pricingMode || 'calculated') === 'kit') {
+            return [];
+        }
         const cost = (
             Number(coil.unit_price || 0) * Number(coil.sheets || 0)
             + Number(coil.wire_weight || 0) * Number(copperPricePerKg)

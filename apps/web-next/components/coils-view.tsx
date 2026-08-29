@@ -41,6 +41,8 @@ type CoilFormState = {
   sheets: string;
   schemeName: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  pricingMode: 'calculated' | 'kit';
+  kitPrice: string;
   unitPrice: string;
   wireWeight: string;
   copperBase: string;
@@ -62,6 +64,8 @@ const emptyForm: CoilFormState = {
   sheets: '',
   schemeName: '正式方案',
   schemeStatus: 'official',
+  pricingMode: 'calculated',
+  kitPrice: '',
   unitPrice: '',
   wireWeight: '0',
   copperBase: '0',
@@ -103,6 +107,8 @@ function formFromCoil(coil: CoilRecord): CoilFormState {
     sheets: String(coil.sheets || ''),
     schemeName: coil.schemeName || '',
     schemeStatus: coil.schemeStatus || 'official',
+    pricingMode: coil.pricingMode || 'calculated',
+    kitPrice: String(coil.kitPrice || ''),
     unitPrice: String(coil.unitPrice || ''),
     wireWeight: String(coil.wireWeight || 0),
     copperBase: String(coil.copperBase || 0),
@@ -133,6 +139,12 @@ function numberText(value: string | number | null | undefined, digits = 2) {
 function optionalNumberText(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === '') return '';
   return String(value);
+}
+
+function optionalPositiveNumberText(value: string | number | null | undefined, digits = 3) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '-';
+  return number.toLocaleString('zh-CN', { maximumFractionDigits: digits });
 }
 
 function diameterFromSpec(spec: string) {
@@ -233,6 +245,7 @@ export function CoilsView() {
           coil.slotType,
           coil.schemeName,
           coil.schemeStatus,
+          coil.pricingMode === 'kit' ? '供应商套件价' : '计算计价',
           coil.sheets,
           coil.defaultWireGauge,
           coil.defaultCapacitor,
@@ -408,7 +421,7 @@ export function CoilsView() {
 
   async function saveGroupPrice(groupKey: string) {
     const group = groupedCoils.find((item) => item.key === groupKey);
-    const first = group?.rows[0];
+    const first = group?.rows.find((coil) => coil.pricingMode === 'calculated');
     if (!first) return;
     setSaving(true);
     setError(null);
@@ -426,8 +439,13 @@ export function CoilsView() {
 
   async function submitCoil(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.spec.trim() || !form.diameterMm.trim() || !form.sheets.trim() || !form.unitPrice.trim()) {
-      setFormError('规格俗称、定子直径、片数和单片价不能为空');
+    const pricingMissing = form.pricingMode === 'kit'
+      ? numberValue(form.kitPrice) <= 0
+      : !form.unitPrice.trim();
+    if (!form.spec.trim() || !form.diameterMm.trim() || !form.sheets.trim() || pricingMissing) {
+      setFormError(form.pricingMode === 'kit'
+        ? '规格俗称、定子直径、片数和大于 0 的供应商套件价不能为空'
+        : '规格俗称、定子直径、片数和定子单片成本不能为空');
       return;
     }
     autoFillRequestRef.current += 1;
@@ -443,6 +461,8 @@ export function CoilsView() {
         sheets: numberValue(form.sheets),
         schemeName: form.schemeName.trim(),
         schemeStatus: form.schemeStatus,
+        pricingMode: form.pricingMode,
+        kitPrice: form.pricingMode === 'kit' ? numberValue(form.kitPrice) : 0,
         unitPrice: numberValue(form.unitPrice),
         wireWeight: numberValue(form.wireWeight),
         copperBase: numberValue(form.copperBase),
@@ -532,7 +552,7 @@ export function CoilsView() {
     <div className="space-y-4">
       <PageHeader
         title="线圈转子"
-        description="维护定子组合、绕组方案、线圈成本和成品库存。"
+        description="维护定子组合、绕组方案、计算成本或供应商套件价，以及成品库存。"
         actions={(
           <>
           <Button onClick={() => void load(true)} disabled={refreshing || saving} icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}>
@@ -557,7 +577,7 @@ export function CoilsView() {
             </div>
             <div>
               <div className="text-sm font-semibold text-ink">实时市场指标</div>
-              <div className="mt-1 text-xs text-muted">同步后会刷新线圈铜价基数、铝线基数和美元汇率设置。</div>
+              <div className="mt-1 text-xs text-muted">同步后只刷新计算计价方案的铜价基数；供应商套件价保持不变。</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -743,6 +763,8 @@ export function CoilsView() {
             <div className="space-y-3">
               {groupedCoils.map((group) => {
                 const collapsed = collapsedGroups.has(group.key);
+                const calculatedRows = group.rows.filter((coil) => coil.pricingMode === 'calculated');
+                const kitCount = group.rows.length - calculatedRows.length;
                 return (
                 <div key={group.key} className="overflow-hidden rounded-panel border border-line bg-white">
                   <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${collapsed ? '' : 'border-b border-line'}`}>
@@ -762,10 +784,14 @@ export function CoilsView() {
                       {collapsed ? <ChevronRight size={16} className="shrink-0 text-muted" /> : <ChevronDown size={16} className="shrink-0 text-muted" />}
                       <span className="min-w-0">
                         <span className="block truncate font-medium text-ink">{group.key}</span>
-                        <span className="mt-0.5 block text-xs text-muted">{group.rows.length} 条 · 当前定子单片成本 {money(group.rows[0]?.unitPrice || 0)}</span>
+                        <span className="mt-0.5 block text-xs text-muted">
+                          {group.rows.length} 条
+                          {calculatedRows.length > 0 ? ` · 计算方案单片成本 ${money(calculatedRows[0]?.unitPrice || 0)}` : ''}
+                          {kitCount > 0 ? ` · 套件价方案 ${kitCount} 条` : ''}
+                        </span>
                       </span>
                     </button>
-                    {editingGroupKey === group.key ? (
+                    {calculatedRows.length > 0 && editingGroupKey === group.key ? (
                       <div className="flex shrink-0 items-center gap-2">
                         <Input
                           value={editingGroupPrice}
@@ -789,27 +815,28 @@ export function CoilsView() {
                           取消
                         </Button>
                       </div>
-                    ) : (
+                    ) : calculatedRows.length > 0 ? (
                       <Button
                         size="sm"
                         variant="ghost"
                         disabled={saving}
                         onClick={() => {
                           setEditingGroupKey(group.key);
-                          setEditingGroupPrice(String(group.rows[0]?.unitPrice || ''));
+                          setEditingGroupPrice(String(calculatedRows[0]?.unitPrice || ''));
                         }}
                         icon={<Pencil size={14} />}
                       >
                         改定子单片成本
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   {!collapsed ? <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1220px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1320px] border-collapse text-left text-sm">
                       <thead className="bg-slate-50 text-xs text-muted">
                         <tr>
                           <th className="px-4 py-2.5 font-medium">片数</th>
                           <th className="px-4 py-2.5 font-medium">方案</th>
+                          <th className="px-4 py-2.5 font-medium">计价方式</th>
                           <th className="px-4 py-2.5 font-medium">定子单片成本</th>
                           <th className="px-4 py-2.5 font-medium">线重</th>
                           <th className="px-4 py-2.5 font-medium">铜价基数</th>
@@ -838,10 +865,15 @@ export function CoilsView() {
                                   {coil.schemeStatus === 'official' ? '正式' : coil.schemeStatus === 'testing' ? '测试' : '停用'}
                                 </span>
                               </td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.unitPrice)}</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.wireWeight} kg</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.copperBase)}</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{money(coil.coilFee + coil.rotorFee)}</td>
+                              <td className="border-b border-line px-4 py-2.5">
+                                <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${coil.pricingMode === 'kit' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
+                                  {coil.pricingMode === 'kit' ? '供应商套件价' : '计算计价'}
+                                </span>
+                              </td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? '-' : money(coil.unitPrice)}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? `${optionalPositiveNumberText(coil.wireWeight)}${coil.wireWeight > 0 ? ' kg' : ''}` : `${coil.wireWeight} kg`}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? (coil.copperBase > 0 ? money(coil.copperBase) : '-') : money(coil.copperBase)}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? '-' : money(coil.coilFee + coil.rotorFee)}</td>
                               <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{money(coil.cost)}</td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <div className="font-medium text-ink">{coil.stock} 套</div>
@@ -949,24 +981,46 @@ export function CoilsView() {
               <Field label="方案名称" className="md:col-span-2">
                 <Input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" />
               </Field>
-              <Field
-                label="定子单片成本"
-                hint={editingCoil ? '定子单片成本请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
-              >
-                <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={Boolean(editingCoil)} selectOnFirstFocus />
+              <Field label="计价方式" className="md:col-span-2" hint="供应商套件价只按完整套件价格计价，不参与其他片数的插值或外推。">
+                <Select value={form.pricingMode} onChange={(event) => updateForm({ pricingMode: event.target.value as CoilFormState['pricingMode'] })}>
+                  <option value="calculated">计算计价</option>
+                  <option value="kit">供应商套件价</option>
+                </Select>
               </Field>
-              <Field label="线重 kg">
-                <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
-              </Field>
-              <Field label="铜价基数">
-                <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
-              </Field>
-              <Field label="线圈加工费">
-                <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
-              </Field>
-              <Field label="转子加工费">
-                <Input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
-              </Field>
+              {form.pricingMode === 'kit' ? (
+                <>
+                  <Field label="供应商套件价" className="md:col-span-2" hint="每套线圈转子的直接采购成本，不再计算定子、铜重或加工费。">
+                    <Input value={form.kitPrice} onChange={(event) => updateForm({ kitPrice: event.target.value })} type="number" min="0.01" step="0.01" selectOnFirstFocus />
+                  </Field>
+                  <Field label="线重 kg（可选）" hint="仅作套件价格参考，不参与成本计算。">
+                    <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
+                  </Field>
+                  <Field label="铜价基数（可选）" hint="仅作套件价格参考，不参与成本计算。">
+                    <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field
+                    label="定子单片成本"
+                    hint={editingCoil?.pricingMode === 'calculated' ? '定子单片成本请在定子组合里批量修改，保持同直径、材质和槽眼一致。' : undefined}
+                  >
+                    <Input value={form.unitPrice} onChange={(event) => updateForm({ unitPrice: event.target.value })} type="number" min="0" step="0.0001" disabled={editingCoil?.pricingMode === 'calculated'} selectOnFirstFocus />
+                  </Field>
+                  <Field label="线重 kg">
+                    <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
+                  </Field>
+                  <Field label="铜价基数">
+                    <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
+                  </Field>
+                  <Field label="线圈加工费">
+                    <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
+                  </Field>
+                  <Field label="转子加工费">
+                    <Input value={form.rotorFee} onChange={(event) => updateForm({ rotorFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
+                  </Field>
+                </>
+              )}
               <Field label="默认搭配电缆线径">
                 <Input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} />
               </Field>

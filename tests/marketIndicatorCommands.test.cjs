@@ -46,6 +46,8 @@ function createFixture() {
         );
         CREATE TABLE coils (
             id INTEGER PRIMARY KEY,
+            pricing_mode TEXT NOT NULL DEFAULT 'calculated',
+            kit_price REAL NOT NULL DEFAULT 0,
             unit_price REAL,
             sheets REAL,
             wire_weight REAL,
@@ -61,12 +63,13 @@ function createFixture() {
             updated_at TEXT
         );
         INSERT INTO coils (
-            id, unit_price, sheets, wire_weight, copper_base,
-            coil_fee, rotor_fee, cost, updated_at
-        ) VALUES (
-            1, 0.21, 120, 0.559, 100,
-            8, 5, 90, '2026-08-03T05:00:00.000Z'
-        );
+            id, pricing_mode, kit_price, unit_price, sheets, wire_weight,
+            copper_base, coil_fee, rotor_fee, cost, updated_at
+        ) VALUES
+            (1, 'calculated', 0, 0.21, 120, 0.559, 100,
+                8, 5, 90, '2026-08-03T05:00:00.000Z'),
+            (2, 'kit', 66.5, 0, 140, 0, 0,
+                0, 0, 66.5, '2026-08-03T05:00:00.000Z');
         INSERT INTO system_settings (key, value, updated_at) VALUES
             ('aluminum_wire_price_per_kg', '20.00', '2026-08-03T05:00:00.000Z'),
             ('usd_cny_rate', '7.1000', '2026-08-03T05:00:00.000Z');
@@ -171,6 +174,10 @@ test('市场指标同步原子提交线圈、设置、operation 和强审计', (
     assert.equal(result.usdCnyRate, '7.2345');
     assert.equal(result.auditIds.length, 3);
     assert.equal(result.changes.length, 3);
+    assert.deepEqual(
+        fixture.db.prepare('SELECT copper_base, cost FROM coils WHERE id = 2').get(),
+        { copper_base: 0, cost: 66.5 }
+    );
     assert.equal(
         fixture.db.prepare(`
             SELECT value FROM system_settings
@@ -228,6 +235,10 @@ test('市场指标同步任一步缺少强审计时整体回滚', () => {
         fixture.db.prepare('SELECT copper_base FROM coils').get()
             .copper_base,
         100
+    );
+    assert.deepEqual(
+        fixture.db.prepare('SELECT copper_base, cost FROM coils WHERE id = 2').get(),
+        { copper_base: 0, cost: 66.5 }
     );
     assert.equal(
         fixture.db.prepare(`

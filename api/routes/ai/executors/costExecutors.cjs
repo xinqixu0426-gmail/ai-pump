@@ -17,6 +17,8 @@ function coilCandidateData(coil) {
         slotType: coil.slotType || '小眼',
         schemeName: coil.schemeName || '',
         schemeStatus: coil.schemeStatus || 'official',
+        pricingMode: coil.pricingMode === 'kit' ? 'kit' : 'calculated',
+        kitPrice: Number(coil.kitPrice || 0),
         unitPrice: Number(coil.unitPrice || 0),
         wireWeight: Number(coil.wireWeight || 0),
         copperBase: Number(coil.copperBase || 0),

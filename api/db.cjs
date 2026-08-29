@@ -213,6 +213,8 @@ function coilRow(r) {
         slotType: variant?.slot_type || r.slot_type || '小眼',
         schemeName: r.scheme_name || '',
         schemeStatus: r.scheme_status || 'official',
+        pricingMode: r.pricing_mode === 'kit' ? 'kit' : 'calculated',
+        kitPrice: Number(r.kit_price || 0),
         wireWeight: r.wire_weight, copperBase: r.copper_base,
         coilFee: r.coil_fee, rotorFee: r.rotor_fee,
         cost: r.cost, stock: Number(r.stock || 0),

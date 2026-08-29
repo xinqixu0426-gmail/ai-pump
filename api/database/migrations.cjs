@@ -5,6 +5,7 @@ const {
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
     COIL_INVENTORY_SCHEMA_SQL,
+    COIL_PRICING_CONSTRAINTS_SQL,
     COIL_STOCK_COLUMN_DEFINITION,
     CORE_CONSTRAINED_TABLES,
     LEGACY_COLUMN_UPGRADES,
@@ -262,6 +263,8 @@ function rebuildCoils(db) {
             sheets INTEGER NOT NULL,
             scheme_name TEXT DEFAULT '',
             scheme_status TEXT DEFAULT 'official',
+            pricing_mode TEXT NOT NULL DEFAULT 'calculated',
+            kit_price REAL NOT NULL DEFAULT 0,
             unit_price REAL DEFAULT 0,
             wire_weight REAL DEFAULT 0,
             copper_base REAL DEFAULT 0,
@@ -280,14 +283,16 @@ function rebuildCoils(db) {
         );
         INSERT INTO coils (
             id, stator_variant_id, spec, material, slot_type, sheets,
-            scheme_name, scheme_status, unit_price, wire_weight, copper_base,
+            scheme_name, scheme_status, pricing_mode, kit_price,
+            unit_price, wire_weight, copper_base,
             coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor,
             main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data,
             created_at, updated_at
         )
         SELECT
             id, stator_variant_id, spec, material, slot_type, sheets,
-            scheme_name, scheme_status, unit_price, wire_weight, copper_base,
+            scheme_name, scheme_status, pricing_mode, kit_price,
+            unit_price, wire_weight, copper_base,
             coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor,
             main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data,
             created_at, updated_at
@@ -3079,6 +3084,31 @@ const MIGRATIONS = Object.freeze([
                 CREATE INDEX IF NOT EXISTS idx_external_connections_active
                     ON external_connections(provider, deleted_at, updated_at DESC);
             `);
+        },
+    },
+    {
+        version: 69,
+        name: 'coil_pricing_modes',
+        signature: 'coil-calculated-or-kit-pricing-v1',
+        up(db) {
+            const columns = new Set(
+                db.pragma('table_info(coils)').map(column => column.name)
+            );
+            if (!columns.has('pricing_mode')) {
+                db.exec(`
+                    ALTER TABLE coils
+                    ADD COLUMN pricing_mode TEXT NOT NULL DEFAULT 'calculated'
+                    CHECK(pricing_mode IN ('calculated', 'kit'))
+                `);
+            }
+            if (!columns.has('kit_price')) {
+                db.exec(`
+                    ALTER TABLE coils
+                    ADD COLUMN kit_price REAL NOT NULL DEFAULT 0
+                    CHECK(kit_price >= 0)
+                `);
+            }
+            db.exec(COIL_PRICING_CONSTRAINTS_SQL);
         },
     },
 ]);

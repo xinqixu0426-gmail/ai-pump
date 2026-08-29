@@ -87,6 +87,20 @@ function item(qty) {
     };
 }
 
+function kitCoil() {
+    return {
+        id: 88,
+        spec: 'Y90',
+        material: '钢带',
+        slotType: '小眼',
+        sheets: 12,
+        pricingMode: 'kit',
+        kitPrice: 88.5,
+        cost: 88.5,
+        schemeStatus: 'official',
+    };
+}
+
 test('报价保存草稿允许数量待定且不生成误导总金额', () => {
     const dependencies = fixture();
     try {
@@ -173,6 +187,43 @@ test('报价保存持久化插值线圈 warning 且客户端包材价格不进�
         assert.equal(savedItem.bomSnapshot.some(part => part.inventoryType === 'none'), true);
         assert.equal(packingPart.snapshotPrice, 12);
         assert.equal(savedItem.overrides.packingPartsJson.includes('999'), false);
+    } finally {
+        dependencies.db.close();
+    }
+});
+
+test('报价保存锁定供应商线圈转子套件价和正式库存身份', () => {
+    const dependencies = fixture();
+    try {
+        dependencies.db.prepare(`
+            UPDATE recipes
+            SET configuration_policy_json = ?
+            WHERE id = 2
+        `).run(JSON.stringify({
+            version: 1,
+            fields: { coilSheets: [12] },
+        }));
+        dependencies.dbGetAllCoils = () => [kitCoil()];
+
+        const draft = buildQuotationSavePayloadDraft(dependencies, {
+            customerId: 1,
+            status: '报价中',
+            items: [{
+                ...item(2),
+                overrides: { coilSheets: 12 },
+            }],
+        });
+        const [savedItem] = JSON.parse(draft.itemsJson);
+        const coilPart = savedItem.bomSnapshot.find(part => part.costRole === 'coil');
+
+        assert.equal(savedItem.unitCost, 98.5);
+        assert.equal(coilPart.snapshotPrice, 88.5);
+        assert.equal(coilPart.pricingMode, 'kit');
+        assert.equal(coilPart.kitPrice, 88.5);
+        assert.equal(coilPart.coilId, 88);
+        assert.equal(coilPart.inventoryType, 'coil');
+        assert.equal(coilPart.formula, '供应商套件价');
+        assert.equal(savedItem.warnings.length, 0);
     } finally {
         dependencies.db.close();
     }

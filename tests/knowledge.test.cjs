@@ -194,20 +194,31 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
         parts: [{ id: 1, model: '6202轴承', category: '轴承', price: 1.5, supplier: 'S1', stock: 20, notes: '上轴承', updatedAt: '2026-01-01' }],
         templates: [{ id: 2, shellModel: 'V750', partsJson: '[]', shellComponentsJson: '[]', costMode: 'bundle', bundleCost: 90, assemblyWage: 3, packingWage: 1, surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 2 }],
         recipes: [{ id: 3, name: 'V750 12-140', spec: '1寸', partsJson: JSON.stringify([{ model: '6202轴承', qty: 2 }]), packingPartsJson: '[]', savedTotalCost: 120, coilSpec: '12', coilSheets: 140, coilMaterial: '钢带' }],
-        coils: [{
-            id: 4,
-            spec: '12',
-            sheets: 140,
-            material: '钢带',
-            cost: 40,
-            wireWeight: 0.8,
-            defaultWireGauge: '1.0',
-            defaultCapacitor: '20uF',
-            mainWireGauge: '0.55',
-            mainWireData: '主线 820 匝',
-            auxWireGauge: '0.45',
-            auxWireData: '副线 960 匝',
-        }],
+        coils: [
+            {
+                id: 4,
+                spec: '12',
+                sheets: 140,
+                material: '钢带',
+                cost: 40,
+                wireWeight: 0.8,
+                defaultWireGauge: '1.0',
+                defaultCapacitor: '20uF',
+                mainWireGauge: '0.55',
+                mainWireData: '主线 820 匝',
+                auxWireGauge: '0.45',
+                auxWireData: '副线 960 匝',
+            },
+            {
+                id: 8,
+                spec: '12',
+                sheets: 160,
+                material: '钢带',
+                pricingMode: 'kit',
+                kitPrice: 52.5,
+                cost: 52.5,
+            },
+        ],
         customers: [{ id: 5, name: '张三', defaultMargin: 0.15, contactInfo: '电话', remark: '' }],
         quotations: [{ id: 6, customerId: 5, status: '报价中', itemsJson: JSON.stringify([{ baseRecipeName: 'V750 12-140', qty: 2 }]), totalCost: 240, totalPrice: 276 }],
         orders: [{ id: 7, customerName: '张三', contractNo: 'HT-1', status: '待采购', itemsJson: JSON.stringify([{ recipeName: 'V750 12-140', qty: 2 }]), purchaseListJson: '[]', todosJson: '[]' }],
@@ -227,6 +238,11 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     assert.match(coilEntry.content, /默认搭配电缆线径：1\.0/);
     assert.match(coilEntry.content, /主线漆包线线径：0\.55/);
     assert.match(coilEntry.content, /副线数据：副线 960 匝/);
+    const kitCoilEntry = entries.find(entry => entry.entryType === 'coil' && entry.sourceId === '8');
+    assert.match(kitCoilEntry.summary, /供应商套件价 52\.5 元/);
+    assert.match(kitCoilEntry.content, /计价方式：供应商套件价/);
+    assert.doesNotMatch(kitCoilEntry.content, /定子单片成本|铜重|绕线费|转子加工费/);
+    assert.equal(kitCoilEntry.metadata.pricingMode, 'kit');
     const customerKnowledgeEntry = entries.find(entry => entry.entryType === 'customer');
     assert.match(customerKnowledgeEntry.summary, /默认利润率 15%/);
     assert.match(customerKnowledgeEntry.content, /默认利润率：15%/);
@@ -238,6 +254,8 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     const cableRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'dynamic_accessories');
     assert.match(cableRule.summary, /成品电缆业务项/);
     assert.match(cableRule.content, /不把线材和插头\/规格拆成两个配件/);
+    const coilCostRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'coil_cost_formula');
+    assert.match(coilCostRule.summary, /计算计价或供应商套件价/);
     const cuttingRule = entries.find(entry => entry.sourceTable === 'business_rules' && entry.sourceId === 'cutting_shell_semantics');
     assert.match(cuttingRule.summary, /800平刀切割泵壳/);
     assert.match(cuttingRule.summary, /是否随泵壳附带刀片未明确/);

@@ -104,6 +104,49 @@ test('报价覆盖线圈片数后复用线圈插值规则', () => {
     assert.equal(result.warnings[0].code, 'coil_inventory_scheme_required');
 });
 
+test('报价覆盖精确套件方案时锁定套件价和线圈库存身份', () => {
+    const row = {
+        id: 22,
+        name: '套件价覆盖配方',
+        parts_json: JSON.stringify([
+            { name: '线圈转子', model: 'Y90-10', qty: 1, snapshotPrice: 26 },
+        ]),
+        saved_total_cost: 26,
+        coil_spec: 'Y90',
+        coil_sheets: 10,
+        coil_material: '钢带',
+        coil_slot_type: '小眼',
+        coil_wire_weight: 99,
+        has_float: 0,
+        has_cable: 0,
+    };
+    const result = calculateRecipeCostPreview(row, { coilSheets: 20 }, {
+        partsCache: {},
+        partsByModel: {},
+        calculateRecipeCost,
+        getSetting: () => undefined,
+        getCoils: () => [{
+            id: 82,
+            spec: 'Y90',
+            material: '钢带',
+            slotType: '小眼',
+            sheets: 20,
+            schemeStatus: 'official',
+            pricingMode: 'kit',
+            kitPrice: 64,
+        }],
+    });
+
+    const coil = result.parts.find(part => part.name === '线圈转子');
+    assert.equal(result.unitCost, 64);
+    assert.equal(coil.snapshotPrice, 64);
+    assert.equal(coil.pricingMode, 'kit');
+    assert.equal(coil.kitPrice, 64);
+    assert.equal(coil.coilId, 82);
+    assert.equal(coil.inventoryType, 'coil');
+    assert.deepEqual(result.warnings, []);
+});
+
 test('报价覆盖线圈片数后按目标线圈方案同步替换电容', () => {
     const oldCapacitor = { id: 31, model: '20μF', name: '电容', category: '电容', supplier: '电容厂', price: 2 };
     const nextCapacitor = { id: 32, model: '30μF', name: '电容', category: '电容', supplier: '电容厂', price: 3 };

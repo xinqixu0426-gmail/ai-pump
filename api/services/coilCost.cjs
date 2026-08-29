@@ -3,6 +3,8 @@ const DEFAULT_COIL_SLOT_TYPE = '小眼';
 const COIL_MATERIALS = new Set(['钢带', '冷轧']);
 const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 const COIL_SCHEME_STATUSES = new Set(['testing', 'official', 'disabled']);
+const COIL_PRICING_MODES = new Set(['calculated', 'kit']);
+const DEFAULT_COIL_PRICING_MODE = 'calculated';
 
 function coilValue(coil, key) {
     return coil?.[key] ?? coil?.[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)];
@@ -53,6 +55,23 @@ function coilDiameterMm(coil) {
     return stored > 0 ? stored : normalizeCoilSpec(coilValue(coil, 'spec')).diameterMm;
 }
 
+function coilPricingMode(coil) {
+    return String(coilValue(coil, 'pricingMode') || DEFAULT_COIL_PRICING_MODE) === 'kit'
+        ? 'kit'
+        : DEFAULT_COIL_PRICING_MODE;
+}
+
+function calculateStoredCoilCost(values = {}) {
+    const pricingMode = String(values.pricingMode || DEFAULT_COIL_PRICING_MODE);
+    if (pricingMode === 'kit') return Number(values.kitPrice || 0);
+    return (
+        Number(values.unitPrice || 0) * Number(values.sheets || 0)
+        + Number(values.wireWeight || 0) * Number(values.copperBase || 0)
+        + Number(values.coilFee || 0)
+        + Number(values.rotorFee || 0)
+    );
+}
+
 function selectSpecCoils(coils, dimensions, { includeTesting = false } = {}) {
     return sortBySheets((coils || []).filter(coil => {
         const status = String(coilValue(coil, 'schemeStatus') || 'official');
@@ -94,25 +113,70 @@ function calculateCoilCost(coils, input = {}) {
         };
     }
 
-    const resolveUnitPrice = coil => Number(coilValue(coil, 'unitPrice') || 0);
     const exactMatch = specCoils.find(c => parseInt(coilValue(c, 'sheets')) === targetSheets);
+    if (exactMatch && coilPricingMode(exactMatch) === 'kit') {
+        const kitPrice = Number(coilValue(exactMatch, 'kitPrice') || 0);
+        if (!Number.isFinite(kitPrice) || kitPrice <= 0) {
+            return {
+                success: false,
+                status: 422,
+                error: `规格 "${spec}"、材质 "${material}"、槽眼 "${slotType}"、${targetSheets} 片的供应商套件价无效`,
+            };
+        }
+        return {
+            success: true,
+            data: {
+                coilId: Number(coilValue(exactMatch, 'id') || coilValue(exactMatch, 'Id') || 0) || null,
+                spec,
+                material,
+                slotType,
+                diameterMm: dimensions.diameterMm,
+                sheets: targetSheets,
+                pricingMode: 'kit',
+                kitPrice,
+                unitPrice: 0,
+                wireWeight: Number(coilValue(exactMatch, 'wireWeight') || 0),
+                copperBase: Number(coilValue(exactMatch, 'copperBase') || 0),
+                coilFee: 0,
+                rotorFee: 0,
+                wireGauge: coilValue(exactMatch, 'defaultWireGauge') || null,
+                capacitor: coilValue(exactMatch, 'defaultCapacitor') || null,
+                totalCost: parseFloat(kitPrice.toFixed(2)),
+                formula: '供应商套件价',
+                source: '供应商套件价（精确匹配）',
+                isCustomWireWeight: false,
+            },
+        };
+    }
+
+    const calculatedCoils = specCoils.filter(coil => coilPricingMode(coil) === 'calculated');
+    if (!exactMatch && calculatedCoils.length === 0) {
+        return {
+            success: false,
+            status: 404,
+            error: `未找到规格 "${spec}"、材质 "${material}"、槽眼 "${slotType}"、${targetSheets} 片的精确套件方案；供应商套件价不参与插值或外推`,
+        };
+    }
+
+    const resolveUnitPrice = coil => Number(coilValue(coil, 'unitPrice') || 0);
+    const calculationMatch = exactMatch || null;
     let unitPrice, wireWeight, copperBase, coilFee, rotorFee, wireGauge, capacitor, source;
 
-    if (exactMatch) {
-        unitPrice = resolveUnitPrice(exactMatch);
-        wireWeight = parsedCustomerWireWeight ?? parseFloat(coilValue(exactMatch, 'wireWeight') || 0);
-        copperBase = parsedCopperPrice ?? parseFloat(coilValue(exactMatch, 'copperBase') || 0);
-        coilFee = parseFloat(coilValue(exactMatch, 'coilFee') || 0);
-        rotorFee = parseFloat(coilValue(exactMatch, 'rotorFee') || 0);
-        wireGauge = coilValue(exactMatch, 'defaultWireGauge') || null;
-        capacitor = coilValue(exactMatch, 'defaultCapacitor') || null;
+    if (calculationMatch) {
+        unitPrice = resolveUnitPrice(calculationMatch);
+        wireWeight = parsedCustomerWireWeight ?? parseFloat(coilValue(calculationMatch, 'wireWeight') || 0);
+        copperBase = parsedCopperPrice ?? parseFloat(coilValue(calculationMatch, 'copperBase') || 0);
+        coilFee = parseFloat(coilValue(calculationMatch, 'coilFee') || 0);
+        rotorFee = parseFloat(coilValue(calculationMatch, 'rotorFee') || 0);
+        wireGauge = coilValue(calculationMatch, 'defaultWireGauge') || null;
+        capacitor = coilValue(calculationMatch, 'defaultCapacitor') || null;
         source = '精确匹配';
     } else {
         let lower = null, upper = null;
-        for (let i = 0; i < specCoils.length; i++) {
-            const s = parseInt(coilValue(specCoils[i], 'sheets'));
-            if (s < targetSheets) lower = specCoils[i];
-            if (s > targetSheets && !upper) upper = specCoils[i];
+        for (let i = 0; i < calculatedCoils.length; i++) {
+            const s = parseInt(coilValue(calculatedCoils[i], 'sheets'));
+            if (s < targetSheets) lower = calculatedCoils[i];
+            if (s > targetSheets && !upper) upper = calculatedCoils[i];
         }
 
         if (lower && upper) {
@@ -165,6 +229,8 @@ function calculateCoilCost(coils, input = {}) {
             slotType,
             diameterMm: dimensions.diameterMm,
             sheets: targetSheets,
+            pricingMode: 'calculated',
+            kitPrice: 0,
             unitPrice,
             wireWeight,
             copperBase,
@@ -189,13 +255,19 @@ function buildCoilSpecDraft(coils, input = {}) {
         String(coilValue(coil, 'material') || DEFAULT_COIL_MATERIAL).trim() === material
         && String(coilValue(coil, 'slotType') || DEFAULT_COIL_SLOT_TYPE).trim() === slotType
     ));
-    const reference = exactVariantCoils[0] || allSpecCoils[0] || null;
+    const reference = exactVariantCoils.find(coil => coilPricingMode(coil) === 'calculated')
+        || exactVariantCoils[0]
+        || allSpecCoils.find(coil => coilPricingMode(coil) === 'calculated')
+        || allSpecCoils[0]
+        || null;
     if (!reference) {
         return {
             spec,
             diameterMm,
             material,
             slotType,
+            pricingMode: DEFAULT_COIL_PRICING_MODE,
+            kitPrice: 0,
             unitPrice: 0,
             wireWeight: null,
             copperBase: null,
@@ -215,7 +287,11 @@ function buildCoilSpecDraft(coils, input = {}) {
         diameterMm,
         material: exactVariant ? (coilValue(reference, 'material') || material) : material,
         slotType,
-        unitPrice: exactVariant ? Number(coilValue(reference, 'unitPrice') || 0) : 0,
+        pricingMode: DEFAULT_COIL_PRICING_MODE,
+        kitPrice: 0,
+        unitPrice: exactVariant && coilPricingMode(reference) === 'calculated'
+            ? Number(coilValue(reference, 'unitPrice') || 0)
+            : 0,
         wireWeight: Number(coilValue(reference, 'wireWeight') || 0),
         copperBase: Number(coilValue(reference, 'copperBase') || 0),
         coilFee: Number(coilValue(reference, 'coilFee') || 0),
@@ -248,7 +324,13 @@ function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material
         material: data.material,
         slotType: data.slotType,
         sheets: String(statorSheets),
+        coilId: data.coilId || null,
+        inventoryType: data.coilId ? 'coil' : 'none',
+        pricingMode: data.pricingMode,
+        kitPrice: data.kitPrice,
         unitPrice: data.unitPrice,
+        wireWeight: data.wireWeight,
+        copperBase: data.copperBase,
         cost: data.totalCost.toFixed(2),
         wireGauge: data.wireGauge,
         source: data.source,
@@ -323,8 +405,11 @@ module.exports = {
     COIL_MATERIALS,
     COIL_SLOT_TYPES,
     COIL_SCHEME_STATUSES,
+    COIL_PRICING_MODES,
+    DEFAULT_COIL_PRICING_MODE,
     normalizeCoilSpec,
     normalizeCoilDimensions,
+    calculateStoredCoilCost,
     parseStatorInput,
     calculateCoilCost,
     buildCoilSpecDraft,

@@ -124,6 +124,26 @@ test('配方成本草稿没有参数化基础螺丝时也会按长度公式计�
     assert.equal(result.partsCost, 2.28);
 });
 
+test('供应商线圈套件价在成本快照中不展示计算过程', () => {
+    const result = buildRecipeCostDraft({
+        parts: [{
+            name: '线圈转子',
+            model: '12-160',
+            qty: 1,
+            snapshotPrice: 52.5,
+            pricingMode: 'kit',
+            kitPrice: 52.5,
+            material: '钢带',
+            slotType: '小眼',
+            source: '供应商套件价（精确匹配）',
+        }],
+    });
+
+    assert.match(result.savedCostDetails, /计价方式: 供应商套件价/);
+    assert.match(result.savedCostDetails, /套件价: ¥52\.50/);
+    assert.doesNotMatch(result.savedCostDetails, /定子单片成本|公式:/);
+});
+
 test('通用配方成本计算支持浮球新界式加价', () => {
     const result = calculateRecipeCost([
         { name: '浮球', model: '浮球-线径0.55', supplier: '', qty: 1, floatAccessoryType: 'xinjie' },

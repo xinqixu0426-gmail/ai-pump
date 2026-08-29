@@ -296,6 +296,8 @@ const CANONICAL_TABLES_SQL = `
         sheets INTEGER NOT NULL,
         scheme_name TEXT DEFAULT '',
         scheme_status TEXT DEFAULT 'official',
+        pricing_mode TEXT NOT NULL DEFAULT 'calculated',
+        kit_price REAL NOT NULL DEFAULT 0,
         unit_price REAL DEFAULT 0,
         wire_weight REAL DEFAULT 0,
         copper_base REAL DEFAULT 0,
@@ -315,6 +317,10 @@ const CANONICAL_TABLES_SQL = `
         CHECK(slot_type IN ('小眼', '国标眼')),
         CHECK(sheets > 0),
         CHECK(scheme_status IN ('official', 'testing', 'disabled')),
+        CHECK(pricing_mode IN ('calculated', 'kit')),
+        CHECK(kit_price >= 0),
+        CHECK(pricing_mode <> 'kit' OR kit_price > 0),
+        CHECK(pricing_mode <> 'kit' OR cost = kit_price),
         CHECK(unit_price IS NULL OR unit_price >= 0),
         CHECK(wire_weight IS NULL OR wire_weight >= 0),
         CHECK(copper_base IS NULL OR copper_base >= 0),
@@ -1024,6 +1030,8 @@ const LEGACY_COLUMN_UPGRADES = {
     ],
     coils: [
         ['material', "TEXT DEFAULT '钢带'"],
+        ['pricing_mode', "TEXT NOT NULL DEFAULT 'calculated' CHECK(pricing_mode IN ('calculated', 'kit'))"],
+        ['kit_price', 'REAL NOT NULL DEFAULT 0 CHECK(kit_price >= 0)'],
         ['main_wire_gauge', "TEXT DEFAULT ''"],
         ['main_wire_data', "TEXT DEFAULT ''"],
         ['aux_wire_gauge', "TEXT DEFAULT ''"],
@@ -1062,6 +1070,23 @@ const LEGACY_COLUMN_UPGRADES = {
 };
 
 const COIL_STOCK_COLUMN_DEFINITION = 'INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0)';
+const COIL_PRICING_CONSTRAINTS_SQL = `
+    CREATE TRIGGER IF NOT EXISTS coils_kit_price_required_insert
+    BEFORE INSERT ON coils
+    WHEN NEW.pricing_mode = 'kit'
+      AND (NEW.kit_price <= 0 OR NEW.cost IS NULL OR NEW.cost <> NEW.kit_price)
+    BEGIN
+        SELECT RAISE(ABORT, 'kit price must be positive and equal cost');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS coils_kit_price_required_update
+    BEFORE UPDATE OF pricing_mode, kit_price, cost ON coils
+    WHEN NEW.pricing_mode = 'kit'
+      AND (NEW.kit_price <= 0 OR NEW.cost IS NULL OR NEW.cost <> NEW.kit_price)
+    BEGIN
+        SELECT RAISE(ABORT, 'kit price must be positive and equal cost');
+    END;
+`;
 const COIL_INVENTORY_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS coil_stock_movements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1182,6 +1207,7 @@ module.exports = {
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
     COIL_INVENTORY_SCHEMA_SQL,
+    COIL_PRICING_CONSTRAINTS_SQL,
     COIL_STOCK_COLUMN_DEFINITION,
     CORE_CONSTRAINED_TABLES,
     LEGACY_COLUMN_UPGRADES,

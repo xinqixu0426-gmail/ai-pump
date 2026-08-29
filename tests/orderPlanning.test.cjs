@@ -326,6 +326,8 @@ test('线圈转子按正式线圈方案分配库存，不要求写入零件库',
         material: '钢带',
         slotType: '小眼',
         schemeStatus: 'official',
+        pricingMode: 'kit',
+        kitPrice: 146.8,
         stock: 8,
         cost: 146.8,
     }];

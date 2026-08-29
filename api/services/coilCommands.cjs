@@ -16,10 +16,12 @@ const {
 } = require('./resourceVersion.cjs');
 const {
     COIL_MATERIALS,
+    COIL_PRICING_MODES,
     COIL_SCHEME_STATUSES,
     COIL_SLOT_TYPES,
     DEFAULT_COIL_MATERIAL,
     DEFAULT_COIL_SLOT_TYPE,
+    calculateStoredCoilCost,
     normalizeCoilDimensions,
 } = require('./coilCost.cjs');
 const {
@@ -45,6 +47,7 @@ const OPTIONAL_TEXT_FIELDS = new Set([
 ]);
 const NUMERIC_FIELDS = new Set([
     'diameterMm',
+    'kitPrice',
     'unitPrice',
     'sheets',
     'wireWeight',
@@ -60,6 +63,8 @@ const UPDATE_FIELDS = new Set([
     'slotType',
     'schemeName',
     'schemeStatus',
+    'pricingMode',
+    'kitPrice',
     'unitPrice',
     'sheets',
     'wireWeight',
@@ -115,7 +120,17 @@ function normalizeSchemeInput(body = {}) {
 }
 
 function coilCostFromValues(values) {
-    const unitPrice = parseNonNegativeNumber(values.unitPrice, 'unitPrice');
+    const pricingMode = String(values.pricingMode || 'calculated').trim() || 'calculated';
+    if (!COIL_PRICING_MODES.has(pricingMode)) {
+        throw coilCommandError('coil_pricing_mode_invalid', 'pricingMode 仅支持 calculated 或 kit', 400);
+    }
+    const kitPrice = parseNonNegativeNumber(values.kitPrice, 'kitPrice');
+    if (pricingMode === 'kit' && kitPrice <= 0) {
+        throw coilCommandError('coil_kit_price_required', '供应商套件价必须大于 0', 400);
+    }
+    const unitPrice = parseNonNegativeNumber(values.unitPrice, 'unitPrice', {
+        required: pricingMode === 'calculated',
+    });
     const sheets = parsePositiveId(values.sheets);
     if (!sheets) {
         throw coilCommandError('coil_sheets_invalid', 'sheets 必须是正整数', 400);
@@ -125,18 +140,24 @@ function coilCostFromValues(values) {
     const coilFee = parseNonNegativeNumber(values.coilFee, 'coilFee');
     const rotorFee = parseNonNegativeNumber(values.rotorFee, 'rotorFee');
     return {
-        unitPrice,
+        pricingMode,
+        kitPrice: pricingMode === 'kit' ? kitPrice : 0,
+        unitPrice: pricingMode === 'kit' ? 0 : unitPrice,
         sheets,
         wireWeight,
         copperBase,
-        coilFee,
-        rotorFee,
-        cost: (
-            unitPrice * sheets
-            + wireWeight * copperBase
-            + coilFee
-            + rotorFee
-        ).toFixed(5),
+        coilFee: pricingMode === 'kit' ? 0 : coilFee,
+        rotorFee: pricingMode === 'kit' ? 0 : rotorFee,
+        cost: calculateStoredCoilCost({
+            pricingMode,
+            kitPrice,
+            unitPrice,
+            sheets,
+            wireWeight,
+            copperBase,
+            coilFee,
+            rotorFee,
+        }).toFixed(5),
     };
 }
 
@@ -245,17 +266,9 @@ function versionCompatibilityWarning(coilId, expectedUpdatedAt) {
 }
 
 function normalizeCreateInput(input = {}) {
-    if (input.unitPrice === undefined || input.unitPrice === '') {
-        throw coilCommandError(
-            'coil_unit_price_required',
-            '规格、定子直径、片数和单片价为必填项',
-            400
-        );
-    }
     const scheme = normalizeSchemeInput(input);
     const cost = coilCostFromValues({
         ...input,
-        unitPrice: input.unitPrice,
         sheets: input.sheets,
     });
     return {
@@ -302,6 +315,8 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
                 sheets: normalized.sheets,
                 scheme_name: normalized.schemeName,
                 scheme_status: normalized.schemeStatus,
+                pricing_mode: normalized.pricingMode,
+                kit_price: normalized.kitPrice,
                 unit_price: normalized.unitPrice,
                 wire_weight: normalized.wireWeight,
                 copper_base: normalized.copperBase,
@@ -384,6 +399,12 @@ function normalizeUpdatePatch(input = {}) {
     ) {
         throw coilCommandError('coil_scheme_status_invalid', '方案状态无效', 400);
     }
+    if (
+        patch.pricingMode !== undefined
+        && !COIL_PRICING_MODES.has(patch.pricingMode)
+    ) {
+        throw coilCommandError('coil_pricing_mode_invalid', 'pricingMode 仅支持 calculated 或 kit', 400);
+    }
     return patch;
 }
 
@@ -394,6 +415,8 @@ function patchToDbUpdates(patch) {
         slotType: 'slot_type',
         schemeName: 'scheme_name',
         schemeStatus: 'scheme_status',
+        pricingMode: 'pricing_mode',
+        kitPrice: 'kit_price',
         unitPrice: 'unit_price',
         sheets: 'sheets',
         wireWeight: 'wire_weight',
@@ -516,6 +539,8 @@ function executeCoilUpdate(
             }
 
             if ([
+                'pricing_mode',
+                'kit_price',
                 'unit_price',
                 'sheets',
                 'wire_weight',
@@ -524,6 +549,8 @@ function executeCoilUpdate(
                 'rotor_fee',
             ].some(key => dbUpdates[key] !== undefined)) {
                 const normalizedCost = coilCostFromValues({
+                    pricingMode: dbUpdates.pricing_mode ?? current.pricingMode ?? 'calculated',
+                    kitPrice: dbUpdates.kit_price ?? current.kitPrice ?? 0,
                     unitPrice: dbUpdates.unit_price ?? current.unitPrice ?? 0,
                     sheets: dbUpdates.sheets ?? current.sheets ?? 0,
                     wireWeight: dbUpdates.wire_weight ?? current.wireWeight ?? 0,
@@ -531,15 +558,25 @@ function executeCoilUpdate(
                     coilFee: dbUpdates.coil_fee ?? current.coilFee ?? 0,
                     rotorFee: dbUpdates.rotor_fee ?? current.rotorFee ?? 0,
                 });
-                for (const [field, value] of Object.entries({
+                const normalizedFields = {
+                    pricing_mode: normalizedCost.pricingMode,
+                    kit_price: normalizedCost.kitPrice,
                     unit_price: normalizedCost.unitPrice,
                     sheets: normalizedCost.sheets,
                     wire_weight: normalizedCost.wireWeight,
                     copper_base: normalizedCost.copperBase,
                     coil_fee: normalizedCost.coilFee,
                     rotor_fee: normalizedCost.rotorFee,
-                })) {
-                    if (dbUpdates[field] !== undefined) dbUpdates[field] = value;
+                };
+                for (const [field, value] of Object.entries(normalizedFields)) {
+                    if (
+                        dbUpdates[field] !== undefined
+                        || field === 'pricing_mode'
+                        || field === 'kit_price'
+                        || normalizedCost.pricingMode === 'kit'
+                    ) {
+                        dbUpdates[field] = value;
+                    }
                 }
                 dbUpdates.cost = normalizedCost.cost;
             }
@@ -677,6 +714,7 @@ function buildCoilUnitPricePreview(dependencies, input = {}) {
         Number(coil.diameterMm) === normalized.diameterMm
         && (!normalized.material || coil.material === normalized.material)
         && (!normalized.slotType || coil.slotType === normalized.slotType)
+        && String(coil.pricingMode || 'calculated') === 'calculated'
     ));
     if (rows.length === 0) {
         const suffix = normalized.material
@@ -684,7 +722,7 @@ function buildCoilUnitPricePreview(dependencies, input = {}) {
             : '';
         throw coilCommandError(
             'coil_spec_not_found',
-            `未找到规格 "${normalized.spec}"${suffix}`,
+            `未找到规格 "${normalized.spec}"${suffix} 的计算计价方案；供应商套件价不参与定子单片价批量更新`,
             404
         );
     }

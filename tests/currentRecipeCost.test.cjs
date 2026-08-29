@@ -1,7 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { calculateRecipeCost } = require('../api/services/costEngine.cjs');
-const { calculateCurrentRecipeCost } = require('../api/services/currentRecipeCost.cjs');
+const {
+    buildCurrentRecipeCostBasis,
+    calculateCurrentRecipeCost,
+} = require('../api/services/currentRecipeCost.cjs');
 const { buildRecipeBomDraft } = require('../api/services/recipeBomEngine.cjs');
 
 test('当日成本按当前零件价和线圈价重算完整配方成本', () => {
@@ -64,6 +67,42 @@ test('没有保存成本时仍返回当日成本但差额为空', () => {
     assert.equal(result.currentTotalCost, 5);
     assert.equal(result.savedTotalCost, null);
     assert.equal(result.difference, null);
+});
+
+test('当日成本精确采用供应商套件价并保留快照语义', () => {
+    const recipe = {
+        id: 17,
+        partsJson: JSON.stringify([{
+            model: '750-36',
+            name: '线圈转子',
+            qty: 1,
+            snapshotPrice: 20,
+        }]),
+        coilSpec: '750',
+        coilSheets: 36,
+        coilMaterial: '钢带',
+        coilSlotType: '小眼',
+        coilWireWeight: 99,
+    };
+    const basis = buildCurrentRecipeCostBasis(recipe, {
+        calculateRecipeCost,
+        coils: [{
+            id: 72,
+            spec: '750',
+            material: '钢带',
+            slotType: '小眼',
+            sheets: 36,
+            schemeStatus: 'official',
+            pricingMode: 'kit',
+            kitPrice: 61.25,
+        }],
+    });
+
+    assert.equal(basis.partialTotalCost, 61.25);
+    assert.equal(basis.parts[0].snapshotPrice, 61.25);
+    assert.equal(basis.parts[0].pricingMode, 'kit');
+    assert.equal(basis.parts[0].kitPrice, 61.25);
+    assert.equal(basis.parts[0].formula, '供应商套件价');
 });
 
 test('当日成本重算应用全局浮球加价设置', () => {

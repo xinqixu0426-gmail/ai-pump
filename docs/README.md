@@ -1,6 +1,6 @@
 # 水泵工厂管理系统
 
-> 当前版本说明，更新于 2026-08-23。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
+> 当前版本说明，更新于 2026-08-29。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
 
 开发治理入口为根目录 [AGENTS.md](../AGENTS.md)、[ADF workflow skill](../.agents/skills/adf-workflow/SKILL.md) 和 [Guardian 配置](../.guardian/config.yaml)。它们分别保存项目协作边界、通用执行 SOP 与路径/验证映射；业务规则、API、数据库和成本事实仍只维护在本页下列权威文档与正式代码中。
 
@@ -32,7 +32,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 系统以水泵 BOM 为核心，统一管理：
 
 - 零件、供应商、库存和实时价格；
-- 定子标准直径、俗称、材质、槽眼、绕组方案和铜价成本；
+- 定子标准直径、俗称、材质、槽眼、绕组方案，以及计算计价或供应商套件价；
 - 泵壳模板、产品配方、客户可选配置范围和历史常用配置预设；
 - 客户、报价、订单、采购清单和生产待办；
 - 新建报价前上传客户询价附件，并用图片、Word、Excel、PDF 多模态模型归纳报价要求；
@@ -52,7 +52,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 | 配方补充信息 | 配置摘要 | 表单和局部变量按配置摘要理解 | 配方 API/SQLite 继续使用 `spec` |
 | 历史型号变体 | 常用配置预设；字段为“预设名称” | 配方页面使用预设语义 | `/api/model-variants`、`modelVariantId/modelName` 和 capability ID 保持兼容 |
 | 零件价格 | 目录成本价 | Web 零件对象使用 `catalogUnitCost` | API/SQLite 继续使用 `price` |
-| 线圈价格 | 定子单片成本、线圈套成本 | 页面按成本组成解释 | API/SQLite 继续使用 `unitPrice/cost`、`unit_price/cost` |
+| 线圈价格 | 计算计价时为定子单片成本和线圈转子成本；套件计价时为供应商套件价 | 页面按 `pricingMode` 区分计算计价与套件计价 | API 使用 `pricingMode/kitPrice/unitPrice/cost`；SQLite 使用 `pricing_mode/kit_price/unit_price/cost` |
 | 报价/订单价格 | 销售单价 | 报价和订单域的 `unitPrice` | API 字段保持 `unitPrice` |
 | 配方物料 | BOM 快照、选配件 | 解析后局部变量使用 BOM 语义 | `partsJson/extraPartsJson` 是稳定持久化兼容字段 |
 | 零件说明 | 备注 | 零件目录对象只暴露 `remark` | API 暂时兼容 `notes`；BOM 行 `notes` 是独立快照说明 |
@@ -79,7 +79,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 ### 基础数据
 
 - **零件**：按型号、分类、供应商记录价格和库存。同型号可以有多个供应商。包装类使用二级分类：`外包装`（牛皮纸箱、彩印箱、木箱）、`内衬`（泡沫、珍珠棉）和 `固定包材`（说明书、贴纸等）。
-- **线圈**：定子组合按标准直径、材质和槽眼建档；绕组方案再记录片数、铁芯单片价、铜重、加工费、默认搭配电缆线径/电容及主副漆包线绕组备忘。正式方案同时维护线圈转子成品库存和流水，测试方案不进入正式成本。
+- **线圈**：定子组合按标准直径、材质和槽眼建档；绕组方案再记录片数、`pricingMode`、`kitPrice`、默认搭配电缆线径/电容及主副漆包线绕组备忘。`calculated` 保存定子单片成本、铜重和加工费；`kit` 要求大于 0 的整套采购价，并可选保存线重和铜价基数作为不参与成本的价格参考，页面隐藏其余传统计算输入。正式方案同时维护线圈转子成品库存和流水，测试方案不进入正式成本。
 - **系统设置**：业务白名单配置包括管理费、电缆铜套、浮球新界式差价、铝线价格基数和美元兑人民币汇率；`/setup` 系统初始化页维护 AI 与知识检索运行参数，API Key 加密保存，部署安全密钥只显示状态。
 
 ### 泵壳模板与历史常用配置
@@ -186,15 +186,16 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 
 ### 线圈成本
 
-```text
-线圈记录单片价 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费
-```
+线圈方案使用两种互斥计价方式：
 
-- 有精确片数正式方案时使用该记录；无精确片数时只在同一定子组合的正式方案间插值。
+- 计算计价：`定子单片成本 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费`；
+- 供应商套件价：精确正式方案的每套成本直接等于 `kitPrice`；可选线重和铜价基数只作价格参考，不进入公式，其余传统计算过程不执行或展示。
+
+- 有精确片数正式方案时使用该记录；无精确片数时只在同一定子组合的计算计价正式方案间插值或外推，供应商套件价不参与。
 - 匹配不跨标准直径、材质或槽眼，测试/停用方案不参与正式成本。
 - `12` 是 `120mm` 的俗称；两者按同一标准直径匹配。
-- 线圈页提供实时市场指标、同定子组合自动带入和组合批量改单价；成本始终使用线圈记录自身的单片价。
-- 铜价每天 15:00 BJT 自动检查，仅在基数或计算成本变化时刷新线圈；铝线价格基数和美元汇率可在市场指标中手动同步。
+- 线圈页提供实时市场指标、同定子组合自动带入和计算方案组合批量改单价；套件价方案保持独立。
+- 铜价每天 15:00 BJT 自动检查，仅在计算方案的基数或成本变化时刷新线圈；套件价方案不变化。铝线价格基数和美元汇率可在市场指标中手动同步。
 
 ### 电缆与包装
 
@@ -224,7 +225,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 场景 | 接口 | 说明 |
 |---|---|---|
 | 应用常用配置 | `POST /api/recipes/model-variant-draft` | 根据常用配置和关联泵壳模板生成配方表单草稿；不写库 |
-| 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成录入草稿，统一带入同规格的线重、铜价基数、加工费、默认搭配电缆线径和电容；不写库 |
+| 新增线圈同规格带入 | `POST /api/coils/spec-draft` | 根据规格和材质生成新的计算计价录入草稿；优先从计算方案带入单片价、线重、铜价基数和加工费，只有套件方案时不继承其套件价或传统计算字段；默认搭配电缆线径和电容仍可带入；不写库 |
 | 前端单次配件计算 | `POST /api/cost/parts` | Web 当前主入口，只计算传入配件 |
 | 配方保存成本快照 | `POST /api/recipes/cost-draft` | 新建/编辑配方保存前生成 `savedTotalCost`、`savedCostDetails` 和标准化配件，并应用长螺丝长度、参数化计价及成品电缆合并规则；不写库 |
 | 配方保存 payload | `POST /api/recipes/save-payload-draft` | 保存前由 `costEngine` 根据 BOM 和费用字段重新生成权威成本快照，检查零价格项目，并返回版本、预览哈希和建议幂等键；不写库 |
@@ -274,7 +275,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 |---|---|---|
 | 运行健康 | `/api/health`、`/api/health/live`、`/api/health/ready` | 独立公开路由；提供存活、就绪、版本和后台任务状态 |
 | 零件 | `/api/parts`、`/api/parts/prices-preview`、`/api/parts/prices`、`/api/parts/batch-stock-preview`、`/api/parts/batch-stock` | CRUD、批量调价、库存预览与确认执行；价格与库存分别使用独立正式命令 |
-| 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、材质配置、成本计算与成品库存流水；列表、定子组合、规格草稿/选项和库存流水统一由纯读 `coilQueries` 提供，已有库存或库存流水的方案禁止删除 |
+| 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、计算计价/供应商套件价、成本查询与成品库存流水；套件价只按精确正式方案采用，不参与铜价同步、单片价批量修改或插值/外推；列表、定子组合、规格草稿/选项和库存流水统一由纯读 `coilQueries` 提供，已有库存或库存流水的方案禁止删除 |
 | 市场指标 | `/api/market-indicators` | 只读查询外部实时铜价、铝价、美元汇率及数据库已采用值；手动同步通过同域 maintenance API 原子提交 |
 | 模板 | `/api/templates` | Query/Command 分层；`templateQueries` 只读聚合模板、零件目录、关联配方、默认配方和成本草稿，`templateCommands` 执行 CRUD |
 | 常用配置预设（历史路径） | `/api/model-variants` | 历史兼容 CRUD；保存时可自动沉淀长螺丝规格，写入使用持久幂等、资源版本、事务回执和强审计 |
@@ -306,7 +307,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 最终表结构以 `api/database/schema.cjs` 为唯一权威来源；版本化迁移、校验和和历史库升级规则见 [`database-schema.md`](database-schema.md)。
 - 数据库启动时生成独立 `startup` 备份（保留 5 份），每天 03:00 BJT 生成 `daily` 备份（保留 30 份）；发布前 `release` 快照绑定 Git commit 和 Schema，恢复前自动生成 `safety` 快照。完整流程见 [database-backup-recovery.md](./database-backup-recovery.md)。
 - 审计日志在成功备份后清理超过 365 天的记录，可通过 `AUDIT_RETENTION_DAYS` 调整，设为 `0` 禁用。
-- 铜价启动时立即检查，此后每天 15:00 BJT 检查；数值未变化时不重写线圈，也不新增审计日志。
+- 铜价启动时立即检查，此后每天 15:00 BJT 检查；只更新计算计价方案，供应商套件价保持不变；数值未变化时不重写线圈，也不新增审计日志。
 - 铝线价格基数和美元汇率可通过市场指标同步接口手动写入系统设置；当前定时任务只自动同步铜价。
 
 ## 6. 转子出图
@@ -394,7 +395,7 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
-- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 103 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“意图信封 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
+- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 106 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“意图信封 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
 - 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 48 项只读白名单及 19 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。`delete_recipe` 与 `delete_part` 都必须先取得正式软删除 Preview 并绑定目标版本，不能因已有 DELETE Command 绕过准入。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。

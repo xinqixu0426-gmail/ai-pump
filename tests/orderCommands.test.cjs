@@ -282,6 +282,21 @@ function draftInput() {
     };
 }
 
+function kitCoil() {
+    return {
+        id: 88,
+        spec: 'Y90',
+        material: '钢带',
+        slotType: '小眼',
+        sheets: 12,
+        pricingMode: 'kit',
+        kitPrice: 88.5,
+        cost: 88.5,
+        schemeStatus: 'official',
+        stock: 0,
+    };
+}
+
 function commandContext(capabilityId, suffix) {
     return {
         capabilityId,
@@ -423,6 +438,53 @@ test('直接建单按客户配置覆盖锁定最终成本、配置和 BOM 快照
         assert.deepEqual(JSON.parse(item.partsJson).map(part => part.model), ['P-1']);
         assert.equal(JSON.parse(draft.purchaseListJson)[0].plannedQty, 3);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('直接建单锁定供应商线圈转子套件价并生成正式线圈库存计划', () => {
+    const fixture = createFixture();
+    try {
+        fixture.dependencies.dbGetAllCoils = () => [kitCoil()];
+        const draft = buildOrderSavePayloadDraft(fixture.dependencies, {
+            ...draftInput(),
+            items: [{
+                id: 'kit-coil-order-item',
+                recipeId: 2,
+                qty: 2,
+                profitMargin: 1.2,
+                configurationOverrides: {
+                    hasFloat: false,
+                    coilSheets: 12,
+                },
+            }],
+        });
+        const [item] = JSON.parse(draft.itemsJson);
+        const coilPart = JSON.parse(item.partsJson).find(part => part.costRole === 'coil');
+        const coilPlan = JSON.parse(draft.purchaseListJson).find(part => part.inventoryType === 'coil');
+
+        assert.equal(item.unitCost, 93.5);
+        assert.equal(coilPart.snapshotPrice, 88.5);
+        assert.equal(coilPart.pricingMode, 'kit');
+        assert.equal(coilPart.kitPrice, 88.5);
+        assert.equal(coilPart.coilId, 88);
+        assert.equal(coilPart.inventoryType, 'coil');
+        assert.equal(coilPart.formula, '供应商套件价');
+        assert.equal(coilPlan.coilId, 88);
+        assert.equal(coilPlan.plannedQty, 2);
+        assert.equal(coilPlan.referencePrice, 88.5);
+
+        const result = executeOrderCreate(
+            fixture.dependencies,
+            draft,
+            commandContext(CREATE_CAPABILITY_ID, 'kit-coil')
+        );
+        const [storedItem] = JSON.parse(result.order.itemsJson);
+        const storedCoilPart = JSON.parse(storedItem.partsJson).find(part => part.costRole === 'coil');
+        assert.equal(storedCoilPart.pricingMode, 'kit');
+        assert.equal(storedCoilPart.kitPrice, 88.5);
+        assert.equal(storedCoilPart.coilId, 88);
     } finally {
         fixture.db.close();
     }

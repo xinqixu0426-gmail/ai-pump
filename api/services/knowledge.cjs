@@ -287,13 +287,30 @@ function documentEntry(document) {
 function coilEntry(coil) {
     const coilKey = `${coil.commonName || coil.spec}-${coil.sheets}`;
     const pairedCableWireGauge = coil.defaultWireGauge || '';
+    const pricingMode = coil.pricingMode === 'kit' ? 'kit' : 'calculated';
+    const pricingSummary = pricingMode === 'kit'
+        ? `供应商套件价 ${Number(coil.kitPrice || coil.cost || 0)} 元`
+        : `计算计价，成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg`;
+    const pricingLines = pricingMode === 'kit'
+        ? [
+            '计价方式：供应商套件价',
+            `供应商套件价：${Number(coil.kitPrice || coil.cost || 0)}`,
+        ]
+        : [
+            '计价方式：计算计价',
+            `定子单片成本：${Number(coil.unitPrice || 0)}`,
+            `铜重：${Number(coil.wireWeight || 0)}`,
+            `铜价基数：${Number(coil.copperBase || 0)}`,
+            `绕线费：${Number(coil.coilFee || 0)}`,
+            `转子加工费：${Number(coil.rotorFee || 0)}`,
+        ];
     return createEntry({
         entryType: 'coil',
         sourceTable: 'coils',
         sourceId: coil.id,
         sourceUpdatedAt: coil.updatedAt,
         title: `线圈：${coilKey} ${coil.material || '钢带'} ${coil.slotType || '小眼'}`,
-        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，成本 ${Number(coil.cost || 0)} 元，线重 ${Number(coil.wireWeight || 0)}kg，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
+        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，${pricingSummary}，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
         content: [
             `规格片数：${coilKey}`,
             `规格俗称：${coil.commonName || coil.spec}`,
@@ -302,11 +319,7 @@ function coilEntry(coil) {
             `材质：${coil.material || '钢带'}`,
             `槽眼：${coil.slotType || '小眼'}`,
             `方案：${coil.schemeName || ''}（${coil.schemeStatus || 'official'}）`,
-            `定子单片成本：${Number(coil.unitPrice || 0)}`,
-            `铜重：${Number(coil.wireWeight || 0)}`,
-            `铜价基数：${Number(coil.copperBase || 0)}`,
-            `绕线费：${Number(coil.coilFee || 0)}`,
-            `转子加工费：${Number(coil.rotorFee || 0)}`,
+            ...pricingLines,
             `成本：${Number(coil.cost || 0)}`,
             `默认搭配电缆线径：${pairedCableWireGauge}`,
             `默认电容：${coil.defaultCapacitor || ''}`,
@@ -328,6 +341,8 @@ function coilEntry(coil) {
             material: coil.material || '钢带',
             slotType: coil.slotType || '小眼',
             schemeStatus: coil.schemeStatus || 'official',
+            pricingMode,
+            kitPrice: pricingMode === 'kit' ? Number(coil.kitPrice || coil.cost || 0) : 0,
             cost: Number(coil.cost || 0),
             pairedCableWireGauge,
             defaultCapacitor: coil.defaultCapacitor || '',
@@ -484,11 +499,13 @@ function businessRuleEntries(settings) {
         {
             id: 'coil_cost_formula',
             title: '业务规则：线圈成本公式',
-            summary: '线圈成本 = 线圈记录单片价 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费。',
+            summary: '线圈使用计算计价或供应商套件价；套件价直接作为整套成本，且不参与铜价同步或片数插值/外推。',
             content: [
+                '计算计价成本 = 定子单片成本 × 片数 + 铜重 × 当前铜价 + 绕线加工费 + 转子加工费。',
+                '供应商套件价成本 = 线圈记录的整套采购价。',
                 `铝线价格基数：${settingMap.get('aluminum_wire_price_per_kg') ?? ''}`,
             ],
-            tags: ['业务规则', '线圈', '铜价'],
+            tags: ['业务规则', '线圈', '铜价', '供应商套件价'],
             metadata: { aluminumWirePricePerKg: settingMap.get('aluminum_wire_price_per_kg') ?? null },
         },
         {

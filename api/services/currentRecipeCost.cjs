@@ -91,6 +91,8 @@ function refreshCoilSnapshot(parts, recipe, coils) {
         ? {
             ...part,
             snapshotPrice: Number(result.data.totalCost || 0),
+            pricingMode: result.data.pricingMode || 'calculated',
+            kitPrice: Number(result.data.kitPrice || 0),
             unitPrice: result.data.unitPrice,
             source: result.data.source,
             formula: result.data.formula,

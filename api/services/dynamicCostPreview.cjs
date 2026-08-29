@@ -373,6 +373,8 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
                 supplier: '',
                 qty: 1,
                 snapshotPrice: coilCost,
+                pricingMode: coilCalculation.data.pricingMode || 'calculated',
+                kitPrice: Number(coilCalculation.data.kitPrice || 0),
                 coilId: coilCalculation.data.coilId || null,
                 inventoryType: coilCalculation.data.coilId ? 'coil' : 'none',
                 material: recipeData.coil_material,

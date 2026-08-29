@@ -52,6 +52,88 @@ test('线圈成本服务非精确片数使用插值', () => {
     assert.equal(result.data.source, '插值(24片↔30片, ratio=0.500)');
 });
 
+test('供应商套件价只按精确正式方案计价且忽略计算参数', () => {
+    const kitCoil = {
+        id: 88,
+        spec: '750',
+        material: '钢带',
+        slotType: '小眼',
+        schemeStatus: 'official',
+        sheets: 27,
+        pricingMode: 'kit',
+        kitPrice: 68.5,
+        unitPrice: 9,
+        wireWeight: 9,
+        copperBase: 999,
+        coilFee: 99,
+        rotorFee: 99,
+        defaultWireGauge: '0.75',
+    };
+    const result = calculateCoilCost([...coils, kitCoil], {
+        spec: '750',
+        sheets: 27,
+        material: '钢带',
+        wireWeight: 2.5,
+        copperPrice: 120,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.coilId, 88);
+    assert.equal(result.data.pricingMode, 'kit');
+    assert.equal(result.data.kitPrice, 68.5);
+    assert.equal(result.data.wireWeight, 9);
+    assert.equal(result.data.copperBase, 999);
+    assert.equal(result.data.totalCost, 68.5);
+    assert.equal(result.data.formula, '供应商套件价');
+    assert.equal(result.data.isCustomWireWeight, false);
+});
+
+test('供应商套件价不参与其他片数的插值或外推', () => {
+    const kitOnly = [{
+        id: 89,
+        spec: '900',
+        material: '钢带',
+        sheets: 20,
+        pricingMode: 'kit',
+        kitPrice: 80,
+        schemeStatus: 'official',
+    }];
+    const rejected = calculateCoilCost(kitOnly, {
+        spec: '900',
+        sheets: 21,
+        material: '钢带',
+    });
+    assert.equal(rejected.success, false);
+    assert.equal(rejected.status, 404);
+    assert.match(rejected.error, /不参与插值或外推/);
+
+    const mixed = calculateCoilCost([
+        { ...coils[0], sheets: 20 },
+        { ...kitOnly[0], spec: '750', sheets: 30 },
+        { ...coils[1], sheets: 40 },
+    ], { spec: '750', sheets: 35, material: '钢带' });
+    assert.equal(mixed.success, true);
+    assert.match(mixed.data.source, /20片↔40片/);
+    assert.equal(mixed.data.pricingMode, 'calculated');
+});
+
+test('损坏的零价供应商套件方案在成本读取层安全失败', () => {
+    const result = calculateCoilCost([{
+        id: 91,
+        spec: 'Y90',
+        material: '钢带',
+        slotType: '小眼',
+        sheets: 30,
+        schemeStatus: 'official',
+        pricingMode: 'kit',
+        kitPrice: 0,
+    }], { spec: 'Y90', sheets: 30, material: '钢带', slotType: '小眼' });
+
+    assert.equal(result.success, false);
+    assert.equal(result.status, 422);
+    assert.match(result.error, /供应商套件价无效/);
+});
+
 test('线圈成本拒绝非法片数和自定义成本参数', () => {
     for (const sheets of [0, -1, 24.5, 'abc']) {
         const result = calculateCoilCost(coils, { spec: '750', sheets, material: '钢带' });

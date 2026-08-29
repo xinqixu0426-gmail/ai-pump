@@ -12,6 +12,8 @@ export type CoilRecord = {
   sheets: number;
   schemeName: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  pricingMode: 'calculated' | 'kit';
+  kitPrice: number;
   unitPrice: number;
   wireWeight: number;
   copperBase: number;
@@ -37,6 +39,8 @@ export type CoilInput = {
   sheets: number;
   schemeName: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  pricingMode: 'calculated' | 'kit';
+  kitPrice?: number;
   unitPrice?: number;
   wireWeight: number;
   copperBase: number;
@@ -65,6 +69,8 @@ export type CoilCalcResult = {
   slotType: '小眼' | '国标眼';
   diameterMm: number;
   sheets: number;
+  pricingMode: 'calculated' | 'kit';
+  kitPrice: number;
   unitPrice: number;
   wireWeight: number;
   copperBase: number;
@@ -95,6 +101,8 @@ export type CoilSpecDraft = {
   diameterMm: number;
   material: string;
   slotType: '小眼' | '国标眼';
+  pricingMode: 'calculated' | 'kit';
+  kitPrice: number;
   unitPrice: number;
   wireWeight: number | null;
   copperBase: number | null;
@@ -186,6 +194,8 @@ export function rowToCoil(row: CoilRow): CoilRecord {
     sheets: Number(row.sheets) || 0,
     schemeName: row.schemeName || '',
     schemeStatus: row.schemeStatus === 'testing' || row.schemeStatus === 'disabled' ? row.schemeStatus : 'official',
+    pricingMode: row.pricingMode === 'kit' ? 'kit' : 'calculated',
+    kitPrice: Number(row.kitPrice) || 0,
     unitPrice: Number(row.unitPrice) || 0,
     wireWeight: Number(row.wireWeight) || 0,
     copperBase: Number(row.copperBase) || 0,

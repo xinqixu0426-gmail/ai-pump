@@ -66,6 +66,8 @@ function createFixture() {
             sheets INTEGER NOT NULL,
             scheme_name TEXT,
             scheme_status TEXT,
+            pricing_mode TEXT DEFAULT 'calculated',
+            kit_price REAL DEFAULT 0,
             unit_price REAL,
             wire_weight REAL,
             copper_base REAL,
@@ -170,6 +172,8 @@ function createFixture() {
             sheets: row.sheets,
             schemeName: row.scheme_name,
             schemeStatus: row.scheme_status,
+            pricingMode: row.pricing_mode === 'kit' ? 'kit' : 'calculated',
+            kitPrice: Number(row.kit_price || 0),
             unitPrice: row.unit_price,
             wireWeight: row.wire_weight,
             copperBase: row.copper_base,
@@ -265,6 +269,135 @@ test('线圈新增持久幂等，并原子替换同组合的旧正式方案', ()
             'testing'
         );
         assert.equal(second.auditIds.length, 2);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商套件价新增和模式切换由命令统一重算并拒绝空价格', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => executeCoilCreate(
+                fixture.dependencies,
+                coilInput({ pricingMode: 'kit', kitPrice: 0, unitPrice: undefined }),
+                commandContext(CREATE_CAPABILITY_ID, 'kit-invalid')
+            ),
+            error => error.code === 'coil_kit_price_required'
+        );
+        assert.throws(
+            () => executeCoilCreate(
+                fixture.dependencies,
+                coilInput({
+                    pricingMode: 'kit',
+                    kitPrice: 86.5,
+                    unitPrice: undefined,
+                    wireWeight: -0.1,
+                }),
+                commandContext(CREATE_CAPABILITY_ID, 'kit-invalid-reference')
+            ),
+            error => /wireWeight 必须是非负数字/.test(error.message)
+        );
+
+        const created = executeCoilCreate(
+            fixture.dependencies,
+            coilInput({
+                pricingMode: 'kit',
+                kitPrice: 86.5,
+                unitPrice: undefined,
+                wireWeight: 1.15,
+                copperBase: 76.2,
+                coilFee: 12,
+                rotorFee: 13,
+            }),
+            commandContext(CREATE_CAPABILITY_ID, 'kit-create')
+        );
+        assert.equal(created.coil.pricingMode, 'kit');
+        assert.equal(created.coil.kitPrice, 86.5);
+        assert.equal(created.coil.unitPrice, 0);
+        assert.equal(created.coil.wireWeight, 1.15);
+        assert.equal(created.coil.copperBase, 76.2);
+        assert.equal(created.coil.coilFee, 0);
+        assert.equal(created.coil.rotorFee, 0);
+        assert.equal(created.coil.cost, 86.5);
+
+        const referenceUpdated = executeCoilUpdate(
+            fixture.dependencies,
+            created.coil.id,
+            {
+                wireWeight: 1.2,
+                copperBase: 77,
+                expectedUpdatedAt: created.coil.updatedAt,
+            },
+            commandContext(UPDATE_CAPABILITY_ID, 'kit-reference-update')
+        );
+        assert.equal(referenceUpdated.coil.wireWeight, 1.2);
+        assert.equal(referenceUpdated.coil.copperBase, 77);
+        assert.equal(referenceUpdated.coil.cost, 86.5);
+
+        assert.throws(
+            () => executeCoilUpdate(
+                fixture.dependencies,
+                created.coil.id,
+                {
+                    copperBase: -1,
+                    expectedUpdatedAt: referenceUpdated.coil.updatedAt,
+                },
+                commandContext(UPDATE_CAPABILITY_ID, 'kit-invalid-reference-update')
+            ),
+            error => /copperBase 必须是非负数字/.test(error.message)
+        );
+
+        const referenceCleared = executeCoilUpdate(
+            fixture.dependencies,
+            created.coil.id,
+            {
+                wireWeight: 0,
+                copperBase: 0,
+                expectedUpdatedAt: referenceUpdated.coil.updatedAt,
+            },
+            commandContext(UPDATE_CAPABILITY_ID, 'kit-reference-clear')
+        );
+        assert.equal(referenceCleared.coil.wireWeight, 0);
+        assert.equal(referenceCleared.coil.copperBase, 0);
+        assert.equal(referenceCleared.coil.cost, 86.5);
+
+        const emptyReference = executeCoilCreate(
+            fixture.dependencies,
+            coilInput({
+                sheets: 141,
+                schemeStatus: 'testing',
+                pricingMode: 'kit',
+                kitPrice: 70,
+                unitPrice: undefined,
+                wireWeight: undefined,
+                copperBase: undefined,
+                coilFee: undefined,
+                rotorFee: undefined,
+            }),
+            commandContext(CREATE_CAPABILITY_ID, 'kit-empty-reference')
+        );
+        assert.equal(emptyReference.coil.wireWeight, 0);
+        assert.equal(emptyReference.coil.copperBase, 0);
+        assert.equal(emptyReference.coil.cost, 70);
+
+        const updated = executeCoilUpdate(
+            fixture.dependencies,
+            created.coil.id,
+            {
+                pricingMode: 'calculated',
+                unitPrice: 0.5,
+                wireWeight: 1,
+                copperBase: 80,
+                coilFee: 5,
+                rotorFee: 3,
+                expectedUpdatedAt: referenceCleared.coil.updatedAt,
+            },
+            commandContext(UPDATE_CAPABILITY_ID, 'kit-to-calculated')
+        );
+        assert.equal(updated.coil.pricingMode, 'calculated');
+        assert.equal(updated.coil.kitPrice, 0);
+        assert.equal(updated.coil.cost, 158);
     } finally {
         fixture.db.close();
     }
@@ -388,6 +521,42 @@ test('线圈批量改单片价绑定预览版本并支持稳定幂等重放', ()
         assert.equal(receipt.auditIds.length, 2);
         assert.equal(replay.idempotentReplay, true);
         assert.equal(replay.operationId, receipt.operationId);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('线圈批量改单片价只包含计算计价方案', () => {
+    const fixture = createFixture();
+    try {
+        executeCoilCreate(
+            fixture.dependencies,
+            coilInput({ sheets: 140 }),
+            commandContext(CREATE_CAPABILITY_ID, 'batch-calculated')
+        );
+        const kit = executeCoilCreate(
+            fixture.dependencies,
+            coilInput({
+                sheets: 160,
+                pricingMode: 'kit',
+                kitPrice: 95,
+                unitPrice: undefined,
+            }),
+            commandContext(CREATE_CAPABILITY_ID, 'batch-kit')
+        );
+        const preview = buildCoilUnitPricePreview(fixture.dependencies, {
+            spec: '12',
+            material: '钢带',
+            slotType: '小眼',
+            unitPrice: 0.6,
+        });
+
+        assert.equal(preview.updatedCount, 1);
+        assert.equal(preview.updates.some(item => item.coilId === kit.coil.id), false);
+        assert.equal(
+            fixture.db.prepare('SELECT cost FROM coils WHERE id = ?').get(kit.coil.id).cost,
+            95
+        );
     } finally {
         fixture.db.close();
     }

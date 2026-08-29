@@ -58,6 +58,9 @@ function createFixture() {
             material TEXT,
             slot_type TEXT,
             sheets INTEGER,
+            pricing_mode TEXT,
+            kit_price REAL,
+            cost REAL,
             stock INTEGER,
             updated_at TEXT
         );
@@ -74,8 +77,12 @@ function createFixture() {
         );
         INSERT INTO parts (id, model, stock, updated_at) VALUES (1, 'P-1', 10, '${FIXED_UPDATED_AT}');
         INSERT INTO coils (
-            id, spec, common_name, material, slot_type, sheets, stock, updated_at
-        ) VALUES (2, '12', '12', '钢带', '小眼', 120, 4, '${FIXED_UPDATED_AT}');
+            id, spec, common_name, material, slot_type, sheets,
+            pricing_mode, kit_price, cost, stock, updated_at
+        ) VALUES (
+            2, '12', '12', '钢带', '小眼', 120,
+            'kit', 88.5, 88.5, 4, '${FIXED_UPDATED_AT}'
+        );
     `);
 
     function audit(table, id, context) {
@@ -239,7 +246,7 @@ test('库存命令：缺少强审计回执时业务更新和 operation 全部回
     }
 });
 
-test('库存命令：线圈库存、流水、两条审计和 operation 原子提交', () => {
+test('库存命令：套件计价线圈按同一身份入库且不改变价格事实', () => {
     const fixture = createFixture();
     try {
         const result = executeCoilStockBatch(
@@ -254,7 +261,13 @@ test('库存命令：线圈库存、流水、两条审计和 operation 原子提
             },
             context('inventory.coils.adjust_stock', 'coil')
         );
-        assert.equal(fixture.db.prepare('SELECT stock FROM coils WHERE id = 2').get().stock, 7);
+        assert.deepEqual(
+            fixture.db.prepare(`
+                SELECT stock, pricing_mode, kit_price, cost
+                FROM coils WHERE id = 2
+            `).get(),
+            { stock: 7, pricing_mode: 'kit', kit_price: 88.5, cost: 88.5 }
+        );
         const movement = fixture.db.prepare('SELECT * FROM coil_stock_movements').get();
         assert.equal(movement.balance_after, 7);
         assert.equal(movement.reference_type, 'api_operation');

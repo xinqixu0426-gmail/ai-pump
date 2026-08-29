@@ -4512,7 +4512,21 @@ test('AI executor 行为：未指定材质槽眼时返回 12-220 全部正式方
                 success: true,
                 data: [
                     { id: 6, spec: '12', diameterMm: 120, sheets: 220, material: '钢带', slotType: '小眼', schemeStatus: 'official', defaultWireGauge: '1.2' },
-                    { id: 9, spec: '12', diameterMm: 120, sheets: 220, material: '冷轧', slotType: '国标眼', schemeStatus: 'official', defaultWireGauge: '2' },
+                    {
+                        id: 9,
+                        spec: '12',
+                        diameterMm: 120,
+                        sheets: 220,
+                        material: '冷轧',
+                        slotType: '国标眼',
+                        schemeStatus: 'official',
+                        pricingMode: 'kit',
+                        kitPrice: 88.5,
+                        wireWeight: 1.25,
+                        copperBase: 78.6,
+                        cost: 88.5,
+                        defaultWireGauge: '2',
+                    },
                 ],
             });
         }
@@ -4527,6 +4541,16 @@ test('AI executor 行为：未指定材质槽眼时返回 12-220 全部正式方
     assert.deepEqual(result.data.variants.map(item => `${item.material}/${item.slotType}/${item.pairedCableWireGauge}`), [
         '钢带/小眼/1.2',
         '冷轧/国标眼/2',
+    ]);
+    assert.deepEqual(result.data.variants.map(item => ({
+        pricingMode: item.pricingMode,
+        kitPrice: item.kitPrice,
+        wireWeight: item.wireWeight,
+        copperBase: item.copperBase,
+        cost: item.cost,
+    })), [
+        { pricingMode: 'calculated', kitPrice: 0, wireWeight: 0, copperBase: 0, cost: 0 },
+        { pricingMode: 'kit', kitPrice: 88.5, wireWeight: 1.25, copperBase: 78.6, cost: 88.5 },
     ]);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/coils',
@@ -5053,6 +5077,45 @@ test('AI executor 行为：文件归档先查真实目标且写入必须确认',
         'POST /api/files/41/archive-preview',
         'POST /api/files/41/archive',
     ]);
+});
+
+test('AI full_calculate 保留正式套件价和线圈库存身份', async () => {
+    const calls = installFetchStub((call) => {
+        assert.equal(call.method, 'POST');
+        assert.match(call.url, /\/api\/cost\/full-estimate$/);
+        assert.deepEqual(call.body, {
+            recipeId: 18,
+            stator: '777-987',
+        });
+        return jsonResponse({
+            success: true,
+            data: {
+                totalCost: '88.50',
+                statorCost: {
+                    cost: '88.50',
+                    coilId: 71,
+                    inventoryType: 'coil',
+                    pricingMode: 'kit',
+                    kitPrice: 88.5,
+                    formula: '供应商套件价',
+                    source: '精确匹配',
+                },
+            },
+        });
+    });
+
+    const result = await executeToolCall('full_calculate', {
+        recipeId: 18,
+        stator: '777-987',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.statorCost.coilId, 71);
+    assert.equal(result.data.statorCost.inventoryType, 'coil');
+    assert.equal(result.data.statorCost.pricingMode, 'kit');
+    assert.equal(result.data.statorCost.kitPrice, 88.5);
+    assert.equal(result.data.statorCost.formula, '供应商套件价');
+    assert.equal(calls.length, 1);
 });
 
 test('V10.2 AI executor：客户要求只能保存草稿且必须先确认', async () => {

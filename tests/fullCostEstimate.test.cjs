@@ -55,6 +55,30 @@ test('full-estimate 线圈服务未精确匹配时复用线圈插值规则', () 
     assert.equal(result.formula, '0.2×26 + 0.3×60 + 2.00 + 1.00');
 });
 
+test('full-estimate 精确套件价保留正式库存身份且不展开计算', () => {
+    const result = calculateFullEstimateCoilCost([{
+        id: 71,
+        spec: '750',
+        material: '钢带',
+        slotType: '小眼',
+        sheets: 36,
+        schemeStatus: 'official',
+        pricingMode: 'kit',
+        kitPrice: 58.5,
+        wireWeight: 0.72,
+        copperBase: 78.4,
+    }], '750', 36, '钢带', '小眼');
+
+    assert.equal(result.cost, '58.50');
+    assert.equal(result.coilId, 71);
+    assert.equal(result.inventoryType, 'coil');
+    assert.equal(result.pricingMode, 'kit');
+    assert.equal(result.kitPrice, 58.5);
+    assert.equal(result.wireWeight, 0.72);
+    assert.equal(result.copperBase, 78.4);
+    assert.equal(result.formula, '供应商套件价');
+});
+
 test('full-estimate 线圈服务可解析默认线径', () => {
     assert.equal(resolveWireFromCoils(coils, '750', 24, '钢带'), '0.55');
 });

@@ -381,6 +381,41 @@ test('后端 BOM draft 线圈快照复用插值规则', () => {
     assert.equal(result.coilSnapshot.formula, '0.2×15 + 0.3×70 + 3.00 + 4.00');
 });
 
+test('后端 BOM draft 锁定供应商套件价并保留正式线圈库存身份', () => {
+    const kitCoil = {
+        id: 99,
+        spec: 'Y90',
+        material: '钢带',
+        slotType: '小眼',
+        schemeStatus: 'official',
+        sheets: 15,
+        pricingMode: 'kit',
+        kitPrice: 72.5,
+        defaultWireGauge: '0.75',
+        defaultCapacitor: '20μF',
+    };
+    const result = buildRecipeBomDraft({
+        coilSpec: 'Y90',
+        coilSheets: 15,
+        coilMaterial: '钢带',
+        coilWireWeight: 9,
+    }, {
+        partsCatalog,
+        coils: [kitCoil],
+    });
+
+    const coil = result.parts.find(part => part.name === '线圈转子');
+    assert.equal(result.coilSnapshot.pricingMode, 'kit');
+    assert.equal(result.coilSnapshot.kitPrice, 72.5);
+    assert.equal(result.coilSnapshot.totalCost, 72.5);
+    assert.equal(coil.coilId, 99);
+    assert.equal(coil.inventoryType, 'coil');
+    assert.equal(coil.pricingMode, 'kit');
+    assert.equal(coil.kitPrice, 72.5);
+    assert.equal(coil.snapshotPrice, 72.5);
+    assert.equal(coil.formula, '供应商套件价');
+});
+
 test('后端 BOM draft 支持客户指定线重重算线圈成本', () => {
     const result = buildRecipeBomDraft({
         coilSpec: 'Y90',

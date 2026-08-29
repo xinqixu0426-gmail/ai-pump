@@ -595,6 +595,9 @@ function renderRecipeCostSnapshot(parts, input = {}) {
             const qty = Number(part.qty || 1);
             const base = `${part.name || part.model}: ¥${price.toFixed(2)} × ${qty} = ¥${(price * qty).toFixed(2)}`;
             if (part.name === '线圈转子') {
+                if (part.pricingMode === 'kit') {
+                    return `${base}（材质: ${part.material || coilMaterial || '钢带'}，槽眼: ${part.slotType || '小眼'}，计价方式: 供应商套件价，套件价: ¥${Number(part.kitPrice ?? price).toFixed(2)}，来源: ${part.source || '-'}）`;
+                }
                 return `${base}（材质: ${part.material || coilMaterial || '钢带'}，槽眼: ${part.slotType || '小眼'}，定子单片成本: ¥${Number(part.unitPrice || 0).toFixed(2)}，来源: ${part.source || '-'}，公式: ${part.formula || '-'}）`;
             }
             if (part.dynamicRule === 'longScrewByBarrelLength') {
