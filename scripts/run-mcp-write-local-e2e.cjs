@@ -1427,6 +1427,11 @@ async function run() {
             upper_bearing: '303',
             lower_bearing: '6304',
             piece_count: 160,
+            bearing_span: 200,
+            stack_offset: 20,
+            bearing_to_impeller: 50,
+            impeller_depth: 10,
+            thread_length: 20,
         };
         await declineWrite('generate_rotor_drawing', drawingArgs);
         const drawingCall = await callWrite('generate_rotor_drawing', drawingArgs, {
