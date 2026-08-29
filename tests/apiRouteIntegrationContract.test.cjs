@@ -1408,7 +1408,10 @@ test('关键 API 集成契约：设置读取和 AI 连接探测由 Query service
 test('关键 API 集成契约：转子出图和打印通过正式 Preview 与外部命令 service', () => {
     const source = readUtf8('api/routes/rotor.cjs');
     const service = readUtf8('api/services/rotorExternalCommands.cjs');
+    const parameterService = readUtf8('api/services/rotorParameters.cjs');
     const naturalLanguage = readUtf8('api/services/rotorNaturalLanguage.cjs');
+    const aiExecutor = readUtf8('api/routes/ai/executors/costExecutors.cjs');
+    const webView = readUtf8('apps/web-next/components/rotor-view.tsx');
     const helpers = sliceBetween(source, 'function rotorSuccess', '// 2分钟后自动清理已完成任务');
     const previewSection = sliceBetween(source, "router.post('/draw-preview'", "router.post('/draw'");
     const drawSection = sliceBetween(source, "router.post('/draw'", "router.post('/save'");
@@ -1426,6 +1429,12 @@ test('关键 API 集成契约：转子出图和打印通过正式 Preview 与外
     assert.doesNotMatch(chatSection, /callDeepSeek|https\.request|JSON\.parse|buildFcParams/);
     assert.match(naturalLanguage, /status: 'need_params'/);
     assert.match(naturalLanguage, /buildSafetyWarning/);
+    assert.match(parameterService, /function buildRotorSafetyWarnings/);
+    assert.match(parameterService, /rotor_length_parameters_incomplete/);
+    assert.match(parameterService, /rotor_stator_clearance_low/);
+    assert.match(service, /buildRotorSafetyWarnings\(fcParams\)/);
+    assert.match(naturalLanguage, /buildRotorSafetyWarnings\(fcParams\)/);
+    assert.doesNotMatch(naturalLanguage, /clearance\s*=\s*bearingSpan/);
     assert.match(naturalLanguage, /buildDrawPreview/);
     assert.match(naturalLanguage, /status: 'confirmation_required'/);
     assert.match(source, /return rotorError\(res, e\.statusCode \|\| 500, e\.message\)/);
@@ -1435,6 +1444,14 @@ test('关键 API 集成契约：转子出图和打印通过正式 Preview 与外
     assert.match(service, /beginPersistentExternalCommand/);
     assert.match(service, /consumeBusinessConfirmation/);
     assert.match(service, /EXTERNAL_PRINT_REQUESTED/);
+    assert.match(aiExecutor, /code: 'rotor_draw_preview_warning'/);
+    assert.match(aiExecutor, /Array\.isArray\(preview\.warnings\)/);
+    assert.match(webView, /function RotorPreviewWarnings/);
+    assert.match(webView, /warning\.severity === 'danger'/);
+    assert.match(webView, /confirmTarget\?\.kind === 'draw' \|\| confirmTarget\?\.kind === 'print'/);
+    assert.match(webView, /出图参数存在警报/);
+    assert.match(webView, /我知道风险，继续出图/);
+    assert.match(webView, /返回调整/);
 });
 
 test('关键 API 集成契约：V9.5 文件归档统一校验目标并保护写入边界', () => {

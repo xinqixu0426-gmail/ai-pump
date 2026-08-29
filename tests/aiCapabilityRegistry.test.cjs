@@ -405,6 +405,7 @@ test('正式业务能力注册表：转子生成和打印声明 Preview、确认
     assert.equal(generate.requiresConfirmation, true);
     assert.equal(generate.supportsPreview, true);
     assert.equal(generate.previewPath, '/api/rotor/draw-preview');
+    assert.match(generate.outputSchema, /StructuredSafetyWarnings/);
     assert.match(generate.transactionality, /before_external_side_effect/);
 
     assert.equal(print.riskLevel, 'critical');

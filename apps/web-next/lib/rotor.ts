@@ -46,6 +46,13 @@ export type RotorDrawResult = {
   message?: string;
 };
 
+export type RotorPreviewWarning = {
+  code: string;
+  message: string;
+  severity?: 'warning' | 'danger';
+  details?: Record<string, unknown>;
+};
+
 export type RotorCommandPreview = {
   capabilityId: string;
   operationId: string;
@@ -57,7 +64,7 @@ export type RotorCommandPreview = {
   params?: Record<string, unknown>;
   jobId?: string;
   fileUrl?: string;
-  warnings?: Array<{ code: string; message: string }>;
+  warnings?: RotorPreviewWarning[];
 };
 
 export type RotorTemplateDraft = {

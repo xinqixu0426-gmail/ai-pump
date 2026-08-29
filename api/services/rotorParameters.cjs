@@ -22,6 +22,29 @@ const FC_PARAM_LIMITS = Object.freeze({
     bearing_to_impeller: Object.freeze({ min: 1, max: 500 }),
 });
 
+const FC_PARAM_LABELS = Object.freeze({
+    piece_count: '转子片数',
+    rotor_dia: '转子直径',
+    bearing_span: '开档',
+    stack_offset: '定位',
+    oil_seal_dia: '油封孔径',
+    impeller_dia: '叶轮孔径',
+    impeller_depth: '叶轮厚度',
+    thread_dia: '螺纹直径',
+    thread_length: '螺纹长度',
+    impeller_span: '叶轮开档',
+    bearing_to_impeller: '叶轮开档',
+});
+
+const ROTOR_LENGTH_COMPONENTS = Object.freeze([
+    Object.freeze({ key: 'upper_bearing_depth', name: '上轴承深度' }),
+    Object.freeze({ key: 'bearing_span', name: '开档' }),
+    Object.freeze({ key: 'bearing_to_impeller', name: '叶轮开档' }),
+    Object.freeze({ key: 'impeller_depth', name: '叶轮厚度' }),
+    Object.freeze({ key: 'thread_length', name: '螺纹长度' }),
+]);
+const MIN_STATOR_CLEARANCE_MM = 35;
+
 function normalizeDrawingName(value, fallback = '') {
     const raw = String(value || '').trim();
     const name = raw || fallback;
@@ -61,13 +84,106 @@ function normalizeBearing(raw) {
 }
 
 function validateFcParam(key, value) {
-    const normalized = Number.parseFloat(value);
+    if (
+        value == null
+        || (typeof value === 'string' && value.trim() === '')
+    ) return null;
+    if (
+        typeof value !== 'number'
+        && (
+            typeof value !== 'string'
+            || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim())
+        )
+    ) return null;
+    const normalized = typeof value === 'number'
+        ? value
+        : Number(value.trim());
     if (!Number.isFinite(normalized)) return null;
     const limits = FC_PARAM_LIMITS[key];
     if (limits && (normalized < limits.min || normalized > limits.max)) {
         return null;
     }
     return normalized;
+}
+
+function validateProvidedFcParam(key, value, errors) {
+    if (
+        value == null
+        || (typeof value === 'string' && value.trim() === '')
+    ) return null;
+    const normalized = validateFcParam(key, value);
+    if (normalized !== null) return normalized;
+    const limits = FC_PARAM_LIMITS[key];
+    const range = limits ? `${limits.min}–${limits.max}` : '有效';
+    errors.push(`${FC_PARAM_LABELS[key] || key}必须是 ${range} 之间的数字`);
+    return null;
+}
+
+function buildRotorSafetyWarnings(fcParams = {}) {
+    const warnings = [];
+    const lengthComponents = ROTOR_LENGTH_COMPONENTS.map(item => ({
+        ...item,
+        value: fcParams[item.key] ?? null,
+        missing: fcParams[item.key] == null,
+    }));
+    const missingLengthParameters = lengthComponents.filter(item => item.missing);
+    const providedLengthParameters = lengthComponents.filter(item => !item.missing);
+    if (
+        providedLengthParameters.length > 0
+        && missingLengthParameters.length > 0
+    ) {
+        const calculatedTotalMm = providedLengthParameters.reduce(
+            (sum, item) => sum + Number(item.value || 0),
+            0
+        );
+        warnings.push({
+            code: 'rotor_length_parameters_incomplete',
+            severity: 'warning',
+            message: `总长度参数不完整：缺少${missingLengthParameters.map(item => item.name).join('、')}；当前已提供参数合计 ${calculatedTotalMm.toFixed(1)}mm`,
+            details: {
+                missingParameters: missingLengthParameters.map(item => ({
+                    key: item.key,
+                    name: item.name,
+                })),
+                components: lengthComponents,
+                calculatedTotalMm,
+            },
+        });
+    }
+
+    const bearingSpan = fcParams.bearing_span;
+    const pieceCount = fcParams.piece_count;
+    const stackOffset = fcParams.stack_offset;
+    if (
+        bearingSpan != null
+        && pieceCount != null
+        && stackOffset != null
+    ) {
+        const clearance = bearingSpan - (pieceCount / 2) - stackOffset;
+        if (clearance < MIN_STATOR_CLEARANCE_MM) {
+            let clearanceText = '';
+            for (let precision = 1; precision <= 6; precision += 1) {
+                const candidate = clearance.toFixed(precision);
+                if (Number(candidate) < MIN_STATOR_CLEARANCE_MM) {
+                    clearanceText = candidate;
+                    break;
+                }
+            }
+            const comparisonText = clearanceText
+                ? `${clearanceText}mm < ${MIN_STATOR_CLEARANCE_MM}mm`
+                : `实际值小于 ${MIN_STATOR_CLEARANCE_MM}mm`;
+            warnings.push({
+                code: 'rotor_stator_clearance_low',
+                severity: 'danger',
+                message: `线圈与上轴承端盖距离过短（${comparisonText}），可能会导致漏电或干涉`,
+                details: {
+                    clearanceMm: clearance,
+                    thresholdMm: MIN_STATOR_CLEARANCE_MM,
+                },
+            });
+        }
+    }
+    return warnings;
 }
 
 function buildFcParams(params = {}) {
@@ -107,21 +223,27 @@ function buildFcParams(params = {}) {
         'thread_dia',
         'thread_length',
     ].forEach(key => {
-        if (params[key] == null) return;
-        const value = validateFcParam(key, params[key]);
+        const value = validateProvidedFcParam(key, params[key], errors);
         if (value !== null) fcParams[key] = value;
     });
     if (params.impeller_span != null) {
-        const value = validateFcParam('impeller_span', params.impeller_span);
-        if (value !== null) fcParams.bearing_to_impeller = value;
-    }
-    if (params.bearing_to_impeller != null) {
-        const value = validateFcParam(
-            'bearing_to_impeller',
-            params.bearing_to_impeller
+        const value = validateProvidedFcParam(
+            'impeller_span',
+            params.impeller_span,
+            errors
         );
         if (value !== null) fcParams.bearing_to_impeller = value;
     }
+    if (params.bearing_to_impeller != null) {
+        const value = validateProvidedFcParam(
+            'bearing_to_impeller',
+            params.bearing_to_impeller,
+            errors
+        );
+        if (value !== null) fcParams.bearing_to_impeller = value;
+    }
+
+    if (errors.length > 0) return { fcParams: null, errors };
 
     if (fcParams.piece_count) {
         fcParams._core_length = fcParams.piece_count * 0.5;
@@ -142,8 +264,12 @@ function buildFcParams(params = {}) {
 
 module.exports = {
     BEARING_DB,
+    FC_PARAM_LABELS,
     FC_PARAM_LIMITS,
+    MIN_STATOR_CLEARANCE_MM,
+    ROTOR_LENGTH_COMPONENTS,
     buildFcParams,
+    buildRotorSafetyWarnings,
     normalizeBearing,
     normalizeDrawingName,
     normalizeDrawingText,

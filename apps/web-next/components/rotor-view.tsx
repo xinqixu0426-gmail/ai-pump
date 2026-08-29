@@ -30,6 +30,7 @@ import {
   type RotorHistoryRecord,
   type RotorJobStatus,
   type RotorLinkTarget,
+  type RotorPreviewWarning,
 } from '@/lib/rotor';
 import { calculateBearingSpan, openOffsetFromMeta, stainlessBarrelDrawingText } from '@/lib/technical-references';
 
@@ -74,6 +75,25 @@ type RotorConfirmTarget =
     kind: 'delete';
     row: RotorHistoryRecord;
   };
+
+function RotorPreviewWarnings({ warnings }: { warnings: RotorPreviewWarning[] }) {
+  if (warnings.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-2" role="alert">
+      {warnings.map((warning) => (
+        <div
+          key={warning.code}
+          className={warning.severity === 'danger'
+            ? 'flex gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800'
+            : 'flex gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900'}
+        >
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{warning.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function RotorView() {
   const [form, setForm] = useState<RotorFormData>(emptyRotorForm);
@@ -384,6 +404,11 @@ export function RotorView() {
 
   const activeStatus = jobStatus ? statusLabel(jobStatus.status) : null;
 
+  const previewWarnings = confirmTarget?.kind === 'draw' || confirmTarget?.kind === 'print'
+    ? confirmTarget.preview.warnings || []
+    : [];
+  const drawHasWarnings = confirmTarget?.kind === 'draw' && previewWarnings.length > 0;
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -688,23 +713,34 @@ export function RotorView() {
       <ConfirmDialog
         open={Boolean(confirmTarget)}
         title={confirmTarget?.kind === 'draw'
-          ? '启动转子出图任务？'
+          ? drawHasWarnings ? '出图参数存在警报' : '启动转子出图任务？'
           : confirmTarget?.kind === 'print'
             ? '发送图纸到默认打印机？'
             : '删除转子出图记录？'}
         description={confirmTarget?.kind === 'draw'
-          ? `确认后将为“${confirmTarget.drawingName}”启动 FreeCAD 出图任务。任务会在服务器后台执行，可在出图历史中查看结果。`
+          ? (
+            <>
+              <p>确认后将为“{confirmTarget.drawingName}”启动 FreeCAD 出图任务。任务会在服务器后台执行，可在出图历史中查看结果。</p>
+              <RotorPreviewWarnings warnings={previewWarnings} />
+            </>
+          )
           : confirmTarget?.kind === 'print'
-            ? `图纸“${confirmTarget.preview.drawingName || confirmTarget.row.drawingName || confirmTarget.row.jobId}”将立即发送到服务器默认打印机，请确认现场打印机和纸张已准备好。`
+            ? (
+              <>
+                <p>图纸“{confirmTarget.preview.drawingName || confirmTarget.row.drawingName || confirmTarget.row.jobId}”将立即发送到服务器默认打印机，请确认现场打印机和纸张已准备好。</p>
+                <RotorPreviewWarnings warnings={previewWarnings} />
+              </>
+            )
             : confirmTarget?.kind === 'delete'
               ? `出图记录“${confirmTarget.row.drawingName || confirmTarget.row.jobId}”将被删除；关联记录会移除，已生成的 PDF 也可能被清理，此操作无法撤销。`
               : ''}
         confirmLabel={confirmTarget?.kind === 'draw'
-          ? '启动出图'
+          ? drawHasWarnings ? '我知道风险，继续出图' : '启动出图'
           : confirmTarget?.kind === 'print'
             ? '确认打印'
             : '删除记录'}
-        confirmVariant={confirmTarget?.kind === 'delete' ? 'danger' : 'primary'}
+        cancelLabel={drawHasWarnings ? '返回调整' : '取消'}
+        confirmVariant={confirmTarget?.kind === 'delete' || drawHasWarnings ? 'danger' : 'primary'}
         busy={saving || Boolean(printingJobId)}
         layer="top"
         onClose={() => setConfirmTarget(null)}

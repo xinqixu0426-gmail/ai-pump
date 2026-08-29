@@ -110,6 +110,10 @@ test('转子自然语言 service 在未强制时返回缺失长度和安全间�
     );
 
     assert.equal(result.status, 'warning');
+    assert.deepEqual(
+        result.warnings.map(warning => warning.code),
+        ['rotor_length_parameters_incomplete', 'rotor_stator_clearance_low']
+    );
     assert.ok(result.missing_length);
     assert.equal(result.stator_clearance.clearance, 30);
     assert.equal(previews.length, 0);

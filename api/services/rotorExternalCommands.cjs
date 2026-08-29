@@ -15,6 +15,7 @@ const {
 } = require('./businessConfirmation.cjs');
 const {
     buildFcParams,
+    buildRotorSafetyWarnings,
     normalizeDrawingName,
 } = require('./rotorParameters.cjs');
 const { resolveDrawingFile } = require('./rotorCommands.cjs');
@@ -74,6 +75,7 @@ function normalizeDrawInput(input = {}) {
     return {
         params,
         fcParams,
+        warnings: buildRotorSafetyWarnings(fcParams),
         drawingName: normalizeDrawingName(
             params.drawingName ?? params.drawing_name
         ),
@@ -97,7 +99,7 @@ function buildDrawPreview(input, subject) {
         suggestedIdempotencyKey: `rotor-draw:${confirmation.operationId}`,
         drawingName: normalized.drawingName,
         params: normalized.fcParams,
-        warnings: [],
+        warnings: normalized.warnings,
     };
 }
 
