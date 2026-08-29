@@ -2,8 +2,11 @@ const { postJson } = require('../internalApiClient.cjs');
 
 async function recordWorkflowRun(internalFetch, input) {
     try {
+        const commandFetch = typeof internalFetch.createChildOperationFetch === 'function'
+            ? internalFetch.createChildOperationFetch()
+            : internalFetch;
         const run = await postJson(
-            internalFetch,
+            commandFetch,
             '/api/workbench/execution-runs',
             input,
             '执行历史保存失败'

@@ -48,10 +48,10 @@ const MCP_BATCH_WRITE_SCENARIOS = Object.freeze([
     }),
     Object.freeze({
         id: 'rotor_output',
-        title: '转子出图与打印',
-        tools: Object.freeze(['generate_rotor_drawing', 'print_rotor_drawing']),
+        title: '转子出图',
+        tools: Object.freeze(['generate_rotor_drawing']),
         cleanup: 'destroy_temporary_directory',
-        productionBoundary: 'print command is decline-only; localhost execution must use fail-closed stubs',
+        productionBoundary: 'drawing generation uses an isolated temporary directory; physical printing is not an MCP capability',
     }),
 ]);
 
@@ -102,13 +102,13 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     },
     {
         name: 'remove_recipe_from_order',
-        args: { orderId: 101, recipeName: '本地验收配方', reason: 'MCP 本地验收移除产品' },
+        args: { orderId: 101, orderItemId: 'local-order-item-1', reason: 'MCP 本地验收移除产品' },
         businessTests: ['tests/orderCommands.test.cjs'],
         isolation: 'in-memory order database',
     },
     {
         name: 'update_order_item',
-        args: { orderId: 101, recipeName: '本地验收配方', qty: 3, reason: 'MCP 本地验收调整数量' },
+        args: { orderId: 101, orderItemId: 'local-order-item-1', qty: 3, reason: 'MCP 本地验收调整数量' },
         businessTests: ['tests/orderCommands.test.cjs'],
         isolation: 'in-memory order database',
     },
@@ -171,12 +171,6 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
         args: { shell_model: 'V750', piece_count: 160 },
         businessTests: ['tests/aiExecutorBehavior.test.cjs', 'tests/rotorExternalCommands.test.cjs'],
         isolation: 'formal API stub + temporary drawing job boundary',
-    },
-    {
-        name: 'print_rotor_drawing',
-        args: { jobId: 'local-mcp-drawing-job' },
-        businessTests: ['tests/aiCapabilityRegistry.test.cjs', 'tests/rotorExternalCommands.test.cjs'],
-        isolation: 'printer command stub; no physical print',
     },
 ]);
 

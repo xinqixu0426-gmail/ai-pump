@@ -9,7 +9,7 @@ const {
     issueAiToolConfirmation,
     resetAiToolConfirmationsForTests,
 } = require('../api/services/aiToolConfirmation.cjs');
-const { executeToolCall } = require('../api/routes/ai/executor.cjs');
+const { buildWriteConfirmation, executeToolCall } = require('../api/routes/ai/executor.cjs');
 const { executeConfirmedAiTool } = require('../api/services/aiConfirmedToolExecution.cjs');
 
 test.beforeEach(() => {
@@ -248,6 +248,23 @@ test('AI 确认协议：executor 返回短时 token，未确认仍不执行写�
     assert.match(result.confirmation.operationId, /^[0-9a-f-]{36}$/);
     assert.equal(result.confirmation.argsHash.length, 64);
     assert.ok(Date.parse(result.confirmation.expiresAt) > Date.now());
+});
+
+test('AI 确认协议：订单明细修改和删除展示稳定明细 ID', () => {
+    for (const toolName of ['update_order_item', 'remove_recipe_from_order']) {
+        const result = buildWriteConfirmation(toolName, {
+            orderId: 41,
+            orderItemId: 'item-b',
+            recipeName: 'V750',
+            reason: '验收稳定目标',
+        }, { confirmationSubject: `confirmation-row-${toolName}` });
+        assert.ok(result.confirmation.rows.some(row => (
+            row.label === '产品明细ID' && row.value === 'item-b'
+        )));
+        assert.ok(result.confirmation.rows.some(row => (
+            row.label === '配方' && row.value === 'V750'
+        )));
+    }
 });
 
 test('AI 确认协议：只读能力不能签发写操作确认 token', () => {

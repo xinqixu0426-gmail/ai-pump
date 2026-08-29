@@ -216,6 +216,25 @@ test('MCP 身份管理：按身份授予和撤销单个写工具且不扩大其�
     assert.equal(revoked.plan.writeDisabled, false);
 });
 
+test('MCP 身份管理：可在升级前撤销已移出权威目录的旧写工具', () => {
+    const legacyEnv = envText({
+        MCP_WRITE_TOOL_ALLOWLISTS: JSON.stringify({
+            hermes: ['sync_factory_knowledge', 'print_rotor_drawing'],
+        }),
+    });
+    const revoked = planIdentityChange({
+        command: 'revoke-write',
+        envText: legacyEnv,
+        clientId: 'hermes',
+        tool: 'print_rotor_drawing',
+    });
+    const nextEnv = dotenv.parse(revoked.nextText);
+    assert.deepEqual(JSON.parse(nextEnv.MCP_WRITE_TOOL_ALLOWLISTS), {
+        hermes: ['sync_factory_knowledge'],
+    });
+    assert.equal(revoked.plan.after.valid, true);
+});
+
 test('MCP 身份管理：首次批准权威写工具只扩大目标身份', () => {
     const approved = planIdentityChange({
         command: 'approve-write',

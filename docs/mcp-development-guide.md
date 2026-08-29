@@ -45,28 +45,28 @@ npm run verify:mcp-local
 为容纳两个客户端在一分钟内连续执行 90 次只读工具调用及写验收，隔离进程把测试限流设为
 600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
 
-涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 19 工具写入矩阵：
+涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 18 工具写入矩阵：
 
 ```bash
 npm run verify:mcp-write-local
 ```
 
-该门禁先把 `api/mcp/catalog.cjs` 的 19 个正式写工具与验收清单做严格集合比对，并把本轮之前已完成人工验收的 9 项作为测试基线；批次候选 10 项按订单与报价转单、文件归档、转子出图与打印三个场景汇总，两组必须无重复、无遗漏。该分组不推断实时生产 allowlist，生产权限仍由部署后认证目录验证。快速矩阵逐工具验证
+该门禁先把 `api/mcp/catalog.cjs` 的 18 个正式写工具与验收清单做严格集合比对，并把本轮之前已完成人工验收的 9 项作为测试基线；批次候选 9 项按订单与报价转单、文件归档、转子出图三个场景汇总，两组必须无重复、无遗漏。物理打印保留为非 MCP 的正式 HTTP/AI 能力，在设备集成完成并重新审计前不得加入 MCP 目录。该分组不推断实时生产 allowlist，生产权限仍由部署后认证目录验证。快速矩阵逐工具验证
 `mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
 正式执行证据、确认层重放、拒绝后无副作用。矩阵通过后，`scripts/run-mcp-write-local-e2e.cjs`
-创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端；2026 写客户端只取一次目录快照，让全部 19 个工具逐一经过
+创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端；2026 写客户端只取一次目录快照，让全部 18 个工具逐一经过
 MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Query/数据库回读；同时真实调用 2025
 只读工具、尝试并拒绝其隐藏写工具。`create_order/adjust_part_stock/batch_update_prices/sync_factory_knowledge`
 会把同一份 2026 `requestState + inputResponses` 再提交一次，核对 `idempotentReplay=true`、原 operation/audit
-不变且数据库零新增；批次候选 10 项还逐一走原生拒绝，并以前后全库逻辑摘要、受控外部文件树及命令替身计数核对零副作用，三个场景分别给出成功、拒绝和清理状态。订单、库存、配方、文件和打印各有一个真实失败样本，核对失败回执与零副作用。
+不变且数据库零新增；批次候选 9 项还逐一走原生拒绝，并以前后全库逻辑摘要、受控外部文件树及命令替身计数核对零副作用，三个场景分别给出成功、拒绝和清理状态。订单、库存、配方和文件各有一个真实失败样本，核对失败回执与零副作用；打印通过 MCP 目录与执行层负向测试保证始终不可调用。
 `delete_recipe` 会删除同轮创建的临时配方，核对正式删除 Preview、版本绑定、operation/audit、详情 404、
 列表数量精确减一、其他配方与零件目录不变；`delete_part` 会删除同轮批量创建并完成库存和价格验收的临时零件，核对正式删除 Preview、唯一目标、版本与哈希绑定、operation/audit、目录不可见和其他零件不变。
-报价转订单会核对客户、来源说明和明细，打印替身会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
-线圈、文件和知识都只写临时库；FreeCAD 及 macOS `lp`、Windows Sumatra/Edge/rundll32 打印后端均由
-进程替身拦截，未知外部命令 fail-closed，并回读异步终态。测试不会读取生产 MCP token、连接 Mac Mini、
+报价转订单会核对客户、来源说明和明细，转子出图会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
+线圈、文件和知识都只写临时库；FreeCAD 由进程替身拦截，未知外部命令 fail-closed，并回读异步终态；
+`print_rotor_drawing` 只验证不在 MCP 目录且执行层直接拒绝，不启动任何打印后端。测试不会读取生产 MCP token、连接 Mac Mini、
 修改正式数据库或调用物理打印机。综合报告写入 `logs/mcp-write-local-latest.json`，逐工具证据写入
 `logs/mcp-write-local-e2e-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
-生产写授权不因本地通过而改变，直到负责人明确批准。生产批量灰度仍须使用专用数据；报价转单默认只验拒绝，物理打印只验拒绝，不能把 stub 成功当成真实设备授权。
+生产写授权不因本地通过而改变，直到负责人明确批准。生产批量灰度仍须使用专用数据；报价转单默认只验拒绝，物理打印不属于 MCP 灰度范围。
 
 Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
 后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、
@@ -124,7 +124,8 @@ Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替
 ## 4. 变更边界
 
 - V1 白名单覆盖注册表中全部已登记、无需确认的安全 Query/Preview；目录测试保证新增安全读能力不会静默遗漏，写工具、资源和 Prompt 不因客户端支持而自动开放。
-- V2 可授权写目录当前显式审核 19 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或工具未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS` 时，该工具不会出现在 `tools/list`，直接调用也由执行层拒绝。
+- V2 可授权写目录当前显式审核 18 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。`print_rotor_drawing` 无论全局写开关、身份或 allowlist 如何设置都不属于 MCP 目录，目录层和执行层都会拒绝；其余目录内工具若配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS`，同样不会出现在 `tools/list`。
+- 订单产品修改和移除必须使用 `get_order_detail` 返回的稳定明细 `id` 作为 `orderItemId`。可选 `recipeName` 只用于与该 ID 交叉核对，不能单独作为写入目标，更不能使用部分名称猜测。一个确认编排包含业务动作和执行历史两条正式命令时，二者必须使用独立 operationId，并在最终回执中聚合正式 operation/audit 证据。
 - 写调用第一轮只执行正式 Preview 并签发主体绑定的短时确认；2026 客户端通过 `input_required`/form elicitation 展示给用户，明确接受后才由共享确认执行 service 调用正式 API。Agent 的文字、第二个“确认工具”或客户端自报名称都不能授权执行。
 - 多轮 `requestState` 使用官方 SDK HMAC codec，并绑定已验证服务身份和方法；客户端篡改、换身份、换参数、过期或并发重放都会拒绝。状态密钥为单进程临时密钥，服务重启后未完成确认自动失效，符合当前 Mac Mini 单进程部署；改为多实例前必须配置共享持久状态。
 - 2025 无状态客户端没有服务端到客户端 elicitation 回路，因此只读兼容不变，写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。不能用普通 tool 参数或 Agent 文字降级绕过确认。
@@ -166,8 +167,8 @@ node scripts/manage-mcp-identities.cjs rotate \
 删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
 自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
 
-`approve-write` 是把一个已完成代码审计和本地 19/19 验收、但尚未进入生产灰度集合的权威写工具
-首次开放给一个明确身份的默认入口。一个已按权威验收清单完成整批代码审计、19/19 localhost 成功路径和候选项逐项
+`approve-write` 是把一个已完成代码审计和本地 18/18 验收、但尚未进入生产灰度集合的权威写工具
+首次开放给一个明确身份的默认入口。一个已按权威验收清单完成整批代码审计、18/18 localhost 成功路径和候选项逐项
 原生拒绝零副作用验证的固定批次，可以改用 `approve-write-batch` 一次性首次开放给一个明确身份。批量命令要求输入集合与
 `scripts/mcp-write-acceptance-manifest.cjs` 当前候选清单精确一致（顺序不限）、非空、无重复、全部属于正式写目录且均未进入任何
 生产灰度集合；任一项不符合就整批拒绝。未来批次必须先更新该具名权威验收清单及其测试，不能把任意 catalog 子集直接批量开放。
@@ -175,6 +176,8 @@ node scripts/manage-mcp-identities.cjs rotate \
 `APPROVE_NEW_MCP_WRITE_TOOL`、`APPROVE_NEW_MCP_WRITE_TOOLS_BATCH`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
 中的写工具授予另一个已登记身份，不能借此引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该
 身份最后一个写工具时同时把身份移出 `MCP_WRITE_CLIENT_IDS`：
+
+从 MCP 权威目录移除工具时，升级前必须先对每个已授权身份执行 `revoke-write` 清理旧 allowlist，再重启新版本。当前 `print_rotor_drawing` 属于这一迁移：正式 HTTP/AI 能力仍保留，但 MCP 配置中不得残留该名称；否则启动校验会按未知工具 fail-closed。
 
 批量正式执行强制要求 `--restart-and-verify`；缺少该参数时 CLI 在写配置前拒绝。日常从 Windows 操作时优先使用
 `mcp:identity:macmini` 包装器，由它自动补齐固定的 Mac Mini 重启和在线核验参数。
@@ -188,7 +191,7 @@ node scripts/manage-mcp-identities.cjs approve-write \
   --apply --confirm APPROVE_NEW_MCP_WRITE_TOOL
 
 # 已完成同一批次整体审计与隔离验收后，整批首次开放；先预览，再一次原子执行
-BATCH_TOOLS=execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing,print_rotor_drawing
+BATCH_TOOLS=execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing
 node scripts/manage-mcp-identities.cjs approve-write-batch \
   --env-file .env --client-id hermes \
   --tools "$BATCH_TOOLS"
@@ -237,7 +240,7 @@ npm run mcp:identity:macmini -- -Action approve-write `
   -ClientId hermes -Tool adjust_part_stock -Apply
 
 # 固定批次已整体通过隔离验收时，一次预览、一次 Apply、一次 API 重启和全身份核对
-$batchTools = 'execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing,print_rotor_drawing'
+$batchTools = 'execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing'
 npm run mcp:identity:macmini -- -Action approve-write-batch `
   -ClientId hermes -Tools $batchTools
 npm run mcp:identity:macmini -- -Action approve-write-batch `

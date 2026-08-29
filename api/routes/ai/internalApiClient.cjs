@@ -1,13 +1,18 @@
+const crypto = require('node:crypto');
 const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
 
-function createInternalFetch(context = {}) {
-    const trace = [];
+function createInternalFetch(context = {}, sharedTrace = null) {
+    const trace = sharedTrace || [];
     const internalFetch = (url, opts = {}) => {
         const headers = { ...(opts.headers || {}) };
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
-        if (context.operationId) headers['x-operation-id'] = String(context.operationId);
-        if (context.capabilityId) headers['x-capability-id'] = String(context.capabilityId);
+        if (context.operationId && !headers['x-operation-id']) {
+            headers['x-operation-id'] = String(context.operationId);
+        }
+        if (context.capabilityId && !headers['x-capability-id']) {
+            headers['x-capability-id'] = String(context.capabilityId);
+        }
         const port = getServerPort();
         return fetchWithPolicy(`http://localhost:${port}${url}`, { ...opts, headers }, {
             timeoutMs: getInternalApiTimeoutMs(),
@@ -28,6 +33,12 @@ function createInternalFetch(context = {}) {
         },
         getApiTrace: {
             value: () => trace.map(entry => ({ ...entry })),
+        },
+        createChildOperationFetch: {
+            value: () => createInternalFetch({
+                ...context,
+                operationId: crypto.randomUUID(),
+            }, trace),
         },
     });
     return internalFetch;

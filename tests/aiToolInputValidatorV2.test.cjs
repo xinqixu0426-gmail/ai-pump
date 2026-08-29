@@ -204,8 +204,8 @@ test('V2 工具输入：按 ID 或业务名称定位时至少要求一种正式�
 test('V2 工具输入：订单核心修改必须携带用户提供的修改原因', () => {
     const cases = [
         ['add_recipe_to_order', { orderId: 1, recipeName: 'V750', qty: 2 }],
-        ['remove_recipe_from_order', { orderId: 1, recipeName: 'V750' }],
-        ['update_order_item', { orderId: 1, recipeName: 'V750', qty: 3 }],
+        ['remove_recipe_from_order', { orderId: 1, orderItemId: 'item-1' }],
+        ['update_order_item', { orderId: 1, orderItemId: 'item-1', qty: 3 }],
         ['generate_purchase_list', { orderId: 1 }],
     ];
     for (const [toolName, args] of cases) {
@@ -218,5 +218,34 @@ test('V2 工具输入：订单核心修改必须携带用户提供的修改原�
             validateAiToolArgs(toolName, { ...args, reason: '客户调整配置' }).reason,
             '客户调整配置'
         );
+    }
+});
+
+test('V2 工具输入：订单明细修改必须使用稳定 ID，名称只能作为交叉核对', () => {
+    for (const toolName of ['remove_recipe_from_order', 'update_order_item']) {
+        const base = toolName === 'update_order_item' ? { qty: 3 } : {};
+        assert.throws(
+            () => validateAiToolArgs(toolName, {
+                orderId: 1,
+                reason: '客户调整配置',
+                ...base,
+            }),
+            /args\.orderItemId 为必填字段/
+        );
+        assert.equal(validateAiToolArgs(toolName, {
+            orderId: 1,
+            orderItemId: 'item-2',
+            reason: '客户调整配置',
+            ...base,
+        }).orderItemId, 'item-2');
+        const checked = validateAiToolArgs(toolName, {
+            orderId: 1,
+            orderItemId: 'item-2',
+            recipeName: 'V750',
+            reason: '客户调整配置',
+            ...base,
+        });
+        assert.equal(checked.orderItemId, 'item-2');
+        assert.equal(checked.recipeName, 'V750');
     }
 });

@@ -527,15 +527,16 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'remove_recipe_from_order',
-            description: '从订单中移除某个配方/产品。当用户说"把订单5里的V750删掉"时使用',
+            description: '从订单中精确移除一个产品明细。必须使用订单详情返回的 orderItemId；recipeName 仅可作为身份交叉核对',
             parameters: {
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    recipeName: { type: 'string', description: '要移除的成品型号' },
+                    orderItemId: { type: 'string', minLength: 1, description: '订单产品明细的稳定 ID（推荐）' },
+                    recipeName: { type: 'string', minLength: 1, description: '可选身份交叉核对：完整成品型号；必须与 orderItemId 指向的明细一致' },
                     reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId', 'recipeName', 'reason']
+                required: ['orderId', 'orderItemId', 'reason']
             }
         }
     },
@@ -543,18 +544,19 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'update_order_item',
-            description: '修改订单中某个配方的数量或销售单价。当用户说"把订单5里V750改成3台"或"V750销售单价改成120"时使用',
+            description: '精确修改订单中一个产品明细的数量或销售单价。必须使用订单详情返回的 orderItemId；recipeName 仅可作为身份交叉核对',
             parameters: {
                 type: 'object',
                 properties: {
                     orderId: { type: 'number', description: '订单ID' },
-                    recipeName: { type: 'string', description: '要修改的成品型号' },
+                    orderItemId: { type: 'string', minLength: 1, description: '订单产品明细的稳定 ID（推荐）' },
+                    recipeName: { type: 'string', minLength: 1, description: '可选身份交叉核对：完整成品型号；必须与 orderItemId 指向的明细一致' },
                     qty: { type: 'number', description: '新数量（可选）' },
                     unitPrice: { type: 'number', description: '新销售单价（可选）' },
                     profitMargin: { type: 'number', description: '新利润率倍数如1.15（可选）' },
                     reason: { type: 'string', minLength: 1, maxLength: 500, description: '客户或业务提出本次修改的原因；必须来自用户，不得由 AI 自动编造' }
                 },
-                required: ['orderId', 'recipeName', 'reason']
+                required: ['orderId', 'orderItemId', 'reason']
             }
         }
     },

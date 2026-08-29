@@ -24,6 +24,26 @@ function requireEditReason(value) {
     return reason;
 }
 
+function resolveOrderItem(items, args = {}) {
+    const orderItemId = String(args.orderItemId || '').trim();
+    const recipeName = String(args.recipeName || '').trim();
+    if (orderItemId) {
+        const matchIndex = items.findIndex(item => String(item?.id || '').trim() === orderItemId);
+        if (matchIndex < 0) {
+            return { error: `订单中未找到产品明细 ID：${orderItemId}`, code: 'order_item_not_found' };
+        }
+        const item = items[matchIndex];
+        if (recipeName && String(item?.recipeName || '').trim() !== recipeName) {
+            return {
+                error: `产品明细 ${orderItemId} 与型号“${recipeName}”不一致`,
+                code: 'order_item_identity_mismatch',
+            };
+        }
+        return { item, index: matchIndex };
+    }
+    return { error: '请提供 orderItemId', code: 'order_item_identity_required' };
+}
+
 async function loadRecipes(internalFetch) {
     return getJson(internalFetch, '/api/recipes', '配方列表读取失败');
 }
@@ -450,32 +470,45 @@ async function executeOrderTool(toolName, args, internalFetch) {
         }
 
         case 'remove_recipe_from_order': {
-            const { orderId, recipeName } = args;
+            const { orderId } = args;
             const editReason = requireEditReason(args.reason);
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
-            let items = parseJsonArray(row.itemsJson);
-            const before = items.length;
-            items = items.filter(it => !(it.recipeName || '').includes(recipeName));
-            if (items.length === before) return { success: false, error: `订单${orderId}中未找到包含"${recipeName}"的配方` };
+            const items = parseJsonArray(row.itemsJson);
+            const resolved = resolveOrderItem(items, args);
+            if (resolved.error) return { success: false, ...resolved };
+            const [removedItem] = items.splice(resolved.index, 1);
             try {
                 await saveExistingOrder(internalFetch, row, items, {
                     editReason,
                 });
-                return { success: true, message: `已从订单${orderId}中移除"${recipeName}"`, orderId, removed: before - items.length, remaining: items.length };
+                return {
+                    success: true,
+                    message: `已从订单${orderId}中移除“${removedItem.recipeName || removedItem.id}”`,
+                    orderId,
+                    orderItemId: String(removedItem.id || ''),
+                    recipeName: removedItem.recipeName || '',
+                    removed: 1,
+                    remaining: items.length,
+                };
             } catch (error) {
-                return { success: false, error: error.message };
+                return {
+                    success: false,
+                    code: error.code || 'order_update_failed',
+                    error: error.message,
+                };
             }
         }
 
         case 'update_order_item': {
-            const { orderId, recipeName, qty, unitPrice, profitMargin } = args;
+            const { orderId, qty, unitPrice, profitMargin } = args;
             const editReason = requireEditReason(args.reason);
             const row = await loadOrder(internalFetch, orderId);
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             let items = parseJsonArray(row.itemsJson);
-            const item = items.find(it => (it.recipeName || '').includes(recipeName));
-            if (!item) return { success: false, error: `订单${orderId}中未找到"${recipeName}"` };
+            const resolved = resolveOrderItem(items, args);
+            if (resolved.error) return { success: false, ...resolved };
+            const item = resolved.item;
             const changes = [];
             if (qty !== undefined) { changes.push(`数量: ${item.qty} → ${qty}`); item.qty = qty; }
             if (unitPrice !== undefined) { changes.push(`销售单价: ${item.unitPrice} → ${unitPrice}`); item.unitPrice = unitPrice; }
@@ -489,9 +522,20 @@ async function executeOrderTool(toolName, args, internalFetch) {
                 await saveExistingOrder(internalFetch, row, items, {
                     editReason,
                 });
-                return { success: true, message: `订单${orderId}中"${item.recipeName}"已更新`, orderId, recipeName: item.recipeName, changes };
+                return {
+                    success: true,
+                    message: `订单${orderId}中“${item.recipeName}”已更新`,
+                    orderId,
+                    orderItemId: String(item.id || ''),
+                    recipeName: item.recipeName,
+                    changes,
+                };
             } catch (error) {
-                return { success: false, error: error.message };
+                return {
+                    success: false,
+                    code: error.code || 'order_update_failed',
+                    error: error.message,
+                };
             }
         }
 

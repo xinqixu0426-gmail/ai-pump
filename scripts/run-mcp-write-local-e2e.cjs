@@ -614,7 +614,13 @@ async function verifyPersistentReceipts(databasePath, toolReports) {
             WHERE operation_id = ?
         `);
         const auditStatement = db.prepare('SELECT id FROM audit_log WHERE id = ?');
+        const businessEventStatement = db.prepare(`
+            SELECT COUNT(*) AS count
+            FROM business_change_events
+            WHERE operation_id = ?
+        `);
         const seenOperations = new Set();
+        let workflowBusinessEventsVerified = 0;
         for (const report of toolReports) {
             assert(report.formalOperationIds.length > 0, `${report.name} 没有可回读正式 operation`);
             for (const [index, operationId] of report.formalOperationIds.entries()) {
@@ -625,6 +631,17 @@ async function verifyPersistentReceipts(databasePath, toolReports) {
                     `${report.name} operation/capability 关联不一致`
                 );
                 assert(operation.status === 'completed', `${report.name} 正式 operation 未完成: ${operation.status}`);
+                if ([
+                    'execute_order_readiness_action',
+                    'execute_factory_workflow_step',
+                ].includes(report.name)) {
+                    const businessEvent = businessEventStatement.get(operationId);
+                    assert(
+                        Number(businessEvent?.count || 0) === 1,
+                        `${report.name} 的 operation ${operationId} 业务变更事件数不是1`
+                    );
+                    workflowBusinessEventsVerified += 1;
+                }
                 assert(!seenOperations.has(operationId), `${report.name} 复用了其他工具的 operationId`);
                 seenOperations.add(operationId);
             }
@@ -636,6 +653,12 @@ async function verifyPersistentReceipts(databasePath, toolReports) {
             integrity: db.pragma('integrity_check', { simple: true }),
             foreignKeyViolations: db.pragma('foreign_key_check').length,
             operationsVerified: seenOperations.size,
+            workflowBusinessEventsVerified,
+            workflowRunsVerified: Number(db.prepare(`
+                SELECT COUNT(*) AS count
+                FROM factory_workflow_runs
+                WHERE tool_name IN ('execute_order_readiness_action', 'execute_factory_workflow_step')
+            `).get()?.count || 0),
         };
     } finally {
         db.close();
@@ -1102,11 +1125,13 @@ async function run() {
         await declineWrite('add_recipe_to_order', addRecipeArgs);
         await callWrite('add_recipe_to_order', addRecipeArgs);
         order = (await apiRequest('回读订单追加产品', 'GET', `/api/orders/${orderId}`)).payload.data;
-        assert(parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeB), '追加配方未回读到');
+        const addedOrderItem = parseJsonArray(order.itemsJson)
+            .find(item => item.recipeName === FIXTURE.recipeB);
+        assert(addedOrderItem?.id, '追加配方未回读到稳定订单明细 ID');
 
         const updateOrderItemArgs = {
             orderId,
-            recipeName: FIXTURE.recipeB,
+            orderItemId: String(addedOrderItem.id),
             qty: 3,
             reason: 'MCP localhost 验收修改数量',
         };
@@ -1129,7 +1154,7 @@ async function run() {
 
         const removeRecipeArgs = {
             orderId,
-            recipeName: FIXTURE.recipeB,
+            orderItemId: String(addedOrderItem.id),
             reason: 'MCP localhost 验收移除产品',
         };
         await declineWrite('remove_recipe_from_order', removeRecipeArgs);
@@ -1336,7 +1361,7 @@ async function run() {
 
         await callWriteFailure('update_order_item', {
             orderId: 999999999,
-            recipeName: FIXTURE.recipeA,
+            orderItemId: 'missing-order-item',
             qty: 2,
             reason: 'MCP localhost 失败路径验收',
         }, { errorPattern: /找不到订单|订单不存在/ });
@@ -1357,10 +1382,6 @@ async function run() {
             targetId: createdRecipeId,
             title: 'MCP localhost 不存在文件',
         }, { errorPattern: /文件|附件|不存在/ });
-        await callWriteFailure('print_rotor_drawing', {
-            jobId: `mcp-missing-job-${unique}`,
-        }, { errorPattern: /任务|图纸|不存在|找不到/ });
-
         const acceptedQuotation = await createAcceptedQuotationFixture(
             unique,
             fixtureIds.customerId,
@@ -1415,11 +1436,6 @@ async function run() {
         assert(drawingJobId, 'generate_rotor_drawing 未返回 jobId');
         const drawingStatus = await waitForRotorJob(drawingJobId);
         assert(drawingStatus.fileUrl, '出图替身完成后缺少 fileUrl');
-
-        const printArgs = { jobId: drawingJobId };
-        await declineWrite('print_rotor_drawing', printArgs);
-        const printCall = await callWrite('print_rotor_drawing', printArgs);
-        assert(printCall.receipt.result?.jobId === drawingJobId, '打印回执 jobId 与完成任务不一致');
 
         const recipesBeforeDelete = (await apiRequest(
             '读取配方删除前目录',
@@ -1538,7 +1554,6 @@ async function run() {
             ['update_recipe', 0],
             ['delete_part', 0],
             ['archive_factory_file', 1],
-            ['print_rotor_drawing', 1],
         ]);
         for (const [name, count] of expectedFailureConfirmations) {
             assert(
@@ -1547,7 +1562,7 @@ async function run() {
             );
         }
         assert(report.idempotencyReplays.length === 5, '真实幂等重放样本不是5个');
-        assert(report.failedCalls.length === 6, '真实业务失败样本不是6个');
+        assert(report.failedCalls.length === 5, '真实业务失败样本不是5个');
 
         const persistentEvidence = await verifyPersistentReceipts(databasePath, [
             ...report.tools,
@@ -1555,22 +1570,19 @@ async function run() {
         ]);
         assert(persistentEvidence.integrity === 'ok', '隔离数据库完整性失败');
         assert(persistentEvidence.foreignKeyViolations === 0, '隔离数据库存在外键违规');
+        assert(
+            persistentEvidence.workflowBusinessEventsVerified === 4,
+            '两种工作流的业务动作与历史命令未形成精确4条独立事件'
+        );
+        assert(persistentEvidence.workflowRunsVerified === 2, '工作流执行历史不是精确2条');
         report.persistentEvidence = persistentEvidence;
 
         const stubEvents = readStubEvents(stubLogPath);
         assert(stubEvents.filter(event => event.kind === 'freecad').length === 1, 'FreeCAD 替身调用次数不是1');
-        assert(stubEvents.filter(event => event.kind === 'printer').length === 1, '打印替身调用次数不是1');
-        const printerEvent = stubEvents.find(event => event.kind === 'printer');
-        const expectedPrintedPath = path.resolve(
-            tempDir,
-            'public',
-            String(drawingStatus.fileUrl).replace(/^\/+/, '').split('/').join(path.sep)
-        );
-        assert(printerEvent.jobId === drawingJobId, '打印替身 jobId 与完成任务不一致');
-        assert(path.resolve(printerEvent.pdfPath) === expectedPrintedPath, '打印替身文件与完成任务不一致');
+        assert(stubEvents.filter(event => event.kind === 'printer').length === 0, 'MCP 验收不得调用打印替身');
         report.externalStub = {
             freecadCalls: stubEvents.filter(event => event.kind === 'freecad').length,
-            printerCalls: stubEvents.filter(event => event.kind === 'printer').length,
+            printerCalls: 0,
             physicalCalls: 0,
         };
         report.scenarios = MCP_BATCH_WRITE_SCENARIOS.map(scenario => {

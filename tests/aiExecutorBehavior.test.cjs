@@ -1031,6 +1031,221 @@ test('AI executor 行为：删除配方多匹配时不签发确认', async () =>
     assert.equal(calls.length, 1);
 });
 
+test('AI executor 行为：订单同名明细按 orderItemId 精确修改且不影响另一行', async () => {
+    const baselineItems = [
+        { id: 'item-a', recipeId: 7, recipeName: 'V750', qty: 1, unitCost: 100, unitPrice: 110 },
+        { id: 'item-b', recipeId: 7, recipeName: 'V750', qty: 2, unitCost: 100, unitPrice: 110 },
+    ];
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/orders/41') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 41,
+                    customerName: '测试客户',
+                    status: '待确认',
+                    updatedAt: '2026-08-29T00:00:00.000Z',
+                    itemsJson: JSON.stringify(baselineItems),
+                },
+            });
+        }
+        if (call.url.endsWith('/api/orders/save-payload-draft') && call.method === 'POST') {
+            assert.equal(call.body.items[0].qty, 1);
+            assert.equal(call.body.items[1].qty, 9);
+            return jsonResponse({
+                success: true,
+                data: {
+                    customerName: call.body.customerName,
+                    status: call.body.status,
+                    items: call.body.items,
+                    editReason: call.body.editReason,
+                    previewHash: 'order-item-preview',
+                },
+            });
+        }
+        if (call.url.endsWith('/api/orders/41') && call.method === 'PATCH') {
+            assert.equal(call.body.items[0].id, 'item-a');
+            assert.equal(call.body.items[0].qty, 1);
+            assert.equal(call.body.items[1].id, 'item-b');
+            assert.equal(call.body.items[1].qty, 9);
+            assert.equal(call.body.expectedUpdatedAt, '2026-08-29T00:00:00.000Z');
+            return jsonResponse({ success: true, data: commandData('orders.update_draft') });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('update_order_item', {
+        orderId: 41,
+        orderItemId: 'item-b',
+        qty: 9,
+        reason: '客户要求修改第二行数量',
+    }, { allowWrite: true, operationId: 'operation-order-item-update' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.orderItemId, 'item-b');
+    assert.equal(calls.length, 3);
+});
+
+test('AI executor 行为：订单明细缺少稳定 ID 或 ID 与名称不一致时 fail-closed', async () => {
+    const baselineItems = [
+        { id: 'item-a', recipeId: 7, recipeName: 'V750', qty: 1 },
+        { id: 'item-b', recipeId: 7, recipeName: 'V750', qty: 2 },
+        { id: 'item-c', recipeId: 8, recipeName: 'V750A', qty: 1 },
+    ];
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/orders/42') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 42,
+                    customerName: '测试客户',
+                    status: '待确认',
+                    updatedAt: '2026-08-29T00:00:00.000Z',
+                    itemsJson: JSON.stringify(baselineItems),
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: '歧义或部分名称不得进入保存 API' }, 500);
+    });
+
+    const missingId = await executeToolCall('remove_recipe_from_order', {
+        orderId: 42,
+        recipeName: 'V750',
+        reason: '客户要求删除指定产品',
+    }, { allowWrite: true });
+    assert.equal(missingId.success, false);
+    assert.equal(missingId.code, 'INVALID_AI_TOOL_INPUT');
+
+    const mismatch = await executeToolCall('remove_recipe_from_order', {
+        orderId: 42,
+        orderItemId: 'item-c',
+        recipeName: 'V750',
+        reason: '客户要求删除指定产品',
+    }, { allowWrite: true });
+    assert.equal(mismatch.success, false);
+    assert.equal(mismatch.code, 'order_item_identity_mismatch');
+    assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：订单同名明细按 orderItemId 只删除一行', async () => {
+    const baselineItems = [
+        { id: 'item-a', recipeId: 7, recipeName: 'V750', qty: 1 },
+        { id: 'item-b', recipeId: 7, recipeName: 'V750', qty: 2 },
+    ];
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/orders/43') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 43,
+                    customerName: '测试客户',
+                    status: '待确认',
+                    updatedAt: '2026-08-29T00:00:00.000Z',
+                    itemsJson: JSON.stringify(baselineItems),
+                },
+            });
+        }
+        if (call.url.endsWith('/api/orders/save-payload-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body.items.map(item => item.id), ['item-b']);
+            return jsonResponse({
+                success: true,
+                data: {
+                    customerName: call.body.customerName,
+                    status: call.body.status,
+                    items: call.body.items,
+                    editReason: call.body.editReason,
+                    previewHash: 'order-remove-preview',
+                },
+            });
+        }
+        if (call.url.endsWith('/api/orders/43') && call.method === 'PATCH') {
+            assert.deepEqual(call.body.items.map(item => item.id), ['item-b']);
+            return jsonResponse({ success: true, data: commandData('orders.update_draft') });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('remove_recipe_from_order', {
+        orderId: 43,
+        orderItemId: 'item-a',
+        reason: '客户要求删除第一行',
+    }, { allowWrite: true });
+    assert.equal(result.success, true);
+    assert.equal(result.orderItemId, 'item-a');
+    assert.equal(result.removed, 1);
+    assert.equal(result.remaining, 1);
+    assert.equal(calls.length, 3);
+});
+
+test('AI executor 行为：删除订单最后一行由正式草稿校验拒绝且不进入 PATCH', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/orders/44') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 44,
+                    customerName: '测试客户',
+                    status: '待确认',
+                    updatedAt: '2026-08-29T00:00:00.000Z',
+                    itemsJson: JSON.stringify([
+                        { id: 'only-item', recipeId: 7, recipeName: 'V750', qty: 1 },
+                    ]),
+                },
+            });
+        }
+        if (call.url.endsWith('/api/orders/save-payload-draft') && call.method === 'POST') {
+            assert.deepEqual(call.body.items, []);
+            return jsonResponse({
+                success: false,
+                code: 'order_items_required',
+                error: '至少添加一个订单产品',
+            }, 400);
+        }
+        return jsonResponse({ success: false, error: 'draft 失败后不得进入 PATCH' }, 500);
+    });
+
+    const result = await executeToolCall('remove_recipe_from_order', {
+        orderId: 44,
+        orderItemId: 'only-item',
+        reason: '验收最后一行保护',
+    }, { allowWrite: true });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'order_items_required');
+    assert.match(result.error, /至少添加一个订单产品/);
+    assert.deepEqual(calls.map(call => call.method), ['GET', 'POST']);
+});
+
+test('AI executor 行为：不存在的 orderItemId fail-closed 且不进入保存', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/orders/45') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    id: 45,
+                    customerName: '测试客户',
+                    status: '待确认',
+                    itemsJson: JSON.stringify([
+                        { id: 'item-a', recipeId: 7, recipeName: 'V750', qty: 1 },
+                    ]),
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: '不存在 ID 不得进入保存' }, 500);
+    });
+
+    const result = await executeToolCall('update_order_item', {
+        orderId: 45,
+        orderItemId: 'missing-item',
+        qty: 2,
+        reason: '验收不存在目标',
+    }, { allowWrite: true });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'order_item_not_found');
+    assert.equal(calls.length, 1);
+});
+
 test('AI executor 行为：确认后的配方修改只执行冻结草稿并对版本漂移 fail-closed', async () => {
     const frozenDraft = {
         capabilityId: 'recipes.update',
@@ -3384,6 +3599,8 @@ test('AI executor 行为：V8.2 跨模块执行步骤未确认时只返回确认
 
 test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新订单', async () => {
     let planReads = 0;
+    let conversionOperationId = '';
+    let historyOperationId = '';
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
             planReads += 1;
@@ -3435,6 +3652,7 @@ test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新
             });
         }
         if (call.url.endsWith('/api/quotations/5/convert') && call.method === 'POST') {
+            conversionOperationId = call.headers['x-operation-id'];
             assert.equal(call.body.expectedUpdatedAt, '2026-08-02T00:00:00.000Z');
             assert.equal(call.body.previewHash, 'a'.repeat(64));
             return jsonResponse({
@@ -3457,6 +3675,7 @@ test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新
             });
         }
         if (call.url.endsWith('/api/workbench/execution-runs') && call.method === 'POST') {
+            historyOperationId = call.headers['x-operation-id'];
             assert.equal(call.body.status, 'completed');
             assert.equal(call.body.actionId, 'convert_quotation');
             assert.equal(call.body.result.orderId, 21);
@@ -3478,7 +3697,7 @@ test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新
         workflowType: 'quotation_to_order',
         quotationId: 5,
         actionId: 'convert_quotation',
-    }, { allowWrite: true });
+    }, { allowWrite: true, operationId: 'operation-quotation-workflow-parent' });
 
     assert.equal(result.success, true);
     assert.equal(result.intent, 'factory_workflow_action');
@@ -3486,6 +3705,9 @@ test('AI executor 行为：V8.2 确认后重验计划、事务转单并检查新
     assert.equal(result.data.nextPlan.planStatus, 'waiting');
     assert.equal(result.data.workflowPlan.status, 'complete');
     assert.equal(result.data.executionRun.id, 31);
+    assert.equal(conversionOperationId, 'operation-quotation-workflow-parent');
+    assert.match(historyOperationId, /^[0-9a-f-]{36}$/);
+    assert.notEqual(historyOperationId, conversionOperationId);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'POST /api/workbench/execution-plan',
         'POST /api/quotations/5/order-draft',
@@ -3624,6 +3846,8 @@ test('AI executor 行为：订单方案步骤未确认时只返回确认卡片',
 });
 
 test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', async () => {
+    let businessOperationId = '';
+    let historyOperationId = '';
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/workbench/execution-plan') && call.method === 'POST') {
             assert.deepEqual(call.body, {
@@ -3662,6 +3886,7 @@ test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', 
             });
         }
         if (call.url.endsWith('/api/orders/12/readiness-actions/confirm_order') && call.method === 'POST') {
+            businessOperationId = call.headers['x-operation-id'];
             assert.deepEqual(call.body, {
                 expectedUpdatedAt: '2026-08-03T01:02:03.000Z',
                 previewHash: 'a'.repeat(64),
@@ -3681,6 +3906,7 @@ test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', 
             });
         }
         if (call.url.endsWith('/api/workbench/execution-runs') && call.method === 'POST') {
+            historyOperationId = call.headers['x-operation-id'];
             assert.equal(call.body.status, 'completed');
             assert.equal(call.body.actionId, 'confirm_order');
             assert.equal(call.body.result.orderStatus, '待采购');
@@ -3700,13 +3926,16 @@ test('AI executor 行为：确认后通过实时重验 API 执行方案步骤', 
     const result = await executeToolCall('execute_order_readiness_action', {
         orderId: 12,
         actionId: 'confirm_order',
-    }, { allowWrite: true });
+    }, { allowWrite: true, operationId: 'operation-order-readiness-parent' });
 
     assert.equal(result.success, true);
     assert.equal(result.intent, 'order_readiness_action');
     assert.equal(result.data.action.id, 'confirm_order');
     assert.equal(result.data.order.status, '待采购');
     assert.equal(result.data.executionRun.id, 33);
+    assert.equal(businessOperationId, 'operation-order-readiness-parent');
+    assert.match(historyOperationId, /^[0-9a-f-]{36}$/);
+    assert.notEqual(historyOperationId, businessOperationId);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'POST /api/workbench/execution-plan',
         'GET /api/orders/12/readiness-plan',

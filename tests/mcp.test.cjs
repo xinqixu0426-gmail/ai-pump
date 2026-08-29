@@ -194,6 +194,8 @@ test('通用 MCP V2：写目录只包含显式审核过的 Preview + Confirmatio
     }
     assert.ok(!MCP_WRITE_TOOL_NAMES.includes('create_part'));
     assert.ok(!MCP_WRITE_TOOL_NAMES.includes('delete_order'));
+    assert.ok(!MCP_WRITE_TOOL_NAMES.includes('print_rotor_drawing'));
+    assert.ok(MCP_WRITE_TOOL_NAMES.includes('generate_rotor_drawing'));
 
     const subset = listMcpTools({
         writeToolNames: ['create_order', 'sync_factory_knowledge'],
@@ -266,6 +268,19 @@ test('通用 MCP：越过白名单或缺少正式 API 证据时默认拒绝', as
     });
     assert.equal(rejectedWrite.isError, true);
     assert.equal(rejectedWrite.structuredContent.code, 'mcp_tool_not_allowed');
+    assert.equal(called, false);
+
+    const rejectedPrint = await executeMcpTool('print_rotor_drawing', {
+        jobId: 'must-not-print',
+    }, {
+        writeTools: ['print_rotor_drawing'],
+        executeToolCall: async () => {
+            called = true;
+            return verifiedResult();
+        },
+    });
+    assert.equal(rejectedPrint.isError, true);
+    assert.equal(rejectedPrint.structuredContent.code, 'mcp_tool_not_allowed');
     assert.equal(called, false);
 
     const missingEvidence = await executeMcpTool('get_copper_price', {}, {

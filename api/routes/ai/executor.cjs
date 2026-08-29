@@ -176,6 +176,7 @@ function buildConfirmationRows(toolName, args = {}) {
         case 'remove_recipe_from_order':
         case 'update_order_item':
             addRow(rows, '订单ID', args.orderId);
+            addRow(rows, '产品明细ID', args.orderItemId);
             addRow(rows, '配方', args.recipeName);
             addRow(rows, '数量', args.qty);
             addRow(rows, '销售单价', args.unitPrice, hasValue(args.unitPrice) ? ' 元' : '');

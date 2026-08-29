@@ -87,7 +87,6 @@ const requiredFailureTools = [
     'update_recipe',
     'delete_part',
     'archive_factory_file',
-    'print_rotor_drawing',
 ];
 const replayEvidence = Array.isArray(e2eReport?.idempotencyReplays)
     ? e2eReport.idempotencyReplays
@@ -138,15 +137,35 @@ const legacyCompatibilityPassed = e2eReport?.legacyCompatibility?.listedReadTool
     && e2eReport?.legacyCompatibility?.readCall === 'passed'
     && e2eReport?.legacyCompatibility?.hiddenWrite === 'rejected'
     && e2eReport?.legacyCompatibility?.sideEffects === 0;
+const multiOperationTools = new Set([
+    'execute_order_readiness_action',
+    'execute_factory_workflow_step',
+]);
+const operationCardinalityPassed = MCP_WRITE_ACCEPTANCE_CASES.every(({ name }) => {
+    const tool = e2eReport?.tools?.find(item => item?.name === name);
+    const expected = multiOperationTools.has(name) ? 2 : 1;
+    return tool?.formalOperationIds?.length === expected
+        && tool?.formalCapabilityIds?.length === expected;
+});
+const recipeRecoveryCardinalityPassed = e2eReport?.recipeRecovery?.formalOperationIds?.length === 1
+    && e2eReport?.recipeRecovery?.formalCapabilityIds?.length === 1;
+const expectedPersistentOperations = MCP_WRITE_ACCEPTANCE_CASES.length
+    + multiOperationTools.size
+    + 1;
 const e2ePassed = e2eResult?.status === 0
     && e2eReport?.status === 'passed'
     && e2eReport?.toolsPassed === MCP_WRITE_ACCEPTANCE_CASES.length
     && e2eReport?.productionTouched === false
     && e2eReport?.physicalSideEffects === false
+    && e2eReport?.externalStub?.printerCalls === 0
     && e2eReport?.temporaryDatabaseCleaned === true
     && e2eReport?.directorySnapshot?.listCalls === 1
     && e2eReport?.directorySnapshot?.writeTools === MCP_WRITE_ACCEPTANCE_CASES.length
-    && e2eReport?.persistentEvidence?.operationsVerified === MCP_WRITE_ACCEPTANCE_CASES.length + 1
+    && operationCardinalityPassed
+    && recipeRecoveryCardinalityPassed
+    && e2eReport?.persistentEvidence?.operationsVerified === expectedPersistentOperations
+    && e2eReport?.persistentEvidence?.workflowBusinessEventsVerified === 4
+    && e2eReport?.persistentEvidence?.workflowRunsVerified === 2
     && e2eReport?.persistentEvidence?.integrity === 'ok'
     && e2eReport?.persistentEvidence?.foreignKeyViolations === 0
     && legacyCompatibilityPassed
@@ -183,6 +202,9 @@ const report = {
             protocolVersion: e2eReport.protocolVersion,
             toolsPassed: e2eReport.toolsPassed,
             operationsVerified: e2eReport.persistentEvidence?.operationsVerified || 0,
+            workflowBusinessEventsVerified: e2eReport.persistentEvidence?.workflowBusinessEventsVerified || 0,
+            workflowRunsVerified: e2eReport.persistentEvidence?.workflowRunsVerified || 0,
+            printerCalls: e2eReport.externalStub?.printerCalls ?? null,
             databaseIntegrity: e2eReport.persistentEvidence?.integrity || null,
             foreignKeyViolations: e2eReport.persistentEvidence?.foreignKeyViolations ?? null,
             legacyCompatibility: {
