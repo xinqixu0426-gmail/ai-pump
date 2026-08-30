@@ -2654,8 +2654,11 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsView, /optionalPositiveNumberText\(coil\.wireWeight\)/);
     assert.doesNotMatch(coilsView, /label="铜价基数(?:（可选）)?"/);
     assert.doesNotMatch(coilsView, />铜价基数<\/th>/);
-    for (const label of ['方案名称', '状态', '方案编码', '方案族', '电压', '频率', '市场']) {
+    for (const label of ['方案名称', '状态', '电压', '频率']) {
         assert.match(coilsView, new RegExp(`>${label}<\\/th>`));
+    }
+    for (const label of ['方案编码', '方案族', '市场']) {
+        assert.doesNotMatch(coilsView, new RegExp(`>${label}<\\/th>`));
     }
     assert.match(coilsView, /定子直径 mm/);
     assert.match(coilsView, /国标眼/);

@@ -860,17 +860,14 @@ export function CoilsView() {
                     ) : null}
                   </div>
                   {!collapsed ? <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1680px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1380px] border-collapse text-left text-sm">
                       <thead className="bg-slate-50 text-xs text-muted">
                         <tr>
                           <th className="px-4 py-2.5 font-medium">片数</th>
                           <th className="px-4 py-2.5 font-medium">方案名称</th>
                           <th className="px-4 py-2.5 font-medium">状态</th>
-                          <th className="px-4 py-2.5 font-medium">方案编码</th>
-                          <th className="px-4 py-2.5 font-medium">方案族</th>
                           <th className="px-4 py-2.5 font-medium">电压</th>
                           <th className="px-4 py-2.5 font-medium">频率</th>
-                          <th className="px-4 py-2.5 font-medium">市场</th>
                           <th className="px-4 py-2.5 font-medium">计价</th>
                           <th className="px-4 py-2.5 font-medium">线圈套成本</th>
                           <th className="px-4 py-2.5 font-medium">线重</th>
@@ -900,11 +897,8 @@ export function CoilsView() {
                                 </span>
                                 {coil.isDefault ? <span className="ml-1 mt-1 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">默认</span> : null}
                               </td>
-                              <td className="border-b border-line px-4 py-2.5 font-mono text-xs text-muted">{coil.schemeCode || '-'}</td>
-                              <td className="border-b border-line px-4 py-2.5 font-mono text-xs text-muted">{coil.schemeFamilyCode || '-'}</td>
                               <td className="border-b border-line px-4 py-2.5 text-muted">{coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '-'}</td>
                               <td className="border-b border-line px-4 py-2.5 text-muted">{coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '-'}</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.market || '-'}</td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${coil.pricingMode === 'kit' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
                                   {coil.pricingMode === 'kit' ? '供应商套件价' : '计算计价'}
