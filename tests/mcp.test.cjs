@@ -514,6 +514,14 @@ test('通用 MCP：2026 客户端自动协商现代无状态协议并调用同�
         const listed = await client.listTools();
         assert.deepEqual(listed.tools.map(tool => tool.name), MCP_READ_ONLY_TOOL_NAMES);
         assert.equal(listed.tools[0].outputSchema.type, 'object');
+        const searchCoils = listed.tools.find(tool => tool.name === 'search_coils');
+        assert.deepEqual(
+            Object.keys(searchCoils.inputSchema.properties).sort(),
+            [
+                'isDefault', 'market', 'material', 'ratedFrequencyHz', 'ratedVoltageV',
+                'schemeCode', 'schemeFamilyCode', 'schemeStatus', 'sheets', 'slotType', 'spec',
+            ].sort()
+        );
 
         const invalidInput = await client.callTool({
             name: 'search_parts',
@@ -534,14 +542,45 @@ test('通用 MCP：2026 客户端自动协商现代无状态协议并调用同�
         );
         assert.deepEqual(calls, []);
 
+        const coilResult = await client.callTool({
+            name: 'search_coils',
+            arguments: {
+                spec: '12',
+                sheets: 220,
+                schemeStatus: 'official',
+                isDefault: false,
+                ratedVoltageV: 240,
+                ratedFrequencyHz: 50,
+                market: '马来西亚',
+                schemeFamilyCode: 'MY240-12',
+            },
+        });
+        assert.equal(coilResult.structuredContent.mcp.verified, true);
+
         const result = await client.callTool({ name: 'get_copper_price', arguments: {} });
         assert.equal(result.structuredContent.data.cnyPerKg, 81.5);
         assert.equal(result.structuredContent.mcp.verified, true);
-        assert.deepEqual(calls, [{
-            name: 'get_copper_price',
-            args: {},
-            options: { allowWrite: false, caller: 'mcp:generic-test' },
-        }]);
+        assert.deepEqual(calls, [
+            {
+                name: 'search_coils',
+                args: {
+                    spec: '12',
+                    sheets: 220,
+                    schemeStatus: 'official',
+                    isDefault: false,
+                    ratedVoltageV: 240,
+                    ratedFrequencyHz: 50,
+                    market: '马来西亚',
+                    schemeFamilyCode: 'MY240-12',
+                },
+                options: { allowWrite: false, caller: 'mcp:generic-test' },
+            },
+            {
+                name: 'get_copper_price',
+                args: {},
+                options: { allowWrite: false, caller: 'mcp:generic-test' },
+            },
+        ]);
     } finally {
         await client.close();
         await closeServer(server);

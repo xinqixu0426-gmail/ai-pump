@@ -21,6 +21,22 @@ function normalizeMovementLimit(value) {
     );
 }
 
+function normalizeOptionalPositiveInteger(value, field) {
+    if (value === undefined || value === '') return null;
+    const normalized = parsePositiveId(value);
+    if (!normalized) {
+        throw new CoilQueryError(`${field} 必须是正整数`);
+    }
+    return normalized;
+}
+
+function normalizeOptionalBoolean(value, field) {
+    if (value === undefined || value === '') return null;
+    if (value === true || value === 'true' || value === 1 || value === '1') return true;
+    if (value === false || value === 'false' || value === 0 || value === '0') return false;
+    throw new CoilQueryError(`${field} 必须是 true、false、1 或 0`);
+}
+
 function createCoilQueries({
     db,
     listCoils,
@@ -48,11 +64,9 @@ function createCoilQueries({
         const schemeStatus = String(options.schemeStatus || '').trim();
         const market = String(options.market || '').trim();
         const schemeFamilyCode = String(options.schemeFamilyCode || '').trim().toUpperCase();
-        const ratedVoltageV = options.ratedVoltageV ? parsePositiveId(options.ratedVoltageV) : null;
-        const ratedFrequencyHz = options.ratedFrequencyHz ? parsePositiveId(options.ratedFrequencyHz) : null;
-        const isDefault = options.isDefault === undefined || options.isDefault === ''
-            ? null
-            : options.isDefault === true || options.isDefault === 'true' || options.isDefault === '1';
+        const ratedVoltageV = normalizeOptionalPositiveInteger(options.ratedVoltageV, 'ratedVoltageV');
+        const ratedFrequencyHz = normalizeOptionalPositiveInteger(options.ratedFrequencyHz, 'ratedFrequencyHz');
+        const isDefault = normalizeOptionalBoolean(options.isDefault, 'isDefault');
         const hasSheets = options.sheets !== undefined && options.sheets !== '';
         const sheets = hasSheets ? parsePositiveId(options.sheets) : null;
         if (hasSheets && !sheets) {

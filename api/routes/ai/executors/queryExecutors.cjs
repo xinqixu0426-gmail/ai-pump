@@ -110,6 +110,12 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 slotType: String(args.slotType || '').trim(),
             };
             if (String(args.schemeCode || '').trim()) filters.schemeCode = String(args.schemeCode).trim();
+            if (String(args.schemeStatus || '').trim()) filters.schemeStatus = String(args.schemeStatus).trim();
+            if (args.isDefault !== undefined) filters.isDefault = Boolean(args.isDefault);
+            if (args.ratedVoltageV !== undefined) filters.ratedVoltageV = Number(args.ratedVoltageV);
+            if (args.ratedFrequencyHz !== undefined) filters.ratedFrequencyHz = Number(args.ratedFrequencyHz);
+            if (String(args.market || '').trim()) filters.market = String(args.market).trim();
+            if (String(args.schemeFamilyCode || '').trim()) filters.schemeFamilyCode = String(args.schemeFamilyCode).trim();
             // 用户常说"12-120"（规格俗称-片数）。模型可能把它整体传进 spec，
             // 这里确定性地拆分，避免漏匹配（adjust_coil_stock 遵循同一约定）。
             const shorthand = filters.spec.match(/^(\d+)\s*[-—~]\s*(\d+)$/);

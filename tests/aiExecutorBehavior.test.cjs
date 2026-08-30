@@ -4917,6 +4917,61 @@ test('AI executor 行为：线圈库存查询只返回正式 API 的实时匹配
     ]);
 });
 
+test('AI executor 行为：多方案身份筛选完整转发到正式线圈 API', async () => {
+    const expectedPath = '/api/coils?spec=12&sheets=220&schemeCode=MY240-12-220&schemeStatus=official&isDefault=false&ratedVoltageV=240&ratedFrequencyHz=50&market=%E9%A9%AC%E6%9D%A5%E8%A5%BF%E4%BA%9A&schemeFamilyCode=MY240-12';
+    installFetchStub((call) => {
+        if (call.url.endsWith(expectedPath) && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 8,
+                    spec: '12',
+                    sheets: 220,
+                    schemeCode: 'MY240-12-220',
+                    schemeFamilyCode: 'MY240-12',
+                    schemeStatus: 'official',
+                    isDefault: false,
+                    ratedVoltageV: 240,
+                    ratedFrequencyHz: 50,
+                    market: '马来西亚',
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_coils', {
+        spec: '12',
+        sheets: 220,
+        schemeCode: 'MY240-12-220',
+        schemeStatus: 'official',
+        isDefault: false,
+        ratedVoltageV: 240,
+        ratedFrequencyHz: 50,
+        market: '马来西亚',
+        schemeFamilyCode: 'MY240-12',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.count, 1);
+    assert.equal(result.data[0].schemeFamilyCode, 'MY240-12');
+    assert.equal(result.data[0].isDefault, false);
+    assert.deepEqual(result.filters, {
+        spec: '12',
+        sheets: 220,
+        material: '',
+        slotType: '',
+        schemeCode: 'MY240-12-220',
+        schemeStatus: 'official',
+        isDefault: false,
+        ratedVoltageV: 240,
+        ratedFrequencyHz: 50,
+        market: '马来西亚',
+        schemeFamilyCode: 'MY240-12',
+    });
+    assert.equal(result.executionEvidence.calls[0].path, expectedPath);
+});
+
 test('AI executor 行为：线圈俗称-片数简写自动拆分后再查询', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/coils?spec=12&sheets=120') && call.method === 'GET') {

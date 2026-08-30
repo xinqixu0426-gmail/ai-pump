@@ -287,6 +287,15 @@ function documentEntry(document) {
 function coilEntry(coil) {
     const coilKey = `${coil.commonName || coil.spec}-${coil.sheets}`;
     const pairedCableWireGauge = coil.defaultWireGauge || '';
+    const schemeName = String(coil.schemeName || '').trim();
+    const schemeCode = String(coil.schemeCode || '').trim();
+    const schemeFamilyCode = String(coil.schemeFamilyCode || '').trim();
+    const schemeStatus = coil.schemeStatus || 'official';
+    const isDefault = Boolean(coil.isDefault);
+    const ratedVoltageV = Number(coil.ratedVoltageV || 0);
+    const ratedFrequencyHz = Number(coil.ratedFrequencyHz || 0);
+    const market = String(coil.market || '').trim();
+    const schemeIdentity = [schemeName, schemeCode && `[${schemeCode}]`].filter(Boolean).join(' ');
     const pricingMode = coil.pricingMode === 'kit' ? 'kit' : 'calculated';
     const pricingSummary = pricingMode === 'kit'
         ? `供应商套件价 ${Number(coil.kitPrice || coil.cost || 0)} 元`
@@ -309,8 +318,8 @@ function coilEntry(coil) {
         sourceTable: 'coils',
         sourceId: coil.id,
         sourceUpdatedAt: coil.updatedAt,
-        title: `线圈：${coilKey} ${coil.material || '钢带'} ${coil.slotType || '小眼'}`,
-        summary: `${coil.schemeStatus === 'testing' ? '测试' : coil.schemeStatus === 'disabled' ? '停用' : '正式'}方案，${pricingSummary}，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
+        title: `线圈：${coilKey} ${coil.material || '钢带'} ${coil.slotType || '小眼'}${schemeIdentity ? ` ${schemeIdentity}` : ''}`,
+        summary: `${schemeStatus === 'testing' ? '测试' : schemeStatus === 'disabled' ? '停用' : '正式'}方案${isDefault ? '（默认）' : ''}，${[ratedVoltageV && `${ratedVoltageV}V`, ratedFrequencyHz && `${ratedFrequencyHz}Hz`, market].filter(Boolean).join('，') || '未填写电气适用范围'}，${pricingSummary}，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
         content: [
             `规格片数：${coilKey}`,
             `规格俗称：${coil.commonName || coil.spec}`,
@@ -318,7 +327,14 @@ function coilEntry(coil) {
             `片数：${coil.sheets}`,
             `材质：${coil.material || '钢带'}`,
             `槽眼：${coil.slotType || '小眼'}`,
-            `方案：${coil.schemeName || ''}（${coil.schemeStatus || 'official'}）`,
+            `方案名称：${schemeName}`,
+            `方案编码：${schemeCode}`,
+            `方案族编码：${schemeFamilyCode}`,
+            `方案状态：${schemeStatus}`,
+            `默认方案：${isDefault ? '是' : '否'}`,
+            `额定电压：${ratedVoltageV ? `${ratedVoltageV}V` : ''}`,
+            `额定频率：${ratedFrequencyHz ? `${ratedFrequencyHz}Hz` : ''}`,
+            `适用市场：${market}`,
             ...pricingLines,
             `成本：${Number(coil.cost || 0)}`,
             `默认搭配电缆线径：${pairedCableWireGauge}`,
@@ -329,7 +345,9 @@ function coilEntry(coil) {
             `副线数据：${coil.auxWireData || ''}`,
         ],
         tags: [
-            '线圈', coilKey, coil.spec, String(coil.diameterMm || ''), String(coil.sheets), coil.material, coil.slotType, coil.schemeName, coil.schemeStatus,
+            '线圈', coilKey, coil.spec, String(coil.diameterMm || ''), String(coil.sheets), coil.material, coil.slotType,
+            schemeName, schemeCode, schemeFamilyCode, schemeStatus, isDefault ? '默认方案' : '非默认方案',
+            ratedVoltageV ? `${ratedVoltageV}V` : '', ratedFrequencyHz ? `${ratedFrequencyHz}Hz` : '', market,
             pairedCableWireGauge, coil.defaultCapacitor,
             coil.mainWireGauge, coil.mainWireData, coil.auxWireGauge, coil.auxWireData,
         ],
@@ -340,7 +358,14 @@ function coilEntry(coil) {
             sheets: Number(coil.sheets || 0),
             material: coil.material || '钢带',
             slotType: coil.slotType || '小眼',
-            schemeStatus: coil.schemeStatus || 'official',
+            schemeName,
+            schemeCode,
+            schemeFamilyCode,
+            schemeStatus,
+            isDefault,
+            ratedVoltageV: ratedVoltageV || null,
+            ratedFrequencyHz: ratedFrequencyHz || null,
+            market,
             pricingMode,
             kitPrice: pricingMode === 'kit' ? Number(coil.kitPrice || coil.cost || 0) : 0,
             cost: Number(coil.cost || 0),

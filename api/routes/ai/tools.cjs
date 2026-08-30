@@ -92,7 +92,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_coils',
-            description: '从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆线径、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼筛选；结果以 schemeStatus 区分正式、测试和停用，用户只问正式方案时据此筛选。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。',
+            description: '从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆线径、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼、方案编码、状态、默认标记、电压、频率、市场和方案族筛选；schemeStatus 明确区分正式、测试和停用方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -100,7 +100,13 @@ const AI_TOOLS = [
                     sheets: { type: 'integer', description: '片数，如“96”' },
                     material: { type: 'string', description: '材质（可选）' },
                     slotType: { type: 'string', description: '槽眼（可选）' },
-                    schemeCode: { type: 'string', description: '稳定方案编码（可选）' }
+                    schemeCode: { type: 'string', description: '稳定方案编码（可选）' },
+                    schemeStatus: { type: 'string', enum: ['official', 'testing', 'disabled'], description: '方案状态（可选）' },
+                    isDefault: { type: 'boolean', description: '是否为同组合的默认方案（可选）' },
+                    ratedVoltageV: { type: 'integer', minimum: 1, description: '额定电压，单位 V（可选）' },
+                    ratedFrequencyHz: { type: 'integer', minimum: 1, description: '额定频率，单位 Hz（可选）' },
+                    market: { type: 'string', description: '适用市场（可选）' },
+                    schemeFamilyCode: { type: 'string', description: '方案族编码，用于限定同一电气设计族（可选）' }
                 }
             }
         }

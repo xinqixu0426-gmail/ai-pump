@@ -35,7 +35,13 @@ function createFixture() {
         slotType: '国标眼',
         sheets: 160,
         unitPrice: 1.2,
+        schemeCode: 'MY240-12-160',
+        schemeFamilyCode: 'MY240-12',
         schemeStatus: 'official',
+        isDefault: false,
+        ratedVoltageV: 240,
+        ratedFrequencyHz: 50,
+        market: '马来西亚',
     }];
     const variants = [{ id: 1, name: '12冷轧' }];
     const queries = createCoilQueries({
@@ -62,6 +68,16 @@ test('线圈 Query 统一返回线圈、定子组合、规格草稿和规格选�
             slotType: '国标眼',
         }), fixture.coils);
         assert.deepEqual(fixture.queries.getAllCoils({ sheets: 999 }), []);
+        assert.deepEqual(fixture.queries.getAllCoils({
+            schemeCode: 'my240-12-160',
+            schemeFamilyCode: 'my240-12',
+            schemeStatus: 'official',
+            isDefault: 'false',
+            ratedVoltageV: '240',
+            ratedFrequencyHz: '50',
+            market: '马来西亚',
+        }), fixture.coils);
+        assert.deepEqual(fixture.queries.getAllCoils({ isDefault: 'true' }), []);
         assert.equal(
             fixture.queries.getAllStatorVariants(),
             fixture.variants
@@ -111,6 +127,16 @@ test('线圈 Query 使用稳定的输入和不存在资源错误', () => {
                 && error.message === 'sheets 必须是正整数'
             )
         );
+        for (const [field, value, message] of [
+            ['ratedVoltageV', 'bad', 'ratedVoltageV 必须是正整数'],
+            ['ratedFrequencyHz', 0, 'ratedFrequencyHz 必须是正整数'],
+            ['isDefault', 'no', 'isDefault 必须是 true、false、1 或 0'],
+        ]) {
+            assert.throws(
+                () => fixture.queries.getAllCoils({ [field]: value }),
+                error => error instanceof CoilQueryError && error.statusCode === 400 && error.message === message
+            );
+        }
         assert.throws(
             () => fixture.queries.getSpecDraft({}),
             error => (

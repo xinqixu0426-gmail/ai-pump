@@ -57,9 +57,21 @@ test('V2 工具输入：按 AI_TOOLS schema 统一规范化所有字段', () => 
     assert.deepEqual(validateAiToolArgs('search_coils', {
         spec: ' 12 ',
         sheets: '220',
+        schemeStatus: 'official',
+        isDefault: false,
+        ratedVoltageV: '240',
+        ratedFrequencyHz: 50,
+        market: ' 马来西亚 ',
+        schemeFamilyCode: ' MY240-12 ',
     }), {
         spec: '12',
         sheets: 220,
+        schemeStatus: 'official',
+        isDefault: false,
+        ratedVoltageV: 240,
+        ratedFrequencyHz: 50,
+        market: '马来西亚',
+        schemeFamilyCode: 'MY240-12',
     });
 
     assert.deepEqual(validateAiToolArgs('update_recipe', {
@@ -85,6 +97,9 @@ test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执�
         ['search_parts', { query: '油封' }],
         ['get_recent_orders', { status: '报价中' }],
         ['adjust_part_stock', { items: [{ model: 'A' }] }],
+        ['search_coils', { schemeStatus: 'draft' }],
+        ['search_coils', { ratedVoltageV: 0 }],
+        ['search_coils', { isDefault: 'false' }],
     ]) {
         assert.throws(
             () => validateAiToolArgs(name, args),

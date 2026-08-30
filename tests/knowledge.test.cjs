@@ -376,11 +376,39 @@ test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈
                 sheets: 220,
                 material: '钢带',
                 slotType: '小眼',
+                schemeName: '正式通用方案',
+                schemeCode: 'STD-12-220',
+                schemeFamilyCode: 'STD-12',
                 schemeStatus: 'official',
+                isDefault: true,
+                ratedVoltageV: 220,
+                ratedFrequencyHz: 50,
+                market: '通用',
                 cost: 149,
                 wireWeight: 0.824,
                 defaultWireGauge: '1.2',
                 mainWireGauge: '0.55',
+            },
+            {
+                id: 8,
+                spec: '12',
+                commonName: '12',
+                diameterMm: 120,
+                sheets: 220,
+                material: '钢带',
+                slotType: '小眼',
+                schemeName: '240V马来西亚方案',
+                schemeCode: 'MY240-12-220',
+                schemeFamilyCode: 'MY240-12',
+                schemeStatus: 'official',
+                isDefault: false,
+                ratedVoltageV: 240,
+                ratedFrequencyHz: 50,
+                market: '马来西亚',
+                cost: 159,
+                wireWeight: 0.9,
+                defaultWireGauge: '1.5',
+                mainWireGauge: '0.57',
             },
             {
                 id: 9,
@@ -405,7 +433,7 @@ test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈
     });
 
     const rows = searchKnowledgeEntries({ query: '12-220', entryType: 'coil', limit: 10 }, { dbAccessors: accessors });
-    assert.equal(rows.length, 2);
+    assert.equal(rows.length, 3);
     assert.deepEqual(new Set(rows.map(row => `${row.metadata.material}/${row.metadata.slotType}`)), new Set([
         '钢带/小眼',
         '冷轧/国标眼',
@@ -414,6 +442,31 @@ test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈
     assert.match(coldRolled.content, /默认搭配电缆线径：2/);
     assert.match(coldRolled.content, /主线漆包线线径：0\.62/);
     assert.doesNotMatch(coldRolled.content, /默认线径：/);
+    const malaysiaRows = searchKnowledgeEntries({ query: 'MY240-12-220 马来西亚', entryType: 'coil', limit: 10 }, { dbAccessors: accessors });
+    assert.equal(malaysiaRows.length, 1);
+    assert.equal(malaysiaRows[0].sourceId, '8');
+    assert.match(malaysiaRows[0].title, /240V马来西亚方案.*MY240-12-220/);
+    const malaysia = getKnowledgeEntryDetail(malaysiaRows[0].id, { dbAccessors: accessors });
+    assert.match(malaysia.content, /方案族编码：MY240-12/);
+    assert.match(malaysia.content, /默认方案：否/);
+    assert.match(malaysia.content, /额定电压：240V/);
+    assert.match(malaysia.content, /额定频率：50Hz/);
+    assert.match(malaysia.content, /适用市场：马来西亚/);
+    assert.deepEqual({
+        schemeCode: malaysia.metadata.schemeCode,
+        schemeFamilyCode: malaysia.metadata.schemeFamilyCode,
+        isDefault: malaysia.metadata.isDefault,
+        ratedVoltageV: malaysia.metadata.ratedVoltageV,
+        ratedFrequencyHz: malaysia.metadata.ratedFrequencyHz,
+        market: malaysia.metadata.market,
+    }, {
+        schemeCode: 'MY240-12-220',
+        schemeFamilyCode: 'MY240-12',
+        isDefault: false,
+        ratedVoltageV: 240,
+        ratedFrequencyHz: 50,
+        market: '马来西亚',
+    });
 });
 
 test('Knowledge service：配方测试报告进入可检索内容', () => {
