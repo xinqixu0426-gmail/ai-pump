@@ -190,6 +190,7 @@ function buildRecipeBomDraft(input, context) {
     const coilSpec = input.coilSpec ?? variant?.coilSpec ?? '';
     const coilSheets = input.coilSheets ?? variant?.coilSheets ?? '';
     const coilId = input.coilId ?? variant?.coilId ?? null;
+    const coilSchemeFamilyCode = input.coilSchemeFamilyCode ?? variant?.coilSchemeFamilyCode ?? '';
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
     const coilSlotType = input.coilSlotType ?? variant?.coilSlotType ?? '小眼';
     const costMode = template?.costMode || 'components';
@@ -291,6 +292,7 @@ function buildRecipeBomDraft(input, context) {
         : null;
     const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial, coilSlotType, {
         coilId,
+        schemeFamilyCode: coilSchemeFamilyCode,
         ...(customWireWeight != null && Number.isFinite(customWireWeight) ? { wireWeight: customWireWeight } : {}),
     });
     const capacitorModel = resolveCapacitorModel(partsCatalog, input.capacitorModel, coilSnapshot);

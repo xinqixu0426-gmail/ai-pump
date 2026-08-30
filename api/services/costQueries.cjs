@@ -27,7 +27,19 @@ const {
     calculateFullEstimateCoilCost,
     buildFullEstimateResult,
 } = require('./fullCostEstimate.cjs');
-const { calculateCurrentRecipeCost } = require('./currentRecipeCost.cjs');
+const {
+    buildCurrentRecipeCostFailure,
+    calculateCurrentRecipeCost,
+} = require('./currentRecipeCost.cjs');
+
+const RECOVERABLE_CURRENT_RECIPE_COST_CODES = new Set([
+    'COIL_SCHEME_AMBIGUOUS',
+    'COIL_SCHEME_FAMILY_REQUIRED',
+]);
+
+function isRecoverableCurrentRecipeCostError(error) {
+    return RECOVERABLE_CURRENT_RECIPE_COST_CODES.has(String(error?.code || ''));
+}
 
 class CostQueryError extends Error {
     constructor(message, statusCode = 400, code = null, details = undefined) {
@@ -126,17 +138,22 @@ function createCostQueries({
             asOf: now.toISOString(),
             sourceOfTruth: 'costEngine',
             basis: 'currentTemplateAndRecipeParameters',
-            items: listRecipes().map(recipe => calculateCurrentRecipeCost(
-                recipe,
-                {
+            items: listRecipes().map(recipe => {
+                const dependencies = {
                     partsCache,
                     partsByModel,
                     calculateRecipeCost,
                     coils,
                     getSetting,
                     buildBomDraft,
+                };
+                try {
+                    return calculateCurrentRecipeCost(recipe, dependencies);
+                } catch (error) {
+                    if (!isRecoverableCurrentRecipeCostError(error)) throw error;
+                    return buildCurrentRecipeCostFailure(recipe, error, dependencies);
                 }
-            )),
+            }),
         };
     }
 
@@ -468,4 +485,5 @@ function createCostQueries({
 module.exports = {
     CostQueryError,
     createCostQueries,
+    isRecoverableCurrentRecipeCostError,
 };

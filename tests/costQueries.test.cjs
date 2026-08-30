@@ -6,7 +6,7 @@ const {
     createCostQueries,
 } = require('../api/services/costQueries.cjs');
 
-function createFixture() {
+function createFixture(options = {}) {
     const db = new Database(':memory:');
     db.exec(`
         CREATE TABLE recipes (
@@ -116,9 +116,18 @@ function createFixture() {
             partsByModel: {},
         }),
         recipeRow,
-        buildBomDraft: (_input, recipe) => ({
-            parts: JSON.parse(recipe.partsJson || '[]'),
-        }),
+        buildBomDraft: (_input, recipe) => {
+            if (Number(recipe.id) === Number(options.unexpectedFailureRecipeId)) {
+                throw new Error('模拟数据库或编程错误');
+            }
+            if (Number(recipe.id) === Number(options.failRecipeId)) {
+                const error = new Error('当前配方必须选择线圈方案系列');
+                error.code = 'COIL_SCHEME_FAMILY_REQUIRED';
+                error.details = { candidates: [{ schemeFamilyCode: 'LEGACY-V1' }] };
+                throw error;
+            }
+            return { parts: JSON.parse(recipe.partsJson || '[]') };
+        },
     });
     return {
         costCalls,
@@ -157,6 +166,41 @@ test('成本 Query 的配件数组计算继续唯一委托正式成本函数', (
                 && error.statusCode === 400
                 && error.message === '请求体必须包含 parts 数组'
             )
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('批量当日成本逐条隔离方案族错误并继续返回其他配方', () => {
+    const fixture = createFixture({ failRecipeId: 1 });
+    try {
+        const current = fixture.queries.getCurrentRecipeCosts(
+            new Date('2026-08-30T00:00:00.000Z')
+        );
+        assert.equal(current.items.length, 2);
+        assert.deepEqual(current.items[0].calculationError, {
+            code: 'COIL_SCHEME_FAMILY_REQUIRED',
+            message: '当前配方必须选择线圈方案系列',
+            details: { candidates: [{ schemeFamilyCode: 'LEGACY-V1' }] },
+        });
+        assert.equal(current.items[0].currentTotalCost, null);
+        assert.equal(current.items[0].costComplete, false);
+        assert.equal(current.items[1].currentTotalCost, 21);
+        assert.equal(current.items[1].calculationError, undefined);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('批量当日成本不会把未知内部错误降级成 200 单条提示', () => {
+    const fixture = createFixture({ unexpectedFailureRecipeId: 2 });
+    try {
+        assert.throws(
+            () => fixture.queries.getCurrentRecipeCosts(
+                new Date('2026-08-30T00:00:00.000Z')
+            ),
+            /模拟数据库或编程错误/
         );
     } finally {
         fixture.db.close();

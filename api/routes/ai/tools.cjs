@@ -2,6 +2,7 @@ const COST_OVERRIDE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
         coilId: { type: 'integer', minimum: 1 },
+        coilSchemeFamilyCode: { type: 'string' },
         surfaceTreatmentMode: { type: 'string' },
         surfaceTreatmentCost: { type: 'number', minimum: 0 },
         hasFloat: { type: 'boolean' },

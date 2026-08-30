@@ -3256,6 +3256,115 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 71,
+        name: 'persist_coil_scheme_family_selection',
+        signature: 'recipe-and-model-variant-coil-family-selection-v1',
+        up(db) {
+            const recipeColumns = new Set(
+                db.pragma('table_info(recipes)').map(column => column.name)
+            );
+            if (!recipeColumns.has('coil_scheme_family_code')) {
+                db.exec("ALTER TABLE recipes ADD COLUMN coil_scheme_family_code TEXT NOT NULL DEFAULT ''");
+            }
+            const variantColumns = new Set(
+                db.pragma('table_info(pump_model_variants)').map(column => column.name)
+            );
+            if (!variantColumns.has('coil_scheme_family_code')) {
+                db.exec("ALTER TABLE pump_model_variants ADD COLUMN coil_scheme_family_code TEXT NOT NULL DEFAULT ''");
+            }
+
+            db.exec(`
+                UPDATE recipes
+                SET coil_scheme_family_code = COALESCE((
+                    SELECT c.scheme_family_code
+                    FROM coils c
+                    WHERE c.id = recipes.coil_id
+                      AND c.scheme_status = 'official'
+                ), '')
+                WHERE coil_id IS NOT NULL
+                  AND trim(COALESCE(coil_scheme_family_code, '')) = '';
+
+                UPDATE pump_model_variants
+                SET coil_scheme_family_code = COALESCE((
+                    SELECT c.scheme_family_code
+                    FROM coils c
+                    WHERE c.id = pump_model_variants.coil_id
+                      AND c.scheme_status = 'official'
+                ), '')
+                WHERE coil_id IS NOT NULL
+                  AND trim(COALESCE(coil_scheme_family_code, '')) = '';
+
+                UPDATE recipes
+                SET coil_scheme_family_code = (
+                    SELECT MIN(c.scheme_family_code)
+                    FROM coils c
+                    WHERE c.scheme_status = 'official'
+                      AND c.pricing_mode = 'calculated'
+                      AND c.spec = recipes.coil_spec
+                      AND c.material = COALESCE(NULLIF(recipes.coil_material, ''), '钢带')
+                      AND c.slot_type = COALESCE(NULLIF(recipes.coil_slot_type, ''), '小眼')
+                      AND c.scheme_family_code LIKE 'LEGACY-%'
+                )
+                WHERE coil_id IS NULL
+                  AND trim(COALESCE(coil_scheme_family_code, '')) = ''
+                  AND trim(COALESCE(coil_spec, '')) <> ''
+                  AND COALESCE(coil_sheets, 0) > 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM coils exact
+                      WHERE exact.scheme_status = 'official'
+                        AND exact.spec = recipes.coil_spec
+                        AND exact.sheets = recipes.coil_sheets
+                        AND exact.material = COALESCE(NULLIF(recipes.coil_material, ''), '钢带')
+                        AND exact.slot_type = COALESCE(NULLIF(recipes.coil_slot_type, ''), '小眼')
+                  )
+                  AND 1 = (
+                      SELECT COUNT(DISTINCT c.scheme_family_code)
+                      FROM coils c
+                      WHERE c.scheme_status = 'official'
+                        AND c.pricing_mode = 'calculated'
+                        AND c.spec = recipes.coil_spec
+                        AND c.material = COALESCE(NULLIF(recipes.coil_material, ''), '钢带')
+                        AND c.slot_type = COALESCE(NULLIF(recipes.coil_slot_type, ''), '小眼')
+                        AND c.scheme_family_code LIKE 'LEGACY-%'
+                  );
+
+                UPDATE pump_model_variants
+                SET coil_scheme_family_code = (
+                    SELECT MIN(c.scheme_family_code)
+                    FROM coils c
+                    WHERE c.scheme_status = 'official'
+                      AND c.pricing_mode = 'calculated'
+                      AND c.spec = pump_model_variants.coil_spec
+                      AND c.material = COALESCE(NULLIF(pump_model_variants.coil_material, ''), '钢带')
+                      AND c.slot_type = COALESCE(NULLIF(pump_model_variants.coil_slot_type, ''), '小眼')
+                      AND c.scheme_family_code LIKE 'LEGACY-%'
+                )
+                WHERE coil_id IS NULL
+                  AND trim(COALESCE(coil_scheme_family_code, '')) = ''
+                  AND trim(COALESCE(coil_spec, '')) <> ''
+                  AND COALESCE(coil_sheets, 0) > 0
+                  AND NOT EXISTS (
+                      SELECT 1 FROM coils exact
+                      WHERE exact.scheme_status = 'official'
+                        AND exact.spec = pump_model_variants.coil_spec
+                        AND exact.sheets = pump_model_variants.coil_sheets
+                        AND exact.material = COALESCE(NULLIF(pump_model_variants.coil_material, ''), '钢带')
+                        AND exact.slot_type = COALESCE(NULLIF(pump_model_variants.coil_slot_type, ''), '小眼')
+                  )
+                  AND 1 = (
+                      SELECT COUNT(DISTINCT c.scheme_family_code)
+                      FROM coils c
+                      WHERE c.scheme_status = 'official'
+                        AND c.pricing_mode = 'calculated'
+                        AND c.spec = pump_model_variants.coil_spec
+                        AND c.material = COALESCE(NULLIF(pump_model_variants.coil_material, ''), '钢带')
+                        AND c.slot_type = COALESCE(NULLIF(pump_model_variants.coil_slot_type, ''), '小眼')
+                        AND c.scheme_family_code LIKE 'LEGACY-%'
+                  );
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

@@ -65,6 +65,7 @@ function createFixture() {
             saved_cost_details TEXT DEFAULT '',
             template_id INTEGER,
             coil_id INTEGER,
+            coil_scheme_family_code TEXT NOT NULL DEFAULT '',
             coil_spec TEXT DEFAULT '',
             coil_sheets INTEGER DEFAULT 0,
             coil_material TEXT DEFAULT '钢带',
@@ -105,7 +106,9 @@ function createFixture() {
             sheets INTEGER NOT NULL,
             material TEXT DEFAULT '钢带',
             slot_type TEXT DEFAULT '小眼',
-            scheme_status TEXT DEFAULT 'official'
+            scheme_status TEXT DEFAULT 'official',
+            scheme_family_code TEXT NOT NULL DEFAULT 'TEST-FAMILY',
+            pricing_mode TEXT NOT NULL DEFAULT 'calculated'
         );
         CREATE TABLE recipe_analysis_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +177,7 @@ function createFixture() {
         savedCostDetails: row.saved_cost_details,
         coilWireWeight: row.coil_wire_weight,
         coilId: row.coil_id,
+        coilSchemeFamilyCode: row.coil_scheme_family_code,
         updatedAt: row.updated_at,
     });
     const partRow = row => ({
@@ -375,9 +379,44 @@ test('配方填写线圈维度时必须绑定具体正式方案并持久保存 c
             commandContext(CREATE_CAPABILITY_ID, 'explicit-coil-binding')
         );
         assert.equal(created.recipe.coilId, 1);
+        assert.equal(created.recipe.coilSchemeFamilyCode, 'TEST-FAMILY');
         assert.equal(
             fixture.db.prepare('SELECT coil_id FROM recipes WHERE id = ?').get(created.recipe.id).coil_id,
             1
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方非精确片数明确方案系列后持久保存并允许插值', () => {
+    const fixture = createFixture();
+    try {
+        const form = {
+            ...draftInput().form,
+            coilSpec: '12',
+            coilSheets: 130,
+            coilSchemeFamilyCode: 'test-family',
+        };
+        const draft = buildRecipeSavePayloadDraft(
+            fixture.dependencies,
+            draftInput({ form })
+        );
+        const created = executeRecipeCreate(
+            fixture.dependencies,
+            draft,
+            commandContext(CREATE_CAPABILITY_ID, 'explicit-coil-family')
+        );
+
+        assert.equal(created.recipe.coilId, null);
+        assert.equal(created.recipe.coilSchemeFamilyCode, 'TEST-FAMILY');
+        assert.deepEqual(
+            fixture.db.prepare(`
+                SELECT coil_id, coil_scheme_family_code
+                FROM recipes
+                WHERE id = ?
+            `).get(created.recipe.id),
+            { coil_id: null, coil_scheme_family_code: 'TEST-FAMILY' }
         );
     } finally {
         fixture.db.close();

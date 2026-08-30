@@ -81,6 +81,11 @@ export type RecipeCurrentTotalCost = {
   missingParts: string[];
   costComplete: boolean;
   warnings: string[];
+  calculationError?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
   fetchedAt?: string;
 };
 
@@ -96,6 +101,7 @@ export type Recipe = {
   savedCostDetails?: string;
   templateId?: number | null;
   coilId?: number | null;
+  coilSchemeFamilyCode?: string;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
@@ -184,6 +190,7 @@ export type PumpModelVariant = {
   modelName: string;
   templateId: number;
   coilId?: number | null;
+  coilSchemeFamilyCode?: string;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
@@ -278,6 +285,7 @@ export type RecipeModelVariantDraft = {
   templateId: number;
   modelVariantId: number;
   coilId?: number | null;
+  coilSchemeFamilyCode?: string;
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
@@ -355,6 +363,7 @@ export type RecipeDataset = {
   variants: PumpModelVariant[];
   currentCopperPricePerKg: number | null;
   currentCosts: RecipeCurrentTotalCost[];
+  currentCostsWarning: string | null;
 };
 
 function rowId(row: { id?: number; Id?: number }): number {
@@ -371,6 +380,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     savedCostDetails: row.savedCostDetails || '',
     templateId: row.templateId ?? null,
     coilId: row.coilId == null ? null : Number(row.coilId),
+    coilSchemeFamilyCode: row.coilSchemeFamilyCode || '',
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
@@ -435,6 +445,7 @@ export function rowToVariant(row: VariantRow): PumpModelVariant {
     modelName: row.modelName || '',
     templateId: Number(row.templateId) || 0,
     coilId: row.coilId == null ? null : Number(row.coilId),
+    coilSchemeFamilyCode: row.coilSchemeFamilyCode || '',
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
@@ -633,14 +644,26 @@ export async function getCopperPrice(): Promise<number | null> {
 }
 
 export async function getRecipeDataset(): Promise<RecipeDataset> {
-  const [recipes, templates, variants, currentCopperPricePerKg, currentCosts] = await Promise.all([
+  const [recipes, templates, variants, currentCopperPricePerKg, currentCostsResult] = await Promise.all([
     getAllRecipes(),
     getAllTemplates(),
     getAllModelVariants(),
     getCopperPrice().catch(() => null),
-    getAllRecipeCurrentCosts(),
+    getAllRecipeCurrentCosts()
+      .then((currentCosts) => ({ currentCosts, warning: null as string | null }))
+      .catch((error) => ({
+        currentCosts: [] as RecipeCurrentTotalCost[],
+        warning: error instanceof Error ? error.message : '配方当日成本暂时无法加载',
+      })),
   ]);
-  return { recipes, templates, variants, currentCopperPricePerKg, currentCosts };
+  return {
+    recipes,
+    templates,
+    variants,
+    currentCopperPricePerKg,
+    currentCosts: currentCostsResult.currentCosts,
+    currentCostsWarning: currentCostsResult.warning,
+  };
 }
 
 export async function getAllRecipeCurrentCosts(): Promise<RecipeCurrentTotalCost[]> {
@@ -671,6 +694,7 @@ export async function previewRecipeBomDraft(input: {
   longScrewExtraLength?: number | string;
   coilSpec?: string;
   coilId?: number | null;
+  coilSchemeFamilyCode?: string;
   coilSheets?: number | string;
   coilMaterial?: string;
   coilSlotType?: '小眼' | '国标眼';
@@ -776,6 +800,7 @@ export type RecipeSaveInput = {
   savedCostDetails: string;
   templateId: number | null;
   coilId: number | null;
+  coilSchemeFamilyCode: string;
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
@@ -894,6 +919,7 @@ export type RecipeSavePayloadDraftInput = {
     spec: string;
     templateId?: number | string | null;
     coilId?: number | string | null;
+    coilSchemeFamilyCode?: string;
     coilSpec?: string;
     coilSheets?: number | string;
     coilMaterial?: string;
@@ -974,6 +1000,7 @@ export type ModelVariantInput = {
   modelName: string;
   templateId: number;
   coilId?: number | null;
+  coilSchemeFamilyCode?: string;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;

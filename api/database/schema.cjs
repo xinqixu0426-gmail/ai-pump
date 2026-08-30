@@ -124,6 +124,7 @@ const CANONICAL_TABLES_SQL = `
         saved_cost_details TEXT DEFAULT '[]',
         template_id INTEGER,
         coil_id INTEGER,
+        coil_scheme_family_code TEXT NOT NULL DEFAULT '',
         coil_spec TEXT DEFAULT '',
         coil_sheets INTEGER DEFAULT 0,
         coil_material TEXT DEFAULT '钢带',
@@ -475,6 +476,7 @@ const CANONICAL_TABLES_SQL = `
         model_name TEXT NOT NULL UNIQUE,
         template_id INTEGER NOT NULL,
         coil_id INTEGER,
+        coil_scheme_family_code TEXT NOT NULL DEFAULT '',
         coil_spec TEXT DEFAULT '',
         coil_sheets INTEGER DEFAULT 0,
         coil_material TEXT DEFAULT '钢带',
@@ -995,6 +997,7 @@ const LEGACY_COLUMN_UPGRADES = {
     recipes: [
         ['template_id', 'INTEGER'],
         ['coil_id', 'INTEGER'],
+        ['coil_scheme_family_code', "TEXT NOT NULL DEFAULT ''"],
         ['coil_spec', "TEXT DEFAULT ''"],
         ['coil_sheets', 'INTEGER DEFAULT 0'],
         ['coil_material', "TEXT DEFAULT '钢带'"],
@@ -1074,6 +1077,7 @@ const LEGACY_COLUMN_UPGRADES = {
     ],
     pump_model_variants: [
         ['coil_id', 'INTEGER'],
+        ['coil_scheme_family_code', "TEXT NOT NULL DEFAULT ''"],
         ['long_screw_extra_length', 'REAL DEFAULT 0'],
         ['custom_fields_json', "TEXT DEFAULT '[]'"],
         ['coil_slot_type', "TEXT DEFAULT '小眼'"],

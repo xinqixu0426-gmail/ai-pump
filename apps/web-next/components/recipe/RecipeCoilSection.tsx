@@ -11,6 +11,7 @@ export type RecipeCoilSlotType = '小眼' | '国标眼';
 
 type RecipeCoilFields = {
   coilId: string;
+  coilSchemeFamilyCode: string;
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
@@ -25,6 +26,7 @@ type RecipeCoilSectionProps = {
   materialOptions: string[];
   slotTypeOptions: string[];
   schemeOptions: CoilRecord[];
+  familyOptions: Array<{ code: string; label: string }>;
   coilSnapshot: RecipeBomDraftResult['coilSnapshot'];
   complete: boolean;
   capacitorModel: string;
@@ -33,6 +35,7 @@ type RecipeCoilSectionProps = {
   onMaterialChange: (value: string) => void;
   onSlotTypeChange: (value: RecipeCoilSlotType) => void;
   onSchemeChange: (value: string) => void;
+  onFamilyChange: (value: string) => void;
   onWireWeightChange: (value: string) => void;
 };
 
@@ -43,6 +46,7 @@ export function RecipeCoilSection({
   materialOptions,
   slotTypeOptions,
   schemeOptions,
+  familyOptions,
   coilSnapshot,
   complete,
   capacitorModel,
@@ -51,14 +55,15 @@ export function RecipeCoilSection({
   onMaterialChange,
   onSlotTypeChange,
   onSchemeChange,
+  onFamilyChange,
   onWireWeightChange,
 }: RecipeCoilSectionProps) {
   return (
     <WorkspaceSection
       id="recipe-coil-section"
       title="2. 线圈转子"
-      description="选择规格和片数后，再绑定具体正式方案；相同组合可并存不同电压、频率和线重。"
-      summary={form.coilSpec ? `${form.coilSpec} / ${form.coilSheets || '待选片数'} / ${coilSnapshot?.schemeName || '待选方案'}` : '待选择线圈规格'}
+      description="精确片数绑定具体正式方案；没有精确方案时，选择同一方案系列进行插值或外推。"
+      summary={form.coilSpec ? `${form.coilSpec} / ${form.coilSheets || '待选片数'} / ${coilSnapshot?.schemeName || form.coilSchemeFamilyCode || '待选方案'}` : '待选择线圈规格'}
       status={complete ? 'complete' : 'warning'}
       badge={complete ? '已完成' : '自动计算'}
       badgeTone={complete ? 'green' : 'blue'}
@@ -107,7 +112,7 @@ export function RecipeCoilSection({
         </label>
       </div>
 
-      <label className="mt-3 block">
+      {schemeOptions.length > 0 ? <label className="mt-3 block">
         <span className="flex items-center gap-2 text-xs font-medium text-muted">
           正式线圈方案
           {schemeOptions.length > 1 ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">同规格有 {schemeOptions.length} 套，请选择</span> : null}
@@ -132,7 +137,23 @@ export function RecipeCoilSection({
             );
           })}
         </select>
-      </label>
+      </label> : <label className="mt-3 block">
+        <span className="flex items-center gap-2 text-xs font-medium text-muted">
+          方案系列（插值/外推）
+          {familyOptions.length > 1 ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">有 {familyOptions.length} 个系列，请选择</span> : null}
+        </span>
+        <select
+          value={form.coilSchemeFamilyCode}
+          onChange={(event) => onFamilyChange(event.target.value)}
+          disabled={!form.coilSpec || !form.coilSheets || familyOptions.length === 0}
+          className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+        >
+          <option value="">{familyOptions.length === 0 ? '当前组合没有可用计算方案系列' : '选择方案系列'}</option>
+          {familyOptions.map((family) => (
+            <option key={family.code} value={family.code}>{family.label}</option>
+          ))}
+        </select>
+      </label>}
 
       <div className="mt-3 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-[8.5rem_minmax(0,1fr)_7rem]">
         <label className="block min-w-0">

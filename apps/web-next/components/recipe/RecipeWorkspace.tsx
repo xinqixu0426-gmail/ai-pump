@@ -40,6 +40,7 @@ type RecipeWorkspaceProps = {
   loading: boolean;
   saving: boolean;
   error: string | null;
+  warning: string | null;
   onQueryChange: (value: string) => void;
   onTemplateIdChange: (value: string) => void;
   onQuickFilterChange: (value: RecipeWorkspaceFilter) => void;
@@ -169,6 +170,7 @@ export function RecipeWorkspace({
   loading,
   saving,
   error,
+  warning,
   onQueryChange,
   onTemplateIdChange,
   onQuickFilterChange,
@@ -342,6 +344,13 @@ export function RecipeWorkspace({
           </div>
         </div>
 
+        {warning && !error ? (
+          <div className="flex items-center gap-2 border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+            <CircleAlert size={16} />
+            当日成本暂时无法加载，配方基础资料仍可正常查看：{warning}
+          </div>
+        ) : null}
+
         {error ? (
           <div className="flex items-center gap-2 p-5 text-sm text-rose-700">
             <CircleAlert size={16} />
@@ -394,7 +403,7 @@ export function RecipeWorkspace({
                             : 'text-muted'
                       }`}>
                         {row.currentCost?.costComplete === false
-                          ? `缺 ${row.currentCost.missingParts.length} 项价格`
+                          ? row.currentCost.calculationError ? '需处理线圈方案' : `缺 ${row.currentCost.missingParts.length} 项价格`
                           : signedMoney(row.currentCost?.difference)}
                       </div>
                     </div>
@@ -493,7 +502,7 @@ export function RecipeWorkspace({
                                 : 'text-muted'
                           }`}>
                             {row.currentCost?.costComplete === false
-                              ? `缺 ${row.currentCost.missingParts.length} 项价格`
+                              ? row.currentCost.calculationError ? '需处理线圈方案' : `缺 ${row.currentCost.missingParts.length} 项价格`
                               : signedMoney(row.currentCost?.difference)}
                           </span>
                         </div>

@@ -15,6 +15,7 @@ export type BomPreviewForm = {
   templateId: string;
   variantId: string;
   coilId: string;
+  coilSchemeFamilyCode: string;
   customBarrelLength: string;
   longScrewExtraLength: string;
   coilSpec: string;
@@ -87,6 +88,7 @@ function buildBomPreviewInput(
     templateId: Number(form.templateId),
     modelVariantId: form.variantId ? Number(form.variantId) : null,
     coilId: form.coilId ? Number(form.coilId) : null,
+    coilSchemeFamilyCode: form.coilSchemeFamilyCode,
     customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
     longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
     coilSpec: form.coilSpec,
@@ -124,6 +126,7 @@ export function useBomPreview({
     templateId,
     variantId,
     coilId,
+    coilSchemeFamilyCode,
     customBarrelLength,
     longScrewExtraLength,
     coilSpec,
@@ -144,6 +147,7 @@ export function useBomPreview({
       templateId,
       variantId,
       coilId,
+      coilSchemeFamilyCode,
       customBarrelLength,
       longScrewExtraLength,
       coilSpec,
@@ -166,6 +170,7 @@ export function useBomPreview({
     templateId,
     variantId,
     coilId,
+    coilSchemeFamilyCode,
     customBarrelLength,
     longScrewExtraLength,
     coilSpec,

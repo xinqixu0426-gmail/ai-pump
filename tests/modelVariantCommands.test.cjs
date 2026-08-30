@@ -52,6 +52,7 @@ function createFixture() {
             model_name TEXT NOT NULL UNIQUE,
             template_id INTEGER NOT NULL,
             coil_id INTEGER,
+            coil_scheme_family_code TEXT NOT NULL DEFAULT '',
             coil_spec TEXT DEFAULT '',
             coil_sheets INTEGER DEFAULT 0,
             coil_material TEXT DEFAULT '钢带',
@@ -75,7 +76,9 @@ function createFixture() {
             sheets INTEGER NOT NULL,
             material TEXT DEFAULT '钢带',
             slot_type TEXT DEFAULT '小眼',
-            scheme_status TEXT DEFAULT 'official'
+            scheme_status TEXT DEFAULT 'official',
+            scheme_family_code TEXT NOT NULL DEFAULT 'TEST-FAMILY',
+            pricing_mode TEXT NOT NULL DEFAULT 'calculated'
         );
         CREATE TABLE parts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,6 +177,7 @@ function createFixture() {
             modelName: row.model_name,
             templateId: row.template_id,
             coilId: row.coil_id,
+            coilSchemeFamilyCode: row.coil_scheme_family_code,
             coilSpec: row.coil_spec,
             coilSheets: row.coil_sheets,
             coilMaterial: row.coil_material,
@@ -263,6 +267,34 @@ test('常用配置填写线圈维度时必须绑定具体正式方案', () => {
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM pump_model_variants').get().count,
             0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('常用配置非精确片数明确方案系列后持久保存', () => {
+    const fixture = createFixture();
+    try {
+        const result = executeModelVariantCreate(
+            fixture.dependencies,
+            variantInput({
+                coilId: null,
+                coilSheets: 130,
+                coilSchemeFamilyCode: 'test-family',
+            }),
+            commandContext(CREATE_CAPABILITY_ID, 'coil-family-selection')
+        );
+
+        assert.equal(result.variant.coilId, null);
+        assert.equal(result.variant.coilSchemeFamilyCode, 'TEST-FAMILY');
+        assert.deepEqual(
+            fixture.db.prepare(`
+                SELECT coil_id, coil_scheme_family_code
+                FROM pump_model_variants
+                WHERE id = ?
+            `).get(result.variant.id),
+            { coil_id: null, coil_scheme_family_code: 'TEST-FAMILY' }
         );
     } finally {
         fixture.db.close();

@@ -14,6 +14,7 @@ const {
     parsePositiveId,
     stringifyJsonArray,
 } = require('./validation.cjs');
+const { resolvePersistedCoilSelection } = require('./persistedCoilSelection.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability(
     'model_variants.create'
@@ -29,6 +30,7 @@ const VARIANT_FIELDS = [
     'model_name',
     'template_id',
     'coil_id',
+    'coil_scheme_family_code',
     'coil_spec',
     'coil_sheets',
     'coil_material',
@@ -46,6 +48,7 @@ const VARIANT_ALIASES = {
     modelName: 'model_name',
     templateId: 'template_id',
     coilId: 'coil_id',
+    coilSchemeFamilyCode: 'coil_scheme_family_code',
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
     coilMaterial: 'coil_material',
@@ -127,6 +130,7 @@ function normalizeModelVariant(input = {}) {
         model_name: modelName,
         template_id: templateId,
         coil_id: parsePositiveId(body.coil_id),
+        coil_scheme_family_code: String(body.coil_scheme_family_code || '').trim().toUpperCase(),
         coil_spec: String(body.coil_spec || '').trim(),
         coil_sheets: parseNonNegativeNumber(body.coil_sheets, 'coil_sheets'),
         coil_material: String(body.coil_material || '钢带').trim() || '钢带',
@@ -195,37 +199,28 @@ function assertTemplateExists(db, templateId) {
 function assertOfficialCoilBinding(db, variant) {
     const hasCompleteCoilDimensions = Boolean(variant.coil_spec)
         && Number(variant.coil_sheets || 0) > 0;
-    if (hasCompleteCoilDimensions && !variant.coil_id) {
+    if (!hasCompleteCoilDimensions) {
+        return { coilId: null, schemeFamilyCode: '' };
+    }
+    const selection = resolvePersistedCoilSelection(db, variant);
+    if (!selection.success) {
+        const codeMap = {
+            COIL_SELECTION_REQUIRED: 'model_variant_coil_selection_required',
+            COIL_SELECTION_MISMATCH: 'model_variant_coil_mismatch',
+            COIL_SCHEME_FAMILY_REQUIRED: 'model_variant_coil_scheme_family_required',
+            COIL_SCHEME_FAMILY_NOT_FOUND: 'model_variant_coil_scheme_family_not_found',
+            COIL_SCHEME_FAMILY_MISMATCH: 'model_variant_coil_scheme_family_mismatch',
+        };
         throw modelVariantCommandError(
-            'model_variant_coil_selection_required',
-            '常用配置填写线圈规格和片数后，必须选择具体正式线圈方案',
-            409
+            codeMap[selection.code] || 'model_variant_coil_selection_invalid',
+            selection.message,
+            selection.statusCode
         );
     }
-    if (!variant.coil_id) return;
-    const coil = db.prepare(`
-        SELECT id, spec, sheets, material, slot_type, scheme_status
-        FROM coils WHERE id = ?
-    `).get(variant.coil_id);
-    if (!coil || coil.scheme_status !== 'official') {
-        throw modelVariantCommandError(
-            'model_variant_coil_not_official',
-            '所选线圈方案不存在或不是正式方案',
-            400
-        );
-    }
-    if (
-        String(coil.spec || '') !== variant.coil_spec
-        || Number(coil.sheets || 0) !== Number(variant.coil_sheets || 0)
-        || String(coil.material || '钢带') !== variant.coil_material
-        || String(coil.slot_type || '小眼') !== variant.coil_slot_type
-    ) {
-        throw modelVariantCommandError(
-            'model_variant_coil_mismatch',
-            '所选线圈方案与常用配置的规格、片数、材质或槽眼不一致',
-            400
-        );
-    }
+    return {
+        coilId: selection.data.coilId,
+        schemeFamilyCode: selection.data.schemeFamilyCode,
+    };
 }
 
 function assertUniqueModelName(db, modelName, excludeId = null) {
@@ -310,6 +305,9 @@ function executeModelVariantCreate(
     commandContext = {}
 ) {
     const normalized = normalizeModelVariant(input);
+    const coilSelection = assertOfficialCoilBinding(dependencies.db, normalized);
+    normalized.coil_id = coilSelection.coilId;
+    normalized.coil_scheme_family_code = coilSelection.schemeFamilyCode;
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
@@ -318,7 +316,6 @@ function executeModelVariantCreate(
         input: normalized,
         execute: ({ auditContext }) => {
             assertTemplateExists(dependencies.db, normalized.template_id);
-            assertOfficialCoilBinding(dependencies.db, normalized);
             assertUniqueModelName(dependencies.db, normalized.model_name);
             const now = new Date().toISOString();
             const write = dependencies.safeInsert('pump_model_variants', {
@@ -389,6 +386,9 @@ function executeModelVariantUpdate(
         'expectedUpdatedAt'
     );
     const normalized = normalizeModelVariant(input);
+    const coilSelection = assertOfficialCoilBinding(dependencies.db, normalized);
+    normalized.coil_id = coilSelection.coilId;
+    normalized.coil_scheme_family_code = coilSelection.schemeFamilyCode;
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
@@ -410,7 +410,6 @@ function executeModelVariantUpdate(
                 `常用配置 #${modelVariantId}`
             );
             assertTemplateExists(dependencies.db, normalized.template_id);
-            assertOfficialCoilBinding(dependencies.db, normalized);
             assertUniqueModelName(
                 dependencies.db,
                 normalized.model_name,

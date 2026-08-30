@@ -14,6 +14,7 @@ const CONFIGURATION_POLICY_FIELD_TYPES = Object.freeze({
     cableWire: 'string',
     cableAccessoryType: 'accessory',
     coilId: 'positiveId',
+    coilSchemeFamilyCode: 'string',
     coilSpec: 'string',
     coilSheets: 'number',
     coilMaterial: 'string',

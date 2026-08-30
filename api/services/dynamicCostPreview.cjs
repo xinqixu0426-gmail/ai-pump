@@ -133,6 +133,12 @@ function buildRecipeData(row, overrides = {}) {
         parts_json: row.parts_json,
         template_id: row.template_id,
         coil_id: getOverride(overrides, 'coilId', 'coil_id', row.coil_id),
+        coil_scheme_family_code: getOverride(
+            overrides,
+            'coilSchemeFamilyCode',
+            'coil_scheme_family_code',
+            row.coil_scheme_family_code || ''
+        ),
         coil_spec: getOverride(overrides, 'coilSpec', 'coil_spec', row.coil_spec),
         coil_sheets: Number(getOverride(overrides, 'coilSheets', 'coil_sheets', row.coil_sheets)),
         coil_material: getOverride(overrides, 'coilMaterial', 'coil_material', row.coil_material || DEFAULT_COIL_MATERIAL),
@@ -260,10 +266,13 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     let totalCost = hasSavedBase ? savedBaseCost : Number(partsResult.totalCost || 0);
     totalCost -= managedTotals.coil + managedTotals.capacitor + managedTotals.float + managedTotals.cable + managedTotals.packing + managedTotals.barrelLength + managedTotals.longScrew + managedTotals.stainlessShellBundle;
 
-    const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, { coilId: recipeData.coil_id });
+    const dbWire = resolveWireFromCoils(getCoils(), recipeData.coil_spec, recipeData.coil_sheets, recipeData.coil_material, recipeData.coil_slot_type, {
+        coilId: recipeData.coil_id,
+        schemeFamilyCode: recipeData.coil_scheme_family_code,
+    });
     const resolvedWire = resolveWire(dbWire, recipeData.cable_wire || recipeData.float_wire);
 
-    const coilChanged = !sameNumber(recipeData.coil_id, row.coil_id) || !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL) || !sameText(recipeData.coil_slot_type, row.coil_slot_type || '小眼');
+    const coilChanged = !sameNumber(recipeData.coil_id, row.coil_id) || !sameText(recipeData.coil_scheme_family_code, row.coil_scheme_family_code || '') || !sameText(recipeData.coil_spec, row.coil_spec) || !sameNumber(recipeData.coil_sheets, row.coil_sheets) || !sameText(recipeData.coil_material, row.coil_material || DEFAULT_COIL_MATERIAL) || !sameText(recipeData.coil_slot_type, row.coil_slot_type || '小眼');
     const floatChanged = toBool(recipeData.has_float) !== toBool(row.has_float) || !sameText(recipeData.float_wire, row.float_wire) || !sameText(recipeData.float_accessory_type, row.float_accessory_type || 'standard');
     const cableChanged = toBool(recipeData.has_cable) !== toBool(row.has_cable) || !sameNumber(recipeData.cable_length, row.cable_length) || !sameText(recipeData.cable_wire, row.cable_wire) || !sameText(recipeData.cable_accessory_type, row.cable_accessory_type || 'standard');
     const packingJsonChanged = normalizePackingJsonText(recipeData.packing_parts_json, recipeData.box_type) !== normalizePackingJsonText(row.packing_parts_json, row.box_type);
@@ -282,7 +291,10 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
             recipeData.coil_material,
             recipeData.coil_slot_type,
             getCoils,
-            { coilId: recipeData.coil_id }
+            {
+                coilId: recipeData.coil_id,
+                schemeFamilyCode: recipeData.coil_scheme_family_code,
+            }
         )
         : null;
     if (coilChanged && (!coilCalculation?.success || Number(coilCalculation.data?.totalCost || 0) <= 0)) {
@@ -391,7 +403,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
                 coilCostSource: coilCalculation.data.source,
                 source: 'configuration_override',
                 costRole: 'coil',
-                configurationDependencies: ['coilId', 'coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType'],
+                configurationDependencies: ['coilId', 'coilSchemeFamilyCode', 'coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType'],
             });
         }
     }

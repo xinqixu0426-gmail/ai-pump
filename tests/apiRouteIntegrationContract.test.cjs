@@ -906,7 +906,10 @@ test('关键 API 集成契约：/api/recipes/current-costs 批量返回完整当
     const section = sliceBetween(source, "router.get('/recipes/current-costs'", "router.get('/recipes/:id/cost'");
 
     assert.match(section, /costQueries\.getCurrentRecipeCosts\(\)/);
-    assert.match(queries, /listRecipes\(\)\.map\(recipe => calculateCurrentRecipeCost\(/);
+    assert.match(queries, /listRecipes\(\)\.map\(recipe => \{/);
+    assert.match(queries, /calculateCurrentRecipeCost\(recipe, dependencies\)/);
+    assert.match(queries, /isRecoverableCurrentRecipeCostError\(error\)/);
+    assert.match(queries, /buildCurrentRecipeCostFailure\(recipe, error, dependencies\)/);
     assert.match(queries, /calculateRecipeCost/);
     assert.match(queries, /const coils = listCoils\(\)/);
     assert.match(queries, /getSetting/);

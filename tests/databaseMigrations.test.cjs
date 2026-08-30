@@ -645,8 +645,8 @@ test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历
 
         const second = runMigrations(db, { now: FIXED_NOW });
         assert.deepEqual(second.appliedVersions, []);
-        assert.equal(second.currentVersion, 70);
-        assert.equal(db.pragma('user_version', { simple: true }), 70);
+        assert.equal(second.currentVersion, 71);
+        assert.equal(db.pragma('user_version', { simple: true }), 71);
         assert.deepEqual(
             db.prepare(`
                 SELECT provider, external_user_id, external_user_name
@@ -818,6 +818,62 @@ test('数据库迁移：Schema 70 仅对唯一正式方案设默认并回填绑�
             () => db.prepare('UPDATE coils SET is_default = 1 WHERE id = ?').run(ambiguousCoilIds[1]),
             /UNIQUE constraint failed/
         );
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：Schema 71 安全回填唯一 legacy 方案族且不猜测歧义记录', () => {
+    const db = openMemoryDatabase();
+    try {
+        runMigrations(db, { now: FIXED_NOW });
+        db.exec(`
+            DELETE FROM recipes;
+            DELETE FROM pump_model_variants;
+            DELETE FROM coils;
+        `);
+        const templateId = Number(db.prepare(`
+            INSERT INTO pump_shell_templates (shell_model, parts_json, created_at, updated_at)
+            VALUES ('Schema71 测试泵壳', '[]', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const insertCoil = db.prepare(`
+            INSERT INTO coils (
+                spec, sheets, material, slot_type, scheme_code, scheme_status,
+                scheme_family_code, pricing_mode, created_at, updated_at
+            ) VALUES (?, ?, '钢带', '小眼', ?, 'official', ?, 'calculated', ?, ?)
+        `);
+        const boundCoilId = Number(insertCoil.run('14', 120, 'S71-14-120', 'LEGACY-14', FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        insertCoil.run('14', 160, 'S71-14-160', 'LEGACY-14', FIXED_NOW, FIXED_NOW);
+        insertCoil.run('15', 120, 'S71-15-A', 'LEGACY-15-A', FIXED_NOW, FIXED_NOW);
+        insertCoil.run('15', 160, 'S71-15-B', 'LEGACY-15-B', FIXED_NOW, FIXED_NOW);
+        insertCoil.run('16', 140, 'S71-16-EXACT', 'LEGACY-16', FIXED_NOW, FIXED_NOW);
+
+        const insertRecipe = db.prepare(`
+            INSERT INTO recipes (
+                name, parts_json, coil_id, coil_scheme_family_code,
+                coil_spec, coil_sheets, coil_material, coil_slot_type,
+                created_at, updated_at
+            ) VALUES (?, '[]', ?, '', ?, ?, '钢带', '小眼', ?, ?)
+        `);
+        const boundRecipeId = Number(insertRecipe.run('已绑定精确方案', boundCoilId, '14', 120, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const uniqueLegacyRecipeId = Number(insertRecipe.run('唯一 legacy 外推', null, '14', 140, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const ambiguousLegacyRecipeId = Number(insertRecipe.run('多个 legacy 族', null, '15', 140, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const exactUnboundRecipeId = Number(insertRecipe.run('存在精确候选', null, '16', 140, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const variantId = Number(db.prepare(`
+            INSERT INTO pump_model_variants (
+                model_name, template_id, coil_scheme_family_code,
+                coil_spec, coil_sheets, coil_material, coil_slot_type,
+                created_at, updated_at
+            ) VALUES ('唯一 legacy 常用配置', ?, '', '14', 140, '钢带', '小眼', ?, ?)
+        `).run(templateId, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+
+        MIGRATIONS.find(migration => migration.version === 71).up(db);
+
+        assert.equal(db.prepare('SELECT coil_scheme_family_code value FROM recipes WHERE id = ?').get(boundRecipeId).value, 'LEGACY-14');
+        assert.equal(db.prepare('SELECT coil_scheme_family_code value FROM recipes WHERE id = ?').get(uniqueLegacyRecipeId).value, 'LEGACY-14');
+        assert.equal(db.prepare('SELECT coil_scheme_family_code value FROM recipes WHERE id = ?').get(ambiguousLegacyRecipeId).value, '');
+        assert.equal(db.prepare('SELECT coil_scheme_family_code value FROM recipes WHERE id = ?').get(exactUnboundRecipeId).value, '');
+        assert.equal(db.prepare('SELECT coil_scheme_family_code value FROM pump_model_variants WHERE id = ?').get(variantId).value, 'LEGACY-14');
     } finally {
         db.close();
     }

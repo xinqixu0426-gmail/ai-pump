@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `70`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+当前版本为 `71`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -90,6 +90,7 @@
 | 68 | `external_cloud_connections` | 保留已发布 WPS OAuth 连接表的迁移兼容墓碑；功能已弃用，不再提供业务入口 |
 | 69 | `coil_pricing_modes` | 为线圈方案增加计算计价/供应商套件价模式；历史记录统一回填为计算计价，套件模式由数据库约束和业务命令共同要求价格大于 0 |
 | 70 | `multi_official_coil_schemes` | 允许同一定子组合和片数并存多套正式方案，增加稳定方案编码、唯一默认、电压/频率/市场/方案族，并为配方和常用配置增加具体 `coil_id` 绑定 |
+| 71 | `persist_coil_scheme_family_selection` | 为配方和常用配置增加 `coil_scheme_family_code`；精确片数从具体 `coil_id` 归一方案族，非精确片数仅在唯一历史计算方案族且不存在精确候选时安全回填，歧义记录保持未绑定 |
 
 ## 数据治理
 
@@ -106,7 +107,7 @@
 - `business_change_events` 以 `operation_id` 唯一保存完成命令的业务域、事件类型、安全摘要、原因、结构化变化、审计 ID 快照、详情引用、操作者和时间；`business_change_event_entities` 保存一个跨资源 operation 影响的所有已登记正式业务领域对象。一个确认编排如果先执行领域命令、再持久化 workflow execution run，这两条正式命令必须使用不同 `operation_id`，最终回执再聚合二者，不能让两条事件争用同一唯一身份。领域清单以能力注册表和 API 契约为权威，数据库用字符串保存而不维护第二份枚举。两表只允许追加，数据库触发器拒绝更新和删除；事件不外键依赖默认 90 天清理的 `api_operations`。
 - 正式命令通过显式 `businessChange` 描述在 `executePersistentCommand` 事务内落事件；`safeInsert/safeUpdate` 不自动生成事件。`knowledge_entries` 中 `change_event` 及其 embedding 是可删除、可重建投影，不能用于精确计数、时间或替代当前业务 API。
 - `coils.scheme_status` 只允许 `official/testing/disabled`；`disabled` 表示停用历史方案，不删除库存追溯事实，也不参与正式方案选择。
-- `coils.scheme_code` 是不可变的稳定业务编码；`is_default` 只允许正式方案使用，同一 `stator_variant_id + sheets` 最多一套默认。`rated_voltage_v/rated_frequency_hz/market` 描述适用电气与市场，`scheme_family_code` 限定计算方案插值链路。`recipes.coil_id` 和 `pump_model_variants.coil_id` 绑定具体方案，原组合字段继续保存快照并兼容历史数据。
+- `coils.scheme_code` 是不可变的稳定业务编码；`is_default` 只允许正式方案使用，同一 `stator_variant_id + sheets` 最多一套默认。`rated_voltage_v/rated_frequency_hz/market` 描述适用电气与市场，`scheme_family_code` 限定计算方案插值链路。精确片数由 `recipes.coil_id` 和 `pump_model_variants.coil_id` 绑定具体方案；非精确片数由两表的 `coil_scheme_family_code` 绑定插值或外推系列，原组合字段继续保存快照并兼容历史数据。
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
 - `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；`enabled` 控制页面手动检查，`release_gate_enabled` 额外控制无人值守发布门禁。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。

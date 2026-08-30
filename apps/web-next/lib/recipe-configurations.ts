@@ -14,6 +14,7 @@ import {
 
 export type RecipeConfigurationOverrides = {
   coilId?: number | string;
+  coilSchemeFamilyCode?: string;
   hasFloat?: boolean;
   floatWire?: string;
   floatAccessoryType?: 'standard' | 'xinjie';
@@ -36,6 +37,7 @@ export type RecipeConfigurationOverrides = {
 
 export type RecipeConfigurationSnapshot = RecipeConfigurationOverrides & {
   coilId: number | null;
+  coilSchemeFamilyCode: string;
   hasFloat: boolean;
   hasCable: boolean;
   cableLength: number;
@@ -135,6 +137,7 @@ export function buildPackingOptions(parts: Part[], recipes: Recipe[]): RecipePac
 export function buildRecipeDefaultConfiguration(recipe: Recipe): RecipeConfigurationOverrides {
   return {
     coilId: recipe.coilId ?? '',
+    coilSchemeFamilyCode: recipe.coilSchemeFamilyCode || '',
     hasFloat: Number(recipe.hasFloat || 0) === 1,
     floatWire: recipe.floatWire || '',
     floatAccessoryType: recipe.floatAccessoryType || 'standard',

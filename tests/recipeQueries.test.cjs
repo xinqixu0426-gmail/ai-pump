@@ -250,6 +250,8 @@ test('配方 Query 的型号变体草稿统一带入工资、表面处理和技�
             spec: '常用配置',
             templateId: 30,
             modelVariantId: 40,
+            coilId: null,
+            coilSchemeFamilyCode: '',
             coilSpec: '12',
             coilSheets: 160,
             coilMaterial: '冷轧',

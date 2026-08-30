@@ -247,6 +247,8 @@ function createRecipeQueries({
             spec: variant.note || '',
             templateId: variant.templateId,
             modelVariantId: variant.id,
+            coilId: variant.coilId || null,
+            coilSchemeFamilyCode: variant.coilSchemeFamilyCode || '',
             coilSpec: variant.coilSpec || '',
             coilSheets: variant.coilSheets || 0,
             coilMaterial: variant.coilMaterial || '钢带',

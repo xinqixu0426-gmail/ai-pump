@@ -18,6 +18,7 @@ function buildCurrentRecipeBomInput(recipe) {
         customBarrelLength: recipe.customBarrelLength ?? null,
         longScrewExtraLength: recipe.longScrewExtraLength ?? 0,
         coilId: recipe.coilId ?? null,
+        coilSchemeFamilyCode: recipe.coilSchemeFamilyCode || '',
         coilSpec: recipe.coilSpec || '',
         coilSheets: recipe.coilSheets || 0,
         coilMaterial: recipe.coilMaterial || '钢带',
@@ -86,6 +87,7 @@ function refreshCoilSnapshot(parts, recipe, coils) {
         slotType: recipe.coilSlotType || '小眼',
         wireWeight: recipe.coilWireWeight,
         coilId: recipe.coilId,
+        schemeFamilyCode: recipe.coilSchemeFamilyCode || '',
     });
     if (!result.success || !result.data) return parts;
 
@@ -178,8 +180,33 @@ function calculateCurrentRecipeCost(recipe, dependencies = {}) {
     };
 }
 
+function buildCurrentRecipeCostFailure(recipe, error, dependencies = {}) {
+    const savedTotalCost = Number(recipe.savedTotalCost || 0);
+    const message = String(error?.message || '当前成本计算失败');
+    return {
+        recipeId: recipe.id,
+        currentTotalCost: null,
+        savedTotalCost: savedTotalCost > 0 ? roundMoney(savedTotalCost) : null,
+        difference: null,
+        partsCost: null,
+        partialPartsCost: 0,
+        partialTotalCost: 0,
+        laborCost: calculateLaborTotal(recipe, dependencies.getSetting),
+        itemCount: 0,
+        missingParts: [],
+        costComplete: false,
+        warnings: [message],
+        calculationError: {
+            code: String(error?.code || 'CURRENT_RECIPE_COST_FAILED'),
+            message,
+            ...(error?.details === undefined ? {} : { details: error.details }),
+        },
+    };
+}
+
 module.exports = {
     buildCurrentRecipeCostBasis,
+    buildCurrentRecipeCostFailure,
     buildLaborCostDetails,
     calculateCurrentRecipeCost,
     calculateLaborTotal,

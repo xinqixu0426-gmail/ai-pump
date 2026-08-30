@@ -29,6 +29,7 @@ type VariantFormState = {
   modelName: string;
   templateId: string;
   coilId: string;
+  coilSchemeFamilyCode: string;
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
@@ -74,6 +75,7 @@ function emptyVariantForm(): VariantFormState {
     modelName: '',
     templateId: '',
     coilId: '',
+    coilSchemeFamilyCode: '',
     coilSpec: '',
     coilSheets: '',
     coilMaterial: '钢带',
@@ -128,6 +130,7 @@ function variantFormFromVariant(variant: PumpModelVariant, modelName = variant.m
     modelName,
     templateId: variant.templateId ? String(variant.templateId) : '',
     coilId: variant.coilId ? String(variant.coilId) : '',
+    coilSchemeFamilyCode: variant.coilSchemeFamilyCode || '',
     coilSpec: variant.coilSpec || '',
     coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
     coilMaterial: variant.coilMaterial || '钢带',
@@ -148,6 +151,7 @@ function variantFormToInput(form: VariantFormState): ModelVariantInput {
     modelName: form.modelName.trim(),
     templateId: Number(form.templateId),
     coilId: form.coilId ? Number(form.coilId) : null,
+    coilSchemeFamilyCode: form.coilSchemeFamilyCode,
     coilSpec: form.coilSpec.trim(),
     coilSheets: numberValue(form.coilSheets),
     coilMaterial: form.coilMaterial.trim() || '钢带',
@@ -210,6 +214,21 @@ export function ModelVariantCompatibilityPanel({
       && Number(coil.sheets) === Number(form.coilSheets)
     ))
     .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.id - right.id), [coilRecords, form.coilMaterial, form.coilSheets, form.coilSlotType, form.coilSpec]);
+  const familyOptions = useMemo(() => [...new Map(coilRecords
+    .filter((coil) => (
+      coil.schemeStatus === 'official'
+      && coil.pricingMode === 'calculated'
+      && coil.spec === form.coilSpec
+      && coil.material === form.coilMaterial
+      && coil.slotType === form.coilSlotType
+      && Boolean(coil.schemeFamilyCode)
+    ))
+    .map((coil) => [coil.schemeFamilyCode, coil] as const)).entries()]
+    .map(([code, coil]) => ({
+      code,
+      label: [code, coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '', coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '', coil.market]
+        .filter(Boolean).join(' · '),
+    })), [coilRecords, form.coilMaterial, form.coilSlotType, form.coilSpec]);
 
   const filteredVariants = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -263,6 +282,7 @@ export function ModelVariantCompatibilityPanel({
         coilSlotType: selection.slotType,
         coilSheets: sheetsRemainValid ? current.coilSheets : '',
         coilId: '',
+        coilSchemeFamilyCode: '',
       };
     });
   }, [editorTarget, form.coilMaterial, form.coilSlotType, form.coilSpec, selectedCoil]);
@@ -270,11 +290,30 @@ export function ModelVariantCompatibilityPanel({
   useEffect(() => {
     if (!editorTarget) return;
     setForm((current) => {
-      if (schemeOptions.some((coil) => coil.id === Number(current.coilId))) return current;
-      const coilId = schemeOptions.length === 1 ? String(schemeOptions[0].id) : '';
-      return current.coilId === coilId ? current : { ...current, coilId };
+      const selected = schemeOptions.find((coil) => coil.id === Number(current.coilId));
+      if (selected) {
+        return current.coilSchemeFamilyCode === selected.schemeFamilyCode
+          ? current
+          : { ...current, coilSchemeFamilyCode: selected.schemeFamilyCode || '' };
+      }
+      if (schemeOptions.length > 0) {
+        const automatic = schemeOptions.length === 1 ? schemeOptions[0] : null;
+        return {
+          ...current,
+          coilId: automatic ? String(automatic.id) : '',
+          coilSchemeFamilyCode: automatic?.schemeFamilyCode || '',
+        };
+      }
+      const familyIsValid = familyOptions.some((family) => family.code === current.coilSchemeFamilyCode);
+      return {
+        ...current,
+        coilId: '',
+        coilSchemeFamilyCode: familyIsValid
+          ? current.coilSchemeFamilyCode
+          : familyOptions.length === 1 ? familyOptions[0].code : '',
+      };
     });
-  }, [editorTarget, schemeOptions]);
+  }, [editorTarget, familyOptions, schemeOptions]);
 
   function updateForm(patch: Partial<VariantFormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -311,8 +350,8 @@ export function ModelVariantCompatibilityPanel({
       setFormError('请选择泵壳模板');
       return;
     }
-    if (form.coilSpec && form.coilSheets && !form.coilId) {
-      setFormError('请选择具体的正式线圈方案');
+    if (form.coilSpec && form.coilSheets && !form.coilId && !form.coilSchemeFamilyCode) {
+      setFormError(schemeOptions.length > 0 ? '请选择具体的正式线圈方案' : '请选择用于插值或外推的线圈方案系列');
       return;
     }
     setFormError(null);
@@ -503,6 +542,7 @@ export function ModelVariantCompatibilityPanel({
                         coilSpec,
                         coilSheets: '',
                         coilId: '',
+                        coilSchemeFamilyCode: '',
                         coilMaterial: selection.material,
                         coilSlotType: selection.slotType,
                       });
@@ -528,6 +568,7 @@ export function ModelVariantCompatibilityPanel({
                         coilSlotType: selection.slotType,
                         coilSheets: '',
                         coilId: '',
+                        coilSchemeFamilyCode: '',
                       });
                     }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
@@ -539,7 +580,7 @@ export function ModelVariantCompatibilityPanel({
                   <span className="text-xs font-medium text-muted">槽眼</span>
                   <select
                     value={form.coilSlotType}
-                    onChange={(event) => updateForm({ coilSlotType: event.target.value as CoilSlotType, coilSheets: '', coilId: '' })}
+                    onChange={(event) => updateForm({ coilSlotType: event.target.value as CoilSlotType, coilSheets: '', coilId: '', coilSchemeFamilyCode: '' })}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {slotTypeOptions.map((slotType) => <option key={slotType} value={slotType}>{slotType}</option>)}
@@ -549,7 +590,7 @@ export function ModelVariantCompatibilityPanel({
                   <span className="text-xs font-medium text-muted">线圈片数</span>
                   <input
                     value={form.coilSheets}
-                    onChange={(event) => updateForm({ coilSheets: event.target.value, coilId: '' })}
+                    onChange={(event) => updateForm({ coilSheets: event.target.value, coilId: '', coilSchemeFamilyCode: '' })}
                     onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
@@ -558,11 +599,15 @@ export function ModelVariantCompatibilityPanel({
                   />
                 </label>
               </div>
-              <label className="mt-3 block">
+              {schemeOptions.length > 0 ? <label className="mt-3 block">
                 <span className="text-xs font-medium text-muted">具体正式方案</span>
                 <select
                   value={form.coilId}
-                  onChange={(event) => updateForm({ coilId: event.target.value })}
+                  onChange={(event) => {
+                    const coilId = event.target.value;
+                    const selected = schemeOptions.find((coil) => String(coil.id) === coilId);
+                    updateForm({ coilId, coilSchemeFamilyCode: selected?.schemeFamilyCode || '' });
+                  }}
                   disabled={!form.coilSpec || !form.coilSheets || schemeOptions.length === 0}
                   className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
                 >
@@ -573,7 +618,18 @@ export function ModelVariantCompatibilityPanel({
                     </option>
                   ))}
                 </select>
-              </label>
+              </label> : <label className="mt-3 block">
+                <span className="text-xs font-medium text-muted">方案系列（插值/外推）</span>
+                <select
+                  value={form.coilSchemeFamilyCode}
+                  onChange={(event) => updateForm({ coilId: '', coilSchemeFamilyCode: event.target.value })}
+                  disabled={!form.coilSpec || !form.coilSheets || familyOptions.length === 0}
+                  className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                >
+                  <option value="">{familyOptions.length === 0 ? '当前组合没有可用计算方案系列' : '请选择方案系列'}</option>
+                  {familyOptions.map((family) => <option key={family.code} value={family.code}>{family.label}</option>)}
+                </select>
+              </label>}
             </section>
 
             <section className="rounded-panel border border-line p-4">
