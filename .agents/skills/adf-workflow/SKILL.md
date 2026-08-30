@@ -28,9 +28,12 @@ or `maintenance`, then assign `L0`–`L3` from behavior and reversibility rather
 than file count.
 
 - L0: clear, behavior-preserving trivial change; Main Codex and focused checks.
-- L1: small, bounded, low-risk change; add targeted review when useful.
-- L2: behavior, API, data logic, bugfix, or multi-module change; use the full
-  contract, Explorer, review, verification, and delivery flow.
+- L1: small, bounded, low-risk change, including a single-module local behavior
+  fix with an established authority and focused regression; use no Explorer by
+  default and at most one targeted reviewer when useful.
+- L2: new behavior or a change to shared logic, API/data contracts, concurrency,
+  cross-module boundaries, or a systemic defect family; use the full contract,
+  Explorer, review, verification, and delivery flow.
 - L3: migration, auth/security, destructive work, production, secrets, or other
   irreversible effects; use L2 plus explicit human approval for the risky act.
 
@@ -39,6 +42,13 @@ and align the contract before implementation. For a bugfix, also read
 [systemic-diagnosis.md](references/systemic-diagnosis.md) before editing.
 Before delegating any subagent, read [model-routing.md](references/model-routing.md)
 and use the lowest-cost role that satisfies the task's risk and judgment needs.
+
+An exact, immutable commit that already has matching completed Guardian evidence
+may enter a release-only continuation: inspect that evidence and the project
+release playbook, but do not recreate discovery or AI reviews. Any commit drift,
+missing evidence, code/config edit, or unresolved production decision exits this
+fast path and is reclassified normally. Release-only never weakens backup,
+rollback, health, smoke, authentication, or human production approval.
 
 ## Execute
 
@@ -57,6 +67,8 @@ and use the lowest-cost role that satisfies the task's risk and judgment needs.
    needed for Ready. Let Main Codex implement only after required discovery.
    Prefer a narrow context fork containing the Task Contract, exact paths,
    acceptance criteria, and evidence question instead of the full conversation.
+   For L1, stay in Main Codex unless one concrete uncertainty justifies a single
+   targeted reviewer.
 5. Run risk-matched deterministic checks after substantial changes and repair
    failures before continuing.
 6. Read [review-policy.md](references/review-policy.md), run required independent

@@ -132,6 +132,6 @@ $guardian = Join-Path $env:AI_DEV_FRAMEWORK_ROOT "scripts\guardian.ps1"
 - 交付完成且当前报告仍有效后运行 `guardian complete`。它验证 effective gate；gate 至少为 commit 时再验证完整 commit，gate 为 push 时还验证本地 push tracking evidence，然后归档并清除 active lifecycle。
 - 项目级 `.codex/hooks.json` 只有在 Codex 中 review/trust 后才生效；首次设置用户级 `AI_DEV_FRAMEWORK_ROOT` 后需要重启 Codex，让 Hook 子进程继承环境变量。Hook 文件存在不等于已经启用。
 
-`.guardian/config.yaml` 中的验证按阶段和任务模块共同选择：治理/文档使用轻量静态契约，API 任务运行 API 契约，业务 commit 保留 lint 与完整测试；API、`shared/**` 及根工具链 push 同时运行 deep API 与 Web build，Web-only push 运行 Web build。只有纯仓库内容契约可显式复用同一 session 的严格匹配通过证据；完整测试、deep API 和 build 不复用。涉及 AI tool、executor、知识检索或 AI 发布门禁时，仍按 `docs/ai-learning-release-gate-guide.md` 单独运行 `npm run verify:ai-release`，不得用普通 push gate 冒充真实 AI 验收。
+`.guardian/config.yaml` 中的验证按阶段和任务模块共同选择：治理/文档使用轻量静态契约，API 任务运行 API 契约，业务 commit 保留 lint 与完整测试；API、`shared/**` 及根工具链 push 同时运行 deep API 与 Web build，Web-only push 运行 Web build。纯仓库契约使用 repository evidence；lint 和隔离测试绑定仓库、Node 运行时、依赖指纹与 30 分钟 TTL；deep API 和 build 保持 live、每次执行。仅无共享写状态的相邻命令成对并发，结果仍按配置顺序记录。涉及 AI tool、executor、知识检索或 AI 发布门禁时，仍按 `docs/ai-learning-release-gate-guide.md` 单独运行 `npm run verify:ai-release`，不得用普通 push gate 冒充真实 AI 验收。
 
 Guardian session、历史报告和 Task Contract 属于本地执行证据并由 ignore 规则保护。最终报告必须分别说明 implemented、tested、built、documented、committed、pushed、deployed、verified；未运行不能描述为通过，push 不能描述为部署。

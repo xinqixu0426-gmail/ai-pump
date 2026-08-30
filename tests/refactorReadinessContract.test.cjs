@@ -57,11 +57,14 @@ test('ADF 契约：模型路由清单必须与启用的 reviewer profiles 保持
     assert.match(routingGuide, /Static agent profiles cannot inspect a weekly Spark quota/);
     assert.match(routingGuide, /falls back to Luna and suppresses repeated/);
     assert.match(routingGuide, /never estimate or invent token usage/);
+    assert.match(workflowSkill, /single-module local behavior/);
+    assert.match(workflowSkill, /release-only continuation/);
+    assert.match(routingGuide, /Use a compact capsule/);
     assert.match(readUtf8('AGENTS.md'), /references\/model-routing\.md/);
     assert.doesNotMatch(readUtf8('AGENTS.md'), /\b(?:Luna|Terra|Sol)\b/);
 });
 
-test('ADF 契约：Guardian 验证按模块分流且只复用纯仓库契约', () => {
+test('ADF 契约：Guardian 验证按模块分流、证据分级且只并发安全组', () => {
     const config = readUtf8('.guardian/config.yaml');
     const verification = config.split(/\r?\nverification:\r?\n/)[1].split(/\r?\nexceptions:/)[0];
     const commandBlock = (id) => {
@@ -85,10 +88,24 @@ test('ADF 契约：Guardian 验证按模块分流且只复用纯仓库契约', (
     assert.match(commandBlock('deep-api'), /modules: \["api", "tooling"\]/);
     assert.match(commandBlock('web-build'), /modules: \["api", "web", "tooling"\]/);
     assert.match(readUtf8('apps/web-next/lib/recipe-packing.cjs'), /shared\/packagingSemantics\.cjs/);
-    assert.equal((verification.match(/reusePassedEvidence: true/g) || []).length, 2);
-    for (const id of ['lint', 'tests', 'deep-api', 'web-build']) {
-        assert.doesNotMatch(commandBlock(id), /reusePassedEvidence/);
+    assert.match(verification, /maxConcurrency: 2/);
+    for (const id of ['governance-contract', 'api-contract']) {
+        assert.match(commandBlock(id), /scope: "repository"/);
+        assert.match(commandBlock(id), /parallelGroup: "focused-contracts"/);
     }
+    for (const id of ['lint', 'tests']) {
+        assert.match(commandBlock(id), /scope: "workspace"/);
+        assert.match(commandBlock(id), /maxAgeSeconds: 1800/);
+        assert.match(commandBlock(id), /package-lock\.json/);
+        assert.match(commandBlock(id), /node_modules\/\.package-lock\.json/);
+        assert.match(commandBlock(id), /parallelGroup: "commit-safe"/);
+    }
+    for (const id of ['deep-api', 'web-build']) {
+        assert.match(commandBlock(id), /scope: "live"/);
+        assert.match(commandBlock(id), /parallelGroup: "push-isolated"/);
+        assert.doesNotMatch(commandBlock(id), /maxAgeSeconds|fingerprintPaths/);
+    }
+    assert.doesNotMatch(verification, /reusePassedEvidence/);
 });
 
 if (process.env.AI_DEV_FRAMEWORK_ROOT) {

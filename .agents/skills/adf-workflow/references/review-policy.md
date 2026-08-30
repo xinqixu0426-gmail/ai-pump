@@ -3,11 +3,18 @@
 Use reviewers according to risk, not mechanically:
 
 - L0: Main Codex only.
-- L1: a targeted reviewer when behavior or documentation warrants it.
+- L1: Main Codex plus at most one targeted reviewer only when a concrete behavior,
+  test, architecture, or documentation uncertainty warrants independent judgment.
 - L2: Code Explorer before implementation—and before Ready for a bugfix;
   Architecture and Test Reviewers after implementation; Docs Reviewer when
   project facts or authoritative docs changed.
 - L3: all L2 reviews plus high-risk verification and human approval.
+
+A release-only continuation for an unchanged commit does not repeat Explorer or
+AI review when the matching completed review and deterministic evidence are
+available. It still runs the release playbook's current preflight, backup,
+deployment, health, smoke, and rollback checks. Any artifact or commit mismatch
+returns to normal risk classification.
 
 Reviewers remain read-only and return concrete findings with file/symbol evidence,
 impact, and an actionable correction. Architecture review checks root-cause layer,

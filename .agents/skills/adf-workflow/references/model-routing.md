@@ -45,6 +45,8 @@ final synthesis and must inspect evidence before acting.
 ## Context budget
 
 - L0 uses no subagent. L1 uses at most one targeted reviewer when useful.
+- A release-only continuation for an unchanged, previously reviewed commit uses
+  no new subagent; changing the commit or artifact ends that fast path.
 - Prefer `fork_turns: "none"` (or the smallest supported recent-turn window) and
   pass the Task Contract path, exact repository paths, acceptance criteria,
   relevant diff or report, and one bounded evidence question.
@@ -52,6 +54,9 @@ final synthesis and must inspect evidence before acting.
   the subagent identifies a concrete missing dependency.
 - Request concise findings with file/symbol evidence; omit praise, repeated task
   summaries, implementation narration, and unchanged-state updates.
+- Use a compact capsule: goal, risk/scope decision, exact paths, acceptance
+  evidence, and one question. Do not attach raw terminal history or full reports
+  when a path plus the relevant finding is sufficient.
 - Rerun only the reviewer whose conclusion or evidence fingerprint changed.
 
 Calibrate routing on real tasks. When the host exposes it, record role, model,

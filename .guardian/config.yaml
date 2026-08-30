@@ -263,12 +263,15 @@ technicalDebt:
   severity: "warning"
 
 verification:
+  maxConcurrency: 2
   commands:
     - id: "governance-contract"
       run: "node --test tests/refactorReadinessContract.test.cjs"
       phase: "focused"
       kind: "contract"
-      reusePassedEvidence: true
+      evidencePolicy:
+        scope: "repository"
+      parallelGroup: "focused-contracts"
       when:
         modules: ["governance", "documentation"]
       timeoutSeconds: 180
@@ -276,7 +279,9 @@ verification:
       run: "npm run verify:api-contract"
       phase: "focused"
       kind: "contract"
-      reusePassedEvidence: true
+      evidencePolicy:
+        scope: "repository"
+      parallelGroup: "focused-contracts"
       when:
         modules: ["api"]
       timeoutSeconds: 180
@@ -284,6 +289,11 @@ verification:
       run: "npm run lint"
       phase: "commit"
       kind: "other"
+      evidencePolicy:
+        scope: "workspace"
+        maxAgeSeconds: 1800
+        fingerprintPaths: ["package-lock.json", "node_modules/.package-lock.json"]
+      parallelGroup: "commit-safe"
       when:
         modules: ["api", "web", "tests", "tooling"]
       timeoutSeconds: 600
@@ -291,6 +301,11 @@ verification:
       run: "npm test"
       phase: "commit"
       kind: "test"
+      evidencePolicy:
+        scope: "workspace"
+        maxAgeSeconds: 1800
+        fingerprintPaths: ["package-lock.json", "node_modules/.package-lock.json"]
+      parallelGroup: "commit-safe"
       when:
         modules: ["api", "web", "tests", "tooling", "freecad"]
       timeoutSeconds: 900
@@ -298,6 +313,9 @@ verification:
       run: "npm run test:deep-api"
       phase: "push"
       kind: "test"
+      evidencePolicy:
+        scope: "live"
+      parallelGroup: "push-isolated"
       when:
         modules: ["api", "tooling"]
       timeoutSeconds: 1200
@@ -305,6 +323,9 @@ verification:
       run: "npm run build"
       phase: "push"
       kind: "build"
+      evidencePolicy:
+        scope: "live"
+      parallelGroup: "push-isolated"
       when:
         modules: ["api", "web", "tooling"]
       timeoutSeconds: 1800

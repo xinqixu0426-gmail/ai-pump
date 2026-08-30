@@ -47,3 +47,11 @@ The delivery branch must match the branch that produced the gate report; after a
 intentional target-branch change, rerun the required gate before completion.
 This is local evidence only: Guardian does not fetch, query, or prove remote state.
 Capture committed, pushed, deployed, and verified states separately.
+
+For release-only continuation, first prove that the exact commit/artifact matches
+the completed Guardian session and its deterministic evidence. Reuse that immutable
+development evidence instead of repeating exploration, AI review, tests, or build.
+Run checks whose truth can change after the commit—target/branch preflight, backup,
+deployment, live health, authenticated smoke, configuration and rollback readiness—
+at the release boundary. A missing/mismatched fingerprint or any source/config edit
+invalidates the fast path and requires the normal classified workflow.
