@@ -148,6 +148,8 @@ export function AiView({
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollContentRef = useRef<HTMLDivElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
   const initialPromptAppliedRef = useRef(false);
   const restoredConversationRef = useRef(false);
   const sendInFlightRef = useRef(false);
@@ -192,15 +194,37 @@ export function AiView({
     closeFeedbackDialog,
   } = useAiAnswerFeedback(setHistoryError);
 
-  useEffect(() => {
+  const scheduleScrollToLatest = useCallback((behavior: ScrollBehavior = 'auto') => {
     if (!autoFollowRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+    }
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      if (!autoFollowRef.current) return;
       const scroller = scrollRef.current;
       if (!scroller) return;
-      scroller.scrollTo({ top: scroller.scrollHeight, behavior: loading ? 'auto' : 'smooth' });
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior });
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [items, loading]);
+  }, []);
+
+  useEffect(() => {
+    scheduleScrollToLatest(loading ? 'auto' : 'smooth');
+  }, [items, loading, scheduleScrollToLatest]);
+
+  useEffect(() => {
+    const content = scrollContentRef.current;
+    if (!content || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => scheduleScrollToLatest('auto'));
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scheduleScrollToLatest]);
+
+  useEffect(() => () => {
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (loading || !restoreComposerFocusAfterSendRef.current) return;
@@ -484,14 +508,17 @@ export function AiView({
     if (!scroller) return;
     const nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 96;
     autoFollowRef.current = nearBottom;
+    if (!nearBottom && scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+      scrollFrameRef.current = null;
+    }
     setShowJumpToLatest(!nearBottom);
   }
 
   function scrollToLatest() {
-    const scroller = scrollRef.current;
     autoFollowRef.current = true;
     setShowJumpToLatest(false);
-    scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+    scheduleScrollToLatest('smooth');
   }
 
   function applyTaskTemplate(prompt: string) {
@@ -698,6 +725,7 @@ export function AiView({
               feedbackByMessageId={feedbackByMessageId}
               feedbackSaving={feedbackSaving}
               scrollRef={scrollRef}
+              contentRef={scrollContentRef}
               onRunSample={runMessageSample}
               onArchive={setArchiveAttachment}
               onConfirmed={confirmMessageTool}

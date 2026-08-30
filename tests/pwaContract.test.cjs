@@ -56,6 +56,24 @@ test('PWA 契约：/ai 在移动端隐藏全局业务导航并接管完整视口
     assert.match(layout, /viewportFit: 'cover'/);
 });
 
+test('PWA 契约：AI 长内容使用单一触控滚动区并跟随真实内容高度', () => {
+    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
+    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
+    const resultPrimitives = readUtf8('apps/web-next/components/ai/AiResultPrimitives.tsx');
+
+    assert.match(aiView, /scrollContentRef/);
+    assert.match(aiView, /new ResizeObserver\(\(\) => scheduleScrollToLatest\('auto'\)\)/);
+    assert.match(aiView, /if \(!autoFollowRef\.current\) return;[\s\S]*scroller\.scrollTo/);
+    assert.match(aiView, /if \(!nearBottom && scrollFrameRef\.current !== null\)/);
+    assert.match(messageList, /min-h-0 flex-1 overflow-y-auto overscroll-y-contain/);
+    assert.match(messageList, /\[touch-action:pan-y\]/);
+    assert.match(messageList, /\[-webkit-overflow-scrolling:touch\]/);
+    assert.match(messageList, /ref=\{contentRef\}/);
+    assert.match(resultPrimitives, /overflow-x-auto whitespace-pre-wrap[\s\S]*md:max-h-72 md:overflow-y-auto/);
+    assert.match(resultPrimitives, /overflow-x-auto md:max-h-80 md:overflow-y-auto/);
+    assert.doesNotMatch(resultPrimitives, /className="max-h-(?:72|80) overflow-auto/);
+});
+
 test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', () => {
     const aiClient = readUtf8('apps/web-next/lib/ai.ts');
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');

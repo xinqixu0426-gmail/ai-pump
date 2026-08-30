@@ -17,6 +17,7 @@ export const AiMessageList = memo(function AiMessageList({
   feedbackByMessageId,
   feedbackSaving,
   scrollRef,
+  contentRef,
   onRunSample,
   onArchive,
   onConfirmed,
@@ -31,6 +32,7 @@ export const AiMessageList = memo(function AiMessageList({
   feedbackByMessageId: Record<number, AiAnswerFeedback>;
   feedbackSaving: boolean;
   scrollRef: RefObject<HTMLDivElement>;
+  contentRef: RefObject<HTMLDivElement>;
   onRunSample: (prompt: string) => void;
   onArchive: (attachment: AiAttachment) => void;
   onConfirmed: (messageId: string, index: number, result: AiToolResult) => void;
@@ -40,7 +42,12 @@ export const AiMessageList = memo(function AiMessageList({
   onScroll: () => void;
 }) {
   return (
-    <div ref={scrollRef} onScroll={onScroll} className={`flex-1 overflow-y-auto ${panel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [touch-action:pan-y] [-webkit-overflow-scrolling:touch]"
+    >
+      <div ref={contentRef} className={`min-h-full ${panel ? 'space-y-4 px-3 py-4' : 'space-y-5 px-4 py-5 md:space-y-4 md:p-5'}`}>
       {items.length === 0 ? (
         <div className={`flex h-full items-center justify-center ${panel ? 'min-h-[220px]' : 'min-h-[220px] md:min-h-[360px]'}`}>
           <div className={`w-full px-2 py-7 text-center ${panel ? 'max-w-lg' : 'max-w-2xl md:rounded-panel md:border md:border-line md:bg-white md:px-7 md:shadow-panel'}`}>
@@ -166,6 +173,7 @@ export const AiMessageList = memo(function AiMessageList({
           </div>
         );
       })}
+      </div>
     </div>
   );
 });

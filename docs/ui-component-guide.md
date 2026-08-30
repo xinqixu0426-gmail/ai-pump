@@ -79,6 +79,7 @@
 
 - `AiView` 负责会话状态和工作台编排。
 - `AiMessageList` 是唯一消息列表结构，并以稳定 props 边界隔离历史搜索、弹层和输入区等无关状态更新。
+- `AiMessageList` 同时是移动端 AI 对话唯一的纵向滚动区：内容尺寸变化由工作台统一协调自动跟随，用户离开底部后不得抢回阅读位置；手机端工具原始数据和数据表只允许横向滚动，桌面端主消息区之外才可使用限高的内部纵向查看区。
 - `AiComposer` 是唯一消息输入结构，也是草稿、语音识别和输入焦点的状态所有者；逐字输入不得回写 `AiView`，跨区模板、新会话和初始提示词通过其受控句柄协调。
 - `AiConversationSidebars` 负责历史会话。
 - `MarkdownContent`、`StreamingText` 位于 `components/ai/ai-text.tsx`，同时供 AI 消息和知识库诊断复用；内容未变化时必须保持记忆化，避免父级状态更新重复解析 Markdown。

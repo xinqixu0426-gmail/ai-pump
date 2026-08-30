@@ -225,7 +225,7 @@ export function RawDetails({ result }: { result: unknown }) {
         原始数据
         <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
       </summary>
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-100">{formatJson(result)}</pre>
+      <pre className="max-w-full overflow-x-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-100 md:max-h-72 md:overflow-y-auto">{formatJson(result)}</pre>
     </details>
   );
 }
@@ -267,7 +267,7 @@ export function DataTable({ columns, rows, emptyText = '暂无数据' }: {
   if (rows.length === 0) return <div className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">{emptyText}</div>;
   return (
     <div className="mt-3 overflow-hidden rounded-md border border-slate-200">
-      <div className="max-h-80 overflow-auto">
+      <div className="overflow-x-auto md:max-h-80 md:overflow-y-auto">
         <table className="w-full min-w-[560px] border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-100 text-xs font-medium text-muted">
             <tr>
