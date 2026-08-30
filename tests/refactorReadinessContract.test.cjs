@@ -2650,10 +2650,13 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsView, /disabled=\{editingCoil\?\.pricingMode === 'calculated'\}/);
     assert.match(coilsView, /定子单片成本请在定子组合里批量修改/);
     assert.match(coilsView, /label="线重 kg（可选）"/);
-    assert.match(coilsView, /label="铜价基数（可选）"/);
     assert.match(coilsView, /仅作套件价格参考，不参与成本计算/);
     assert.match(coilsView, /optionalPositiveNumberText\(coil\.wireWeight\)/);
-    assert.match(coilsView, /coil\.copperBase > 0 \? money\(coil\.copperBase\) : '-'/);
+    assert.doesNotMatch(coilsView, /label="铜价基数(?:（可选）)?"/);
+    assert.doesNotMatch(coilsView, />铜价基数<\/th>/);
+    for (const label of ['方案名称', '状态', '方案编码', '方案族', '电压', '频率', '市场']) {
+        assert.match(coilsView, new RegExp(`>${label}<\\/th>`));
+    }
     assert.match(coilsView, /定子直径 mm/);
     assert.match(coilsView, /国标眼/);
     assert.match(coilsView, /schemeStatus/);

@@ -606,7 +606,7 @@ export function CoilsView() {
             </div>
             <div>
               <div className="text-sm font-semibold text-ink">实时市场指标</div>
-              <div className="mt-1 text-xs text-muted">同步后只刷新计算计价方案的铜价基数；供应商套件价保持不变。</div>
+              <div className="mt-1 text-xs text-muted">同步后只更新计算计价方案采用的铜价；供应商套件价保持不变。</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -860,19 +860,22 @@ export function CoilsView() {
                     ) : null}
                   </div>
                   {!collapsed ? <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1320px] border-collapse text-left text-sm">
+                    <table className="w-full min-w-[1680px] border-collapse text-left text-sm">
                       <thead className="bg-slate-50 text-xs text-muted">
                         <tr>
                           <th className="px-4 py-2.5 font-medium">片数</th>
-                          <th className="px-4 py-2.5 font-medium">方案</th>
-                          <th className="px-4 py-2.5 font-medium">计价方式</th>
-                          <th className="px-4 py-2.5 font-medium">定子单片成本</th>
-                          <th className="px-4 py-2.5 font-medium">线重</th>
-                          <th className="px-4 py-2.5 font-medium">铜价基数</th>
-                          <th className="px-4 py-2.5 font-medium">加工费</th>
+                          <th className="px-4 py-2.5 font-medium">方案名称</th>
+                          <th className="px-4 py-2.5 font-medium">状态</th>
+                          <th className="px-4 py-2.5 font-medium">方案编码</th>
+                          <th className="px-4 py-2.5 font-medium">方案族</th>
+                          <th className="px-4 py-2.5 font-medium">电压</th>
+                          <th className="px-4 py-2.5 font-medium">频率</th>
+                          <th className="px-4 py-2.5 font-medium">市场</th>
+                          <th className="px-4 py-2.5 font-medium">计价</th>
                           <th className="px-4 py-2.5 font-medium">线圈套成本</th>
+                          <th className="px-4 py-2.5 font-medium">线重</th>
                           <th className="px-4 py-2.5 font-medium">库存</th>
-                          <th className="px-4 py-2.5 font-medium">默认搭配电缆线径</th>
+                          <th className="px-4 py-2.5 font-medium">默认搭配</th>
                           <th className="px-4 py-2.5 font-medium">绕组数据</th>
                           <th className="px-4 py-2.5 text-right font-medium">操作</th>
                         </tr>
@@ -882,12 +885,10 @@ export function CoilsView() {
                           {group.rows.map((coil) => (
                             <PresenceRow key={coil.id}>
                               <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{coil.sheets}</td>
+                              <td className="border-b border-line px-4 py-2.5 font-medium text-ink">
+                                {coil.schemeName || (coil.schemeStatus === 'testing' ? '测试方案' : '正式方案')}
+                              </td>
                               <td className="border-b border-line px-4 py-2.5">
-                                <div className="text-ink">{coil.schemeName || (coil.schemeStatus === 'testing' ? '测试方案' : '正式方案')}</div>
-                                <div className="mt-0.5 text-xs text-muted">{coil.schemeCode}</div>
-                                <div className="mt-0.5 text-xs text-muted">
-                                  {[coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '', coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '', coil.market].filter(Boolean).join(' · ') || '未标电气参数'}
-                                </div>
                                 <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${
                                   coil.schemeStatus === 'official'
                                     ? 'bg-emerald-50 text-emerald-700'
@@ -899,23 +900,35 @@ export function CoilsView() {
                                 </span>
                                 {coil.isDefault ? <span className="ml-1 mt-1 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">默认</span> : null}
                               </td>
+                              <td className="border-b border-line px-4 py-2.5 font-mono text-xs text-muted">{coil.schemeCode || '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 font-mono text-xs text-muted">{coil.schemeFamilyCode || '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.market || '-'}</td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${coil.pricingMode === 'kit' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
                                   {coil.pricingMode === 'kit' ? '供应商套件价' : '计算计价'}
                                 </span>
                               </td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? '-' : money(coil.unitPrice)}</td>
+                              <td className="border-b border-line px-4 py-2.5">
+                                <div className="font-medium text-ink">{money(coil.cost)}</div>
+                                <div className="mt-0.5 whitespace-nowrap text-xs text-muted">
+                                  {coil.pricingMode === 'kit'
+                                    ? '套件总价'
+                                    : `单片 ${money(coil.unitPrice)} · 加工 ${money(coil.coilFee + coil.rotorFee)}`}
+                                </div>
+                              </td>
                               <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? `${optionalPositiveNumberText(coil.wireWeight)}${coil.wireWeight > 0 ? ' kg' : ''}` : `${coil.wireWeight} kg`}</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? (coil.copperBase > 0 ? money(coil.copperBase) : '-') : money(coil.copperBase)}</td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.pricingMode === 'kit' ? '-' : money(coil.coilFee + coil.rotorFee)}</td>
-                              <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{money(coil.cost)}</td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <div className="font-medium text-ink">{coil.stock} 套</div>
                                 <div className={`mt-1 text-xs ${coil.stock > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
                                   {coil.stock > 0 ? '有库存' : '待补充'}
                                 </div>
                               </td>
-                              <td className="border-b border-line px-4 py-2.5 text-muted">{coil.defaultWireGauge || '-'}</td>
+                              <td className="border-b border-line px-4 py-2.5 text-xs text-muted">
+                                <div>电缆：{coil.defaultWireGauge || '-'}</div>
+                                <div className="mt-1">电容：{coil.defaultCapacitor || '-'}</div>
+                              </td>
                               <td className="border-b border-line px-4 py-2.5 text-xs text-muted">
                                 <div>主：{[coil.mainWireGauge, coil.mainWireData].filter(Boolean).join(' · ') || '-'}</div>
                                 <div className="mt-1">副：{[coil.auxWireGauge, coil.auxWireData].filter(Boolean).join(' · ') || '-'}</div>
@@ -1055,9 +1068,6 @@ export function CoilsView() {
                   <Field label="线重 kg（可选）" hint="仅作套件价格参考，不参与成本计算。">
                     <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
                   </Field>
-                  <Field label="铜价基数（可选）" hint="仅作套件价格参考，不参与成本计算。">
-                    <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
-                  </Field>
                 </>
               ) : (
                 <>
@@ -1069,9 +1079,6 @@ export function CoilsView() {
                   </Field>
                   <Field label="线重 kg">
                     <Input value={form.wireWeight} onChange={(event) => updateForm({ wireWeight: event.target.value })} type="number" min="0" step="0.001" />
-                  </Field>
-                  <Field label="铜价基数">
-                    <Input value={form.copperBase} onChange={(event) => updateForm({ copperBase: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
                   </Field>
                   <Field label="线圈加工费">
                     <Input value={form.coilFee} onChange={(event) => updateForm({ coilFee: event.target.value })} type="number" min="0" step="0.01" selectOnFirstFocus />
