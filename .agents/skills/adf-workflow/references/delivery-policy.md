@@ -49,9 +49,17 @@ This is local evidence only: Guardian does not fetch, query, or prove remote sta
 Capture committed, pushed, deployed, and verified states separately.
 
 For release-only continuation, first prove that the exact commit/artifact matches
-the completed Guardian session and its deterministic evidence. Reuse that immutable
-development evidence instead of repeating exploration, AI review, tests, or build.
+the completed Guardian session and its deterministic evidence. Use archived
+evidence to establish eligibility without repeating exploration or AI review.
 Run checks whose truth can change after the commit—target/branch preflight, backup,
 deployment, live health, authenticated smoke, configuration and rollback readiness—
 at the release boundary. A missing/mismatched fingerprint or any source/config edit
 invalidates the fast path and requires the normal classified workflow.
+If release delivery needs a new Guardian session, start `type=release` on the
+unchanged target commit and pass an explicit ancestor comparison base to its required gate.
+The base is persisted as an immutable SHA and the start-time HEAD is the frozen
+release target; a non-ancestor or empty range, target drift, wrong branch, or missing local
+remote-tracking evidence still blocks completion. Configured gate commands remain
+authoritative. A new session does not automatically reuse an archived session's
+verification; only matching evidence from the same active session may be reused
+under the command's declared evidence policy.

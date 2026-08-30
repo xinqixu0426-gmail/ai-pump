@@ -49,6 +49,10 @@ release playbook, but do not recreate discovery or AI reviews. Any commit drift,
 missing evidence, code/config edit, or unresolved production decision exits this
 fast path and is reclassified normally. Release-only never weakens backup,
 rollback, health, smoke, authentication, or human production approval.
+When a new Guardian lifecycle is required, start it at the exact target with
+`taskType=release` and run the required gate with an explicit ancestor comparison base.
+Guardian freezes the start-time target commit, resolves the base to an immutable
+SHA, and rejects a non-ancestor or empty release range and later target drift.
 
 ## Execute
 
