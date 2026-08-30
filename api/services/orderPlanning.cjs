@@ -66,7 +66,9 @@ function buildCoilIndexes(coilsCatalog) {
             String(coil.material || '钢带').trim(),
             String(coil.slotType || coil.slot_type || '小眼').trim(),
         ].join('|');
-        byDimensions.set(key, coil);
+        const candidates = byDimensions.get(key) || [];
+        candidates.push(coil);
+        byDimensions.set(key, candidates);
     }
     return { byId, byDimensions };
 }
@@ -97,7 +99,10 @@ function resolveCoilForPart(part, coilIndexes) {
         String(part?.material || '钢带').trim(),
         String(part?.slotType || '小眼').trim(),
     ].join('|');
-    return coilIndexes.byDimensions.get(key) || null;
+    const candidates = coilIndexes.byDimensions.get(key) || [];
+    if (candidates.length === 1) return candidates[0];
+    const defaults = candidates.filter(coil => Boolean(coil.isDefault || coil.is_default));
+    return defaults.length === 1 ? defaults[0] : null;
 }
 
 function isCompleteCablePart(part) {
@@ -132,7 +137,9 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             const supplier = String(part.supplier || '').trim();
             const explicitPartId = Number(part.partId || 0);
             const mergeKey = isCoilAssemblyPart(part)
-                ? `${model}|${part.material || '钢带'}|${part.slotType || '小眼'}`
+                ? Number(part.coilId || 0) > 0
+                    ? `coil:${Number(part.coilId)}`
+                    : `${model}|${part.material || '钢带'}|${part.slotType || '小眼'}`
                 : completeCable
                 ? `${explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
                 : explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`;

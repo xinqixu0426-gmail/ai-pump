@@ -16,7 +16,13 @@ function coilCandidateData(coil) {
         material: coil.material || '钢带',
         slotType: coil.slotType || '小眼',
         schemeName: coil.schemeName || '',
+        schemeCode: coil.schemeCode || '',
         schemeStatus: coil.schemeStatus || 'official',
+        isDefault: Boolean(coil.isDefault),
+        ratedVoltageV: coil.ratedVoltageV ?? null,
+        ratedFrequencyHz: coil.ratedFrequencyHz ?? null,
+        market: coil.market || '',
+        schemeFamilyCode: coil.schemeFamilyCode || '',
         pricingMode: coil.pricingMode === 'kit' ? 'kit' : 'calculated',
         kitPrice: Number(coil.kitPrice || 0),
         unitPrice: Number(coil.unitPrice || 0),
@@ -56,7 +62,7 @@ async function executeCostTool(toolName, args, internalFetch) {
         case 'calculate_coil_cost': {
             let material = args.material || '';
             let slotType = args.slotType || '';
-            if (!material || !slotType) {
+            if (!args.coilId && !args.schemeCode && (!material || !slotType)) {
                 const targetDiameter = coilDiameter(args.spec);
                 const targetSheets = Number(args.sheets || 0);
                 const coils = await getJson(internalFetch, '/api/coils', '线圈记录读取失败');
@@ -88,6 +94,9 @@ async function executeCostTool(toolName, args, internalFetch) {
             }
             const data = await postJson(internalFetch, '/api/coils/calculate', {
                 spec: args.spec,
+                coilId: args.coilId || null,
+                schemeCode: args.schemeCode || '',
+                schemeFamilyCode: args.schemeFamilyCode || '',
                 sheets: args.sheets,
                 material,
                 slotType,

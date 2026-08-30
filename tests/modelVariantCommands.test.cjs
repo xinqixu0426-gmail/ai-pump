@@ -51,6 +51,7 @@ function createFixture() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_name TEXT NOT NULL UNIQUE,
             template_id INTEGER NOT NULL,
+            coil_id INTEGER,
             coil_spec TEXT DEFAULT '',
             coil_sheets INTEGER DEFAULT 0,
             coil_material TEXT DEFAULT '钢带',
@@ -67,6 +68,14 @@ function createFixture() {
             updated_at TEXT,
             deleted_at TEXT,
             FOREIGN KEY(template_id) REFERENCES pump_shell_templates(id)
+        );
+        CREATE TABLE coils (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            spec TEXT NOT NULL,
+            sheets INTEGER NOT NULL,
+            material TEXT DEFAULT '钢带',
+            slot_type TEXT DEFAULT '小眼',
+            scheme_status TEXT DEFAULT 'official'
         );
         CREATE TABLE parts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +107,10 @@ function createFixture() {
         '2026-08-03T03:00:00.000Z',
         '2026-08-03T03:00:00.000Z'
     );
+    db.prepare(`
+        INSERT INTO coils (spec, sheets, material, slot_type, scheme_status)
+        VALUES ('12', 140, '钢带', '小眼', 'official')
+    `).run();
 
     let sequence = 0;
     let invalidateCount = 0;
@@ -160,6 +173,7 @@ function createFixture() {
             id: row.id,
             modelName: row.model_name,
             templateId: row.template_id,
+            coilId: row.coil_id,
             coilSpec: row.coil_spec,
             coilSheets: row.coil_sheets,
             coilMaterial: row.coil_material,
@@ -218,6 +232,7 @@ function variantInput(overrides = {}) {
     return {
         modelName: 'V750 常用配置',
         templateId: 1,
+        coilId: 1,
         coilSpec: '12',
         coilSheets: 140,
         coilMaterial: '钢带',
@@ -232,6 +247,27 @@ function variantInput(overrides = {}) {
         ...overrides,
     };
 }
+
+test('常用配置填写线圈维度时必须绑定具体正式方案', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => executeModelVariantCreate(
+                fixture.dependencies,
+                variantInput({ coilId: null }),
+                commandContext(CREATE_CAPABILITY_ID, 'coil-binding-required')
+            ),
+            error => error.code === 'model_variant_coil_selection_required'
+                && error.statusCode === 409
+        );
+        assert.equal(
+            fixture.db.prepare('SELECT COUNT(*) AS count FROM pump_model_variants').get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
 
 test('常用配置新增、长螺丝沉淀和 operation 回执原子提交且可安全重放', () => {
     const fixture = createFixture();

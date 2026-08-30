@@ -1708,6 +1708,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     const variantInput = {
         modelName: `${unique}-MODEL`,
         templateId: template.id,
+        coilId: baseCoil.id,
         coilSpec: baseCoil.spec,
         coilSheets: baseCoil.sheets,
         coilMaterial: baseCoil.material,
@@ -1752,6 +1753,24 @@ async function testCrossModuleWriteFlow(baseResources) {
         name: `${unique}-RECIPE`,
         templateId: template.id,
         modelVariantId: variant.id,
+        coilId: baseCoil.id,
+        coilSpec: baseCoil.spec,
+        coilSheets: baseCoil.sheets,
+        coilMaterial: baseCoil.material,
+        coilSlotType: baseCoil.slotType,
+        partsJson: JSON.stringify(JSON.parse(baseRecipe.partsJson || '[]').map(part => (
+            part?.inventoryType === 'coil' || part?.name === '线圈转子'
+                ? {
+                    ...part,
+                    model: `${baseCoil.spec}-${baseCoil.sheets}`,
+                    coilId: baseCoil.id,
+                    schemeCode: baseCoil.schemeCode || '',
+                    schemeName: baseCoil.schemeName || '',
+                    material: baseCoil.material,
+                    slotType: baseCoil.slotType,
+                }
+                : part
+        ))),
     };
     const recipe = (await request(
         '新增配方',

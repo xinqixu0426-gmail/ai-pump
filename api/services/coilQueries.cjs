@@ -44,17 +44,33 @@ function createCoilQueries({
         const spec = String(options.spec || '').trim();
         const material = String(options.material || '').trim();
         const slotType = String(options.slotType || '').trim();
+        const schemeCode = String(options.schemeCode || '').trim().toUpperCase();
+        const schemeStatus = String(options.schemeStatus || '').trim();
+        const market = String(options.market || '').trim();
+        const schemeFamilyCode = String(options.schemeFamilyCode || '').trim().toUpperCase();
+        const ratedVoltageV = options.ratedVoltageV ? parsePositiveId(options.ratedVoltageV) : null;
+        const ratedFrequencyHz = options.ratedFrequencyHz ? parsePositiveId(options.ratedFrequencyHz) : null;
+        const isDefault = options.isDefault === undefined || options.isDefault === ''
+            ? null
+            : options.isDefault === true || options.isDefault === 'true' || options.isDefault === '1';
         const hasSheets = options.sheets !== undefined && options.sheets !== '';
         const sheets = hasSheets ? parsePositiveId(options.sheets) : null;
         if (hasSheets && !sheets) {
             throw new CoilQueryError('sheets 必须是正整数');
         }
-        if (!spec && !material && !slotType && !hasSheets) return listCoils();
+        if (!spec && !material && !slotType && !hasSheets && !schemeCode && !schemeStatus && !market && !schemeFamilyCode && !ratedVoltageV && !ratedFrequencyHz && isDefault === null) return listCoils();
         return listCoils().filter(coil => (
             (!spec || String(coil.spec || '').trim() === spec)
             && (!sheets || Number(coil.sheets) === sheets)
             && (!material || String(coil.material || '').trim() === material)
             && (!slotType || String(coil.slotType || '').trim() === slotType)
+            && (!schemeCode || String(coil.schemeCode || '').trim() === schemeCode)
+            && (!schemeStatus || String(coil.schemeStatus || '').trim() === schemeStatus)
+            && (!market || String(coil.market || '').trim() === market)
+            && (!schemeFamilyCode || String(coil.schemeFamilyCode || '').trim() === schemeFamilyCode)
+            && (!ratedVoltageV || Number(coil.ratedVoltageV) === ratedVoltageV)
+            && (!ratedFrequencyHz || Number(coil.ratedFrequencyHz) === ratedFrequencyHz)
+            && (isDefault === null || Boolean(coil.isDefault) === isDefault)
         ));
     }
 

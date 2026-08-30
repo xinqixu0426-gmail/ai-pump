@@ -40,13 +40,21 @@ function frontendSourceFiles() {
     );
 }
 
-test('API 静态契约：线圈正式方案迁移先去重再创建唯一索引', () => {
+test('API 静态契约：线圈正式方案允许并存且只约束唯一默认方案', () => {
     const migrationSource = readUtf8(path.join(repoRoot, 'api/database/migrations.cjs'));
     const schemaSource = readUtf8(path.join(repoRoot, 'api/database/schema.cjs'));
 
-    assert.match(migrationSource, /HAVING COUNT\(\*\) > 1/);
-    assert.match(migrationSource, /UPDATE coils SET scheme_status = 'testing'/);
-    assert.match(schemaSource, /CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme/);
+    assert.match(migrationSource, /DROP INDEX IF EXISTS idx_coils_one_official_scheme/);
+    assert.match(migrationSource, /CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_default_scheme/);
+    assert.match(
+        migrationSource,
+        /WHERE scheme_status = 'official'[\s\S]*AND is_default = 1[\s\S]*AND stator_variant_id IS NOT NULL/
+    );
+    assert.match(
+        migrationSource,
+        /CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_default_legacy_scheme[\s\S]*AND stator_variant_id IS NULL/
+    );
+    assert.doesNotMatch(schemaSource, /idx_coils_one_official_scheme/);
 });
 
 test('API 静态契约：数据库启动仅通过版本化迁移初始化 Schema', () => {

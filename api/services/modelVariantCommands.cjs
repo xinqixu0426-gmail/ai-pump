@@ -28,6 +28,7 @@ const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 const VARIANT_FIELDS = [
     'model_name',
     'template_id',
+    'coil_id',
     'coil_spec',
     'coil_sheets',
     'coil_material',
@@ -44,6 +45,7 @@ const VARIANT_FIELDS = [
 const VARIANT_ALIASES = {
     modelName: 'model_name',
     templateId: 'template_id',
+    coilId: 'coil_id',
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
     coilMaterial: 'coil_material',
@@ -124,6 +126,7 @@ function normalizeModelVariant(input = {}) {
     return {
         model_name: modelName,
         template_id: templateId,
+        coil_id: parsePositiveId(body.coil_id),
         coil_spec: String(body.coil_spec || '').trim(),
         coil_sheets: parseNonNegativeNumber(body.coil_sheets, 'coil_sheets'),
         coil_material: String(body.coil_material || '钢带').trim() || '钢带',
@@ -184,6 +187,42 @@ function assertTemplateExists(db, templateId) {
         throw modelVariantCommandError(
             'model_variant_template_not_found',
             '泵壳模板不存在',
+            400
+        );
+    }
+}
+
+function assertOfficialCoilBinding(db, variant) {
+    const hasCompleteCoilDimensions = Boolean(variant.coil_spec)
+        && Number(variant.coil_sheets || 0) > 0;
+    if (hasCompleteCoilDimensions && !variant.coil_id) {
+        throw modelVariantCommandError(
+            'model_variant_coil_selection_required',
+            '常用配置填写线圈规格和片数后，必须选择具体正式线圈方案',
+            409
+        );
+    }
+    if (!variant.coil_id) return;
+    const coil = db.prepare(`
+        SELECT id, spec, sheets, material, slot_type, scheme_status
+        FROM coils WHERE id = ?
+    `).get(variant.coil_id);
+    if (!coil || coil.scheme_status !== 'official') {
+        throw modelVariantCommandError(
+            'model_variant_coil_not_official',
+            '所选线圈方案不存在或不是正式方案',
+            400
+        );
+    }
+    if (
+        String(coil.spec || '') !== variant.coil_spec
+        || Number(coil.sheets || 0) !== Number(variant.coil_sheets || 0)
+        || String(coil.material || '钢带') !== variant.coil_material
+        || String(coil.slot_type || '小眼') !== variant.coil_slot_type
+    ) {
+        throw modelVariantCommandError(
+            'model_variant_coil_mismatch',
+            '所选线圈方案与常用配置的规格、片数、材质或槽眼不一致',
             400
         );
     }
@@ -279,6 +318,7 @@ function executeModelVariantCreate(
         input: normalized,
         execute: ({ auditContext }) => {
             assertTemplateExists(dependencies.db, normalized.template_id);
+            assertOfficialCoilBinding(dependencies.db, normalized);
             assertUniqueModelName(dependencies.db, normalized.model_name);
             const now = new Date().toISOString();
             const write = dependencies.safeInsert('pump_model_variants', {
@@ -370,6 +410,7 @@ function executeModelVariantUpdate(
                 `常用配置 #${modelVariantId}`
             );
             assertTemplateExists(dependencies.db, normalized.template_id);
+            assertOfficialCoilBinding(dependencies.db, normalized);
             assertUniqueModelName(
                 dependencies.db,
                 normalized.model_name,

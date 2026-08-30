@@ -166,7 +166,9 @@ function createCostQueries({
         if (!result.success) {
             throw new CostQueryError(
                 result.error,
-                result.status || 400
+                result.status || 400,
+                result.code || null,
+                result.details
             );
         }
         return result.data;

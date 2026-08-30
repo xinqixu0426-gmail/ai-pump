@@ -142,22 +142,30 @@ function createRecipeQueries({
             const model = String(recipePart?.model || '').trim();
             const supplier = String(recipePart?.supplier || '').trim();
             if (String(recipePart?.name || '').trim() === '线圈转子') {
-                const coil = db.prepare(`
-                    SELECT id, stock
-                    FROM coils
-                    WHERE spec = ?
-                      AND sheets = ?
-                      AND material = ?
-                      AND slot_type = ?
-                      AND scheme_status = 'official'
-                    ORDER BY id DESC
-                    LIMIT 1
-                `).get(
-                    String(recipeRecord.coil_spec || '').trim(),
-                    Number(recipeRecord.coil_sheets || 0),
-                    String(recipeRecord.coil_material || '钢带').trim() || '钢带',
-                    String(recipeRecord.coil_slot_type || '小眼').trim() || '小眼'
-                );
+                let coil = recipeRecord.coil_id
+                    ? db.prepare('SELECT id, stock FROM coils WHERE id = ?').get(recipeRecord.coil_id)
+                    : null;
+                if (!coil) {
+                    const candidates = db.prepare(`
+                        SELECT id, stock, is_default
+                        FROM coils
+                        WHERE spec = ?
+                          AND sheets = ?
+                          AND material = ?
+                          AND slot_type = ?
+                          AND scheme_status = 'official'
+                        ORDER BY is_default DESC, id
+                    `).all(
+                        String(recipeRecord.coil_spec || '').trim(),
+                        Number(recipeRecord.coil_sheets || 0),
+                        String(recipeRecord.coil_material || '钢带').trim() || '钢带',
+                        String(recipeRecord.coil_slot_type || '小眼').trim() || '小眼'
+                    );
+                    const defaults = candidates.filter(candidate => Number(candidate.is_default || 0) === 1);
+                    coil = candidates.length === 1
+                        ? candidates[0]
+                        : defaults.length === 1 ? defaults[0] : null;
+                }
                 const currentStock = coil ? Number(coil.stock || 0) : 0;
                 return {
                     name: '线圈转子',

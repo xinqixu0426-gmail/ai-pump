@@ -65,7 +65,13 @@ function createFixture() {
             slot_type TEXT,
             sheets INTEGER NOT NULL,
             scheme_name TEXT,
+            scheme_code TEXT NOT NULL,
             scheme_status TEXT,
+            is_default INTEGER DEFAULT 0,
+            rated_voltage_v INTEGER,
+            rated_frequency_hz INTEGER,
+            market TEXT DEFAULT '',
+            scheme_family_code TEXT NOT NULL,
             pricing_mode TEXT DEFAULT 'calculated',
             kit_price REAL DEFAULT 0,
             unit_price REAL,
@@ -171,7 +177,13 @@ function createFixture() {
             slotType: row.slot_type,
             sheets: row.sheets,
             schemeName: row.scheme_name,
+            schemeCode: row.scheme_code,
             schemeStatus: row.scheme_status,
+            isDefault: Boolean(row.is_default),
+            ratedVoltageV: row.rated_voltage_v,
+            ratedFrequencyHz: row.rated_frequency_hz,
+            market: row.market,
+            schemeFamilyCode: row.scheme_family_code,
             pricingMode: row.pricing_mode === 'kit' ? 'kit' : 'calculated',
             kitPrice: Number(row.kit_price || 0),
             unitPrice: row.unit_price,
@@ -238,7 +250,7 @@ function coilInput(overrides = {}) {
     };
 }
 
-test('线圈新增持久幂等，并原子替换同组合的旧正式方案', () => {
+test('线圈新增持久幂等，并允许同组合多套正式方案且保留唯一默认', () => {
     const fixture = createFixture();
     try {
         const first = executeCoilCreate(
@@ -266,9 +278,51 @@ test('线圈新增持久幂等，并原子替换同组合的旧正式方案', ()
         assert.equal(
             fixture.db.prepare('SELECT scheme_status FROM coils WHERE id = ?')
                 .get(first.coil.id).scheme_status,
-            'testing'
+            'official'
         );
-        assert.equal(second.auditIds.length, 2);
+        assert.equal(first.coil.isDefault, true);
+        assert.equal(second.coil.isDefault, false);
+        assert.equal(second.auditIds.length, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('线圈方案保存电气元数据并可原子切换唯一默认方案', () => {
+    const fixture = createFixture();
+    try {
+        const first = executeCoilCreate(
+            fixture.dependencies,
+            coilInput({ schemeCode: 'COIL-12-140-CN', isDefault: true, ratedVoltageV: 220, ratedFrequencyHz: 50, market: '通用', schemeFamilyCode: '12-CN' }),
+            commandContext(CREATE_CAPABILITY_ID, 'metadata-first')
+        );
+        const second = executeCoilCreate(
+            fixture.dependencies,
+            coilInput({ schemeCode: 'COIL-12-140-MY', schemeName: '马来西亚方案', ratedVoltageV: 240, ratedFrequencyHz: 50, market: '马来西亚', schemeFamilyCode: '12-MY' }),
+            commandContext(CREATE_CAPABILITY_ID, 'metadata-second')
+        );
+        const updated = executeCoilUpdate(
+            fixture.dependencies,
+            second.coil.id,
+            { isDefault: true, expectedUpdatedAt: second.coil.updatedAt },
+            commandContext(UPDATE_CAPABILITY_ID, 'metadata-default-switch')
+        );
+        const rows = fixture.db.prepare('SELECT id, scheme_status, is_default FROM coils ORDER BY id').all();
+        assert.deepEqual(rows, [
+            { id: first.coil.id, scheme_status: 'official', is_default: 0 },
+            { id: second.coil.id, scheme_status: 'official', is_default: 1 },
+        ]);
+        assert.equal(updated.coil.ratedVoltageV, 240);
+        assert.equal(updated.coil.ratedFrequencyHz, 50);
+        assert.equal(updated.coil.market, '马来西亚');
+        assert.throws(
+            () => executeCoilCreate(
+                fixture.dependencies,
+                coilInput({ ratedVoltageV: 0 }),
+                commandContext(CREATE_CAPABILITY_ID, 'metadata-invalid-voltage')
+            ),
+            error => error.code === 'coil_voltage_invalid'
+        );
     } finally {
         fixture.db.close();
     }

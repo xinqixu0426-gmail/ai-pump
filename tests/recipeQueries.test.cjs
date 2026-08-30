@@ -13,6 +13,7 @@ function createFixture() {
             id INTEGER PRIMARY KEY,
             name TEXT,
             parts_json TEXT,
+            coil_id INTEGER,
             coil_spec TEXT,
             coil_sheets INTEGER,
             coil_material TEXT,
@@ -40,6 +41,7 @@ function createFixture() {
             material TEXT,
             slot_type TEXT,
             scheme_status TEXT,
+            is_default INTEGER DEFAULT 0,
             stock REAL
         );
         CREATE TABLE pump_shell_templates (
@@ -72,6 +74,7 @@ function createFixture() {
             1,
             'QDX10',
             '[{"name":"轴承","model":"6201","supplier":"甲"},{"name":"线圈转子","model":"12-160"}]',
+            20,
             '12',
             160,
             '冷轧',
@@ -82,6 +85,7 @@ function createFixture() {
             2,
             'DELETED-RECIPE',
             '[]',
+            NULL,
             '',
             0,
             '冷轧',
@@ -94,7 +98,7 @@ function createFixture() {
             (11, '6201', '乙', '轴承', 0, NULL, NULL),
             (12, 'SHELL-DY款-圆底脚-12', '', '泵壳', 0, '{"barrelLength":150}', NULL);
         INSERT INTO coils VALUES
-            (20, '12', 160, '冷轧', '国标眼', 'official', 3);
+            (20, '12', 160, '冷轧', '国标眼', 'official', 1, 3);
         INSERT INTO pump_shell_templates VALUES
             (30, 'SHELL-DY款-圆底脚', 4, 2, 3, 'painting', 3);
         INSERT INTO pump_model_variants VALUES

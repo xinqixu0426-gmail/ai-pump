@@ -15,6 +15,7 @@ export type RecipeFormState = {
   spec: string;
   templateId: string;
   variantId: string;
+  coilId: string;
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
@@ -69,6 +70,7 @@ function createEmptyRecipeForm(): RecipeFormState {
     spec: '',
     templateId: '',
     variantId: '',
+    coilId: '',
     coilSpec: '',
     coilSheets: '',
     coilMaterial: '钢带',
@@ -155,6 +157,7 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     spec: recipe.spec,
     templateId: recipe.templateId ? String(recipe.templateId) : '',
     variantId: recipe.modelVariantId ? String(recipe.modelVariantId) : '',
+    coilId: recipe.coilId ? String(recipe.coilId) : '',
     coilSpec: recipe.coilSpec || '',
     coilSheets: recipe.coilSheets ? String(recipe.coilSheets) : '',
     coilMaterial: recipe.coilMaterial || '钢带',

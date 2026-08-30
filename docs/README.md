@@ -1,6 +1,6 @@
 # 水泵工厂管理系统
 
-> 当前版本说明，更新于 2026-08-29。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
+> 当前版本说明，更新于 2026-08-30。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
 
 开发治理入口为根目录 [AGENTS.md](../AGENTS.md)、[ADF workflow skill](../.agents/skills/adf-workflow/SKILL.md) 和 [Guardian 配置](../.guardian/config.yaml)。它们分别保存项目协作边界、通用执行 SOP 与路径/验证映射；业务规则、API、数据库和成本事实仍只维护在本页下列权威文档与正式代码中。
 
@@ -54,7 +54,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 | 配方补充信息 | 配置摘要 | 表单和局部变量按配置摘要理解 | 配方 API/SQLite 继续使用 `spec` |
 | 历史型号变体 | 常用配置预设；字段为“预设名称” | 配方页面使用预设语义 | `/api/model-variants`、`modelVariantId/modelName` 和 capability ID 保持兼容 |
 | 零件价格 | 目录成本价 | Web 零件对象使用 `catalogUnitCost` | API/SQLite 继续使用 `price` |
-| 线圈价格 | 计算计价时为定子单片成本和线圈转子成本；套件计价时为供应商套件价 | 页面按 `pricingMode` 区分计算计价与套件计价 | API 使用 `pricingMode/kitPrice/unitPrice/cost`；SQLite 使用 `pricing_mode/kit_price/unit_price/cost` |
+| 线圈方案与价格 | 同组合可按线重、电压、频率、市场并存多套正式方案；每套独立选择计算计价或供应商套件价 | 页面按具体方案选择并按 `pricingMode` 区分计价 | API 使用 `coilId/schemeCode/isDefault/ratedVoltageV/ratedFrequencyHz/market/schemeFamilyCode/pricingMode`；SQLite 使用对应 snake_case 字段 |
 | 报价/订单价格 | 销售单价 | 报价和订单域的 `unitPrice` | API 字段保持 `unitPrice` |
 | 配方物料 | BOM 快照、选配件 | 解析后局部变量使用 BOM 语义 | `partsJson/extraPartsJson` 是稳定持久化兼容字段 |
 | 零件说明 | 备注 | 零件目录对象只暴露 `remark` | API 暂时兼容 `notes`；BOM 行 `notes` 是独立快照说明 |
@@ -81,7 +81,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 ### 基础数据
 
 - **零件**：按型号、分类、供应商记录价格和库存。同型号可以有多个供应商。包装类使用二级分类：`外包装`（牛皮纸箱、彩印箱、木箱）、`内衬`（泡沫、珍珠棉）和 `固定包材`（说明书、贴纸等）。
-- **线圈**：定子组合按标准直径、材质和槽眼建档；绕组方案再记录片数、`pricingMode`、`kitPrice`、默认搭配电缆线径/电容及主副漆包线绕组备忘。`calculated` 保存定子单片成本、铜重和加工费；`kit` 要求大于 0 的整套采购价，并可选保存线重和铜价基数作为不参与成本的价格参考，页面隐藏其余传统计算输入。正式方案同时维护线圈转子成品库存和流水，测试方案不进入正式成本。
+- **线圈**：定子组合按标准直径、材质和槽眼建档；同组合、同片数可按线重、电压、频率、市场并存多套正式方案，并以稳定 `schemeCode/coilId` 区分，每组最多一套默认。每套方案记录 `schemeFamilyCode`、`pricingMode`、默认搭配线径/电容及绕组备忘；`calculated` 保存传统成本组成，`kit` 保存整套采购价和可选价格参考。正式方案分别维护库存和流水，测试方案不进入正式成本。
 - **系统设置**：业务白名单配置包括管理费、电缆铜套、浮球新界式差价、铝线价格基数和美元兑人民币汇率；`/setup` 系统初始化页维护 AI 与知识检索运行参数，API Key 加密保存，部署安全密钥只显示状态。
 
 ### 泵壳模板与历史常用配置
@@ -116,7 +116,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 - 安装、打包、表面处理和管理费；
 - 机筒长度、叶轮参数和技术档案；技术档案内集中维护上/下轴承、转子片数、转子直径、开档、定位、油封孔径、叶轮孔径/开档/厚度和螺纹尺寸，转子出图页选择配方后自动带入；配方列表按 21 个固定技术档案字段与 4 个叶轮字段统一展示 `已填/总数` 进度，鼠标悬停或键盘聚焦进度区域时展示已填参数的名称和实际数值；自定义字段和测试报告附件不改变基础分母；已有配方可选择或在报告区域粘贴单个 `.xls/.xlsx` 水泵性能测试报告，原文件与解析结果保存在 SQLite。
 
-配方页以“泵壳模板 + 线圈配置 + 客户选配范围”为唯一可见主流程：泵壳模板提供结构成本包和客户可选配置范围，新建配方复制规则后可独立调整；线圈配置联动电容、电缆/浮球线径和叶轮参考。报价和订单阶段再按客户要求覆盖电缆长度、浮球、包装材料和表面处理等范围内 OEM 差异；不锈钢接轴是报价/订单通用工艺选配，不写入模板或配方范围。历史未配置范围的模板和配方继续按开放模式运行，既有报价、订单和成本快照不被回写。
+配方页以“泵壳模板 + 具体线圈方案 + 客户选配范围”为唯一可见主流程：泵壳模板提供结构成本包和客户可选配置范围；线圈只有一个候选时自动选择，同组合多套正式方案时显示方案名、电压、频率、市场和线重并要求明确选择，保存具体 `coilId`，再联动电容、电缆/浮球线径和叶轮参考。报价和订单阶段再按客户要求覆盖允许的 OEM 差异；历史未配置范围的模板和配方继续按开放模式运行，既有报价、订单和成本快照不被回写。
 
 配方选配件或包装型号尚未建档时，可在当前配方草稿内正式新增并自动回绑 `partId`、供应商和目录价；包装同时绑定正式二级分类。已有同“型号 + 供应商”记录直接复用，跨类别冲突明确拒绝，不允许未建档占位项绕过成本与身份校验。
 
@@ -164,7 +164,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 订单保存稳定客户 ID/名称快照、产品、数量、单位成本、售价、采购清单和待办快照；客户改名后历史订单仍按 ID 归属同一客户。
 - `GET /api/orders` 与 `GET /api/orders/:id` 会返回按全部活动订单实时平衡后的采购清单视图，但不再写回数据库或改变 `updatedAt`；采购计划持久化只发生在明确的订单/采购写操作中。
 - `GET /api/orders/purchase-overview` 由 `orderQueries` 只读聚合当前采购任务和数量进度，采购中心与 AI 查询都应以该正式结果为准；查询不会生成采购清单、下单或入库。
-- 采购清单中普通零件按稳定 `partId` 或“型号 + 供应商”精确汇总；无供应商时只有同型号唯一候选才允许兼容绑定，禁止借用任意同型号供应商库存。线圈转子按正式方案 `coilId` 汇总，并在全部活动订单间顺序分配当前库存。线圈不进入零件库：精确正式方案按套进入 `coils.stock`，没有正式方案的插值/外推线圈标记为非库存计算项。
+- 采购清单中普通零件按稳定 `partId` 或“型号 + 供应商”精确汇总；无供应商时只有同型号唯一候选才允许兼容绑定。线圈转子按具体正式方案 `coilId` 汇总，同尺寸的不同电气/线重方案不合并，并在全部活动订单间顺序分配当前库存。线圈不进入零件库；没有正式方案的插值/外推线圈标记为非库存计算项。
 - 已有库存或库存流水的线圈方案会冻结规格俗称、直径、片数、材质和槽眼；身份发生变化时应新建方案，确保订单引用与历史库存流水始终对应同一资产。
 - “外包装估算”只允许作为报价或成本预估占位项，不进入正式采购清单；订单确认前必须选择零件库中的具体外包装型号和供应商，未解决时准备度返回数据阻塞。
 - 配方详情只通过 `GET /api/recipes/:id/inventory-status` 展示配件与线圈当前库存和状态；线圈转子读取独立线圈库存，不提供生产或自动扣库存操作。
@@ -277,7 +277,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 |---|---|---|
 | 运行健康 | `/api/health`、`/api/health/live`、`/api/health/ready` | 独立公开路由；提供存活、就绪、版本和后台任务状态 |
 | 零件 | `/api/parts`、`/api/parts/prices-preview`、`/api/parts/prices`、`/api/parts/batch-stock-preview`、`/api/parts/batch-stock` | CRUD、批量调价、库存预览与确认执行；价格与库存分别使用独立正式命令 |
-| 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、计算计价/供应商套件价、成本查询与成品库存流水；套件价只按精确正式方案采用，不参与铜价同步、单片价批量修改或插值/外推；列表、定子组合、规格草稿/选项和库存流水统一由纯读 `coilQueries` 提供，已有库存或库存流水的方案禁止删除 |
+| 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、多正式方案与唯一默认、方案元数据、两种计价、成本查询与库存流水；精确成本优先按 `coilId/schemeCode`，多候选无唯一默认时拒绝猜测，插值限定 `schemeFamilyCode`；已有库存或流水的方案禁止删除 |
 | 市场指标 | `/api/market-indicators` | 只读查询外部实时铜价、铝价、美元汇率及数据库已采用值；手动同步通过同域 maintenance API 原子提交 |
 | 模板 | `/api/templates` | Query/Command 分层；`templateQueries` 只读聚合模板、零件目录、关联配方、默认配方和成本草稿，`templateCommands` 执行 CRUD |
 | 常用配置预设（历史路径） | `/api/model-variants` | 历史兼容 CRUD；保存时可自动沉淀长螺丝规格，写入使用持久幂等、资源版本、事务回执和强审计 |
@@ -359,7 +359,7 @@ POST /api/rotor/save
 - 新建报价的询价助手使用报价域专用只读接口，直接读取统一文件库原始附件并强制调用已配置的 Kimi 开放平台：图片传原图，文档使用 Kimi 文件抽取；不再经过通用 AI 对话规划、本地 OCR 或 DeepSeek 静默降级。Kimi 失败时页面明确提示，人工核对后的摘要仍通过报价保存预览绑定，不影响成本和价格。
 - 能力注册表同时声明每项 AI capability 允许的 `entityScopes`。具名订单等 `single` 查询只开放单对象能力，不允许调用全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总；跨订单汇总必须使用 `collection/global`，防止无关订单信息混入回答。
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。
-- AI 的零件、线圈、订单、采购、配方等事实查询统一由模型理解口语并选择正式 capability，再由 `aiToolInputValidatorV2` 直接按工具唯一 schema 校验类型化参数。服务端不再用删词或正则重写用户语义，也不会把整句话自动降级成关键词；无法可靠映射时由模型明确歧义。零件支持 `keyword/category/supplier/stockStatus`，线圈支持 `spec/sheets/material/slotType`，订单支持 `limit/status/customerName/contractNo`，采购支持 `limit/supplier/pendingOnly`，配方列表支持 `keyword/hasTechnicalFiles`。零结果与 API 失败明确区分，低库存正式口径仍为库存 1–5。
+- AI 的零件、线圈、订单、采购、配方等事实查询统一由模型理解口语并选择正式 capability，再由 `aiToolInputValidatorV2` 直接按工具唯一 schema 校验类型化参数。线圈查询除 `spec/sheets/material/slotType` 外支持稳定 `schemeCode`；成本试算可用 `coilId/schemeCode/schemeFamilyCode`，库存调整在同组合仍有多套正式方案时必须明确方案编码。零结果与 API 失败明确区分，低库存正式口径仍为库存 1–5。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
 - AI 可调用 `check_order_readiness` 检查某个订单当前能否生产。工具返回六步检查过程、实时缺料、采购阶段、阻塞原因和建议入口；它只读标准订单 API，不会自动确认订单、补采购或调整库存。

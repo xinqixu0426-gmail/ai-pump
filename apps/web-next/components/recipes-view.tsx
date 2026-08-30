@@ -653,13 +653,18 @@ export function RecipesView() {
       .sort((a, b) => a - b)
       .map(String)
   ), [coilRecords, form.coilMaterial, form.coilSlotType, form.coilSpec]);
-  const exactCoilRecord = useMemo(() => coilRecords.find((coil) => (
-    coil.spec === form.coilSpec
-    && coil.material === form.coilMaterial
-    && coil.slotType === form.coilSlotType
-    && coil.schemeStatus === 'official'
-    && Number(coil.sheets) === Number(form.coilSheets)
-  )) || null, [coilRecords, form.coilMaterial, form.coilSheets, form.coilSlotType, form.coilSpec]);
+  const coilSchemeOptions = useMemo(() => coilRecords
+    .filter((coil) => (
+      coil.spec === form.coilSpec
+      && coil.material === form.coilMaterial
+      && coil.slotType === form.coilSlotType
+      && coil.schemeStatus === 'official'
+      && Number(coil.sheets) === Number(form.coilSheets)
+    ))
+    .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.id - right.id), [coilRecords, form.coilMaterial, form.coilSheets, form.coilSlotType, form.coilSpec]);
+  const exactCoilRecord = useMemo(() => coilSchemeOptions.find((coil) => (
+    coil.id === Number(form.coilId)
+  )) || null, [coilSchemeOptions, form.coilId]);
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
@@ -923,11 +928,12 @@ export function RecipesView() {
     if (!form.name.trim()) hints.push('未填写成品型号');
     if (!form.templateId) hints.push('未选择泵壳模板');
     if (!form.coilSpec || !form.coilSheets) hints.push('线圈规格或片数不完整');
+    else if (!form.coilId) hints.push('未选择具体线圈方案');
     if (form.hasCable && (!form.cableWire || !form.cableLength)) hints.push('电缆线径或长度不完整');
     if (form.hasFloat && !form.floatWire) hints.push('浮球线径未填写');
     if (bomDraftError) hints.push(bomDraftError);
     return hints;
-  }, [bomDraftError, form.cableLength, form.cableWire, form.coilSheets, form.coilSpec, form.floatWire, form.hasCable, form.hasFloat, form.name, form.templateId]);
+  }, [bomDraftError, form.cableLength, form.cableWire, form.coilId, form.coilSheets, form.coilSpec, form.floatWire, form.hasCable, form.hasFloat, form.name, form.templateId]);
   const costWarningHints = useMemo(() => {
     const hints: string[] = [];
     if (packingParts.length === 0) hints.push('尚未配置包装材料，成本可能不完整');
@@ -950,7 +956,7 @@ export function RecipesView() {
     const cableReady = !form.hasCable || Boolean(form.cableWire && form.cableLength);
     const steps: RecipeFlowStep[] = [
       { id: 'recipe-basic-section', label: '基础信息', done: Boolean(form.name.trim() && form.templateId) },
-      { id: 'recipe-coil-section', label: '线圈成本', done: Boolean(!bomDraftStale && form.coilSpec && form.coilSheets && bomDraft?.coilSnapshot) },
+      { id: 'recipe-coil-section', label: '线圈成本', done: Boolean(!bomDraftStale && form.coilId && form.coilSpec && form.coilSheets && bomDraft?.coilSnapshot) },
       { id: 'recipe-dynamic-config-section', label: '浮球/电缆', done: floatReady && cableReady },
       { id: 'recipe-optional-packing-section', label: '包装与配件', done: packingParts.length > 0 },
       { id: 'recipe-labor-section', label: '人工管理', done: laborCostComplete },
@@ -965,6 +971,7 @@ export function RecipesView() {
     bomDraftStale,
     form.cableLength,
     form.cableWire,
+    form.coilId,
     form.coilSheets,
     form.coilSpec,
     form.floatWire,
@@ -995,10 +1002,22 @@ export function RecipesView() {
         coilMaterial: selection.material,
         coilSlotType: selection.slotType,
         coilSheets: sheetsRemainValid ? current.coilSheets : '',
+        coilId: '',
         coilWireWeight: '',
       };
     });
   }, [drawerOpen, form.coilMaterial, form.coilSlotType, form.coilSpec, selectedFormCoilSpec, setForm]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    setForm((current) => {
+      const selectedStillValid = coilSchemeOptions.some((coil) => coil.id === Number(current.coilId));
+      if (selectedStillValid) return current;
+      const automaticCoilId = coilSchemeOptions.length === 1 ? String(coilSchemeOptions[0].id) : '';
+      if (current.coilId === automaticCoilId) return current;
+      return { ...current, coilId: automaticCoilId, coilWireWeight: '' };
+    });
+  }, [coilSchemeOptions, drawerOpen, setForm]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -1691,6 +1710,7 @@ export function RecipesView() {
         name: form.name.trim() || '未命名配方草稿',
         spec: form.spec,
         templateId: form.templateId ? Number(form.templateId) : null,
+        coilId: form.coilId ? Number(form.coilId) : null,
         coilSpec: form.coilSpec,
         coilSheets: numberValue(form.coilSheets),
         coilMaterial: form.coilMaterial,
@@ -1856,6 +1876,7 @@ export function RecipesView() {
           name: form.name,
           spec: form.spec,
           templateId: form.templateId || null,
+          coilId: form.coilId || null,
           coilSpec: form.coilSpec,
           coilSheets: form.coilSheets,
           coilMaterial: form.coilMaterial,
@@ -2055,6 +2076,7 @@ export function RecipesView() {
         variants={variants}
         templates={templates}
         coilSpecs={coilSpecs}
+        coilRecords={coilRecords}
         editorTarget={variantEditorTarget}
         saving={saving}
         error={error}
@@ -2155,6 +2177,7 @@ export function RecipesView() {
               sheetOptions={coilSheetOptions}
               materialOptions={formMaterialOptions}
               slotTypeOptions={formSlotTypeOptions}
+              schemeOptions={coilSchemeOptions}
               coilSnapshot={displayedCosts.draft?.coilSnapshot}
               complete={configurationStatus.steps[1].done}
               capacitorModel={displayedCosts.draft?.capacitorModel || ''}
@@ -2169,12 +2192,13 @@ export function RecipesView() {
                 updateForm({
                   coilSpec,
                   coilSheets: '',
+                  coilId: '',
                   coilMaterial: selection.material,
                   coilSlotType: selection.slotType,
                   coilWireWeight: '',
                 });
               }}
-              onSheetsChange={(coilSheets) => updateForm({ coilSheets, coilWireWeight: '' })}
+              onSheetsChange={(coilSheets) => updateForm({ coilSheets, coilId: '', coilWireWeight: '' })}
               onMaterialChange={(coilMaterial) => {
                 const selection = resolveCoilVariantSelection(
                   selectedFormCoilSpec,
@@ -2185,10 +2209,12 @@ export function RecipesView() {
                   coilMaterial: selection.material,
                   coilSlotType: selection.slotType,
                   coilSheets: '',
+                  coilId: '',
                   coilWireWeight: '',
                 });
               }}
-              onSlotTypeChange={(coilSlotType) => updateForm({ coilSlotType, coilSheets: '', coilWireWeight: '' })}
+              onSlotTypeChange={(coilSlotType) => updateForm({ coilSlotType, coilSheets: '', coilId: '', coilWireWeight: '' })}
+              onSchemeChange={(coilId) => updateForm({ coilId, coilWireWeight: '' })}
               onWireWeightChange={(coilWireWeight) => updateForm({ coilWireWeight })}
             />
 

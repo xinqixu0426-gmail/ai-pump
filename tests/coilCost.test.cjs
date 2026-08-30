@@ -41,6 +41,51 @@ test('线圈成本服务精确匹配保持接口字段', () => {
     assert.equal(result.data.formula, '0.2×24 + 0.3×60 + 2.00 + 1.00');
 });
 
+test('同组合多套正式方案按默认或明确 ID 选择，不允许无默认时猜测', () => {
+    const alternatives = [
+        { ...coils[0], id: 101, schemeCode: 'COIL-12-200-CN', schemeName: '通用方案', sheets: 200, wireWeight: 1.1, isDefault: false, ratedVoltageV: 220, ratedFrequencyHz: 50, market: '通用', schemeFamilyCode: '12-CN' },
+        { ...coils[0], id: 102, schemeCode: 'COIL-12-200-MY', schemeName: '马来西亚方案', sheets: 200, wireWeight: 1.3, isDefault: false, ratedVoltageV: 240, ratedFrequencyHz: 50, market: '马来西亚', schemeFamilyCode: '12-MY' },
+    ];
+    const ambiguous = calculateCoilCost(alternatives, { spec: '750', sheets: 200, material: '钢带' });
+    assert.equal(ambiguous.success, false);
+    assert.equal(ambiguous.status, 409);
+    assert.equal(ambiguous.code, 'COIL_SCHEME_AMBIGUOUS');
+    assert.equal(ambiguous.details.candidates.length, 2);
+
+    const defaulted = calculateCoilCost([{ ...alternatives[0], isDefault: true }, alternatives[1]], {
+        spec: '750', sheets: 200, material: '钢带',
+    });
+    assert.equal(defaulted.success, true);
+    assert.equal(defaulted.data.coilId, 101);
+    assert.equal(defaulted.data.wireWeight, 1.1);
+
+    const explicit = calculateCoilCost([{ ...alternatives[0], isDefault: true }, alternatives[1]], {
+        spec: '750', sheets: 200, material: '钢带', coilId: 102,
+    });
+    assert.equal(explicit.success, true);
+    assert.equal(explicit.data.coilId, 102);
+    assert.equal(explicit.data.ratedVoltageV, 240);
+    assert.equal(explicit.data.market, '马来西亚');
+});
+
+test('多方案族插值必须明确方案族且只在族内计算', () => {
+    const familyCoils = [
+        { ...coils[0], id: 201, sheets: 180, wireWeight: 0.9, schemeFamilyCode: '12-CN' },
+        { ...coils[1], id: 202, sheets: 220, wireWeight: 1.1, schemeFamilyCode: '12-CN' },
+        { ...coils[0], id: 203, sheets: 180, wireWeight: 1.2, schemeFamilyCode: '12-MY' },
+        { ...coils[1], id: 204, sheets: 220, wireWeight: 1.6, schemeFamilyCode: '12-MY' },
+    ];
+    const ambiguous = calculateCoilCost(familyCoils, { spec: '750', sheets: 200, material: '钢带' });
+    assert.equal(ambiguous.code, 'COIL_SCHEME_FAMILY_REQUIRED');
+
+    const result = calculateCoilCost(familyCoils, {
+        spec: '750', sheets: 200, material: '钢带', schemeFamilyCode: '12-MY',
+    });
+    assert.equal(result.success, true);
+    assert.equal(result.data.wireWeight, 1.4);
+    assert.match(result.data.source, /180片↔220片/);
+});
+
 test('线圈成本服务非精确片数使用插值', () => {
     const result = calculateCoilCost(coils, { spec: '750', sheets: 27, material: '钢带' });
 

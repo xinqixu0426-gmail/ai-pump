@@ -64,6 +64,7 @@ function createFixture() {
             saved_total_cost REAL DEFAULT 0,
             saved_cost_details TEXT DEFAULT '',
             template_id INTEGER,
+            coil_id INTEGER,
             coil_spec TEXT DEFAULT '',
             coil_sheets INTEGER DEFAULT 0,
             coil_material TEXT DEFAULT '钢带',
@@ -98,6 +99,14 @@ function createFixture() {
             updated_at TEXT,
             deleted_at TEXT
         );
+        CREATE TABLE coils (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            spec TEXT NOT NULL,
+            sheets INTEGER NOT NULL,
+            material TEXT DEFAULT '钢带',
+            slot_type TEXT DEFAULT '小眼',
+            scheme_status TEXT DEFAULT 'official'
+        );
         CREATE TABLE recipe_analysis_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             recipe_id INTEGER,
@@ -109,6 +118,8 @@ function createFixture() {
         ) VALUES (
             'P-1', '标准件', 5, '供应商A', 10, '', '${FIXED_UPDATED_AT}', '${FIXED_UPDATED_AT}'
         );
+        INSERT INTO coils (spec, sheets, material, slot_type, scheme_status)
+        VALUES ('12', 140, '钢带', '小眼', 'official');
     `);
 
     function audit(table, id, context) {
@@ -162,6 +173,7 @@ function createFixture() {
         savedTotalCost: row.saved_total_cost,
         savedCostDetails: row.saved_cost_details,
         coilWireWeight: row.coil_wire_weight,
+        coilId: row.coil_id,
         updatedAt: row.updated_at,
     });
     const partRow = row => ({
@@ -313,6 +325,60 @@ test('配方创建绑定预览、持久幂等和强审计并保持完整资源�
         assert.equal(replay.idempotentReplay, true);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM recipes').get().count, 1);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方填写线圈维度时必须绑定具体正式方案并持久保存 coilId', () => {
+    const fixture = createFixture();
+    try {
+        const form = {
+            ...draftInput().form,
+            coilSpec: '12',
+            coilSheets: 140,
+        };
+        assert.throws(
+            () => buildRecipeSavePayloadDraft(
+                fixture.dependencies,
+                draftInput({ form })
+            ),
+            error => error.code === 'recipe_coil_selection_required'
+                && error.statusCode === 409
+        );
+        const directPayload = buildRecipeSavePayloadDraft(
+            fixture.dependencies,
+            draftInput()
+        );
+        assert.throws(
+            () => executeRecipeCreate(
+                fixture.dependencies,
+                {
+                    ...directPayload,
+                    coilId: null,
+                    coilSpec: '12',
+                    coilSheets: 140,
+                },
+                commandContext(CREATE_CAPABILITY_ID, 'direct-coil-binding-required')
+            ),
+            error => error.code === 'recipe_coil_selection_required'
+                && error.statusCode === 409
+        );
+
+        const draft = buildRecipeSavePayloadDraft(
+            fixture.dependencies,
+            draftInput({ form: { ...form, coilId: 1 } })
+        );
+        const created = executeRecipeCreate(
+            fixture.dependencies,
+            draft,
+            commandContext(CREATE_CAPABILITY_ID, 'explicit-coil-binding')
+        );
+        assert.equal(created.recipe.coilId, 1);
+        assert.equal(
+            fixture.db.prepare('SELECT coil_id FROM recipes WHERE id = ?').get(created.recipe.id).coil_id,
+            1
+        );
     } finally {
         fixture.db.close();
     }

@@ -40,15 +40,16 @@ async function prepareCoilStockAdjustment(args = {}, dependencies = {}) {
             && [coil.commonName, coil.spec].some(value => String(value || '').trim() === parsed.commonName)
             && (!item.material || coil.material === item.material)
             && (!item.slotType || coil.slotType === item.slotType)
+            && (!item.schemeCode || coil.schemeCode === item.schemeCode)
         ));
         if (candidates.length === 0) {
             throw new Error(`未找到正式线圈方案“${parsed.model}”${item.material ? `、材质“${item.material}”` : ''}${item.slotType ? `、槽眼“${item.slotType}”` : ''}`);
         }
         if (candidates.length > 1) {
             const options = candidates
-                .map(coil => `${coil.material || '未标材质'}/${coil.slotType || '未标槽眼'}`)
+                .map(coil => `${coil.schemeCode || `#${coil.id ?? coil.Id}`} ${coil.material || '未标材质'}/${coil.slotType || '未标槽眼'} ${[coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '', coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '', coil.market].filter(Boolean).join('/')}`.trim())
                 .join('、');
-            throw new Error(`线圈“${parsed.model}”存在多个正式方案（${options}），请明确材质和槽眼后再调整库存`);
+            throw new Error(`线圈“${parsed.model}”存在多个正式方案（${options}），请明确材质和槽眼；若仍有多套，再提供方案编码后调整库存`);
         }
 
         const coil = candidates[0];
@@ -57,6 +58,7 @@ async function prepareCoilStockAdjustment(args = {}, dependencies = {}) {
             model: parsed.model,
             material: coil.material,
             slotType: coil.slotType,
+            ...(coil.schemeCode ? { schemeCode: coil.schemeCode } : {}),
             changeQty,
             previousStock: Number(coil.stock || 0),
             expectedUpdatedAt: coil.updatedAt || coil.UpdatedAt || null,
@@ -90,6 +92,7 @@ async function prepareCoilStockAdjustment(args = {}, dependencies = {}) {
                 changeQty: item.changeQty,
                 material: item.material,
                 slotType: item.slotType,
+                ...(item.schemeCode ? { schemeCode: item.schemeCode } : {}),
             })),
         },
         confirmationRows: resolved.map(item => ({

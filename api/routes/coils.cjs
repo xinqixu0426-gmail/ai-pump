@@ -248,7 +248,13 @@ router.delete('/:id', (req, res) => {
 function calculateCoilCostHandler(req, res) {
     try {
         const result = calculateCoilCost(dbGetAllCoils(), req.body);
-        if (!result.success) return res.status(result.status || 400).json({ success: false, error: result.error });
+        if (!result.success) return res.status(result.status || 400).json({
+            success: false,
+            error: result.error,
+            ...(result.code ? { code: result.code } : {}),
+            ...(result.details ? { details: result.details } : {}),
+            ...(req.requestId ? { requestId: req.requestId } : {}),
+        });
         res.json({ success: true, data: result.data });
     } catch (error) { console.error('Coil Calculate Error:', error); res.status(500).json({ success: false, error: error.message }); }
 }

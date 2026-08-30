@@ -61,6 +61,35 @@ function coilPricingMode(coil) {
         : DEFAULT_COIL_PRICING_MODE;
 }
 
+function coilIdOf(coil) {
+    return Number(coilValue(coil, 'id') || coilValue(coil, 'Id') || 0) || null;
+}
+
+function coilSchemeSummary(coil) {
+    return {
+        coilId: coilIdOf(coil),
+        schemeCode: String(coilValue(coil, 'schemeCode') || ''),
+        schemeName: String(coilValue(coil, 'schemeName') || ''),
+        isDefault: Boolean(coilValue(coil, 'isDefault')),
+        ratedVoltageV: Number(coilValue(coil, 'ratedVoltageV') || 0) || null,
+        ratedFrequencyHz: Number(coilValue(coil, 'ratedFrequencyHz') || 0) || null,
+        market: String(coilValue(coil, 'market') || ''),
+        schemeFamilyCode: String(coilValue(coil, 'schemeFamilyCode') || ''),
+    };
+}
+
+function coilSchemeError(code, error, candidates = []) {
+    return {
+        success: false,
+        status: code === 'COIL_SCHEME_AMBIGUOUS' || code === 'COIL_SCHEME_FAMILY_REQUIRED' ? 409 : 400,
+        code,
+        error,
+        details: {
+            candidates: candidates.map(coilSchemeSummary),
+        },
+    };
+}
+
 function calculateStoredCoilCost(values = {}) {
     const pricingMode = String(values.pricingMode || DEFAULT_COIL_PRICING_MODE);
     if (pricingMode === 'kit') return Number(values.kitPrice || 0);
@@ -104,7 +133,7 @@ function calculateCoilCost(coils, input = {}) {
     if (parsedCopperPrice !== null && (!Number.isFinite(parsedCopperPrice) || parsedCopperPrice < 0)) {
         return { success: false, status: 400, error: '铜价必须是非负数字' };
     }
-    const specCoils = selectSpecCoils(coils, dimensions, { includeTesting: input.includeTesting === true });
+    let specCoils = selectSpecCoils(coils, dimensions, { includeTesting: input.includeTesting === true });
     if (specCoils.length === 0) {
         return {
             success: false,
@@ -113,7 +142,48 @@ function calculateCoilCost(coils, input = {}) {
         };
     }
 
-    const exactMatch = specCoils.find(c => parseInt(coilValue(c, 'sheets')) === targetSheets);
+    const explicitCoilId = Number(input.coilId || 0) || null;
+    const explicitSchemeCode = String(input.schemeCode || '').trim();
+    let explicitMatch = null;
+    if (explicitCoilId || explicitSchemeCode) {
+        explicitMatch = specCoils.find(coil => (
+            explicitCoilId
+                ? coilIdOf(coil) === explicitCoilId
+                : String(coilValue(coil, 'schemeCode') || '') === explicitSchemeCode
+        ));
+        if (!explicitMatch) {
+            return coilSchemeError(
+                'COIL_SCHEME_NOT_FOUND',
+                '所选线圈方案不存在、不是正式方案，或与当前规格组合不一致'
+            );
+        }
+        if (Number(coilValue(explicitMatch, 'sheets')) !== targetSheets) {
+            return coilSchemeError(
+                'COIL_SCHEME_SHEETS_MISMATCH',
+                `所选线圈方案为 ${coilValue(explicitMatch, 'sheets')} 片，与当前 ${targetSheets} 片不一致`,
+                [explicitMatch]
+            );
+        }
+    }
+
+    const exactCandidates = specCoils.filter(
+        coil => Number(coilValue(coil, 'sheets')) === targetSheets
+    );
+    let exactMatch = explicitMatch;
+    if (!exactMatch && exactCandidates.length === 1) {
+        [exactMatch] = exactCandidates;
+    } else if (!exactMatch && exactCandidates.length > 1) {
+        const defaults = exactCandidates.filter(coil => Boolean(coilValue(coil, 'isDefault')));
+        if (defaults.length === 1) {
+            [exactMatch] = defaults;
+        } else {
+            return coilSchemeError(
+                'COIL_SCHEME_AMBIGUOUS',
+                `规格 "${spec}"、${targetSheets} 片存在多个正式方案，请明确选择具体线圈方案`,
+                exactCandidates
+            );
+        }
+    }
     if (exactMatch && coilPricingMode(exactMatch) === 'kit') {
         const kitPrice = Number(coilValue(exactMatch, 'kitPrice') || 0);
         if (!Number.isFinite(kitPrice) || kitPrice <= 0) {
@@ -127,6 +197,7 @@ function calculateCoilCost(coils, input = {}) {
             success: true,
             data: {
                 coilId: Number(coilValue(exactMatch, 'id') || coilValue(exactMatch, 'Id') || 0) || null,
+                ...coilSchemeSummary(exactMatch),
                 spec,
                 material,
                 slotType,
@@ -149,6 +220,27 @@ function calculateCoilCost(coils, input = {}) {
         };
     }
 
+    const explicitFamilyCode = String(
+        input.schemeFamilyCode || coilValue(explicitMatch, 'schemeFamilyCode') || ''
+    ).trim();
+    const calculatedFamilies = new Set(
+        specCoils
+            .filter(coil => coilPricingMode(coil) === 'calculated')
+            .map(coil => String(coilValue(coil, 'schemeFamilyCode') || '').trim())
+            .filter(Boolean)
+    );
+    if (!exactMatch && !explicitFamilyCode && calculatedFamilies.size > 1) {
+        return coilSchemeError(
+            'COIL_SCHEME_FAMILY_REQUIRED',
+            `规格 "${spec}" 存在多个线圈方案系列，插值或外推前必须明确方案系列`,
+            specCoils
+        );
+    }
+    if (explicitFamilyCode) {
+        specCoils = specCoils.filter(
+            coil => String(coilValue(coil, 'schemeFamilyCode') || '').trim() === explicitFamilyCode
+        );
+    }
     const calculatedCoils = specCoils.filter(coil => coilPricingMode(coil) === 'calculated');
     if (!exactMatch && calculatedCoils.length === 0) {
         return {
@@ -224,6 +316,15 @@ function calculateCoilCost(coils, input = {}) {
             coilId: exactInventoryMatch
                 ? Number(coilValue(exactMatch, 'id') || coilValue(exactMatch, 'Id') || 0) || null
                 : null,
+            ...(exactMatch ? coilSchemeSummary(exactMatch) : {
+                schemeCode: '',
+                schemeName: '',
+                isDefault: false,
+                ratedVoltageV: null,
+                ratedFrequencyHz: null,
+                market: '',
+                schemeFamilyCode: explicitFamilyCode,
+            }),
             spec,
             material,
             slotType,
@@ -305,18 +406,23 @@ function buildCoilSpecDraft(coils, input = {}) {
     };
 }
 
-function resolveWireFromCoils(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE) {
+function resolveWireFromCoils(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE, options = {}) {
     if (!statorSpec || !statorSheets) return null;
-    const dimensions = normalizeCoilDimensions({ spec: statorSpec, material, slotType });
-    const specCoils = selectSpecCoils(coils, dimensions);
-    const targetSheets = Number(statorSheets);
-    const exact = specCoils.find(coil => Number(coilValue(coil, 'sheets')) === targetSheets);
-    return coilValue(exact, 'defaultWireGauge') || null;
+    const result = calculateCoilCost(coils, {
+        spec: statorSpec,
+        sheets: statorSheets,
+        material,
+        slotType,
+        coilId: options.coilId,
+        schemeCode: options.schemeCode,
+        schemeFamilyCode: options.schemeFamilyCode,
+    });
+    return result.success ? result.data.wireGauge || null : null;
 }
 
-function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE) {
+function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material = DEFAULT_COIL_MATERIAL, slotType = DEFAULT_COIL_SLOT_TYPE, options = {}) {
     if (!statorSpec || !statorSheets) return null;
-    const result = calculateCoilCost(coils, { spec: statorSpec, sheets: statorSheets, material, slotType });
+    const result = calculateCoilCost(coils, { spec: statorSpec, sheets: statorSheets, material, slotType, ...options });
     if (!result.success) return { error: result.error };
     const data = result.data;
     return {
@@ -325,6 +431,12 @@ function calculateFullEstimateCoilCost(coils, statorSpec, statorSheets, material
         slotType: data.slotType,
         sheets: String(statorSheets),
         coilId: data.coilId || null,
+        schemeCode: data.schemeCode || '',
+        schemeName: data.schemeName || '',
+        ratedVoltageV: data.ratedVoltageV || null,
+        ratedFrequencyHz: data.ratedFrequencyHz || null,
+        market: data.market || '',
+        schemeFamilyCode: data.schemeFamilyCode || '',
         inventoryType: data.coilId ? 'coil' : 'none',
         pricingMode: data.pricingMode,
         kitPrice: data.kitPrice,
@@ -410,6 +522,7 @@ module.exports = {
     normalizeCoilSpec,
     normalizeCoilDimensions,
     calculateStoredCoilCost,
+    coilSchemeSummary,
     parseStatorInput,
     calculateCoilCost,
     buildCoilSpecDraft,

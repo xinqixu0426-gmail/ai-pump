@@ -385,6 +385,7 @@ export type RecipeConfigurationAnalysisInput = {
     name: string;
     spec?: string;
     templateId?: number | null;
+    coilId?: number | null;
     coilSpec?: string;
     coilSheets?: number;
     coilMaterial?: string;

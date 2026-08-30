@@ -37,6 +37,8 @@ const BATCH_UNIT_PRICE_CAPABILITY_ID = requireBusinessCapability(
 ).capabilityId;
 
 const OPTIONAL_TEXT_FIELDS = new Set([
+    'market',
+    'schemeFamilyCode',
     'schemeName',
     'defaultWireGauge',
     'defaultCapacitor',
@@ -54,6 +56,8 @@ const NUMERIC_FIELDS = new Set([
     'copperBase',
     'coilFee',
     'rotorFee',
+    'ratedVoltageV',
+    'ratedFrequencyHz',
 ]);
 const UPDATE_FIELDS = new Set([
     'spec',
@@ -63,6 +67,11 @@ const UPDATE_FIELDS = new Set([
     'slotType',
     'schemeName',
     'schemeStatus',
+    'isDefault',
+    'ratedVoltageV',
+    'ratedFrequencyHz',
+    'market',
+    'schemeFamilyCode',
     'pricingMode',
     'kitPrice',
     'unitPrice',
@@ -109,14 +118,50 @@ function normalizeSchemeInput(body = {}) {
     if (!COIL_SCHEME_STATUSES.has(schemeStatus)) {
         throw coilCommandError('coil_scheme_status_invalid', '方案状态无效', 400);
     }
+    const isDefault = body.isDefault === true
+        || body.isDefault === 1
+        || body.isDefault === '1';
+    if (isDefault && schemeStatus !== 'official') {
+        throw coilCommandError(
+            'coil_default_requires_official',
+            '只有正式方案可以设为默认方案',
+            400
+        );
+    }
+    const voltageSupplied = body.ratedVoltageV !== undefined && body.ratedVoltageV !== null && body.ratedVoltageV !== '';
+    const frequencySupplied = body.ratedFrequencyHz !== undefined && body.ratedFrequencyHz !== null && body.ratedFrequencyHz !== '';
+    const ratedVoltageV = voltageSupplied ? parsePositiveId(body.ratedVoltageV) : null;
+    const ratedFrequencyHz = frequencySupplied ? parsePositiveId(body.ratedFrequencyHz) : null;
+    if (voltageSupplied && !ratedVoltageV) {
+        throw coilCommandError('coil_voltage_invalid', '额定电压必须是正整数', 400);
+    }
+    if (frequencySupplied && !ratedFrequencyHz) {
+        throw coilCommandError('coil_frequency_invalid', '额定频率必须是正整数', 400);
+    }
     return {
         ...dimensions,
+        schemeCode: String(body.schemeCode || '').trim().toUpperCase(),
         schemeName: String(
             body.schemeName
             || (schemeStatus === 'testing' ? '测试方案' : '正式方案')
         ).trim(),
         schemeStatus,
+        isDefault,
+        ratedVoltageV,
+        ratedFrequencyHz,
+        market: String(body.market || '').trim(),
+        schemeFamilyCode: String(body.schemeFamilyCode || '').trim().toUpperCase(),
     };
+}
+
+function assertSchemeMetadata(scheme) {
+    if (scheme.ratedVoltageV === null && scheme.ratedFrequencyHz === null) return;
+    if (!scheme.ratedVoltageV) {
+        throw coilCommandError('coil_voltage_invalid', '额定电压必须是正整数', 400);
+    }
+    if (!scheme.ratedFrequencyHz) {
+        throw coilCommandError('coil_frequency_invalid', '额定频率必须是正整数', 400);
+    }
 }
 
 function coilCostFromValues(values) {
@@ -223,7 +268,7 @@ function ensureStatorVariant(dependencies, dimensions, auditContext) {
     };
 }
 
-function demoteExistingOfficial(
+function clearExistingDefault(
     dependencies,
     variantId,
     sheets,
@@ -232,7 +277,8 @@ function demoteExistingOfficial(
 ) {
     const rows = dependencies.db.prepare(`
         SELECT id FROM coils
-        WHERE stator_variant_id = ? AND sheets = ? AND scheme_status = 'official'
+        WHERE stator_variant_id = ? AND sheets = ?
+          AND scheme_status = 'official' AND is_default = 1
     `).all(variantId, sheets);
     const auditIds = [];
     const changes = [];
@@ -242,7 +288,7 @@ function demoteExistingOfficial(
         const write = dependencies.safeUpdate(
             'coils',
             row.id,
-            { scheme_status: 'testing' },
+            { is_default: 0 },
             auditContext
         );
         writeCount += 1;
@@ -250,12 +296,53 @@ function demoteExistingOfficial(
         changes.push({
             resourceType: 'coil',
             resourceId: row.id,
-            field: 'schemeStatus',
-            from: 'official',
-            to: 'testing',
+            field: 'isDefault',
+            from: true,
+            to: false,
         });
     }
     return { auditIds, writeCount, changes };
+}
+
+function hasOtherDefault(dependencies, variantId, sheets, excludeId = null) {
+    return Boolean(dependencies.db.prepare(`
+        SELECT id FROM coils
+        WHERE stator_variant_id = ? AND sheets = ?
+          AND scheme_status = 'official' AND is_default = 1
+          AND (? IS NULL OR id <> ?)
+        LIMIT 1
+    `).get(variantId, sheets, excludeId, excludeId));
+}
+
+function promoteFallbackDefault(dependencies, variantId, sheets, excludeId, auditContext) {
+    if (hasOtherDefault(dependencies, variantId, sheets, excludeId)) {
+        return { auditIds: [], writeCount: 0, changes: [] };
+    }
+    const fallback = dependencies.db.prepare(`
+        SELECT id FROM coils
+        WHERE stator_variant_id = ? AND sheets = ?
+          AND scheme_status = 'official' AND id <> ?
+        ORDER BY id
+        LIMIT 1
+    `).get(variantId, sheets, excludeId || 0);
+    if (!fallback) return { auditIds: [], writeCount: 0, changes: [] };
+    const write = dependencies.safeUpdate(
+        'coils',
+        fallback.id,
+        { is_default: 1 },
+        auditContext
+    );
+    return {
+        auditIds: write.auditId ? [write.auditId] : [],
+        writeCount: 1,
+        changes: [{
+            resourceType: 'coil',
+            resourceId: fallback.id,
+            field: 'isDefault',
+            from: false,
+            to: true,
+        }],
+    };
 }
 
 function versionCompatibilityWarning(coilId, expectedUpdatedAt) {
@@ -267,6 +354,7 @@ function versionCompatibilityWarning(coilId, expectedUpdatedAt) {
 
 function normalizeCreateInput(input = {}) {
     const scheme = normalizeSchemeInput(input);
+    assertSchemeMetadata(scheme);
     const cost = coilCostFromValues({
         ...input,
         sheets: input.sheets,
@@ -297,8 +385,16 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
                 normalized,
                 auditContext
             );
-            const demotionResult = normalized.schemeStatus === 'official'
-                ? demoteExistingOfficial(
+            const shouldBeDefault = normalized.schemeStatus === 'official' && (
+                normalized.isDefault
+                || !hasOtherDefault(
+                    dependencies,
+                    variantResult.variant.id,
+                    normalized.sheets
+                )
+            );
+            const defaultResult = shouldBeDefault
+                ? clearExistingDefault(
                     dependencies,
                     variantResult.variant.id,
                     normalized.sheets,
@@ -307,14 +403,22 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
                 )
                 : { auditIds: [], writeCount: 0, changes: [] };
             const now = new Date().toISOString();
+            const schemeCode = normalized.schemeCode
+                || `COIL-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
             const write = dependencies.safeInsert('coils', {
                 stator_variant_id: variantResult.variant.id,
                 spec: normalized.commonName,
                 material: normalized.material,
                 slot_type: normalized.slotType,
                 sheets: normalized.sheets,
+                scheme_code: schemeCode,
                 scheme_name: normalized.schemeName,
                 scheme_status: normalized.schemeStatus,
+                is_default: shouldBeDefault ? 1 : 0,
+                rated_voltage_v: normalized.ratedVoltageV,
+                rated_frequency_hz: normalized.ratedFrequencyHz,
+                market: normalized.market,
+                scheme_family_code: normalized.schemeFamilyCode || schemeCode,
                 pricing_mode: normalized.pricingMode,
                 kit_price: normalized.kitPrice,
                 unit_price: normalized.unitPrice,
@@ -336,7 +440,7 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
             const coil = dependencies.coilRow(getCoilRecord(dependencies, coilId));
             const auditIds = [
                 ...variantResult.auditIds,
-                ...demotionResult.auditIds,
+                ...defaultResult.auditIds,
                 ...(write.auditId ? [write.auditId] : []),
             ];
             return {
@@ -344,7 +448,7 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
                 resource: { type: 'coil', ids: [coilId] },
                 changes: [
                     ...variantResult.changes,
-                    ...demotionResult.changes,
+                    ...defaultResult.changes,
                     {
                         resourceType: 'coil',
                         resourceId: coilId,
@@ -361,7 +465,7 @@ function executeCoilCreate(dependencies, input = {}, commandContext = {}) {
                 auditIds,
                 requiredAuditCount: (
                     variantResult.writeCount
-                    + demotionResult.writeCount
+                    + defaultResult.writeCount
                     + 1
                 ),
             };
@@ -375,6 +479,8 @@ function normalizeUpdatePatch(input = {}) {
         if (input[key] === undefined) continue;
         if (OPTIONAL_TEXT_FIELDS.has(key)) {
             patch[key] = String(input[key] || '').trim();
+        } else if (key === 'isDefault') {
+            patch[key] = input[key] === true || input[key] === 1 || input[key] === '1';
         } else if (NUMERIC_FIELDS.has(key)) {
             if (key === 'sheets' || key === 'diameterMm') {
                 const value = parsePositiveId(input[key]);
@@ -384,6 +490,14 @@ function normalizeUpdatePatch(input = {}) {
                         `${key} 必须是正整数`,
                         400
                     );
+                }
+                patch[key] = value;
+            } else if ((key === 'ratedVoltageV' || key === 'ratedFrequencyHz') && (input[key] === null || input[key] === '')) {
+                patch[key] = null;
+            } else if (key === 'ratedVoltageV' || key === 'ratedFrequencyHz') {
+                const value = parsePositiveId(input[key]);
+                if (!value) {
+                    throw coilCommandError('coil_positive_integer_required', `${key} 必须是正整数`, 400);
                 }
                 patch[key] = value;
             } else {
@@ -398,6 +512,9 @@ function normalizeUpdatePatch(input = {}) {
         && !COIL_SCHEME_STATUSES.has(patch.schemeStatus)
     ) {
         throw coilCommandError('coil_scheme_status_invalid', '方案状态无效', 400);
+    }
+    if (patch.isDefault && patch.schemeStatus && patch.schemeStatus !== 'official') {
+        throw coilCommandError('coil_default_requires_official', '只有正式方案可以设为默认方案', 400);
     }
     if (
         patch.pricingMode !== undefined
@@ -415,6 +532,11 @@ function patchToDbUpdates(patch) {
         slotType: 'slot_type',
         schemeName: 'scheme_name',
         schemeStatus: 'scheme_status',
+        isDefault: 'is_default',
+        ratedVoltageV: 'rated_voltage_v',
+        ratedFrequencyHz: 'rated_frequency_hz',
+        market: 'market',
+        schemeFamilyCode: 'scheme_family_code',
         pricingMode: 'pricing_mode',
         kitPrice: 'kit_price',
         unitPrice: 'unit_price',
@@ -464,6 +586,10 @@ function executeCoilUpdate(
             const record = getCoilRecord(dependencies, coilId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `线圈 #${coilId}`);
             const current = dependencies.coilRow(record);
+            assertSchemeMetadata({
+                ratedVoltageV: patch.ratedVoltageV !== undefined ? patch.ratedVoltageV : current.ratedVoltageV ?? null,
+                ratedFrequencyHz: patch.ratedFrequencyHz !== undefined ? patch.ratedFrequencyHz : current.ratedFrequencyHz ?? null,
+            });
             if (Object.keys(patch).length === 0) {
                 return {
                     data: { coil: current },
@@ -581,12 +707,28 @@ function executeCoilUpdate(
                 dbUpdates.cost = normalizedCost.cost;
             }
 
+            const sourceVariantId = current.statorVariantId;
+            const sourceSheets = Number(current.sheets);
+            const sourceWasDefault = current.isDefault === true;
             const targetSheets = Number(dbUpdates.sheets ?? current.sheets);
             const targetStatus = String(
                 dbUpdates.scheme_status ?? current.schemeStatus ?? 'official'
             );
-            const demotionResult = targetStatus === 'official'
-                ? demoteExistingOfficial(
+            let shouldBeDefault = targetStatus === 'official'
+                ? (dbUpdates.is_default !== undefined
+                    ? Boolean(dbUpdates.is_default)
+                    : current.isDefault === true)
+                : false;
+            if (
+                targetStatus === 'official'
+                && !shouldBeDefault
+                && !hasOtherDefault(dependencies, targetVariantId, targetSheets, coilId)
+            ) {
+                shouldBeDefault = true;
+            }
+            dbUpdates.is_default = shouldBeDefault ? 1 : 0;
+            const defaultResult = shouldBeDefault
+                ? clearExistingDefault(
                     dependencies,
                     targetVariantId,
                     targetSheets,
@@ -600,10 +742,25 @@ function executeCoilUpdate(
                 dbUpdates,
                 auditContext
             );
+            const movedDefault = sourceWasDefault && (
+                sourceVariantId !== targetVariantId
+                || sourceSheets !== targetSheets
+                || targetStatus !== 'official'
+            );
+            const fallbackResult = movedDefault
+                ? promoteFallbackDefault(
+                    dependencies,
+                    sourceVariantId,
+                    sourceSheets,
+                    coilId,
+                    auditContext
+                )
+                : { auditIds: [], writeCount: 0, changes: [] };
             const coil = dependencies.coilRow(getCoilRecord(dependencies, coilId));
             const auditIds = [
                 ...variantResult.auditIds,
-                ...demotionResult.auditIds,
+                ...defaultResult.auditIds,
+                ...fallbackResult.auditIds,
                 ...(write.auditId ? [write.auditId] : []),
             ];
             return {
@@ -611,7 +768,8 @@ function executeCoilUpdate(
                 resource: { type: 'coil', ids: [coilId] },
                 changes: [
                     ...variantResult.changes,
-                    ...demotionResult.changes,
+                    ...defaultResult.changes,
+                    ...fallbackResult.changes,
                     {
                         resourceType: 'coil',
                         resourceId: coilId,
@@ -623,7 +781,8 @@ function executeCoilUpdate(
                 auditIds,
                 requiredAuditCount: (
                     variantResult.writeCount
-                    + demotionResult.writeCount
+                    + defaultResult.writeCount
+                    + fallbackResult.writeCount
                     + 1
                 ),
             };
@@ -658,6 +817,15 @@ function executeCoilDelete(
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `线圈 #${coilId}`);
             dependencies.assertCoilCanBeDeleted(dependencies.db, coilId);
             const write = dependencies.hardDelete('coils', coilId, auditContext);
+            const fallbackResult = record.scheme_status === 'official' && Number(record.is_default || 0) === 1
+                ? promoteFallbackDefault(
+                    dependencies,
+                    record.stator_variant_id,
+                    Number(record.sheets),
+                    coilId,
+                    auditContext
+                )
+                : { auditIds: [], writeCount: 0, changes: [] };
             return {
                 data: { deleted: 1, coilId },
                 resource: { type: 'coil', ids: [coilId] },
@@ -670,9 +838,12 @@ function executeCoilDelete(
                         sheets: record.sheets,
                     },
                     to: true,
-                }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                }, ...fallbackResult.changes],
+                auditIds: [
+                    ...(write.auditId ? [write.auditId] : []),
+                    ...fallbackResult.auditIds,
+                ],
+                requiredAuditCount: 1 + fallbackResult.writeCount,
             };
         },
     });

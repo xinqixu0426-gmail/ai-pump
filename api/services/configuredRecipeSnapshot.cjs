@@ -23,6 +23,7 @@ const CONFIGURATION_KEYS = Object.freeze([
     'cableLength',
     'cableWire',
     'cableAccessoryType',
+    'coilId',
     'coilSpec',
     'coilSheets',
     'coilMaterial',
@@ -134,6 +135,7 @@ function normalizeRecipeConfigurationOverrides(overrides, fieldPrefix = 'overrid
         `${fieldPrefix}.cableAccessoryType`,
         ACCESSORY_TYPES
     );
+    if (hasOwn(overrides, 'coilId')) normalized.coilId = parsePositiveId(overrides.coilId);
     if (hasOwn(overrides, 'coilSpec')) normalized.coilSpec = String(overrides.coilSpec || '');
     if (hasOwn(overrides, 'coilSheets')) normalized.coilSheets = parseOptionalNonNegativeNumber(overrides.coilSheets, `${fieldPrefix}.coilSheets`);
     if (hasOwn(overrides, 'coilMaterial')) normalized.coilMaterial = String(overrides.coilMaterial || '钢带');
@@ -187,6 +189,7 @@ function configurationSnapshotFromRecipeData(recipeData) {
         cableLength: Number(recipeData.cable_length || 0),
         cableWire: String(recipeData.cable_wire || ''),
         cableAccessoryType: normalizeAccessoryType(recipeData.cable_accessory_type),
+        coilId: parsePositiveId(recipeData.coil_id),
         coilSpec: String(recipeData.coil_spec || ''),
         coilSheets: Number(recipeData.coil_sheets || 0),
         coilMaterial: String(recipeData.coil_material || '钢带'),

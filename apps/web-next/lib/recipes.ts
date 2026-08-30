@@ -95,6 +95,7 @@ export type Recipe = {
   savedTotalCost?: number;
   savedCostDetails?: string;
   templateId?: number | null;
+  coilId?: number | null;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
@@ -182,6 +183,7 @@ export type PumpModelVariant = {
   id: number;
   modelName: string;
   templateId: number;
+  coilId?: number | null;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;
@@ -213,6 +215,14 @@ export type RecipeBomDraftResult = {
   templateParts: RecipePart[];
   shellComponents: unknown[];
   coilSnapshot?: {
+    coilId?: number | null;
+    schemeCode?: string;
+    schemeName?: string;
+    isDefault?: boolean;
+    ratedVoltageV?: number | null;
+    ratedFrequencyHz?: number | null;
+    market?: string;
+    schemeFamilyCode?: string;
     totalCost: number;
     material?: string;
     unitPrice?: number;
@@ -267,6 +277,7 @@ export type RecipeModelVariantDraft = {
   spec: string;
   templateId: number;
   modelVariantId: number;
+  coilId?: number | null;
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
@@ -359,6 +370,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     savedTotalCost: Number(row.savedTotalCost) || 0,
     savedCostDetails: row.savedCostDetails || '',
     templateId: row.templateId ?? null,
+    coilId: row.coilId == null ? null : Number(row.coilId),
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
@@ -422,6 +434,7 @@ export function rowToVariant(row: VariantRow): PumpModelVariant {
     id: rowId(row),
     modelName: row.modelName || '',
     templateId: Number(row.templateId) || 0,
+    coilId: row.coilId == null ? null : Number(row.coilId),
     coilSpec: row.coilSpec || '',
     coilSheets: Number(row.coilSheets) || 0,
     coilMaterial: row.coilMaterial || '钢带',
@@ -657,6 +670,7 @@ export async function previewRecipeBomDraft(input: {
   customBarrelLength?: number | string | null;
   longScrewExtraLength?: number | string;
   coilSpec?: string;
+  coilId?: number | null;
   coilSheets?: number | string;
   coilMaterial?: string;
   coilSlotType?: '小眼' | '国标眼';
@@ -761,6 +775,7 @@ export type RecipeSaveInput = {
   savedTotalCost: number;
   savedCostDetails: string;
   templateId: number | null;
+  coilId: number | null;
   coilSpec: string;
   coilSheets: number;
   coilMaterial: string;
@@ -878,6 +893,7 @@ export type RecipeSavePayloadDraftInput = {
     name: string;
     spec: string;
     templateId?: number | string | null;
+    coilId?: number | string | null;
     coilSpec?: string;
     coilSheets?: number | string;
     coilMaterial?: string;
@@ -957,6 +973,7 @@ export async function deleteRecipe(id: number, expectedUpdatedAt?: string): Prom
 export type ModelVariantInput = {
   modelName: string;
   templateId: number;
+  coilId?: number | null;
   coilSpec?: string;
   coilSheets?: number;
   coilMaterial?: string;

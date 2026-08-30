@@ -38,7 +38,7 @@ const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 
 const RECIPE_FIELDS = [
     'name', 'spec', 'parts_json', 'saved_total_cost', 'saved_cost_details',
-    'template_id', 'coil_spec', 'coil_sheets', 'coil_material', 'coil_slot_type', 'coil_wire_weight',
+    'template_id', 'coil_id', 'coil_spec', 'coil_sheets', 'coil_material', 'coil_slot_type', 'coil_wire_weight',
     'has_float', 'float_wire', 'float_accessory_type', 'has_cable', 'cable_length', 'cable_wire', 'cable_accessory_type',
     'box_type', 'extra_parts_json', 'packing_parts_json',
     'assembly_wage', 'packing_wage', 'painting_wage',
@@ -54,6 +54,7 @@ const RECIPE_ALIASES = {
     savedTotalCost: 'saved_total_cost',
     savedCostDetails: 'saved_cost_details',
     templateId: 'template_id',
+    coilId: 'coil_id',
     coilSpec: 'coil_spec',
     coilSheets: 'coil_sheets',
     coilMaterial: 'coil_material',
@@ -215,9 +216,10 @@ function normalizeJsonObjectString(value, field) {
 }
 
 function normalizeRecipePayload(dependencies, input = {}, existingRecord = null) {
+    const incoming = recipeBodyToDb(input);
     const source = {
         ...(existingRecord || {}),
-        ...recipeBodyToDb(input),
+        ...incoming,
     };
     const name = String(source.name || '').trim();
     if (!name) throw recipeCommandError('recipe_name_required', '成品型号不能为空', 400);
@@ -265,6 +267,67 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
     });
     assertRecipeBomPrices(canonicalCost.parts);
 
+    const coilId = parsePositiveId(source.coil_id);
+    const coilSpec = String(source.coil_spec || '').trim();
+    const coilSheets = parseNonNegativeNumber(source.coil_sheets, 'coilSheets');
+    const coilMaterial = String(source.coil_material || '').trim() || '钢带';
+    const hasCompleteCoilDimensions = Boolean(coilSpec) && coilSheets > 0;
+    const incomingTouchesCoilBinding = [
+        'coil_id',
+        'coil_spec',
+        'coil_sheets',
+        'coil_material',
+        'coil_slot_type',
+    ].some(field => Object.hasOwn(incoming, field));
+    const preservesLegacyUnboundRecipe = Boolean(
+        existingRecord
+        && !parsePositiveId(existingRecord.coil_id)
+        && !incomingTouchesCoilBinding
+    );
+    if (hasCompleteCoilDimensions && !coilId && !preservesLegacyUnboundRecipe) {
+        throw recipeCommandError(
+            'recipe_coil_selection_required',
+            '配方填写线圈规格和片数后，必须选择具体正式线圈方案',
+            409
+        );
+    }
+    if (coilId) {
+        const coil = dependencies.db.prepare(`
+            SELECT id, spec, sheets, material, slot_type, scheme_status
+            FROM coils WHERE id = ?
+        `).get(coilId);
+        if (!coil || coil.scheme_status !== 'official') {
+            throw recipeCommandError(
+                'recipe_coil_not_official',
+                '所选线圈方案不存在或不是正式方案',
+                400
+            );
+        }
+        if (
+            String(coil.spec || '') !== coilSpec
+            || Number(coil.sheets || 0) !== coilSheets
+            || String(coil.material || '钢带') !== coilMaterial
+            || String(coil.slot_type || '小眼') !== coilSlotType
+        ) {
+            throw recipeCommandError(
+                'recipe_coil_mismatch',
+                '所选线圈方案与配方的规格、片数、材质或槽眼不一致',
+                400
+            );
+        }
+        const coilBomParts = canonicalCost.parts.filter(part => (
+            part?.inventoryType === 'coil'
+            || part?.name === '线圈转子'
+        ));
+        if (coilBomParts.some(part => parsePositiveId(part.coilId) !== coilId)) {
+            throw recipeCommandError(
+                'recipe_coil_bom_mismatch',
+                '配方 BOM 中的线圈方案与配方绑定方案不一致',
+                409
+            );
+        }
+    }
+
     return {
         name,
         spec: String(source.spec || '').trim(),
@@ -272,9 +335,10 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
         saved_total_cost: canonicalCost.savedTotalCost,
         saved_cost_details: canonicalCost.savedCostDetails,
         template_id: parsePositiveId(source.template_id),
-        coil_spec: String(source.coil_spec || '').trim(),
-        coil_sheets: parseNonNegativeNumber(source.coil_sheets, 'coilSheets'),
-        coil_material: String(source.coil_material || '').trim() || '钢带',
+        coil_id: coilId,
+        coil_spec: coilSpec,
+        coil_sheets: coilSheets,
+        coil_material: coilMaterial,
         coil_slot_type: coilSlotType,
         coil_wire_weight: normalizeOptionalNumber(source.coil_wire_weight, 'coilWireWeight'),
         has_float: normalizeBooleanFlag(source.has_float),
@@ -459,6 +523,7 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         ),
         coilSpec: String(form.coilSpec || '').trim(),
         coilSheets: parseNonNegativeNumber(form.coilSheets, 'form.coilSheets'),
+        coilId: parsePositiveId(form.coilId),
         coilMaterial: String(form.coilMaterial || '').trim() || '钢带',
         coilSlotType: String(form.coilSlotType || '').trim() || '小眼',
         coilWireWeight: normalizeOptionalNumber(form.coilWireWeight, 'form.coilWireWeight'),
@@ -477,6 +542,7 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         spec: String(form.spec || '').trim(),
         partsJson: JSON.stringify(authoritativeBom.parts || []),
         templateId,
+        coilId: authoritativeBom.coilSnapshot?.coilId || parsePositiveId(form.coilId),
         coilSpec: String(form.coilSpec || '').trim(),
         coilSheets: parseNonNegativeNumber(form.coilSheets, 'form.coilSheets'),
         coilMaterial: String(form.coilMaterial || '').trim() || '钢带',

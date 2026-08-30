@@ -786,7 +786,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'coils.create': defineBusinessCapability({
         capabilityId: 'coils.create',
         domain: 'coil',
-        inputSchema: 'POST /api/coils',
+        inputSchema: 'POST /api/coils CoilInput(schemeCode?,isDefault?,ratedVoltageV?,ratedFrequencyHz?,market?,schemeFamilyCode?)',
         outputSchema: 'CommandReceipt<CoilCreateResult>',
         sourceOfTruth: 'stator_variants+coils',
         riskLevel: 'medium',
@@ -797,7 +797,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'coils.update': defineBusinessCapability({
         capabilityId: 'coils.update',
         domain: 'coil',
-        inputSchema: 'PATCH /api/coils/:id',
+        inputSchema: 'PATCH /api/coils/:id CoilUpdate(isDefault?,ratedVoltageV?,ratedFrequencyHz?,market?,schemeFamilyCode?)',
         outputSchema: 'CommandReceipt<CoilUpdateResult>',
         sourceOfTruth: 'stator_variants+coils+coil_stock_movements',
         riskLevel: 'high',
@@ -1040,7 +1040,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'coils.list': defineQueryCapability({
         capabilityId: 'coils.list',
         domain: 'coil',
-        inputSchema: 'GET /api/coils?spec?&sheets?&material?&slotType?',
+        inputSchema: 'GET /api/coils?spec?&sheets?&material?&slotType?&schemeCode?&schemeStatus?&isDefault?&ratedVoltageV?&ratedFrequencyHz?&market?&schemeFamilyCode?',
         outputSchema: 'CoilProfile[]',
         sourceOfTruth: 'coils+stator_variants',
         riskLevel: 'low',

@@ -8,7 +8,7 @@ import { PresenceRow } from '@/components/motion/presence-row';
 import { SlideOver } from '@/components/motion/slide-over';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
-import { Field, Input, Select } from '@/components/ui/field';
+import { Checkbox, Field, Input, Select } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
 import { InlineNotice } from '@/components/ui/notice';
 import { Panel, PanelBody, PanelHeader } from '@/components/ui/panel';
@@ -40,7 +40,13 @@ type CoilFormState = {
   slotType: '小眼' | '国标眼';
   sheets: string;
   schemeName: string;
+  schemeCode: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  isDefault: boolean;
+  ratedVoltageV: string;
+  ratedFrequencyHz: string;
+  market: string;
+  schemeFamilyCode: string;
   pricingMode: 'calculated' | 'kit';
   kitPrice: string;
   unitPrice: string;
@@ -63,7 +69,13 @@ const emptyForm: CoilFormState = {
   slotType: '小眼',
   sheets: '',
   schemeName: '正式方案',
+  schemeCode: '',
   schemeStatus: 'official',
+  isDefault: false,
+  ratedVoltageV: '',
+  ratedFrequencyHz: '',
+  market: '',
+  schemeFamilyCode: '',
   pricingMode: 'calculated',
   kitPrice: '',
   unitPrice: '',
@@ -106,7 +118,13 @@ function formFromCoil(coil: CoilRecord): CoilFormState {
     slotType: coil.slotType || '小眼',
     sheets: String(coil.sheets || ''),
     schemeName: coil.schemeName || '',
+    schemeCode: coil.schemeCode || '',
     schemeStatus: coil.schemeStatus || 'official',
+    isDefault: Boolean(coil.isDefault),
+    ratedVoltageV: optionalNumberText(coil.ratedVoltageV),
+    ratedFrequencyHz: optionalNumberText(coil.ratedFrequencyHz),
+    market: coil.market || '',
+    schemeFamilyCode: coil.schemeFamilyCode || '',
     pricingMode: coil.pricingMode || 'calculated',
     kitPrice: String(coil.kitPrice || ''),
     unitPrice: String(coil.unitPrice || ''),
@@ -244,6 +262,11 @@ export function CoilsView() {
           coil.material,
           coil.slotType,
           coil.schemeName,
+          coil.schemeCode,
+          coil.market,
+          coil.schemeFamilyCode,
+          coil.ratedVoltageV,
+          coil.ratedFrequencyHz,
           coil.schemeStatus,
           coil.pricingMode === 'kit' ? '供应商套件价' : '计算计价',
           coil.sheets,
@@ -460,7 +483,13 @@ export function CoilsView() {
         slotType: form.slotType,
         sheets: numberValue(form.sheets),
         schemeName: form.schemeName.trim(),
+        ...(!editingCoil && form.schemeCode.trim() ? { schemeCode: form.schemeCode.trim() } : {}),
         schemeStatus: form.schemeStatus,
+        isDefault: form.schemeStatus === 'official' && form.isDefault,
+        ratedVoltageV: form.ratedVoltageV.trim() ? numberValue(form.ratedVoltageV) : null,
+        ratedFrequencyHz: form.ratedFrequencyHz.trim() ? numberValue(form.ratedFrequencyHz) : null,
+        market: form.market.trim(),
+        schemeFamilyCode: form.schemeFamilyCode.trim(),
         pricingMode: form.pricingMode,
         kitPrice: form.pricingMode === 'kit' ? numberValue(form.kitPrice) : 0,
         unitPrice: numberValue(form.unitPrice),
@@ -855,6 +884,10 @@ export function CoilsView() {
                               <td className="border-b border-line px-4 py-2.5 font-medium text-ink">{coil.sheets}</td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <div className="text-ink">{coil.schemeName || (coil.schemeStatus === 'testing' ? '测试方案' : '正式方案')}</div>
+                                <div className="mt-0.5 text-xs text-muted">{coil.schemeCode}</div>
+                                <div className="mt-0.5 text-xs text-muted">
+                                  {[coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '', coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '', coil.market].filter(Boolean).join(' · ') || '未标电气参数'}
+                                </div>
                                 <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${
                                   coil.schemeStatus === 'official'
                                     ? 'bg-emerald-50 text-emerald-700'
@@ -864,6 +897,7 @@ export function CoilsView() {
                                 }`}>
                                   {coil.schemeStatus === 'official' ? '正式' : coil.schemeStatus === 'testing' ? '测试' : '停用'}
                                 </span>
+                                {coil.isDefault ? <span className="ml-1 mt-1 inline-flex rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">默认</span> : null}
                               </td>
                               <td className="border-b border-line px-4 py-2.5">
                                 <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${coil.pricingMode === 'kit' ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -971,8 +1005,11 @@ export function CoilsView() {
               <Field label="片数">
                 <Input value={form.sheets} onChange={(event) => updateForm({ sheets: event.target.value })} type="number" min="0" step="1" selectOnFirstFocus />
               </Field>
-              <Field label="方案状态" hint="同一定子组合和片数只能有一套正式方案。">
-                <Select value={form.schemeStatus} onChange={(event) => updateForm({ schemeStatus: event.target.value as CoilFormState['schemeStatus'] })}>
+              <Field label="方案状态" hint="同一定子组合和片数可有多套正式方案，但最多一套默认方案。">
+                <Select value={form.schemeStatus} onChange={(event) => {
+                  const schemeStatus = event.target.value as CoilFormState['schemeStatus'];
+                  updateForm({ schemeStatus, ...(schemeStatus !== 'official' ? { isDefault: false } : {}) });
+                }}>
                   <option value="official">正式方案</option>
                   <option value="testing">测试方案</option>
                   <option value="disabled">停用</option>
@@ -981,6 +1018,29 @@ export function CoilsView() {
               <Field label="方案名称" className="md:col-span-2">
                 <Input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" />
               </Field>
+              <Field label="方案编码" hint={editingCoil ? '稳定编码创建后不可修改，用于跨页面和接口绑定。' : '可留空，由系统自动生成。'}>
+                <Input value={form.schemeCode} onChange={(event) => updateForm({ schemeCode: event.target.value })} disabled={Boolean(editingCoil)} placeholder="例如 COIL-12-200-MY240" />
+              </Field>
+              <Field label="方案族编码" hint="同一设计族可用于不同片数间插值；不同电压/频率建议分族。">
+                <Input value={form.schemeFamilyCode} onChange={(event) => updateForm({ schemeFamilyCode: event.target.value })} placeholder="例如 12-220V-50HZ" />
+              </Field>
+              <Field label="额定电压 V">
+                <Input value={form.ratedVoltageV} onChange={(event) => updateForm({ ratedVoltageV: event.target.value })} type="number" min="1" step="1" placeholder="220 或 240" />
+              </Field>
+              <Field label="额定频率 Hz">
+                <Input value={form.ratedFrequencyHz} onChange={(event) => updateForm({ ratedFrequencyHz: event.target.value })} type="number" min="1" step="1" placeholder="50 或 60" />
+              </Field>
+              <Field label="适用市场">
+                <Input value={form.market} onChange={(event) => updateForm({ market: event.target.value })} placeholder="例如 通用、马来西亚" />
+              </Field>
+              <label className="flex min-h-10 items-center gap-2 rounded-md border border-line px-3 text-sm text-ink">
+                <Checkbox
+                  checked={form.isDefault}
+                  disabled={form.schemeStatus !== 'official'}
+                  onChange={(event) => updateForm({ isDefault: event.target.checked })}
+                />
+                设为该组合默认方案
+              </label>
               <Field label="计价方式" className="md:col-span-2" hint="供应商套件价只按完整套件价格计价，不参与其他片数的插值或外推。">
                 <Select value={form.pricingMode} onChange={(event) => updateForm({ pricingMode: event.target.value as CoilFormState['pricingMode'] })}>
                   <option value="calculated">计算计价</option>

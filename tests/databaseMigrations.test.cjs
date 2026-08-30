@@ -645,8 +645,8 @@ test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历
 
         const second = runMigrations(db, { now: FIXED_NOW });
         assert.deepEqual(second.appliedVersions, []);
-        assert.equal(second.currentVersion, 69);
-        assert.equal(db.pragma('user_version', { simple: true }), 69);
+        assert.equal(second.currentVersion, 70);
+        assert.equal(db.pragma('user_version', { simple: true }), 70);
         assert.deepEqual(
             db.prepare(`
                 SELECT provider, external_user_id, external_user_name
@@ -688,7 +688,7 @@ test('数据库迁移：Schema 69 为历史线圈补充计算计价默认值和�
             INSERT INTO coils (spec, sheets, cost)
             VALUES ('历史规格', 120, 88);
         `);
-        MIGRATIONS.at(-1).up(db);
+        MIGRATIONS.find(migration => migration.version === 69).up(db);
         const columns = new Set(db.pragma('table_info(coils)').map(column => column.name));
         assert.equal(columns.has('pricing_mode'), true);
         assert.equal(columns.has('kit_price'), true);
@@ -720,6 +720,103 @@ test('数据库迁移：Schema 69 为历史线圈补充计算计价默认值和�
                 UPDATE coils SET pricing_mode = 'kit', kit_price = 5, cost = 4 WHERE id = 1
             `).run(),
             /kit price must be positive and equal cost/
+        );
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：Schema 70 仅对唯一正式方案设默认并回填绑定', () => {
+    const db = openMemoryDatabase();
+    try {
+        runMigrations(db, { now: FIXED_NOW });
+        db.exec(`
+            DELETE FROM recipes;
+            DELETE FROM pump_model_variants;
+            DELETE FROM coils;
+            DROP INDEX IF EXISTS idx_coils_one_default_scheme;
+            DROP INDEX IF EXISTS idx_coils_one_default_legacy_scheme;
+        `);
+        const templateId = Number(db.prepare(`
+            INSERT INTO pump_shell_templates (shell_model, parts_json, created_at, updated_at)
+            VALUES ('Schema70 测试泵壳', '[]', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const statorVariantId = Number(db.prepare(`
+            INSERT INTO stator_variants (
+                diameter_mm, common_name, material, slot_type, created_at, updated_at
+            ) VALUES (13, '13', '钢带', '小眼', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const uniqueCoilId = Number(db.prepare(`
+            INSERT INTO coils (
+                stator_variant_id, spec, material, slot_type, sheets,
+                scheme_code, scheme_status, is_default, scheme_family_code,
+                created_at, updated_at
+            ) VALUES (?, '13', '钢带', '小眼', 100,
+                'COIL-S70-UNIQUE', 'official', 0, 'S70-UNIQUE', ?, ?)
+        `).run(statorVariantId, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const ambiguousCoilIds = [
+            Number(db.prepare(`
+                INSERT INTO coils (
+                    stator_variant_id, spec, material, slot_type, sheets,
+                    scheme_code, scheme_status, is_default, scheme_family_code,
+                    created_at, updated_at
+                ) VALUES (NULL, '12', '钢带', '小眼', 200,
+                    'COIL-S70-A', 'official', 0, 'S70-A', ?, ?)
+            `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid),
+            Number(db.prepare(`
+                INSERT INTO coils (
+                    stator_variant_id, spec, material, slot_type, sheets,
+                    scheme_code, scheme_status, is_default, scheme_family_code,
+                    created_at, updated_at
+                ) VALUES (NULL, '12', '钢带', '小眼', 200,
+                    'COIL-S70-B', 'official', 0, 'S70-B', ?, ?)
+            `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid),
+        ];
+        const uniqueRecipeId = Number(db.prepare(`
+            INSERT INTO recipes (
+                name, parts_json, coil_spec, coil_sheets, coil_material, coil_slot_type,
+                created_at, updated_at
+            ) VALUES ('唯一方案配方', '[]', '13', 100, '钢带', '小眼', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const ambiguousRecipeId = Number(db.prepare(`
+            INSERT INTO recipes (
+                name, parts_json, coil_spec, coil_sheets, coil_material, coil_slot_type,
+                created_at, updated_at
+            ) VALUES ('歧义方案配方', '[]', '12', 200, '钢带', '小眼', ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW).lastInsertRowid);
+        const ambiguousVariantId = Number(db.prepare(`
+            INSERT INTO pump_model_variants (
+                model_name, template_id, coil_spec, coil_sheets, coil_material,
+                coil_slot_type, created_at, updated_at
+            ) VALUES ('歧义常用配置', ?, '12', 200, '钢带', '小眼', ?, ?)
+        `).run(templateId, FIXED_NOW, FIXED_NOW).lastInsertRowid);
+
+        MIGRATIONS.find(migration => migration.version === 70).up(db);
+
+        assert.equal(
+            db.prepare('SELECT is_default FROM coils WHERE id = ?').get(uniqueCoilId).is_default,
+            1
+        );
+        assert.ok(ambiguousCoilIds.every(id => (
+            db.prepare('SELECT is_default FROM coils WHERE id = ?').get(id).is_default === 0
+        )));
+        assert.equal(
+            db.prepare('SELECT coil_id FROM recipes WHERE id = ?').get(uniqueRecipeId).coil_id,
+            uniqueCoilId
+        );
+        assert.equal(
+            db.prepare('SELECT coil_id FROM recipes WHERE id = ?').get(ambiguousRecipeId).coil_id,
+            null
+        );
+        assert.equal(
+            db.prepare('SELECT coil_id FROM pump_model_variants WHERE id = ?').get(ambiguousVariantId).coil_id,
+            null
+        );
+
+        db.prepare('UPDATE coils SET is_default = 1 WHERE id = ?').run(ambiguousCoilIds[0]);
+        assert.throws(
+            () => db.prepare('UPDATE coils SET is_default = 1 WHERE id = ?').run(ambiguousCoilIds[1]),
+            /UNIQUE constraint failed/
         );
     } finally {
         db.close();

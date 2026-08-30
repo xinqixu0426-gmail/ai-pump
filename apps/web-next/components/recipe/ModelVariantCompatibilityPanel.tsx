@@ -13,6 +13,7 @@ import {
   type PumpModelVariant,
   type PumpShellTemplate,
 } from '@/lib/recipes';
+import type { CoilRecord } from '@/lib/coils';
 import {
   resolveCoilVariantSelection,
   type CoilSlotType,
@@ -27,6 +28,7 @@ type VariantCustomField = {
 type VariantFormState = {
   modelName: string;
   templateId: string;
+  coilId: string;
   coilSpec: string;
   coilSheets: string;
   coilMaterial: string;
@@ -52,6 +54,7 @@ type ModelVariantCompatibilityPanelProps = {
   variants: PumpModelVariant[];
   templates: PumpShellTemplate[];
   coilSpecs: CoilSpecOption[];
+  coilRecords: CoilRecord[];
   editorTarget: ModelVariantEditorTarget;
   saving: boolean;
   error: string | null;
@@ -70,6 +73,7 @@ function emptyVariantForm(): VariantFormState {
   return {
     modelName: '',
     templateId: '',
+    coilId: '',
     coilSpec: '',
     coilSheets: '',
     coilMaterial: '钢带',
@@ -123,6 +127,7 @@ function variantFormFromVariant(variant: PumpModelVariant, modelName = variant.m
   return {
     modelName,
     templateId: variant.templateId ? String(variant.templateId) : '',
+    coilId: variant.coilId ? String(variant.coilId) : '',
     coilSpec: variant.coilSpec || '',
     coilSheets: variant.coilSheets ? String(variant.coilSheets) : '',
     coilMaterial: variant.coilMaterial || '钢带',
@@ -142,6 +147,7 @@ function variantFormToInput(form: VariantFormState): ModelVariantInput {
   return {
     modelName: form.modelName.trim(),
     templateId: Number(form.templateId),
+    coilId: form.coilId ? Number(form.coilId) : null,
     coilSpec: form.coilSpec.trim(),
     coilSheets: numberValue(form.coilSheets),
     coilMaterial: form.coilMaterial.trim() || '钢带',
@@ -170,6 +176,7 @@ export function ModelVariantCompatibilityPanel({
   variants,
   templates,
   coilSpecs,
+  coilRecords,
   editorTarget,
   saving,
   error,
@@ -194,6 +201,15 @@ export function ModelVariantCompatibilityPanel({
     : selectedCoil?.slotTypes?.length
       ? selectedCoil.slotTypes
       : ['小眼'];
+  const schemeOptions = useMemo(() => coilRecords
+    .filter((coil) => (
+      coil.schemeStatus === 'official'
+      && coil.spec === form.coilSpec
+      && coil.material === form.coilMaterial
+      && coil.slotType === form.coilSlotType
+      && Number(coil.sheets) === Number(form.coilSheets)
+    ))
+    .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.id - right.id), [coilRecords, form.coilMaterial, form.coilSheets, form.coilSlotType, form.coilSpec]);
 
   const filteredVariants = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -246,9 +262,19 @@ export function ModelVariantCompatibilityPanel({
         coilMaterial: selection.material,
         coilSlotType: selection.slotType,
         coilSheets: sheetsRemainValid ? current.coilSheets : '',
+        coilId: '',
       };
     });
   }, [editorTarget, form.coilMaterial, form.coilSlotType, form.coilSpec, selectedCoil]);
+
+  useEffect(() => {
+    if (!editorTarget) return;
+    setForm((current) => {
+      if (schemeOptions.some((coil) => coil.id === Number(current.coilId))) return current;
+      const coilId = schemeOptions.length === 1 ? String(schemeOptions[0].id) : '';
+      return current.coilId === coilId ? current : { ...current, coilId };
+    });
+  }, [editorTarget, schemeOptions]);
 
   function updateForm(patch: Partial<VariantFormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -283,6 +309,10 @@ export function ModelVariantCompatibilityPanel({
     }
     if (!form.templateId) {
       setFormError('请选择泵壳模板');
+      return;
+    }
+    if (form.coilSpec && form.coilSheets && !form.coilId) {
+      setFormError('请选择具体的正式线圈方案');
       return;
     }
     setFormError(null);
@@ -472,6 +502,7 @@ export function ModelVariantCompatibilityPanel({
                       updateForm({
                         coilSpec,
                         coilSheets: '',
+                        coilId: '',
                         coilMaterial: selection.material,
                         coilSlotType: selection.slotType,
                       });
@@ -496,6 +527,7 @@ export function ModelVariantCompatibilityPanel({
                         coilMaterial: selection.material,
                         coilSlotType: selection.slotType,
                         coilSheets: '',
+                        coilId: '',
                       });
                     }}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
@@ -507,7 +539,7 @@ export function ModelVariantCompatibilityPanel({
                   <span className="text-xs font-medium text-muted">槽眼</span>
                   <select
                     value={form.coilSlotType}
-                    onChange={(event) => updateForm({ coilSlotType: event.target.value as CoilSlotType })}
+                    onChange={(event) => updateForm({ coilSlotType: event.target.value as CoilSlotType, coilSheets: '', coilId: '' })}
                     className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   >
                     {slotTypeOptions.map((slotType) => <option key={slotType} value={slotType}>{slotType}</option>)}
@@ -517,7 +549,7 @@ export function ModelVariantCompatibilityPanel({
                   <span className="text-xs font-medium text-muted">线圈片数</span>
                   <input
                     value={form.coilSheets}
-                    onChange={(event) => updateForm({ coilSheets: event.target.value })}
+                    onChange={(event) => updateForm({ coilSheets: event.target.value, coilId: '' })}
                     onFocus={selectInputValueOnFocus}
                     type="number"
                     min="0"
@@ -526,6 +558,22 @@ export function ModelVariantCompatibilityPanel({
                   />
                 </label>
               </div>
+              <label className="mt-3 block">
+                <span className="text-xs font-medium text-muted">具体正式方案</span>
+                <select
+                  value={form.coilId}
+                  onChange={(event) => updateForm({ coilId: event.target.value })}
+                  disabled={!form.coilSpec || !form.coilSheets || schemeOptions.length === 0}
+                  className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                >
+                  <option value="">{schemeOptions.length === 0 ? '当前组合暂无正式方案' : '请选择方案'}</option>
+                  {schemeOptions.map((coil) => (
+                    <option key={coil.id} value={String(coil.id)}>
+                      {coil.isDefault ? '默认 · ' : ''}{coil.schemeName || coil.schemeCode} · {[coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '', coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '', coil.market].filter(Boolean).join(' · ') || '未标电气参数'} · 线重 {coil.wireWeight || 0}kg
+                    </option>
+                  ))}
+                </select>
+              </label>
             </section>
 
             <section className="rounded-panel border border-line p-4">

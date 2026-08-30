@@ -261,8 +261,14 @@ function rebuildCoils(db) {
             material TEXT DEFAULT '钢带',
             slot_type TEXT DEFAULT '小眼',
             sheets INTEGER NOT NULL,
+            scheme_code TEXT NOT NULL DEFAULT '',
             scheme_name TEXT DEFAULT '',
             scheme_status TEXT DEFAULT 'official',
+            is_default INTEGER NOT NULL DEFAULT 0,
+            rated_voltage_v INTEGER,
+            rated_frequency_hz INTEGER,
+            market TEXT NOT NULL DEFAULT '',
+            scheme_family_code TEXT NOT NULL DEFAULT '',
             pricing_mode TEXT NOT NULL DEFAULT 'calculated',
             kit_price REAL NOT NULL DEFAULT 0,
             unit_price REAL DEFAULT 0,
@@ -283,7 +289,9 @@ function rebuildCoils(db) {
         );
         INSERT INTO coils (
             id, stator_variant_id, spec, material, slot_type, sheets,
-            scheme_name, scheme_status, pricing_mode, kit_price,
+            scheme_code, scheme_name, scheme_status, is_default,
+            rated_voltage_v, rated_frequency_hz, market, scheme_family_code,
+            pricing_mode, kit_price,
             unit_price, wire_weight, copper_base,
             coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor,
             main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data,
@@ -291,7 +299,9 @@ function rebuildCoils(db) {
         )
         SELECT
             id, stator_variant_id, spec, material, slot_type, sheets,
-            scheme_name, scheme_status, pricing_mode, kit_price,
+            scheme_code, scheme_name, scheme_status, is_default,
+            rated_voltage_v, rated_frequency_hz, market, scheme_family_code,
+            pricing_mode, kit_price,
             unit_price, wire_weight, copper_base,
             coil_fee, rotor_fee, cost, default_wire_gauge, default_capacitor,
             main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data,
@@ -3109,6 +3119,141 @@ const MIGRATIONS = Object.freeze([
                 `);
             }
             db.exec(COIL_PRICING_CONSTRAINTS_SQL);
+        },
+    },
+    {
+        version: 70,
+        name: 'multi_official_coil_schemes',
+        signature: 'multi-official-default-and-recipe-coil-binding-v2',
+        up(db) {
+            const coilColumns = new Set(
+                db.pragma('table_info(coils)').map(column => column.name)
+            );
+            if (!coilColumns.has('scheme_code')) {
+                db.exec("ALTER TABLE coils ADD COLUMN scheme_code TEXT NOT NULL DEFAULT ''");
+            }
+            if (!coilColumns.has('is_default')) {
+                db.exec(`
+                    ALTER TABLE coils ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0
+                    CHECK(is_default IN (0, 1) AND (is_default = 0 OR scheme_status = 'official'))
+                `);
+            }
+            if (!coilColumns.has('rated_voltage_v')) {
+                db.exec(`
+                    ALTER TABLE coils ADD COLUMN rated_voltage_v INTEGER
+                    CHECK(rated_voltage_v IS NULL OR rated_voltage_v > 0)
+                `);
+            }
+            if (!coilColumns.has('rated_frequency_hz')) {
+                db.exec(`
+                    ALTER TABLE coils ADD COLUMN rated_frequency_hz INTEGER
+                    CHECK(rated_frequency_hz IS NULL OR rated_frequency_hz > 0)
+                `);
+            }
+            if (!coilColumns.has('market')) {
+                db.exec("ALTER TABLE coils ADD COLUMN market TEXT NOT NULL DEFAULT ''");
+            }
+            if (!coilColumns.has('scheme_family_code')) {
+                db.exec("ALTER TABLE coils ADD COLUMN scheme_family_code TEXT NOT NULL DEFAULT ''");
+            }
+
+            db.exec(`
+                UPDATE coils
+                SET scheme_code = printf('COIL-%04d', id)
+                WHERE trim(COALESCE(scheme_code, '')) = '';
+
+                UPDATE coils
+                SET scheme_family_code = 'LEGACY-V' || COALESCE(stator_variant_id, id)
+                WHERE trim(COALESCE(scheme_family_code, '')) = '';
+
+                UPDATE coils SET is_default = 0;
+
+                UPDATE coils
+                SET is_default = 1
+                WHERE scheme_status = 'official'
+                  AND stator_variant_id IS NOT NULL
+                  AND 1 = (
+                      SELECT COUNT(*)
+                      FROM coils candidate
+                      WHERE candidate.scheme_status = 'official'
+                        AND candidate.stator_variant_id = coils.stator_variant_id
+                        AND candidate.sheets = coils.sheets
+                  );
+
+                DROP INDEX IF EXISTS idx_coils_one_official_scheme;
+                DROP INDEX IF EXISTS idx_coils_one_default_scheme;
+                DROP INDEX IF EXISTS idx_coils_one_default_legacy_scheme;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_scheme_code
+                    ON coils(scheme_code);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_default_scheme
+                    ON coils(stator_variant_id, sheets)
+                    WHERE scheme_status = 'official'
+                      AND is_default = 1
+                      AND stator_variant_id IS NOT NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_default_legacy_scheme
+                    ON coils(spec, material, slot_type, sheets)
+                    WHERE scheme_status = 'official'
+                      AND is_default = 1
+                      AND stator_variant_id IS NULL;
+            `);
+
+            const recipeColumns = new Set(
+                db.pragma('table_info(recipes)').map(column => column.name)
+            );
+            if (!recipeColumns.has('coil_id')) {
+                db.exec('ALTER TABLE recipes ADD COLUMN coil_id INTEGER REFERENCES coils(id) ON DELETE SET NULL');
+            }
+            const variantColumns = new Set(
+                db.pragma('table_info(pump_model_variants)').map(column => column.name)
+            );
+            if (!variantColumns.has('coil_id')) {
+                db.exec('ALTER TABLE pump_model_variants ADD COLUMN coil_id INTEGER REFERENCES coils(id) ON DELETE SET NULL');
+            }
+            db.exec(`
+                UPDATE recipes
+                SET coil_id = (
+                    SELECT c.id
+                    FROM coils c
+                    WHERE c.scheme_status = 'official'
+                      AND c.spec = recipes.coil_spec
+                      AND c.sheets = recipes.coil_sheets
+                      AND c.material = COALESCE(NULLIF(recipes.coil_material, ''), '钢带')
+                      AND c.slot_type = COALESCE(NULLIF(recipes.coil_slot_type, ''), '小眼')
+                )
+                WHERE coil_id IS NULL
+                  AND 1 = (
+                      SELECT COUNT(*)
+                      FROM coils c
+                      WHERE c.scheme_status = 'official'
+                        AND c.spec = recipes.coil_spec
+                        AND c.sheets = recipes.coil_sheets
+                        AND c.material = COALESCE(NULLIF(recipes.coil_material, ''), '钢带')
+                        AND c.slot_type = COALESCE(NULLIF(recipes.coil_slot_type, ''), '小眼')
+                  );
+
+                UPDATE pump_model_variants
+                SET coil_id = (
+                    SELECT c.id
+                    FROM coils c
+                    WHERE c.scheme_status = 'official'
+                      AND c.spec = pump_model_variants.coil_spec
+                      AND c.sheets = pump_model_variants.coil_sheets
+                      AND c.material = COALESCE(NULLIF(pump_model_variants.coil_material, ''), '钢带')
+                      AND c.slot_type = COALESCE(NULLIF(pump_model_variants.coil_slot_type, ''), '小眼')
+                )
+                WHERE coil_id IS NULL
+                  AND 1 = (
+                      SELECT COUNT(*)
+                      FROM coils c
+                      WHERE c.scheme_status = 'official'
+                        AND c.spec = pump_model_variants.coil_spec
+                        AND c.sheets = pump_model_variants.coil_sheets
+                        AND c.material = COALESCE(NULLIF(pump_model_variants.coil_material, ''), '钢带')
+                        AND c.slot_type = COALESCE(NULLIF(pump_model_variants.coil_slot_type, ''), '小眼')
+                  );
+
+                CREATE INDEX IF NOT EXISTS idx_recipes_coil ON recipes(coil_id);
+            `);
         },
     },
 ]);

@@ -13,6 +13,7 @@ const CONFIGURATION_POLICY_FIELD_TYPES = Object.freeze({
     cableLength: 'number',
     cableWire: 'string',
     cableAccessoryType: 'accessory',
+    coilId: 'positiveId',
     coilSpec: 'string',
     coilSheets: 'number',
     coilMaterial: 'string',
@@ -61,6 +62,7 @@ function normalizeFieldValue(value, type, field) {
         throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field} 必须是布尔值`);
     }
     if (type === 'number') return parseNonNegativeNumber(value, field);
+    if (type === 'positiveId') return parsePositiveId(value, field);
     const text = String(value ?? '').trim();
     if (!text) {
         throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field} 不能为空`);

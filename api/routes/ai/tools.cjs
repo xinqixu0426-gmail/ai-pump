@@ -1,6 +1,7 @@
 const COST_OVERRIDE_SCHEMA = Object.freeze({
     type: 'object',
     properties: {
+        coilId: { type: 'integer', minimum: 1 },
         surfaceTreatmentMode: { type: 'string' },
         surfaceTreatmentCost: { type: 'number', minimum: 0 },
         hasFloat: { type: 'boolean' },
@@ -66,6 +67,9 @@ const AI_TOOLS = [
                 type: 'object',
                 properties: {
                     spec: { type: 'string', description: '定子规格' },
+                    coilId: { type: 'integer', minimum: 1, description: '具体正式线圈方案 ID；同组合有多套方案时优先使用' },
+                    schemeCode: { type: 'string', description: '稳定方案编码；可替代 coilId 精确指定方案' },
+                    schemeFamilyCode: { type: 'string', description: '插值时限定同一设计族' },
                     sheets: { type: 'number', description: '片数' },
                     wireWeight: { type: 'number', description: '自定义线重（可选）' },
                     material: { type: 'string', enum: ['钢带', '冷轧'], description: '材质（可选）' },
@@ -94,7 +98,8 @@ const AI_TOOLS = [
                     spec: { type: 'string', description: '定子规格（俗称），如“150”。用户说“12-120”时表示规格俗称12、片数120，可整体传入 spec，服务端会自动拆分' },
                     sheets: { type: 'integer', description: '片数，如“96”' },
                     material: { type: 'string', description: '材质（可选）' },
-                    slotType: { type: 'string', description: '槽眼（可选）' }
+                    slotType: { type: 'string', description: '槽眼（可选）' },
+                    schemeCode: { type: 'string', description: '稳定方案编码（可选）' }
                 }
             }
         }
@@ -116,6 +121,7 @@ const AI_TOOLS = [
                             type: 'object',
                             properties: {
                                 model: { type: 'string', minLength: 1, description: '规格俗称-片数，如“12-120”' },
+                                schemeCode: { type: 'string', description: '稳定方案编码；同组合有多套正式方案时必须提供' },
                                 changeQty: {
                                     type: 'integer',
                                     anyOf: [

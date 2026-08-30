@@ -123,6 +123,7 @@ const CANONICAL_TABLES_SQL = `
         saved_total_cost REAL DEFAULT 0,
         saved_cost_details TEXT DEFAULT '[]',
         template_id INTEGER,
+        coil_id INTEGER,
         coil_spec TEXT DEFAULT '',
         coil_sheets INTEGER DEFAULT 0,
         coil_material TEXT DEFAULT '钢带',
@@ -157,6 +158,7 @@ const CANONICAL_TABLES_SQL = `
         updated_at TEXT,
         deleted_at TEXT,
         FOREIGN KEY(template_id) REFERENCES pump_shell_templates(id) ON DELETE SET NULL,
+        FOREIGN KEY(coil_id) REFERENCES coils(id) ON DELETE SET NULL,
         FOREIGN KEY(model_variant_id) REFERENCES pump_model_variants(id) ON DELETE SET NULL,
         CHECK(saved_total_cost IS NULL OR saved_total_cost >= 0),
         CHECK(coil_sheets IS NULL OR coil_sheets >= 0),
@@ -294,8 +296,14 @@ const CANONICAL_TABLES_SQL = `
         material TEXT DEFAULT '钢带',
         slot_type TEXT DEFAULT '小眼',
         sheets INTEGER NOT NULL,
+        scheme_code TEXT NOT NULL DEFAULT '',
         scheme_name TEXT DEFAULT '',
         scheme_status TEXT DEFAULT 'official',
+        is_default INTEGER NOT NULL DEFAULT 0,
+        rated_voltage_v INTEGER,
+        rated_frequency_hz INTEGER,
+        market TEXT DEFAULT '',
+        scheme_family_code TEXT NOT NULL DEFAULT '',
         pricing_mode TEXT NOT NULL DEFAULT 'calculated',
         kit_price REAL NOT NULL DEFAULT 0,
         unit_price REAL DEFAULT 0,
@@ -317,6 +325,10 @@ const CANONICAL_TABLES_SQL = `
         CHECK(slot_type IN ('小眼', '国标眼')),
         CHECK(sheets > 0),
         CHECK(scheme_status IN ('official', 'testing', 'disabled')),
+        CHECK(is_default IN (0, 1)),
+        CHECK(is_default = 0 OR scheme_status = 'official'),
+        CHECK(rated_voltage_v IS NULL OR rated_voltage_v > 0),
+        CHECK(rated_frequency_hz IS NULL OR rated_frequency_hz > 0),
         CHECK(pricing_mode IN ('calculated', 'kit')),
         CHECK(kit_price >= 0),
         CHECK(pricing_mode <> 'kit' OR kit_price > 0),
@@ -462,6 +474,7 @@ const CANONICAL_TABLES_SQL = `
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         model_name TEXT NOT NULL UNIQUE,
         template_id INTEGER NOT NULL,
+        coil_id INTEGER,
         coil_spec TEXT DEFAULT '',
         coil_sheets INTEGER DEFAULT 0,
         coil_material TEXT DEFAULT '钢带',
@@ -478,6 +491,7 @@ const CANONICAL_TABLES_SQL = `
         updated_at TEXT,
         deleted_at TEXT,
         FOREIGN KEY(template_id) REFERENCES pump_shell_templates(id),
+        FOREIGN KEY(coil_id) REFERENCES coils(id) ON DELETE SET NULL,
         CHECK(coil_sheets IS NULL OR coil_sheets >= 0),
         CHECK(barrel_length IS NULL OR barrel_length >= 0),
         CHECK(long_screw_extra_length IS NULL OR long_screw_extra_length >= 0)
@@ -937,9 +951,6 @@ const CANONICAL_INDEXES_SQL = `
         ON factory_rule_events(created_at DESC, id DESC);
     CREATE INDEX IF NOT EXISTS idx_coils_variant_sheets
         ON coils(stator_variant_id, sheets);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_coils_one_official_scheme
-        ON coils(stator_variant_id, sheets)
-        WHERE scheme_status = 'official';
     CREATE INDEX IF NOT EXISTS idx_parts_active_category
         ON parts(deleted_at, category, subcategory);
     CREATE INDEX IF NOT EXISTS idx_parts_active_identity
@@ -983,6 +994,7 @@ const LEGACY_COLUMN_UPGRADES = {
     ],
     recipes: [
         ['template_id', 'INTEGER'],
+        ['coil_id', 'INTEGER'],
         ['coil_spec', "TEXT DEFAULT ''"],
         ['coil_sheets', 'INTEGER DEFAULT 0'],
         ['coil_material', "TEXT DEFAULT '钢带'"],
@@ -1030,6 +1042,12 @@ const LEGACY_COLUMN_UPGRADES = {
     ],
     coils: [
         ['material', "TEXT DEFAULT '钢带'"],
+        ['scheme_code', "TEXT NOT NULL DEFAULT ''"],
+        ['is_default', 'INTEGER NOT NULL DEFAULT 0'],
+        ['rated_voltage_v', 'INTEGER'],
+        ['rated_frequency_hz', 'INTEGER'],
+        ['market', "TEXT NOT NULL DEFAULT ''"],
+        ['scheme_family_code', "TEXT NOT NULL DEFAULT ''"],
         ['pricing_mode', "TEXT NOT NULL DEFAULT 'calculated' CHECK(pricing_mode IN ('calculated', 'kit'))"],
         ['kit_price', 'REAL NOT NULL DEFAULT 0 CHECK(kit_price >= 0)'],
         ['main_wire_gauge', "TEXT DEFAULT ''"],
@@ -1055,6 +1073,7 @@ const LEGACY_COLUMN_UPGRADES = {
         ['configuration_policy_json', 'TEXT'],
     ],
     pump_model_variants: [
+        ['coil_id', 'INTEGER'],
         ['long_screw_extra_length', 'REAL DEFAULT 0'],
         ['custom_fields_json', "TEXT DEFAULT '[]'"],
         ['coil_slot_type', "TEXT DEFAULT '小眼'"],

@@ -122,10 +122,26 @@ function componentUnitPrice(partsCatalog, component) {
 
 function calculateCoilSnapshot(coils, spec, sheets, material = DEFAULT_COIL_MATERIAL, slotType = '小眼', options = {}) {
     const result = calculateCoilCost(coils, { spec, sheets, material, slotType, ...options });
-    if (!result.success) return null;
+    if (!result.success) {
+        if (options.coilId || result.code) {
+            const error = new Error(result.error);
+            error.statusCode = result.status || 400;
+            error.code = result.code || 'COIL_SCHEME_INVALID';
+            error.details = result.details;
+            throw error;
+        }
+        return null;
+    }
     const data = result.data;
     return {
         coilId: data.coilId || null,
+        schemeCode: data.schemeCode || '',
+        schemeName: data.schemeName || '',
+        isDefault: data.isDefault === true,
+        ratedVoltageV: data.ratedVoltageV || null,
+        ratedFrequencyHz: data.ratedFrequencyHz || null,
+        market: data.market || '',
+        schemeFamilyCode: data.schemeFamilyCode || '',
         totalCost: roundMoney(data.totalCost),
         material: data.material || material || DEFAULT_COIL_MATERIAL,
         slotType: data.slotType || slotType || '小眼',
@@ -173,6 +189,7 @@ function buildRecipeBomDraft(input, context) {
     const longScrewExtraLength = input.longScrewExtraLength ?? variant?.longScrewExtraLength ?? DEFAULT_LONG_SCREW_EXTRA_LENGTH;
     const coilSpec = input.coilSpec ?? variant?.coilSpec ?? '';
     const coilSheets = input.coilSheets ?? variant?.coilSheets ?? '';
+    const coilId = input.coilId ?? variant?.coilId ?? null;
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
     const coilSlotType = input.coilSlotType ?? variant?.coilSlotType ?? '小眼';
     const costMode = template?.costMode || 'components';
@@ -273,6 +290,7 @@ function buildRecipeBomDraft(input, context) {
         ? Number(input.coilWireWeight)
         : null;
     const coilSnapshot = input.coilResult || calculateCoilSnapshot(coils, coilSpec, coilSheets, coilMaterial, coilSlotType, {
+        coilId,
         ...(customWireWeight != null && Number.isFinite(customWireWeight) ? { wireWeight: customWireWeight } : {}),
     });
     const capacitorModel = resolveCapacitorModel(partsCatalog, input.capacitorModel, coilSnapshot);
@@ -286,6 +304,12 @@ function buildRecipeBomDraft(input, context) {
             supplier: '',
             qty: 1,
             coilId: coilSnapshot.coilId || null,
+            schemeCode: coilSnapshot.schemeCode || '',
+            schemeName: coilSnapshot.schemeName || '',
+            ratedVoltageV: coilSnapshot.ratedVoltageV || null,
+            ratedFrequencyHz: coilSnapshot.ratedFrequencyHz || null,
+            market: coilSnapshot.market || '',
+            schemeFamilyCode: coilSnapshot.schemeFamilyCode || '',
             inventoryType: coilSnapshot.coilId ? 'coil' : 'none',
             snapshotPrice: Number(coilSnapshot.totalCost || 0),
             material: coilSnapshot.material || coilMaterial || DEFAULT_COIL_MATERIAL,

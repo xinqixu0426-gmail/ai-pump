@@ -13,6 +13,7 @@ import {
 } from './recipe-packing.cjs';
 
 export type RecipeConfigurationOverrides = {
+  coilId?: number | string;
   hasFloat?: boolean;
   floatWire?: string;
   floatAccessoryType?: 'standard' | 'xinjie';
@@ -34,6 +35,7 @@ export type RecipeConfigurationOverrides = {
 };
 
 export type RecipeConfigurationSnapshot = RecipeConfigurationOverrides & {
+  coilId: number | null;
   hasFloat: boolean;
   hasCable: boolean;
   cableLength: number;
@@ -132,6 +134,7 @@ export function buildPackingOptions(parts: Part[], recipes: Recipe[]): RecipePac
 
 export function buildRecipeDefaultConfiguration(recipe: Recipe): RecipeConfigurationOverrides {
   return {
+    coilId: recipe.coilId ?? '',
     hasFloat: Number(recipe.hasFloat || 0) === 1,
     floatWire: recipe.floatWire || '',
     floatAccessoryType: recipe.floatAccessoryType || 'standard',
@@ -209,6 +212,9 @@ export function configurationDifferences(recipe: Recipe | undefined, configurati
   }
   if (Number(base.coilSheets || 0) !== Number(configuration.coilSheets || 0)) {
     differences.push(`线圈 ${Number(base.coilSheets || 0)}→${Number(configuration.coilSheets || 0)}片`);
+  }
+  if (Number(base.coilId || 0) !== Number(configuration.coilId || 0)) {
+    differences.push(`线圈方案 #${Number(base.coilId || 0) || '-'}→#${Number(configuration.coilId || 0) || '-'}`);
   }
   const baseContainer = resolvePackingPart(base.packingPartsJson, 'container', base.boxType)?.model || '';
   const nextContainer = resolvePackingPart(configuration.packingPartsJson, 'container', configuration.boxType)?.model || '';

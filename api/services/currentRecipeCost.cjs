@@ -17,6 +17,7 @@ function buildCurrentRecipeBomInput(recipe) {
         modelVariantId: recipe.modelVariantId ?? null,
         customBarrelLength: recipe.customBarrelLength ?? null,
         longScrewExtraLength: recipe.longScrewExtraLength ?? 0,
+        coilId: recipe.coilId ?? null,
         coilSpec: recipe.coilSpec || '',
         coilSheets: recipe.coilSheets || 0,
         coilMaterial: recipe.coilMaterial || '钢带',
@@ -84,6 +85,7 @@ function refreshCoilSnapshot(parts, recipe, coils) {
         material: recipe.coilMaterial,
         slotType: recipe.coilSlotType || '小眼',
         wireWeight: recipe.coilWireWeight,
+        coilId: recipe.coilId,
     });
     if (!result.success || !result.data) return parts;
 
@@ -94,6 +96,13 @@ function refreshCoilSnapshot(parts, recipe, coils) {
             pricingMode: result.data.pricingMode || 'calculated',
             kitPrice: Number(result.data.kitPrice || 0),
             unitPrice: result.data.unitPrice,
+            coilId: result.data.coilId || null,
+            schemeCode: result.data.schemeCode || '',
+            schemeName: result.data.schemeName || '',
+            ratedVoltageV: result.data.ratedVoltageV || null,
+            ratedFrequencyHz: result.data.ratedFrequencyHz || null,
+            market: result.data.market || '',
+            schemeFamilyCode: result.data.schemeFamilyCode || '',
             source: result.data.source,
             formula: result.data.formula,
         }

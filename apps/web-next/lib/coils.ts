@@ -11,7 +11,13 @@ export type CoilRecord = {
   slotType: '小眼' | '国标眼';
   sheets: number;
   schemeName: string;
+  schemeCode: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  isDefault: boolean;
+  ratedVoltageV?: number | null;
+  ratedFrequencyHz?: number | null;
+  market: string;
+  schemeFamilyCode: string;
   pricingMode: 'calculated' | 'kit';
   kitPrice: number;
   unitPrice: number;
@@ -38,7 +44,13 @@ export type CoilInput = {
   slotType: '小眼' | '国标眼';
   sheets: number;
   schemeName: string;
+  schemeCode?: string;
   schemeStatus: 'testing' | 'official' | 'disabled';
+  isDefault?: boolean;
+  ratedVoltageV?: number | null;
+  ratedFrequencyHz?: number | null;
+  market?: string;
+  schemeFamilyCode?: string;
   pricingMode: 'calculated' | 'kit';
   kitPrice?: number;
   unitPrice?: number;
@@ -55,6 +67,9 @@ export type CoilInput = {
 };
 
 export type CoilCalcInput = {
+  coilId?: number | null;
+  schemeCode?: string;
+  schemeFamilyCode?: string;
   spec: string;
   material?: string;
   slotType?: '小眼' | '国标眼';
@@ -64,6 +79,13 @@ export type CoilCalcInput = {
 
 export type CoilCalcResult = {
   coilId?: number | null;
+  schemeCode?: string;
+  schemeName?: string;
+  isDefault?: boolean;
+  ratedVoltageV?: number | null;
+  ratedFrequencyHz?: number | null;
+  market?: string;
+  schemeFamilyCode?: string;
   spec: string;
   material: string;
   slotType: '小眼' | '国标眼';
@@ -193,7 +215,13 @@ export function rowToCoil(row: CoilRow): CoilRecord {
     slotType: row.slotType === '国标眼' ? '国标眼' : '小眼',
     sheets: Number(row.sheets) || 0,
     schemeName: row.schemeName || '',
+    schemeCode: row.schemeCode || `COIL-${String(rowId(row)).padStart(4, '0')}`,
     schemeStatus: row.schemeStatus === 'testing' || row.schemeStatus === 'disabled' ? row.schemeStatus : 'official',
+    isDefault: Boolean(row.isDefault),
+    ratedVoltageV: row.ratedVoltageV == null ? null : Number(row.ratedVoltageV),
+    ratedFrequencyHz: row.ratedFrequencyHz == null ? null : Number(row.ratedFrequencyHz),
+    market: row.market || '',
+    schemeFamilyCode: row.schemeFamilyCode || '',
     pricingMode: row.pricingMode === 'kit' ? 'kit' : 'calculated',
     kitPrice: Number(row.kitPrice) || 0,
     unitPrice: Number(row.unitPrice) || 0,

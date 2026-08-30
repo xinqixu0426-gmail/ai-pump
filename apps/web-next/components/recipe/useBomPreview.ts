@@ -14,6 +14,7 @@ type BomPreviewInput = Parameters<typeof previewRecipeBomDraft>[0];
 export type BomPreviewForm = {
   templateId: string;
   variantId: string;
+  coilId: string;
   customBarrelLength: string;
   longScrewExtraLength: string;
   coilSpec: string;
@@ -85,6 +86,7 @@ function buildBomPreviewInput(
   return {
     templateId: Number(form.templateId),
     modelVariantId: form.variantId ? Number(form.variantId) : null,
+    coilId: form.coilId ? Number(form.coilId) : null,
     customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
     longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
     coilSpec: form.coilSpec,
@@ -121,6 +123,7 @@ export function useBomPreview({
   const {
     templateId,
     variantId,
+    coilId,
     customBarrelLength,
     longScrewExtraLength,
     coilSpec,
@@ -140,6 +143,7 @@ export function useBomPreview({
     {
       templateId,
       variantId,
+      coilId,
       customBarrelLength,
       longScrewExtraLength,
       coilSpec,
@@ -161,6 +165,7 @@ export function useBomPreview({
   ), [
     templateId,
     variantId,
+    coilId,
     customBarrelLength,
     longScrewExtraLength,
     coilSpec,
