@@ -158,7 +158,7 @@ V9 已完成业务入口收口：客户详情、报价详情和数据质量页�
 
 V6.4 提供不依赖外部 AI 的固定检索验收：服务运行时执行 `npm run test:knowledge-retrieval`，自动对比 FTS、纯向量和混合检索 Top 1/Top 3；执行 `npm run knowledge:backup-check` 可验证 SQLite 在线备份恢复后的知识向量和检索能力。知识库看板直接展示当前向量覆盖率、混合/回退模式、待生成数量及模型异常。
 
-AI 回答中明确报告错误并保存正确做法后，系统会同步生成唯一的纠错回归案例。高置信、可确定判定的案例自动加入知识库检查，证据不足的案例在知识管理页等待确认；纠正规则停用时关联案例自动退出。`npm run test:knowledge-live` 会把这些已批准案例与内置案例一起通过真实 AI 对话流无人值守复测。Mac Mini 重启验收会运行 `npm run verify:ai-release`，失败结果进入管理待办并写入机器报告。完整说明见 [AI 纠错学习与发布回归使用报告](./docs/ai-learning-release-gate-guide.md)。
+AI 回答中明确报告错误并保存正确做法后，系统会同步生成唯一的纠错回归候选。所有候选无论置信度高低都先以待审核、停用状态进入知识管理页；只有人工批准且关联纠正规则仍有效时才会启用。`npm run test:knowledge-live` 会把这些已批准案例与内置案例一起通过真实 AI 对话流无人值守复测。Mac Mini 重启验收会运行 `npm run verify:ai-release`，失败结果进入管理待办并写入机器报告。完整说明见 [AI 纠错学习与发布回归使用报告](./docs/ai-learning-release-gate-guide.md)。
 
 ## 核心规则
 
