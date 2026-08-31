@@ -8,6 +8,7 @@ const {
     resolveAiProviderConfig,
     resolveAiProviderRoute,
 } = require('../api/services/aiProvider.cjs');
+const { readAiProviderStream } = require('../api/services/aiProviderStream.cjs');
 
 function createFileAccessors() {
     const db = new Database(':memory:');
@@ -549,6 +550,215 @@ test('AI provider：网络 fetch failed 重试后返回可诊断错误码', asyn
             && /ECONNRESET/.test(error.message)
     );
     assert.equal(attempts, 3);
+});
+
+test('AI provider：单次请求超时会重试并返回稳定超时错误码', async () => {
+    let attempts = 0;
+    await assert.rejects(
+        () => fetchAiProvider([{ role: 'user', content: '你好' }], {
+            env: {
+                AI_PROVIDER: 'deepseek',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-timeout.test',
+            },
+            timeoutMs: 5,
+            retryDelayMs: 0,
+            fetchImpl: async (_url, init) => {
+                attempts += 1;
+                return new Promise((_resolve, reject) => {
+                    init.signal.addEventListener('abort', () => {
+                        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                    }, { once: true });
+                });
+            },
+        }),
+        error => error.code === 'AI_PROVIDER_TIMEOUT'
+            && error.retryable === true
+            && error.fallbackEligible === true
+    );
+    assert.equal(attempts, 3);
+});
+
+test('AI provider：收到响应头后正文停滞仍受超时保护并重试', async () => {
+    let attempts = 0;
+    await assert.rejects(
+        () => fetchAiProvider([{ role: 'user', content: '你好' }], {
+            env: {
+                AI_PROVIDER: 'deepseek',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-body-timeout.test',
+            },
+            timeoutMs: 5,
+            retryDelayMs: 0,
+            fetchImpl: async () => {
+                attempts += 1;
+                return new Response(new ReadableStream({ start() {} }), { status: 200 });
+            },
+        }),
+        error => error.code === 'AI_PROVIDER_TIMEOUT'
+    );
+    assert.equal(attempts, 3);
+});
+
+test('AI provider：流式响应头后静默会由 provider 超时终止', async () => {
+    const response = await fetchAiProvider([{ role: 'user', content: '你好' }], {
+        stream: true,
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek-stream-timeout.test',
+        },
+        timeoutMs: 5,
+        retryDelayMs: 0,
+        fetchImpl: async () => new Response(
+            new ReadableStream({ start() {} }),
+            { status: 200 }
+        ),
+    });
+    await assert.rejects(
+        () => readAiProviderStream(response),
+        error => error.code === 'AI_PROVIDER_TIMEOUT'
+    );
+});
+
+test('AI 智能路由：调用方取消后立即停止且不会错误回退 DeepSeek', async () => {
+    const accessors = createFileAccessors();
+    const controller = new AbortController();
+    const requestedUrls = [];
+    let markRequestStarted;
+    const requestStarted = new Promise(resolve => { markRequestStarted = resolve; });
+    try {
+        const pending = fetchAiProvider([{
+            role: 'user',
+            content: '识别图片',
+            attachments: [{ id: accessors.imageId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-cancel.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-cancel.test/v1',
+                KIMI_MODEL: 'kimi-k3',
+            },
+            dbAccessors: { db: accessors.db },
+            signal: controller.signal,
+            retryDelayMs: 0,
+            fetchImpl: async (url, init) => {
+                requestedUrls.push(url);
+                markRequestStarted();
+                return new Promise((_resolve, reject) => {
+                    init.signal.addEventListener('abort', () => {
+                        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                    }, { once: true });
+                });
+            },
+        });
+        await requestStarted;
+        controller.abort(Object.assign(new Error('用户取消'), {
+            name: 'AbortError',
+            code: 'AI_REQUEST_CANCELLED',
+        }));
+        await assert.rejects(pending, error => error.code === 'AI_REQUEST_CANCELLED');
+        assert.equal(requestedUrls.length, 1);
+        assert.match(requestedUrls[0], /kimi-cancel/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 智能路由：认证和参数错误不回退，只有临时上游错误才回退', async () => {
+    const accessors = createFileAccessors();
+    try {
+        for (const status of [400, 401, 403, 422]) {
+            const urls = [];
+            await assert.rejects(
+                () => fetchAiProvider([{
+                    role: 'user',
+                    content: '识别图片',
+                    attachments: [{ id: accessors.imageId }],
+                }], {
+                    env: {
+                        AI_PROVIDER: 'auto',
+                        DEEPSEEK_API_KEY: 'deepseek-key',
+                        DEEPSEEK_BASE_URL: 'https://api.deepseek-classify.test',
+                        KIMI_API_KEY: 'kimi-key',
+                        KIMI_BASE_URL: 'https://api.kimi-classify.test/v1',
+                    },
+                    dbAccessors: { db: accessors.db },
+                    retryDelayMs: 0,
+                    fetchImpl: async url => {
+                        urls.push(url);
+                        return new Response('rejected', { status });
+                    },
+                }),
+                error => error.statusCode === status && error.fallbackEligible === false
+            );
+            assert.equal(urls.every(url => url.includes('kimi-classify')), true);
+        }
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 智能路由：408、429 和 5xx 重试后回退 DeepSeek', async () => {
+    const accessors = createFileAccessors();
+    try {
+        for (const status of [408, 429, 500, 503]) {
+            const urls = [];
+            const response = await fetchAiProvider([{
+                role: 'user',
+                content: '识别图片',
+                attachments: [{ id: accessors.imageId }],
+            }], {
+                env: {
+                    AI_PROVIDER: 'auto',
+                    DEEPSEEK_API_KEY: 'deepseek-key',
+                    DEEPSEEK_BASE_URL: 'https://api.deepseek-transient.test',
+                    KIMI_API_KEY: 'kimi-key',
+                    KIMI_BASE_URL: 'https://api.kimi-transient.test/v1',
+                },
+                dbAccessors: { db: accessors.db },
+                retryDelayMs: 0,
+                fetchImpl: async url => {
+                    urls.push(url);
+                    if (url.includes('kimi-transient')) {
+                        return new Response('temporary failure', { status });
+                    }
+                    return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+                },
+            });
+            assert.equal(response.ok, true);
+            assert.equal(urls.filter(url => url.includes('kimi-transient')).length, 3);
+            assert.equal(urls.filter(url => url.includes('deepseek-transient')).length, 1);
+        }
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 固定提供商：临时上游错误只重试当前模型，不跨模型回退', async () => {
+    const urls = [];
+    await assert.rejects(
+        () => fetchAiProvider([{ role: 'user', content: '你好' }], {
+            env: {
+                AI_PROVIDER: 'deepseek',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-fixed.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-unused.test/v1',
+            },
+            retryDelayMs: 0,
+            fetchImpl: async url => {
+                urls.push(url);
+                return new Response('temporary failure', { status: 503 });
+            },
+        }),
+        error => error.code === 'AI_PROVIDER_UPSTREAM_ERROR'
+            && error.fallbackEligible === true
+    );
+    assert.equal(urls.length, 3);
+    assert.equal(urls.every(url => url.includes('deepseek-fixed')), true);
 });
 
 test('V2 意图规划附件：只传文件元数据，不重复传正文、OCR 或图片二进制', () => {

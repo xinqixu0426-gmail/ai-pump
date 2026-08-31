@@ -191,7 +191,7 @@ test('AI 评测命令：启动运行持久幂等并原子结束同 owner 旧运�
     }
 });
 
-test('AI 评测命令：手动检查包含系统项，发布门禁只包含显式门禁项', () => {
+test('AI 评测命令：手动检查与发布门禁共享核心系统项并追加反馈项', () => {
     const fixture = createFixture();
     try {
         const manual = executeStartAiEvaluationRun(
@@ -214,14 +214,14 @@ test('AI 评测命令：手动检查包含系统项，发布门禁只包含显�
             { scope: 'release' },
             context('ai-evaluation-scope-release-0001')
         );
-        assert.equal(release.cases.length, 1);
-        assert.ok(release.cases.every(item => item.sourceType === 'feedback'));
+        assert.equal(release.cases.filter(item => item.sourceType === 'system').length, 8);
+        assert.equal(release.cases.filter(item => item.sourceType === 'feedback').length, 1);
     } finally {
         fixture.db.close();
     }
 });
 
-test('AI 评测命令：系统检查项可配置且绑定资源版本和强审计', () => {
+test('AI 评测命令：核心门禁不可停用，非门禁系统项仍绑定版本和强审计', () => {
     const fixture = createFixture();
     try {
         const systemCase = fixture.db.prepare(`
@@ -229,7 +229,7 @@ test('AI 评测命令：系统检查项可配置且绑定资源版本和强审�
             WHERE source_type = 'system'
             ORDER BY id LIMIT 1
         `).get();
-        const configured = executeConfigureAiSystemEvaluationCase(
+        assert.throws(() => executeConfigureAiSystemEvaluationCase(
             fixture.dependencies,
             systemCase.id,
             {
@@ -237,6 +237,15 @@ test('AI 评测命令：系统检查项可配置且绑定资源版本和强审�
                 expectedUpdatedAt: systemCase.updated_at,
             },
             context('ai-evaluation-system-configure-0001')
+        ), error => error.code === 'AI_CORE_RELEASE_CASE_REQUIRED');
+        fixture.db.prepare(`
+            UPDATE ai_evaluation_cases SET release_gate_enabled = 0 WHERE id = ?
+        `).run(systemCase.id);
+        const configured = executeConfigureAiSystemEvaluationCase(
+            fixture.dependencies,
+            systemCase.id,
+            { enabled: false, expectedUpdatedAt: systemCase.updated_at },
+            context('ai-evaluation-system-configure-0002')
         );
         assert.equal(configured.capabilityId, 'ai.evaluations.system_cases.configure');
         assert.equal(configured.enabled, false);
@@ -246,7 +255,7 @@ test('AI 评测命令：系统检查项可配置且绑定资源版本和强审�
             fixture.dependencies,
             systemCase.id,
             { enabled: true, expectedUpdatedAt: systemCase.updated_at },
-            context('ai-evaluation-system-configure-0002')
+            context('ai-evaluation-system-configure-0003')
         ), /已被其他操作修改/);
     } finally {
         fixture.db.close();

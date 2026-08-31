@@ -1565,6 +1565,16 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         supportsPreview: false,
         transactionality: 'conversation_soft_delete_audit_and_operation_receipt_atomic',
     }),
+    'ai.health.read': defineQueryCapability({
+        capabilityId: 'ai.health.read',
+        domain: 'ai',
+        inputSchema: 'GET /api/ai/health',
+        outputSchema: 'AiHealthSnapshot',
+        sourceOfTruth:
+            'current_provider_configuration+bounded_process_telemetry+ai_evaluation_runs',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'ai.evaluations.runs.start': defineBusinessCapability({
         capabilityId: 'ai.evaluations.runs.start',
         recordsBusinessChange: false,

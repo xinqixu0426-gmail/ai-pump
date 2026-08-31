@@ -70,6 +70,18 @@ const MAX_AGENT_RECOVERY_ROUNDS = 3;
 const MAX_ENTITY_DISCOVERY_CALLS = 12;
 const dispatcherLogger = createLogger('ai-dispatcher-v3');
 
+function aiRequestAbortError(signal) {
+    if (signal?.reason instanceof Error) return signal.reason;
+    const error = new Error('AI 请求已取消');
+    error.name = 'AbortError';
+    error.code = 'AI_REQUEST_CANCELLED';
+    return error;
+}
+
+function throwIfAiRequestAborted(signal) {
+    if (signal?.aborted) throw aiRequestAbortError(signal);
+}
+
 function latestUserText(messages = []) {
     return [...messages].reverse().find(message => (
         message?.role === 'user' && typeof message.content === 'string'
@@ -173,6 +185,7 @@ async function synthesizeVerifiedAnswer(input = {}) {
             onProvider: input.onProvider,
             env: input.env,
             dbAccessors: input.dbAccessors,
+            signal: input.signal,
         });
         const message = readProviderMessage(await response.json());
         const content = String(message.content || '').trim();
@@ -188,6 +201,7 @@ async function synthesizeVerifiedAnswer(input = {}) {
 }
 
 async function runAiAgentRuntimeV3(input = {}) {
+    throwIfAiRequestAborted(input.signal);
     const startedAt = Date.now();
     const providerEvents = [];
     let synthesisMs = 0;
@@ -219,7 +233,9 @@ async function runAiAgentRuntimeV3(input = {}) {
         fetchAiProvider: provider,
         env: input.env,
         dbAccessors: input.dbAccessors,
+        signal: input.signal,
     });
+    throwIfAiRequestAborted(input.signal);
     const planningMs = Date.now() - planningStartedAt;
     if (intent.requiresClarification) {
         const finalContent = buildClarificationReply(intent);
@@ -235,6 +251,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             plannedSteps: 0,
             executedTools: 0,
             providerEvents,
+            requestId: input.requestId || null,
             outcome: 'clarification',
         };
         dispatcherLogger.info('AI V3 调度完成', telemetry);
@@ -296,6 +313,7 @@ async function runAiAgentRuntimeV3(input = {}) {
     let entityDiscoveryCallCount = 0;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+        throwIfAiRequestAborted(input.signal);
         const calledToolNames = input.agentVersion === 3
             ? completedCapabilityNames(toolResults, { acceptVerifiedEmpty })
             : new Set(toolResults.map(item => item.name));
@@ -332,6 +350,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             onProvider: announceProvider,
             env: input.env,
             dbAccessors: input.dbAccessors,
+            signal: input.signal,
         });
 
         let content = '';
@@ -340,6 +359,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         const bufferReply = intent.needsBusinessData || intent.mode === 'command' || toolResults.length > 0;
         if (input.stream) {
             const streamResult = await readAiProviderStream(response, {
+                signal: input.signal,
                 onContent: chunk => {
                     if (!bufferReply) emit('content', { content: chunk });
                 },
@@ -466,6 +486,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     toolName: prepared.toolCall.function.name,
                     args: originalArgs,
                     executeToolCall: async (...discoveryArguments) => {
+                        throwIfAiRequestAborted(input.signal);
                         if (entityDiscoveryCallCount >= MAX_ENTITY_DISCOVERY_CALLS) {
                             return {
                                 success: false,
@@ -475,7 +496,13 @@ async function runAiAgentRuntimeV3(input = {}) {
                             };
                         }
                         entityDiscoveryCallCount += 1;
-                        return executeToolCall(...discoveryArguments);
+                        const [name, args, discoveryOptions = {}] = discoveryArguments;
+                        const discoveryResult = await executeToolCall(name, args, {
+                            ...discoveryOptions,
+                            signal: input.signal,
+                        });
+                        throwIfAiRequestAborted(input.signal);
+                        return discoveryResult;
                     },
                     confirmationSubject,
                 });
@@ -588,7 +615,9 @@ async function runAiAgentRuntimeV3(input = {}) {
                             : await executeToolCall(name, args, {
                                 allowWrite: Boolean(input.allowWrite),
                                 confirmationSubject,
+                                signal: input.signal,
                             });
+                throwIfAiRequestAborted(input.signal);
                 if (prepared.resolutionReceipt && result && typeof result === 'object') {
                     result = { ...result, resolutionReceipt: prepared.resolutionReceipt };
                 }
@@ -619,7 +648,9 @@ async function runAiAgentRuntimeV3(input = {}) {
                     let companionResult = await executeToolCall(companionName, companionArgs, {
                         allowWrite: false,
                         confirmationSubject,
+                        signal: input.signal,
                     });
+                    throwIfAiRequestAborted(input.signal);
                     companionResult = enforceAiToolResultBudget(
                         companionName,
                         companionResult,
@@ -702,6 +733,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     onProvider: announceProvider,
                     env: input.env,
                     dbAccessors: input.dbAccessors,
+                    signal: input.signal,
                 });
                 synthesisMs += Date.now() - synthesisStartedAt;
                 break;
@@ -745,6 +777,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                 onProvider: announceProvider,
                 env: input.env,
                 dbAccessors: input.dbAccessors,
+                signal: input.signal,
             });
             synthesisMs += Date.now() - synthesisStartedAt;
         } else if (intent.needsBusinessData && !requiredEvidenceSatisfied(intent, toolResults, {
@@ -793,6 +826,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         executedTools: toolResults.length,
         entityDiscoveryCalls: entityDiscoveryCallCount,
         providerEvents,
+        requestId: input.requestId || null,
         outcome: pendingConfirmation(toolResults)
             ? 'confirmation'
             : findToolClarification(toolResults)
@@ -815,6 +849,7 @@ async function runAiDispatcherV2(input = {}) {
 module.exports = {
     MAX_TOOL_CALLS,
     MAX_TOOL_ROUNDS,
+    throwIfAiRequestAborted,
     answerInstruction,
     buildClarificationReply,
     buildPendingWriteReply,

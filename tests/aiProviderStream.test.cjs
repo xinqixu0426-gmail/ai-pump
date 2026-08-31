@@ -110,3 +110,25 @@ test('AI provider stream：响应体中断映射为前端可重试网络错误',
             && /UND_ERR_SOCKET/.test(error.message)
     );
 });
+
+test('AI provider stream：调用方取消时终止 reader 并保留取消错误码', async () => {
+    const controller = new AbortController();
+    let cancelled = false;
+    const response = new Response(new ReadableStream({
+        start(streamController) {
+            streamController.enqueue(new TextEncoder().encode(
+                'data: {"choices":[{"delta":{"content":"开始"}}]}\n'
+            ));
+        },
+        cancel() {
+            cancelled = true;
+        },
+    }));
+    const pending = readAiProviderStream(response, { signal: controller.signal });
+    controller.abort(Object.assign(new Error('用户取消'), {
+        name: 'AbortError',
+        code: 'AI_REQUEST_CANCELLED',
+    }));
+    await assert.rejects(pending, error => error.code === 'AI_REQUEST_CANCELLED');
+    assert.equal(cancelled, true);
+});

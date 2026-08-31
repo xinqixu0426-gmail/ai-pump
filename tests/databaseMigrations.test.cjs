@@ -335,6 +335,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const manualSystemChecksMigration = MIGRATIONS.find(migration => migration.version === 59);
         const calibratedCuttingCheckMigration = MIGRATIONS.find(migration => migration.version === 60);
         const coilWindingProfileMigration = MIGRATIONS.find(migration => migration.version === 63);
+        const enableCoreAiReleaseGateMigration = MIGRATIONS.find(migration => migration.version === 72);
+        const restoreCoreAiReleaseCasesMigration = MIGRATIONS.find(migration => migration.version === 73);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -349,6 +351,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(manualSystemChecksMigration);
         assert.ok(calibratedCuttingCheckMigration);
         assert.ok(coilWindingProfileMigration);
+        assert.ok(enableCoreAiReleaseGateMigration);
+        assert.ok(restoreCoreAiReleaseCasesMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -389,6 +393,15 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         calibratedCuttingCheckMigration.up(db);
         coilWindingProfileMigration.up(db);
         coilWindingProfileMigration.up(db);
+        enableCoreAiReleaseGateMigration.up(db);
+        enableCoreAiReleaseGateMigration.up(db);
+        db.prepare(`
+            UPDATE ai_evaluation_cases
+            SET enabled = 0, release_gate_enabled = 0
+            WHERE case_key = 'part-current-price'
+        `).run();
+        restoreCoreAiReleaseCasesMigration.up(db);
+        restoreCoreAiReleaseCasesMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, release_gate_enabled, review_status, source_type
@@ -411,7 +424,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         );
         assert.ok(systemCases.every(item => (
             item.enabled === 1
-            && item.release_gate_enabled === 0
+            && item.release_gate_enabled === 1
             && item.review_status === 'approved'
             && item.source_type === 'system'
         )));
@@ -470,7 +483,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         `).get();
         const windingConfig = JSON.parse(windingCase.config_json);
         assert.equal(windingCase.enabled, 1);
-        assert.equal(windingCase.release_gate_enabled, 0);
+        assert.equal(windingCase.release_gate_enabled, 1);
         assert.equal(windingConfig.fact.type, 'coil_winding_profile');
         assert.deepEqual(windingConfig.requiredTools, ['search_coils']);
         assert.deepEqual(windingConfig.requiredSourceTables, ['coils']);
@@ -644,9 +657,10 @@ test('数据库迁移：已发布的 Schema 68 墓碑保持兼容且不丢失历
         `).run(FIXED_NOW, FIXED_NOW);
 
         const second = runMigrations(db, { now: FIXED_NOW });
+        const currentVersion = MIGRATIONS.at(-1).version;
         assert.deepEqual(second.appliedVersions, []);
-        assert.equal(second.currentVersion, 71);
-        assert.equal(db.pragma('user_version', { simple: true }), 71);
+        assert.equal(second.currentVersion, currentVersion);
+        assert.equal(db.pragma('user_version', { simple: true }), currentVersion);
         assert.deepEqual(
             db.prepare(`
                 SELECT provider, external_user_id, external_user_name

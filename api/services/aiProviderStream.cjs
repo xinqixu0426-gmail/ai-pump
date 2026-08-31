@@ -65,6 +65,22 @@ async function readAiProviderStream(response, options = {}) {
     const onContent = typeof options.onContent === 'function' ? options.onContent : () => {};
     const decoder = new TextDecoder('utf-8');
     const reader = response.body.getReader();
+    const signal = options.signal;
+    const abortError = () => {
+        if (signal?.reason instanceof Error) return signal.reason;
+        const error = new Error('AI 请求已取消');
+        error.name = 'AbortError';
+        error.code = 'AI_REQUEST_CANCELLED';
+        return error;
+    };
+    const cancelFromCaller = () => {
+        void reader.cancel(signal?.reason).catch(() => {});
+    };
+    if (signal?.aborted) {
+        cancelFromCaller();
+        throw abortError();
+    }
+    signal?.addEventListener?.('abort', cancelFromCaller, { once: true });
     const state = {
         content: '',
         reasoningContent: '',
@@ -72,23 +88,32 @@ async function readAiProviderStream(response, options = {}) {
     };
     let buffer = '';
 
-    while (true) {
-        let chunk;
-        try {
-            chunk = await reader.read();
-        } catch (error) {
-            if (error?.name === 'AbortError') throw error;
-            throw providerStreamNetworkError(error);
-        }
-        const { done, value } = chunk;
-        if (done) break;
+    try {
+        while (true) {
+            let chunk;
+            try {
+                chunk = await reader.read();
+            } catch (error) {
+                if (signal?.aborted) throw abortError();
+                if (['AI_PROVIDER_TIMEOUT', 'AI_REQUEST_CANCELLED', 'AI_REQUEST_TIMEOUT'].includes(error?.code)) {
+                    throw error;
+                }
+                if (error?.name === 'AbortError') throw error;
+                throw providerStreamNetworkError(error);
+            }
+            if (signal?.aborted) throw abortError();
+            const { done, value } = chunk;
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-            consumeProviderEvent(line, state, onContent);
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                consumeProviderEvent(line, state, onContent);
+            }
         }
+    } finally {
+        signal?.removeEventListener?.('abort', cancelFromCaller);
     }
 
     buffer += decoder.decode();

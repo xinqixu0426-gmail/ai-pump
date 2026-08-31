@@ -347,6 +347,74 @@ export type AiEvaluationOverview = {
   results: AiEvaluationResult[];
 };
 
+export type AiHealthSnapshot = {
+  generatedAt: string;
+  status: 'healthy' | 'attention';
+  capabilityId: 'ai.health.read';
+  provider: {
+    mode: 'auto' | 'deepseek' | 'kimi';
+    ready: boolean;
+    requestTimeoutMs: number;
+    providers: Array<{
+      provider: 'deepseek' | 'kimi';
+      displayName: string;
+      model: string;
+      configured: boolean;
+      required: boolean;
+      supportsImages: boolean;
+      supportsFileExtraction: boolean;
+    }>;
+  };
+  runtime: {
+    startedAt: string;
+    windowSize: number;
+    sampleCount: number;
+    totals: {
+      requests: number;
+      completed: number;
+      failed: number;
+      cancelled: number;
+      timeouts: number;
+      fallbacks: number;
+      retries: number;
+    };
+    latencyMs: { average: number; p95: number; maximum: number };
+    lastRequestAt: string | null;
+    lastSuccessAt: string | null;
+    lastFailureAt: string | null;
+    lastError: {
+      code: string;
+      provider: string;
+      status: number | null;
+      requestId: string | null;
+      at: string;
+    } | null;
+    providers: Array<{
+      provider: string;
+      model: string;
+      requests: number;
+      failures: number;
+      fallbacks: number;
+    }>;
+  };
+  releaseGate: {
+    status: 'not_configured' | 'not_run' | 'running' | 'healthy' | 'attention';
+    healthy: boolean;
+    ready: boolean;
+    latestRun: AiEvaluationRun | null;
+    activeCaseCount: number;
+    evaluatedActiveCaseCount: number;
+    activeFailedCount: number;
+    activeReviewCount: number;
+  };
+  process: {
+    version: string;
+    gitCommit: string;
+    startedAt: string;
+    uptimeSeconds: number;
+  };
+};
+
 export type AiToolPlanStep = {
   index: number;
   name: string;
@@ -926,6 +994,12 @@ export async function reviewAiEvaluationCase(
   });
   if (!result.success || !result.data) throw new Error(result.error || '审核纠错回归用例失败');
   return rememberAiEvaluationCaseVersion(result.data);
+}
+
+export async function getAiHealth(): Promise<AiHealthSnapshot> {
+  const result = await proxyRequest<ApiResponse<AiHealthSnapshot>>('/api/ai/health');
+  if (!result.success || !result.data) throw new Error(result.error || '读取 AI 运行健康失败');
+  return result.data;
 }
 
 export async function configureAiSystemEvaluationCase(

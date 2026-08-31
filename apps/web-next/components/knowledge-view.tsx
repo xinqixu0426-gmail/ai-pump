@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Activity,
   ArrowUpRight,
   Brain,
   BookOpen,
@@ -49,6 +50,7 @@ import {
   completeAiEvaluationRun,
   createAiEvaluationRun,
   getAiEvaluationOverview,
+  getAiHealth,
   listAiAnswerFeedback,
   listFactoryAiRules,
   recordAiEvaluationResult,
@@ -60,6 +62,7 @@ import {
   type AiAnswerFeedback,
   type AiAnswerFeedbackList,
   type AiEvaluationOverview,
+  type AiHealthSnapshot,
   type AiToolResult,
   type FactoryAiRuleList,
 } from '@/lib/ai';
@@ -140,6 +143,9 @@ export function KnowledgeView({
   const [evaluationRunning, setEvaluationRunning] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState({ completed: 0, total: 0, title: '' });
   const [evaluationError, setEvaluationError] = useState('');
+  const [aiHealth, setAiHealth] = useState<AiHealthSnapshot | null>(null);
+  const [aiHealthLoading, setAiHealthLoading] = useState(true);
+  const [aiHealthError, setAiHealthError] = useState('');
   const [reviewingEvaluationCaseId, setReviewingEvaluationCaseId] = useState<number | null>(null);
   const [updatingSystemEvaluationCaseId, setUpdatingSystemEvaluationCaseId] = useState<number | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
@@ -251,6 +257,22 @@ export function KnowledgeView({
 
   useEffect(() => {
     void loadEvaluation();
+  }, [refreshKey]);
+
+  async function loadAiHealth() {
+    setAiHealthLoading(true);
+    setAiHealthError('');
+    try {
+      setAiHealth(await getAiHealth());
+    } catch (err) {
+      setAiHealthError(err instanceof Error ? err.message : 'AI 运行健康加载失败');
+    } finally {
+      setAiHealthLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAiHealth();
   }, [refreshKey]);
 
   const changeBySource = useMemo(
@@ -522,10 +544,10 @@ export function KnowledgeView({
         setEvaluationProgress({ completed: index + 1, total: created.cases.length, title: evaluationCase.title });
       }
       await completeAiEvaluationRun(created.run.id);
-      await loadEvaluation();
+      await Promise.all([loadEvaluation(), loadAiHealth()]);
     } catch (err) {
       setEvaluationError(err instanceof Error ? err.message : '知识库检查运行失败');
-      await loadEvaluation();
+      await Promise.all([loadEvaluation(), loadAiHealth()]);
     } finally {
       setEvaluationRunning(false);
     }
@@ -551,7 +573,7 @@ export function KnowledgeView({
     setEvaluationError('');
     try {
       await configureAiSystemEvaluationCase(id, enabled);
-      await loadEvaluation();
+      await Promise.all([loadEvaluation(), loadAiHealth()]);
     } catch (err) {
       setEvaluationError(err instanceof Error ? err.message : '系统检查项更新失败');
     } finally {
@@ -910,6 +932,94 @@ export function KnowledgeView({
         <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Activity size={16} className={aiHealth?.status === 'healthy' ? 'text-emerald-600' : 'text-amber-600'} />
+              AI 运行健康
+              {aiHealth ? (
+                <StatusBadge tone={aiHealth.status === 'healthy' ? 'green' : 'amber'}>
+                  {aiHealth.status === 'healthy' ? '正常' : '需要关注'}
+                </StatusBadge>
+              ) : null}
+            </div>
+            <div className="mt-1 text-xs text-muted">查看模型配置、最近请求稳定性和自动发布门禁状态；不保存对话内容或密钥。</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={aiHealthLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            onClick={() => void loadAiHealth()}
+            disabled={aiHealthLoading}
+          >
+            刷新状态
+          </Button>
+        </div>
+        {aiHealthError ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{aiHealthError}</div>
+        ) : null}
+        {aiHealthLoading && !aiHealth ? (
+          <div className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted">
+            <Loader2 size={16} className="animate-spin" />加载运行状态
+          </div>
+        ) : aiHealth ? (
+          <div>
+            <div className="grid grid-cols-2 border-b border-line bg-slate-50 lg:grid-cols-4">
+              <div className="border-r border-line px-4 py-3">
+                <div className="text-xs text-muted">本进程请求</div>
+                <div className="mt-1 text-lg font-semibold text-ink">{aiHealth.runtime.totals.requests}</div>
+                <div className="mt-1 text-xs text-muted">成功 {aiHealth.runtime.totals.completed} · 失败 {aiHealth.runtime.totals.failed} · 取消 {aiHealth.runtime.totals.cancelled}</div>
+              </div>
+              <div className="border-r border-line px-4 py-3">
+                <div className="text-xs text-muted">响应耗时</div>
+                <div className="mt-1 text-lg font-semibold text-ink">{aiHealth.runtime.latencyMs.average} ms</div>
+                <div className="mt-1 text-xs text-muted">P95 {aiHealth.runtime.latencyMs.p95} ms</div>
+              </div>
+              <div className="border-r border-line px-4 py-3">
+                <div className="text-xs text-muted">自动恢复</div>
+                <div className="mt-1 text-lg font-semibold text-ink">{aiHealth.runtime.totals.fallbacks}</div>
+                <div className="mt-1 text-xs text-muted">重试 {aiHealth.runtime.totals.retries} · 超时 {aiHealth.runtime.totals.timeouts}</div>
+              </div>
+              <div className="px-4 py-3">
+                <div className="text-xs text-muted">发布门禁</div>
+                <div className={`mt-1 text-lg font-semibold ${aiHealth.releaseGate.ready ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {aiHealth.releaseGate.ready ? '已通过' : aiHealth.releaseGate.status === 'not_run' ? '尚未运行' : aiHealth.releaseGate.status === 'running' ? '运行中' : '需要关注'}
+                </div>
+                <div className="mt-1 text-xs text-muted">已检查 {aiHealth.releaseGate.evaluatedActiveCaseCount}/{aiHealth.releaseGate.activeCaseCount} 项</div>
+              </div>
+            </div>
+            <div className="grid gap-3 px-4 py-3 lg:grid-cols-2">
+              <div>
+                <div className="text-xs font-medium text-muted">模型配置</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {aiHealth.provider.providers.map(provider => (
+                    <StatusBadge
+                      key={provider.provider}
+                      tone={provider.configured ? 'green' : provider.required ? 'red' : 'slate'}
+                    >
+                      {provider.displayName} · {provider.model} · {provider.configured
+                        ? '已配置'
+                        : provider.required
+                          ? '未配置'
+                          : '可选未配置，多模态不可用'}
+                    </StatusBadge>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-muted">最近异常</div>
+                <div className="mt-2 text-sm text-ink">
+                  {aiHealth.runtime.lastError
+                    ? `${aiHealth.runtime.lastError.code}${aiHealth.runtime.lastError.provider ? ` · ${aiHealth.runtime.lastError.provider}` : ''} · ${dateTime(aiHealth.runtime.lastError.at)}`
+                    : '本进程尚未记录异常'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </FadePanel>
+
+      <FadePanel className="overflow-hidden rounded-panel border border-line bg-white shadow-panel">
+        <div className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <ShieldCheck size={16} className="text-emerald-600" />
               知识库回归检查
               {evaluation?.caseStats.feedbackPending ? (
@@ -945,7 +1055,7 @@ export function KnowledgeView({
               <div>
                 <div className="text-sm font-medium text-ink">系统检查项管理</div>
                 <div className="mt-1 text-xs text-muted">
-                  已启用 {evaluation.caseStats.systemEnabled}/{evaluation.caseStats.systemTotal} 项；只影响手动检查，不阻塞自动发布。
+                  核心门禁 {evaluation.systemCases.filter(item => item.releaseGateEnabled).length} 项；核心系统检查不能直接停用，应修正规则或业务事实后重新验证。
                 </div>
               </div>
               <span className="shrink-0 text-xs text-muted group-open:hidden">展开管理</span>
@@ -960,15 +1070,19 @@ export function KnowledgeView({
                       <div className="truncate text-sm font-medium text-ink">{item.title}</div>
                       <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">{item.question}</div>
                     </div>
-                    <Button
-                      variant={item.enabled ? 'ghost' : 'secondary'}
-                      size="sm"
-                      icon={busy ? <Loader2 size={14} className="animate-spin" /> : item.enabled ? <PowerOff size={14} /> : <Power size={14} />}
-                      onClick={() => void toggleSystemEvaluationCase(item.id, !item.enabled)}
-                      disabled={updatingSystemEvaluationCaseId !== null || evaluationRunning}
-                    >
-                      {item.enabled ? '停用' : '启用'}
-                    </Button>
+                    {item.releaseGateEnabled ? (
+                      <StatusBadge tone="green">核心门禁</StatusBadge>
+                    ) : (
+                      <Button
+                        variant={item.enabled ? 'ghost' : 'secondary'}
+                        size="sm"
+                        icon={busy ? <Loader2 size={14} className="animate-spin" /> : item.enabled ? <PowerOff size={14} /> : <Power size={14} />}
+                        onClick={() => void toggleSystemEvaluationCase(item.id, !item.enabled)}
+                        disabled={updatingSystemEvaluationCaseId !== null || evaluationRunning}
+                      >
+                        {item.enabled ? '停用' : '启用'}
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -1063,7 +1177,7 @@ export function KnowledgeView({
             {evaluationNeedsAttention ? (
               <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm text-amber-900">
-                  检查结果不能手工勾选完成。修复原因后重新检查即可刷新；不适用于当前工厂的系统项可以进入检查项管理停用。
+                  检查结果不能手工勾选完成。请修复业务事实、工具调用或检查规则后重新验证；核心门禁不能通过停用绕过。
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button
@@ -1075,8 +1189,8 @@ export function KnowledgeView({
                   >
                     重新检查
                   </Button>
-                  <Button variant="ghost" size="sm" icon={<PowerOff size={14} />} onClick={openSystemCaseManagement}>
-                    管理检查项
+                  <Button variant="ghost" size="sm" icon={<ShieldCheck size={14} />} onClick={openSystemCaseManagement}>
+                    查看核心门禁
                   </Button>
                 </div>
               </div>

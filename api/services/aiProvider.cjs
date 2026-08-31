@@ -8,6 +8,7 @@ const MAX_CHAT_ATTACHMENTS = 4;
 const MAX_INLINE_TEXT_BYTES = 100 * 1024;
 const MAX_VISION_BYTES = 20 * 1024 * 1024;
 const MAX_PROVIDER_ATTEMPTS = 3;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 120 * 1000;
 const KIMI_FILE_CACHE_TTL_MS = 10 * 60 * 1000;
 const KIMI_EXTRACT_TYPES = new Set(['pdf', 'spreadsheet', 'text']);
 const kimiFileContentCache = new Map();
@@ -123,6 +124,12 @@ function resolveAiProviderRoute(messages, options = {}) {
         routingMode: 'auto',
         routeReason: needsVision ? 'vision_unavailable' : 'file_unavailable',
     };
+}
+
+function providerTimeoutMs(env = process.env) {
+    const configured = Number(env.AI_PROVIDER_TIMEOUT_MS);
+    if (!Number.isFinite(configured)) return DEFAULT_PROVIDER_TIMEOUT_MS;
+    return Math.min(Math.max(Math.trunc(configured), 1000), 10 * 60 * 1000);
 }
 
 function aiProviderCapabilities(env = process.env) {
@@ -447,6 +454,7 @@ function providerNetworkError(error, config, action) {
     wrapped.name = 'AiProviderNetworkError';
     wrapped.code = 'AI_PROVIDER_NETWORK_ERROR';
     wrapped.retryable = true;
+    wrapped.fallbackEligible = true;
     wrapped.details = {
         provider: config.provider,
         action,
@@ -456,29 +464,242 @@ function providerNetworkError(error, config, action) {
     return wrapped;
 }
 
+function providerTimeoutError(config, action, timeoutMs) {
+    const provider = config || { provider: 'unknown', displayName: 'AI 提供商' };
+    const wrapped = new Error(`${provider.displayName}${action}请求超时（${timeoutMs}ms）`);
+    wrapped.name = 'AiProviderTimeoutError';
+    wrapped.code = 'AI_PROVIDER_TIMEOUT';
+    wrapped.retryable = true;
+    wrapped.fallbackEligible = true;
+    wrapped.details = {
+        provider: provider.provider,
+        action,
+        timeoutMs,
+    };
+    return wrapped;
+}
+
+function providerHttpError(response, responseText, config, action) {
+    const status = Number(response?.status || 0);
+    const detail = text(responseText).slice(0, 200);
+    let code = 'AI_PROVIDER_REQUEST_ERROR';
+    let retryable = false;
+    let fallbackEligible = false;
+    if ([401, 403].includes(status)) code = 'AI_PROVIDER_AUTH_ERROR';
+    else if (status === 408) {
+        code = 'AI_PROVIDER_TIMEOUT';
+        retryable = true;
+        fallbackEligible = true;
+    } else if (status === 429) {
+        code = 'AI_PROVIDER_RATE_LIMITED';
+        retryable = true;
+        fallbackEligible = true;
+    } else if (status >= 500) {
+        code = 'AI_PROVIDER_UPSTREAM_ERROR';
+        retryable = true;
+        fallbackEligible = true;
+    }
+    const wrapped = new Error(
+        `${config.displayName}${action}错误: ${status}${detail ? ` ${detail}` : ''}`
+    );
+    wrapped.name = 'AiProviderHttpError';
+    wrapped.code = code;
+    wrapped.statusCode = status;
+    wrapped.retryable = retryable;
+    wrapped.fallbackEligible = fallbackEligible;
+    wrapped.details = {
+        provider: config.provider,
+        action,
+        status,
+    };
+    return wrapped;
+}
+
+function isProviderFallbackEligible(error) {
+    return error?.fallbackEligible === true;
+}
+
+function abortErrorFromSignal(signal) {
+    if (signal?.reason instanceof Error) return signal.reason;
+    const error = new Error('AI 请求已取消');
+    error.name = 'AbortError';
+    error.code = 'AI_REQUEST_CANCELLED';
+    return error;
+}
+
+function waitWithSignal(ms, signal) {
+    if (!(ms > 0)) return Promise.resolve();
+    if (signal?.aborted) return Promise.reject(abortErrorFromSignal(signal));
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            signal?.removeEventListener?.('abort', onAbort);
+            resolve();
+        }, ms);
+        timer.unref?.();
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(abortErrorFromSignal(signal));
+        };
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+    });
+}
+
+function bufferedResponse(response, body) {
+    const responseBody = [204, 205, 304].includes(response.status) ? null : body;
+    return new Response(responseBody, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+    });
+}
+
+function readResponseBodyWithSignal(response, signal) {
+    if (!signal) return response.arrayBuffer();
+    if (signal.aborted) return Promise.reject(abortErrorFromSignal(signal));
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = callback => value => {
+            if (settled) return;
+            settled = true;
+            signal.removeEventListener('abort', onAbort);
+            callback(value);
+        };
+        const onAbort = () => {
+            if (settled) return;
+            settled = true;
+            Promise.resolve(response.body?.cancel?.(signal.reason)).catch(() => {});
+            reject(abortErrorFromSignal(signal));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        response.arrayBuffer().then(finish(resolve), finish(reject));
+    });
+}
+
+function streamResponseWithLifecycle(response, lifecycle) {
+    if (!response.body || typeof response.body.getReader !== 'function') {
+        lifecycle.cleanup();
+        return response;
+    }
+    const reader = response.body.getReader();
+    let settled = false;
+    let outputController;
+    const finish = () => {
+        lifecycle.controller.signal.removeEventListener('abort', onAbort);
+        lifecycle.cleanup();
+    };
+    const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        const reason = lifecycle.controller.signal.reason || abortErrorFromSignal(
+            lifecycle.controller.signal
+        );
+        finish();
+        Promise.resolve(reader.cancel(reason)).catch(() => {});
+        outputController?.error(reason);
+    };
+    const body = new ReadableStream({
+        start(controller) {
+            outputController = controller;
+            lifecycle.controller.signal.addEventListener('abort', onAbort, { once: true });
+            if (lifecycle.controller.signal.aborted) onAbort();
+        },
+        async pull(controller) {
+            if (settled) return;
+            try {
+                const chunk = await reader.read();
+                if (settled) return;
+                if (chunk.done) {
+                    settled = true;
+                    finish();
+                    controller.close();
+                    return;
+                }
+                controller.enqueue(chunk.value);
+            } catch (error) {
+                if (settled) return;
+                settled = true;
+                finish();
+                controller.error(
+                    lifecycle.controller.signal.aborted
+                        ? lifecycle.controller.signal.reason || error
+                        : error
+                );
+            }
+        },
+        cancel(reason) {
+            if (settled) return undefined;
+            settled = true;
+            finish();
+            return reader.cancel(reason);
+        },
+    });
+    return bufferedResponse(response, body);
+}
+
 async function fetchProviderWithRetry(url, init, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const attempts = Number(options.maxAttempts) || MAX_PROVIDER_ATTEMPTS;
+    const timeoutMs = Number(options.timeoutMs) || providerTimeoutMs(options.env);
+    const callerSignal = options.signal || init?.signal;
     let lastError;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        if (callerSignal?.aborted) throw abortErrorFromSignal(callerSignal);
+        const controller = new AbortController();
+        let timedOut = false;
+        let lifecycleTransferred = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            controller.abort(providerTimeoutError(
+                options.config,
+                options.action || '',
+                timeoutMs
+            ));
+        }, timeoutMs);
+        timer.unref?.();
+        const abortFromCaller = () => controller.abort(callerSignal.reason);
+        callerSignal?.addEventListener?.('abort', abortFromCaller, { once: true });
+        const cleanup = () => {
+            clearTimeout(timer);
+            callerSignal?.removeEventListener?.('abort', abortFromCaller);
+        };
         try {
-            const response = await fetchImpl(url, init);
-            if (!retryableProviderStatus(response.status) || attempt === attempts) return response;
-            await response.arrayBuffer();
+            const response = await fetchImpl(url, { ...init, signal: controller.signal });
+            if (!retryableProviderStatus(response.status) || attempt === attempts) {
+                if (options.streamResponse) {
+                    lifecycleTransferred = true;
+                    return streamResponseWithLifecycle(response, {
+                        cleanup,
+                        controller,
+                    });
+                }
+                const body = await readResponseBodyWithSignal(response, controller.signal);
+                return bufferedResponse(response, body);
+            }
+            await readResponseBodyWithSignal(response, controller.signal);
             options.onRetry?.({ attempt, status: response.status });
         } catch (error) {
-            if (error?.name === 'AbortError') throw error;
-            lastError = error;
-            if (attempt === attempts) {
-                throw providerNetworkError(error, options.config, options.action || '');
+            if (callerSignal?.aborted) throw abortErrorFromSignal(callerSignal);
+            if (timedOut) {
+                lastError = providerTimeoutError(options.config, options.action || '', timeoutMs);
+                if (attempt === attempts) throw lastError;
+                options.onRetry?.({ attempt, code: lastError.code });
+            } else {
+                if (error?.name === 'AbortError') throw error;
+                lastError = error;
+                if (attempt === attempts) {
+                    throw providerNetworkError(error, options.config, options.action || '');
+                }
+                options.onRetry?.({ attempt, causeCode: error?.cause?.code || null });
             }
-            options.onRetry?.({ attempt, causeCode: error?.cause?.code || null });
+        } finally {
+            if (!lifecycleTransferred) cleanup();
         }
         const delayMs = options.retryDelayMs === undefined
             ? 200 * attempt
             : Number(options.retryDelayMs);
-        if (delayMs > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+        await waitWithSignal(delayMs, callerSignal);
     }
+    if (lastError?.code === 'AI_PROVIDER_TIMEOUT') throw lastError;
     throw providerNetworkError(lastError, options.config, options.action || '');
 }
 
@@ -514,7 +735,7 @@ async function extractKimiFileContents(messages, config, options = {}) {
             body: form,
         }, { ...options, config, action: '文件上传' });
         const uploadText = await upload.text();
-        if (!upload.ok) throw new Error(`${config.displayName}文件上传错误: ${upload.status} ${uploadText.slice(0, 200)}`);
+        if (!upload.ok) throw providerHttpError(upload, uploadText, config, '文件上传');
         const remoteId = JSON.parse(uploadText)?.id;
         if (!remoteId) throw new Error(`${config.displayName}文件上传未返回文件 ID`);
         try {
@@ -525,15 +746,16 @@ async function extractKimiFileContents(messages, config, options = {}) {
             );
             const content = await contentResponse.text();
             if (!contentResponse.ok) {
-                throw new Error(`${config.displayName}文件抽取错误: ${contentResponse.status} ${content.slice(0, 200)}`);
+                throw providerHttpError(contentResponse, content, config, '文件抽取');
             }
             extracted.set(id, content);
             kimiFileContentCache.set(cached.key, { content, cachedAt: Date.now() });
         } finally {
             try {
-                await (options.fetchImpl || fetch)(
+                await fetchProviderWithRetry(
                     `${config.baseUrl}/files/${encodeURIComponent(remoteId)}`,
-                    { method: 'DELETE', headers: { Authorization: `Bearer ${config.apiKey}` } }
+                    { method: 'DELETE', headers: { Authorization: `Bearer ${config.apiKey}` } },
+                    { ...options, maxAttempts: 1, config, action: '临时文件清理' }
                 );
             } catch {
                 // 远端临时文件清理失败不覆盖本轮主要结果；平台侧仍有文件配额治理。
@@ -598,6 +820,9 @@ async function fetchAiProvider(messages, options = {}) {
             dbAccessors: options.dbAccessors,
             attachmentMode: options.attachmentMode,
             retryDelayMs: options.retryDelayMs,
+            signal: options.signal,
+            timeoutMs: options.timeoutMs,
+            env: options.env,
             onRetry: info => notifyProvider(config, { retry: true, ...info }),
         });
         const send = async includeToolChoice => {
@@ -641,6 +866,10 @@ async function fetchAiProvider(messages, options = {}) {
                 config,
                 action: '对话',
                 retryDelayMs: options.retryDelayMs,
+                signal: options.signal,
+                timeoutMs: options.timeoutMs,
+                env: options.env,
+                streamResponse: Boolean(options.stream),
                 onRetry: info => notifyProvider(config, { retry: true, ...info }),
             });
         };
@@ -656,7 +885,7 @@ async function fetchAiProvider(messages, options = {}) {
                 if (response.ok) return response;
                 responseText = await response.text();
             }
-            throw new Error(`${config.displayName} API 错误: ${response.status} ${responseText.slice(0, 200)}`);
+            throw providerHttpError(response, responseText, config, '对话');
         }
         return response;
     };
@@ -665,9 +894,16 @@ async function fetchAiProvider(messages, options = {}) {
     try {
         return await requestProvider(selectedConfig);
     } catch (error) {
+        notifyProvider(selectedConfig, {
+            failed: true,
+            errorCode: error?.code || 'AI_PROVIDER_ERROR',
+            status: error?.statusCode || null,
+            fallbackEligible: isProviderFallbackEligible(error),
+        });
         if (selectedConfig.routingMode !== 'auto' || selectedConfig.provider !== 'kimi') {
             throw error;
         }
+        if (!isProviderFallbackEligible(error)) throw error;
         const fallback = {
             ...resolveProviderConfig('deepseek', options.env || process.env),
             routingMode: 'auto',
@@ -685,8 +921,11 @@ async function fetchAiProvider(messages, options = {}) {
 
 module.exports = {
     MAX_CHAT_ATTACHMENTS,
+    DEFAULT_PROVIDER_TIMEOUT_MS,
     aiProviderCapabilities,
     fetchAiProvider,
+    fetchProviderWithRetry,
+    isProviderFallbackEligible,
     normalizeAttachmentIds,
     ocrCandidateNote,
     prepareAiProviderMessages,
@@ -694,6 +933,8 @@ module.exports = {
     resolveAiProviderConfig,
     resolveAiProviderRoute,
     resolveProviderConfig,
+    providerHttpError,
+    providerTimeoutMs,
     requiresKimiProvider,
     requiresVisionProvider,
     truncateUtf8,

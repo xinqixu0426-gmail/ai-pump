@@ -310,6 +310,7 @@ async function planAiGoalV3(messages, options = {}) {
             env: options.env,
             dbAccessors: options.dbAccessors,
             attachmentMode: 'metadata',
+            signal: options.signal,
         });
         const data = await response.json();
         if (data.error) throw new AiIntentPlanError(data.error.message || '意图规划 API 错误');

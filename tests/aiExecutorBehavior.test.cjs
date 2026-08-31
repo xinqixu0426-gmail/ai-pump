@@ -131,6 +131,18 @@ test.afterEach(() => {
     else process.env.DEEPSEEK_API_KEY = originalDeepseekApiKey;
 });
 
+test('AI 工具执行器：调用方取消必须向上抛出而不是包装成普通工具失败', async () => {
+    const controller = new AbortController();
+    controller.abort(Object.assign(new Error('用户取消'), {
+        name: 'AbortError',
+        code: 'AI_REQUEST_CANCELLED',
+    }));
+    await assert.rejects(
+        () => executeToolCall('search_parts', {}, { signal: controller.signal }),
+        error => error.code === 'AI_REQUEST_CANCELLED'
+    );
+});
+
 test('AI executor 行为：写操作未确认时只返回确认卡片，不调用 API', async () => {
     const calls = installFetchStub(() => jsonResponse({ success: false, error: '不应调用' }, 500));
 

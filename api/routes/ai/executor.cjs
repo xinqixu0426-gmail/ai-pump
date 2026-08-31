@@ -309,6 +309,7 @@ async function executeToolCall(toolName, args, options = {}) {
             internalFetch = createInternalFetch({
                 operationId: options.operationId,
                 capabilityId: capability.capabilityId,
+                signal: options.signal,
             });
             try {
                 const prepared = await prepareWrite(args, {
@@ -323,6 +324,12 @@ async function executeToolCall(toolName, args, options = {}) {
                     executionContext: prepared.executionContext,
                 });
             } catch (error) {
+                if (options.signal?.aborted || error?.name === 'AbortError'
+                    || ['AI_REQUEST_CANCELLED', 'AI_REQUEST_TIMEOUT'].includes(error?.code)) {
+                    throw options.signal?.reason instanceof Error
+                        ? options.signal.reason
+                        : error;
+                }
                 return {
                     success: false,
                     code: error.code || 'ai_write_preflight_failed',
@@ -338,6 +345,7 @@ async function executeToolCall(toolName, args, options = {}) {
     internalFetch ||= createInternalFetch({
         operationId: options.operationId,
         capabilityId: capability.capabilityId,
+        signal: options.signal,
     });
     const executor = TOOL_EXECUTORS[capability.executorKey];
     if (!executor) {
@@ -366,6 +374,12 @@ async function executeToolCall(toolName, args, options = {}) {
         );
         return attachReadProvenance(capability, verifiedResult);
     } catch (err) {
+        if (options.signal?.aborted || err?.name === 'AbortError'
+            || ['AI_REQUEST_CANCELLED', 'AI_REQUEST_TIMEOUT'].includes(err?.code)) {
+            throw options.signal?.reason instanceof Error
+                ? options.signal.reason
+                : err;
+        }
         return attachVerifiedFailureEvidence(
             capability,
             {

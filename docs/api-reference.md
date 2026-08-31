@@ -1,6 +1,6 @@
 # API 接口总表
 
-> 更新于 2026-08-30。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，未完成风险和优化顺序见 [当前技术债与优化清单](./technical-debt.md)。
+> 更新于 2026-08-31。本文只描述当前生效的 HTTP 接口事实。强制规则见 [API 统一契约](./api-contract.md)，变更流程见 [API 变更 SOP](./api-sop.md)，业务口径见 [README.md](./README.md)，未完成风险和优化顺序见 [当前技术债与优化清单](./technical-debt.md)。
 
 文档分工：
 
@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 229 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 230 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -401,6 +401,7 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；智能路由额外返回 `defaultProvider=deepseek`，并分别返回可用的 `visionProvider=kimi` 与 `fileProvider=kimi`。`AI_VISION_ENABLED` 只控制图片原图输入，不关闭 Kimi 的 PDF、表格和文本文件抽取 |
+| `GET` | `/api/ai/health` | 无 | 能力 `ai.health.read`。返回脱敏的模型配置就绪状态、本进程有界请求统计、耗时/重试/降级/超时、最近错误码、当前发布门禁结果和运行版本；不返回 API Key、问题正文或回答正文。`AI_PROVIDER=auto` 时 DeepSeek 是普通对话必需提供商，Kimi 是图片/文件能力的可选提供商 |
 | `POST` | `/api/ai/chat` | `{ messages, pageContext?, resolutionContext?, turnState? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`；`resolutionContext` 传递上一轮正式多候选，`turnState={version:3,kind:'agent_turn_state',resolvedEntities[],capabilities[]}` 只传递限长的已验证实体引用，不提供执行授权 |
 | `POST` | `/api/ai/confirm-tool` | `{ confirmationToken, toolName?, args? }` | 使用确认卡片中的服务端 token 执行写工具；token 绑定当前登录会话、capability、规范化参数哈希和 operationId，5 分钟有效且单次消费。新客户端只提交 `confirmationToken`；可选 `toolName/args` 仅用于检测篡改。没有 token 的旧请求返回 `409 confirmation_token_required`，不会执行。正式 API 还必须返回匹配 capability 的 `operationId`、完成状态和非空审计 ID；缺失时返回 `502 ai_write_evidence_missing`，token 记为失败，不会向客户端宣称完成 |
 | `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
@@ -409,7 +410,7 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 | `GET` | `/mcp` | 同上鉴权 | 当前为无状态服务，不建立旧协议 SSE 会话；返回 `405` |
 | `DELETE` | `/mcp` | 同上鉴权 | 当前不签发 `Mcp-Session-Id`，没有可删除会话；返回 `405` |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。意图规划阶段只接收附件名称、类型和大小，不重复传正文、OCR 或图片二进制。执行阶段的附件文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无附件时使用 DeepSeek；图片只有在 Kimi API Key、K3 和视觉开关可用时使用 Kimi 原图能力；PDF、Excel/CSV 和文本只要求 Kimi API Key 与文件抽取能力，不依赖视觉开关。K3 成功接收图片原图时不再重复附加整段本地 OCR；Kimi 请求失败时回退 DeepSeek，本轮改用本地解析/OCR，并分别记录 `vision_fallback/file_fallback`。供应商请求建立失败、429 和 5xx 最多重试 3 次；已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，也统一映射为 `AI_PROVIDER_NETWORK_ERROR`，并记录脱敏后的供应商、动作和底层错误码。前端对该错误自动重试完整响应流。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。意图规划阶段只接收附件名称、类型和大小，不重复传正文、OCR 或图片二进制。执行阶段的附件文字合计最多内联 100KB。智能路由根据服务端文件记录判断：无附件时使用 DeepSeek；图片只有在 Kimi API Key、K3 和视觉开关可用时使用 Kimi 原图能力；PDF、Excel/CSV 和文本只要求 Kimi API Key 与文件抽取能力，不依赖视觉开关。K3 成功接收图片原图时不再重复附加整段本地 OCR。单次提供商 HTTP 请求默认 120 秒，整轮 `/api/ai/chat` 默认 180 秒，分别由 `AI_PROVIDER_TIMEOUT_MS/AI_CHAT_TIMEOUT_MS` 配置；浏览器停止或断开会沿共享 `AbortSignal` 取消规划、提供商响应流和内部正式 API，避免后台继续消耗。SSE 默认每 15 秒发送注释心跳，可由 `AI_SSE_HEARTBEAT_MS` 调整。仅网络失败、超时、429 和 5xx 标记为可降级，Kimi 此时回退 DeepSeek 并使用本地解析/OCR，分别记录 `vision_fallback/file_fallback`；认证、参数错误和用户取消直接返回，不进行错误回退。已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，统一映射为 `AI_PROVIDER_NETWORK_ERROR`。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。运行进程仅以有界内存保存请求数、耗时、重试、降级、取消和错误码，不保存问题或回答正文，进程重启后重新计数。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
 
 通用 MCP V1 白名单覆盖 capability registry 当前全部 48 个 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的 AI 能力，按领域包括：成本与线圈 `full_calculate/get_copper_price/calculate_coil_cost/get_coil_specs/search_coils/dynamic_config_cost`；零件、模板与配方 `search_parts/search_templates/get_template_detail/get_all_recipes/get_recipe_detail/get_recipe_technical_files/build_recipe_bom_draft/preview_recipe_cost/preview_pump_shell_cost/compare_recipes`；客户与报价 `search_customers/search_quotations/get_quotation_detail/search_customer_history/inspect_quotation_file/build_quotation_draft/explain_cost_change`；订单与经营 `get_recent_orders/get_order_detail/get_purchase_overview/build_order_draft/get_order_knowledge_package/check_order_readiness/get_order_readiness_overview/plan_order_readiness_actions/get_dashboard_summary/get_business_alerts/get_management_action_center/plan_factory_workflow`；质量、规则与知识 `get_data_quality_summary/analyze_recipe_configuration/get_factory_learning_health/get_factory_rule_candidates/get_factory_rule_impact/get_factory_rule_compliance/get_factory_rule_history/search_factory_file_archive_targets/search_factory_knowledge/get_factory_knowledge_detail/get_factory_knowledge_health`；出图历史与业务变更 `get_rotor_drawing_history/search_business_changes`。目录契约测试会把白名单与注册表中的全部安全 Query/Preview 做集合比对，新增安全读能力未同步或误暴露写能力都会失败。任何写能力或意外返回确认令牌的调用仍会在 executor 前后双重拒绝。全部工具标记 `readOnlyHint=true`；其中 `get_copper_price` 会访问管理域外的实时铜价来源，因此标记 `openWorldHint=true`，其余正式工厂数据工具标记 `openWorldHint=false`。这些 annotations 只帮助通用 MCP 客户端理解工具行为，不替代服务端权限控制。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向任何 Agent 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。正式 API 以结构化 JSON 明确返回 `404` 时，MCP 保留 `AI_RESOURCE_NOT_FOUND` 和已验证负结果；网络失败、5xx、非 JSON 响应或超时仍返回执行证据不足，不能伪装成“未找到”。
 
@@ -427,7 +428,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空且 `steps` 必须为空；服务端直接返回澄清问题，禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录规划、合成、总耗时、工具数量、供应商路由和结果状态，不记录用户正文、附件正文或回答内容。
 
-模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 106 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型先提交结构化意图信封，服务端再按其中的业务域和最小能力步骤生成本轮工具集合。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 107 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由意图信封的 `contextMode` 决定，不再扫描历史关键词。每轮最多暴露 18 个工具；普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -512,11 +513,12 @@ V2 意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空
 | `ai.conversations.messages.append` | HTTP/Web | command/write | 当前会话 + `ai_conversation_messages` + 有效附件 | medium | 发送消息本身是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 消息、会话摘要、operation 和两条强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.messages.update_metadata` | HTTP/Web | command/write | 当前会话消息 | medium | 保存模型、工具和展示元数据，无额外确认 | 无 | 90 天持久化幂等 + 消息 `expectedUpdatedAt` | 消息元数据、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.delete` | HTTP/Web | command/write | `ai_conversations` | medium | 页面删除确认是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 会话软删除、operation 和强审计同一 SQLite 事务；消息留存追溯 | 默认 HTTP |
+| `ai.health.read` | HTTP/Web | query/read | 当前模型配置 + 本进程有界遥测 + 最近内部发布评测 | low | 无 | 无 | 查询天然幂等 | 只读且脱敏；不保存或返回问题、回答与密钥 | 默认 HTTP |
 | `ai.evaluations.runs.start` | HTTP/Web/发布门禁脚本 | maintenance/write | 手动启用或发布门禁启用的评测用例 + `ai_evaluation_runs` | medium | 启动检查本身是明确动作；`release` scope 只允许内部主体 | 无 | 90 天持久化幂等；新运行无版本 | 同 owner 未结束运行、当前运行、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.results.record` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前正式业务只读事实 + 评测用例 + `ai_evaluation_results` | medium | 自动评测记录，无额外确认 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` + `(runId, caseId)` 唯一约束 | 单项结果、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.runs.complete` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前运行及其已保存结果 | medium | 完成检查本身是明确动作 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` | 汇总状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.cases.review` | HTTP/Web | maintenance/write | 纠错回归用例 + 关联纠正规则状态 | medium | 审核按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 审核状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
-| `ai.evaluations.system_cases.configure` | HTTP/Web | maintenance/write | 内置系统评测用例的手动检查开关 | medium | 启用或停用按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 开关、operation 和强审计同一 SQLite 事务；不改变发布门禁开关 | 默认 HTTP |
+| `ai.evaluations.system_cases.configure` | HTTP/Web | maintenance/write | 非核心内置系统评测用例的启用状态 | medium | 启用或停用按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 用例 `expectedUpdatedAt` | 开关、operation 和强审计同一 SQLite 事务；`release_gate_enabled=1` 的核心系统用例拒绝停用 | 默认 HTTP |
 | `ai.feedback.list` | HTTP/Web | query/read | 回答反馈快照 + 原会话 owner/删除状态 | low | 无 | 无 | 查询天然幂等 | 只读；原会话软删除后反馈继续保留并按 owner 隔离 | 15s |
 | `ai.feedback.submit` | HTTP/Web | maintenance/write | 已保存 AI 回复 + 回答反馈 + 可选纠正规则/回归用例 | medium | 点赞或提交问题本身是明确动作 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、派生规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.diagnose` | HTTP/Web | maintenance/write | 当前反馈 + 当前知识同步状态 | medium | 诊断按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 诊断快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
@@ -591,15 +593,15 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
 | `GET` | `/api/ai/evaluations/overview` | 无 | 返回手动启用用例、全部内置系统检查项、手动/发布门禁统计、当前登录身份最近一次运行和逐项结果；`latestRunMatchesConfiguration` 标记历史结果是否仍对应当前配置 |
-| `POST` | `/api/ai/evaluations/runs` | `{ scope?: 'manual' | 'release' }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.start`。页面默认 `manual`，运行所有已审核且手动启用的用例；内部发布脚本使用 `release`，只运行额外启用发布门禁的用例。`release` scope 拒绝登录用户调用。同 owner 未完成旧运行会在同一事务标为失败，相同命令重放不会重复建运行 |
+| `POST` | `/api/ai/evaluations/runs` | `{ scope?: 'manual' | 'release' }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.start`。页面默认 `manual`，运行所有已审核且手动启用的用例；内部发布脚本使用 `release`，运行已批准、已启用且开启发布门禁的系统检查和用户纠错案例，当前 8 条核心系统检查默认且必须纳入。`release` scope 拒绝登录用户调用。同 owner 未完成旧运行会在同一事务标为失败，相同命令重放不会重复建运行 |
 | `POST` | `/api/ai/evaluations/runs/:id/results` | `{ caseId, answerText?, toolResults?, errorText?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.results.record`。保存单项 AI 回答并执行后端确定性判定；新调用绑定运行版本，同一运行和用例只记录一次 |
 | `POST` | `/api/ai/evaluations/runs/:id/complete` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.runs.complete`。汇总通过、需修复和需确认数量并结束运行；已结束运行使用新键再次提交会拒绝，同键重试返回原回执 |
 | `PATCH` | `/api/ai/evaluations/cases/:id` | `{ reviewStatus, reviewNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.cases.review`。审核回答纠错生成的候选回归用例；`reviewStatus` 为 `pending/approved/rejected`，只有带确定性检查项且关联纠正规则仍启用的案例可以进入运行；新调用绑定用例版本 |
-| `PATCH` | `/api/ai/evaluations/system-cases/:id` | `{ enabled, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.system_cases.configure`。只允许启停内置系统检查项，并绑定用例版本；不会修改知识内容、用户纠错案例或发布门禁开关 |
+| `PATCH` | `/api/ai/evaluations/system-cases/:id` | `{ enabled, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.evaluations.system_cases.configure`。只允许配置非核心内置系统检查项并绑定用例版本；迁移 72 将核心项纳入发布门禁，迁移 73 恢复旧页面曾停用的固定核心项；`release_gate_enabled=1` 的核心系统用例拒绝停用并返回 `409 AI_CORE_RELEASE_CASE_REQUIRED`，不修改知识内容或用户纠错案例 |
 
 运行记录按登录身份隔离。`part_price` 规则直接读取当前 `parts.price`，不会把历史固定价格写入用例；客户报价规则读取当前有效报价数量，并检查回答是否把 `#3/#5` 这类数据库 ID 当成业务展示顺序。检查运行过程只读取业务数据，运行结果仅写入 `ai_evaluation_runs/results` 运维证据；案例审核和系统检查项配置只更新 `ai_evaluation_cases`，不会修改被检查的业务数据。五项写入均返回 operation、强审计和幂等回执。为兼容原页面和脚本，结果/运行自身的业务 `status` 保持原字段，标准命令状态另以 `operationStatus` 返回；旧调用缺少幂等键或版本时仍执行并返回 warning。
 
-生产发布后执行 `npm run verify:ai-release`。该命令以内部 `release` scope 只运行 `approved + enabled + release_gate_enabled` 的案例；失败或待确认返回非零状态。没有发布门禁用例时命令记录 `skipped` 并以兼容退出码结束，但 `skipped` 只表示本轮没有可执行案例，绝不等于发布验收 `passed`；报告和发布结论必须分别保留 `passed/skipped/failed`。当前 8 条内置系统案例由迁移 47 和 63 维护确定性规则，迁移 59 恢复为页面可手动执行，但保持 `release_gate_enabled=0`，因此不会阻断 Mac Mini 发布；已批准的用户反馈案例仍可按发布门禁开关参与。结果摘要写入 `logs/ai-release-gate-latest.json`，不含完整回答。迁移 48 起，依赖指定配方测试报告的案例会先读取当前业务库：资料存在时继续严格核对内容和来源，资料不存在时只接受明确的未找到或无法确认说明；客户或目标零件不存在时同样要求明确说明未找到，不把不存在的客户伪装成“0 份报价”，也不把不存在的零件伪装成“0 元”。迁移 63 的线圈绕组档案检查会核对当前 `12-120` 正式方案已保存的主副线线径和绕组值，并拒绝“没有绕组数据字段”这类错误结论。Mac Mini LaunchDaemon 安装脚本在 API ready 和 Web 登录页通过后自动执行该门禁。
+生产发布后执行 `npm run verify:ai-release`。该命令固定使用内部身份，以 `release` scope 运行 `approved + enabled + release_gate_enabled` 的案例；失败、待确认或模型调用错误返回非零状态，发布流程不能标记验收成功。脚本在开始前按固定 `case_key` 要求 8 条核心系统案例全部存在、启用、审核通过并开启门禁，任一缺失都直接失败，不能用其他系统项凑数或以 `skipped` 绕过；`skipped` 仅保留给手动检查。当前 8 条内置系统案例由迁移 47 和 63 维护确定性规则，迁移 72 将已批准系统案例纳入发布门禁，迁移 73 恢复旧页面曾停用的固定核心项；普通管理接口拒绝停用核心项。已批准且启用门禁的用户反馈案例继续额外参与。结果摘要写入 `logs/ai-release-gate-latest.json`，不含完整回答。迁移 48 起，依赖指定配方测试报告的案例会先读取当前业务库：资料存在时继续严格核对内容和来源，资料不存在时只接受明确的未找到或无法确认说明；客户或目标零件不存在时同样要求明确说明未找到，不把不存在的客户伪装成“0 份报价”，也不把不存在的零件伪装成“0 元”。迁移 63 的线圈绕组档案检查会核对当前 `12-120` 正式方案已保存的主副线线径和绕组值，并拒绝“没有绕组数据字段”这类错误结论。Mac Mini LaunchDaemon 安装脚本在 API ready 和 Web 登录页通过后自动执行该门禁。
 
 迁移 50 将线圈正式方案回归从 `search_factory_knowledge` 改为 `search_coils`，要求实时正式 API 返回全部材质、槽眼和成本方案；知识快照不再作为线圈库存或当前成本的验收来源。迁移 51 进一步让该用例感知生产库是否存在目标规格：不存在时只接受明确零结果，存在时恢复材质、槽眼、成本和来源的严格检查。迁移 52 保留成品电缆的事实、工具和来源要求，同时接受“共同组成一条”“单一整体业务项”等等价正确措辞，避免发布门禁因表面词形产生假失败。
 

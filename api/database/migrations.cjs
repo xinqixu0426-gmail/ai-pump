@@ -3365,6 +3365,45 @@ const MIGRATIONS = Object.freeze([
             `);
         },
     },
+    {
+        version: 72,
+        name: 'enable_core_ai_release_gate',
+        signature: 'approved-system-ai-checks-block-release-v1',
+        up(db) {
+            db.exec(`
+                UPDATE ai_evaluation_cases
+                SET release_gate_enabled = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE source_type = 'system'
+                  AND review_status = 'approved';
+            `);
+        },
+    },
+    {
+        version: 73,
+        name: 'restore_core_ai_release_cases',
+        signature: 'restore-fixed-core-ai-release-cases-v1',
+        up(db) {
+            db.exec(`
+                UPDATE ai_evaluation_cases
+                SET enabled = 1,
+                    release_gate_enabled = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE source_type = 'system'
+                  AND review_status = 'approved'
+                  AND case_key IN (
+                      'part-current-price',
+                      'coil-all-official-variants',
+                      'coil-winding-profile',
+                      'test-report-file-type',
+                      'test-report-ignore-template-points',
+                      'customer-quotation-display-order',
+                      'complete-cable-semantics',
+                      'cutting-shell-purpose-evidence'
+                  );
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

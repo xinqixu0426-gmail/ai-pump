@@ -4,6 +4,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const baseUrl = String(process.env.AI_EVAL_BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
+const CORE_AI_RELEASE_CASE_KEYS = Object.freeze([
+    'part-current-price',
+    'coil-all-official-variants',
+    'coil-winding-profile',
+    'test-report-file-type',
+    'test-report-ignore-template-points',
+    'customer-quotation-display-order',
+    'complete-cable-semantics',
+    'cutting-shell-purpose-evidence',
+]);
+const CORE_AI_RELEASE_CASE_COUNT = CORE_AI_RELEASE_CASE_KEYS.length;
 let requestHeaders = {};
 let commandSequence = 0;
 
@@ -124,12 +135,52 @@ async function requestJson(method, path, body, headers = {}) {
     return readJson(response, `${method} ${path}`);
 }
 
-async function authenticate() {
-    if (process.env.ACCESS_PASSWORD) {
+function resolveEvaluationAuthentication(scope, env = process.env) {
+    if (scope === 'release') {
+        if (env.INTERNAL_SECRET) return { type: 'internal', secret: env.INTERNAL_SECRET };
+        throw new Error('发布门禁缺少 INTERNAL_SECRET，不能降级为网页登录身份');
+    }
+    if (env.ACCESS_PASSWORD) return { type: 'login', password: env.ACCESS_PASSWORD };
+    if (env.INTERNAL_SECRET) return { type: 'internal', secret: env.INTERNAL_SECRET };
+    throw new Error('缺少 ACCESS_PASSWORD 或 INTERNAL_SECRET，无法执行无人值守回归');
+}
+
+function assertCoreReleaseGateConfigured(overview) {
+    const systemCases = Array.isArray(overview?.systemCases) ? overview.systemCases : [];
+    const casesByKey = new Map(systemCases.map(item => [item.caseKey, item]));
+    const missingKeys = CORE_AI_RELEASE_CASE_KEYS.filter(caseKey => !casesByKey.has(caseKey));
+    const inactiveKeys = CORE_AI_RELEASE_CASE_KEYS.filter(caseKey => {
+        const item = casesByKey.get(caseKey);
+        return item && (
+            item.reviewStatus !== 'approved'
+            || item.enabled !== true
+            || item.releaseGateEnabled !== true
+        );
+    });
+    if (missingKeys.length > 0 || inactiveKeys.length > 0) {
+        throw new Error(
+            `核心 AI 发布检查配置不完整：缺少 ${missingKeys.join(', ') || '无'}；`
+            + `不可执行 ${inactiveKeys.join(', ') || '无'}`
+        );
+    }
+    return CORE_AI_RELEASE_CASE_KEYS.map(caseKey => casesByKey.get(caseKey));
+}
+
+function evaluationClientTimeoutMs(env = process.env) {
+    const serverTimeout = Number(env.AI_CHAT_TIMEOUT_MS);
+    const boundedServerTimeout = Number.isFinite(serverTimeout)
+        ? Math.min(Math.max(Math.trunc(serverTimeout), 10 * 1000), 15 * 60 * 1000)
+        : 180 * 1000;
+    return boundedServerTimeout + 15 * 1000;
+}
+
+async function authenticate(scope = 'manual') {
+    const authentication = resolveEvaluationAuthentication(scope);
+    if (authentication.type === 'login') {
         const response = await fetch(`${baseUrl}/api/auth/login`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ password: process.env.ACCESS_PASSWORD }),
+            body: JSON.stringify({ password: authentication.password }),
         });
         await readJson(response, '自动登录');
         const cookie = response.headers.get('set-cookie')?.split(';')[0];
@@ -137,11 +188,10 @@ async function authenticate() {
         requestHeaders = { cookie };
         return;
     }
-    if (process.env.INTERNAL_SECRET) {
-        requestHeaders = { 'x-internal-secret': process.env.INTERNAL_SECRET };
+    if (authentication.type === 'internal') {
+        requestHeaders = { 'x-internal-secret': authentication.secret };
         return;
     }
-    throw new Error('缺少 ACCESS_PASSWORD 或 INTERNAL_SECRET，无法执行无人值守回归');
 }
 
 async function streamQuestion(question) {
@@ -149,7 +199,7 @@ async function streamQuestion(question) {
         method: 'POST',
         headers: { ...requestHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({ messages: [{ role: 'user', content: question }] }),
-        signal: AbortSignal.timeout(120000),
+        signal: AbortSignal.timeout(evaluationClientTimeoutMs()),
     });
     if (!response.ok || !response.body) {
         throw new Error(`AI 查询失败：${response.status}`);
@@ -211,20 +261,24 @@ async function streamQuestionWithRetry(question, options = {}) {
 
 async function main(options = {}) {
     const scope = options.scope === 'release' ? 'release' : 'manual';
-    await authenticate();
+    await authenticate(scope);
     const health = await requestJson('GET', '/api/health');
     if (health.ready !== true && !['ok', 'ready'].includes(health.status)) {
         throw new Error('API 健康检查未通过');
     }
 
     const overview = await requestJson('GET', '/api/ai/evaluations/overview');
+    if (scope === 'release') assertCoreReleaseGateConfigured(overview);
     const enabledCases = Number(
         scope === 'release'
             ? overview?.caseStats?.releaseEnabled
             : overview?.caseStats?.enabled
     ) || 0;
     if (enabledCases === 0) {
-        console.log('知识库 AI 回归：没有启用用例，本次发布跳过 AI 回归门禁');
+        if (scope === 'release') {
+            throw new Error('发布门禁没有可执行用例，禁止跳过 AI 回归');
+        }
+        console.log('知识库 AI 回归：没有启用用例，本次手动检查跳过');
         return buildReleaseGateReport({ health, skipped: true });
     }
 
@@ -311,8 +365,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+    CORE_AI_RELEASE_CASE_KEYS,
+    CORE_AI_RELEASE_CASE_COUNT,
+    assertCoreReleaseGateConfigured,
     buildReleaseGateReport,
+    evaluationClientTimeoutMs,
     parseCliOptions,
+    resolveEvaluationAuthentication,
     streamQuestionWithRetry,
     writeReleaseGateReport,
 };

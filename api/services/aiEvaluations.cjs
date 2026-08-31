@@ -638,6 +638,12 @@ function configureAiSystemEvaluationCase(caseIdValue, input = {}, options = {}) 
         WHERE id = ? AND source_type = 'system'
     `).get(caseId);
     if (!current) return null;
+    if (current.release_gate_enabled === 1 && input.enabled === false) {
+        const error = new Error('核心发布检查不能停用；应修正规则或业务事实后重新验证');
+        error.code = 'AI_CORE_RELEASE_CASE_REQUIRED';
+        error.statusCode = 409;
+        throw error;
+    }
     const write = safeUpdate('ai_evaluation_cases', caseId, {
         enabled: input.enabled ? 1 : 0,
     }, options.auditContext || {});

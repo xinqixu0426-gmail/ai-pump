@@ -56,7 +56,7 @@ function positiveId(value, label) {
 function mapEvaluationError(error, fallbackCode) {
     if (error instanceof CommandExecutionError) return error;
     return evaluationCommandError(
-        fallbackCode,
+        error?.code || fallbackCode,
         error?.message || 'AI 评测操作失败',
         Number(error?.statusCode) || 400
     );

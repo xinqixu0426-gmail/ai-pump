@@ -14,7 +14,11 @@ function createInternalFetch(context = {}, sharedTrace = null) {
             headers['x-capability-id'] = String(context.capabilityId);
         }
         const port = getServerPort();
-        return fetchWithPolicy(`http://localhost:${port}${url}`, { ...opts, headers }, {
+        return fetchWithPolicy(`http://localhost:${port}${url}`, {
+            ...opts,
+            headers,
+            signal: opts.signal || context.signal,
+        }, {
             timeoutMs: getInternalApiTimeoutMs(),
             retries: 0,
             label: `内部 API ${opts.method || 'GET'} ${url}`,
