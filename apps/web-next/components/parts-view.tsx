@@ -114,7 +114,7 @@ type PartFormState = {
 
 const emptyForm: PartFormState = {
   model: '',
-  category: '轴承',
+  category: '',
   subcategory: '',
   supplier: '',
   catalogUnitCost: '0',
@@ -220,7 +220,7 @@ function resetAfterContinue(form: PartFormState): PartFormState {
 function formToInput(form: PartFormState, model: string, remark: string): PartInput {
   return {
     model,
-    category: form.category.trim() || '轴承',
+    category: form.category.trim(),
     subcategory: form.category === '包装' ? form.subcategory : '',
     supplier: form.supplier.trim(),
     catalogUnitCost: Math.max(0, Number(form.catalogUnitCost) || 0),
@@ -699,20 +699,20 @@ export function PartsView({
       <div className="grid gap-3 md:grid-cols-4">
         <FadePanel delay={0.02} className="rounded-panel border border-line bg-white shadow-panel">
           <button type="button" onClick={clearFilters} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-slate-50" aria-label="查看全部零件">
-            {statLabel(String(parts.length), '零件条目')}
+            {statLabel(loading ? '—' : String(parts.length), '零件条目')}
           </button>
         </FadePanel>
         <FadePanel delay={0.04} className="rounded-panel border border-line bg-white p-3 shadow-panel">
-          {statLabel(money(stats.totalValue), '库存总价值')}
+          {statLabel(loading ? '—' : money(stats.totalValue), '库存总价值')}
         </FadePanel>
         <FadePanel delay={0.06} className={`rounded-panel border bg-white shadow-panel ${quickFilter === 'low' ? 'border-amber-300 ring-2 ring-amber-100' : 'border-line'}`}>
           <button type="button" onClick={() => setQuickFilter('low')} disabled={stats.low === 0} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-amber-50/60 disabled:cursor-not-allowed disabled:hover:bg-transparent" aria-label="查看低库存零件">
-            {statLabel(String(stats.low), '低库存')}
+            {statLabel(loading ? '—' : String(stats.low), '低库存')}
           </button>
         </FadePanel>
         <FadePanel delay={0.08} className={`rounded-panel border bg-white shadow-panel ${quickFilter === 'out' ? 'border-rose-300 ring-2 ring-rose-100' : 'border-line'}`}>
           <button type="button" onClick={() => setQuickFilter('out')} className="w-full rounded-panel p-3 text-left transition-colors hover:bg-rose-50/60" aria-label="查看缺货零件">
-            {statLabel(String(stats.out), '缺货零件')}
+            {statLabel(loading ? '—' : String(stats.out), '缺货零件')}
           </button>
         </FadePanel>
       </div>
@@ -964,6 +964,7 @@ export function PartsView({
                     }));
                   }}
                 >
+                  <option value="">请选择分类</option>
                   {categoryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}

@@ -22,6 +22,11 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { dateShort, money } from '@/lib/format';
+import {
+  customerMarginPercent as formatCustomerMarginPercent,
+  marginMultiplierToPercent,
+  marginPercentToMultiplier,
+} from '@/lib/pricing-margin';
 import { createLatestPreviewCoordinator } from '@/lib/latest-preview.cjs';
 import type { Customer, Quotation } from '@/lib/customers';
 import type { Part } from '@/lib/parts';
@@ -111,16 +116,8 @@ function quotationItemKey(quotationId: number, item: QuotationItem, index: numbe
   return String(item.id || `quotation-${quotationId}-${index}`);
 }
 
-function marginMultiplierToPercent(value: unknown): number {
-  return Math.round((Math.max(0.01, Number(value) || 1.1) - 1) * 10000) / 100;
-}
-
-function marginPercentToMultiplier(value: unknown): number {
-  return 1 + Math.max(0, Number(value) || 0) / 100;
-}
-
 function customerMarginPercent(customer?: Customer): string {
-  return customer ? String(Math.round(Number(customer.defaultMargin || 0) * 10000) / 100) : '10';
+  return formatCustomerMarginPercent(customer?.defaultMargin);
 }
 
 function yesNo(value: unknown): string {
@@ -268,7 +265,6 @@ export function QuotationsView() {
       setQuotations(data.quotations);
       setRecipes(data.recipes);
       setParts(data.parts);
-      setCustomerId((current) => current || (data.customers[0] ? String(data.customers[0].id) : ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : '报价加载失败');
     } finally {
@@ -386,13 +382,12 @@ export function QuotationsView() {
 
   function resetForm() {
     overridePreviewCoordinatorRef.current.clear();
-    const firstCustomer = customers[0];
     setEditingQuotation(null);
-    setCustomerId(firstCustomer ? String(firstCustomer.id) : '');
+    setCustomerId('');
     setFormStatus('报价中');
     setRemark('');
     setRecipeId('');
-    setItemMargin(customerMarginPercent(firstCustomer));
+    setItemMargin('10');
     setDraftItems([]);
     setInquiryDraft({ files: [], summaryText: '', sourceFileIds: [] });
     setInquiryPanelOpen(false);
@@ -766,16 +761,16 @@ export function QuotationsView() {
       <BusinessAlertsBanner scope="quotation" />
 
       <MetricGrid>
-        <MetricCard value={String(stats.quoteCount)} label="报价总数" delay={0.02} />
+        <MetricCard value={loading ? '—' : String(stats.quoteCount)} label="报价总数" delay={0.02} />
         <MetricCard
-          value={String(stats.quotingCount)}
+          value={loading ? '—' : String(stats.quotingCount)}
           label="报价中"
-          tone={stats.quotingCount > 0 ? 'attention' : 'default'}
+          tone={!loading && stats.quotingCount > 0 ? 'attention' : 'default'}
           delay={0.04}
         />
-        <MetricCard value={String(stats.acceptedOrConverted)} label="已接受/转单" delay={0.06} />
+        <MetricCard value={loading ? '—' : String(stats.acceptedOrConverted)} label="已接受/转单" delay={0.06} />
         <MetricCard
-          value={money(stats.totalPrice)}
+          value={loading ? '—' : money(stats.totalPrice)}
           label={stats.pendingAmountCount > 0
             ? `已确定报价金额（${stats.amountKnownCount} 张）`
             : '总报价金额'}

@@ -1520,7 +1520,8 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipesView, /relatedBomParts/);
     assert.match(recipeCoilSection, /自动关联电容/);
     assert.match(recipeCoilSection, /sm:grid-cols-4/);
-    assert.match(recipeCoilSection, /sm:grid-cols-\[8\.5rem_minmax\(0,1fr\)_7rem\]/);
+    assert.match(recipeCoilSection, /sm:grid-cols-\[minmax\(0,2fr\)_minmax\(0,\.65fr\)_minmax\(0,1fr\)_minmax\(0,\.7fr\)\]/);
+    assert.match(recipeCoilSection, /正式线圈方案[\s\S]*线重 kg[\s\S]*线圈成本[\s\S]*自动关联电容/);
     assert.match(recipeCoilSection, /<details className="group mt-2 rounded-md border border-line bg-slate-50\/70">/);
     assert.match(recipeCoilSection, /计算明细/);
     assert.match(recipeCoilSection, /coilSnapshot\?\.formula/);
@@ -1805,6 +1806,9 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     assert.match(coilsView, /同步市场指标/);
     assert.match(coilsView, /refreshMarketIndicators/);
     assert.match(coilsView, /syncMarketIndicators/);
+    assert.match(coilsView, /justify-end gap-2 border-t border-amber-200 pt-3/);
+    assert.match(coilsView, /xl:grid-cols-\[minmax\(12rem,1\.4fr\)_minmax\(8rem,\.8fr\)_minmax\(8rem,\.8fr\)_minmax\(7rem,\.7fr\)_minmax\(12rem,1fr\)_auto\]/);
+    assert.doesNotMatch(coilsView, /lg:grid-cols-\[360px_1fr\]/);
     assert.doesNotMatch(coilsView, /材质默认单价|保存单价配置|添加材质|saveMaterialConfig/);
     assert.doesNotMatch(coilsLib, /saveCoilMaterialPrices|\/api\/coils\/materials/);
     assert.doesNotMatch(coilsRoute, /router\.(get|put)\('\/materials'/);

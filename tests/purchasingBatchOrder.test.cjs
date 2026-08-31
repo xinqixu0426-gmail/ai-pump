@@ -76,6 +76,8 @@ function createFixture() {
             id, model, name, supplier, price, stock, updated_at
         ) VALUES (
             1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'
+        ), (
+            2, 'P-2', '测试零件二', '供应商A', 6, 0, '${FIXED_UPDATED_AT}'
         );
     `);
     const insertOrder = db.prepare(`
@@ -97,6 +99,12 @@ function createFixture() {
                     name: '测试零件',
                     supplier: '供应商A',
                     qty: 1,
+                    inventoryQty: 1,
+                }, {
+                    model: 'P-2',
+                    name: '测试零件二',
+                    supplier: '供应商A',
+                    qty: 2,
                     inventoryQty: 1,
                 }]),
             }]),
@@ -154,6 +162,17 @@ function taskInput() {
         model: 'P-1',
         supplier: '供应商A',
         purchased: true,
+    };
+}
+
+function supplierBatchInput() {
+    return {
+        supplier: '供应商A',
+        purchased: true,
+        tasks: [
+            { identityKey: 'part:1', model: 'P-1', supplier: '供应商A' },
+            { identityKey: 'part:2', model: 'P-2', supplier: '供应商A' },
+        ],
     };
 }
 
@@ -282,6 +301,202 @@ test('采购批量下单缺少任一强审计时全部订单和 operation 回滚
         );
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('同供应商多物料预览一次返回任务集合、明细和唯一订单版本且不写库', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildPurchaseBatchDraft(fixture.dependencies, supplierBatchInput());
+        assert.equal(draft.tasks.length, 2);
+        assert.equal(draft.affectedItems.length, 4);
+        assert.equal(draft.affectedOrders.length, 2);
+        assert.equal(draft.expectedVersions.length, 2);
+        assert.equal(new Set(draft.expectedVersions.map(item => item.orderId)).size, 2);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('同供应商多物料在一次命令中原子下单并安全重放', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildPurchaseBatchDraft(fixture.dependencies, supplierBatchInput());
+        const input = {
+            ...supplierBatchInput(),
+            expectedVersions: draft.expectedVersions,
+            previewHash: draft.previewHash,
+        };
+        const first = executePurchaseBatch(fixture.dependencies, input, context('supplier-success'));
+        const replay = executePurchaseBatch(fixture.dependencies, input, context('supplier-success'));
+        assert.equal(first.updatedCount, 2);
+        assert.equal(first.changes.filter(change => change.field === 'orderedQty').length, 4);
+        assert.equal(replay.idempotentReplay, true);
+        for (const row of fixture.db.prepare('SELECT * FROM orders ORDER BY id').all()) {
+            const items = JSON.parse(row.purchase_list_json);
+            assert.equal(items.length, 2);
+            assert.ok(items.every(item => item.orderedQty === item.plannedQty));
+        }
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 2);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商批量拒绝空任务、重复任务、混合供应商和超限任务', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, { purchased: true, tasks: [] }),
+            error => error.code === 'purchase_tasks_required' && error.statusCode === 400
+        );
+        const repeated = supplierBatchInput().tasks[0];
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, { purchased: true, tasks: [repeated, repeated] }),
+            error => error.code === 'purchase_tasks_duplicate' && error.statusCode === 400
+        );
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, {
+                purchased: true,
+                tasks: [repeated, { model: 'P-X', supplier: '供应商B' }],
+            }),
+            error => error.code === 'purchase_supplier_mismatch' && error.statusCode === 400
+        );
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, {
+                purchased: true,
+                tasks: Array.from({ length: 51 }, (_, index) => ({
+                    model: `P-${index + 10}`,
+                    supplier: '供应商A',
+                })),
+            }),
+            error => error.code === 'purchase_tasks_limit_exceeded' && error.statusCode === 400
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商批量任一任务失效或选择范围重叠时整批拒绝且不写库', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, {
+                purchased: true,
+                tasks: [
+                    supplierBatchInput().tasks[0],
+                    { identityKey: 'part:999', model: 'P-999', supplier: '供应商A' },
+                ],
+            }),
+            error => error.code === 'purchase_task_unavailable' && error.statusCode === 409
+        );
+        assert.throws(
+            () => buildPurchaseBatchDraft(fixture.dependencies, {
+                purchased: true,
+                tasks: [
+                    supplierBatchInput().tasks[0],
+                    { model: 'P-1', supplier: '供应商A' },
+                ],
+            }),
+            error => error.code === 'purchase_tasks_overlap' && error.statusCode === 400
+        );
+        assert.ok(
+            fixture.db.prepare('SELECT purchase_list_json FROM orders').all()
+                .every(row => row.purchase_list_json === '[]')
+        );
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商批量取消下单走同一预览命令链并恢复全部任务', () => {
+    const fixture = createFixture();
+    try {
+        const purchaseDraft = buildPurchaseBatchDraft(fixture.dependencies, supplierBatchInput());
+        executePurchaseBatch(fixture.dependencies, {
+            ...supplierBatchInput(),
+            expectedVersions: purchaseDraft.expectedVersions,
+            previewHash: purchaseDraft.previewHash,
+        }, context('supplier-order-before-cancel'));
+
+        const cancelInput = {
+            ...supplierBatchInput(),
+            purchased: false,
+        };
+        const cancelDraft = buildPurchaseBatchDraft(fixture.dependencies, cancelInput);
+        const cancelled = executePurchaseBatch(fixture.dependencies, {
+            ...cancelInput,
+            expectedVersions: cancelDraft.expectedVersions,
+            previewHash: cancelDraft.previewHash,
+        }, context('supplier-cancel'));
+        assert.equal(cancelled.updatedCount, 2);
+        for (const row of fixture.db.prepare('SELECT purchase_list_json FROM orders').all()) {
+            const items = JSON.parse(row.purchase_list_json);
+            assert.ok(items.every(item => item.orderedQty === 0));
+        }
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商批量在任务集合变化后拒绝旧预览', () => {
+    const fixture = createFixture();
+    try {
+        const draft = buildPurchaseBatchDraft(fixture.dependencies, supplierBatchInput());
+        assert.throws(
+            () => executePurchaseBatch(
+                fixture.dependencies,
+                {
+                    purchased: true,
+                    tasks: [supplierBatchInput().tasks[0]],
+                    expectedVersions: draft.expectedVersions,
+                    previewHash: draft.previewHash,
+                },
+                context('task-drift')
+            ),
+            error => error.code === 'preview_changed' && error.statusCode === 409
+        );
+        assert.ok(
+            fixture.db.prepare('SELECT purchase_list_json FROM orders').all()
+                .every(row => row.purchase_list_json === '[]')
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('供应商批量相同幂等键不同任务参数返回冲突且不重复写入', () => {
+    const fixture = createFixture();
+    try {
+        const firstDraft = buildPurchaseBatchDraft(fixture.dependencies, supplierBatchInput());
+        const commandContext = context('supplier-conflict');
+        executePurchaseBatch(fixture.dependencies, {
+            ...supplierBatchInput(),
+            expectedVersions: firstDraft.expectedVersions,
+            previewHash: firstDraft.previewHash,
+        }, commandContext);
+        const secondInput = {
+            purchased: true,
+            tasks: [supplierBatchInput().tasks[0]],
+        };
+        const secondDraft = buildPurchaseBatchDraft(fixture.dependencies, secondInput);
+        assert.throws(
+            () => executePurchaseBatch(fixture.dependencies, {
+                ...secondInput,
+                expectedVersions: secondDraft.expectedVersions,
+                previewHash: secondDraft.previewHash,
+            }, commandContext),
+            error => error.code === 'idempotency_key_conflict' && error.statusCode === 409
+        );
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 1);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 2);
     } finally {
         fixture.db.close();
     }

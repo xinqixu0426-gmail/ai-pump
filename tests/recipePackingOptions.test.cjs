@@ -130,3 +130,35 @@ test('选择和清空外包装时 boxType 与 packingPartsJson 保持同步', ()
     assert.equal(cleared.boxType, '')
     assert.deepEqual(JSON.parse(cleared.packingPartsJson).map(part => part.model), ['说明书'])
 })
+
+test('包装目录候选读取正式目录成本价并覆盖同身份历史快照重复项', () => {
+    const options = buildPackingOptionValues([{
+        id: 71,
+        model: 'TEST-木箱-目录价',
+        category: '包装',
+        subcategory: '外包装',
+        supplier: '测试包装厂',
+        catalogUnitCost: 13,
+    }], [{
+        packingPartsJson: JSON.stringify([{
+            model: 'TEST-木箱-目录价',
+            supplier: '测试包装厂',
+            snapshotPrice: 9,
+            packagingMaterial: '木箱',
+            packingRole: 'container',
+        }]),
+    }])
+
+    assert.equal(options.length, 1)
+    assert.equal(options[0].partId, 71)
+    assert.equal(options[0].price, 13)
+})
+
+test('包装候选保留同型号不同供应商的正式业务身份', () => {
+    const options = buildPackingOptionValues([
+        { id: 81, model: 'TEST-纸箱-双供应商', category: '包装', supplier: '甲厂', catalogUnitCost: 6 },
+        { id: 82, model: 'TEST-纸箱-双供应商', category: '包装', supplier: '乙厂', catalogUnitCost: 5 },
+    ], [])
+
+    assert.deepEqual(options.map(option => option.supplier).sort(), ['乙厂', '甲厂'])
+})

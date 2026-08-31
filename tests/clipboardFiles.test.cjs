@@ -12,6 +12,7 @@ const loaded = { exports: {} };
 new Function('exports', 'module', compiled)(loaded.exports, loaded);
 
 const {
+    FACTORY_ATTACHMENT_EXTENSIONS,
     MAX_PASTED_FILE_SIZE,
     selectClipboardFile,
 } = loaded.exports;
@@ -71,4 +72,16 @@ test('剪贴板文件：超过 10MB 一个字节时在上传前拒绝', () => {
     );
     assert.equal(result.kind, 'rejected');
     assert.match(result.message, /超过 10MB/);
+});
+
+test('报价询价附件允许统一声明的 PDF、Word、表格、文本和图片类型', () => {
+    for (const extension of FACTORY_ATTACHMENT_EXTENSIONS) {
+        const input = file(`询价附件${extension}`);
+        const result = selectClipboardFile(files(input), {
+            allowedExtensions: FACTORY_ATTACHMENT_EXTENSIONS,
+            allowedLabel: '受支持的询价附件',
+        });
+        assert.equal(result.kind, 'accepted', `应允许 ${extension}`);
+        assert.equal(result.file, input);
+    }
 });

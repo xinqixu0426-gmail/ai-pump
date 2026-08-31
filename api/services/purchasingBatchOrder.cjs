@@ -25,6 +25,7 @@ const {
 const CAPABILITY_ID = requireBusinessCapability(
     'purchasing.task.batch_order'
 ).capabilityId;
+const MAX_BATCH_TASKS = 50;
 
 function batchError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
@@ -37,9 +38,41 @@ function normalizeTaskInput(input = {}) {
     return {
         identityKey,
         model,
-        supplier: String(input.supplier || ''),
+        supplier: String(input.supplier || '').trim(),
         purchased: Boolean(input.purchased),
     };
+}
+
+function taskIdentity(input) {
+    return input.identityKey || `${input.supplier}||${input.model}`;
+}
+
+function normalizeBatchInput(input = {}) {
+    const purchased = Boolean(input.purchased);
+    const rawTasks = input.tasks === undefined ? [input] : input.tasks;
+    if (!Array.isArray(rawTasks) || rawTasks.length === 0) {
+        throw batchError('purchase_tasks_required', '采购任务不能为空', 400);
+    }
+    if (rawTasks.length > MAX_BATCH_TASKS) {
+        throw batchError(
+            'purchase_tasks_limit_exceeded',
+            `单次最多处理 ${MAX_BATCH_TASKS} 个采购任务`,
+            400
+        );
+    }
+    const tasks = rawTasks.map(task => normalizeTaskInput({
+        ...task,
+        supplier: task?.supplier ?? input.supplier,
+        purchased,
+    }));
+    const identities = tasks.map(taskIdentity);
+    if (new Set(identities).size !== identities.length) {
+        throw batchError('purchase_tasks_duplicate', '采购任务不能重复', 400);
+    }
+    if (tasks.length > 1 && new Set(tasks.map(task => task.supplier)).size !== 1) {
+        throw batchError('purchase_supplier_mismatch', '供应商批量采购只能包含同一供应商的任务', 400);
+    }
+    return tasks;
 }
 
 function itemMatches(item, input) {
@@ -47,10 +80,22 @@ function itemMatches(item, input) {
         return String(item.identityKey || '') === input.identityKey;
     }
     return String(item.model || '') === input.model
-        && String(item.supplier || '') === input.supplier;
+        && String(item.supplier || '').trim() === input.supplier;
 }
 
-function buildBatchState(dependencies, taskInput) {
+function matchingTask(item, taskInputs) {
+    const matches = taskInputs.filter(taskInput => itemMatches(item, taskInput));
+    if (matches.length > 1) {
+        throw batchError(
+            'purchase_tasks_overlap',
+            `采购任务选择范围重叠：${String(item.model || '')}`,
+            400
+        );
+    }
+    return matches[0];
+}
+
+function buildBatchState(dependencies, taskInputs) {
     const {
         db,
         dbGetAllCoils,
@@ -62,15 +107,17 @@ function buildBatchState(dependencies, taskInput) {
         parts: dbGetAllParts(),
         coils: dbGetAllCoils(),
     });
+    const matchedTaskIdentities = new Set();
     const orderStates = records.map(record => {
         const purchaseList = (
             plans.get(Number(record.id))?.purchaseList || []
         ).map(normalizePurchaseItem);
         let matched = false;
         const nextPurchaseList = purchaseList.map(item => {
+            const taskInput = matchingTask(item, taskInputs);
             if (
                 ['待确认', '采购完成'].includes(record.status)
-                || !itemMatches(item, taskInput)
+                || !taskInput
                 || Number(item.plannedQty || 0) <= 0
             ) {
                 return item;
@@ -85,6 +132,7 @@ function buildBatchState(dependencies, taskInput) {
                     409
                 );
             }
+            matchedTaskIdentities.add(taskIdentity(taskInput));
             matched = true;
             return normalizePurchaseItem({
                 ...item,
@@ -99,6 +147,18 @@ function buildBatchState(dependencies, taskInput) {
             matched,
         };
     });
+    if (taskInputs.length > 1) {
+        const missingTask = taskInputs.find(
+            taskInput => !matchedTaskIdentities.has(taskIdentity(taskInput))
+        );
+        if (missingTask) {
+            throw batchError(
+                'purchase_task_unavailable',
+                `采购任务「${missingTask.model}」已不存在或当前不可操作，请刷新后重新预览`,
+                409
+            );
+        }
+    }
     const affected = orderStates.filter(state => state.matched);
     return {
         records,
@@ -113,10 +173,10 @@ function buildBatchState(dependencies, taskInput) {
     };
 }
 
-function batchPreviewHash(taskInput, state) {
+function batchPreviewHash(taskInputs, state) {
     return requestHash({
         capabilityId: CAPABILITY_ID,
-        taskInput,
+        taskInputs,
         balanceContext: state.balanceContext,
         affected: state.affected.map(entry => ({
             orderId: Number(entry.record.id),
@@ -127,29 +187,48 @@ function batchPreviewHash(taskInput, state) {
 }
 
 function buildPurchaseBatchDraft(dependencies, input = {}) {
-    const taskInput = normalizeTaskInput(input);
-    const state = buildBatchState(dependencies, taskInput);
+    const taskInputs = normalizeBatchInput(input);
+    const state = buildBatchState(dependencies, taskInputs);
+    const affectedItems = state.affected.flatMap(entry => taskInputs.flatMap(taskInput => {
+        const before = entry.purchaseList.find(item => itemMatches(item, taskInput));
+        const after = entry.nextPurchaseList.find(item => itemMatches(item, taskInput));
+        if (!before && !after) return [];
+        return [{
+            orderId: Number(entry.record.id),
+            customerName: String(entry.record.customer_name || ''),
+            contractNo: String(entry.record.contract_no || ''),
+            identityKey: String(after?.identityKey || before?.identityKey || taskInput.identityKey || ''),
+            model: String(after?.model || before?.model || taskInput.model),
+            supplier: String(after?.supplier || before?.supplier || taskInput.supplier),
+            plannedQty: Number(after?.plannedQty || before?.plannedQty || 0),
+            beforeOrderedQty: Number(before?.orderedQty || 0),
+            afterOrderedQty: Number(after?.orderedQty || 0),
+            purchaseUnit: String(after?.purchaseUnit || before?.purchaseUnit || ''),
+        }];
+    }));
     return {
         capabilityId: CAPABILITY_ID,
         suggestedIdempotencyKey: `purchase-batch:${crypto.randomUUID()}`,
         requiresConfirmation: true,
-        previewHash: batchPreviewHash(taskInput, state),
+        previewHash: batchPreviewHash(taskInputs, state),
         expectedVersions: state.affected.map(entry => ({
             orderId: Number(entry.record.id),
             expectedUpdatedAt: String(entry.record.updated_at || ''),
         })),
-        task: taskInput,
+        task: taskInputs[0],
+        tasks: taskInputs,
+        affectedItems,
         affectedOrders: state.affected.map(entry => {
-            const before = entry.purchaseList.find(item => itemMatches(item, taskInput));
-            const after = entry.nextPurchaseList.find(item => itemMatches(item, taskInput));
+            const items = affectedItems.filter(item => item.orderId === Number(entry.record.id));
+            const units = new Set(items.map(item => item.purchaseUnit).filter(Boolean));
             return {
                 orderId: Number(entry.record.id),
                 customerName: String(entry.record.customer_name || ''),
                 contractNo: String(entry.record.contract_no || ''),
-                plannedQty: Number(after?.plannedQty || before?.plannedQty || 0),
-                beforeOrderedQty: Number(before?.orderedQty || 0),
-                afterOrderedQty: Number(after?.orderedQty || 0),
-                purchaseUnit: String(after?.purchaseUnit || before?.purchaseUnit || ''),
+                plannedQty: items.reduce((sum, item) => sum + item.plannedQty, 0),
+                beforeOrderedQty: items.reduce((sum, item) => sum + item.beforeOrderedQty, 0),
+                afterOrderedQty: items.reduce((sum, item) => sum + item.afterOrderedQty, 0),
+                purchaseUnit: units.size === 1 ? [...units][0] : '',
             };
         }),
     };
@@ -191,7 +270,7 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
         orderRow,
         safeUpdate,
     } = dependencies;
-    const taskInput = normalizeTaskInput(input);
+    const taskInputs = normalizeBatchInput(input);
     const expectedVersions = normalizeExpectedVersions(input.expectedVersions);
     const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const compatibilityWarnings = [];
@@ -213,7 +292,7 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
         ...commandContext,
         businessChange: standardBusinessChange({ domain: 'purchasing', eventType: 'updated' }),
         input: {
-            taskInput,
+            taskInputs,
             expectedVersions,
             previewHash: expectedPreviewHash,
         },
@@ -223,7 +302,7 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
             try {
                 state = buildBatchState(
                     { db, dbGetAllCoils, dbGetAllParts },
-                    taskInput
+                    taskInputs
                 );
             } catch (error) {
                 if (expectedPreviewHash && error.code === 'purchase_order_cannot_cancel') {
@@ -264,7 +343,7 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
             }
             assertPreviewHash(
                 expectedPreviewHash,
-                batchPreviewHash(taskInput, state),
+                batchPreviewHash(taskInputs, state),
                 '批量采购预览所依据的活动订单或平衡计划已经变化，请重新确认'
             );
 
@@ -275,9 +354,9 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
             let requiredAuditCount = 0;
             for (const orderState of state.orderStates) {
                 let purchaseList = orderState.nextPurchaseList;
-                if (orderState.matched && taskInput.purchased) {
+                if (orderState.matched && taskInputs[0].purchased) {
                     purchaseList = purchaseList.map(item => (
-                        itemMatches(item, taskInput)
+                        matchingTask(item, taskInputs)
                             ? normalizePurchaseItem({
                                 ...item,
                                 orderedAt: item.orderedAt || now,
@@ -313,16 +392,19 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
                         db.prepare('SELECT * FROM orders WHERE id = ?')
                             .get(Number(orderState.record.id))
                     ));
-                    const before = orderState.purchaseList.find(item => itemMatches(item, taskInput));
-                    const after = purchaseList.find(item => itemMatches(item, taskInput));
-                    changes.push({
-                        resourceType: 'order',
-                        resourceId: Number(orderState.record.id),
-                        field: 'orderedQty',
-                        identityKey: String(after?.identityKey || ''),
-                        from: Number(before?.orderedQty || 0),
-                        to: Number(after?.orderedQty || 0),
-                    });
+                    for (const taskInput of taskInputs) {
+                        const before = orderState.purchaseList.find(item => itemMatches(item, taskInput));
+                        const after = purchaseList.find(item => itemMatches(item, taskInput));
+                        if (!before && !after) continue;
+                        changes.push({
+                            resourceType: 'order',
+                            resourceId: Number(orderState.record.id),
+                            field: 'orderedQty',
+                            identityKey: String(after?.identityKey || before?.identityKey || ''),
+                            from: Number(before?.orderedQty || 0),
+                            to: Number(after?.orderedQty || 0),
+                        });
+                    }
                 } else {
                     changes.push({
                         resourceType: 'order',
@@ -351,7 +433,9 @@ function executePurchaseBatch(dependencies, input = {}, commandContext = {}) {
 
 module.exports = {
     CAPABILITY_ID,
+    MAX_BATCH_TASKS,
     buildPurchaseBatchDraft,
     batchPreviewHash,
     executePurchaseBatch,
+    normalizeBatchInput,
 };

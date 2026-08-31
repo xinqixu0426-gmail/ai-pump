@@ -81,7 +81,7 @@ function findPackingOption(options, packing) {
 }
 
 function packingOptionKeyValue(option) {
-  return `${option.partId || ''}||${option.model}||${option.supplier}||${option.packagingMaterial}||${option.price}`
+  return `${option.model}||${option.supplier}||${option.packagingMaterial}||${option.packingRole}`
 }
 
 function buildPackingOptionValues(parts, recipes) {
@@ -98,7 +98,8 @@ function buildPackingOptionValues(parts, recipes) {
       packagingMaterial: semantics.packagingMaterial,
       packingRole: semantics.packingRole,
     }
-    options.set(packingOptionKeyValue(option), option)
+    const key = packingOptionKeyValue(option)
+    if (!options.has(key)) options.set(key, option)
   }
 
   parts.forEach(part => {
@@ -120,15 +121,16 @@ function buildPackingOptionValues(parts, recipes) {
         : part.subcategory === '固定包材'
           ? 'fixed'
           : undefined,
-    }, Number(part.price || 0))
+    }, Number(part.catalogUnitCost ?? part.price ?? 0))
   })
 
   recipes.forEach(recipe => {
     normalizePackingParts(recipe.packingPartsJson).forEach(packing => {
-      const catalogPrice = parts.find(part => (
+      const matchedCatalogPart = parts.find(part => (
         text(part.model) === text(packing.model)
         && (!packing.supplier || text(part.supplier) === text(packing.supplier))
-      ))?.price
+      ))
+      const catalogPrice = matchedCatalogPart?.catalogUnitCost ?? matchedCatalogPart?.price
       addOption(packing, Number(packing.snapshotPrice ?? catalogPrice ?? 0))
     })
     if (recipe.boxType) {

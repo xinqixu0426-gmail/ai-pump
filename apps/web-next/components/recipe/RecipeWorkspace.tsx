@@ -55,7 +55,7 @@ type RecipeWorkspaceProps = {
 
 const quickFilters: Array<{ value: RecipeWorkspaceFilter; label: string }> = [
   { value: 'all', label: '全部' },
-  { value: 'risk', label: '铜价风险' },
+  { value: 'risk', label: '铜价待复核' },
   { value: 'missingCost', label: '无保存成本' },
   { value: 'incompleteCost', label: '当日成本不完整' },
   { value: 'float', label: '带浮球' },
@@ -227,7 +227,7 @@ export function RecipeWorkspace({
       const matchesTemplate = templateId === '全部' || String(recipe.templateId || '') === templateId;
       const matchesQuick =
         quickFilter === 'all' ||
-        (quickFilter === 'risk' && ['watch', 'review', 'critical'].includes(row.copperRisk.level)) ||
+        (quickFilter === 'risk' && ['missing', 'watch', 'review', 'critical'].includes(row.copperRisk.level)) ||
         (quickFilter === 'missingCost' && !row.savedTotal) ||
         (quickFilter === 'incompleteCost' && row.currentCost?.costComplete === false) ||
         (quickFilter === 'float' && Boolean(recipe.hasFloat)) ||
@@ -237,26 +237,28 @@ export function RecipeWorkspace({
   }, [query, quickFilter, recipeRows, templateId]);
   const stats = useMemo(() => {
     const totalSavedCost = recipeRows.reduce((sum, row) => sum + (row.savedTotal || 0), 0);
-    const riskyCount = recipeRows.filter((row) => ['watch', 'review', 'critical'].includes(row.copperRisk.level)).length;
+    const copperReviewCount = recipeRows.filter((row) => ['missing', 'watch', 'review', 'critical'].includes(row.copperRisk.level)).length;
     const missingCostCount = recipeRows.filter((row) => !row.savedTotal).length;
     const incompleteCurrentCostCount = recipeRows.filter((row) => row.currentCost?.costComplete === false).length;
-    return { totalSavedCost, riskyCount, missingCostCount, incompleteCurrentCostCount };
+    return { totalSavedCost, copperReviewCount, missingCostCount, incompleteCurrentCostCount };
   }, [recipeRows]);
-  const hasCostIssues = stats.riskyCount > 0 || stats.missingCostCount > 0 || stats.incompleteCurrentCostCount > 0;
+  const hasCostIssues = stats.copperReviewCount > 0 || stats.missingCostCount > 0 || stats.incompleteCurrentCostCount > 0;
 
   return (
     <>
       <FadePanel className="rounded-panel border border-line bg-white p-3 shadow-panel sm:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-ink">{recipes.length} 个配方 · 保存成本 {money(stats.totalSavedCost)}</div>
-            <div className={`mt-1 text-xs ${hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {hasCostIssues ? `当日成本不完整 ${stats.incompleteCurrentCostCount} 个 · 铜价关注 ${stats.riskyCount} 个 · 无保存成本 ${stats.missingCostCount} 个` : '成本状态正常'}
+            <div className="text-sm font-semibold text-ink">
+              {loading ? '配方与成本加载中' : <>{recipes.length} 个配方 · 保存成本 {money(stats.totalSavedCost)}</>}
+            </div>
+            <div className={`mt-1 text-xs ${loading ? 'text-muted' : hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {loading ? '正在读取正式成本状态' : hasCostIssues ? `当日成本不完整 ${stats.incompleteCurrentCostCount} 个 · 铜价待复核 ${stats.copperReviewCount} 个 · 无保存成本 ${stats.missingCostCount} 个` : '成本状态正常'}
             </div>
           </div>
-          {hasCostIssues ? (
+          {loading ? null : hasCostIssues ? (
             <Button size="sm" onClick={() => onQuickFilterChange(
-              stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.riskyCount > 0 ? 'risk' : 'missingCost'
+              stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.copperReviewCount > 0 ? 'risk' : 'missingCost'
             )}>
               查看问题
             </Button>
@@ -267,27 +269,29 @@ export function RecipeWorkspace({
       </FadePanel>
 
       <div className="hidden gap-3 sm:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(18rem,1.4fr)]">
-        <MetricCard value={String(recipes.length)} label="配方数量" delay={0.02} />
-        <MetricCard value={money(stats.totalSavedCost)} label="保存成本合计" delay={0.04} />
+        <MetricCard value={loading ? '—' : String(recipes.length)} label="配方数量" delay={0.02} />
+        <MetricCard value={loading ? '—' : money(stats.totalSavedCost)} label="保存成本合计" delay={0.04} />
         <FadePanel delay={0.06}>
           <div className={`flex h-full items-center justify-between gap-4 rounded-panel border p-4 shadow-panel ${
-            hasCostIssues
+            loading
+              ? 'border-line bg-slate-50'
+              : hasCostIssues
               ? 'border-amber-200 bg-amber-50'
               : 'border-emerald-200 bg-emerald-50/70'
           }`}>
             <div>
-              <div className={`text-sm font-semibold ${hasCostIssues ? 'text-amber-900' : 'text-emerald-900'}`}>
-                {hasCostIssues ? '成本数据需要处理' : '成本状态正常'}
+              <div className={`text-sm font-semibold ${loading ? 'text-ink' : hasCostIssues ? 'text-amber-900' : 'text-emerald-900'}`}>
+                {loading ? '成本状态加载中' : hasCostIssues ? '成本数据需要处理' : '成本状态正常'}
               </div>
-              <div className={`mt-1 text-xs ${hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
-                当日成本不完整 {stats.incompleteCurrentCostCount} 个 · 铜价关注 {stats.riskyCount} 个 · 无保存成本 {stats.missingCostCount} 个
+              <div className={`mt-1 text-xs ${loading ? 'text-muted' : hasCostIssues ? 'text-amber-700' : 'text-emerald-700'}`}>
+                {loading ? '正在读取正式成本状态' : `当日成本不完整 ${stats.incompleteCurrentCostCount} 个 · 铜价待复核 ${stats.copperReviewCount} 个 · 无保存成本 ${stats.missingCostCount} 个`}
               </div>
             </div>
-            {hasCostIssues ? (
+            {loading ? null : hasCostIssues ? (
               <Button
                 size="sm"
                 onClick={() => onQuickFilterChange(
-                  stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.riskyCount > 0 ? 'risk' : 'missingCost'
+                  stats.incompleteCurrentCostCount > 0 ? 'incompleteCost' : stats.copperReviewCount > 0 ? 'risk' : 'missingCost'
                 )}
               >
                 查看问题

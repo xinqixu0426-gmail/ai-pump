@@ -599,23 +599,13 @@ export function CoilsView() {
       ) : null}
 
       <FadePanel className="space-y-4 border-amber-200 bg-amber-50/70">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-amber-100 text-amber-700">
-              <CircleDollarSign size={18} />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-ink">实时市场指标</div>
-              <div className="mt-1 text-xs text-muted">同步后只更新计算计价方案采用的铜价；供应商套件价保持不变。</div>
-            </div>
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+            <CircleDollarSign size={18} />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void refreshMarketIndicators()} disabled={marketLoading || marketUpdating} icon={<RefreshCw size={15} className={marketLoading ? 'animate-spin' : ''} />}>
-              刷新指标
-            </Button>
-            <Button type="button" variant="primary" onClick={() => void syncMarketIndicators()} disabled={marketUpdating} icon={marketUpdating ? <RefreshCw size={15} className="animate-spin" /> : <TrendingUp size={15} />}>
-              {marketUpdating ? '同步中' : '同步市场指标'}
-            </Button>
+          <div>
+            <div className="text-sm font-semibold text-ink">实时市场指标</div>
+            <div className="mt-1 text-xs text-muted">同步后只更新计算计价方案采用的铜价；供应商套件价保持不变。</div>
           </div>
         </div>
         {marketIndicators ? (
@@ -650,6 +640,14 @@ export function CoilsView() {
             {marketLoading ? '市场指标加载中...' : '市场指标暂不可用，可稍后刷新。'}
           </div>
         )}
+        <div className="flex flex-wrap justify-end gap-2 border-t border-amber-200 pt-3">
+          <Button type="button" onClick={() => void refreshMarketIndicators()} disabled={marketLoading || marketUpdating} icon={<RefreshCw size={15} className={marketLoading ? 'animate-spin' : ''} />}>
+            刷新指标
+          </Button>
+          <Button type="button" variant="primary" onClick={() => void syncMarketIndicators()} disabled={marketUpdating} icon={marketUpdating ? <RefreshCw size={15} className="animate-spin" /> : <TrendingUp size={15} />}>
+            {marketUpdating ? '同步中' : '同步市场指标'}
+          </Button>
+        </div>
       </FadePanel>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -667,18 +665,18 @@ export function CoilsView() {
         </Panel>
       </div>
 
-      <FadePanel className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <FadePanel className="space-y-4">
         <Panel>
           <PanelHeader title="成本试算" icon={<Calculator size={16} />} />
-          <PanelBody className="space-y-3">
-            <Field label="规格">
-              <Input
-                value={calcSpec}
-                onChange={(event) => setCalcSpec(event.target.value)}
-                list="coil-spec-options"
-              />
-            </Field>
-            <div className="grid gap-3 md:grid-cols-2">
+          <PanelBody>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1.4fr)_minmax(8rem,.8fr)_minmax(8rem,.8fr)_minmax(7rem,.7fr)_minmax(12rem,1fr)_auto] xl:items-end">
+              <Field label="规格">
+                <Input
+                  value={calcSpec}
+                  onChange={(event) => setCalcSpec(event.target.value)}
+                  list="coil-spec-options"
+                />
+              </Field>
               <Field label="材质">
                 <Select
                   value={calcMaterial}
@@ -698,8 +696,6 @@ export function CoilsView() {
                   <option value="国标眼">国标眼</option>
                 </Select>
               </Field>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
               <Field label="片数">
                 <Input
                   value={calcSheets}
@@ -720,25 +716,25 @@ export function CoilsView() {
                   placeholder="可选"
                 />
               </Field>
+              <Button type="button" variant="primary" onClick={() => void runCalculate()} disabled={calcLoading} icon={<Calculator size={15} />}>
+                {calcLoading ? '试算中' : '试算'}
+              </Button>
             </div>
-            <Button type="button" variant="primary" onClick={() => void runCalculate()} disabled={calcLoading} icon={<Calculator size={15} />}>
-              {calcLoading ? '试算中' : '试算'}
-            </Button>
-          {calcResult ? (
-            <div className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm">
-              <div className="text-xl font-semibold text-ink">{money(calcResult.totalCost)}</div>
-              <div className="mt-2 text-muted">{calcResult.formula}</div>
-              <div className="mt-2 grid gap-1 text-xs text-muted">
-                <span>定子：{calcResult.diameterMm}mm / {calcResult.material} / {calcResult.slotType}</span>
-                <span>来源：{calcResult.source || '-'}</span>
-                <span>搭配电缆线径：{calcResult.wireGauge || '-'}</span>
-                <span>电容：{calcResult.capacitor ? `${calcResult.capacitor}μF` : '-'}</span>
+            {calcResult ? (
+              <div className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm">
+                <div className="text-xl font-semibold text-ink">{money(calcResult.totalCost)}</div>
+                <div className="mt-2 text-muted">{calcResult.formula}</div>
+                <div className="mt-2 grid gap-1 text-xs text-muted">
+                  <span>定子：{calcResult.diameterMm}mm / {calcResult.material} / {calcResult.slotType}</span>
+                  <span>来源：{calcResult.source || '-'}</span>
+                  <span>搭配电缆线径：{calcResult.wireGauge || '-'}</span>
+                  <span>电容：{calcResult.capacitor ? `${calcResult.capacitor}μF` : '-'}</span>
+                </div>
               </div>
-            </div>
-          ) : null}
-          <datalist id="coil-spec-options">
-            {specOptions.map((spec) => <option key={spec} value={spec} />)}
-          </datalist>
+            ) : null}
+            <datalist id="coil-spec-options">
+              {specOptions.map((spec) => <option key={spec} value={spec} />)}
+            </datalist>
           </PanelBody>
         </Panel>
 

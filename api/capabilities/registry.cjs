@@ -1223,8 +1223,8 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'purchasing.task.batch_order': defineBusinessCapability({
         capabilityId: 'purchasing.task.batch_order',
         domain: 'purchasing',
-        inputSchema: 'POST /api/orders/purchase-items/batch',
-        outputSchema: 'CommandReceipt<PurchaseBatchOrderResult>',
+        inputSchema: 'POST /api/orders/purchase-items/batch ({ identityKey?, model, supplier?, purchased } | { supplier, purchased, tasks[1..50] })',
+        outputSchema: 'CommandReceipt<PurchaseBatchOrderResult> with task/items/order preview details',
         sourceOfTruth: 'activeOrderPurchasePlans',
         riskLevel: 'high',
         supportsPreview: true,

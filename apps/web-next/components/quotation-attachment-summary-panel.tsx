@@ -1,11 +1,16 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import type { ClipboardEvent } from 'react';
 import { Check, CircleAlert, Download, FileSearch, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, PanelRightOpen, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { uploadFactoryFile, type FactoryFile } from '@/lib/files';
 import { generateQuotationInquirySummaryDraft } from '@/lib/quotations';
+import {
+  FACTORY_ATTACHMENT_EXTENSIONS,
+  selectClipboardFile,
+} from '@/lib/clipboard-files';
 
 export type QuotationInquiryDraft = {
   files: FactoryFile[];
@@ -23,7 +28,7 @@ type Props = {
   onChange: (value: QuotationInquiryDraft) => void;
 };
 
-const ACCEPTED_FILE_TYPES = '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp';
+const ACCEPTED_FILE_TYPES = FACTORY_ATTACHMENT_EXTENSIONS.join(',');
 const MAX_ATTACHMENTS = 20;
 
 function fileSizeLabel(bytes: number) {
@@ -92,7 +97,7 @@ export function QuotationAttachmentSummaryPanel({
     inputRef.current?.click();
   }
 
-  async function upload(file?: File) {
+  async function upload(file?: File, pasteNotice = '') {
     if (!file || busy) return;
     if (value.files.length >= MAX_ATTACHMENTS) {
       setError(`一张报价最多上传 ${MAX_ATTACHMENTS} 个询价附件。`);
@@ -108,13 +113,40 @@ export function QuotationAttachmentSummaryPanel({
         ? value.files.map(item => item.id === stored.id ? stored : item)
         : [...value.files, stored];
       update({ files });
-      setMessage('附件已上传，可继续上传或让 AI 归纳。');
+      setMessage(`${pasteNotice ? `${pasteNotice} ` : ''}附件已上传，可继续上传或让 AI 归纳。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '上传询价附件失败');
     } finally {
       if (inputRef.current) inputRef.current.value = '';
       setUploading(false);
     }
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLElement>) {
+    if (event.clipboardData.files.length === 0) return;
+    event.preventDefault();
+    onExpandedChange(true);
+    setActiveTab('files');
+    if (busy) {
+      setMessage('');
+      setError('当前询价附件正在处理中，请完成后再粘贴。');
+      return;
+    }
+    if (value.files.length >= MAX_ATTACHMENTS) {
+      setMessage('');
+      setError(`一张报价最多上传 ${MAX_ATTACHMENTS} 个询价附件。`);
+      return;
+    }
+    const decision = selectClipboardFile(event.clipboardData.files, {
+      allowedExtensions: FACTORY_ATTACHMENT_EXTENSIONS,
+      allowedLabel: ' PDF、Word、Excel、CSV、文本或图片文件',
+    });
+    if (decision.kind === 'rejected') {
+      setMessage('');
+      setError(decision.message);
+      return;
+    }
+    if (decision.kind === 'accepted') void upload(decision.file, decision.notice);
   }
 
   function remove(file: FactoryFile) {
@@ -164,7 +196,12 @@ export function QuotationAttachmentSummaryPanel({
     <>
       <input ref={inputRef} type="file" accept={ACCEPTED_FILE_TYPES} className="hidden" onChange={event => void upload(event.target.files?.[0])} />
 
-      <section className="flex min-h-14 flex-col gap-3 rounded-panel border border-sky-200 bg-sky-50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <section
+        onPaste={handlePaste}
+        tabIndex={0}
+        aria-label="询价附件粘贴上传区域"
+        className="flex min-h-14 flex-col gap-3 rounded-panel border border-sky-200 bg-sky-50 px-3 py-2.5 outline-none transition focus:ring-2 focus:ring-sky-200 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-sky-700 shadow-sm"><Sparkles size={17} /></div>
           <div className="min-w-0">
@@ -174,7 +211,7 @@ export function QuotationAttachmentSummaryPanel({
               <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-sky-800">{summaryStatus}</span>
               {pending.length ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">待核对 {pending.length}</span> : null}
             </div>
-            <div className="mt-0.5 truncate text-xs text-sky-800">上传客户询价文件，由 Kimi 直接读取原始附件并归纳。</div>
+            <div className="mt-0.5 truncate text-xs text-sky-800">上传或从 WPS、文件夹复制文件后在此按 Ctrl+V 粘贴，由 Kimi 读取并归纳。</div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
@@ -188,7 +225,12 @@ export function QuotationAttachmentSummaryPanel({
       </section>
 
       {expanded ? (
-        <aside aria-label="询价助手" className="fixed inset-0 z-40 flex flex-col bg-white shadow-2xl lg:bottom-[76px] lg:left-auto lg:right-4 lg:top-[109px] lg:w-[480px] lg:border-l lg:border-line">
+        <aside
+          aria-label="询价助手"
+          onPaste={handlePaste}
+          tabIndex={0}
+          className="fixed inset-0 z-40 flex flex-col bg-white shadow-2xl outline-none focus:ring-2 focus:ring-sky-200 lg:bottom-[76px] lg:left-auto lg:right-4 lg:top-[109px] lg:w-[480px] lg:border-l lg:border-line"
+        >
           <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-ink"><FileSearch size={16} />询价助手</div>
@@ -216,7 +258,7 @@ export function QuotationAttachmentSummaryPanel({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-ink">客户原始附件</div>
-                    <div className="mt-1 text-xs text-muted">图片、Word、Excel、PDF、CSV、文本，单个不超过 10MB，最多 {MAX_ATTACHMENTS} 个。</div>
+                    <div className="mt-1 text-xs text-muted">图片、Word、Excel、PDF、CSV、文本，单个不超过 10MB，最多 {MAX_ATTACHMENTS} 个；也可在此按 Ctrl+V 粘贴复制的文件。</div>
                   </div>
                   <Button type="button" size="sm" variant="secondary" disabled={busy} icon={uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} onClick={openFileChooser}>继续上传</Button>
                 </div>

@@ -151,6 +151,24 @@ export type PurchaseBatchDraft = {
     orderId: number;
     expectedUpdatedAt: string;
   }>;
+  tasks?: Array<{
+    identityKey?: string;
+    model: string;
+    supplier: string;
+    purchased: boolean;
+  }>;
+  affectedItems?: Array<{
+    orderId: number;
+    customerName: string;
+    contractNo: string;
+    identityKey: string;
+    model: string;
+    supplier: string;
+    plannedQty: number;
+    beforeOrderedQty: number;
+    afterOrderedQty: number;
+    purchaseUnit: string;
+  }>;
   affectedOrders: Array<{
     orderId: number;
     customerName: string;
@@ -171,6 +189,18 @@ function purchaseTaskPayload(task: PurchaseTask, purchased: boolean) {
   };
 }
 
+function purchaseTasksPayload(tasks: PurchaseTask[], purchased: boolean) {
+  return {
+    supplier: tasks[0]?.supplier || '',
+    purchased,
+    tasks: tasks.map(task => ({
+      model: task.model,
+      supplier: task.supplier,
+      identityKey: task.identityKey,
+    })),
+  };
+}
+
 export async function buildPurchaseBatchDraft(
   task: PurchaseTask,
   purchased: boolean
@@ -184,6 +214,23 @@ export async function buildPurchaseBatchDraft(
   );
   if (!result.success || !result.data) {
     throw new Error(result.error || '批量采购预览生成失败');
+  }
+  return result.data;
+}
+
+export async function buildSupplierPurchaseBatchDraft(
+  tasks: PurchaseTask[],
+  purchased: boolean
+): Promise<PurchaseBatchDraft> {
+  const result = await proxyRequest<ApiResponse<PurchaseBatchDraft>>(
+    '/api/orders/purchase-items/batch-draft',
+    {
+      method: 'POST',
+      body: JSON.stringify(purchaseTasksPayload(tasks, purchased)),
+    }
+  );
+  if (!result.success || !result.data) {
+    throw new Error(result.error || '供应商批量采购预览生成失败');
   }
   return result.data;
 }
@@ -204,4 +251,21 @@ export async function applyPurchaseTask(
     }),
   });
   if (!result.success) throw new Error(result.error || '采购状态保存失败');
+}
+
+export async function applySupplierPurchaseTasks(
+  tasks: PurchaseTask[],
+  purchased: boolean,
+  preparedDraft: PurchaseBatchDraft
+): Promise<void> {
+  const result = await proxyRequest<ApiResponse<{ updatedCount: number }>>('/api/orders/purchase-items/batch', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': preparedDraft.suggestedIdempotencyKey },
+    body: JSON.stringify({
+      ...purchaseTasksPayload(tasks, purchased),
+      expectedVersions: preparedDraft.expectedVersions,
+      previewHash: preparedDraft.previewHash,
+    }),
+  });
+  if (!result.success) throw new Error(result.error || '供应商批量采购保存失败');
 }

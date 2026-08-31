@@ -16,7 +16,9 @@ import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge'
 import { TableScrollArea } from '@/components/ui/table-scroll-area';
 import {
   applyPurchaseTask,
+  applySupplierPurchaseTasks,
   buildPurchaseBatchDraft,
+  buildSupplierPurchaseBatchDraft,
   buildPurchaseStats,
   buildPurchaseTasks,
   getPurchaseOrders,
@@ -57,11 +59,13 @@ export function PurchaseView() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<PurchaseFilter>('pending');
+  const [supplierBatchValue, setSupplierBatchValue] = useState('');
   const [confirmTarget, setConfirmTarget] = useState<{
-    task: PurchaseTask;
+    tasks: PurchaseTask[];
     purchased: boolean;
     draft: PurchaseBatchDraft;
     totalChange: number;
+    supplierLabel: string;
   } | null>(null);
 
   async function load(force = false) {
@@ -98,6 +102,25 @@ export function PurchaseView() {
     });
   }, [filter, query, tasks]);
 
+  const pendingSupplierGroups = useMemo(() => {
+    const groups = new Map<string, PurchaseTask[]>();
+    tasks.filter(task => task.pendingNeed > 0).forEach(task => {
+      const supplier = task.supplier.trim();
+      const current = groups.get(supplier) || [];
+      current.push(task);
+      groups.set(supplier, current);
+    });
+    return [...groups.entries()]
+      .filter(([, supplierTasks]) => supplierTasks.length > 1)
+      .map(([supplier, supplierTasks]) => ({
+        key: `supplier:${encodeURIComponent(supplier)}`,
+        supplier,
+        supplierLabel: supplier || '未填写供应商',
+        tasks: supplierTasks,
+      }))
+      .sort((left, right) => left.supplierLabel.localeCompare(right.supplierLabel, 'zh-CN'));
+  }, [tasks]);
+
   async function saveTask(task: PurchaseTask, purchased: boolean) {
     setSavingKey(task.key);
     setError(null);
@@ -111,9 +134,48 @@ export function PurchaseView() {
         (sum, order) => sum + Math.abs(order.afterOrderedQty - order.beforeOrderedQty),
         0
       );
-      setConfirmTarget({ task, purchased, draft, totalChange });
+      setConfirmTarget({
+        tasks: [task],
+        purchased,
+        draft,
+        totalChange,
+        supplierLabel: task.supplierLabel,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : '采购状态保存失败');
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function saveSupplierTasks() {
+    const supplierGroup = pendingSupplierGroups.find(group => group.key === supplierBatchValue);
+    const supplierTasks = supplierGroup?.tasks || [];
+    if (supplierTasks.length < 2) {
+      setError('请选择包含多个待下单物料的供应商');
+      return;
+    }
+    const savingSupplierKey = `supplier:${supplierBatchValue}`;
+    setSavingKey(savingSupplierKey);
+    setError(null);
+    try {
+      const draft = await buildSupplierPurchaseBatchDraft(supplierTasks, true);
+      if ((draft.affectedItems || []).length === 0) {
+        throw new Error('该供应商的采购任务已经变化，请刷新后重试');
+      }
+      const totalChange = (draft.affectedItems || []).reduce(
+        (sum, item) => sum + Math.abs(item.afterOrderedQty - item.beforeOrderedQty),
+        0
+      );
+      setConfirmTarget({
+        tasks: supplierTasks,
+        purchased: true,
+        draft,
+        totalChange,
+        supplierLabel: supplierGroup?.supplierLabel || '',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '供应商批量采购预览生成失败');
     } finally {
       setSavingKey(null);
     }
@@ -123,10 +185,16 @@ export function PurchaseView() {
     if (!confirmTarget) return;
     const target = confirmTarget;
     setConfirmTarget(null);
-    setSavingKey(target.task.key);
+    const targetKey = target.tasks.length > 1 ? `supplier:${target.supplierLabel}` : target.tasks[0].key;
+    setSavingKey(targetKey);
     setError(null);
     try {
-      await applyPurchaseTask(target.task, target.purchased, target.draft);
+      if (target.tasks.length > 1) {
+        await applySupplierPurchaseTasks(target.tasks, target.purchased, target.draft);
+        setSupplierBatchValue('');
+      } else {
+        await applyPurchaseTask(target.tasks[0], target.purchased, target.draft);
+      }
       await load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '采购状态保存失败');
@@ -152,13 +220,13 @@ export function PurchaseView() {
       />
 
       <MetricGrid>
-        <MetricCard value={String(stats.activeOrderCount)} label="涉及订单" delay={0.02} />
-        <MetricCard value={String(stats.supplierCount)} label="供应商" delay={0.04} />
-        <MetricCard value={`${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="已下单/计划" delay={0.06} />
+        <MetricCard value={loading ? '—' : String(stats.activeOrderCount)} label="涉及订单" delay={0.02} />
+        <MetricCard value={loading ? '—' : String(stats.supplierCount)} label="供应商" delay={0.04} />
+        <MetricCard value={loading ? '—' : `${stats.purchasedNeed}/${stats.totalNeed || 0}`} label="已下单/计划" delay={0.06} />
         <MetricCard
-          value={String(stats.pendingTaskCount)}
+          value={loading ? '—' : String(stats.pendingTaskCount)}
           label="待处理任务"
-          tone={stats.pendingTaskCount > 0 ? 'attention' : 'default'}
+          tone={!loading && stats.pendingTaskCount > 0 ? 'attention' : 'default'}
           delay={0.08}
         />
       </MetricGrid>
@@ -183,6 +251,36 @@ export function PurchaseView() {
           <div className="flex items-center gap-2 border-b border-line p-4 text-sm text-rose-700">
             <CircleAlert size={16} />
             {error}
+          </div>
+        ) : null}
+
+        {pendingSupplierGroups.length > 0 ? (
+          <div className="flex flex-col gap-3 border-b border-line bg-slate-50/70 p-4 sm:flex-row sm:items-end sm:justify-between">
+            <label className="block min-w-0 flex-1">
+              <span className="text-sm font-medium text-ink">按供应商整批下单</span>
+              <span className="ml-2 text-xs text-muted">一次预览并原子提交多个物料，失败时不会部分下单</span>
+              <select
+                value={supplierBatchValue}
+                onChange={(event) => setSupplierBatchValue(event.target.value)}
+                disabled={Boolean(savingKey)}
+                className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400 disabled:opacity-60"
+              >
+                <option value="">选择供应商</option>
+                {pendingSupplierGroups.map((group) => (
+                  <option key={group.key} value={group.key}>
+                    {group.supplierLabel} · {group.tasks.length} 种待下单物料
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              type="button"
+              onClick={() => void saveSupplierTasks()}
+              disabled={!supplierBatchValue || Boolean(savingKey)}
+              icon={<PackageCheck size={15} />}
+            >
+              {savingKey?.startsWith('supplier:') ? '生成预览中' : '预览整批下单'}
+            </Button>
           </div>
         ) : null}
 
@@ -284,9 +382,11 @@ export function PurchaseView() {
       </FadePanel>
       <ConfirmDialog
         open={Boolean(confirmTarget)}
-        title={confirmTarget?.purchased ? '确认全部下单？' : '确认取消下单？'}
+        title={confirmTarget?.tasks.length && confirmTarget.tasks.length > 1 ? '确认供应商整批下单？' : confirmTarget?.purchased ? '确认全部下单？' : '确认取消下单？'}
         description={confirmTarget
-          ? `物料“${confirmTarget.task.model}”将影响 ${confirmTarget.draft.affectedOrders.length} 个订单，变更数量合计 ${confirmTarget.totalChange}${confirmTarget.task.purchaseUnit || ''}。确认后将立即更新这些订单的采购进度。`
+          ? confirmTarget.tasks.length > 1
+            ? `供应商“${confirmTarget.supplierLabel}”的 ${confirmTarget.tasks.length} 种物料将影响 ${confirmTarget.draft.affectedOrders.length} 个订单，共变更 ${confirmTarget.draft.affectedItems?.length || 0} 条采购明细、数量合计 ${confirmTarget.totalChange}。确认后会在同一事务内更新，任一步失败都不会部分提交。`
+            : `物料“${confirmTarget.tasks[0].model}”将影响 ${confirmTarget.draft.affectedOrders.length} 个订单，变更数量合计 ${confirmTarget.totalChange}${confirmTarget.tasks[0].purchaseUnit || ''}。确认后将立即更新这些订单的采购进度。`
           : ''}
         confirmLabel={confirmTarget?.purchased ? '确认下单' : '确认取消'}
         confirmVariant={confirmTarget?.purchased ? 'primary' : 'danger'}

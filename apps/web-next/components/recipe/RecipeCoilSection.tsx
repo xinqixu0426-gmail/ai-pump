@@ -112,52 +112,52 @@ export function RecipeCoilSection({
         </label>
       </div>
 
-      {schemeOptions.length > 0 ? <label className="mt-3 block">
-        <span className="flex items-center gap-2 text-xs font-medium text-muted">
-          正式线圈方案
-          {schemeOptions.length > 1 ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">同规格有 {schemeOptions.length} 套，请选择</span> : null}
-        </span>
-        <select
-          value={form.coilId}
-          onChange={(event) => onSchemeChange(event.target.value)}
-          disabled={!form.coilSpec || !form.coilSheets || schemeOptions.length === 0}
-          className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
-        >
-          <option value="">{schemeOptions.length === 0 ? '当前组合暂无正式方案' : '选择具体方案'}</option>
-          {schemeOptions.map((coil) => {
-            const electrical = [
-              coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '',
-              coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '',
-              coil.market,
-            ].filter(Boolean).join(' · ');
-            return (
-              <option key={coil.id} value={String(coil.id)}>
-                {coil.isDefault ? '默认 · ' : ''}{coil.schemeName || coil.schemeCode}{electrical ? ` · ${electrical}` : ''} · 线重 {coil.wireWeight || 0}kg
-              </option>
-            );
-          })}
-        </select>
-      </label> : <label className="mt-3 block">
-        <span className="flex items-center gap-2 text-xs font-medium text-muted">
-          方案系列（插值/外推）
-          {familyOptions.length > 1 ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">有 {familyOptions.length} 个系列，请选择</span> : null}
-        </span>
-        <select
-          value={form.coilSchemeFamilyCode}
-          onChange={(event) => onFamilyChange(event.target.value)}
-          disabled={!form.coilSpec || !form.coilSheets || familyOptions.length === 0}
-          className="mt-1 h-9 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
-        >
-          <option value="">{familyOptions.length === 0 ? '当前组合没有可用计算方案系列' : '选择方案系列'}</option>
-          {familyOptions.map((family) => (
-            <option key={family.code} value={family.code}>{family.label}</option>
-          ))}
-        </select>
-      </label>}
+      <div className="mt-3 grid grid-cols-1 items-stretch gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,.65fr)_minmax(0,1fr)_minmax(0,.7fr)]">
+        {schemeOptions.length > 0 ? <label className="block min-w-0">
+          <span className="flex min-h-4 items-center gap-2 text-xs font-medium text-muted">
+            正式线圈方案
+            {schemeOptions.length > 1 ? <span className="truncate rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">{schemeOptions.length} 套，请选择</span> : null}
+          </span>
+          <select
+            value={form.coilId}
+            onChange={(event) => onSchemeChange(event.target.value)}
+            disabled={!form.coilSpec || !form.coilSheets || schemeOptions.length === 0}
+            className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">{schemeOptions.length === 0 ? '当前组合暂无正式方案' : '选择具体方案'}</option>
+            {schemeOptions.map((coil) => {
+              const electrical = [
+                coil.ratedVoltageV ? `${coil.ratedVoltageV}V` : '',
+                coil.ratedFrequencyHz ? `${coil.ratedFrequencyHz}Hz` : '',
+                coil.market,
+              ].filter(Boolean).join(' · ');
+              return (
+                <option key={coil.id} value={String(coil.id)}>
+                  {coil.isDefault ? '默认 · ' : ''}{coil.schemeName || coil.schemeCode}{electrical ? ` · ${electrical}` : ''} · 线重 {coil.wireWeight || 0}kg
+                </option>
+              );
+            })}
+          </select>
+        </label> : <label className="block min-w-0">
+          <span className="flex min-h-4 items-center gap-2 text-xs font-medium text-muted">
+            方案系列（插值/外推）
+            {familyOptions.length > 1 ? <span className="truncate rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">{familyOptions.length} 个，请选择</span> : null}
+          </span>
+          <select
+            value={form.coilSchemeFamilyCode}
+            onChange={(event) => onFamilyChange(event.target.value)}
+            disabled={!form.coilSpec || !form.coilSheets || familyOptions.length === 0}
+            className="mt-1 h-8 w-full rounded-md border border-line bg-white px-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            <option value="">{familyOptions.length === 0 ? '当前组合没有可用计算方案系列' : '选择方案系列'}</option>
+            {familyOptions.map((family) => (
+              <option key={family.code} value={family.code}>{family.label}</option>
+            ))}
+          </select>
+        </label>}
 
-      <div className="mt-3 grid grid-cols-2 items-stretch gap-2 sm:grid-cols-[8.5rem_minmax(0,1fr)_7rem]">
         <label className="block min-w-0">
-          <span className="text-xs font-medium text-muted">线重 kg</span>
+          <span className="flex min-h-4 items-center text-xs font-medium text-muted">线重 kg</span>
           <input
             value={form.coilWireWeight}
             onChange={(event) => onWireWeightChange(event.target.value)}
@@ -169,7 +169,7 @@ export function RecipeCoilSection({
           />
         </label>
 
-        <div className="order-3 col-span-2 flex min-w-0 items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50/80 px-3 py-2 sm:order-2 sm:col-span-1">
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50/80 px-3 py-1.5">
           <div className="min-w-0">
             <div className="text-xs font-medium text-slate-500">线圈成本</div>
             <div className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">
@@ -179,7 +179,7 @@ export function RecipeCoilSection({
           <RecipeStatusBadge tone="blue">自动计算</RecipeStatusBadge>
         </div>
 
-        <div className="order-2 min-w-0 rounded-md border border-emerald-200 bg-emerald-50/80 px-3 py-2 sm:order-3">
+        <div className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50/80 px-3 py-1.5">
           <div className="truncate text-xs font-medium text-slate-500" title="自动关联电容">自动电容</div>
           <div className="mt-0.5 truncate text-sm font-semibold text-slate-900" title={capacitorModel || '-'}>
             {capacitorModel || '-'}

@@ -555,12 +555,17 @@ test('API 静态契约：采购中心批量采购状态必须由后端执行', (
     assert.match(service, /expectedVersions/);
     assert.match(service, /assertPreviewHash/);
     assert.match(service, /requiredAuditCount/);
+    assert.match(service, /MAX_BATCH_TASKS = 50/);
+    assert.match(service, /purchase_supplier_mismatch/);
+    assert.match(service, /taskInputs/);
     assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch-draft/);
     assert.match(purchaseClient, /\/api\/orders\/purchase-items\/batch/);
     assert.match(purchaseClient, /Idempotency-Key/);
     assert.match(purchaseView, /draft\.affectedOrders/);
     assert.doesNotMatch(purchaseView, /window\.confirm/);
-    assert.match(purchaseView, /setConfirmTarget\(\{ task, purchased, draft, totalChange \}\)/);
+    assert.match(purchaseView, /buildSupplierPurchaseBatchDraft/);
+    assert.match(purchaseView, /applySupplierPurchaseTasks/);
+    assert.match(purchaseView, /setConfirmTarget\(\{[\s\S]*?tasks:/);
     assert.match(purchaseView, /<ConfirmDialog/);
     assert.doesNotMatch(purchaseClient, /saveOrder|buildUpdatedOrders/);
 });

@@ -24,6 +24,11 @@ import {
   type RecipeConfigurationOverrides,
 } from '@/lib/recipe-configurations';
 import { dateShort, money } from '@/lib/format';
+import {
+  customerMarginPercent,
+  marginMultiplierToPercent,
+  marginPercentToMultiplier,
+} from '@/lib/pricing-margin';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { PresenceRow } from '@/components/motion/presence-row';
 import { OrderDetailDrawer } from '@/components/order-detail-drawer';
@@ -71,10 +76,6 @@ const statusTones: Record<OrderStatus, StatusBadgeTone> = {
   已取消: 'red',
 };
 
-function customerMarginMultiplier(customer: Customer | undefined): number {
-  return 1 + Math.max(0, Number(customer?.defaultMargin) || 0);
-}
-
 export function OrdersView({
   initialOrderId = null,
   initialDetailTab = 'items',
@@ -107,7 +108,7 @@ export function OrdersView({
   const [remark, setRemark] = useState('');
   const [recipeId, setRecipeId] = useState('');
   const [itemQty, setItemQty] = useState('1');
-  const [itemMargin, setItemMargin] = useState('1.10');
+  const [itemMargin, setItemMargin] = useState('10');
   const [pendingItem, setPendingItem] = useState<OrderItem | null>(null);
   const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
   const [calculatingItemIds, setCalculatingItemIds] = useState<Set<string>>(() => new Set());
@@ -163,8 +164,14 @@ export function OrdersView({
     void load();
   }, [load]);
 
-  async function loadAuxiliary() {
-    if (customers.length > 0 && recipes.length > 0 && parts.length > 0) return;
+  async function loadAuxiliary(marginCustomerId?: string) {
+    if (customers.length > 0 && recipes.length > 0 && parts.length > 0) {
+      if (marginCustomerId) {
+        const marginCustomer = customers.find(customer => String(customer.id) === marginCustomerId);
+        setItemMargin(customerMarginPercent(marginCustomer?.defaultMargin));
+      }
+      return;
+    }
     setAuxLoading(true);
     try {
       const [nextCustomers, nextRecipes, nextParts] = await Promise.all([
@@ -175,9 +182,10 @@ export function OrdersView({
       setCustomers(nextCustomers);
       setRecipes(nextRecipes);
       setParts(nextParts);
-      const firstCustomer = nextCustomers[0];
-      setCustomerId((current) => current || (firstCustomer ? String(firstCustomer.id) : ''));
-      setItemMargin((current) => current || customerMarginMultiplier(firstCustomer).toFixed(2));
+      if (marginCustomerId) {
+        const marginCustomer = nextCustomers.find(customer => String(customer.id) === marginCustomerId);
+        setItemMargin(customerMarginPercent(marginCustomer?.defaultMargin));
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : '订单表单数据加载失败');
     } finally {
@@ -191,10 +199,12 @@ export function OrdersView({
     setEditingOrder(null);
     setEditReason('');
     setUpdateConfirmTarget(null);
+    setCustomerId('');
     setContractNo('');
     setRemark('');
     setRecipeId('');
     setItemQty('1');
+    setItemMargin('10');
     pendingItemIdRef.current = null;
     setPendingItem(null);
     setDraftItems([]);
@@ -234,7 +244,7 @@ export function OrdersView({
     setCalculatingItemIds(new Set());
     configurationPreviewCoordinatorRef.current.clear();
     setDrawerOpen(true);
-    void loadAuxiliary();
+    void loadAuxiliary(String(order.customerId));
   }
 
   function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions' = 'items') {
@@ -276,8 +286,9 @@ export function OrdersView({
   function onCustomerChange(nextId: string) {
     setCustomerId(nextId);
     const customer = customers.find((item) => String(item.id) === nextId);
-    const nextMargin = customerMarginMultiplier(customer);
-    setItemMargin(nextMargin.toFixed(2));
+    const marginPercent = customerMarginPercent(customer?.defaultMargin);
+    const nextMargin = marginPercentToMultiplier(marginPercent);
+    setItemMargin(marginPercent);
     setPendingItem(current => current ? {
       ...current,
       profitMargin: nextMargin,
@@ -304,7 +315,7 @@ export function OrdersView({
       const nextPendingItem = buildPendingOrderItem(
         recipe,
         itemQty,
-        itemMargin,
+        marginPercentToMultiplier(itemMargin),
         createOrderItemFromRecipe,
       );
       pendingItemIdRef.current = nextPendingItem.id;
@@ -326,7 +337,7 @@ export function OrdersView({
 
   function onPendingMarginChange(value: string) {
     setItemMargin(value);
-    const nextMargin = Math.max(0.01, Number(value) || 1);
+    const nextMargin = marginPercentToMultiplier(value);
     setPendingItem(current => current ? {
       ...current,
       profitMargin: nextMargin,
@@ -557,15 +568,15 @@ export function OrdersView({
       <BusinessAlertsBanner scope="order" />
 
       <MetricGrid>
-        <MetricCard value={String(orders.length)} label="订单总数" delay={0.02} />
+        <MetricCard value={loading ? '—' : String(orders.length)} label="订单总数" delay={0.02} />
         <MetricCard
-          value={String(stats.pending + stats.purchasing)}
+          value={loading ? '—' : String(stats.pending + stats.purchasing)}
           label="待处理订单"
-          tone={stats.pending + stats.purchasing > 0 ? 'attention' : 'default'}
+          tone={!loading && stats.pending + stats.purchasing > 0 ? 'attention' : 'default'}
           delay={0.04}
         />
-        <MetricCard value={money(stats.totalPrice)} label="总销售额" delay={0.06} />
-        <MetricCard value={money(stats.totalProfit)} label="总利润" delay={0.08} />
+        <MetricCard value={loading ? '—' : money(stats.totalPrice)} label="总销售额" delay={0.06} />
+        <MetricCard value={loading ? '—' : money(stats.totalProfit)} label="总利润" delay={0.08} />
       </MetricGrid>
 
       <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
@@ -791,15 +802,18 @@ export function OrdersView({
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-ink">加价倍数</span>
-                  <input
-                    value={itemMargin}
-                    onChange={(event) => onPendingMarginChange(event.target.value)}
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-                  />
+                  <span className="text-sm font-medium text-ink">利润率</span>
+                  <div className="relative mt-2">
+                    <input
+                      value={itemMargin}
+                      onChange={(event) => onPendingMarginChange(event.target.value)}
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="h-10 w-full rounded-md border border-line px-3 pr-8 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">%</span>
+                  </div>
                 </label>
 
               </div>
@@ -859,15 +873,18 @@ export function OrdersView({
                         <div className="mt-2 text-sm font-medium text-ink">{money(item.unitCost)}</div>
                       </div>
                       <label className="block text-xs text-muted">
-                        加价倍数
-                        <input
-                          value={Number(item.profitMargin).toFixed(2)}
-                          onChange={(event) => updateDraftItem(item.id, { profitMargin: Number(event.target.value) })}
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
-                        />
+                        利润率
+                        <div className="relative mt-1">
+                          <input
+                            value={marginMultiplierToPercent(item.profitMargin)}
+                            onChange={(event) => updateDraftItem(item.id, { profitMargin: marginPercentToMultiplier(event.target.value) })}
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="h-9 w-full rounded-md border border-line px-2 pr-7 text-right text-sm outline-none"
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted">%</span>
+                        </div>
                       </label>
                       <label className="block text-xs text-muted">
                         销售单价
