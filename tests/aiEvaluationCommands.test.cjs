@@ -307,6 +307,104 @@ test('AI 评测命令：单用例诊断仅允许普通登录身份且发布门�
     }
 });
 
+test('AI 评测命令：release 与 diagnostic namespace 复用同一运行访问判定', () => {
+    const fixture = createFixture();
+    try {
+        const release = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'release' },
+            context('ai-evaluation-release-lifecycle-start')
+        );
+        const releaseResult = executeRecordAiEvaluationResult(
+            fixture.dependencies,
+            'internal',
+            release.run.id,
+            {
+                caseId: release.cases[0].id,
+                answerText: '',
+                toolResults: [],
+                errorText: '测试执行失败',
+                expectedUpdatedAt: release.run.updatedAt,
+            },
+            context('ai-evaluation-release-lifecycle-result')
+        );
+        assert.equal(releaseResult.result.runId, release.run.id);
+        assert.throws(() => executeRecordAiEvaluationResult(
+            fixture.dependencies,
+            'admin',
+            release.run.id,
+            {
+                caseId: release.cases[1].id,
+                answerText: '',
+                toolResults: [],
+                errorText: '越权请求',
+                expectedUpdatedAt: release.run.updatedAt,
+            },
+            context('ai-evaluation-release-lifecycle-forbidden')
+        ), error => error.code === 'ai_evaluation_run_not_found');
+        const releaseCompleted = executeCompleteAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            release.run.id,
+            { expectedUpdatedAt: release.run.updatedAt },
+            context('ai-evaluation-release-lifecycle-complete')
+        );
+        assert.equal(releaseCompleted.run.status, 'failed');
+
+        const diagnostic = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: 'command-fixture-case' },
+            context('ai-evaluation-diagnostic-lifecycle-start')
+        );
+        const diagnosticResult = executeRecordAiEvaluationResult(
+            fixture.dependencies,
+            'admin',
+            diagnostic.run.id,
+            {
+                caseId: diagnostic.cases[0].id,
+                answerText: '',
+                toolResults: [],
+                errorText: '测试执行失败',
+                expectedUpdatedAt: diagnostic.run.updatedAt,
+            },
+            context('ai-evaluation-diagnostic-lifecycle-result')
+        );
+        assert.equal(diagnosticResult.result.runId, diagnostic.run.id);
+        assert.throws(() => executeRecordAiEvaluationResult(
+            fixture.dependencies,
+            'operator',
+            diagnostic.run.id,
+            {
+                caseId: diagnostic.cases[0].id,
+                answerText: '',
+                toolResults: [],
+                errorText: '其他普通身份越权请求',
+                expectedUpdatedAt: diagnostic.run.updatedAt,
+            },
+            context('ai-evaluation-diagnostic-other-owner-forbidden')
+        ), error => error.code === 'ai_evaluation_run_not_found');
+        assert.throws(() => executeCompleteAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            diagnostic.run.id,
+            { expectedUpdatedAt: diagnostic.run.updatedAt },
+            context('ai-evaluation-diagnostic-lifecycle-forbidden')
+        ), error => error.code === 'ai_evaluation_run_not_found');
+        const diagnosticCompleted = executeCompleteAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            diagnostic.run.id,
+            { expectedUpdatedAt: diagnostic.run.updatedAt },
+            context('ai-evaluation-diagnostic-lifecycle-complete')
+        );
+        assert.equal(diagnosticCompleted.run.status, 'completed');
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('AI 评测命令：核心门禁不可停用，非门禁系统项仍绑定版本和强审计', () => {
     const fixture = createFixture();
     try {

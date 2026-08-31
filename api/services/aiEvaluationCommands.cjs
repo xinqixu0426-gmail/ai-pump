@@ -7,6 +7,7 @@ const {
     completeAiEvaluationRun,
     configureAiSystemEvaluationCase,
     createAiEvaluationRun,
+    findAiEvaluationRunForOwner,
     recordAiEvaluationResult,
 } = require('./aiEvaluations.cjs');
 const {
@@ -80,14 +81,6 @@ function versionWarnings(commandContext, expectedUpdatedAt, label) {
             message: `兼容调用未提供 ${label} expectedUpdatedAt；建议刷新后再执行`,
         }] : []),
     ];
-}
-
-function runRow(dependencies, owner, runId) {
-    return dependencies.db.prepare(`
-        SELECT *
-        FROM ai_evaluation_runs
-        WHERE id = ? AND owner_key = ?
-    `).get(runId, normalizeOwnerKey(owner));
 }
 
 function feedbackCaseRow(dependencies, caseId) {
@@ -337,7 +330,11 @@ function executeRecordAiEvaluationResult(
             '评测运行'
         ),
         execute: ({ auditContext }) => {
-            const current = runRow(dependencies, owner, runId);
+            const current = findAiEvaluationRunForOwner(
+                dependencies.db,
+                owner,
+                runId
+            );
             if (!current) {
                 throw evaluationCommandError(
                     'ai_evaluation_run_not_found',
@@ -419,7 +416,11 @@ function executeCompleteAiEvaluationRun(
             '评测运行'
         ),
         execute: ({ auditContext }) => {
-            const current = runRow(dependencies, owner, runId);
+            const current = findAiEvaluationRunForOwner(
+                dependencies.db,
+                owner,
+                runId
+            );
             if (!current) {
                 throw evaluationCommandError(
                     'ai_evaluation_run_not_found',

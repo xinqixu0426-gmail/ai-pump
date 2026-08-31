@@ -30,6 +30,7 @@ let server;
 let baseUrl;
 let loginCookie;
 let requestSequence = 0;
+let runKnowledgeEvaluation;
 
 function authCookie() {
     const token = jwt.sign(
@@ -81,11 +82,17 @@ test.before(async () => {
     const app = express();
     app.use(express.json());
     app.use(cookieParser());
+    app.get('/api/health', (_req, res) => res.json({
+        success: true,
+        data: { ready: true, runtime: { gitCommit: 'http-integration-test' } },
+    }));
     app.use(evaluationRouter);
     server = await new Promise(resolve => {
         const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
     });
     baseUrl = `http://127.0.0.1:${server.address().port}`;
+    process.env.AI_EVAL_BASE_URL = baseUrl;
+    ({ main: runKnowledgeEvaluation } = require('../scripts/run-knowledge-evaluation.cjs'));
     loginCookie = authCookie();
 });
 
@@ -118,6 +125,27 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
         diagnostic.payload.data.cases.map(item => item.caseKey),
         [CORE_AI_RELEASE_CASE_KEYS[0]]
     );
+    const diagnosticResult = await requestJson(
+        'POST',
+        `/api/ai/evaluations/runs/${diagnostic.payload.data.run.id}/results`,
+        {
+            body: {
+                caseId: diagnostic.payload.data.cases[0].id,
+                answerText: '',
+                toolResults: [],
+                errorText: 'HTTP 诊断测试',
+                expectedUpdatedAt: diagnostic.payload.data.run.updatedAt,
+            },
+        }
+    );
+    assert.equal(diagnosticResult.response.status, 201);
+    const diagnosticComplete = await requestJson(
+        'POST',
+        `/api/ai/evaluations/runs/${diagnostic.payload.data.run.id}/complete`,
+        { body: { expectedUpdatedAt: diagnostic.payload.data.run.updatedAt } }
+    );
+    assert.equal(diagnosticComplete.response.status, 200);
+    assert.equal(diagnosticComplete.payload.data.run.status, 'completed');
 
     for (const [caseKey, expectedStatus, expectedCode] of [
         ['http-missing-case', 404, 'ai_evaluation_case_not_found'],
@@ -178,4 +206,53 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
             .get(release.payload.data.run.id).owner_key,
         AI_RELEASE_RUN_OWNER_KEY
     );
+    const releaseResult = await requestJson(
+        'POST',
+        `/api/ai/evaluations/runs/${release.payload.data.run.id}/results`,
+        {
+            internal: true,
+            body: {
+                caseId: release.payload.data.cases[0].id,
+                answerText: '',
+                toolResults: [],
+                errorText: 'HTTP release 测试',
+                expectedUpdatedAt: release.payload.data.run.updatedAt,
+            },
+        }
+    );
+    assert.equal(releaseResult.response.status, 201);
+    const releaseComplete = await requestJson(
+        'POST',
+        `/api/ai/evaluations/runs/${release.payload.data.run.id}/complete`,
+        {
+            internal: true,
+            body: { expectedUpdatedAt: release.payload.data.run.updatedAt },
+        }
+    );
+    assert.equal(releaseComplete.response.status, 200);
+    assert.equal(releaseComplete.payload.data.run.status, 'failed');
+});
+
+test('AI 评测 runner：真实 HTTP release 链路完成 namespace 运行', async () => {
+    const report = await runKnowledgeEvaluation(
+        { scope: 'release' },
+        {
+            streamQuestionWithRetry: async () => ({
+                answerText: 'HTTP runner 集成回答',
+                toolResults: [],
+                attempts: 1,
+            }),
+        }
+    );
+    assert.equal(report.mode, 'release');
+    assert.equal(report.releaseGate, true);
+    assert.equal(report.totals.total, CORE_AI_RELEASE_CASE_KEYS.length);
+    assert.equal(report.runId > 0, true);
+    const savedRun = db.prepare(`
+        SELECT owner_key, status FROM ai_evaluation_runs WHERE id = ?
+    `).get(report.runId);
+    assert.deepEqual(savedRun, {
+        owner_key: AI_RELEASE_RUN_OWNER_KEY,
+        status: 'completed',
+    });
 });

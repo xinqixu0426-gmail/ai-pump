@@ -634,7 +634,7 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     };
 }
 
-function runForOwner(db, ownerKey, runId) {
+function findAiEvaluationRunForOwner(db, ownerKey, runId) {
     const run = db.prepare(`
         SELECT * FROM ai_evaluation_runs WHERE id = ?
     `).get(runId);
@@ -773,7 +773,7 @@ function recordAiEvaluationResult(ownerKey, runIdValue, input = {}, options = {}
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeInsert, aiEvaluationCaseRow, aiEvaluationResultRow } = accessors;
     const runId = positiveId(runIdValue, '运行ID');
-    const run = runForOwner(db, ownerKey, runId);
+    const run = findAiEvaluationRunForOwner(db, ownerKey, runId);
     if (!run) return null;
     if (run.status !== 'running') throw new Error('本次知识库检查已经结束');
     const caseId = positiveId(input.caseId, '用例ID');
@@ -816,7 +816,7 @@ function completeAiEvaluationRun(ownerKey, runIdValue, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const { db, safeUpdate, aiEvaluationRunRow } = accessors;
     const runId = positiveId(runIdValue, '运行ID');
-    const run = runForOwner(db, ownerKey, runId);
+    const run = findAiEvaluationRunForOwner(db, ownerKey, runId);
     if (!run) return null;
     const counts = db.prepare(`
         SELECT
@@ -1020,6 +1020,7 @@ function getLatestAiEvaluationHealth(options = {}) {
 
 module.exports = {
     configureAiSystemEvaluationCase,
+    findAiEvaluationRunForOwner,
     listAiEvaluationCases,
     listAiSystemEvaluationCases,
     createAiEvaluationRun,
