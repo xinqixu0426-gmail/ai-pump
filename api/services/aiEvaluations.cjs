@@ -2,8 +2,42 @@ function loadDbAccessors() {
     return require('../db.cjs');
 }
 
+const {
+    AI_RELEASE_RUN_OWNER_KEY,
+    assertCoreAiReleaseCases,
+} = require('./aiEvaluationReleasePolicy.cjs');
+
 function normalizeOwnerKey(value) {
     return String(value || 'admin').trim().slice(0, 80) || 'admin';
+}
+
+function evaluationServiceError(code, message, statusCode = 400) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = statusCode;
+    return error;
+}
+
+function evaluationRunOwnerKey(ownerKey, options = {}) {
+    const owner = normalizeOwnerKey(ownerKey);
+    const scope = options.scope === 'release' ? 'release' : 'manual';
+    const caseKey = String(options.caseKey || '').trim();
+    if (scope === 'release' && owner !== 'internal') {
+        throw evaluationServiceError(
+            'ai_evaluation_release_scope_forbidden',
+            '发布门禁检查只允许内部服务启动',
+            403
+        );
+    }
+    if (scope === 'manual' && owner === 'internal') {
+        throw evaluationServiceError(
+            'ai_evaluation_manual_owner_forbidden',
+            '手动 AI 回归必须使用普通登录身份，不能覆盖内部发布健康记录',
+            403
+        );
+    }
+    if (scope === 'release') return AI_RELEASE_RUN_OWNER_KEY;
+    return caseKey ? `diagnostic:${owner}:${caseKey}` : owner;
 }
 
 function positiveId(value, label) {
@@ -601,15 +635,49 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
 }
 
 function runForOwner(db, ownerKey, runId) {
-    return db.prepare(`
-        SELECT * FROM ai_evaluation_runs
-        WHERE id = ? AND owner_key = ?
-    `).get(runId, normalizeOwnerKey(ownerKey));
+    const run = db.prepare(`
+        SELECT * FROM ai_evaluation_runs WHERE id = ?
+    `).get(runId);
+    if (!run) return null;
+    const owner = normalizeOwnerKey(ownerKey);
+    if (run.owner_key === owner) return run;
+    if (owner === 'internal' && run.owner_key === AI_RELEASE_RUN_OWNER_KEY) return run;
+    if (owner !== 'internal' && run.owner_key.startsWith(`diagnostic:${owner}:`)) {
+        return run;
+    }
+    return null;
 }
 
 function listAiEvaluationCases(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const releaseGateOnly = options.scope === 'release';
+    const caseKey = String(options.caseKey || '').trim();
+    if (releaseGateOnly && caseKey) {
+        throw evaluationServiceError(
+            'ai_evaluation_release_case_filter_forbidden',
+            '发布门禁必须运行完整用例集合，不能按 caseKey 筛选'
+        );
+    }
+    if (caseKey) {
+        const selected = accessors.db.prepare(`
+            SELECT * FROM ai_evaluation_cases WHERE case_key = ?
+        `).get(caseKey);
+        if (!selected) {
+            throw evaluationServiceError(
+                'ai_evaluation_case_not_found',
+                `检查用例不存在：${caseKey}`,
+                404
+            );
+        }
+        if (selected.enabled !== 1 || selected.review_status !== 'approved') {
+            throw evaluationServiceError(
+                'ai_evaluation_case_unavailable',
+                `检查用例未启用或未批准：${caseKey}`,
+                422
+            );
+        }
+        return [caseView(selected, accessors.aiEvaluationCaseRow)];
+    }
     return accessors.db.prepare(`
         SELECT * FROM ai_evaluation_cases
         WHERE enabled = 1 AND review_status = 'approved'
@@ -661,10 +729,12 @@ function createAiEvaluationRun(ownerKey, options = {}) {
         const cases = listAiEvaluationCases({
             dbAccessors: accessors,
             scope: options.scope,
+            caseKey: options.caseKey,
         });
+        if (options.scope === 'release') assertCoreAiReleaseCases(cases);
         if (cases.length === 0) throw new Error('没有启用的知识库检查用例');
         const now = new Date().toISOString();
-        const owner = normalizeOwnerKey(ownerKey);
+        const owner = evaluationRunOwnerKey(ownerKey, options);
         const unfinished = db.prepare(`
             SELECT id, total_count FROM ai_evaluation_runs
             WHERE owner_key = ? AND status = 'running'
@@ -791,11 +861,15 @@ function getAiEvaluationOverview(ownerKey, options = {}) {
         feedbackPending: feedbackCases.filter(item => item.reviewStatus === 'pending').length,
         feedbackRejected: feedbackCases.filter(item => item.reviewStatus === 'rejected').length,
     };
+    const normalizedOwner = normalizeOwnerKey(ownerKey);
+    const latestRunOwner = normalizedOwner === 'internal'
+        ? AI_RELEASE_RUN_OWNER_KEY
+        : normalizedOwner;
     const latestRunRow = db.prepare(`
         SELECT * FROM ai_evaluation_runs
         WHERE owner_key = ?
         ORDER BY id DESC LIMIT 1
-    `).get(normalizeOwnerKey(ownerKey));
+    `).get(latestRunOwner);
     if (!latestRunRow) {
         return {
             cases,
@@ -867,9 +941,9 @@ function getLatestAiEvaluationHealth(options = {}) {
     }
     const latestRunRow = db.prepare(`
         SELECT * FROM ai_evaluation_runs
-        WHERE owner_key = 'internal'
+        WHERE owner_key = ?
         ORDER BY id DESC LIMIT 1
-    `).get();
+    `).get(AI_RELEASE_RUN_OWNER_KEY);
     if (!latestRunRow) {
         return {
             status: 'not_run',

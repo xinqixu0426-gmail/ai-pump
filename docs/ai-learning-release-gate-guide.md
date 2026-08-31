@@ -78,6 +78,21 @@ AI 偶尔会误解工厂俗称、业务分类或操作习惯。用户指出错�
 npm run test:knowledge-live
 ```
 
+开发阶段定位单个失败案例时，使用普通登录身份按稳定 `case_key` 运行诊断：
+
+```bash
+npm run test:knowledge-case -- --case-key=part-current-price
+```
+
+手动全量检查和单用例诊断都使用普通登录身份，内部身份只用于正式 release。正式
+release 统一写入独立的 `release:internal` namespace，发布健康只读取该 namespace，
+因此升级前遗留的 `internal` 手动记录也不会继续冒充发布结果。单用例诊断只接受已审核且已启用的案例；未知、停用
+或待审核 key 会明确失败。诊断运行使用独立 owner namespace，不会中止或替换页面
+最近一次手动全量运行。它生成的报告会标记为 `mode=diagnostic`、
+`releaseGate=false`，不能作为发布通过
+证据。`release` scope 明确拒绝 `--case-key`；固定 8 个核心案例由服务端与 runner
+共享同一策略并双重校验，最终发布仍必须执行全部门禁案例。
+
 页面会显示通过、需要修复、需要确认以及每一项失败依据。修改检查项配置后，旧结果会标记为“历史记录”；重新运行后才生成当前配置对应的新结果。
 
 ## 4. 发布时如何工作

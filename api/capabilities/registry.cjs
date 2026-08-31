@@ -1580,7 +1580,8 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
-        inputSchema: 'POST /api/ai/evaluations/runs { scope?: manual|release }',
+        inputSchema:
+            'POST /api/ai/evaluations/runs { scope?: manual (login)|release (internal), caseKey?: string (manual only) }',
         outputSchema: 'CommandReceipt<AiEvaluationRunStartResult>',
         sourceOfTruth:
             'approved_ai_evaluation_cases+ai_evaluation_runs',

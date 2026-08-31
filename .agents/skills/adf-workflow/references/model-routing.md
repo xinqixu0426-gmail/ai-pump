@@ -12,21 +12,23 @@ validated against `.codex/agents/*.toml`; this document owns the judgment rules.
 | Role | Default | Use for |
 | --- | --- | --- |
 | Main Codex | selected session model; normally Sol medium | implementation, synthesis, delivery decisions |
-| Code Explorer | Luna medium | bounded file discovery, call-chain tracing, inventories, evidence collection |
+| Code Explorer | Spark medium | bounded file discovery, call-chain tracing, inventories, evidence collection |
 | Docs Reviewer | Luna medium | authority locations, stale facts, duplicate text, links and examples |
 | Test Reviewer | Luna medium | acceptance-to-evidence mapping when behavior and expected outcomes are explicit |
 | Architecture Reviewer | Terra medium | root-cause placement, dependency boundaries, duplicate mechanisms and maintainability |
 
-Use `gpt-5.6-luna` as the reliable lightweight default. Spark may replace Luna for
-the same bounded read-only roles only when it is available and has sufficient quota.
-If Terra is unavailable, use the selected Main Codex model rather than silently
-dropping review.
+Use `gpt-5.3-codex-spark` as the active Code Explorer default while quota is
+available. Keep `gpt-5.6-luna` as its reliable fallback and as the default for
+Docs/Test Reviewers. If Terra is unavailable, use the selected Main Codex model
+rather than silently dropping review.
 
-Static agent profiles cannot inspect a weekly Spark quota. An orchestrator may try
-Spark once for an eligible bounded role after the expected reset window; on a quota
-or availability error it immediately falls back to Luna and suppresses repeated
-Spark attempts until the next expected reset. This fallback never changes Terra or
-Main Codex responsibilities and never skips the required evidence question.
+Static agent profiles cannot inspect a weekly Spark quota. On hosts that support
+custom profiles, invoke `code_explorer`; otherwise invoke a read-only Explorer with
+an explicit `gpt-5.3-codex-spark` model override and the smallest context fork. On
+a quota or availability error, immediately retry that bounded question once with
+Luna and suppress repeated Spark attempts until the next expected reset. This
+fallback never changes Terra or Main Codex responsibilities and never skips the
+required evidence question.
 
 ## Escalate by judgment risk
 

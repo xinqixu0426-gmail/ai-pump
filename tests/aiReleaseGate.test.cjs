@@ -8,6 +8,7 @@ const {
     assertCoreReleaseGateConfigured,
     buildReleaseGateReport,
     evaluationClientTimeoutMs,
+    main,
     parseCliOptions,
     resolveEvaluationAuthentication,
     streamQuestionWithRetry,
@@ -21,6 +22,7 @@ function coreSystemCases(count = 8, overrides = {}) {
         reviewStatus: 'approved',
         enabled: true,
         releaseGateEnabled: true,
+        sourceType: 'system',
         ...overrides,
     }));
 }
@@ -37,10 +39,83 @@ test('AI 发布门禁：release 固定使用内部身份且不会回退网页登
         () => resolveEvaluationAuthentication('release', { ACCESS_PASSWORD: 'password' }),
         /缺少 INTERNAL_SECRET/
     );
+    assert.throws(
+        () => resolveEvaluationAuthentication(
+            'manual',
+            { INTERNAL_SECRET: 'internal-secret' },
+            { caseKey: 'part-current-price' }
+        ),
+        /需要 ACCESS_PASSWORD/
+    );
     assert.equal(resolveEvaluationAuthentication('manual', {
         ACCESS_PASSWORD: 'password',
         INTERNAL_SECRET: 'internal-secret',
     }).type, 'login');
+    assert.throws(
+        () => resolveEvaluationAuthentication('manual', {
+            INTERNAL_SECRET: 'internal-secret',
+        }),
+        /需要 ACCESS_PASSWORD/
+    );
+});
+
+test('AI 单用例诊断：runner 只向服务端请求一个 caseKey 且报告不是 release gate', async () => {
+    const requests = [];
+    const report = await main({
+        scope: 'manual',
+        caseKey: 'part-current-price',
+    }, {
+        authenticate: async (scope, options) => {
+            assert.equal(scope, 'manual');
+            assert.equal(options.caseKey, 'part-current-price');
+        },
+        requestJson: async (method, requestPath, body) => {
+            requests.push({ method, requestPath, body });
+            if (requestPath === '/api/health') return { ready: true };
+            if (requestPath === '/api/ai/evaluations/overview') {
+                return { caseStats: { enabled: 8 } };
+            }
+            if (requestPath === '/api/ai/evaluations/runs') {
+                return {
+                    run: { id: 41, updatedAt: '2026-09-01T00:00:00.000Z' },
+                    cases: [{
+                        id: 7,
+                        caseKey: 'part-current-price',
+                        title: '零件当前价格',
+                        question: '查询当前价格',
+                    }],
+                };
+            }
+            if (requestPath.endsWith('/results')) {
+                return { status: 'passed', checks: [], errorText: '' };
+            }
+            if (requestPath.endsWith('/complete')) {
+                return {
+                    id: 41,
+                    status: 'completed',
+                    totalCount: 1,
+                    passedCount: 1,
+                    failedCount: 0,
+                    reviewCount: 0,
+                };
+            }
+            throw new Error(`unexpected request: ${method} ${requestPath}`);
+        },
+        streamQuestionWithRetry: async () => ({
+            answerText: '当前价格已查询。',
+            toolResults: [],
+            attempts: 1,
+        }),
+    });
+
+    assert.deepEqual(
+        requests.find(item => item.requestPath === '/api/ai/evaluations/runs').body,
+        { scope: 'manual', caseKey: 'part-current-price' }
+    );
+    assert.equal(report.mode, 'diagnostic');
+    assert.equal(report.caseKey, 'part-current-price');
+    assert.equal(report.releaseGate, false);
+    assert.deepEqual(report.totals, { total: 1, passed: 1, failed: 0, review: 0 });
 });
 
 test('AI 发布门禁：8 条核心系统检查缺失或停用时禁止跳过', () => {
@@ -87,6 +162,8 @@ test('AI 发布门禁：全部通过时生成可验收报告', () => {
 
     assert.equal(report.status, 'passed');
     assert.equal(report.blocked, false);
+    assert.equal(report.mode, 'manual');
+    assert.equal(report.releaseGate, false);
     assert.equal(report.gitCommit, 'abc123');
     assert.deepEqual(report.totals, { total: 2, passed: 2, failed: 0, review: 0 });
     assert.deepEqual(report.cases[0].failedChecks, []);
@@ -159,12 +236,49 @@ test('AI 发布门禁：命令参数和 JSON 报告路径可无人值守使用',
         assert.deepEqual(parseCliOptions([`--report=${reportPath}`]), {
             reportPath,
             scope: 'manual',
+            caseKey: '',
         });
         assert.deepEqual(parseCliOptions(['--scope=release']), {
             reportPath: '',
             scope: 'release',
+            caseKey: '',
+        });
+        assert.deepEqual(parseCliOptions(['--case-key', 'part-current-price']), {
+            reportPath: '',
+            scope: 'manual',
+            caseKey: 'part-current-price',
+        });
+        assert.deepEqual(parseCliOptions(['--case-key=part-current-price']), {
+            reportPath: '',
+            scope: 'manual',
+            caseKey: 'part-current-price',
         });
         assert.throws(() => parseCliOptions(['--scope=unknown']), /manual 或 release/);
+        assert.throws(() => parseCliOptions(['--case-key']), /必须提供/);
+        assert.throws(() => parseCliOptions(['--case-key=']), /必须提供/);
+        assert.throws(
+            () => parseCliOptions([`--case-key=${'x'.repeat(161)}`]),
+            /不能超过 160/
+        );
+        assert.throws(
+            () => parseCliOptions(['--scope=release', '--case-key=part-current-price']),
+            /必须运行完整用例集合/
+        );
+        const diagnosticReport = buildReleaseGateReport({
+            scope: 'manual',
+            caseKey: 'part-current-price',
+            run: {
+                id: 11,
+                status: 'completed',
+                totalCount: 1,
+                passedCount: 1,
+                failedCount: 0,
+                reviewCount: 0,
+            },
+        });
+        assert.equal(diagnosticReport.mode, 'diagnostic');
+        assert.equal(diagnosticReport.caseKey, 'part-current-price');
+        assert.equal(diagnosticReport.releaseGate, false);
         const absolutePath = writeReleaseGateReport(reportPath, buildReleaseGateReport({
             error: '模型服务不可用',
         }));

@@ -51,12 +51,20 @@ test('ADF 契约：模型路由清单必须与启用的 reviewer profiles 保持
 
     const workflowSkill = readUtf8('.agents/skills/adf-workflow/SKILL.md');
     const routingGuide = readUtf8('.agents/skills/adf-workflow/references/model-routing.md');
+    const reviewPolicy = readUtf8('.agents/skills/adf-workflow/references/review-policy.md');
+    assert.deepEqual(routing['code-explorer.toml'], {
+        model: 'gpt-5.3-codex-spark',
+        reasoningEffort: 'medium',
+    });
     assert.match(workflowSkill, /references\/model-routing\.md/);
     assert.match(workflowSkill, /Skip the delivery workflow for read-only outcomes/);
     assert.match(workflowSkill, /do not create a Task Contract, start a Guardian session/);
     assert.match(routingGuide, /Static agent profiles cannot inspect a weekly Spark quota/);
-    assert.match(routingGuide, /falls back to Luna and suppresses repeated/);
+    assert.match(routingGuide, /retry that bounded question once with\s+Luna/);
     assert.match(routingGuide, /never estimate or invent token usage/);
+    assert.match(workflowSkill, /one primary shared mechanism/);
+    assert.match(workflowSkill, /Use a validation ladder/);
+    assert.match(reviewPolicy, /at most two passes per required reviewer/);
     assert.match(workflowSkill, /single-module local behavior/);
     assert.match(workflowSkill, /release-only continuation/);
     assert.match(routingGuide, /Use a compact capsule/);
