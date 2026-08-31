@@ -2,12 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const {
+    DEFINITIONS,
     decryptSecret,
     initializeRuntimeSettings,
     normalizeValue,
     publicSnapshot,
     updateRuntimeSettings,
 } = require('../api/services/runtimeConfig.cjs');
+const {
+    PROVIDER_RUNTIME_DEFINITIONS,
+} = require('../api/services/aiProviderRegistry.cjs');
 
 function createAccessors() {
     const db = new Database(':memory:');
@@ -81,7 +85,7 @@ test('系统初始化：API Key 加密保存且读取接口不返回密钥原文
     }
 });
 
-test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi K3 处理图片和文件', () => {
+test('系统初始化：运行设置直接复用 Provider Registry 的字段和默认值', () => {
     const accessors = createAccessors();
     const env = {
         NODE_ENV: 'test',
@@ -95,6 +99,9 @@ test('系统初始化：智能路由默认使用 DeepSeek 并允许 Kimi K3 处�
         assert.equal(snapshot.values.kimiReasoningEffort, 'low');
         assert.equal(env.AI_PROVIDER, 'auto');
         assert.equal(normalizeValue('aiProvider', 'auto'), 'auto');
+        assert.equal(DEFINITIONS.aiProvider, PROVIDER_RUNTIME_DEFINITIONS.aiProvider);
+        assert.equal(DEFINITIONS.deepseekModel, PROVIDER_RUNTIME_DEFINITIONS.deepseekModel);
+        assert.equal(DEFINITIONS.kimiBaseUrl, PROVIDER_RUNTIME_DEFINITIONS.kimiBaseUrl);
 
         const result = updateRuntimeSettings({
             aiProvider: 'auto',

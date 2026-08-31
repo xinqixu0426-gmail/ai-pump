@@ -1263,6 +1263,7 @@ test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业�
 test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型能力传递', () => {
     const chat = readAiPromptContractSource();
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const providerRegistry = readUtf8(path.join(repoRoot, 'api/services/aiProviderRegistry.cjs'));
     const conversations = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
     const aiAttachments = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiAttachments.ts'));
@@ -1270,8 +1271,8 @@ test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型�
 
     assert.match(chat, /router\.get\('\/api\/ai\/capabilities'/);
     assert.match(chat, /fetchAiProvider/);
-    assert.match(provider, /AI_PROVIDER/);
-    assert.match(provider, /KIMI_API_KEY/);
+    assert.match(providerRegistry, /AI_PROVIDER/);
+    assert.match(providerRegistry, /KIMI_API_KEY/);
     assert.match(provider, /type: 'image_url'/);
     assert.match(provider, /不支持直接识图/);
     assert.match(conversations, /resolveMessageAttachments/);
@@ -1851,8 +1852,12 @@ test('API 静态契约：AI 报价展示与成品电缆使用业务口径', () =
     assert.match(customerQueries, /delete quotation\.Id/);
 });
 
-test('API 静态契约：AI 智能路由默认 DeepSeek 且图片和文件自动 Kimi', () => {
+test('API 静态契约：AI Provider 统一登记且附件按本地解析结果分级路由', () => {
     const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
+    const providerRegistry = readUtf8(path.join(repoRoot, 'api/services/aiProviderRegistry.cjs'));
+    const attachmentRouting = readUtf8(path.join(repoRoot, 'api/services/aiAttachmentRouting.cjs'));
+    const health = readUtf8(path.join(repoRoot, 'api/services/aiHealth.cjs'));
+    const settingsQueries = readUtf8(path.join(repoRoot, 'api/services/settingsQueries.cjs'));
     const rotorNaturalLanguage = readUtf8(
         path.join(repoRoot, 'api/services/rotorNaturalLanguage.cjs')
     );
@@ -1860,17 +1865,27 @@ test('API 静态契约：AI 智能路由默认 DeepSeek 且图片和文件自动
     const setupView = readUtf8(path.join(repoRoot, 'apps/web-next/components/setup-view.tsx'));
     const aiMessageList = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiMessageList.tsx'));
 
-    assert.match(provider, /text\(env\.DEEPSEEK_MODEL\) \|\| 'deepseek-v4-flash'/);
-    assert.match(provider, /provider: 'deepseek'/);
+    assert.match(providerRegistry, /deepseekModel:[\s\S]*defaultValue: 'deepseek-v4-flash'/);
+    assert.match(providerRegistry, /provider: 'deepseek'/);
+    assert.match(providerRegistry, /provider: 'kimi'/);
+    assert.match(providerRegistry, /resolveProviderConfigsForMode/);
     assert.match(provider, /resolveAiProviderRoute/);
-    assert.match(provider, /needsVision \? kimi\.supportsImages : kimi\.supportsFileExtraction/);
-    assert.match(provider, /routeReason: needsVision \? 'image' : 'file'/);
-    assert.match(provider, /fileProvider: fileAvailable \? 'kimi' : null/);
+    assert.match(provider, /resolveAttachmentRouting/);
+    assert.match(provider, /canUseVision \|\| canUseFileExtraction/);
+    assert.match(provider, /routeReason: canUseVision \? 'image' : 'file'/);
+    assert.match(provider, /fileProvider: fileAvailable \? MULTIMODAL_PROVIDER_ID : null/);
     assert.match(provider, /selectedConfig\.routeReason === 'file'/);
     assert.match(provider, /'file_fallback'/);
     assert.match(provider, /'vision_fallback'/);
-    assert.match(runtimeConfig, /values: \['auto', 'deepseek', 'kimi'\]/);
-    assert.match(setupView, /图片原图、PDF、Excel\/CSV 和文本附件自动使用 Kimi K3/);
+    assert.match(providerRegistry, /values: Object\.freeze\(\['auto', DEFAULT_PROVIDER_ID, MULTIMODAL_PROVIDER_ID\]\)/);
+    assert.match(runtimeConfig, /\.\.\.PROVIDER_RUNTIME_DEFINITIONS/);
+    assert.match(runtimeConfig, /for \(const field of AI_RUNTIME_FIELD_NAMES\)/);
+    assert.match(attachmentRouting, /content\?\.parserStatus === 'parsed'/);
+    assert.match(attachmentRouting, /requiresExternalPdfUnderstanding/);
+    assert.match(provider, /decision\?\.handling !== 'external_file'/);
+    assert.match(health, /resolveProviderConfigsForMode/);
+    assert.match(settingsQueries, /resolveProviderConfigsForMode/);
+    assert.match(setupView, /本地解析成功的文档由 DeepSeek 直接总结/);
     assert.match(aiMessageList, /item\.provider\.displayName/);
     assert.match(rotorNaturalLanguage, /DEFAULT_MODEL = 'deepseek-v4-flash'/);
     assert.match(rotorNaturalLanguage, /process\.env\.DEEPSEEK_MODEL \|\| DEFAULT_MODEL/);

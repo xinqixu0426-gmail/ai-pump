@@ -1,7 +1,5 @@
-const {
-    fetchAiProvider,
-    resolveProviderConfig,
-} = require('./aiProvider.cjs');
+const { fetchAiProvider } = require('./aiProvider.cjs');
+const { resolveProviderConfig } = require('./aiProviderRegistry.cjs');
 const {
     getFactoryFile,
 } = require('./factoryFileStore.cjs');

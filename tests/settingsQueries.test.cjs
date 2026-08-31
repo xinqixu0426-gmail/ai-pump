@@ -5,6 +5,9 @@ const {
     SettingsQueryError,
     createSettingsQueries,
 } = require('../api/services/settingsQueries.cjs');
+const {
+    resolveProviderConfigsForMode,
+} = require('../api/services/aiProviderRegistry.cjs');
 
 function createFixture() {
     const db = new Database(':memory:');
@@ -40,24 +43,7 @@ function createFixture() {
             provider: 'auto',
             apiKeyConfigured: true,
         }),
-        resolveAiProviderConfig: env => ({
-            provider: env.AI_PROVIDER,
-            displayName: '指定提供商',
-            model: env.MODEL,
-            apiKey: 'configured',
-        }),
-        resolveProviderConfig: (provider, env) => ({
-            provider,
-            displayName: provider === 'deepseek'
-                ? 'DeepSeek'
-                : 'Kimi',
-            model: provider === 'deepseek'
-                ? 'deepseek-chat'
-                : 'kimi-k3',
-            apiKey: provider === 'deepseek'
-                ? 'configured'
-                : env.KIMI_KEY,
-        }),
+        resolveProviderConfigsForMode,
     });
     return {
         db,
@@ -130,21 +116,22 @@ test('设置 Query 的 AI 探测统一编排自动路由提供商和耗时', asy
     try {
         const result = await fixture.queries.testAiConnection({
             AI_PROVIDER: 'auto',
-            KIMI_KEY: 'configured',
+            DEEPSEEK_API_KEY: 'configured',
+            KIMI_API_KEY: 'configured',
         });
         assert.deepEqual(result, {
             provider: 'auto',
             displayName: '智能路由',
-            model: 'deepseek-chat / kimi-k3',
+            model: 'deepseek-v4-flash / kimi-k3',
             testedProviders: [
                 {
                     provider: 'deepseek',
                     displayName: 'DeepSeek',
-                    model: 'deepseek-chat',
+                    model: 'deepseek-v4-flash',
                 },
                 {
                     provider: 'kimi',
-                    displayName: 'Kimi',
+                    displayName: 'Kimi 开放平台',
                     model: 'kimi-k3',
                 },
             ],

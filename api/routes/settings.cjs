@@ -19,9 +19,10 @@ const {
 } = require('../services/runtimeSettingCommands.cjs');
 const {
     fetchAiProvider,
-    resolveAiProviderConfig,
-    resolveProviderConfig,
 } = require('../services/aiProvider.cjs');
+const {
+    resolveProviderConfigsForMode,
+} = require('../services/aiProviderRegistry.cjs');
 const {
     createSettingsQueries,
 } = require('../services/settingsQueries.cjs');
@@ -32,8 +33,7 @@ const settingsQueries = createSettingsQueries({
     db,
     fetchAiProvider,
     publicRuntimeSnapshot: publicSnapshot,
-    resolveAiProviderConfig,
-    resolveProviderConfig,
+    resolveProviderConfigsForMode,
 });
 
 function runtimeError(res, error, fallback = '运行设置操作失败') {

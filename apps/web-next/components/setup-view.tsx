@@ -279,7 +279,7 @@ export function SetupView() {
 
           {activeProvider === 'auto' ? (
             <InlineNotice tone="info">
-              普通对话默认使用 DeepSeek；图片原图、PDF、Excel/CSV 和文本附件自动使用 Kimi K3。Kimi 不可用时回退到 DeepSeek 与本地解析/OCR。
+              普通对话和本地解析成功的文档由 DeepSeek 直接总结；图片、扫描/OCR、解析截断或本地解析失败的文件使用 Kimi K3。Kimi 不可用时回退到 DeepSeek 与本地解析/OCR。
             </InlineNotice>
           ) : null}
 
@@ -314,7 +314,7 @@ export function SetupView() {
           {activeProvider !== 'deepseek' ? (
             <div className={`space-y-4 ${activeProvider === 'auto' ? 'border-t border-line pt-4' : ''}`}>
               <InlineNotice tone="warning">
-                {activeProvider === 'auto' ? 'Kimi K3 处理图片原图和文件。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
+                {activeProvider === 'auto' ? 'Kimi K3 处理图片原图以及需要外部识别的文件。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
               </InlineNotice>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="模型">

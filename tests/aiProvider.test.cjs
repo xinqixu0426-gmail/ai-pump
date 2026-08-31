@@ -100,7 +100,54 @@ function createFileAccessors() {
             parsed_at = ?
         WHERE id = ?
     `).run(now, spreadsheetId);
-    return { db, imageId, textId, pdfId, scannedPdfId, spreadsheetId };
+    const csv = Buffer.from('型号,数量\nV1200,20', 'utf8');
+    const csvId = Number(insert.run(
+        '订单明细.csv', '.csv', 'spreadsheet', 'text/csv; charset=utf-8',
+        csv.length, 'csv-hash', csv, now, now
+    ).lastInsertRowid);
+    db.prepare(`
+        UPDATE factory_files
+        SET parser_status = 'parsed',
+            parsed_text = '【工作表：订单明细】\n[第 1 行] A: 型号 | B: 数量\n[第 2 行] A: V1200 | B: 20',
+            parsed_json = '{"version":"spreadsheet-v1","sheetCount":1,"parsedSheetCount":1,"rowCount":2}',
+            parsed_at = ?
+        WHERE id = ?
+    `).run(now, csvId);
+    const word = Buffer.from('word-document');
+    const wordId = Number(insert.run(
+        '技术说明.docx', '.docx', 'text',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        word.length, 'word-hash', word, now, now
+    ).lastInsertRowid);
+    db.prepare(`
+        UPDATE factory_files
+        SET parser_status = 'parsed',
+            parsed_text = '额定流量 12m³/h，额定扬程 40m',
+            parsed_json = '{"version":"word-v1"}',
+            parsed_at = ?
+        WHERE id = ?
+    `).run(now, wordId);
+    const failedPdf = Buffer.from('%PDF-failed');
+    const failedPdfId = Number(insert.run(
+        '损坏报告.pdf', '.pdf', 'pdf', 'application/pdf', failedPdf.length,
+        'failed-pdf-hash', failedPdf, now, now
+    ).lastInsertRowid);
+    db.prepare(`
+        UPDATE factory_files
+        SET parser_status = 'failed', parser_error = 'PDF 结构损坏', parsed_at = ?
+        WHERE id = ?
+    `).run(now, failedPdfId);
+    return {
+        csvId,
+        db,
+        failedPdfId,
+        imageId,
+        pdfId,
+        scannedPdfId,
+        spreadsheetId,
+        textId,
+        wordId,
+    };
 }
 
 test('V9.1 AI 模型适配：默认保持 DeepSeek，Kimi 多模态能力可配置', () => {
@@ -121,7 +168,7 @@ test('V9.1 AI 模型适配：默认保持 DeepSeek，Kimi 多模态能力可配�
     assert.equal(kimi.maxAttachments, 4);
 });
 
-test('AI 智能路由：普通对话走 DeepSeek，图片和文件走 Kimi K3', () => {
+test('AI 智能路由：普通对话和已本地解析文件走 DeepSeek，图片与扫描文件走 Kimi K3', () => {
     const accessors = createFileAccessors();
     const env = {
         AI_PROVIDER: 'auto',
@@ -141,7 +188,25 @@ test('AI 智能路由：普通对话走 DeepSeek，图片和文件走 Kimi K3', 
             role: 'user',
             content: '分析表格',
             attachments: [{ id: accessors.spreadsheetId }],
-        }], { env, dbAccessors: { db: accessors.db } }).provider, 'kimi');
+        }], { env, dbAccessors: { db: accessors.db } }).provider, 'deepseek');
+
+        assert.equal(resolveAiProviderRoute([{
+            role: 'user',
+            content: '阅读报告、说明和文本',
+            attachments: [
+                { id: accessors.pdfId },
+                { id: accessors.wordId },
+                { id: accessors.textId },
+            ],
+        }], { env, dbAccessors: { db: accessors.db } }).provider, 'deepseek');
+
+        const scannedRoute = resolveAiProviderRoute([{
+            role: 'user',
+            content: '读取扫描报告',
+            attachments: [{ id: accessors.scannedPdfId }],
+        }], { env, dbAccessors: { db: accessors.db } });
+        assert.equal(scannedRoute.provider, 'kimi');
+        assert.equal(scannedRoute.routeReason, 'file');
 
         const imageRoute = resolveAiProviderRoute([{
             role: 'user',
@@ -162,7 +227,7 @@ test('AI 智能路由：普通对话走 DeepSeek，图片和文件走 Kimi K3', 
     }
 });
 
-test('AI 智能路由：关闭视觉只影响图片，PDF和表格仍使用 Kimi 文件抽取', () => {
+test('AI 智能路由：关闭视觉只影响图片，扫描/解析失败文件仍使用 Kimi 文件抽取', () => {
     const accessors = createFileAccessors();
     const env = {
         AI_PROVIDER: 'auto',
@@ -177,8 +242,17 @@ test('AI 智能路由：关闭视觉只影响图片，PDF和表格仍使用 Kimi
             content: '分析表格',
             attachments: [{ id: accessors.spreadsheetId }],
         }], { env, dbAccessors: { db: accessors.db } });
-        assert.equal(spreadsheetRoute.provider, 'kimi');
-        assert.equal(spreadsheetRoute.routeReason, 'file');
+        assert.equal(spreadsheetRoute.provider, 'deepseek');
+
+        for (const fileId of [accessors.scannedPdfId, accessors.failedPdfId]) {
+            const fileRoute = resolveAiProviderRoute([{
+                role: 'user',
+                content: '读取异常文件',
+                attachments: [{ id: fileId }],
+            }], { env, dbAccessors: { db: accessors.db } });
+            assert.equal(fileRoute.provider, 'kimi');
+            assert.equal(fileRoute.routeReason, 'file');
+        }
 
         const imageRoute = resolveAiProviderRoute([{
             role: 'user',
@@ -187,6 +261,17 @@ test('AI 智能路由：关闭视觉只影响图片，PDF和表格仍使用 Kimi
         }], { env, dbAccessors: { db: accessors.db } });
         assert.equal(imageRoute.provider, 'deepseek');
         assert.equal(imageRoute.routeReason, 'vision_unavailable');
+
+        const mixedRoute = resolveAiProviderRoute([{
+            role: 'user',
+            content: '读取图片和扫描报告',
+            attachments: [
+                { id: accessors.imageId },
+                { id: accessors.scannedPdfId },
+            ],
+        }], { env, dbAccessors: { db: accessors.db } });
+        assert.equal(mixedRoute.provider, 'kimi');
+        assert.equal(mixedRoute.routeReason, 'file');
 
         const capabilities = aiProviderCapabilities(env);
         assert.equal(capabilities.supportsImages, false);
@@ -476,14 +561,14 @@ test('V9.1 AI 附件：Kimi 图片按 OpenAI 多模态格式传递', () => {
     accessors.db.close();
 });
 
-test('AI K3 文件路由：上传抽取 PDF、注入不可信内容并删除远端临时文件', async () => {
+test('AI K3 文件路由：只为扫描 PDF 上传抽取、注入不可信内容并删除远端临时文件', async () => {
     const accessors = createFileAccessors();
     const calls = [];
     try {
         const response = await fetchAiProvider([{
             role: 'user',
             content: '总结报告',
-            attachments: [{ id: accessors.pdfId }],
+            attachments: [{ id: accessors.scannedPdfId }],
         }], {
             env: {
                 AI_PROVIDER: 'auto',
@@ -525,6 +610,241 @@ test('AI K3 文件路由：上传抽取 PDF、注入不可信内容并删除远�
             'DELETE /v1/files/remote-pdf-1',
             'POST /v1/chat/completions',
         ]);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI K3 文件路由：文件上传临时错误可降级，认证错误不降级', async () => {
+    const accessors = createFileAccessors();
+    try {
+        const transientUrls = [];
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '读取扫描报告',
+            attachments: [{ id: accessors.failedPdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-file-fallback.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-upload-fallback.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            retryDelayMs: 0,
+            fetchImpl: async url => {
+                transientUrls.push(url);
+                if (url.includes('kimi-upload-fallback')) {
+                    return new Response('temporary upload failure', { status: 503 });
+                }
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.equal(transientUrls.filter(url => url.endsWith('/v1/files')).length, 3);
+        assert.equal(transientUrls.filter(url => url.includes('deepseek-file-fallback')).length, 1);
+
+        const rejectedUrls = [];
+        await assert.rejects(
+            () => fetchAiProvider([{
+                role: 'user',
+                content: '读取扫描报告',
+                attachments: [{ id: accessors.failedPdfId }],
+            }], {
+                env: {
+                    AI_PROVIDER: 'auto',
+                    DEEPSEEK_API_KEY: 'deepseek-key',
+                    KIMI_API_KEY: 'kimi-key',
+                    KIMI_BASE_URL: 'https://api.kimi-upload-auth.test/v1',
+                },
+                dbAccessors: { db: accessors.db },
+                retryDelayMs: 0,
+                fetchImpl: async url => {
+                    rejectedUrls.push(url);
+                    return new Response('unauthorized', { status: 401 });
+                },
+            }),
+            error => error.statusCode === 401 && error.fallbackEligible === false
+        );
+        assert.equal(rejectedUrls.length, 1);
+        assert.match(rejectedUrls[0], /kimi-upload-auth.*\/files$/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI K3 文件路由：内容抽取临时失败先清理远端文件再降级 DeepSeek', async () => {
+    const accessors = createFileAccessors();
+    const calls = [];
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '读取扫描报告',
+            attachments: [{ id: accessors.failedPdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-content-fallback.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-content-fallback.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            retryDelayMs: 0,
+            fetchImpl: async (url, init = {}) => {
+                calls.push(`${init.method || 'GET'} ${url}`);
+                if (url.endsWith('/files') && init.method === 'POST') {
+                    return new Response(JSON.stringify({ id: 'remote-content-failure' }), { status: 200 });
+                }
+                if (url.endsWith('/files/remote-content-failure/content')) {
+                    return new Response('rate limited', { status: 429 });
+                }
+                if (url.endsWith('/files/remote-content-failure') && init.method === 'DELETE') {
+                    return new Response('', { status: 204 });
+                }
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.equal(calls.filter(call => call.includes('/content')).length, 3);
+        assert.equal(calls.filter(call => call.startsWith('DELETE ')).length, 1);
+        assert.equal(calls.filter(call => call.includes('deepseek-content-fallback')).length, 1);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI K3 文件路由：抽取期间取消仍清理远端文件且不回退', async () => {
+    const accessors = createFileAccessors();
+    const controller = new AbortController();
+    const calls = [];
+    let markContentStarted;
+    const contentStarted = new Promise(resolve => { markContentStarted = resolve; });
+    let markCleanupStarted;
+    const cleanupStarted = new Promise(resolve => { markCleanupStarted = resolve; });
+    let releaseCleanup;
+    try {
+        const pending = fetchAiProvider([{
+            role: 'user',
+            content: '读取扫描报告',
+            attachments: [{ id: accessors.failedPdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-cancel-file.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-cancel-file.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            signal: controller.signal,
+            retryDelayMs: 0,
+            fetchImpl: async (url, init = {}) => {
+                calls.push(`${init.method || 'GET'} ${url}`);
+                if (url.endsWith('/files') && init.method === 'POST') {
+                    return new Response(JSON.stringify({ id: 'remote-cancelled' }), { status: 200 });
+                }
+                if (url.endsWith('/files/remote-cancelled/content')) {
+                    markContentStarted();
+                    return new Promise((_resolve, reject) => {
+                        init.signal.addEventListener('abort', () => {
+                            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+                        }, { once: true });
+                    });
+                }
+                if (url.endsWith('/files/remote-cancelled') && init.method === 'DELETE') {
+                    markCleanupStarted();
+                    return new Promise(resolve => {
+                        releaseCleanup = () => resolve(new Response(null, { status: 204 }));
+                    });
+                }
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        const outcome = pending.then(
+            () => 'resolved',
+            error => error.code
+        );
+        await contentStarted;
+        controller.abort(Object.assign(new Error('用户取消'), {
+            name: 'AbortError',
+            code: 'AI_REQUEST_CANCELLED',
+        }));
+        await cleanupStarted;
+        const observed = await Promise.race([
+            outcome,
+            new Promise(resolve => setTimeout(() => resolve('cleanup_blocked_cancel'), 50)),
+        ]);
+        releaseCleanup();
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(observed, 'AI_REQUEST_CANCELLED');
+        assert.equal(calls.filter(call => call.startsWith('DELETE ')).length, 1);
+        assert.equal(calls.some(call => call.includes('deepseek-cancel-file')), false);
+        assert.equal(calls.some(call => call.endsWith('/chat/completions')), false);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI K3 文件路由：清理已经开始后取消也立即返回且清理使用独立信号', async () => {
+    const accessors = createFileAccessors();
+    accessors.db.prepare('UPDATE factory_files SET file_sha256 = ? WHERE id = ?')
+        .run('cleanup-race-hash', accessors.failedPdfId);
+    const controller = new AbortController();
+    let markCleanupStarted;
+    const cleanupStarted = new Promise(resolve => { markCleanupStarted = resolve; });
+    let releaseCleanup;
+    try {
+        const pending = fetchAiProvider([{
+            role: 'user',
+            content: '读取扫描报告',
+            attachments: [{ id: accessors.failedPdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-cleanup-race.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            signal: controller.signal,
+            retryDelayMs: 0,
+            fetchImpl: async (url, init = {}) => {
+                if (url.endsWith('/files') && init.method === 'POST') {
+                    return new Response(JSON.stringify({ id: 'remote-cleanup-race' }), { status: 200 });
+                }
+                if (url.endsWith('/files/remote-cleanup-race/content')) {
+                    return new Response('Kimi 已提取的扫描报告', { status: 200 });
+                }
+                if (url.endsWith('/files/remote-cleanup-race') && init.method === 'DELETE') {
+                    assert.ok(init.signal);
+                    assert.notEqual(init.signal, controller.signal);
+                    assert.equal(init.signal.aborted, false);
+                    markCleanupStarted();
+                    return new Promise(resolve => {
+                        releaseCleanup = () => resolve(new Response(null, { status: 204 }));
+                    });
+                }
+                throw new Error(`取消后不应继续调用模型：${url}`);
+            },
+        });
+        const outcome = pending.then(
+            () => 'resolved',
+            error => error.code
+        );
+        await cleanupStarted;
+        controller.abort(Object.assign(new Error('用户取消'), {
+            name: 'AbortError',
+            code: 'AI_REQUEST_CANCELLED',
+        }));
+        const observed = await Promise.race([
+            outcome,
+            new Promise(resolve => setTimeout(() => resolve('cleanup_blocked_cancel'), 50)),
+        ]);
+        assert.equal(observed, 'AI_REQUEST_CANCELLED');
+        releaseCleanup();
+        await new Promise(resolve => setImmediate(resolve));
     } finally {
         accessors.db.close();
     }
@@ -662,6 +982,217 @@ test('AI 智能路由：调用方取消后立即停止且不会错误回退 Deep
         await assert.rejects(pending, error => error.code === 'AI_REQUEST_CANCELLED');
         assert.equal(requestedUrls.length, 1);
         assert.match(requestedUrls[0], /kimi-cancel/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 分级文件路由：已解析 PDF、Word 和表格只内联本地内容且不上传 Kimi', async () => {
+    const accessors = createFileAccessors();
+    const calls = [];
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '汇总本地已解析附件',
+            attachments: [
+                { id: accessors.pdfId },
+                { id: accessors.wordId },
+                { id: accessors.spreadsheetId },
+                { id: accessors.csvId },
+            ],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-local-files.test',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-unused-files.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url, init = {}) => {
+                calls.push(url);
+                const body = JSON.parse(init.body);
+                assert.equal(body.model, 'deepseek-v4-flash');
+                assert.match(body.messages[0].content, /流量 10 \| 扬程 38/);
+                assert.match(body.messages[0].content, /额定流量 12m³\/h/);
+                assert.match(body.messages[0].content, /A: V750 \| B: 30/);
+                assert.match(body.messages[0].content, /A: V1200 \| B: 20/);
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.equal(calls.length, 1);
+        assert.match(calls[0], /deepseek-local-files/);
+        assert.doesNotMatch(calls[0], /\/files/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 分级文件路由：图片与已解析文档混合时传原图并内联正文但不上传文件', async () => {
+    const accessors = createFileAccessors();
+    const urls = [];
+    try {
+        await fetchAiProvider([{
+            role: 'user',
+            content: '结合图片与报告分析',
+            attachments: [
+                { id: accessors.imageId },
+                { id: accessors.pdfId },
+            ],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-image-local.test/v1',
+                AI_VISION_ENABLED: 'true',
+            },
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url, init = {}) => {
+                urls.push(url);
+                const body = JSON.parse(init.body);
+                assert.equal(Array.isArray(body.messages[0].content), true);
+                assert.match(body.messages[0].content[0].text, /流量 10 \| 扬程 38/);
+                assert.equal(body.messages[0].content[1].type, 'image_url');
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(urls.length, 1);
+        assert.match(urls[0], /chat\/completions$/);
+        assert.doesNotMatch(urls[0], /\/files(?:\/|$)/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 固定 Provider：手动 Kimi/DeepSeek 不被 auto 路由改写', async () => {
+    const accessors = createFileAccessors();
+    try {
+        const kimiUrls = [];
+        await fetchAiProvider([{
+            role: 'user',
+            content: '用 Kimi 总结本地报告',
+            attachments: [{ id: accessors.pdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'kimi',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-fixed-local.test/v1',
+            },
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url, init = {}) => {
+                kimiUrls.push(url);
+                const body = JSON.parse(init.body);
+                assert.equal(body.model, 'kimi-k3');
+                assert.match(body.messages[0].content, /流量 10 \| 扬程 38/);
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(kimiUrls.length, 1);
+        assert.match(kimiUrls[0], /kimi-fixed-local.*chat\/completions/);
+
+        const deepseekUrls = [];
+        await fetchAiProvider([{
+            role: 'user',
+            content: '用 DeepSeek 读取扫描报告',
+            attachments: [{ id: accessors.scannedPdfId }],
+        }], {
+            env: {
+                AI_PROVIDER: 'deepseek',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                DEEPSEEK_BASE_URL: 'https://api.deepseek-fixed-scan.test',
+            },
+            dbAccessors: { db: accessors.db },
+            fetchImpl: async (url, init = {}) => {
+                deepseekUrls.push(url);
+                const body = JSON.parse(init.body);
+                assert.match(body.messages[0].content, /需要 OCR/);
+                return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+            },
+        });
+        assert.equal(deepseekUrls.length, 1);
+        assert.match(deepseekUrls[0], /deepseek-fixed-scan/);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 分级文件路由：混合附件只上传无法本地解析的文件', async () => {
+    const accessors = createFileAccessors();
+    const uploadedNames = [];
+    const calls = [];
+    try {
+        const response = await fetchAiProvider([{
+            role: 'user',
+            content: '对比两个报告',
+            attachments: [
+                { id: accessors.pdfId },
+                { id: accessors.failedPdfId },
+            ],
+        }], {
+            env: {
+                AI_PROVIDER: 'auto',
+                DEEPSEEK_API_KEY: 'deepseek-key',
+                KIMI_API_KEY: 'kimi-key',
+                KIMI_BASE_URL: 'https://api.kimi-mixed-files.test/v1',
+                KIMI_MODEL: 'kimi-k3',
+            },
+            dbAccessors: { db: accessors.db },
+            retryDelayMs: 0,
+            fetchImpl: async (url, init = {}) => {
+                calls.push(`${init.method || 'GET'} ${new URL(url).pathname}`);
+                if (url.endsWith('/files') && init.method === 'POST') {
+                    uploadedNames.push(init.body.get('file').name);
+                    return new Response(JSON.stringify({ id: 'remote-failed-1' }), { status: 200 });
+                }
+                if (url.endsWith('/files/remote-failed-1/content')) {
+                    return new Response('Kimi 恢复的损坏报告内容', { status: 200 });
+                }
+                if (url.endsWith('/files/remote-failed-1') && init.method === 'DELETE') {
+                    return new Response(null, { status: 204 });
+                }
+                if (url.endsWith('/chat/completions')) {
+                    const body = JSON.parse(init.body);
+                    assert.match(body.messages[0].content, /流量 10 \| 扬程 38/);
+                    assert.match(body.messages[0].content, /Kimi 恢复的损坏报告内容/);
+                    return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+                }
+                return new Response('unexpected', { status: 500 });
+            },
+        });
+        assert.equal(response.ok, true);
+        assert.deepEqual(uploadedNames, ['损坏报告.pdf']);
+        assert.equal(calls.filter(call => call === 'POST /v1/files').length, 1);
+        assert.equal(calls.filter(call => call === 'POST /v1/chat/completions').length, 1);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('AI 分级文件路由：Word 解析中或失败时不伪装为本地成功', () => {
+    const accessors = createFileAccessors();
+    const env = {
+        AI_PROVIDER: 'auto',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        KIMI_API_KEY: 'kimi-key',
+    };
+    try {
+        const update = accessors.db.prepare(`
+            UPDATE factory_files
+            SET parser_status = ?, parsed_text = '', parser_error = ?
+            WHERE id = ?
+        `);
+        for (const [status, error] of [['processing', ''], ['failed', 'Word 解析失败']]) {
+            update.run(status, error, accessors.wordId);
+            const route = resolveAiProviderRoute([{
+                role: 'user',
+                content: '读取 Word',
+                attachments: [{ id: accessors.wordId }],
+            }], { env, dbAccessors: { db: accessors.db } });
+            assert.equal(route.provider, 'kimi');
+            assert.equal(route.routeReason, 'file');
+        }
     } finally {
         accessors.db.close();
     }

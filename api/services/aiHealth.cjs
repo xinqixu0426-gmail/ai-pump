@@ -1,8 +1,6 @@
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
-const {
-    providerTimeoutMs,
-    resolveProviderConfig,
-} = require('./aiProvider.cjs');
+const { providerTimeoutMs } = require('./aiProvider.cjs');
+const { resolveProviderConfigsForMode } = require('./aiProviderRegistry.cjs');
 const { aiRuntimeTelemetry } = require('./aiRuntimeTelemetry.cjs');
 const { getLatestAiEvaluationHealth } = require('./aiEvaluations.cjs');
 const { runtimeDiagnostics } = require('./runtimeDiagnostics.cjs');
@@ -22,14 +20,13 @@ function safeProvider(config, required) {
 }
 
 function aiProviderHealth(env = process.env) {
-    const mode = String(env.AI_PROVIDER || 'deepseek').trim().toLowerCase() || 'deepseek';
-    const deepseek = resolveProviderConfig('deepseek', env);
-    const kimi = resolveProviderConfig('kimi', env);
-    const providers = mode === 'auto'
-        ? [safeProvider(deepseek, true), safeProvider(kimi, false)]
-        : [safeProvider(resolveProviderConfig(mode, env), true)];
+    const resolved = resolveProviderConfigsForMode(env, { includeUnconfigured: true });
+    const providers = resolved.configs.map(config => safeProvider(
+        config,
+        resolved.mode === 'auto' ? config.autoRequired : true
+    ));
     return {
-        mode,
+        mode: resolved.mode,
         ready: providers.filter(item => item.required).every(item => item.configured),
         providers,
         requestTimeoutMs: providerTimeoutMs(env),

@@ -13,8 +13,7 @@ function createSettingsQueries({
     fetchAiProvider,
     now = Date.now,
     publicRuntimeSnapshot,
-    resolveAiProviderConfig,
-    resolveProviderConfig,
+    resolveProviderConfigsForMode,
 } = {}) {
     if (!db || typeof db.prepare !== 'function') {
         throw new Error('设置查询服务缺少数据库依赖');
@@ -27,8 +26,7 @@ function createSettingsQueries({
         fetchAiProvider,
         now,
         publicRuntimeSnapshot,
-        resolveAiProviderConfig,
-        resolveProviderConfig,
+        resolveProviderConfigsForMode,
     })) {
         if (typeof dependency !== 'function') {
             throw new Error(`设置查询服务缺少 ${name}`);
@@ -81,20 +79,11 @@ function createSettingsQueries({
     async function testAiConnection(input = {}) {
         const startedAt = now();
         const env = buildCandidateAiEnvironment(input);
-        const mode = String(env.AI_PROVIDER || 'auto')
-            .trim()
-            .toLowerCase();
-        let configs;
-        if (mode === 'auto') {
-            const deepseek = resolveProviderConfig('deepseek', env);
-            const kimi = resolveProviderConfig('kimi', env);
-            configs = [
-                deepseek,
-                ...(kimi.apiKey ? [kimi] : []),
-            ];
-        } else {
-            configs = [resolveAiProviderConfig(env)];
-        }
+        const resolved = resolveProviderConfigsForMode(env, {
+            defaultMode: 'auto',
+            includeUnconfigured: false,
+        });
+        const { mode, configs } = resolved;
 
         const testedProviders = [];
         for (const config of configs) {

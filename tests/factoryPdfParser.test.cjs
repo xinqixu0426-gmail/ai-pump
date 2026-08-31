@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const { parsePdfBuffer } = require('../api/services/factoryPdfParser.cjs');
 const { parseFactoryFile } = require('../api/services/factoryFileParser.cjs');
+const { classifyAttachment } = require('../api/services/aiAttachmentRouting.cjs');
 const {
     getFactoryFile,
     getFactoryFileContent,
@@ -84,6 +85,14 @@ test('V9.2 PDF 解析：保留页码、行坐标和表格行', async () => {
         ['Flow', 'Head', 'Current'],
         ['10', '38', '4.2'],
     ]);
+    assert.equal(classifyAttachment(
+        { detectedType: 'pdf', extension: '.pdf' },
+        {
+            parserStatus: result.parserStatus,
+            parsedText: result.extractedText,
+            parsed: result.parsed,
+        }
+    ).handling, 'local_parsed');
 });
 
 test('V9.2 PDF 解析：没有文字层时明确要求 OCR', async () => {
@@ -93,6 +102,14 @@ test('V9.2 PDF 解析：没有文字层时明确要求 OCR', async () => {
     assert.equal(result.extractedText, '');
     assert.equal(result.parsed.requiresOcr, true);
     assert.equal(result.parsed.pageCount, 1);
+    assert.equal(classifyAttachment(
+        { detectedType: 'pdf', extension: '.pdf' },
+        {
+            parserStatus: result.parserStatus,
+            parsedText: result.extractedText,
+            parsed: result.parsed,
+        }
+    ).handling, 'external_file');
 });
 
 test('V9.2 统一文件：解析结果、状态和错误字段写回原文件对象', async () => {

@@ -1,4 +1,9 @@
 const crypto = require('node:crypto');
+const {
+    AI_RUNTIME_FIELD_NAMES,
+    PROVIDER_RUNTIME_DEFINITIONS,
+    assertProviderModeConfigured,
+} = require('./aiProviderRegistry.cjs');
 
 const SECRET_PREFIX = 'v1';
 const SECRET_CONTEXT = 'pump-runtime-settings-v1';
@@ -6,60 +11,7 @@ const MODEL_RE = /^[a-zA-Z0-9._:/-]{1,120}$/;
 const FALSE_VALUES = new Set(['0', 'false', 'off', 'no']);
 
 const DEFINITIONS = Object.freeze({
-    aiProvider: {
-        env: 'AI_PROVIDER',
-        type: 'enum',
-        values: ['auto', 'deepseek', 'kimi'],
-        defaultValue: 'auto',
-        hot: true,
-    },
-    deepseekApiKey: {
-        env: 'DEEPSEEK_API_KEY',
-        type: 'secret',
-        hot: true,
-    },
-    deepseekModel: {
-        env: 'DEEPSEEK_MODEL',
-        type: 'model',
-        defaultValue: 'deepseek-v4-flash',
-        hot: true,
-    },
-    deepseekBaseUrl: {
-        env: 'DEEPSEEK_BASE_URL',
-        type: 'url',
-        defaultValue: 'https://api.deepseek.com',
-        hot: true,
-    },
-    kimiApiKey: {
-        env: 'KIMI_API_KEY',
-        type: 'secret',
-        hot: true,
-    },
-    kimiModel: {
-        env: 'KIMI_MODEL',
-        type: 'model',
-        defaultValue: 'kimi-k3',
-        hot: true,
-    },
-    kimiReasoningEffort: {
-        env: 'KIMI_REASONING_EFFORT',
-        type: 'enum',
-        values: ['low', 'high', 'max'],
-        defaultValue: 'low',
-        hot: true,
-    },
-    kimiBaseUrl: {
-        env: 'KIMI_BASE_URL',
-        type: 'url',
-        defaultValue: 'https://api.moonshot.cn/v1',
-        hot: true,
-    },
-    aiVisionEnabled: {
-        env: 'AI_VISION_ENABLED',
-        type: 'boolean',
-        defaultValue: 'true',
-        hot: true,
-    },
+    ...PROVIDER_RUNTIME_DEFINITIONS,
     knowledgeAutoSyncEnabled: {
         env: 'KNOWLEDGE_AUTO_SYNC_ENABLED',
         type: 'boolean',
@@ -387,16 +339,8 @@ function prepareRuntimeSettingsUpdate(input, options = {}) {
     }
     const current = effectiveValues({ ...options, env });
     const nextValues = { ...current.values, ...normalized };
-    if (
-        normalized.aiProvider
-        && normalized.aiProvider !== current.values.aiProvider
-        && !nextValues[normalized.aiProvider === 'kimi' ? 'kimiApiKey' : 'deepseekApiKey']
-    ) {
-        throw new Error(normalized.aiProvider === 'kimi'
-            ? '切换 Kimi 前必须先配置 Kimi 开放平台 API Key'
-            : normalized.aiProvider === 'auto'
-                ? '启用智能路由前必须先配置 DeepSeek API Key'
-                : '切换 DeepSeek 前必须先配置 DeepSeek API Key');
+    if (normalized.aiProvider && normalized.aiProvider !== current.values.aiProvider) {
+        assertProviderModeConfigured(normalized.aiProvider, nextValues);
     }
     const changed = Object.keys(normalized).filter(
         field => normalized[field] !== current.values[field]
@@ -456,17 +400,7 @@ function updateRuntimeSettings(input, options = {}) {
 
 function buildCandidateAiEnvironment(input = {}, options = {}) {
     const env = { ...(options.env || process.env) };
-    for (const field of [
-        'aiProvider',
-        'deepseekApiKey',
-        'deepseekModel',
-        'deepseekBaseUrl',
-        'kimiApiKey',
-        'kimiModel',
-        'kimiReasoningEffort',
-        'kimiBaseUrl',
-        'aiVisionEnabled',
-    ]) {
+    for (const field of AI_RUNTIME_FIELD_NAMES) {
         if (input[field] === undefined || input[field] === '') continue;
         env[DEFINITIONS[field].env] = normalizeValue(field, input[field]);
     }

@@ -3,102 +3,41 @@ const {
     getFactoryFileBlob,
     getFactoryFileContent,
 } = require('./factoryFileStore.cjs');
+const {
+    KIMI_EXTRACT_TYPES,
+    MAX_CHAT_ATTACHMENTS,
+    messageAttachmentIds,
+    normalizeAttachmentIds,
+    resolveAttachmentRouting,
+} = require('./aiAttachmentRouting.cjs');
+const {
+    DEFAULT_PROVIDER_ID,
+    MULTIMODAL_PROVIDER_ID,
+    providerMode,
+    resolveAiProviderConfig,
+    resolveProviderConfig,
+} = require('./aiProviderRegistry.cjs');
 
-const MAX_CHAT_ATTACHMENTS = 4;
 const MAX_INLINE_TEXT_BYTES = 100 * 1024;
 const MAX_VISION_BYTES = 20 * 1024 * 1024;
 const MAX_PROVIDER_ATTEMPTS = 3;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 120 * 1000;
 const KIMI_FILE_CACHE_TTL_MS = 10 * 60 * 1000;
-const KIMI_EXTRACT_TYPES = new Set(['pdf', 'spreadsheet', 'text']);
 const kimiFileContentCache = new Map();
 
 function text(value) {
     return String(value ?? '').trim();
 }
 
-function booleanEnv(value, fallback = false) {
-    if (value === undefined || value === null || value === '') return fallback;
-    return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
-}
-
-function resolveProviderConfig(provider, env = process.env) {
-    if (provider === 'kimi') {
-        const model = text(env.KIMI_MODEL) || 'kimi-k3';
-        const reasoningEffort = ['low', 'high', 'max'].includes(text(env.KIMI_REASONING_EFFORT))
-            ? text(env.KIMI_REASONING_EFFORT)
-            : 'low';
-        return {
-            provider,
-            displayName: 'Kimi 开放平台',
-            apiKey: text(env.KIMI_API_KEY || env.MOONSHOT_API_KEY),
-            baseUrl: (text(env.KIMI_BASE_URL) || 'https://api.moonshot.cn/v1').replace(/\/+$/, ''),
-            model,
-            reasoningEffort,
-            supportsImages: booleanEnv(env.AI_VISION_ENABLED, /kimi-k2\.(?:5|6|7)|kimi-k3|vision/i.test(model)),
-            supportsFileExtraction: true,
-        };
-    }
-    if (provider !== 'deepseek') {
-        throw new Error(`不支持的 AI_PROVIDER: ${provider}`);
-    }
-    return {
-        provider: 'deepseek',
-        displayName: 'DeepSeek',
-        apiKey: text(env.DEEPSEEK_API_KEY),
-        baseUrl: (text(env.DEEPSEEK_BASE_URL) || 'https://api.deepseek.com').replace(/\/+$/, ''),
-        model: text(env.DEEPSEEK_MODEL) || 'deepseek-v4-flash',
-        supportsImages: false,
-    };
-}
-
-function resolveAiProviderConfig(env = process.env) {
-    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
-    if (mode === 'auto') {
-        return {
-            ...resolveProviderConfig('deepseek', env),
-            routingMode: 'auto',
-            routeReason: 'default',
-        };
-    }
-    return resolveProviderConfig(mode, env);
-}
-
-function messageAttachmentIds(messages) {
-    const ids = [];
-    for (const message of Array.isArray(messages) ? messages : []) {
-        if (message?.role !== 'user') continue;
-        for (const id of normalizeAttachmentIds(message.attachments)) {
-            if (!ids.includes(id)) ids.push(id);
-        }
-    }
-    return ids;
-}
-
-function requiresKimiProvider(messages, options = {}) {
-    const dbAccessors = options.dbAccessors;
-    return messageAttachmentIds(messages).some((id) => {
-        const file = getFactoryFile(id, { dbAccessors });
-        return file?.detectedType === 'image' || KIMI_EXTRACT_TYPES.has(file?.detectedType);
-    });
-}
-
-function requiresVisionProvider(messages, options = {}) {
-    const dbAccessors = options.dbAccessors;
-    return messageAttachmentIds(messages).some((id) => (
-        getFactoryFile(id, { dbAccessors })?.detectedType === 'image'
-    ));
-}
-
 function resolveAiProviderRoute(messages, options = {}) {
     const env = options.env || process.env;
-    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+    const mode = providerMode(env);
     if (mode !== 'auto') return resolveProviderConfig(mode, env);
 
-    const deepseek = resolveProviderConfig('deepseek', env);
-    const needsKimi = options.attachmentMode !== 'metadata'
-        && requiresKimiProvider(messages, options);
-    if (!needsKimi) {
+    const deepseek = resolveProviderConfig(DEFAULT_PROVIDER_ID, env);
+    const attachmentRouting = options.attachmentRouting
+        || resolveAttachmentRouting(messages, options);
+    if (!attachmentRouting.needsKimi) {
         return {
             ...deepseek,
             routingMode: 'auto',
@@ -106,17 +45,17 @@ function resolveAiProviderRoute(messages, options = {}) {
         };
     }
 
-    const kimi = resolveProviderConfig('kimi', env);
-    const needsVision = requiresVisionProvider(messages, options);
-    const providerAvailable = Boolean(
-        kimi.apiKey
-        && (needsVision ? kimi.supportsImages : kimi.supportsFileExtraction)
-    );
+    const kimi = resolveProviderConfig(MULTIMODAL_PROVIDER_ID, env);
+    const needsVision = attachmentRouting.needsVision;
+    const canUseVision = needsVision && kimi.supportsImages;
+    const canUseFileExtraction = attachmentRouting.needsFileExtraction
+        && kimi.supportsFileExtraction;
+    const providerAvailable = Boolean(kimi.apiKey && (canUseVision || canUseFileExtraction));
     if (providerAvailable) {
         return {
             ...kimi,
             routingMode: 'auto',
-            routeReason: needsVision ? 'image' : 'file',
+            routeReason: canUseVision ? 'image' : 'file',
         };
     }
     return {
@@ -133,10 +72,10 @@ function providerTimeoutMs(env = process.env) {
 }
 
 function aiProviderCapabilities(env = process.env) {
-    const mode = text(env.AI_PROVIDER).toLowerCase() || 'deepseek';
+    const mode = providerMode(env);
     if (mode === 'auto') {
-        const deepseek = resolveProviderConfig('deepseek', env);
-        const kimi = resolveProviderConfig('kimi', env);
+        const deepseek = resolveProviderConfig(DEFAULT_PROVIDER_ID, env);
+        const kimi = resolveProviderConfig(MULTIMODAL_PROVIDER_ID, env);
         const visionAvailable = Boolean(kimi.apiKey && kimi.supportsImages);
         const fileAvailable = Boolean(kimi.apiKey && kimi.supportsFileExtraction);
         return {
@@ -148,9 +87,9 @@ function aiProviderCapabilities(env = process.env) {
             acceptedFileTypes: ['pdf', 'spreadsheet', 'image', 'text'],
             maxAttachments: MAX_CHAT_ATTACHMENTS,
             maxFileSize: 10 * 1024 * 1024,
-            defaultProvider: 'deepseek',
-            visionProvider: visionAvailable ? 'kimi' : null,
-            fileProvider: fileAvailable ? 'kimi' : null,
+            defaultProvider: DEFAULT_PROVIDER_ID,
+            visionProvider: visionAvailable ? MULTIMODAL_PROVIDER_ID : null,
+            fileProvider: fileAvailable ? MULTIMODAL_PROVIDER_ID : null,
         };
     }
     const config = resolveAiProviderConfig(env);
@@ -164,18 +103,6 @@ function aiProviderCapabilities(env = process.env) {
         maxAttachments: MAX_CHAT_ATTACHMENTS,
         maxFileSize: 10 * 1024 * 1024,
     };
-}
-
-function normalizeAttachmentIds(attachments) {
-    if (!Array.isArray(attachments)) return [];
-    const unique = [];
-    for (const attachment of attachments) {
-        const id = Number(attachment?.id ?? attachment?.fileId);
-        if (!Number.isSafeInteger(id) || id <= 0 || unique.includes(id)) continue;
-        unique.push(id);
-        if (unique.length >= MAX_CHAT_ATTACHMENTS) break;
-    }
-    return unique;
 }
 
 function attachmentNote(file, note) {
@@ -714,11 +641,16 @@ function cachedKimiFileContent(file) {
 }
 
 async function extractKimiFileContents(messages, config, options = {}) {
-    if (config.provider !== 'kimi' || options.attachmentMode === 'metadata') return new Map();
+    if (config.provider !== MULTIMODAL_PROVIDER_ID || options.attachmentMode === 'metadata') return new Map();
+    const attachmentRouting = options.attachmentRouting
+        || resolveAttachmentRouting(messages, options);
     const extracted = new Map();
     for (const id of messageAttachmentIds(messages)) {
         const file = getFactoryFile(id, { dbAccessors: options.dbAccessors });
-        if (!file || !KIMI_EXTRACT_TYPES.has(file.detectedType)) continue;
+        const decision = attachmentRouting.decisions.get(id);
+        if (!file
+            || !KIMI_EXTRACT_TYPES.has(file.detectedType)
+            || decision?.handling !== 'external_file') continue;
         const cached = cachedKimiFileContent(file);
         if (cached.content) {
             extracted.set(id, cached.content);
@@ -751,14 +683,38 @@ async function extractKimiFileContents(messages, config, options = {}) {
             extracted.set(id, content);
             kimiFileContentCache.set(cached.key, { content, cachedAt: Date.now() });
         } finally {
-            try {
-                await fetchProviderWithRetry(
-                    `${config.baseUrl}/files/${encodeURIComponent(remoteId)}`,
-                    { method: 'DELETE', headers: { Authorization: `Bearer ${config.apiKey}` } },
-                    { ...options, maxAttempts: 1, config, action: '临时文件清理' }
-                );
-            } catch {
+            const { signal: callerSignal, ...cleanupOptions } = options;
+            const cleanup = fetchProviderWithRetry(
+                `${config.baseUrl}/files/${encodeURIComponent(remoteId)}`,
+                { method: 'DELETE', headers: { Authorization: `Bearer ${config.apiKey}` } },
+                {
+                    ...cleanupOptions,
+                    maxAttempts: 1,
+                    config,
+                    action: '临时文件清理',
+                    timeoutMs: Math.min(providerTimeoutMs(options.env), 10 * 1000),
+                }
+            ).catch(() => {
                 // 远端临时文件清理失败不覆盖本轮主要结果；平台侧仍有文件配额治理。
+            });
+            if (!callerSignal) {
+                await cleanup;
+            } else if (callerSignal.aborted) {
+                // 用户取消必须立即返回；独立、有界的清理继续执行但不阻塞调用方。
+                void cleanup;
+            } else {
+                await new Promise(resolve => {
+                    let settled = false;
+                    const finish = () => {
+                        if (settled) return;
+                        settled = true;
+                        callerSignal.removeEventListener('abort', finish);
+                        resolve();
+                    };
+                    callerSignal.addEventListener('abort', finish, { once: true });
+                    if (callerSignal.aborted) finish();
+                    cleanup.then(finish);
+                });
             }
         }
     }
@@ -794,10 +750,15 @@ function prepareProviderTools(tools, config) {
 
 async function fetchAiProvider(messages, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
+    const attachmentRouting = resolveAttachmentRouting(messages, {
+        dbAccessors: options.dbAccessors,
+        attachmentMode: options.attachmentMode,
+    });
     const selectedConfig = options.config || resolveAiProviderRoute(messages, {
         env: options.env,
         dbAccessors: options.dbAccessors,
         attachmentMode: options.attachmentMode,
+        attachmentRouting,
     });
     const notifyProvider = (config, extra = {}) => {
         if (typeof options.onProvider !== 'function') return;
@@ -811,14 +772,14 @@ async function fetchAiProvider(messages, options = {}) {
     };
     const requestProvider = async (config) => {
         if (!config.apiKey) {
-            const keyName = config.provider === 'kimi' ? 'KIMI_API_KEY' : 'DEEPSEEK_API_KEY';
-            throw new Error(`未配置 ${keyName}`);
+            throw new Error(`未配置 ${config.apiKeyEnvName}`);
         }
         const routeKey = providerRouteKey(config);
         const externalFileContents = await extractKimiFileContents(messages, config, {
             fetchImpl,
             dbAccessors: options.dbAccessors,
             attachmentMode: options.attachmentMode,
+            attachmentRouting,
             retryDelayMs: options.retryDelayMs,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
@@ -900,12 +861,12 @@ async function fetchAiProvider(messages, options = {}) {
             status: error?.statusCode || null,
             fallbackEligible: isProviderFallbackEligible(error),
         });
-        if (selectedConfig.routingMode !== 'auto' || selectedConfig.provider !== 'kimi') {
+        if (selectedConfig.routingMode !== 'auto' || selectedConfig.provider !== MULTIMODAL_PROVIDER_ID) {
             throw error;
         }
         if (!isProviderFallbackEligible(error)) throw error;
         const fallback = {
-            ...resolveProviderConfig('deepseek', options.env || process.env),
+            ...resolveProviderConfig(DEFAULT_PROVIDER_ID, options.env || process.env),
             routingMode: 'auto',
             routeReason: selectedConfig.routeReason === 'file'
                 ? 'file_fallback'
@@ -913,7 +874,7 @@ async function fetchAiProvider(messages, options = {}) {
         };
         notifyProvider(fallback, {
             fallback: true,
-            fallbackFrom: 'kimi',
+            fallbackFrom: MULTIMODAL_PROVIDER_ID,
         });
         return requestProvider(fallback);
     }
@@ -935,7 +896,5 @@ module.exports = {
     resolveProviderConfig,
     providerHttpError,
     providerTimeoutMs,
-    requiresKimiProvider,
-    requiresVisionProvider,
     truncateUtf8,
 };
