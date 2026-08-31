@@ -1254,7 +1254,8 @@ test('Next UI 契约：AI 回答反馈进入知识库人工处理队列', () => 
     assert.match(aiLib, /conversationDeleted: boolean/);
     assert.match(knowledgeView, /reviewAiAnswerFeedback/);
     assert.match(dialogs, /长期规则只约束 AI，不会修改业务数据/);
-    assert.match(dialogs, /让 AI 长期记住这条正确做法/);
+    assert.match(dialogs, /生成长期纠正规则候选/);
+    assert.match(dialogs, /人工批准后 AI 才会长期遵守/);
     assert.match(knowledgeView, /AI 长期学习规则/);
     assert.match(knowledgeView, /toggleLearningRule/);
     assert.match(knowledgeUi, /回答诊断与复测/);

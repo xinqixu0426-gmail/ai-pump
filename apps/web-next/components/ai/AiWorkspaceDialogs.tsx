@@ -398,8 +398,8 @@ export function AnswerFeedbackDialog({
                 disabled={saving}
               />
               <span>
-                <span className="block text-sm font-medium text-ink">让 AI 长期记住这条正确做法</span>
-                <span className="mt-0.5 block text-xs leading-5 text-muted">启用后会成为通用纠正规则，可在知识库管理中心停用。</span>
+                <span className="block text-sm font-medium text-ink">生成长期纠正规则候选</span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted">提交后先进入知识库管理中心待审核；人工批准后 AI 才会长期遵守。</span>
               </span>
             </label>
           ) : null}

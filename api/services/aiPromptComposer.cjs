@@ -41,7 +41,7 @@ const DOMAIN_PROMPTS = Object.freeze({
 - evidenceLevel=semantic_candidate 或 matchMode=vector 仅表示语义候选，不是用途、兼容性、组成或专用关系的事实。只有标题、正文、摘要或结构化 metadata 明确写出时才能下结论。
 - 明确文本与纯向量候选冲突时采用明确文本；没有明确依据时回答“系统未记录/无法确认”，不得把普通配件改称专用配件，也不得凭相似名称推断排除结论。
 - 产品用途或名称有歧义时同时检索 business_rule，以 sourceTable=business_rules 的正式工厂事实为准，不在提示词中重复维护具体型号结论。
-- metadata.knowledgeRole=reference_copy 的规则条目只用于说明来源和审核记录：factory_rule_candidates 只由配方智能检查服务执行，factory_ai_rules 只由本轮相关纠错提示词执行，不得因检索到知识副本而重复叠加或扩大适用范围。
+- metadata.knowledgeRole=reference_copy 的配方检查规则只用于说明来源和审核记录；factory_rule_candidates 只由配方智能检查服务执行，不得因检索到知识副本而重复叠加或扩大适用范围。用户回答纠错不进入通用知识检索，只能由结构化生命周期解析后注入。
 - 用户只问适用型号时先直接回答已确认型号，不扩展来源未明确的内部组成、是否自带配件或性能强弱。
 - freshness 不是 fresh 时提示待同步；易变数据改查实时业务工具。`,
 
@@ -133,6 +133,8 @@ function composeAiSystemPrompt(options = {}) {
     const correctionPrompt = buildFactoryAiRulesPrompt({
         query: options.query || '',
         domains,
+        objectTypes: options.objectTypes || [],
+        objectRefs: options.objectRefs || [],
         maxChars: options.maxCorrectionChars || 6000,
         maxRules: options.maxCorrectionRules || 8,
         dbAccessors: options.dbAccessors,

@@ -184,6 +184,9 @@ export type AiConversationDetail = AiConversationSummary & {
 export type AiAnswerFeedbackRating = 'helpful' | 'incorrect' | 'outdated' | 'missing_source';
 export type AiAnswerFeedbackStatus = 'open' | 'resolved';
 export type FactoryAiRuleStatus = 'active' | 'disabled';
+export type FactoryAiRuleScopeType = 'global' | 'domain' | 'object';
+export type FactoryAiRuleType = 'answer_correction' | 'terminology' | 'fact_authority' | 'classification' | 'calculation' | 'workflow' | 'tool_selection' | 'answer_style';
+export type FactoryAiRuleEffectiveStatus = 'effective' | 'pending_review' | 'scheduled' | 'expired' | 'conflicted' | 'shadowed' | 'duplicate' | 'out_of_scope' | 'disabled';
 export type AiEvaluationReviewStatus = 'pending' | 'approved' | 'rejected';
 
 export type FactoryAiRule = {
@@ -192,8 +195,23 @@ export type FactoryAiRule = {
   title: string;
   triggerText: string;
   instruction: string;
-  scopeType: 'global';
+  scopeType: FactoryAiRuleScopeType;
+  domains: string[];
+  objectType: string;
+  objectRef: string;
+  ruleType: FactoryAiRuleType;
+  conflictGroup: string;
   priority: number;
+  effectiveFrom: string | null;
+  expiresAt: string | null;
+  conflictKey: string;
+  ruleVersion: number;
+  evaluationCaseId: number | null;
+  evaluationReviewStatus: AiEvaluationReviewStatus | null;
+  evaluationEnabled: boolean;
+  evaluationProposalHash: string;
+  effectiveStatus: FactoryAiRuleEffectiveStatus | null;
+  conflictWith: number[];
   status: FactoryAiRuleStatus;
   createdAt: string;
   updatedAt: string;
@@ -205,6 +223,12 @@ export type FactoryAiRuleList = {
     total: number;
     active: number;
     disabled: number;
+    effective: number;
+    pendingReview: number;
+    scheduled: number;
+    expired: number;
+    conflicted: number;
+    shadowed: number;
   };
 };
 
@@ -858,10 +882,14 @@ export async function submitAiAnswerFeedback(input: {
 
 export async function listFactoryAiRules(filters: {
   status?: FactoryAiRuleStatus;
+  effectiveStatus?: FactoryAiRuleEffectiveStatus;
+  domain?: string;
   limit?: number;
 } = {}): Promise<FactoryAiRuleList> {
   const params = new URLSearchParams();
   if (filters.status) params.set('status', filters.status);
+  if (filters.effectiveStatus) params.set('effectiveStatus', filters.effectiveStatus);
+  if (filters.domain) params.set('domain', filters.domain);
   params.set('limit', String(filters.limit || 100));
   const result = await proxyRequest<ApiResponse<FactoryAiRuleList>>(`/api/ai/learning-rules?${params}`);
   if (!result.success || !result.data) throw new Error(result.error || '读取 AI 学习规则失败');
@@ -871,7 +899,21 @@ export async function listFactoryAiRules(filters: {
 
 export async function updateFactoryAiRule(
   id: number,
-  input: { status?: FactoryAiRuleStatus; title?: string; triggerText?: string; instruction?: string }
+  input: {
+    status?: FactoryAiRuleStatus;
+    title?: string;
+    triggerText?: string;
+    instruction?: string;
+    scopeType?: FactoryAiRuleScopeType;
+    domains?: string[];
+    objectType?: string;
+    objectRef?: string;
+    ruleType?: FactoryAiRuleType;
+    conflictGroup?: string;
+    priority?: number;
+    effectiveFrom?: string | null;
+    expiresAt?: string | null;
+  }
 ): Promise<FactoryAiRule> {
   const result = await proxyRequest<ApiResponse<FactoryAiRule>>(`/api/ai/learning-rules/${id}`, {
     method: 'PATCH',

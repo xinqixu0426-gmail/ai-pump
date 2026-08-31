@@ -1667,16 +1667,16 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
-        inputSchema: 'POST /api/ai/feedback',
-        outputSchema: 'CommandReceipt<AiAnswerFeedback>',
+        inputSchema: 'POST /api/ai/feedback { messageId, rating, note?, learnFromCorrection?, expectedUpdatedAt? }',
+        outputSchema: 'CommandReceipt<AiAnswerFeedback including pending structured learning rule and evaluation candidate>',
         sourceOfTruth:
-            'ai_conversation_messages+ai_answer_feedback+derived_learning_rule_and_regression_case',
+            'ai_conversation_messages+ai_answer_feedback+structured_factory_ai_rule+manually_reviewed_regression_case',
         riskLevel: 'medium',
         requiresConfirmation: false,
         supportsPreview: false,
         concurrencyControl: 'expectedUpdatedAt_if_feedback_exists',
         transactionality:
-            'feedback_rule_regression_audits_and_operation_receipt_atomic',
+            'feedback_structured_rule_pending_regression_audits_and_operation_receipt_atomic',
     }),
     'ai.feedback.diagnose': defineBusinessCapability({
         capabilityId: 'ai.feedback.diagnose',
@@ -1722,20 +1722,29 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         transactionality:
             'feedback_review_audit_and_operation_receipt_atomic',
     }),
+    'ai.learning_rules.list': defineQueryCapability({
+        capabilityId: 'ai.learning_rules.list',
+        domain: 'ai',
+        inputSchema: 'GET /api/ai/learning-rules?status?&effectiveStatus?&domain?&limit?',
+        outputSchema: 'FactoryAiRuleList including lifecycle, evaluation, conflict and scope state',
+        sourceOfTruth: 'factory_ai_rules+ai_evaluation_cases',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'ai.learning_rules.update': defineBusinessCapability({
         capabilityId: 'ai.learning_rules.update',
         recordsBusinessChange: false,
         domain: 'ai',
         operation: 'maintenance',
-        inputSchema: 'PATCH /api/ai/learning-rules/:id',
-        outputSchema: 'CommandReceipt<FactoryAiRule>',
+        inputSchema: 'PATCH /api/ai/learning-rules/:id { status?, title?, triggerText?, instruction?, scopeType?, domains?, objectType?, objectRef?, ruleType?, conflictGroup?, priority?, effectiveFrom?, expiresAt?, expectedUpdatedAt? }',
+        outputSchema: 'CommandReceipt<StructuredFactoryAiRule>',
         sourceOfTruth:
-            'factory_ai_rules+derived_ai_evaluation_cases',
+            'factory_ai_rules+manually_reviewed_ai_evaluation_cases',
         riskLevel: 'medium',
         requiresConfirmation: false,
         supportsPreview: false,
         transactionality:
-            'learning_rule_regression_case_audits_and_operation_receipt_atomic',
+            'versioned_learning_rule_pending_regression_case_audits_and_operation_receipt_atomic',
     }),
     'ai.factory_profile.update': defineBusinessCapability({
         capabilityId: 'ai.factory_profile.update',

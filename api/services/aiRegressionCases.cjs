@@ -116,7 +116,7 @@ function proposalHash(question, correction, config) {
         .digest('hex');
 }
 
-function buildFeedbackEvaluationProposal(feedback = {}) {
+function buildFeedbackEvaluationProposal(feedback = {}, rule = null) {
     const feedbackId = Number(feedback.id);
     if (!Number.isInteger(feedbackId) || feedbackId <= 0) throw new Error('反馈ID不合法');
     const question = normalizeText(feedback.question_text ?? feedback.questionText, 2000);
@@ -131,6 +131,15 @@ function buildFeedbackEvaluationProposal(feedback = {}) {
         forbiddenTerms: terms.forbidden,
         correctionGuidance: correction,
         sourceFeedbackId: feedbackId,
+        ruleSnapshot: rule ? {
+            ruleId: Number(rule.id) || null,
+            ruleVersion: Number(rule.ruleVersion || rule.rule_version || 1),
+            scopeType: rule.scopeType || rule.scope_type || 'global',
+            domains: Array.isArray(rule.domains) ? rule.domains : [],
+            objectType: rule.objectType || rule.object_type || '',
+            objectRef: rule.objectRef || rule.object_ref || '',
+            ruleType: rule.ruleType || rule.rule_type || 'answer_correction',
+        } : null,
     };
     let confidenceScore = 10;
     confidenceScore += Math.min(terms.required.length * 20, 40);
@@ -138,11 +147,10 @@ function buildFeedbackEvaluationProposal(feedback = {}) {
     if (terms.explicitRelation) confidenceScore += 20;
     confidenceScore = Math.min(confidenceScore, 100);
     const hasChecks = terms.required.length > 0 || terms.forbidden.length > 0;
-    const autoApproved = hasChecks && terms.required.length > 0 && confidenceScore >= 65;
     const reasons = [
         terms.required.length ? `提取 ${terms.required.length} 个正确答案锚点` : '未提取到稳定的正确答案锚点',
         terms.forbidden.length ? `提取 ${terms.forbidden.length} 个错误结论` : '没有明确禁用结论',
-        autoApproved ? '证据足够，自动纳入回归' : '保留为待确认候选',
+        '已生成候选，等待人工审核后才纳入回归并允许规则生效',
     ];
     return {
         caseKey: `feedback-${feedbackId}`,
@@ -151,8 +159,8 @@ function buildFeedbackEvaluationProposal(feedback = {}) {
         question,
         config,
         confidenceScore,
-        reviewStatus: autoApproved ? 'approved' : 'pending',
-        enabled: autoApproved,
+        reviewStatus: 'pending',
+        enabled: false,
         generationNote: reasons.join('；'),
         proposalHash: proposalHash(question, correction, config),
         hasChecks,
@@ -196,7 +204,7 @@ function synchronizeAiEvaluationCaseFromFeedback(input = {}, options = {}) {
         );
     }
 
-    const proposal = buildFeedbackEvaluationProposal(feedback);
+    const proposal = buildFeedbackEvaluationProposal(feedback, input.rule);
     const now = new Date().toISOString();
     let reviewStatus = proposal.reviewStatus;
     if (existing?.proposal_hash === proposal.proposalHash
@@ -219,7 +227,10 @@ function synchronizeAiEvaluationCaseFromFeedback(input = {}, options = {}) {
         confidence_score: proposal.confidenceScore,
         generation_note: proposal.generationNote,
         proposal_hash: proposal.proposalHash,
-        reviewed_at: reviewStatus === 'approved' ? now : null,
+        reviewed_at: existing?.proposal_hash === proposal.proposalHash
+            && reviewStatus !== 'pending'
+            ? (existing.reviewed_at || now)
+            : null,
     };
     let id;
     if (existing) {

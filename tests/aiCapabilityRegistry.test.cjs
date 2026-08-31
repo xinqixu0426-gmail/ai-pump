@@ -234,6 +234,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'ai.feedback.diagnose',
         'ai.feedback.retest',
         'ai.feedback.review',
+        'ai.learning_rules.list',
         'ai.learning_rules.update',
         'ai.factory_profile.update',
         'quality.recipe_feedback.save',

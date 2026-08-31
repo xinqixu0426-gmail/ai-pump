@@ -1041,3 +1041,82 @@ test('数据库迁移：活动订单外包装估算绑定正式包材并保留�
         db.close();
     }
 });
+
+test('数据库迁移：旧 AI 纠正规则升级为结构化规则并撤销历史自动批准', () => {
+    const db = openMemoryDatabase();
+    try {
+        db.exec(`
+            CREATE TABLE ai_answer_feedback (id INTEGER PRIMARY KEY);
+            CREATE TABLE ai_evaluation_cases (
+                id INTEGER PRIMARY KEY,
+                source_type TEXT NOT NULL,
+                source_feedback_id INTEGER,
+                review_status TEXT NOT NULL,
+                enabled INTEGER NOT NULL,
+                review_note TEXT DEFAULT '',
+                reviewed_at TEXT,
+                generation_note TEXT DEFAULT ''
+            );
+            CREATE TABLE factory_ai_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_feedback_id INTEGER UNIQUE,
+                title TEXT NOT NULL,
+                trigger_text TEXT NOT NULL DEFAULT '',
+                instruction TEXT NOT NULL,
+                scope_type TEXT NOT NULL DEFAULT 'global',
+                priority INTEGER NOT NULL DEFAULT 100,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE knowledge_entries (
+                id INTEGER PRIMARY KEY,
+                source_table TEXT NOT NULL
+            );
+            CREATE TABLE knowledge_embeddings (
+                id INTEGER PRIMARY KEY,
+                entry_id INTEGER NOT NULL
+            );
+            INSERT INTO ai_answer_feedback (id) VALUES (8);
+            INSERT INTO ai_evaluation_cases (
+                id, source_type, source_feedback_id, review_status, enabled,
+                review_note, reviewed_at, generation_note
+            ) VALUES (
+                18, 'feedback', 8, 'approved', 1, '',
+                '2026-08-01T00:00:00.000Z', '证据足够，自动纳入回归'
+            );
+            INSERT INTO factory_ai_rules (
+                source_feedback_id, title, trigger_text, instruction,
+                scope_type, priority, status, created_at, updated_at
+            ) VALUES (
+                8, '旧规则', '附件是什么', '正确分类是性能测试报告。',
+                'global', 100, 'active',
+                '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z'
+            );
+            INSERT INTO knowledge_entries (id, source_table)
+            VALUES (28, 'factory_ai_rules'), (29, 'parts');
+            INSERT INTO knowledge_embeddings (id, entry_id)
+            VALUES (38, 28), (39, 29);
+        `);
+        MIGRATIONS.find(migration => migration.version === 74).up(db);
+        MIGRATIONS.find(migration => migration.version === 75).up(db);
+        const rule = db.prepare('SELECT * FROM factory_ai_rules').get();
+        const evaluationCase = db.prepare('SELECT * FROM ai_evaluation_cases WHERE id = 18').get();
+        assert.equal(rule.scope_type, 'global');
+        assert.equal(rule.domains_json, '[]');
+        assert.equal(rule.rule_type, 'answer_correction');
+        assert.equal(rule.rule_version, 1);
+        assert.equal(rule.evaluation_case_id, 18);
+        assert.equal(rule.conflict_key.length, 24);
+        assert.equal(rule.conflict_group, `legacy:${rule.id}`);
+        assert.equal(db.prepare("SELECT COUNT(*) AS count FROM knowledge_entries WHERE source_table = 'factory_ai_rules'").get().count, 0);
+        assert.equal(db.prepare('SELECT COUNT(*) AS count FROM knowledge_embeddings WHERE entry_id = 28').get().count, 0);
+        assert.equal(db.prepare("SELECT COUNT(*) AS count FROM knowledge_entries WHERE source_table = 'parts'").get().count, 1);
+        assert.equal(evaluationCase.review_status, 'pending');
+        assert.equal(evaluationCase.enabled, 0);
+        assert.equal(evaluationCase.reviewed_at, null);
+        assert.match(evaluationCase.generation_note, /等待人工确认/);
+    } finally {
+        db.close();
+    }
+});

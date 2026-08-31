@@ -740,16 +740,30 @@ const CANONICAL_TABLES_SQL = `
         trigger_text TEXT NOT NULL DEFAULT '',
         instruction TEXT NOT NULL,
         scope_type TEXT NOT NULL DEFAULT 'global'
-            CHECK(scope_type IN ('global')),
-        priority INTEGER NOT NULL DEFAULT 100,
+            CHECK(scope_type IN ('global', 'domain', 'object')),
+        domains_json TEXT NOT NULL DEFAULT '[]',
+        object_type TEXT NOT NULL DEFAULT '',
+        object_ref TEXT NOT NULL DEFAULT '',
+        rule_type TEXT NOT NULL DEFAULT 'answer_correction'
+            CHECK(rule_type IN ('answer_correction', 'terminology', 'fact_authority', 'classification', 'calculation', 'workflow', 'tool_selection', 'answer_style')),
+        conflict_group TEXT NOT NULL DEFAULT '',
+        priority INTEGER NOT NULL DEFAULT 100 CHECK(priority BETWEEN 1 AND 1000),
         status TEXT NOT NULL DEFAULT 'active'
             CHECK(status IN ('active', 'disabled')),
+        effective_from TEXT,
+        expires_at TEXT,
+        conflict_key TEXT NOT NULL DEFAULT '',
+        rule_version INTEGER NOT NULL DEFAULT 1 CHECK(rule_version >= 1),
+        evaluation_case_id INTEGER,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id)
+        FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id),
+        FOREIGN KEY(evaluation_case_id) REFERENCES ai_evaluation_cases(id)
     );
     CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_status_priority
         ON factory_ai_rules(status, priority DESC, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_scope
+        ON factory_ai_rules(scope_type, rule_type, conflict_key);
 
     CREATE TABLE IF NOT EXISTS ai_evaluation_cases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

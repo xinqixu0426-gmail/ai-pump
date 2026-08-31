@@ -219,7 +219,8 @@ test('API 静态契约：AI 纠错学习只通过统一客户端并提供人工�
 
     assert.match(client, /proxyRequest<ApiResponse<FactoryAiRuleList>>\(`\/api\/ai\/learning-rules/);
     assert.match(client, /learnFromCorrection\?: boolean/);
-    assert.match(dialogs, /让 AI 长期记住这条正确做法/);
+    assert.match(dialogs, /生成长期纠正规则候选/);
+    assert.match(dialogs, /人工批准后 AI 才会长期遵守/);
     assert.match(feedback, /feedbackRating === 'incorrect' && feedbackLearn/);
     assert.match(knowledge, /AI 长期学习规则/);
     assert.match(knowledge, /toggleLearningRule/);

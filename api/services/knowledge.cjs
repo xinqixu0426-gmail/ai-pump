@@ -636,35 +636,6 @@ function approvedFactoryRuleEntries(rows) {
     }));
 }
 
-function activeFactoryAiRuleEntries(rows) {
-    return (rows || []).filter(row => row.status === 'active').map(row => createEntry({
-        entryType: 'business_rule',
-        sourceTable: 'factory_ai_rules',
-        sourceId: String(row.id),
-        sourceUpdatedAt: row.updatedAt || row.updated_at,
-        title: `AI 操作习惯：${row.title}`,
-        summary: row.instruction,
-        content: [
-            row.instruction,
-            row.triggerText || row.trigger_text ? `适用示例（仅用于相关性匹配和来源追溯）：${row.triggerText || row.trigger_text}` : '',
-            '来源：用户通过 AI 回答反馈明确确认的长期纠正规则。',
-            '生命周期：规则独立于原对话；删除聊天记录不会停用或删除本规则。',
-            '执行边界：本条知识仅用于检索和追溯；实际生效内容由本轮相关纠错提示词注入，不得从知识副本重复执行。',
-        ],
-        tags: ['业务规则', 'AI纠错学习', '操作习惯'],
-        metadata: {
-            ruleId: row.id,
-            sourceFeedbackId: row.sourceFeedbackId || row.source_feedback_id || null,
-            scopeType: row.scopeType || row.scope_type || 'global',
-            priority: Number(row.priority || 100),
-            ...buildRuleGovernanceMetadata('answer_correction', {
-                statement: row.instruction,
-                scopeType: row.scopeType || row.scope_type || 'global',
-            }),
-        },
-    }));
-}
-
 function buildKnowledgeEntries(options = {}) {
     let dbAccessors = options.dbAccessors || null;
     const getDb = () => {
@@ -698,16 +669,6 @@ function buildKnowledgeEntries(options = {}) {
             ruleCandidates = getDb().dbGetFactoryRuleCandidates('approved');
         } catch {
             ruleCandidates = [];
-        }
-    }
-    let factoryAiRules = options.factoryAiRules;
-    if (!Object.prototype.hasOwnProperty.call(options, 'factoryAiRules')) {
-        try {
-            factoryAiRules = require('./factoryAiRules.cjs')
-                .listFactoryAiRules({ status: 'active', limit: 200 }, { dbAccessors: getDb() })
-                .items;
-        } catch {
-            factoryAiRules = [];
         }
     }
     const qualitySummary = options.qualitySummary || buildDataQualitySummary({
@@ -750,7 +711,6 @@ function buildKnowledgeEntries(options = {}) {
         ...qualityEntries(qualitySummary),
         ...businessRuleEntries(settings),
         ...approvedFactoryRuleEntries(ruleCandidates),
-        ...activeFactoryAiRuleEntries(factoryAiRules),
         ...documents.map(documentEntry),
     ].filter(entry => ENTRY_TYPES.has(entry.entryType) && entry.title);
 }
@@ -1223,7 +1183,6 @@ module.exports = {
     ENTRY_TYPES,
     buildKnowledgeEntries,
     businessChangeEntry,
-    activeFactoryAiRuleEntries,
     documentEntry,
     syncFactoryRuleKnowledgeEntry,
     syncKnowledgeEntries,

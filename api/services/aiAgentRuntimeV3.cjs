@@ -50,7 +50,7 @@ const {
     normalizeKnowledgeCompanionToolCalls,
 } = require('./aiKnowledgeCompanionsV2.cjs');
 const { resolveAiToolTargetV3 } = require('./aiEntityResolverV3.cjs');
-const { discoveryCapabilitiesForIntent } = require('./aiCapabilityGraphV3.cjs');
+const { capabilityGraphNode, discoveryCapabilitiesForIntent } = require('./aiCapabilityGraphV3.cjs');
 const {
     completedCapabilityNames,
     isVerifiedEmptyObservation,
@@ -365,6 +365,9 @@ async function runAiAgentRuntimeV3(input = {}) {
     const systemPrompt = composeAiSystemPrompt({
         factoryProfile: getFactoryProfile(),
         domains: intent.domains,
+        objectTypes: intent.steps
+            .map(step => capabilityGraphNode(step.capabilityName)?.target?.entityType)
+            .filter(Boolean),
         query: latestUserText(messages),
         extra: [
             input.promptSuffix || '',

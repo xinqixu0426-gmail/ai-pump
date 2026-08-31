@@ -97,8 +97,8 @@ test('纠错回归：从术语、型号和明确否定中提取稳定检查项',
         question_text: '12-120是什么意思？',
         note: '12-120代表12规格的定子、120片，不是120规格。',
     });
-    assert.equal(proposal.reviewStatus, 'approved');
-    assert.equal(proposal.enabled, true);
+    assert.equal(proposal.reviewStatus, 'pending');
+    assert.equal(proposal.enabled, false);
     assert.equal(proposal.category, '线圈');
 });
 

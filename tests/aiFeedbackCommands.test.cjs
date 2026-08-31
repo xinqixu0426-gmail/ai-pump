@@ -183,9 +183,10 @@ test('AI 反馈命令：提交纠错与派生规则/回归用例原子审计且�
             context('ai-feedback-submit-0001')
         );
         assert.equal(first.capabilityId, 'ai.feedback.submit');
-        assert.equal(first.auditIds.length, 3);
+        assert.equal(first.auditIds.length, 4);
         assert.equal(first.feedback.learningRule.status, 'active');
-        assert.equal(first.feedback.regressionCase.reviewStatus, 'approved');
+        assert.equal(first.feedback.regressionCase.reviewStatus, 'pending');
+        assert.equal(first.feedback.regressionCase.enabled, false);
         assert.equal(replay.idempotentReplay, true);
         assert.equal(
             fixture.db.prepare(
@@ -329,6 +330,7 @@ test('AI 反馈命令：长期规则修改同步回归用例并逐项强审计',
             submitted.learningRule.id,
             {
                 instruction: '正确分类是水泵性能测试报告。',
+                conflictGroup: 'test-report-classification',
                 expectedUpdatedAt: submitted.learningRule.updatedAt,
             },
             context('ai-learning-rule-update-0001')
@@ -336,6 +338,7 @@ test('AI 反馈命令：长期规则修改同步回归用例并逐项强审计',
         assert.equal(updated.capabilityId, 'ai.learning_rules.update');
         assert.equal(updated.auditIds.length, 3);
         assert.match(updated.rule.instruction, /水泵性能测试报告/);
+        assert.equal(updated.rule.conflictGroup, 'test-report-classification');
         assert.match(
             fixture.db.prepare(`
                 SELECT config_json

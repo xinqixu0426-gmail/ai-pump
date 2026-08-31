@@ -191,22 +191,31 @@ function submitAiAnswerFeedback(ownerKey, input = {}, options = {}) {
             id = Number(info.lastInsertRowid);
         }
         const saved = db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id);
-        require('./factoryAiRules.cjs').synchronizeFactoryAiRuleFromFeedback({
+        const learningRule = require('./factoryAiRules.cjs').synchronizeFactoryAiRuleFromFeedback({
             feedback: saved,
             learnFromCorrection: input.learnFromCorrection,
+            metadataJson: message.metadata_json,
         }, {
             dbAccessors: accessors,
             auditContext: options.auditContext,
             onWrite: options.onWrite,
         });
-        require('./aiRegressionCases.cjs').synchronizeAiEvaluationCaseFromFeedback({
+        const evaluationCase = require('./aiRegressionCases.cjs').synchronizeAiEvaluationCaseFromFeedback({
             feedback: saved,
             learnFromCorrection: input.learnFromCorrection,
+            rule: learningRule,
         }, {
             dbAccessors: accessors,
             auditContext: options.auditContext,
             onWrite: options.onWrite,
         });
+        if (learningRule?.id && evaluationCase?.id
+            && learningRule.evaluationCaseId !== evaluationCase.id) {
+            const write = safeUpdate('factory_ai_rules', learningRule.id, {
+                evaluation_case_id: evaluationCase.id,
+            }, options.auditContext || {});
+            options.onWrite?.(write);
+        }
         return feedbackRow(
             db.prepare('SELECT * FROM ai_answer_feedback WHERE id = ?').get(id),
             aiAnswerFeedbackRow,

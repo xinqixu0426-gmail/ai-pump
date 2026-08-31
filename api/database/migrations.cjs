@@ -17,6 +17,9 @@ const { normalizePackagingPart } = require('../services/packagingSemantics.cjs')
 const { isPackagingEstimatePart } = require('../services/packagingEstimate.cjs');
 const { renderRecipeCostSnapshot } = require('../services/costEngine.cjs');
 const { buildFeedbackEvaluationProposal } = require('../services/aiRegressionCases.cjs');
+const {
+    buildCorrectionRuleConflictKey,
+} = require('../services/aiCorrectionRuleLifecycle.cjs');
 
 const MIGRATION_TABLE_SQL = `
     CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -3402,6 +3405,154 @@ const MIGRATIONS = Object.freeze([
                       'cutting-shell-purpose-evidence'
                   );
             `);
+        },
+    },
+    {
+        version: 74,
+        name: 'structured_ai_correction_rule_governance',
+        signature: 'structured-scope-effective-period-conflict-version-and-reviewed-regression-binding-v1',
+        foreignKeysOff: true,
+        up(db) {
+            const columns = new Set(
+                db.pragma('table_info(factory_ai_rules)').map(column => column.name)
+            );
+            if (!columns.has('domains_json')) {
+                db.exec(`
+                    ALTER TABLE factory_ai_rules RENAME TO factory_ai_rules_legacy_74;
+
+                    CREATE TABLE factory_ai_rules (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        source_feedback_id INTEGER UNIQUE,
+                        title TEXT NOT NULL,
+                        trigger_text TEXT NOT NULL DEFAULT '',
+                        instruction TEXT NOT NULL,
+                        scope_type TEXT NOT NULL DEFAULT 'global'
+                            CHECK(scope_type IN ('global', 'domain', 'object')),
+                        domains_json TEXT NOT NULL DEFAULT '[]',
+                        object_type TEXT NOT NULL DEFAULT '',
+                        object_ref TEXT NOT NULL DEFAULT '',
+                        rule_type TEXT NOT NULL DEFAULT 'answer_correction'
+                            CHECK(rule_type IN ('answer_correction', 'terminology', 'fact_authority', 'classification', 'calculation', 'workflow', 'tool_selection', 'answer_style')),
+                        priority INTEGER NOT NULL DEFAULT 100 CHECK(priority BETWEEN 1 AND 1000),
+                        status TEXT NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active', 'disabled')),
+                        effective_from TEXT,
+                        expires_at TEXT,
+                        conflict_key TEXT NOT NULL DEFAULT '',
+                        rule_version INTEGER NOT NULL DEFAULT 1 CHECK(rule_version >= 1),
+                        evaluation_case_id INTEGER,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        FOREIGN KEY(source_feedback_id) REFERENCES ai_answer_feedback(id),
+                        FOREIGN KEY(evaluation_case_id) REFERENCES ai_evaluation_cases(id)
+                    );
+
+                    INSERT INTO factory_ai_rules (
+                        id, source_feedback_id, title, trigger_text, instruction,
+                        scope_type, domains_json, object_type, object_ref, rule_type,
+                        priority, status, effective_from, expires_at, conflict_key,
+                        rule_version, evaluation_case_id, created_at, updated_at
+                    )
+                    SELECT
+                        id, source_feedback_id, title, trigger_text, instruction,
+                        'global', '[]', '', '', 'answer_correction',
+                        priority, status, created_at, NULL, '',
+                        1, NULL, created_at, updated_at
+                    FROM factory_ai_rules_legacy_74;
+
+                    DROP TABLE factory_ai_rules_legacy_74;
+                `);
+            }
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_status_priority
+                    ON factory_ai_rules(status, priority DESC, updated_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_factory_ai_rules_scope
+                    ON factory_ai_rules(scope_type, rule_type, conflict_key);
+
+                UPDATE factory_ai_rules
+                SET evaluation_case_id = (
+                    SELECT evaluation_case.id
+                    FROM ai_evaluation_cases AS evaluation_case
+                    WHERE evaluation_case.source_feedback_id = factory_ai_rules.source_feedback_id
+                )
+                WHERE evaluation_case_id IS NULL
+                  AND source_feedback_id IS NOT NULL;
+
+                UPDATE ai_evaluation_cases
+                SET review_status = 'pending',
+                    enabled = 0,
+                    reviewed_at = NULL,
+                    generation_note = REPLACE(
+                        generation_note,
+                        '证据足够，自动纳入回归',
+                        '已生成候选，等待人工确认'
+                    )
+                WHERE source_type = 'feedback'
+                  AND review_status = 'approved'
+                  AND COALESCE(review_note, '') = ''
+                  AND generation_note LIKE '%自动纳入回归%';
+            `);
+            const updateConflictKey = db.prepare(`
+                UPDATE factory_ai_rules SET conflict_key = ? WHERE id = ?
+            `);
+            for (const row of db.prepare('SELECT * FROM factory_ai_rules').all()) {
+                updateConflictKey.run(buildCorrectionRuleConflictKey(row), row.id);
+            }
+        },
+    },
+    {
+        version: 75,
+        name: 'explicit_ai_correction_conflict_groups',
+        signature: 'explicit-rule-topic-without-trigger-text-safe-legacy-isolation-and-rag-cleanup-v1',
+        up(db) {
+            const columns = new Set(
+                db.pragma('table_info(factory_ai_rules)').map(column => column.name)
+            );
+            if (!columns.has('conflict_group')) {
+                db.exec(`
+                    ALTER TABLE factory_ai_rules
+                    ADD COLUMN conflict_group TEXT NOT NULL DEFAULT '';
+                `);
+            }
+            db.exec(`
+                UPDATE factory_ai_rules
+                SET conflict_group = 'legacy:' || id
+                WHERE TRIM(COALESCE(conflict_group, '')) = '';
+            `);
+            const updateConflictKey = db.prepare(`
+                UPDATE factory_ai_rules SET conflict_key = ? WHERE id = ?
+            `);
+            for (const row of db.prepare('SELECT * FROM factory_ai_rules').all()) {
+                updateConflictKey.run(buildCorrectionRuleConflictKey(row), row.id);
+            }
+            const hasKnowledgeEntries = db.prepare(`
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'knowledge_entries'
+            `).get();
+            if (hasKnowledgeEntries) {
+                const entryIds = db.prepare(`
+                    SELECT id FROM knowledge_entries WHERE source_table = 'factory_ai_rules'
+                `).all().map(row => row.id);
+                const hasFts = db.prepare(`
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'table' AND name = 'knowledge_entries_fts'
+                `).get();
+                const hasEmbeddings = db.prepare(`
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'table' AND name = 'knowledge_embeddings'
+                `).get();
+                const deleteFts = hasFts
+                    ? db.prepare('DELETE FROM knowledge_entries_fts WHERE entry_id = ?')
+                    : null;
+                const deleteEmbeddings = hasEmbeddings
+                    ? db.prepare('DELETE FROM knowledge_embeddings WHERE entry_id = ?')
+                    : null;
+                for (const entryId of entryIds) {
+                    deleteFts?.run(entryId);
+                    deleteEmbeddings?.run(entryId);
+                }
+                db.prepare("DELETE FROM knowledge_entries WHERE source_table = 'factory_ai_rules'").run();
+            }
         },
     },
 ]);

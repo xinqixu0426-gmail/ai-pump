@@ -20,7 +20,7 @@
 
 ## 当前版本
 
-当前版本为 `73`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+当前版本为 `75`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
@@ -93,6 +93,8 @@
 | 71 | `persist_coil_scheme_family_selection` | 为配方和常用配置增加 `coil_scheme_family_code`；精确片数从具体 `coil_id` 归一方案族，非精确片数仅在唯一历史计算方案族且不存在精确候选时安全回填，歧义记录保持未绑定 |
 | 72 | `enable_core_ai_release_gate` | 将全部已批准内置系统 AI 检查纳入真实发布门禁；只更新评测治理配置，不修改知识或业务数据 |
 | 73 | `restore_core_ai_release_cases` | 恢复 8 条固定核心 AI 检查的启用和发布门禁状态，兼容旧页面曾停用核心项的数据库；不影响反馈用例或其他系统项 |
+| 74 | `structured_ai_correction_rule_governance` | 将长期纠正规则升级为结构化范围、类型、优先级、生效期、冲突键、版本和回归用例绑定；撤销历史机器自动批准，统一改为人工审核后生效 |
+| 75 | `explicit_ai_correction_conflict_groups` | 为纠正规则增加可管理的规则主题；原问题不再参与冲突身份，历史规则先隔离再由管理页归组 |
 
 ## 数据治理
 
@@ -111,8 +113,8 @@
 - `coils.scheme_status` 只允许 `official/testing/disabled`；`disabled` 表示停用历史方案，不删除库存追溯事实，也不参与正式方案选择。
 - `coils.scheme_code` 是不可变的稳定业务编码；`is_default` 只允许正式方案使用，同一 `stator_variant_id + sheets` 最多一套默认。`rated_voltage_v/rated_frequency_hz/market` 描述适用电气与市场，`scheme_family_code` 限定计算方案插值链路。精确片数由 `recipes.coil_id` 和 `pump_model_variants.coil_id` 绑定具体方案；非精确片数由两表的 `coil_scheme_family_code` 绑定插值或外推系列，原组合字段继续保存快照并兼容历史数据。
 - 线圈方案一旦库存大于 0 或产生过库存流水，规格俗称、定子直径、片数、材质和槽眼即冻结；后续只能调整价格、线重、绕组参数、状态等非身份字段。需要新身份时必须新建线圈方案，避免历史流水和订单引用被改名。
-- `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；启用规则会进入派生知识，并按当前问题与业务领域相关性选择后加入 AI 系统上下文，停用后不再进入提示词或知识同步。规则不修改订单、库存、成本、配方等原始业务数据。
-- `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；`enabled` 控制页面手动检查，`release_gate_enabled` 额外控制无人值守发布门禁。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
+- `factory_ai_rules` 与一条 `ai_answer_feedback` 一一关联，只接收用户明确勾选的“内容错误”纠正；保存全局/领域/对象范围、领域列表、对象引用、规则类型、规则主题、优先级、生效期、稳定冲突键、规则版本和评测案例绑定。运行时只加载启用、人工批准、处于有效期、对象类型与标识同时匹配且冲突解析胜出的规则。该表是审计与执行权威，不投影到通用 `knowledge_entries`，停用、待审、过期、范围外和冲突规则无法绕过生命周期进入回答。规则不修改订单、库存、成本、配方等原始业务数据。
+- `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；所有反馈候选初始均为 `pending + disabled`，只有人工批准后才允许对应规则生效。规则正文或范围变化会更新 proposal hash、升高版本并重新待审；`release_gate_enabled` 额外控制无人值守发布门禁。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
 - 当前 8 条 `source_type=system` 的内置 AI 检查用例属于代码版本化的核心检查基线。迁移 47 恢复并校准最初 7 条规则，迁移 63 增加线圈绕组档案检查；迁移 57 曾为解除生产部署阻断而统一停用，迁移 59 恢复页面手动检查，迁移 72 将已批准系统用例纳入发布门禁，迁移 73 再按固定 `case_key` 恢复 8 条核心项，兼容旧页面曾手动停用的数据库。普通管理接口拒绝把核心用例设为 `enabled=0`，发布脚本按固定 `case_key` 要求 8 条全部可执行，不能用其他系统项凑数；`source_type=feedback` 的已批准用户纠错案例仍可额外进入门禁。
 - `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
 - `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。

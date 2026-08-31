@@ -13,6 +13,7 @@ import {
   Loader2,
   MessageSquareWarning,
   Paperclip,
+  Pencil,
   Play,
   Power,
   PowerOff,
@@ -64,12 +65,14 @@ import {
   type AiEvaluationOverview,
   type AiHealthSnapshot,
   type AiToolResult,
+  type FactoryAiRule,
   type FactoryAiRuleList,
 } from '@/lib/ai';
 import { StreamingText } from '@/components/ai/ai-text';
 import { FadePanel } from '@/components/motion/fade-panel';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/field';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
@@ -89,6 +92,38 @@ import {
   type KnowledgeStatusFilter,
   type KnowledgeWorkspace,
 } from '@/components/knowledge/knowledge-view-model';
+
+const AI_RULE_DOMAIN_OPTIONS = [
+  ['business_history', '业务变更'],
+  ['management', '管理'], ['knowledge', '知识'], ['quality', '质量'],
+  ['order', '订单'], ['quotation', '报价'], ['file', '文件'],
+  ['recipe', '配方'], ['cost', '成本'], ['coil', '线圈'],
+  ['catalog', '零件/库存'], ['drawing', '图纸'],
+] as const;
+
+const AI_RULE_TYPE_LABELS: Record<FactoryAiRule['ruleType'], string> = {
+  answer_correction: '回答纠偏',
+  terminology: '术语',
+  fact_authority: '事实来源',
+  classification: '分类',
+  calculation: '计算口径',
+  workflow: '工作流程',
+  tool_selection: '工具选择',
+  answer_style: '回答风格',
+};
+
+const AI_RULE_EFFECTIVE_LABELS: Record<string, string> = {
+  effective: '已生效', pending_review: '待审核', scheduled: '待生效', expired: '已过期',
+  conflicted: '有冲突', shadowed: '低优先级', duplicate: '重复', out_of_scope: '当前范围外', disabled: '已停用',
+};
+
+function localDateTimeInput(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 export function KnowledgeView({
   initialEntryId = null,
@@ -155,6 +190,8 @@ export function KnowledgeView({
   const [learningRulesLoading, setLearningRulesLoading] = useState(true);
   const [learningRulesError, setLearningRulesError] = useState('');
   const [updatingLearningRuleId, setUpdatingLearningRuleId] = useState<number | null>(null);
+  const [editingLearningRule, setEditingLearningRule] = useState<FactoryAiRule | null>(null);
+  const [savingLearningRule, setSavingLearningRule] = useState(false);
   const openedInitialEntryRef = useRef(false);
   const systemCaseManagementRef = useRef<HTMLDetailsElement>(null);
   const onRefreshCompleteRef = useRef(onRefreshComplete);
@@ -268,6 +305,34 @@ export function KnowledgeView({
       setAiHealthError(err instanceof Error ? err.message : 'AI 运行健康加载失败');
     } finally {
       setAiHealthLoading(false);
+    }
+  }
+
+  async function saveLearningRule() {
+    if (!editingLearningRule) return;
+    setSavingLearningRule(true);
+    setLearningRulesError('');
+    try {
+      await updateFactoryAiRule(editingLearningRule.id, {
+        title: editingLearningRule.title,
+        triggerText: editingLearningRule.triggerText,
+        instruction: editingLearningRule.instruction,
+        scopeType: editingLearningRule.scopeType,
+        domains: editingLearningRule.domains,
+        objectType: editingLearningRule.objectType,
+        objectRef: editingLearningRule.objectRef,
+        ruleType: editingLearningRule.ruleType,
+        conflictGroup: editingLearningRule.conflictGroup,
+        priority: editingLearningRule.priority,
+        effectiveFrom: editingLearningRule.effectiveFrom,
+        expiresAt: editingLearningRule.expiresAt,
+      });
+      setEditingLearningRule(null);
+      await Promise.all([loadLearningRules(), loadEvaluation(), load()]);
+    } catch (err) {
+      setLearningRulesError(err instanceof Error ? err.message : 'AI 学习规则保存失败');
+    } finally {
+      setSavingLearningRule(false);
     }
   }
 
@@ -780,9 +845,11 @@ export function KnowledgeView({
             <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <Brain size={16} className="text-sky-700" />
               AI 长期学习规则
-              {learningRules?.stats.active ? <StatusBadge tone="blue">{learningRules.stats.active} 条生效</StatusBadge> : null}
+              {learningRules?.stats.effective ? <StatusBadge tone="blue">{learningRules.stats.effective} 条生效</StatusBadge> : null}
+              {learningRules?.stats.pendingReview ? <StatusBadge tone="amber">{learningRules.stats.pendingReview} 条待审核</StatusBadge> : null}
+              {learningRules?.stats.conflicted ? <StatusBadge tone="red">{learningRules.stats.conflicted} 条冲突</StatusBadge> : null}
             </div>
-            <div className="mt-1 text-xs text-muted">来自“报告问题”中确认的正确做法；只在相关问题中按优先级加载。</div>
+            <div className="mt-1 text-xs text-muted">只有人工审核通过、处于有效期内且无冲突的规则，才会进入 AI 回答。</div>
           </div>
           <div className="text-xs text-muted">已停用 {learningRules?.stats.disabled || 0}</div>
         </div>
@@ -796,28 +863,41 @@ export function KnowledgeView({
         ) : learningRules?.items.length ? (
           <div className="divide-y divide-line">
             {learningRules.items.map(rule => (
-              <div key={rule.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[110px_minmax(0,1fr)_auto] lg:items-start">
+              <div key={rule.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-start">
                 <div>
-                  <StatusBadge tone={rule.status === 'active' ? 'green' : 'slate'}>
-                    {rule.status === 'active' ? '正在生效' : '已停用'}
+                  <StatusBadge tone={rule.effectiveStatus === 'effective' ? 'green' : rule.effectiveStatus === 'conflicted' ? 'red' : rule.effectiveStatus === 'pending_review' ? 'amber' : 'slate'}>
+                    {AI_RULE_EFFECTIVE_LABELS[rule.effectiveStatus || ''] || '未判定'}
                   </StatusBadge>
+                  <div className="mt-2 text-xs text-muted">v{rule.ruleVersion} · 优先级 {rule.priority}</div>
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-ink">{rule.title}</div>
                   <div className="mt-1 text-sm leading-6 text-slate-700">{rule.instruction}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted">
+                    <span>{AI_RULE_TYPE_LABELS[rule.ruleType]}</span>
+                    <span>· 主题 {rule.conflictGroup}</span>
+                    <span>·</span>
+                    <span>{rule.scopeType === 'global' ? '全局' : rule.domains.join('、') || '未指定领域'}</span>
+                    {rule.scopeType === 'object' ? <span>· {rule.objectType}:{rule.objectRef}</span> : null}
+                    <span>· 评测{rule.evaluationReviewStatus === 'approved' ? '已批准' : rule.evaluationReviewStatus === 'rejected' ? '已拒绝' : '待审核'}</span>
+                  </div>
                   {rule.triggerText ? <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted">来源问题：{rule.triggerText}</div> : null}
+                  {rule.conflictWith.length ? <div className="mt-1 text-xs text-rose-700">与规则 #{rule.conflictWith.join('、#')} 冲突或重复，请调整范围或优先级。</div> : null}
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={updatingLearningRuleId === rule.id
-                    ? <Loader2 size={14} className="animate-spin" />
-                    : rule.status === 'active' ? <PowerOff size={14} /> : <Power size={14} />}
-                  onClick={() => void toggleLearningRule(rule.id, rule.status === 'active' ? 'disabled' : 'active')}
-                  disabled={updatingLearningRuleId !== null}
-                >
-                  {rule.status === 'active' ? '停用' : '启用'}
-                </Button>
+                <div className="flex gap-2 lg:flex-col">
+                  <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={() => setEditingLearningRule({ ...rule, domains: [...rule.domains] })}>编辑</Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={updatingLearningRuleId === rule.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : rule.status === 'active' ? <PowerOff size={14} /> : <Power size={14} />}
+                    onClick={() => void toggleLearningRule(rule.id, rule.status === 'active' ? 'disabled' : 'active')}
+                    disabled={updatingLearningRuleId !== null}
+                  >
+                    {rule.status === 'active' ? '停用' : '启用'}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -825,7 +905,7 @@ export function KnowledgeView({
           <div className="flex min-h-24 flex-col items-center justify-center px-4 text-center">
             <Brain size={21} className="text-muted" />
             <div className="mt-2 text-sm font-medium text-ink">尚无长期学习规则</div>
-            <div className="mt-1 text-xs text-muted">在 AI 回答下报告内容错误并填写正确做法后，会显示在这里。</div>
+            <div className="mt-1 text-xs text-muted">在 AI 回答下报告内容错误并生成规则候选后，会显示在这里等待审核。</div>
           </div>
         )}
       </FadePanel>
@@ -1259,7 +1339,7 @@ export function KnowledgeView({
               AI 回答反馈
               {feedback?.stats.open ? <StatusBadge tone="amber">{feedback.stats.open} 待处理</StatusBadge> : null}
             </div>
-            <div className="mt-1 text-xs text-muted">核对错误、过期来源和资料缺口；带正确做法的内容错误可沉淀为长期规则。</div>
+            <div className="mt-1 text-xs text-muted">核对错误、过期来源和资料缺口；带正确做法的内容错误可生成待审核长期规则。</div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted">
             <span>内容错误 {feedback?.stats.incorrect || 0}</span>
@@ -1484,6 +1564,85 @@ export function KnowledgeView({
           </div>
         )}
       </FadePanel>
+      ) : null}
+
+      {editingLearningRule ? (
+        <Dialog
+          open
+          onClose={() => { if (!savingLearningRule) setEditingLearningRule(null); }}
+          size="lg"
+          closeOnBackdrop={!savingLearningRule}
+          ariaLabelledBy="ai-learning-rule-edit-title"
+        >
+          <div>
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <div>
+                <h2 id="ai-learning-rule-edit-title" className="text-base font-semibold text-ink">编辑长期纠正规则</h2>
+                <p className="mt-1 text-xs text-muted">修改正文或适用范围会生成新版本，并重新进入人工审核。</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-8 px-0" icon={<X size={16} />} aria-label="关闭" onClick={() => setEditingLearningRule(null)} disabled={savingLearningRule} />
+            </div>
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto p-4">
+              <label className="block">
+                <span className="text-xs font-medium text-muted">规则标题</span>
+                <input value={editingLearningRule.title} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, title: event.target.value } : rule)} maxLength={200} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">正确做法</span>
+                <textarea value={editingLearningRule.instruction} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, instruction: event.target.value } : rule)} maxLength={1000} rows={4} className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">适用示例</span>
+                <textarea value={editingLearningRule.triggerText} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, triggerText: event.target.value } : rule)} maxLength={2000} rows={2} className="mt-2 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-slate-400" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-muted">规则主题（同主题才会判定冲突）</span>
+                <input value={editingLearningRule.conflictGroup} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, conflictGroup: event.target.value } : rule)} maxLength={160} placeholder="例如 quotation-display-order" className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">规则类型</span>
+                  <select value={editingLearningRule.ruleType} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, ruleType: event.target.value as FactoryAiRule['ruleType'] } : rule)} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400">
+                    {Object.entries(AI_RULE_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">适用范围</span>
+                  <select value={editingLearningRule.scopeType} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, scopeType: event.target.value as FactoryAiRule['scopeType'], domains: event.target.value === 'global' ? [] : rule.domains, objectType: event.target.value === 'object' ? rule.objectType : '', objectRef: event.target.value === 'object' ? rule.objectRef : '' } : rule)} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400">
+                    <option value="global">全局</option><option value="domain">业务领域</option><option value="object">具体对象</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-muted">优先级（1-1000）</span>
+                  <input type="number" min={1} max={1000} value={editingLearningRule.priority} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, priority: Number(event.target.value) } : rule)} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" />
+                </label>
+              </div>
+              {editingLearningRule.scopeType !== 'global' ? (
+                <div>
+                  <div className="text-xs font-medium text-muted">业务领域</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {AI_RULE_DOMAIN_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 text-xs text-ink"><Checkbox checked={editingLearningRule.domains.includes(value)} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, domains: event.target.checked ? [...new Set([...rule.domains, value])] : rule.domains.filter(domain => domain !== value) } : rule)} />{label}</label>)}
+                  </div>
+                </div>
+              ) : null}
+              {editingLearningRule.scopeType === 'object' ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block"><span className="text-xs font-medium text-muted">对象类型</span><input value={editingLearningRule.objectType} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, objectType: event.target.value } : rule)} maxLength={80} placeholder="例如 recipe" className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" /></label>
+                  <label className="block"><span className="text-xs font-medium text-muted">对象标识</span><input value={editingLearningRule.objectRef} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, objectRef: event.target.value } : rule)} maxLength={160} placeholder="例如 V750" className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" /></label>
+                </div>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block"><span className="text-xs font-medium text-muted">生效时间</span><input type="datetime-local" value={localDateTimeInput(editingLearningRule.effectiveFrom)} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, effectiveFrom: event.target.value ? new Date(event.target.value).toISOString() : null } : rule)} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" /></label>
+                <label className="block"><span className="text-xs font-medium text-muted">失效时间（可空）</span><input type="datetime-local" value={localDateTimeInput(editingLearningRule.expiresAt)} onChange={event => setEditingLearningRule(rule => rule ? { ...rule, expiresAt: event.target.value ? new Date(event.target.value).toISOString() : null } : rule)} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400" /></label>
+              </div>
+              {learningRulesError ? <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{learningRulesError}</div> : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+              <Button variant="ghost" onClick={() => setEditingLearningRule(null)} disabled={savingLearningRule}>取消</Button>
+              <Button variant="primary" icon={savingLearningRule ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />} onClick={() => void saveLearningRule()} disabled={savingLearningRule || !editingLearningRule.title.trim() || !editingLearningRule.instruction.trim() || !editingLearningRule.conflictGroup.trim() || (editingLearningRule.scopeType !== 'global' && editingLearningRule.domains.length === 0) || (editingLearningRule.scopeType === 'object' && (!editingLearningRule.objectType.trim() || !editingLearningRule.objectRef.trim()))}>{savingLearningRule ? '保存中' : '保存并重新审核'}</Button>
+            </div>
+          </div>
+        </Dialog>
       ) : null}
 
       {syncOpen ? (

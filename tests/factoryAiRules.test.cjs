@@ -18,7 +18,17 @@ function createFixture() {
             trigger_text TEXT NOT NULL DEFAULT '',
             instruction TEXT NOT NULL,
             scope_type TEXT NOT NULL DEFAULT 'global',
+            domains_json TEXT NOT NULL DEFAULT '[]',
+            object_type TEXT NOT NULL DEFAULT '',
+            object_ref TEXT NOT NULL DEFAULT '',
+            rule_type TEXT NOT NULL DEFAULT 'answer_correction',
+            conflict_group TEXT NOT NULL DEFAULT '',
             priority INTEGER NOT NULL DEFAULT 100,
+            effective_from TEXT,
+            expires_at TEXT,
+            conflict_key TEXT NOT NULL DEFAULT '',
+            rule_version INTEGER NOT NULL DEFAULT 1,
+            evaluation_case_id INTEGER,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT,
             updated_at TEXT
@@ -46,11 +56,11 @@ function createFixture() {
         );
         INSERT INTO factory_ai_rules (
             source_feedback_id, title, trigger_text, instruction,
-            scope_type, priority, status, created_at, updated_at
+            scope_type, conflict_group, priority, status, created_at, updated_at
         ) VALUES
-            (1, '线圈俗称库存规则', '12-120各入库50套', '规格-片数表示线圈成品，必须调整线圈库存。', 'global', 100, 'active', '2026-08-02', '2026-08-02'),
-            (2, '停用规则', '旧问题', '这条规则不应进入提示词。', 'global', 100, 'disabled', '2026-08-01', '2026-08-01'),
-            (3, '报价顺序规则', '查询客户报价', '报价按第1份、第2份展示。', 'global', 90, 'active', '2026-08-01', '2026-08-01');
+            (1, '线圈俗称库存规则', '12-120各入库50套', '规格-片数表示线圈成品，必须调整线圈库存。', 'global', 'coil-stock', 100, 'active', '2026-08-02', '2026-08-02'),
+            (2, '停用规则', '旧问题', '这条规则不应进入提示词。', 'global', 'legacy-disabled', 100, 'disabled', '2026-08-01', '2026-08-01'),
+            (3, '报价顺序规则', '查询客户报价', '报价按第1份、第2份展示。', 'global', 'quotation-order', 90, 'active', '2026-08-01', '2026-08-01');
         INSERT INTO ai_evaluation_cases (
             case_key, title, category, question, evaluator_type, config_json,
             enabled, sort_order, source_type, source_feedback_id, review_status,
@@ -62,6 +72,18 @@ function createFixture() {
             '{"requiredTerms":[["线圈成品"]],"correctionGuidance":"规格-片数表示线圈成品，必须调整线圈库存。","sourceFeedbackId":1}',
             1, 1001, 'feedback', 1, 'approved', 80, '测试夹具',
             'fixture-hash', '', '2026-08-02', '2026-08-02', '2026-08-02'
+        );
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, sort_order, source_type, source_feedback_id, review_status,
+            confidence_score, generation_note, proposal_hash, review_note,
+            reviewed_at, created_at, updated_at
+        ) VALUES (
+            'feedback-3', '纠错回归：查询客户报价', '报价',
+            '查询客户报价', 'rules',
+            '{"requiredTerms":[["第1份"]],"sourceFeedbackId":3}',
+            1, 1003, 'feedback', 3, 'approved', 80, '测试夹具',
+            'fixture-hash-3', '', '2026-08-02', '2026-08-02', '2026-08-02'
         );
     `);
     const safeUpdate = (table, id, values) => {
@@ -121,16 +143,25 @@ test('通用纠错学习：规则可以停用和重新启用', () => {
         instruction: '正确做法是按“线圈库存”执行。',
     }, { dbAccessors: fixture.accessors });
     assert.equal(enabled.status, 'active');
+    assert.equal(buildFactoryAiRulesPrompt({
+        dbAccessors: fixture.accessors,
+        query: '12-120入库',
+        domains: ['coil'],
+    }), '');
+    const regression = fixture.db.prepare(
+        'SELECT * FROM ai_evaluation_cases WHERE source_feedback_id = 1'
+    ).get();
+    assert.match(regression.config_json, /线圈库存/);
+    assert.equal(regression.review_status, 'pending');
+    assert.equal(regression.enabled, 0);
+    fixture.db.prepare(
+        "UPDATE ai_evaluation_cases SET review_status = 'approved', enabled = 1 WHERE id = ?"
+    ).run(regression.id);
     assert.match(buildFactoryAiRulesPrompt({
         dbAccessors: fixture.accessors,
         query: '12-120入库',
         domains: ['coil'],
     }), /线圈库存/);
-    const regression = fixture.db.prepare(
-        'SELECT * FROM ai_evaluation_cases WHERE source_feedback_id = 1'
-    ).get();
-    assert.match(regression.config_json, /线圈库存/);
-    assert.equal(regression.enabled, 1);
     fixture.db.close();
 });
 
@@ -178,6 +209,9 @@ test('通用纠错学习：相同正确做法只注入优先级最高的一条',
             instruction: '规格-片数表示线圈成品，必须调整线圈库存。',
             priority: 100,
             updatedAt: '2026-08-01',
+            evaluationReviewStatus: 'approved',
+            evaluationEnabled: true,
+            conflictKey: 'coil-stock-rule',
         },
         {
             id: 2,
@@ -186,6 +220,9 @@ test('通用纠错学习：相同正确做法只注入优先级最高的一条',
             instruction: '规格 - 片数表示线圈成品；必须调整线圈库存',
             priority: 120,
             updatedAt: '2026-08-02',
+            evaluationReviewStatus: 'approved',
+            evaluationEnabled: true,
+            conflictKey: 'coil-stock-rule',
         },
     ], {
         query: '12-120 入库',

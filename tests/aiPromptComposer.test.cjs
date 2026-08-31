@@ -16,10 +16,27 @@ function emptyRuleAccessors() {
             trigger_text TEXT NOT NULL DEFAULT '',
             instruction TEXT NOT NULL,
             scope_type TEXT NOT NULL DEFAULT 'global',
+            domains_json TEXT NOT NULL DEFAULT '[]',
+            object_type TEXT NOT NULL DEFAULT '',
+            object_ref TEXT NOT NULL DEFAULT '',
+            rule_type TEXT NOT NULL DEFAULT 'answer_correction',
+            conflict_group TEXT NOT NULL DEFAULT '',
             priority INTEGER NOT NULL DEFAULT 100,
+            effective_from TEXT,
+            expires_at TEXT,
+            conflict_key TEXT NOT NULL DEFAULT '',
+            rule_version INTEGER NOT NULL DEFAULT 1,
+            evaluation_case_id INTEGER,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT,
             updated_at TEXT
+        );
+        CREATE TABLE ai_evaluation_cases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_feedback_id INTEGER UNIQUE,
+            review_status TEXT NOT NULL DEFAULT 'pending',
+            enabled INTEGER NOT NULL DEFAULT 0,
+            proposal_hash TEXT NOT NULL DEFAULT ''
         );
     `);
     return { db };
@@ -122,5 +139,40 @@ test('提示词分层：工厂配置不能改变核心规则优先级', () => {
     );
     assert.match(prompt, /不得覆盖实时业务数据、已批准的结构化检查规则或正式工厂事实/);
     assert.ok(prompt.indexOf('工厂个性化配置') > prompt.indexOf('规则优先级'));
+    accessors.db.close();
+});
+
+test('提示词分层：对象纠正规则同时绑定规划对象类型和标识', () => {
+    const accessors = emptyRuleAccessors();
+    accessors.db.exec(`
+        INSERT INTO ai_evaluation_cases (
+            id, source_feedback_id, review_status, enabled, proposal_hash
+        ) VALUES (1, 9, 'approved', 1, 'approved-hash');
+        INSERT INTO factory_ai_rules (
+            source_feedback_id, title, trigger_text, instruction,
+            scope_type, domains_json, object_type, object_ref, rule_type,
+            conflict_group, priority, effective_from, conflict_key,
+            rule_version, evaluation_case_id, status, created_at, updated_at
+        ) VALUES (
+            9, 'V750 配方来源', '查询 V750', '必须读取当前配方详情。',
+            'object', '["recipe"]', 'recipe', 'V750', 'fact_authority',
+            'recipe-source', 100, '2026-01-01T00:00:00.000Z', 'recipe-v750',
+            1, 1, 'active', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'
+        );
+    `);
+    const wrongType = composeAiSystemPrompt({
+        domains: ['recipe'],
+        objectTypes: ['quotation'],
+        query: '查询 V750',
+        dbAccessors: accessors,
+    });
+    assert.doesNotMatch(wrongType, /必须读取当前配方详情/);
+    const matchingType = composeAiSystemPrompt({
+        domains: ['recipe'],
+        objectTypes: ['recipe'],
+        query: '查询 V750',
+        dbAccessors: accessors,
+    });
+    assert.match(matchingType, /必须读取当前配方详情/);
     accessors.db.close();
 });

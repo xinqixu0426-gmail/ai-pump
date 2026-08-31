@@ -428,7 +428,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V3 第一阶段意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空；服务端直接返回澄清问题，第二阶段不得生成能力步骤，也禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录总耗时、首字耗时、业务域规划/能力规划/工具/总结阶段耗时、工具数量、供应商路由、重试/降级/错误码和供应商真实 usage 覆盖率，不记录用户正文、附件正文、工具参数或回答内容。
 
-模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段最多下发 24 项信封内相关能力目录，模型只提交最多 5 个起始事实步骤，运行时再把实际执行工具收敛到最多 18 项。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 107 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段最多下发 24 项信封内相关能力目录，模型只提交最多 5 个起始事实步骤，运行时再把实际执行工具收敛到最多 18 项。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 108 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图默认排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -541,7 +541,7 @@ V3 第一阶段意图信封中 `requiresClarification=true` 时，`ambiguities` 
 
 系统提示词按四层动态组装：不可编辑核心规则、当前工具路由命中的业务领域规则、可编辑工厂配置、与本轮问题相关的已启用纠正规则。普通闲聊不加载业务领域规则；业务问题只加载当前领域，关闭动态工具路由时加载全部领域作为故障回退。最终回复只呈现面向用户的结果，不展示内部思考、逐步推理、工具选择或处理过程；简单问题使用短段落，一般问题可使用一个简短标题和 2-5 个短要点，保留结论、关键数字或异常、必要下一步和风险。用户要求原因时提供可核验的关键依据，而非内部推理链；写入确认、失败原因和关键风险不得省略。工具计划、调用结果和来源由 Web 正文上方的默认折叠区承载。旧 `config.ai-system-prompt` 首次启动时先备份到 `ai-system-prompt-legacy-backup`，再按当前 8000 字和核心边界校验迁移；不合格旧内容只保留备份并回退安全默认配置。把保存逻辑从 route 抽到 `factoryProfileService`，内容 SHA-256 作为兼容表没有时间戳时的正式版本；事务成功后才替换进程内配置，审计失败会连同配置和 operation 一并回滚。核心规则和领域规则始终高于工厂配置和纠正规则。
 
-规则执行采用统一优先级：系统核心规则 > 当前领域规则 > 已批准配方检查规则 > 正式工厂事实 > 用户回答纠错 > 工厂个性化配置。`sourceTable=business_rules` 是可直接引用的正式工厂事实；`factory_rule_candidates` 和 `factory_ai_rules` 在知识索引中只是可追溯副本，分别只由配方智能检查服务和本轮相关纠错提示词执行，检索到副本不得造成二次执行或扩大适用范围。相同纠错文字只注入优先级最高、更新时间最新的一条，原反馈和审核记录仍完整保留。
+规则执行采用统一优先级：系统核心规则 > 当前领域规则 > 已批准配方检查规则 > 正式工厂事实 > 用户回答纠错 > 工厂个性化配置。`sourceTable=business_rules` 是可直接引用的正式工厂事实；`factory_rule_candidates` 在知识索引中只是可追溯副本，只由配方智能检查服务执行。`factory_ai_rules` 不进入通用知识索引，只能在本轮经审批、有效期、范围和冲突解析后注入。纠正规则由可管理的 `conflictGroup` 明确定义规则主题，再结合范围、对象和类型生成稳定 `conflictKey`；原问题只是适用示例，不参与冲突身份。同组相同 `instruction` 按优先级、版本和更新时间去重；不同 `instruction` 由更高优先级胜出，最高优先级并列时整组标记为 `conflicted` 并暂停。
 
 业务页右侧 AI 可额外发送 `pageContext: { resourceType: "order", resourceId, path: "/orders", view }`。后端只保留合法订单 ID，并将 `view` 限制为 `requirements/readiness/execution/items/purchase/todos`；客户端标签、指令或业务数值都会被丢弃。页面上下文只用于解析“这个订单”“下一步怎么处理”等指代，不写入会话消息，也不替代实时业务工具查询；明确指定其他订单或询问全部订单时，以用户文字为准。
 
@@ -564,7 +564,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 ### AI 回答反馈
 
-用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。只有用户选择“内容错误”、填写以后应遵守的可复用正确做法并明确勾选“让 AI 长期记住”时，系统才会生成一条全局纠正规则；其他反馈不会自动学习。规则正文以正确做法为准，原问题只作为适用示例和来源追溯：运行时规则独立于会话，在后续相似问题中同样生效，删除原对话不会停用规则。纠正规则只约束后续 AI 回答和工具选择，不修改知识原文或业务数据。
+用户可对已经保存的 AI 回复标记“准确”，或报告“内容错误、来源过期、资料不足”。反馈绑定 assistant 消息，并保存当时的用户问题、AI 回答和知识来源快照。只有用户选择“内容错误”、填写以后应遵守的可复用正确做法并明确勾选“让 AI 长期记住”时，系统才生成结构化纠正规则和唯一回归候选；其他反馈不会自动学习。规则具有全局/领域/对象范围、业务域、规则类型、规则主题、优先级、生效期、版本和冲突键。新候选一律待人工审核，批准前规则不会进入 AI 上下文。纠错规则始终不进入通用知识检索，避免过期、范围外或冲突规则从 RAG 旁路生效。规则独立于原会话，删除原对话不会删除规则。纠正规则只约束后续 AI 回答和工具选择，不修改知识原文或业务数据。
 
 | 方法 | 路径 | 请求 | 说明 |
 |---|---|---|---|
@@ -573,14 +573,14 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `POST` | `/api/ai/feedback/:id/diagnose` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.diagnose`。对照当前知识概况并保存诊断快照；诊断不是业务事实，绑定反馈版本 |
 | `POST` | `/api/ai/feedback/:id/retest` | `{ answerText, toolResults, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.retest`。保存使用原问题重新查询所得的新回答和来源，供人工对比；不自动归档 |
 | `PATCH` | `/api/ai/feedback/:id` | `{ status, resolutionNote?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.feedback.review`。将问题标记为待处理或已处理；处理说明最大 500 字符 |
-| `GET` | `/api/ai/learning-rules?status=&limit=100` | 无 | 列出全局长期纠正规则和生效/停用统计；`status` 可为 `active/disabled` |
-| `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.learning_rules.update`。更新规则或启停并同步关联回归用例；启用规则会在相关问题中优先加载，停用后立即不再生效 |
+| `GET` | `/api/ai/learning-rules?status=&effectiveStatus=&domain=&limit=100` | 无 | 能力 `ai.learning_rules.list`。列出结构化长期纠正规则、评测审批、版本、冲突和生效统计；`status` 为 `active/disabled`，`effectiveStatus` 可筛选 `effective/pending_review/scheduled/expired/conflicted/shadowed/duplicate/disabled` |
+| `PATCH` | `/api/ai/learning-rules/:id` | `{ status?, title?, triggerText?, instruction?, scopeType?, domains?, objectType?, objectRef?, ruleType?, conflictGroup?, priority?, effectiveFrom?, expiresAt?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.learning_rules.update`。更新结构化规则或启停；正文、示例、范围、类型或规则主题变化会升高规则版本、重建回归候选并恢复为待人工审核，批准前不生效 |
 
-同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。删除原 AI 会话只隐藏聊天历史，不删除已经提交的反馈快照、纠正规则、回归案例、诊断或复测记录；这些记录继续按原会话 owner 隔离并可治理，但已删除会话不能再新增或改判反馈。
+同一 `messageId` 只保留一条最新判断；`helpful` 自动设为 `resolved`，其余三类问题设为 `open`。同一反馈最多生成一条纠正规则，再次提交会更新原规则，不会重复堆积。改判为非内容错误或取消长期记住会停用已有关联规则。反馈、规则、回归候选绑定和处理写入均通过 `safeInsert/safeUpdate` 并进入审计日志。删除原 AI 会话只隐藏聊天历史，不删除已经提交的反馈快照、纠正规则、回归案例、诊断或复测记录；这些记录继续按原会话 owner 隔离并可治理，但已删除会话不能再新增或改判反馈。
 
-启用的纠正规则按本轮问题文本和业务领域评分，只把最多 8 条相关规则加入系统上下文，并以 `sourceTable=factory_ai_rules` 的业务规则条目进入知识索引；在知识库管理中心可随时停用或恢复。它适用于术语、操作习惯、回答口径和工具选择等通用纠错，不局限于线圈。自由文本规则仍由模型执行，且优先级低于核心安全和领域规则；涉及库存、订单、报价等写操作继续受工具参数校验和人工确认保护。
+运行时先排除停用、未审批、未到生效时间、已过期和范围不匹配的规则。对象规则必须同时匹配本轮规划的 `objectType` 和问题中的 `objectRef`；无法确认对象类型时不生效。同一规则主题和结构化范围才进入同一冲突组：同一正确做法只保留最高版本/优先级；不同做法由更高优先级胜出；最高优先级相同则整组标记冲突并暂停。随后按本轮问题和结构化业务域评分，最多将 8 条规则加入系统上下文。纠错规则不作为 RAG 知识条目检索；自由文本规则仍由模型执行，且低于核心安全和正式领域规则。
 
-`GET /api/knowledge/overview` 的 `ruleGovernance` 返回规则治理概况：`precedence` 是完整优先级，`stats` 区分正式事实、可追溯执行副本和运行时生效条目，`byKind` 说明每类规则的唯一执行通道，`overlaps` 只报告规范化文字完全相同的潜在重复陈述。该检查只读，不删除原规则或证据。
+`GET /api/knowledge/overview` 的 `ruleGovernance` 只返回通用知识投影中的规则概况：`precedence` 是完整优先级，`stats/byKind/overlaps` 用于检查正式事实、配方检查副本和规范化文字重复。纠正规则的 `effective/conflicted/shadowed/duplicate` 状态以 `GET /api/ai/learning-rules` 为权威，不会再被统计或检索为知识条目。两类检查都只读，不删除原规则或证据。
 
 诊断依据是反馈保存时的 `sourceTable + sourceId` 来源快照和 `/api/knowledge/overview` 当前内容哈希状态。无来源时会从原问题中的型号、编号或引号内容检索候选知识。管理界面的“重新验证”重新调用标准 AI 对话流并保存新回答，用户必须比较新旧内容后手工确认归档；系统不会根据模型自评自动判定正确。
 
@@ -607,7 +607,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 迁移 50 将线圈正式方案回归从 `search_factory_knowledge` 改为 `search_coils`，要求实时正式 API 返回全部材质、槽眼和成本方案；知识快照不再作为线圈库存或当前成本的验收来源。迁移 51 进一步让该用例感知生产库是否存在目标规格：不存在时只接受明确零结果，存在时恢复材质、槽眼、成本和来源的严格检查。迁移 52 保留成品电缆的事实、工具和来源要求，同时接受“共同组成一条”“单一整体业务项”等等价正确措辞，避免发布门禁因表面词形产生假失败。
 
-`learnFromCorrection=true` 会在保存长期纠正规则的同一事务中生成或更新一条 `source_type=feedback` 的回归案例。服务端只从明确引号、型号、带单位数字、正向分类和否定结论中生成确定性检查项；同时具备正确答案锚点且置信度不低于 65 的案例自动批准，其他案例保持禁用并进入知识管理页待确认。人工拒绝不会删除原反馈或长期规则；纠正规则停用时，关联案例立即退出回归，恢复规则后只有已批准案例重新启用。历史纠正规则在迁移 42 中按同一算法回填，`case_key/source_feedback_id` 唯一保证重复提交不会制造重复用例。
+`learnFromCorrection=true` 会在保存长期纠正规则的同一事务中生成或更新一条 `source_type=feedback` 的回归案例。服务端只从明确引号、型号、带单位数字、正向分类和否定结论中生成确定性检查项；所有候选案例均以 `reviewStatus=pending`、`enabled=false` 进入人工审核，65 分只作为置信度和审核参考，不会触发自动批准。只有人工审核为 `approved` 且关联纠正规则仍有效时，案例才允许启用并进入回归；人工拒绝不会删除原反馈或长期规则，纠正规则停用时关联案例立即退出回归。历史纠正规则早期由迁移 42 回填候选案例，迁移 74 已统一撤销机器自动批准并恢复为待人工审核状态；`case_key/source_feedback_id` 唯一保证重复提交不会制造重复用例。
 
 `search_customer_history` 先通过正式客户列表唯一定位客户，再调用 `/api/customers/:id/context`；“客户某某现有的全部报价/历史报价”由统一查询编译器直接进入该工具，不再被普通报价筛选吞掉。报价筛选、创建时间顺序、连续 `displaySequence` 和内部报价 ID 移除全部由 Query API 负责；无 `limit` 时返回全部，面向用户统一展示为“第 1 份、第 2 份”。测试报告规则允许“不是工程图纸”这类正确否定说明，只禁止把附件直接标成“参考图纸”。成品电缆用例要求引用正式业务规则，并明确线材、长度、插头和规格属于一个整体业务项。
 

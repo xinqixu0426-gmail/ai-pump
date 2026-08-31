@@ -309,7 +309,7 @@ test('Knowledge service：只把已批准候选规则同步成正式业务规则
     assert.equal(learnedRules[0].metadata.executionChannel, 'analyze_recipe_configuration');
 });
 
-test('Knowledge service：只同步正在生效的 AI 长期纠正规则', () => {
+test('Knowledge service：AI 长期纠正规则不投影到通用检索', () => {
     const entries = buildKnowledgeEntries({
         dbAccessors: createMemoryAccessors(),
         parts: [],
@@ -350,13 +350,7 @@ test('Knowledge service：只同步正在生效的 AI 长期纠正规则', () =>
     });
 
     const learnedRules = entries.filter(entry => entry.sourceTable === 'factory_ai_rules');
-    assert.equal(learnedRules.length, 1);
-    assert.equal(learnedRules[0].sourceId, '31');
-    assert.match(learnedRules[0].content, /必须调整独立线圈库存/);
-    assert.match(learnedRules[0].content, /12-120 入库 50 套/);
-    assert.equal(learnedRules[0].metadata.ruleKind, 'answer_correction');
-    assert.equal(learnedRules[0].metadata.knowledgeRole, 'reference_copy');
-    assert.equal(learnedRules[0].metadata.executionChannel, 'relevant_correction_prompt');
+    assert.equal(learnedRules.length, 0);
 });
 
 test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈方案', () => {

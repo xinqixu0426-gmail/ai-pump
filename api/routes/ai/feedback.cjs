@@ -147,6 +147,8 @@ router.get('/api/ai/learning-rules', (req, res) => {
     try {
         const data = listFactoryAiRules({
             status: req.query.status,
+            effectiveStatus: req.query.effectiveStatus,
+            domain: req.query.domain,
             limit: req.query.limit,
         });
         res.json({ success: true, data });

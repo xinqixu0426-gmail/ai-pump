@@ -13,7 +13,6 @@ const AUTO_SYNC_SOURCE_TABLES = new Set([
     'orders',
     'order_requirement_summaries',
     'order_execution_records',
-    'factory_ai_rules',
     'system_settings',
     'business_change_events',
 ]);

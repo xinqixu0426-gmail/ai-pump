@@ -360,6 +360,15 @@ function executeUpdateFactoryAiRule(
         title: input.title,
         triggerText: input.triggerText,
         instruction: input.instruction,
+        scopeType: input.scopeType,
+        domains: input.domains,
+        objectType: input.objectType,
+        objectRef: input.objectRef,
+        ruleType: input.ruleType,
+        conflictGroup: input.conflictGroup,
+        priority: input.priority,
+        effectiveFrom: input.effectiveFrom,
+        expiresAt: input.expiresAt,
         expectedUpdatedAt,
     };
     return executePersistentCommand({

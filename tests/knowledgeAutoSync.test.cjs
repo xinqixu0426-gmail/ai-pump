@@ -160,5 +160,6 @@ test('Knowledge V4：自动同步覆盖全部核心知识来源', () => {
         assert.equal(AUTO_SYNC_SOURCE_TABLES.has(sourceTable), true, sourceTable);
     }
     assert.equal(AUTO_SYNC_SOURCE_TABLES.has('knowledge_entries'), false);
+    assert.equal(AUTO_SYNC_SOURCE_TABLES.has('factory_ai_rules'), false);
     assert.equal(AUTO_SYNC_SOURCE_TABLES.has('audit_log'), false);
 });

@@ -344,7 +344,9 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
     assert.match(chat, /buildFactoryAiRulesPrompt/);
     assert.match(ruleService, /selectRelevantFactoryAiRules/);
     assert.match(evaluationRoute, /router\.patch\('\/api\/ai\/evaluations\/cases\/:id'/);
-    assert.match(regressionService, /confidenceScore >= 65/);
+    assert.match(regressionService, /reviewStatus: 'pending'/);
+    assert.match(regressionService, /enabled: false/);
+    assert.doesNotMatch(regressionService, /autoApproved/);
     assert.match(regressionService, /source_type: 'feedback'/);
 });
 

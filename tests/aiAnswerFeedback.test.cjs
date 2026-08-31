@@ -51,7 +51,17 @@ function createFixture() {
             trigger_text TEXT NOT NULL DEFAULT '',
             instruction TEXT NOT NULL,
             scope_type TEXT NOT NULL DEFAULT 'global',
+            domains_json TEXT NOT NULL DEFAULT '[]',
+            object_type TEXT NOT NULL DEFAULT '',
+            object_ref TEXT NOT NULL DEFAULT '',
+            rule_type TEXT NOT NULL DEFAULT 'answer_correction',
+            conflict_group TEXT NOT NULL DEFAULT '',
             priority INTEGER NOT NULL DEFAULT 100,
+            effective_from TEXT,
+            expires_at TEXT,
+            conflict_key TEXT NOT NULL DEFAULT '',
+            rule_version INTEGER NOT NULL DEFAULT 1,
+            evaluation_case_id INTEGER,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT,
             updated_at TEXT
@@ -223,6 +233,7 @@ test('AI 回答反馈：明确正确做法后生成通用长期纠正规则', ()
     assert.equal(result.learningRule.status, 'active');
     assert.equal(result.learningRule.triggerText, 'V750 配方详情是什么？');
     assert.equal(result.learningRule.instruction, '以后查询配方详情必须先读取当前业务数据，不要复述历史回答。');
+    assert.equal(result.learningRule.conflictGroup, 'capability:get_factory_knowledge_detail');
     assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM factory_ai_rules').get().count, 1);
     assert.equal(result.regressionCase.reviewStatus, 'pending');
     assert.equal(result.regressionCase.enabled, false);
@@ -240,7 +251,7 @@ test('AI 回答反馈：明确正确做法后生成通用长期纠正规则', ()
     fixture.db.close();
 });
 
-test('AI 回答反馈：明确术语纠错自动生成高置信回归用例', () => {
+test('AI 回答反馈：明确术语纠错生成高置信候选但仍需人工批准', () => {
     const fixture = createFixture();
     const result = submitAiAnswerFeedback('admin', {
         messageId: fixture.assistantMessage,
@@ -249,8 +260,8 @@ test('AI 回答反馈：明确术语纠错自动生成高置信回归用例', ()
         learnFromCorrection: true,
     }, { dbAccessors: fixture.accessors });
 
-    assert.equal(result.regressionCase.reviewStatus, 'approved');
-    assert.equal(result.regressionCase.enabled, true);
+    assert.equal(result.regressionCase.reviewStatus, 'pending');
+    assert.equal(result.regressionCase.enabled, false);
     assert.ok(result.regressionCase.confidenceScore >= 65);
     assert.deepEqual(result.regressionCase.config.requiredTerms, [['性能测试报告']]);
     assert.deepEqual(result.regressionCase.config.forbiddenTerms, ['参考图纸']);
