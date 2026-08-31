@@ -9,6 +9,11 @@ const {
     resolveAiProviderRoute,
 } = require('../api/services/aiProvider.cjs');
 const { readAiProviderStream } = require('../api/services/aiProviderStream.cjs');
+const {
+    estimateAiMessagesTokens,
+    estimateTextTokens,
+    resolveAiTokenBudgets,
+} = require('../api/services/aiTokenBudget.cjs');
 
 function createFileAccessors() {
     const db = new Database(':memory:');
@@ -613,6 +618,57 @@ test('AI K3 文件路由：只为扫描 PDF 上传抽取、注入不可信内容
     } finally {
         accessors.db.close();
     }
+});
+
+test('AI 提供商输入：长历史、工具 schema 与附件正文合计不超过同一上下文窗口', () => {
+    const accessors = createFileAccessors();
+    const env = {
+        AI_PROVIDER: 'deepseek',
+        DEEPSEEK_API_KEY: 'key',
+        AI_CONTEXT_WINDOW_TOKENS: '8192',
+        AI_RESERVED_OUTPUT_TOKENS: '1024',
+        AI_ATTACHMENT_CONTEXT_TOKENS: '4096',
+    };
+    const tools = [{ type: 'function', function: { name: 'query', description: '查询协议'.repeat(250) } }];
+    const messages = prepareAiProviderMessages([
+        { role: 'system', content: '系统规则'.repeat(850) },
+        {
+            role: 'user',
+            content: '请查附件中的扬程',
+            attachments: [{ id: accessors.textId }],
+        },
+    ], {
+        config: resolveAiProviderConfig(env),
+        dbAccessors: { db: accessors.db },
+        env,
+        tools,
+        toolChoice: 'required',
+    });
+    const totalTokens = estimateAiMessagesTokens(messages)
+        + estimateTextTokens(JSON.stringify(tools))
+        + estimateTextTokens(JSON.stringify('required'));
+    assert.equal(totalTokens <= resolveAiTokenBudgets(env).usableInputTokens, true);
+    accessors.db.close();
+});
+
+test('AI provider：流式请求显式要求供应商返回 usage 尾帧', async () => {
+    let body;
+    const response = await fetchAiProvider([{ role: 'user', content: '测试' }], {
+        stream: true,
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'key',
+            DEEPSEEK_BASE_URL: 'https://deepseek-usage.test',
+        },
+        fetchImpl: async (_url, init) => {
+            body = JSON.parse(init.body);
+            return new Response('data: [DONE]\n', {
+                headers: { 'Content-Type': 'text/event-stream' },
+            });
+        },
+    });
+    assert.equal(response.ok, true);
+    assert.deepEqual(body.stream_options, { include_usage: true });
 });
 
 test('AI K3 文件路由：文件上传临时错误可降级，认证错误不降级', async () => {
@@ -1358,6 +1414,34 @@ test('V9.2 AI 附件：PDF 解析文字按页码进入模型上下文', () => {
     assert.match(messages[0].content, /按页码提取的 PDF 文字层内容/);
     assert.match(messages[0].content, /【第 1 页】/);
     assert.match(messages[0].content, /流量 10 \| 扬程 38/);
+    accessors.db.close();
+});
+
+test('AI 长附件：按当前问题选取旧 100KB 截断点之后的相关片段', () => {
+    const accessors = createFileAccessors();
+    const prefix = '普通技术说明。'.repeat(12000);
+    const source = `${prefix}\n关键绕组数据：主绕组 168 匝，副绕组 212 匝。`;
+    const blob = Buffer.from(source, 'utf8');
+    const now = '2026-08-31T00:00:00.000Z';
+    const fileId = Number(accessors.db.prepare(`
+        INSERT INTO factory_files (
+            original_name, extension, detected_type, mime_type, file_size,
+            file_sha256, file_blob, parser_status, source_type, duplicate_count,
+            metadata_json, created_at, updated_at
+        ) VALUES (?, '.txt', 'text', 'text/plain; charset=utf-8', ?, ?, ?, 'parsed', 'direct_upload', 1, '{}', ?, ?)
+    `).run('长说明.txt', blob.length, 'long-text-hash', blob, now, now).lastInsertRowid);
+    const messages = prepareAiProviderMessages([{
+        role: 'user',
+        content: '主绕组是多少匝？',
+        attachments: [{ id: fileId }],
+    }], {
+        config: resolveAiProviderConfig({ DEEPSEEK_API_KEY: 'key' }),
+        dbAccessors: { db: accessors.db },
+        env: { AI_ATTACHMENT_CONTEXT_TOKENS: '800' },
+    });
+    assert.match(messages[0].content, /主绕组 168 匝/);
+    assert.match(messages[0].content, /字符 \d+-\d+/);
+    assert.doesNotMatch(messages[0].content, new RegExp(prefix.slice(0, 5000).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     accessors.db.close();
 });
 

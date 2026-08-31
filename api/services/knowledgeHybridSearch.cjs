@@ -2,6 +2,8 @@ const { createLogger } = require('../logger.cjs');
 const { embeddingProvider } = require('./embeddingProvider.cjs');
 const { searchKnowledgeEntries } = require('./knowledge.cjs');
 const { searchStoredEmbeddings } = require('./knowledgeVectorStore.cjs');
+const { estimateTextTokens, resolveAiTokenBudgets } = require('./aiTokenBudget.cjs');
+const { selectRelevantTextChunks } = require('./aiTextChunks.cjs');
 
 const DEFAULT_CANDIDATE_LIMIT = 20;
 const RRF_OFFSET = 60;
@@ -42,11 +44,50 @@ function listItemFromRow(row, rowAdapter) {
         sourceId: entry.sourceId,
         title: entry.title,
         summary: entry.summary,
+        content: entry.content,
         tags: parseJson(entry.tagsJson, []),
         metadata: parseJson(entry.metadataJson, {}),
         syncedAt: entry.syncedAt,
         updatedAt: entry.updatedAt,
     };
+}
+
+function decorateRelevantChunks(items, query, options = {}) {
+    const list = Array.isArray(items) ? items : [];
+    const totalBudget = options.maxTokens !== undefined
+        ? Math.max(0, Math.trunc(Number(options.maxTokens) || 0))
+        : resolveAiTokenBudgets(options.env).knowledgeExcerptTokens;
+    let remainingBudget = Math.max(0, totalBudget);
+    return list.map((item, index) => {
+        const source = String(item.content || item.summary || '');
+        const remainingItems = Math.max(1, list.length - index);
+        const perItemBudget = remainingBudget > 0
+            ? Math.max(1, Math.floor(remainingBudget / remainingItems))
+            : 0;
+        const relevantChunks = query && source && perItemBudget > 0
+            ? selectRelevantTextChunks(source, query, {
+                maxTokens: perItemBudget,
+                maxChunks: 3,
+                maxChunkTokens: 500,
+                overlapTokens: 50,
+            }).map(chunk => ({
+                chunkIndex: chunk.chunkIndex,
+                charStart: chunk.charStart,
+                charEnd: chunk.charEnd,
+                content: chunk.content,
+                relevanceScore: chunk.relevanceScore,
+            }))
+            : [];
+        remainingBudget = Math.max(
+            0,
+            remainingBudget - relevantChunks.reduce(
+                (sum, chunk) => sum + estimateTextTokens(chunk.content),
+                0
+            )
+        );
+        const { content: _content, ...metadata } = item;
+        return { ...metadata, relevantChunks };
+    });
 }
 
 function loadKnowledgeItems(database, ids, options = {}) {
@@ -191,7 +232,11 @@ async function searchFactoryKnowledge(params = {}, options = {}) {
     const provider = options.provider || embeddingProvider;
 
     if (!query || !enabled) {
-        return decorateKeywordResults(keywordItems, query, limit);
+        return decorateRelevantChunks(
+            decorateKeywordResults(keywordItems, query, limit),
+            query,
+            options
+        );
     }
 
     const vectorSearch = options.vectorSearch || searchStoredEmbeddings;
@@ -201,7 +246,11 @@ async function searchFactoryKnowledge(params = {}, options = {}) {
     try {
         const status = provider.getStatus();
         if (!status.enabled) {
-            return decorateKeywordResults(keywordItems, query, limit);
+            return decorateRelevantChunks(
+                decorateKeywordResults(keywordItems, query, limit),
+                query,
+                options
+            );
         }
         const queryVector = await provider.embedQuery(query);
         const database = options.db || require('../db.cjs').db;
@@ -219,18 +268,27 @@ async function searchFactoryKnowledge(params = {}, options = {}) {
         const knownIds = new Set(keywordItems.map(item => Number(item.id)));
         const missingIds = vectorIds.filter(id => !knownIds.has(Number(id)));
         const loadedItems = itemLoader(database, missingIds);
-        return mergeCandidates(keywordItems, vectorResult.results, loadedItems, query, limit);
+        return decorateRelevantChunks(
+            mergeCandidates(keywordItems, vectorResult.results, loadedItems, query, limit),
+            query,
+            options
+        );
     } catch (error) {
         logger.warn('向量查询失败，已自动回退到 FTS/LIKE', {
             error: String(error?.message || error),
         });
-        return decorateKeywordResults(keywordItems, query, limit);
+        return decorateRelevantChunks(
+            decorateKeywordResults(keywordItems, query, limit),
+            query,
+            options
+        );
     }
 }
 
 module.exports = {
     canonicalText,
     decorateKeywordResults,
+    decorateRelevantChunks,
     evidenceLevelForMatchMode,
     isExactMatch,
     loadKnowledgeItems,

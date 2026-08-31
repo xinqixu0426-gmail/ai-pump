@@ -970,12 +970,12 @@ export function KnowledgeView({
               <div className="border-r border-line px-4 py-3">
                 <div className="text-xs text-muted">响应耗时</div>
                 <div className="mt-1 text-lg font-semibold text-ink">{aiHealth.runtime.latencyMs.average} ms</div>
-                <div className="mt-1 text-xs text-muted">P95 {aiHealth.runtime.latencyMs.p95} ms</div>
+                <div className="mt-1 text-xs text-muted">P95 {aiHealth.runtime.latencyMs.p95} ms · 首字 {aiHealth.runtime.ttftMs?.average ?? 0} ms</div>
               </div>
               <div className="border-r border-line px-4 py-3">
                 <div className="text-xs text-muted">自动恢复</div>
                 <div className="mt-1 text-lg font-semibold text-ink">{aiHealth.runtime.totals.fallbacks}</div>
-                <div className="mt-1 text-xs text-muted">重试 {aiHealth.runtime.totals.retries} · 超时 {aiHealth.runtime.totals.timeouts}</div>
+                <div className="mt-1 text-xs text-muted">重试 {aiHealth.runtime.totals.retries} · 超时 {aiHealth.runtime.totals.timeouts} · Tokens {aiHealth.runtime.usage?.totalTokens ?? 0}</div>
               </div>
               <div className="px-4 py-3">
                 <div className="text-xs text-muted">发布门禁</div>
@@ -985,6 +985,11 @@ export function KnowledgeView({
                 <div className="mt-1 text-xs text-muted">已检查 {aiHealth.releaseGate.evaluatedActiveCaseCount}/{aiHealth.releaseGate.activeCaseCount} 项</div>
               </div>
             </div>
+            {aiHealth.runtime.stages ? (
+              <div className="border-b border-line bg-white px-4 py-2 text-xs text-muted">
+                阶段平均耗时：业务域 {aiHealth.runtime.stages.domainPlanningMs?.average ?? 0} ms · 能力规划 {aiHealth.runtime.stages.capabilityPlanningMs?.average ?? 0} ms · 工具 {aiHealth.runtime.stages.tools?.average ?? 0} ms · 总结 {aiHealth.runtime.stages.synthesisMs?.average ?? 0} ms；供应商真实用量覆盖 {Math.round((aiHealth.runtime.usage?.availability ?? 0) * 100)}%
+              </div>
+            ) : null}
             <div className="grid gap-3 px-4 py-3 lg:grid-cols-2">
               <div>
                 <div className="text-xs font-medium text-muted">模型配置</div>

@@ -8,6 +8,10 @@ test('AI 运行遥测：只保留有界安全指标并统计重试、降级与�
         requestId: 'req-success',
         status: 'completed',
         durationMs: 120,
+        ttftMs: 35,
+        usage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 },
+        stageLatencyMs: { domainPlanningMs: 8, capabilityPlanningMs: 12, synthesisMs: 20 },
+        toolSteps: [{ capabilityName: 'get_recent_orders', durationMs: 15, success: true }],
         providerEvents: [
             { provider: 'kimi', model: 'kimi-k3', retry: true },
             { provider: 'kimi', model: 'kimi-k3', failed: true, status: 503 },
@@ -32,8 +36,17 @@ test('AI 运行遥测：只保留有界安全指标并统计重试、降级与�
         timeouts: 1,
         fallbacks: 1,
         retries: 1,
+        usageReportedRequests: 1,
+        promptTokens: 120,
+        completionTokens: 30,
+        totalTokens: 150,
     });
     assert.equal(snapshot.latencyMs.average, 210);
+    assert.equal(snapshot.ttftMs.average, 35);
+    assert.equal(snapshot.usage.source, 'provider_reported_only');
+    assert.equal(snapshot.usage.totalTokens, 150);
+    assert.equal(snapshot.stages.domainPlanningMs.average, 8);
+    assert.equal(snapshot.stages.tools.average, 15);
     assert.equal(snapshot.lastError.code, 'AI_REQUEST_TIMEOUT');
     assert.equal(snapshot.providers.find(item => item.provider === 'kimi').failures, 1);
     assert.equal(snapshot.providers.find(item => item.provider === 'deepseek').fallbacks, 1);

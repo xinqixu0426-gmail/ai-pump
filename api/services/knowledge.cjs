@@ -1079,6 +1079,9 @@ function searchKnowledgeEntries(params = {}, options = {}) {
         sourceId: row.sourceId,
         title: row.title,
         summary: row.summary,
+        // Internal retrieval needs the complete entry before the HTTP search layer
+        // derives bounded relevantChunks. The hybrid service removes this field.
+        content: row.content,
         tags: parseJsonArray(row.tagsJson),
         metadata: parseJsonObject(row.metadataJson),
         syncedAt: row.syncedAt,

@@ -5,6 +5,7 @@ const {
     mergeCandidates,
     searchFactoryKnowledge,
 } = require('../api/services/knowledgeHybridSearch.cjs');
+const { estimateTextTokens } = require('../api/services/aiTokenBudget.cjs');
 
 function item(id, title, metadata = {}, overrides = {}) {
     return {
@@ -211,4 +212,58 @@ test('混合检索：融合排序在同分时按关键词名次和 ID 保持稳�
     assert.ok(merged.every(row => row.matchMode === 'hybrid'));
     assert.ok(merged.every(row => row.evidenceLevel === 'text_match'));
     assert.equal(canonicalText(' 12－200 '), '12200');
+});
+
+test('知识检索：长正文只返回有位置的相关片段且不把完整 content 暴露给列表调用方', async () => {
+    const longPrefix = '常规工厂说明。'.repeat(12000);
+    const knowledge = {
+        ...item(20, '线圈绕组工艺'),
+        content: `${longPrefix}\n关键绕组数据：主绕组 168 匝，副绕组 212 匝。`,
+    };
+    const result = await searchFactoryKnowledge(
+        { query: '主绕组 168 匝', limit: 1 },
+        {
+            enabled: false,
+            keywordSearch: () => [knowledge],
+            maxTokens: 600,
+        }
+    );
+    assert.equal(Object.hasOwn(result[0], 'content'), false);
+    assert.equal(result[0].relevantChunks.length > 0, true);
+    assert.equal(result[0].relevantChunks.some(chunk => chunk.content.includes('主绕组 168 匝')), true);
+    assert.equal(result[0].relevantChunks[0].charStart > 0, true);
+});
+
+test('知识检索：多候选共享同一全局片段预算，耗尽后不再强行分配最小片段', async () => {
+    const rows = Array.from({ length: 5 }, (_, index) => ({
+        ...item(30 + index, `候选 ${index + 1}`),
+        content: `绕组预算候选 ${index + 1}，关键数据 ${'很长的说明'.repeat(80)}`,
+    }));
+    const result = await searchFactoryKnowledge(
+        { query: '绕组预算候选', limit: 5 },
+        {
+            enabled: false,
+            keywordSearch: () => rows,
+            maxTokens: 2,
+        }
+    );
+    const chunks = result.flatMap(entry => entry.relevantChunks);
+    const totalTokens = chunks.reduce(
+        (sum, chunk) => sum + estimateTextTokens(chunk.content),
+        0
+    );
+    assert.equal(totalTokens <= 2, true);
+    assert.equal(result.some(entry => entry.relevantChunks.length === 0), true);
+});
+
+test('知识检索：显式零 token 预算不回退为默认片段预算', async () => {
+    const result = await searchFactoryKnowledge(
+        { query: '绕组', limit: 1 },
+        {
+            enabled: false,
+            keywordSearch: () => [{ ...item(40, '绕组'), content: '主绕组 168 匝' }],
+            maxTokens: 0,
+        }
+    );
+    assert.deepEqual(result[0].relevantChunks, []);
 });

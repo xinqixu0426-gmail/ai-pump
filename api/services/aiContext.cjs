@@ -1,17 +1,43 @@
 const AI_CONTEXT_MESSAGE_LIMIT = 10;
+const {
+    estimateTextTokens,
+    fitTextToTokenBudget,
+    resolveAiTokenBudgets,
+} = require('./aiTokenBudget.cjs');
 
-function trimAiContext(messages) {
+function trimAiContext(messages, options = {}) {
     if (!Array.isArray(messages)) return [];
-    return messages
+    const candidates = messages
         .filter(message => (
             message
             && (message.role === 'user' || message.role === 'assistant')
             && typeof message.content === 'string'
         ))
-        .slice(-AI_CONTEXT_MESSAGE_LIMIT)
-        .map(message => ({
+        .slice(-AI_CONTEXT_MESSAGE_LIMIT);
+    const maxTokens = Math.max(
+        512,
+        Number(options.maxTokens) || resolveAiTokenBudgets(options.env).historyTokens
+    );
+    const selected = [];
+    let usedTokens = 0;
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+        const message = candidates[index];
+        const remaining = Math.max(0, maxTokens - usedTokens);
+        if (remaining === 0) break;
+        const marker = '\n[消息内容已按上下文 token 预算截断]';
+        const needsTruncation = estimateTextTokens(message.content) > remaining;
+        const fitted = fitTextToTokenBudget(
+            message.content,
+            needsTruncation
+                ? Math.max(0, remaining - estimateTextTokens(marker))
+                : remaining
+        );
+        if (!fitted.text) continue;
+        selected.push({
             role: message.role,
-            content: message.content,
+            content: needsTruncation
+                ? `${fitted.text}${marker}`
+                : fitted.text,
             ...(Array.isArray(message.attachments) && message.attachments.length > 0
                 ? {
                     attachments: message.attachments
@@ -20,7 +46,10 @@ function trimAiContext(messages) {
                         .slice(0, 4),
                 }
                 : {}),
-        }));
+        });
+        usedTokens += estimateTextTokens(fitted.text) + (needsTruncation ? estimateTextTokens(marker) : 0);
+    }
+    return selected.reverse();
 }
 
 function immediateConversationThread(messages) {

@@ -119,9 +119,10 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             // 用户常说"12-120"（规格俗称-片数）。模型可能把它整体传进 spec，
             // 这里确定性地拆分，避免漏匹配（adjust_coil_stock 遵循同一约定）。
             const shorthand = filters.spec.match(/^(\d+)\s*[-—~]\s*(\d+)$/);
-            if (shorthand && filters.sheets === null) {
+            const shorthandSheets = shorthand ? Number(shorthand[2]) : null;
+            if (shorthand && (filters.sheets === null || filters.sheets === shorthandSheets)) {
                 filters.spec = shorthand[1];
-                filters.sheets = Number(shorthand[2]);
+                filters.sheets = shorthandSheets;
             }
             const query = new URLSearchParams();
             for (const [field, value] of Object.entries(filters)) {

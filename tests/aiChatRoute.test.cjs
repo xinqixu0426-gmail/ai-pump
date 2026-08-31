@@ -40,14 +40,26 @@ test('AI SSE：长请求期间发送心跳并在完成后记录运行指标', as
         telemetry,
         runAiDispatcherV3: async ({ emit }) => {
             await new Promise(resolve => setTimeout(resolve, 16));
-            emit('done', { content: '完成' });
-            return { telemetry: { outcome: 'answered' } };
+            emit('content', { content: '完成' });
+            emit('done', {});
+            return {
+                telemetry: {
+                    outcome: 'answered',
+                    usage: { promptTokens: 50, completionTokens: 5, totalTokens: 55 },
+                    stageLatencyMs: { domainPlanningMs: 3, capabilityPlanningMs: 4 },
+                    toolSteps: [{ capabilityName: 'search_parts', durationMs: 2, success: true }],
+                },
+            };
         },
     });
     assert.match(res.output, /: heartbeat\n\n/);
     assert.match(res.output, /"type":"done"/);
     assert.equal(res.writableEnded, true);
-    assert.equal(telemetry.snapshot().totals.completed, 1);
+    const snapshot = telemetry.snapshot();
+    assert.equal(snapshot.totals.completed, 1);
+    assert.equal(snapshot.ttftMs.sampleCount, 1);
+    assert.equal(snapshot.usage.totalTokens, 55);
+    assert.equal(snapshot.stages.domainPlanningMs.average, 3);
 });
 
 test('AI SSE：浏览器断开会取消完整调用链且不再写错误事件', async () => {

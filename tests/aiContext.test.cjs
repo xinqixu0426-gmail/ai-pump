@@ -32,6 +32,16 @@ test('AI 上下文兼容空值和无效消息', () => {
     ]), [{ role: 'user', content: '保留' }]);
 });
 
+test('AI 上下文同时受 token 预算控制并优先保留最近消息', () => {
+    const context = trimAiContext([
+        { role: 'user', content: '较早问题'.repeat(500) },
+        { role: 'assistant', content: '较早回答'.repeat(500) },
+        { role: 'user', content: '当前问题：查询订单状态' },
+    ], { maxTokens: 512 });
+    assert.equal(context.at(-1).content, '当前问题：查询订单状态');
+    assert.equal(context.length < 3, true);
+});
+
 test('AI 上下文：新的跨业务查询不携带历史库存写指令', () => {
     const context = scopeAiContextForIntent([
         { role: 'user', content: 'TEST-机筒-1100库存加100' },

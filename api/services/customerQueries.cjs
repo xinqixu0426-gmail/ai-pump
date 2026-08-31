@@ -5,6 +5,7 @@ const {
 } = require('./queryValidation.cjs');
 
 const MAX_CONTEXT_LIMIT = 50;
+const CUSTOMER_HISTORY_TYPES = Object.freeze(['all', 'quotation', 'order']);
 
 class CustomerQueryError extends Error {
     constructor(message, statusCode = 400) {
@@ -35,6 +36,14 @@ function parseJsonArray(value) {
 
 function normalizeContextLimit(value) {
     return normalizeOptionalLimit(value, { max: MAX_CONTEXT_LIMIT });
+}
+
+function normalizeHistoryType(value) {
+    const normalized = normalizeText(value || 'all').toLocaleLowerCase('zh-CN');
+    if (!CUSTOMER_HISTORY_TYPES.includes(normalized)) {
+        throw new CustomerQueryError('historyType 必须是 all、quotation 或 order');
+    }
+    return normalized;
 }
 
 function createCustomerQueries({
@@ -81,7 +90,10 @@ function createCustomerQueries({
             options.keyword || options.recipeName || options.model
         );
         const limit = normalizeContextLimit(options.limit);
-        const quotations = listQuotations()
+        const historyType = normalizeHistoryType(options.historyType);
+        const includeQuotations = historyType !== 'order';
+        const includeOrders = historyType !== 'quotation';
+        const quotations = (includeQuotations ? listQuotations() : [])
             .filter(row => Number(row.customerId ?? row.customer_id) === customerId)
             .map(row => ({
                 ...row,
@@ -110,7 +122,7 @@ function createCustomerQueries({
                 };
             });
         const customerName = normalizeText(customer.name);
-        const orders = listOrders()
+        const orders = (includeOrders ? listOrders() : [])
             .filter(row => (
                 Number(row.customerId ?? row.customer_id ?? 0) === customerId
                 || (
@@ -129,16 +141,26 @@ function createCustomerQueries({
                     keyword
                 ))
             ));
-        const sourceOfTruth = ['customers', 'quotations', 'orders'];
+        const sourceOfTruth = [
+            'customers',
+            ...(includeQuotations ? ['quotations'] : []),
+            ...(includeOrders ? ['orders'] : []),
+        ];
+        const summary = historyType === 'quotation'
+            ? `找到 ${customer.name} 的历史报价 ${quotations.length} 条。`
+            : historyType === 'order'
+                ? `找到 ${customer.name} 的历史订单 ${orders.length} 条。`
+                : `找到 ${customer.name} 的历史报价 ${quotations.length} 条、订单 ${orders.length} 条。`;
 
         return {
             customer,
             quotations: limit ? quotations.slice(0, limit) : quotations,
             orders: limit ? orders.slice(0, limit) : orders,
-            summary: `找到 ${customer.name} 的历史报价 ${quotations.length} 条、订单 ${orders.length} 条。`,
+            summary,
             query: {
                 keyword,
                 limit,
+                historyType,
             },
             sourceOfTruth,
             asOf: new Date().toISOString(),
@@ -159,4 +181,5 @@ module.exports = {
     CustomerQueryError,
     createCustomerQueries,
     normalizeContextLimit,
+    normalizeHistoryType,
 };

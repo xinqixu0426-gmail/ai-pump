@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     answerInstruction,
-    runAiDispatcherV2,
+    runAiDispatcherV2: runAiDispatcherV2Base,
     synthesizeVerifiedAnswer,
 } = require('../api/services/aiDispatcherV2.cjs');
-const { runAiDispatcherV3 } = require('../api/services/aiDispatcherV3.cjs');
+const { runAiDispatcherV3: runAiDispatcherV3Base } = require('../api/services/aiDispatcherV3.cjs');
 
 const originalFetch = global.fetch;
 
@@ -25,6 +25,58 @@ function planResponse(plan) {
                 arguments: JSON.stringify(plan),
             },
         }],
+    });
+}
+
+function adaptLegacyScriptedPlanningProvider(provider) {
+    if (typeof provider !== 'function') return provider;
+    let cachedIntentData = null;
+    return async (messages, options = {}) => {
+        const requestedTool = options?.toolChoice?.function?.name;
+        if (requestedTool === 'submit_ai_intent_plan' && cachedIntentData) {
+            const data = cachedIntentData;
+            cachedIntentData = null;
+            return new Response(JSON.stringify(data), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        const response = await provider(messages, options);
+        if (requestedTool !== 'submit_ai_domain_plan') return response;
+        const data = await response.json();
+        const intentCall = data?.choices?.[0]?.message?.tool_calls?.find(item => (
+            item?.function?.name === 'submit_ai_intent_plan'
+        ));
+        if (!intentCall) {
+            return new Response(JSON.stringify(data), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        cachedIntentData = data;
+        const { steps: _steps, ...domainPlan } = JSON.parse(intentCall.function.arguments);
+        return providerResponse({
+            tool_calls: [{
+                id: 'domain-plan',
+                type: 'function',
+                function: {
+                    name: 'submit_ai_domain_plan',
+                    arguments: JSON.stringify(domainPlan),
+                },
+            }],
+        });
+    };
+}
+
+function runAiDispatcherV2(input = {}) {
+    return runAiDispatcherV2Base({
+        ...input,
+        fetchAiProvider: adaptLegacyScriptedPlanningProvider(input.fetchAiProvider),
+    });
+}
+
+function runAiDispatcherV3(input = {}) {
+    return runAiDispatcherV3Base({
+        ...input,
+        fetchAiProvider: adaptLegacyScriptedPlanningProvider(input.fetchAiProvider),
     });
 }
 
@@ -107,6 +159,26 @@ test('V2 证据合成：最终累计证据超限时不再调用模型', async ()
     assert.equal(providerCalled, false);
     assert.match(content, /查询结果过大/);
     assert.match(content, /未删除任何业务字段/);
+});
+
+test('V3 证据合成：系统提示、当前问题和证据共享总窗口，预算不足时不调用模型', async () => {
+    let providerCalled = false;
+    const content = await synthesizeVerifiedAnswer({
+        systemPrompt: '系统约束'.repeat(3500),
+        userText: '请完整汇总'.repeat(500),
+        toolResults: [{ name: 'search_parts', result: { success: true, data: '业务证据'.repeat(1200) } }],
+        env: {
+            AI_CONTEXT_WINDOW_TOKENS: '8192',
+            AI_RESERVED_OUTPUT_TOKENS: '1024',
+            AI_EVIDENCE_CONTEXT_TOKENS: '4096',
+        },
+        provider: async () => {
+            providerCalled = true;
+            return providerResponse({ content: '不应调用' });
+        },
+    });
+    assert.equal(providerCalled, false);
+    assert.match(content, /当前问题或系统提示.*超过模型输入窗口/);
 });
 
 test('V2 调度器：模型理解口语后只调用计划内正式能力并以证据回答', async () => {

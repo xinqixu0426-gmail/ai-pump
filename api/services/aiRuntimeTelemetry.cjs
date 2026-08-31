@@ -1,4 +1,5 @@
 const DEFAULT_WINDOW_SIZE = 100;
+const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 
 function boundedInteger(value, fallback, minimum, maximum) {
     const parsed = Number(value);
@@ -14,8 +15,30 @@ function safeProviderEvent(event = {}) {
         fallback: event.fallback === true,
         retry: event.retry === true,
         failed: event.failed === true,
-        errorCode: String(event.errorCode || '').slice(0, 80),
+        errorCode: String(event.errorCode || event.code || event.causeCode || '').slice(0, 80),
         status: Number.isInteger(Number(event.status)) ? Number(event.status) : null,
+        fallbackFrom: String(event.fallbackFrom || '').slice(0, 40),
+        action: String(event.action || '').slice(0, 40),
+        attempt: Number.isInteger(Number(event.attempt)) ? Number(event.attempt) : null,
+        maxAttempts: Number.isInteger(Number(event.maxAttempts)) ? Number(event.maxAttempts) : null,
+        toolChoiceFallback: event.toolChoiceFallback === true,
+    };
+}
+
+function safeDuration(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(1)) : null;
+}
+
+function summarizeValues(values) {
+    const valid = values.filter(value => Number.isFinite(value) && value >= 0);
+    return {
+        sampleCount: valid.length,
+        average: valid.length
+            ? Number((valid.reduce((sum, value) => sum + value, 0) / valid.length).toFixed(1))
+            : 0,
+        p95: Number(percentile(valid, 0.95).toFixed(1)),
+        maximum: valid.length ? Number(Math.max(...valid).toFixed(1)) : 0,
     };
 }
 
@@ -42,6 +65,10 @@ function createAiRuntimeTelemetry(options = {}) {
         timeouts: 0,
         fallbacks: 0,
         retries: 0,
+        usageReportedRequests: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
     };
     let lastRequestAt = null;
     let lastSuccessAt = null;
@@ -64,6 +91,20 @@ function createAiRuntimeTelemetry(options = {}) {
         const selectedProvider = [...providerEvents]
             .reverse()
             .find(event => event.provider && !event.failed && !event.retry) || null;
+        const usage = normalizeProviderUsage(input.usage);
+        const stageLatencyMs = Object.fromEntries(
+            Object.entries(input.stageLatencyMs || {})
+                .map(([key, value]) => [String(key).slice(0, 40), safeDuration(value)])
+                .filter(([, value]) => value != null)
+        );
+        const toolSteps = (Array.isArray(input.toolSteps) ? input.toolSteps : [])
+            .slice(0, 20)
+            .map(step => ({
+                capabilityName: String(step?.capabilityName || '').slice(0, 100),
+                durationMs: safeDuration(step?.durationMs) || 0,
+                success: step?.success === true,
+                errorCode: String(step?.errorCode || '').slice(0, 80),
+            }));
         const providerAttemptMap = new Map();
         for (const event of providerEvents) {
             if (!event.provider || event.retry) continue;
@@ -90,6 +131,10 @@ function createAiRuntimeTelemetry(options = {}) {
             errorCode: status === 'completed' ? '' : errorCode || 'AI_REQUEST_FAILED',
             recordedAt,
             providerAttempts: [...providerAttemptMap.values()],
+            ttftMs: safeDuration(input.ttftMs),
+            usage,
+            stageLatencyMs,
+            toolSteps,
         };
         samples.push(sample);
         if (samples.length > windowSize) samples.splice(0, samples.length - windowSize);
@@ -99,6 +144,12 @@ function createAiRuntimeTelemetry(options = {}) {
         totals.timeouts += timeout ? 1 : 0;
         totals.fallbacks += fallbackCount > 0 ? 1 : 0;
         totals.retries += retryCount;
+        if (usage) {
+            totals.usageReportedRequests += 1;
+            totals.promptTokens += usage.promptTokens || 0;
+            totals.completionTokens += usage.completionTokens || 0;
+            totals.totalTokens += usage.totalTokens || 0;
+        }
         lastRequestAt = recordedAt;
         if (status === 'completed') {
             lastSuccessAt = recordedAt;
@@ -118,6 +169,17 @@ function createAiRuntimeTelemetry(options = {}) {
 
     function snapshot() {
         const durations = samples.map(item => item.durationMs);
+        const ttftValues = samples.map(item => item.ttftMs).filter(value => value != null);
+        const stageNames = new Set(samples.flatMap(item => Object.keys(item.stageLatencyMs)));
+        const stages = {};
+        for (const stageName of stageNames) {
+            stages[stageName] = summarizeValues(samples
+                .map(item => item.stageLatencyMs[stageName])
+                .filter(value => value != null));
+        }
+        stages.tools = summarizeValues(samples.flatMap(item => (
+            item.toolSteps.map(step => step.durationMs)
+        )));
         const providerMap = new Map();
         for (const sample of samples) {
             for (const attempt of sample.providerAttempts) {
@@ -146,6 +208,18 @@ function createAiRuntimeTelemetry(options = {}) {
                     : 0,
                 p95: Number(percentile(durations, 0.95).toFixed(1)),
                 maximum: durations.length ? Number(Math.max(...durations).toFixed(1)) : 0,
+            },
+            ttftMs: summarizeValues(ttftValues),
+            stages,
+            usage: {
+                availability: samples.length
+                    ? Number((samples.filter(item => item.usage).length / samples.length).toFixed(3))
+                    : 0,
+                reportedRequests: samples.filter(item => item.usage).length,
+                promptTokens: samples.reduce((sum, item) => sum + (item.usage?.promptTokens || 0), 0),
+                completionTokens: samples.reduce((sum, item) => sum + (item.usage?.completionTokens || 0), 0),
+                totalTokens: samples.reduce((sum, item) => sum + (item.usage?.totalTokens || 0), 0),
+                source: 'provider_reported_only',
             },
             lastRequestAt,
             lastSuccessAt,

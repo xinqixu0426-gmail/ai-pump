@@ -4,6 +4,7 @@ const {
     CustomerQueryError,
     createCustomerQueries,
     normalizeContextLimit,
+    normalizeHistoryType,
 } = require('../api/services/customerQueries.cjs');
 
 function createFixture() {
@@ -114,6 +115,25 @@ test('客户 Query 按型号筛选历史并限制数量', () => {
     assert.equal(normalizeContextLimit(50), 50);
     assert.throws(() => normalizeContextLimit(1000), /1 到 50/);
     assert.throws(() => normalizeContextLimit(-1), /1 到 50/);
+});
+
+test('客户 Query 可按报价或订单选择正式历史范围，避免无关明细挤占回答上下文', () => {
+    const queries = createFixture().queries;
+    const quotations = queries.getCustomerContext(7, { historyType: 'quotation' });
+    const orders = queries.getCustomerContext(7, { historyType: 'order' });
+
+    assert.equal(quotations.quotations.length, 2);
+    assert.deepEqual(quotations.orders, []);
+    assert.equal(quotations.summary, '找到 邱焕 的历史报价 2 条。');
+    assert.deepEqual(quotations.sourceOfTruth, ['customers', 'quotations']);
+    assert.equal(quotations.query.historyType, 'quotation');
+
+    assert.deepEqual(orders.quotations, []);
+    assert.equal(orders.orders.length, 1);
+    assert.equal(orders.summary, '找到 邱焕 的历史订单 1 条。');
+    assert.deepEqual(orders.sourceOfTruth, ['customers', 'orders']);
+    assert.equal(normalizeHistoryType(undefined), 'all');
+    assert.throws(() => normalizeHistoryType('invalid'), /historyType/);
 });
 
 test('客户列表 Query 按正式 ID、名称和数量字段筛选', () => {

@@ -5,9 +5,12 @@ const {
 } = require('../capabilities/registry.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
 const {
+    DEFAULT_MAX_PLANNER_CAPABILITIES,
+    buildDomainDirectoryPrompt,
     buildPlannerDirectoryPrompt,
     plannedCapabilityNames,
 } = require('./aiCapabilityCatalogV2.cjs');
+const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 const { resolutionContextPrompt } = require('./aiResourceResolutionV3.cjs');
 const { aiTurnStatePrompt } = require('./aiTurnStateV3.cjs');
 
@@ -81,34 +84,49 @@ function enforceExplicitReadRequirements(intent, userText) {
     });
 }
 
-function plannerTool() {
-    const capabilityNames = listAiCapabilities().map(capability => capability.toolName);
+function domainPlannerTool() {
     return {
         type: 'function',
         function: {
-            name: 'submit_ai_intent_plan',
-            description: '提交对当前用户目标的结构化理解和能力调用计划。该协议只规划，不读取或修改业务数据。',
+            name: 'submit_ai_domain_plan',
+            description: '提交当前目标所属业务域和风险信封。此阶段不选择具体能力。',
             parameters: {
                 type: 'object',
                 properties: {
-                    goal: { type: 'string', description: '用一句话准确复述用户当前真正目标' },
+                    goal: { type: 'string' },
                     mode: { type: 'string', enum: INTENT_MODES },
-                    domains: {
-                        type: 'array',
-                        items: { type: 'string', enum: DOMAIN_NAMES },
-                        maxItems: 4,
-                    },
+                    domains: { type: 'array', items: { type: 'string', enum: DOMAIN_NAMES }, maxItems: 4 },
                     needsBusinessData: { type: 'boolean' },
                     contextMode: { type: 'string', enum: CONTEXT_MODES },
                     answerShape: { type: 'string', enum: ANSWER_SHAPES },
                     entityScope: { type: 'string', enum: ENTITY_SCOPES },
                     requiresClarification: { type: 'boolean' },
-                    ambiguities: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        maxItems: 3,
-                    },
+                    ambiguities: { type: 'array', items: { type: 'string' }, maxItems: 3 },
                     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+                },
+                required: [
+                    'goal', 'mode', 'domains', 'needsBusinessData', 'contextMode',
+                    'answerShape', 'entityScope', 'requiresClarification', 'ambiguities', 'confidence',
+                ],
+            },
+        },
+    };
+}
+
+function plannerTool(options = {}) {
+    const selectedDomains = new Set(options.domains || []);
+    const capabilityNames = listAiCapabilities()
+        .filter(capability => capability.domains.some(domain => selectedDomains.has(domain)))
+        .slice(0, DEFAULT_MAX_PLANNER_CAPABILITIES)
+        .map(capability => capability.toolName);
+    return {
+        type: 'function',
+        function: {
+            name: 'submit_ai_intent_plan',
+            description: '提交当前目标信封所需的能力步骤。目标、模式、业务域、回答形态和对象范围由服务端继承，本阶段不得重复提交。',
+            parameters: {
+                type: 'object',
+                properties: {
                     steps: {
                         type: 'array',
                         maxItems: 5,
@@ -122,20 +140,46 @@ function plannerTool() {
                         },
                     },
                 },
-                required: [
-                    'goal', 'mode', 'domains', 'needsBusinessData', 'contextMode',
-                    'answerShape', 'entityScope', 'requiresClarification', 'ambiguities', 'confidence', 'steps',
-                ],
+                required: ['steps'],
             },
         },
     };
 }
 
-function plannerPrompt(pageContext, resolutionContext, turnState) {
+function domainPlannerPrompt(pageContext, resolutionContext, turnState) {
+    const pageNote = pageContext
+        ? `当前页面仅是候选指代：${pageContext.resourceType} #${pageContext.resourceId}，视图 ${pageContext.view}。`
+        : '当前没有页面上下文，不得选择 page_context。';
+    return `你是 AI 调度器 V3 的目标与风险分类器。只提交业务域信封，不回答用户，不选择具体工具，不输出推理过程。
+
+先判断当前用户真正目标、读写模式、对象范围、上下文来源和最少必要业务域。业务域表示回答必须取得的正式证据来源，不是用户句子里出现过的名词集合；若用户已明确要求用某类权威资料回答语义或规则问题，且没有同时要求当前记录或数值计算，不要因为资料中可能提到客户、报价、成本或文件而扩大到对应业务域。解释一个业务项由什么组成、是否拆分、怎样计费等口径仍属于规则问题，即使句子出现“费用/成本”；只有明确询问当前单价、具体金额或要求数值试算时才增加 catalog/cost。成品型号的性能测试报告、测试曲线和逐条测试点属于 recipe 技术档案，不属于 drawing；型号中的数字、片数或引号不能把它误判为转子出图历史。新的明确问题覆盖旧话题；只有紧邻指代或补充缺参才用 previous_turn。查询“有没有、多少、哪些、状态”属于 query；产生新增、修改、删除或库存变化才属于 command。只有缺少会改变执行目标的关键信息时才要求澄清。业务域最多 4 个，不得因为可能有用而扩大。
+
+${pageNote}
+
+${resolutionContextPrompt(resolutionContext)}
+
+${aiTurnStatePrompt(turnState)}
+
+业务域目录（本阶段没有具体能力名）：
+${buildDomainDirectoryPrompt()}`;
+}
+
+function plannerPrompt(pageContext, resolutionContext, turnState, domains, domainPlan) {
     const pageNote = pageContext
         ? `当前页面上下文仅是候选指代：${pageContext.resourceType} #${pageContext.resourceId}，视图 ${pageContext.view}。只有用户明确指代当前页面对象时才使用 page_context。`
         : '当前没有页面上下文，不得选择 page_context。';
-    return `你是 AI 调度器 V3 的意图规划器。只理解用户当前目标并提交结构化计划，不回答用户，不执行工具，不输出推理过程。
+    return `你是 AI 调度器 V3 的能力规划器。目标与风险信封已经由上一阶段确定。你只提交 steps，不重复提交或修改目标、模式、业务域、回答形态、对象范围和上下文来源；不回答用户，不执行工具，不输出推理过程。
+
+服务端固定继承的目标信封：
+${JSON.stringify({
+        goal: domainPlan.goal,
+        mode: domainPlan.mode,
+        domains: domainPlan.domains,
+        needsBusinessData: domainPlan.needsBusinessData,
+        contextMode: domainPlan.contextMode,
+        answerShape: domainPlan.answerShape,
+        entityScope: domainPlan.entityScope,
+    })}
 
 规划原则：
 1. 允许口语、简称、疑问句和不规范表达；按语义理解，不按关键词机械匹配。
@@ -159,6 +203,9 @@ function plannerPrompt(pageContext, resolutionContext, turnState) {
 19. 如果上一轮 assistant 已列出正式候选，而当前用户用“第一个/第二个”、候选完整名称、后缀、规格或其他可唯一识别的描述作答，必须选择 previous_turn，沿用原目标和原能力，并把用户选中的正式名称或可唯一识别片段传给工具。不得再次泛问“请提供完整名称”，也不得凭序号生成内部 ID。
 20. 候选澄清只解决对象绑定，不改变用户原始目标。例如上一轮问成本、这一轮选择具体配方，仍应调用配方成本 Preview；不能退化成只列配方或只读知识库。
 21. “今天/最近/某段时间有没有修改、改了什么、为什么修改、哪些业务发生过某类调整”属于 business_history，使用 search_business_changes。它不是当前对象列表、管理待办或一般知识快照；不要改用 get_recent_orders、get_management_action_center 或 search_factory_knowledge 猜测历史。
+22. 能力目录中的 requires 由正式 JSON Schema 自动生成。只有用户当前消息、可信页面/上一轮绑定，或更早计划步骤的正式结果能够提供全部必填输入时，才能把该能力列为必要步骤；缺少必填输入时不得抱着“也许有用”的想法追加 Preview 或详情能力。一个 Query 已直接返回目标要求的全部正式字段时，不得再安排职责重叠的 Preview。
+23. “由什么组成、是否拆分、计费/收费口径如何”是在解释工厂规则，不等于询问当前零件单价或要求数值成本试算。用户明确要求 Knowledge 且没有索要当前数值时，只安排 Knowledge；不能因为规则文字出现费用、成本、零件或规格就追加 catalog/cost。只有明确询问当前单价、具体金额或给出完整试算输入时才增加相应 Query/Preview。
+24. 指定成品型号的性能测试报告、测试曲线、有效测试数据或逐条测试点只使用 get_recipe_technical_files。转子出图历史只回答转子 PDF 出图任务、jobId 和生成记录；不能因为型号中包含数字、片数或引号就用 get_rotor_drawing_history 代替配方技术档案。
 
 ${pageNote}
 
@@ -167,15 +214,15 @@ ${resolutionContextPrompt(resolutionContext)}
 ${aiTurnStatePrompt(turnState)}
 
 可用能力目录：
-${buildPlannerDirectoryPrompt()}`;
+${buildPlannerDirectoryPrompt({ domains, maxCapabilities: DEFAULT_MAX_PLANNER_CAPABILITIES })}`;
 }
 
-function parsePlanArguments(message) {
+function parsePlanArguments(message, toolName = 'submit_ai_intent_plan') {
     const call = (message?.tool_calls || []).find(item => (
-        item?.function?.name === 'submit_ai_intent_plan'
+        item?.function?.name === toolName
     ));
     if (!call) {
-        throw new AiIntentPlanError('模型没有提交结构化意图计划', 'AI_INTENT_PLAN_MISSING');
+        throw new AiIntentPlanError(`模型没有提交结构化计划 ${toolName}`, 'AI_INTENT_PLAN_MISSING');
     }
     try {
         const parsed = JSON.parse(call.function.arguments || '{}');
@@ -212,8 +259,17 @@ function normalizeIntentPlan(raw, options = {}) {
     if (typeof raw.requiresClarification !== 'boolean') {
         throw new AiIntentPlanError('requiresClarification 必须是布尔值');
     }
-    if (!Array.isArray(raw.domains) || raw.domains.some(domain => !DOMAIN_NAMES.includes(domain))) {
+    if (
+        !Array.isArray(raw.domains)
+        || raw.domains.length > 4
+        || raw.domains.some(domain => !DOMAIN_NAMES.includes(domain))
+    ) {
         throw new AiIntentPlanError('domains 包含未登记业务域');
+    }
+    const allowedDomains = new Set(options.allowedDomains || []);
+    const allowedCapabilityNames = new Set(options.allowedCapabilityNames || []);
+    if (allowedDomains.size > 0 && raw.domains.some(domain => !allowedDomains.has(domain))) {
+        throw new AiIntentPlanError('详细计划包含目标信封之外的业务域');
     }
     if (!Array.isArray(raw.steps) || raw.steps.length > 5) {
         throw new AiIntentPlanError('steps 必须是最多 5 项的数组');
@@ -234,6 +290,12 @@ function normalizeIntentPlan(raw, options = {}) {
         if (!capability) {
             throw new AiIntentPlanError(`步骤 ${index + 1} 使用了未登记能力 ${capabilityName}`);
         }
+        if (allowedCapabilityNames.size > 0 && !allowedCapabilityNames.has(capabilityName)) {
+            throw new AiIntentPlanError(`步骤 ${index + 1} 使用了本阶段未下发能力 ${capabilityName}`);
+        }
+        if (allowedDomains.size > 0 && !capability.domains.some(domain => allowedDomains.has(domain))) {
+            throw new AiIntentPlanError(`步骤 ${index + 1} 使用了目标信封之外的能力 ${capabilityName}`);
+        }
         if (raw.mode !== 'command' && capability.access === 'write') {
             throw new AiIntentPlanError(`非写意图不得计划写能力 ${capabilityName}`);
         }
@@ -252,7 +314,12 @@ function normalizeIntentPlan(raw, options = {}) {
             `能力 ${incompatibleStep.capabilityName} 不支持 ${entityScope} 对象范围`
         );
     }
-    if (raw.needsBusinessData && !raw.requiresClarification && stepNames.length === 0) {
+    if (
+        raw.needsBusinessData
+        && !raw.requiresClarification
+        && stepNames.length === 0
+        && !options.allowMissingSteps
+    ) {
         throw new AiIntentPlanError('需要业务数据时必须规划至少一个正式能力');
     }
     if (raw.mode === 'conversation' && (raw.needsBusinessData || stepNames.length > 0)) {
@@ -262,10 +329,9 @@ function normalizeIntentPlan(raw, options = {}) {
         throw new AiIntentPlanError('没有页面上下文时不得引用 page_context');
     }
 
-    const domains = [...new Set([
-        ...raw.domains,
-        ...steps.flatMap(step => getAiCapability(step.capabilityName)?.domains || []),
-    ])].slice(0, 6);
+    // Stage 1 owns the risk/domain envelope. A capability may serve several domains,
+    // but selecting it through one allowed domain must never widen later discovery.
+    const domains = [...new Set(raw.domains)];
     return Object.freeze({
         version: 3,
         goal: normalizeText(raw.goal, 'goal'),
@@ -284,41 +350,116 @@ function normalizeIntentPlan(raw, options = {}) {
     });
 }
 
+function normalizeDomainPlan(raw, options = {}) {
+    const normalized = normalizeIntentPlan({ ...raw, steps: [] }, {
+        pageContext: options.pageContext,
+        allowMissingSteps: true,
+    });
+    if (normalized.needsBusinessData && !normalized.requiresClarification) {
+        // Domain phase intentionally has no concrete steps; detailed planning supplies them next.
+        return Object.freeze({ ...normalized, steps: Object.freeze([]) });
+    }
+    return normalized;
+}
+
+async function requestStructuredPlan(provider, messages, tool, options = {}) {
+    const response = await provider(messages, {
+        stream: false,
+        tools: [tool],
+        toolChoice: { type: 'function', function: { name: tool.function.name } },
+        onProvider: options.onProvider,
+        env: options.env,
+        dbAccessors: options.dbAccessors,
+        attachmentMode: 'metadata',
+        signal: options.signal,
+    });
+    const data = await response.json();
+    if (data.error) throw new AiIntentPlanError(data.error.message || '意图规划 API 错误');
+    const usage = normalizeProviderUsage(data.usage);
+    if (usage && typeof options.onUsage === 'function') options.onUsage(usage);
+    return parsePlanArguments(data.choices?.[0]?.message, tool.function.name);
+}
+
 async function planAiGoalV3(messages, options = {}) {
     if (!latestUserText(messages)) {
         throw new AiIntentPlanError('缺少当前用户消息', 'AI_INTENT_INPUT_MISSING');
     }
-    const tool = plannerTool();
     const provider = options.fetchAiProvider || fetchAiProvider;
+    const userText = latestUserText(messages);
+    const domainTool = domainPlannerTool();
+    const domainStartedAt = Date.now();
+    const domainMessages = [
+        {
+            role: 'system',
+            content: domainPlannerPrompt(options.pageContext, options.resolutionContext, options.turnState),
+        },
+        ...messages,
+    ];
+    let domainPlan;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+            const rawDomainPlan = await requestStructuredPlan(
+                provider,
+                domainMessages,
+                domainTool,
+                options
+            );
+            domainPlan = normalizeDomainPlan(rawDomainPlan, { pageContext: options.pageContext });
+            break;
+        } catch (error) {
+            if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
+            domainMessages.push({
+                role: 'system',
+                content: `上一次目标信封未通过协议校验：${error.message}。请重新调用 submit_ai_domain_plan，只提交业务域和风险信封。`,
+            });
+        }
+    }
+    if (explicitKnowledgeSearchRequested(userText) && !domainPlan.domains.includes('knowledge')) {
+        domainPlan = Object.freeze({
+            ...domainPlan,
+            domains: Object.freeze([...domainPlan.domains, 'knowledge'].slice(0, 4)),
+        });
+    }
+    if (typeof options.onPlanningPhase === 'function') {
+        options.onPlanningPhase({ phase: 'domain', durationMs: Date.now() - domainStartedAt });
+    }
+    if (domainPlan.requiresClarification || domainPlan.mode === 'conversation') return domainPlan;
+
+    const tool = plannerTool({ domains: domainPlan.domains });
+    if (tool.function.parameters.properties.steps.items.properties.capabilityName.enum.length === 0) {
+        throw new AiIntentPlanError('目标业务域没有可用能力', 'AI_INTENT_CAPABILITY_DIRECTORY_EMPTY');
+    }
     const plannerMessages = [
         {
             role: 'system',
-            content: plannerPrompt(options.pageContext, options.resolutionContext, options.turnState),
+            content: plannerPrompt(
+                options.pageContext,
+                options.resolutionContext,
+                options.turnState,
+                domainPlan.domains,
+                domainPlan
+            ),
         },
         ...messages,
     ];
     let lastError;
+    const capabilityStartedAt = Date.now();
     for (let attempt = 0; attempt < 2; attempt += 1) {
-        const response = await provider(plannerMessages, {
-            stream: false,
-            tools: [tool],
-            toolChoice: {
-                type: 'function',
-                function: { name: tool.function.name },
-            },
-            onProvider: options.onProvider,
-            env: options.env,
-            dbAccessors: options.dbAccessors,
-            attachmentMode: 'metadata',
-            signal: options.signal,
-        });
-        const data = await response.json();
-        if (data.error) throw new AiIntentPlanError(data.error.message || '意图规划 API 错误');
         try {
-            const normalized = normalizeIntentPlan(parsePlanArguments(data.choices?.[0]?.message), {
+            const rawStepsPlan = await requestStructuredPlan(provider, plannerMessages, tool, options);
+            const normalized = normalizeIntentPlan({
+                ...domainPlan,
+                steps: rawStepsPlan.steps,
+            }, {
                 pageContext: options.pageContext,
+                allowedDomains: domainPlan.domains,
+                allowedCapabilityNames:
+                    tool.function.parameters.properties.steps.items.properties.capabilityName.enum,
             });
-            return enforceExplicitReadRequirements(normalized, latestUserText(messages));
+            if (typeof options.onPlanningPhase === 'function') {
+                options.onPlanningPhase({ phase: 'capability', durationMs: Date.now() - capabilityStartedAt });
+            }
+            return enforceExplicitReadRequirements(normalized, userText);
         } catch (error) {
             if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
             lastError = error;
@@ -342,8 +483,11 @@ module.exports = {
     DOMAIN_NAMES,
     ENTITY_SCOPES,
     INTENT_MODES,
+    domainPlannerPrompt,
+    domainPlannerTool,
     enforceExplicitReadRequirements,
     explicitKnowledgeSearchRequested,
+    normalizeDomainPlan,
     normalizeIntentPlan,
     planAiGoalV3,
     planAiIntentV2,

@@ -81,6 +81,13 @@ export type KnowledgeListItem = {
   keywordRank?: number | null;
   vectorDistance?: number | null;
   finalScore?: number;
+  relevantChunks?: Array<{
+    chunkIndex: number;
+    charStart: number;
+    charEnd: number;
+    content: string;
+    relevanceScore: number;
+  }>;
 };
 
 export type KnowledgeDetail = KnowledgeListItem & {

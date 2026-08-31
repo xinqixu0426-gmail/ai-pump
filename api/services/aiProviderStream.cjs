@@ -1,3 +1,5 @@
+const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
+
 function appendToolCallDelta(toolCallsByIndex, delta) {
     const index = Number.isSafeInteger(delta?.index) ? delta.index : 0;
     const existing = toolCallsByIndex.get(index) || {
@@ -16,7 +18,7 @@ function appendToolCallDelta(toolCallsByIndex, delta) {
     toolCallsByIndex.set(index, existing);
 }
 
-function consumeProviderEvent(line, state, onContent) {
+function consumeProviderEvent(line, state, onContent, options = {}) {
     const trimmed = String(line || '').trim();
     if (!trimmed.startsWith('data:')) return;
 
@@ -25,10 +27,21 @@ function consumeProviderEvent(line, state, onContent) {
 
     try {
         const data = JSON.parse(payload);
+        const usage = normalizeProviderUsage(data?.usage);
+        if (usage) {
+            state.usage = usage;
+            if (typeof options.onUsage === 'function') options.onUsage(usage);
+        }
         const delta = data?.choices?.[0]?.delta;
         if (!delta) return;
 
         if (typeof delta.content === 'string' && delta.content) {
+            if (state.ttftMs == null) {
+                state.ttftMs = Date.now() - state.startedAt;
+                if (typeof options.onFirstContent === 'function') {
+                    options.onFirstContent({ ttftMs: state.ttftMs });
+                }
+            }
             state.content += delta.content;
             onContent(delta.content);
         }
@@ -82,9 +95,12 @@ async function readAiProviderStream(response, options = {}) {
     }
     signal?.addEventListener?.('abort', cancelFromCaller, { once: true });
     const state = {
+        startedAt: Date.now(),
         content: '',
         reasoningContent: '',
         toolCallsByIndex: new Map(),
+        ttftMs: null,
+        usage: null,
     };
     let buffer = '';
 
@@ -109,7 +125,7 @@ async function readAiProviderStream(response, options = {}) {
             const lines = buffer.split(/\r?\n/);
             buffer = lines.pop() || '';
             for (const line of lines) {
-                consumeProviderEvent(line, state, onContent);
+                consumeProviderEvent(line, state, onContent, options);
             }
         }
     } finally {
@@ -118,12 +134,14 @@ async function readAiProviderStream(response, options = {}) {
 
     buffer += decoder.decode();
     for (const line of buffer.split(/\r?\n/)) {
-        consumeProviderEvent(line, state, onContent);
+        consumeProviderEvent(line, state, onContent, options);
     }
 
     return {
         content: state.content,
         reasoningContent: state.reasoningContent,
+        ttftMs: state.ttftMs,
+        usage: state.usage,
         toolCalls: [...state.toolCallsByIndex.entries()]
             .sort(([left], [right]) => left - right)
             .map(([, toolCall]) => toolCall),

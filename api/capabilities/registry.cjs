@@ -1132,7 +1132,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'customers.history': defineQueryCapability({
         capabilityId: 'customers.history',
         domain: 'customer',
-        inputSchema: 'GET /api/customers/:id/context?keyword?&limit?',
+        inputSchema: 'GET /api/customers/:id/context?keyword?&historyType?&limit?',
         outputSchema: 'CustomerContext',
         sourceOfTruth: 'customers+quotations+orders',
         riskLevel: 'low',

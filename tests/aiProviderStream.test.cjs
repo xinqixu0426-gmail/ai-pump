@@ -38,6 +38,24 @@ test('AI provider stream：跨网络与中文字符分片后仍完整聚合文�
     assert.deepEqual(result.toolCalls, []);
 });
 
+test('AI provider stream：记录首个可见字符耗时并读取供应商 usage', async () => {
+    const body = [
+        'data: {"choices":[{"delta":{"content":"完成"}}]}\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":80,"completion_tokens":10,"total_tokens":90}}\n',
+        'data: [DONE]\n',
+    ].join('');
+    const usageEvents = [];
+    const firstContentEvents = [];
+    const result = await readAiProviderStream(streamResponse(body), {
+        onUsage: usage => usageEvents.push(usage),
+        onFirstContent: event => firstContentEvents.push(event),
+    });
+    assert.deepEqual(result.usage, { promptTokens: 80, completionTokens: 10, totalTokens: 90 });
+    assert.equal(result.ttftMs >= 0, true);
+    assert.equal(usageEvents.length, 1);
+    assert.equal(firstContentEvents.length, 1);
+});
+
 test('AI provider stream：按 index 合并碎片化工具调用并保持顺序', async () => {
     const body = [
         'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_b","type":"function","function":{"name":"search_","arguments":"{\\"query\\":\\"轴"}}]}}]}\r\n',

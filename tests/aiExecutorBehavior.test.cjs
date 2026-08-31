@@ -84,6 +84,26 @@ function scriptedAiProvider(messages, inspect = null) {
     let index = 0;
     return async (_prompt, options) => {
         if (typeof inspect === 'function') inspect(index, options);
+        if (options?.toolChoice?.function?.name === 'submit_ai_domain_plan') {
+            const planned = messages[index];
+            const intentCall = planned?.tool_calls?.find(item => (
+                item?.function?.name === 'submit_ai_intent_plan'
+            ));
+            if (!intentCall) throw new Error('测试 AI provider 缺少可转换的目标计划');
+            const { steps: _steps, ...domainPlan } = JSON.parse(intentCall.function.arguments);
+            return aiMessageResponse({
+                role: 'assistant',
+                content: '',
+                tool_calls: [{
+                    id: 'domain-plan',
+                    type: 'function',
+                    function: {
+                        name: 'submit_ai_domain_plan',
+                        arguments: JSON.stringify(domainPlan),
+                    },
+                }],
+            });
+        }
         const message = messages[index];
         index += 1;
         if (!message) throw new Error(`测试 AI provider 缺少第 ${index} 个响应`);
@@ -3251,7 +3271,7 @@ test('AI executor 行为：客户报价使用连续展示顺序且不返回内�
         if (call.url.endsWith('/api/customers?name=%E9%82%B1%E7%84%95')) {
             return jsonResponse({ success: true, data: [{ id: 7, name: '邱焕' }] });
         }
-        if (call.url.endsWith('/api/customers/7/context')) {
+        if (call.url.endsWith('/api/customers/7/context?historyType=quotation')) {
             return jsonResponse({
                 success: true,
                 data: {
@@ -3268,7 +3288,10 @@ test('AI executor 行为：客户报价使用连续展示顺序且不返回内�
         return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
     });
 
-    const result = await executeToolCall('search_customer_history', { customerName: '邱焕' }, { allowWrite: false });
+    const result = await executeToolCall('search_customer_history', {
+        customerName: '邱焕',
+        historyType: 'quotation',
+    }, { allowWrite: false });
 
     assert.equal(result.success, true);
     assert.deepEqual(result.data.quotations.map(item => item.displaySequence), [1, 2]);
@@ -3277,11 +3300,12 @@ test('AI executor 行为：客户报价使用连续展示顺序且不返回内�
         '2026-07-25T00:00:00.000Z',
     ]);
     assert.equal(result.data.quotations.some(item => 'id' in item || 'Id' in item), false);
+    assert.match(calls[1].url, /historyType=quotation/);
     assert.deepEqual(
         calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`),
         [
             'GET /api/customers?name=%E9%82%B1%E7%84%95',
-            'GET /api/customers/7/context',
+            'GET /api/customers/7/context?historyType=quotation',
         ]
     );
 });
@@ -5045,6 +5069,24 @@ test('AI executor 行为：线圈简称拆分不覆盖显式传入的片数', as
 
     assert.equal(result.success, true);
     assert.deepEqual(result.filters, { spec: '12-120', sheets: 96, material: '', slotType: '' });
+});
+
+test('AI executor 行为：线圈简称与显式片数一致时仍规范化为正式规格和片数', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/coils?spec=12&sheets=120') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 1, spec: '12', sheets: 120 }] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('search_coils', {
+        spec: '12-120',
+        sheets: 120,
+    }, { allowWrite: false });
+
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.filters, { spec: '12', sheets: 120, material: '', slotType: '' });
+    assert.equal(result.executionEvidence.calls[0].path, '/api/coils?spec=12&sheets=120');
 });
 
 test('AI executor 行为：多线圈方案分别保留空绕组字段和历史方案状态', async () => {

@@ -97,11 +97,8 @@ function discoveryCapabilitiesForIntent(intent = {}) {
             names.add(descriptor.discoveryCapability);
         }
     }
-    // 客户是订单、报价和客户历史的公共定位入口；配方也是成本和报价的公共定位入口。
-    if (selectedDomains.has('order') || selectedDomains.has('quotation')) names.add('search_customers');
-    if (selectedDomains.has('recipe') || selectedDomains.has('cost') || selectedDomains.has('quotation')) {
-        names.add('get_all_recipes');
-    }
+    // Cross-domain entity lookup belongs to the internal resolver. Recovery tools shown
+    // to the model must remain inside the stage-1 domain envelope.
     return [...names];
 }
 

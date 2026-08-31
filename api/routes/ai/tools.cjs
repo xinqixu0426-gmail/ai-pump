@@ -868,7 +868,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_customer_history',
-            description: '按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。',
+            description: '按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；只问报价时必须传 historyType=quotation，只问订单时必须传 historyType=order，同时询问两类历史才使用 all。也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -877,6 +877,11 @@ const AI_TOOLS = [
                     keyword: { type: 'string', description: '型号/配方关键词，可选' },
                     recipeName: { type: 'string', description: '成品型号关键词，可选' },
                     model: { type: 'string', description: '型号关键词，可选' },
+                    historyType: {
+                        type: 'string',
+                        enum: ['all', 'quotation', 'order'],
+                        description: '历史范围：quotation=只返回报价，order=只返回订单，all=两者；默认 all'
+                    },
                     limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回条数' }
                 },
                 anyOf: [

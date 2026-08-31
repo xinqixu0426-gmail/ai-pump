@@ -375,6 +375,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const query = new URLSearchParams();
             const keyword = normalizeText(args.keyword || args.recipeName || args.model);
             if (keyword) query.set('keyword', keyword);
+            if (args.historyType) query.set('historyType', String(args.historyType));
             if (args.limit != null) query.set('limit', String(args.limit));
             const suffix = query.size > 0 ? `?${query.toString()}` : '';
             const context = await getJson(
@@ -399,6 +400,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     appliedFilters: {
                         customerId: Number(customerId),
                         ...(keyword ? { keyword } : {}),
+                        ...(args.historyType ? { historyType: String(args.historyType) } : {}),
                         ...(args.limit != null ? { limit: Number(args.limit) } : {}),
                     },
                     totalCount: args.limit == null ? returnedCount : null,

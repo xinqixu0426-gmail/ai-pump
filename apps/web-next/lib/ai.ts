@@ -377,8 +377,22 @@ export type AiHealthSnapshot = {
       timeouts: number;
       fallbacks: number;
       retries: number;
+      usageReportedRequests: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
     };
     latencyMs: { average: number; p95: number; maximum: number };
+    ttftMs?: { sampleCount: number; average: number; p95: number; maximum: number };
+    stages?: Record<string, { sampleCount: number; average: number; p95: number; maximum: number }>;
+    usage?: {
+      availability: number;
+      reportedRequests: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      source: 'provider_reported_only';
+    };
     lastRequestAt: string | null;
     lastSuccessAt: string | null;
     lastFailureAt: string | null;

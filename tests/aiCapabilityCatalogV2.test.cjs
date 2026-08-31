@@ -2,14 +2,53 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { listAiCapabilities } = require('../api/capabilities/registry.cjs');
 const {
+    buildDomainDirectoryPrompt,
     plannerCapabilityDirectory,
     selectToolsForIntent,
 } = require('../api/services/aiCapabilityCatalogV2.cjs');
+const { discoveryCapabilitiesForIntent } = require('../api/services/aiCapabilityGraphV3.cjs');
+
+test('V3 业务域目录：订单知识包与指定配方技术报告保持权威边界', () => {
+    const prompt = buildDomainDirectoryPrompt();
+    assert.match(prompt, /order:.*不读取成品型号对应的配方技术附件/);
+    assert.match(prompt, /recipe:.*性能测试报告.*逐条测试点/);
+    assert.match(prompt, /drawing:.*不读取配方性能测试报告/);
+});
 
 test('V2 能力目录：注册表中的每个 AI 能力自动进入规划目录', () => {
     const directory = plannerCapabilityDirectory();
     assert.equal(directory.length, listAiCapabilities().length);
-    assert.ok(directory.every(item => item.name && item.description && item.domains.length > 0));
+    assert.ok(directory.every(item => (
+        item.name
+        && item.description
+        && item.domains.length > 0
+        && typeof item.requiredInputs === 'string'
+    )));
+    const byName = new Map(directory.map(item => [item.name, item]));
+    assert.equal(byName.get('preview_pump_shell_cost').requiredInputs, 'customBarrelLength');
+    assert.equal(byName.get('preview_recipe_cost').requiredInputs, 'recipeId|recipeName');
+    assert.equal(byName.get('search_coils').requiredInputs, 'none');
+});
+
+test('V3 恢复调查：模型可见 discovery 能力不能越过第一阶段业务域信封', () => {
+    const capabilities = listAiCapabilities();
+    const quotationRecovery = discoveryCapabilitiesForIntent({ domains: ['quotation'] });
+    assert.equal(quotationRecovery.includes('get_all_recipes'), false);
+    assert.equal(quotationRecovery.includes('search_customers'), true);
+    for (const name of quotationRecovery) {
+        const capability = capabilities.find(item => item.toolName === name);
+        assert.equal(capability.domains.includes('quotation'), true);
+    }
+    for (const domain of new Set(capabilities.flatMap(item => item.domains))) {
+        for (const name of discoveryCapabilitiesForIntent({ domains: [domain] })) {
+            const capability = capabilities.find(item => item.toolName === name);
+            assert.equal(capability.domains.includes(domain), true, `${domain} 不得恢复到 ${name}`);
+        }
+    }
+    assert.equal(
+        discoveryCapabilitiesForIntent({ domains: ['recipe'] }).includes('get_all_recipes'),
+        true
+    );
 });
 
 test('V2 能力目录：查询轮不暴露写能力，计划能力优先', () => {

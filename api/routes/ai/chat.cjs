@@ -88,6 +88,7 @@ async function handleAiChat(req, res, options = {}) {
     const controller = new AbortController();
     let settled = false;
     let clientDisconnected = false;
+    let ttftMs = null;
     const telemetry = options.telemetry || aiRuntimeTelemetry;
     const timeoutMs = options.timeoutMs || aiChatTimeoutMs(options.env);
     const timeout = setTimeout(() => {
@@ -110,6 +111,7 @@ async function handleAiChat(req, res, options = {}) {
 
     const send = (type, payload = {}) => {
         if (clientDisconnected || res.writableEnded || res.destroyed) return;
+        if (type === 'content' && ttftMs == null) ttftMs = Date.now() - startedAt;
         res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
         if (typeof res.flush === 'function') res.flush();
     };
@@ -141,6 +143,10 @@ async function handleAiChat(req, res, options = {}) {
             outcome: result?.telemetry?.outcome || 'completed',
             durationMs: Date.now() - startedAt,
             providerEvents,
+            ttftMs,
+            usage: result?.telemetry?.usage || null,
+            stageLatencyMs: result?.telemetry?.stageLatencyMs || {},
+            toolSteps: result?.telemetry?.toolSteps || [],
         });
     } catch (error) {
         const abortCode = controller.signal.aborted
@@ -153,6 +159,7 @@ async function handleAiChat(req, res, options = {}) {
                 outcome: 'cancelled',
                 durationMs: Date.now() - startedAt,
                 providerEvents,
+                ttftMs,
                 errorCode: abortCode,
             });
             return;
@@ -164,6 +171,7 @@ async function handleAiChat(req, res, options = {}) {
             outcome: 'failed',
             durationMs: Date.now() - startedAt,
             providerEvents,
+            ttftMs,
             errorCode,
         });
         aiChatLogger.error('AI 对话失败', {
