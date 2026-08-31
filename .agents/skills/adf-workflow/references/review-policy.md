@@ -31,6 +31,10 @@ exclusion. Test Reviewer maps each defect-family category to positive, negative,
 boundary, and preserved-behavior evidence. A nonempty review summary is not proof
 that this semantic review occurred.
 
-Main Codex remediates findings. If remediation changes the reviewed behavior or
-evidence fingerprint, rerun the affected review. Stop after a bounded retry and
-report a real blocker instead of accepting stale review evidence.
+Use at most two passes per required reviewer by default: one initial review and
+one final confirmation after Main Codex consolidates all actionable findings into
+a single remediation pass. Do not rerun a reviewer whose conclusion and evidence
+fingerprint did not change. A third pass is justified only by a new P1 finding,
+a material scope/authority change, or a conflicting review that Main Codex cannot
+resolve from current evidence. Otherwise stop and report a real blocker instead
+of creating an open-ended review loop or accepting stale evidence.

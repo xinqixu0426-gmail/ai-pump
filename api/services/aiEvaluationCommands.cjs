@@ -118,6 +118,26 @@ function normalizeRunScope(value) {
     return scope;
 }
 
+function normalizeRunCaseKey(value) {
+    if (value === undefined || value === null || value === '') return '';
+    if (typeof value !== 'string') {
+        throw evaluationCommandError(
+            'ai_evaluation_case_key_invalid',
+            'caseKey 必须是字符串',
+            400
+        );
+    }
+    const caseKey = value.trim();
+    if (!caseKey || caseKey.length > 160) {
+        throw evaluationCommandError(
+            'ai_evaluation_case_key_invalid',
+            'caseKey 必须是 1 到 160 个字符',
+            400
+        );
+    }
+    return caseKey;
+}
+
 function executeStartAiEvaluationRun(
     dependencies,
     owner,
@@ -125,6 +145,21 @@ function executeStartAiEvaluationRun(
     commandContext = {}
 ) {
     const scope = normalizeRunScope(_input.scope);
+    const caseKey = normalizeRunCaseKey(_input.caseKey);
+    if (scope === 'release' && caseKey) {
+        throw evaluationCommandError(
+            'ai_evaluation_release_case_filter_forbidden',
+            '发布门禁必须运行完整用例集合，不能按 caseKey 筛选',
+            400
+        );
+    }
+    if (scope === 'manual' && normalizeOwnerKey(owner) === 'internal') {
+        throw evaluationCommandError(
+            'ai_evaluation_manual_owner_forbidden',
+            '手动 AI 回归必须使用普通登录身份，不能覆盖内部发布健康记录',
+            403
+        );
+    }
     if (scope === 'release' && normalizeOwnerKey(owner) !== 'internal') {
         throw evaluationCommandError(
             'ai_evaluation_release_scope_forbidden',
@@ -136,7 +171,11 @@ function executeStartAiEvaluationRun(
         db: dependencies.db,
         ...commandContext,
         capabilityId: START_RUN_CAPABILITY_ID,
-        input: { owner: normalizeOwnerKey(owner), scope },
+        input: {
+            owner: normalizeOwnerKey(owner),
+            scope,
+            ...(caseKey ? { caseKey } : {}),
+        },
         warnings: commandContext.warnings || [],
         execute: ({ auditContext }) => {
             const writes = collectAudits();
@@ -145,6 +184,7 @@ function executeStartAiEvaluationRun(
                 created = createAiEvaluationRun(owner, {
                     dbAccessors: dependencies,
                     scope,
+                    caseKey,
                     auditContext,
                     onWrite: writes.onWrite,
                 });

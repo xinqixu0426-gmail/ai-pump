@@ -37,6 +37,11 @@ than file count.
 - L3: migration, auth/security, destructive work, production, secrets, or other
   irreversible effects; use L2 plus explicit human approval for the risky act.
 
+Keep one L2/L3 contract centered on one primary shared mechanism. If the request
+contains multiple independently deliverable mechanisms with separate acceptance
+evidence, split them into ordered contracts before implementation. Shared files or
+one user-visible batch alone are not reasons to combine unrelated mechanisms.
+
 For L2/L3 or meaningful ambiguity, read [task-contract.md](references/task-contract.md)
 and align the contract before implementation. For a bugfix, also read
 [systemic-diagnosis.md](references/systemic-diagnosis.md) before editing.
@@ -73,10 +78,14 @@ SHA, and rejects a non-ancestor or empty release range and later target drift.
    acceptance criteria, and evidence question instead of the full conversation.
    For L1, stay in Main Codex unless one concrete uncertainty justifies a single
    targeted reviewer.
-5. Run risk-matched deterministic checks after substantial changes and repair
-   failures before continuing.
+5. Use a validation ladder: run targeted deterministic checks while implementing,
+   then independent reviews, consolidate their findings into one remediation pass,
+   and run the required Guardian gate as the final authoritative full verification.
+   Do not manually duplicate commands already selected by the next Guardian gate
+   unless a focused failure needs diagnosis.
 6. Read [review-policy.md](references/review-policy.md), run required independent
-   reviews, remediate actionable findings, and repeat affected reviews.
+   reviews, remediate actionable findings, and repeat only affected reviews within
+   its bounded review policy.
 7. Consolidate current-truth documentation at its authoritative location.
 8. Run Guardian commit and push gates in order. Read
    [delivery-policy.md](references/delivery-policy.md) before any external write.

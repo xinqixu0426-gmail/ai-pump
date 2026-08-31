@@ -19,6 +19,7 @@
     "verify:api-contract": "node --test tests/apiContractGovernance.test.cjs tests/aiCapabilityRegistry.test.cjs",
     "test:deep-api": "node scripts/run-deep-api-smoke.cjs",
     "test:knowledge-live": "node scripts/run-knowledge-evaluation.cjs --scope=manual",
+    "test:knowledge-case": "node scripts/run-knowledge-evaluation.cjs --scope=manual",
     "verify:ai-release": "node scripts/run-knowledge-evaluation.cjs --scope=release --report=logs/ai-release-gate-latest.json",
     "test:knowledge-retrieval": "node scripts/run-knowledge-retrieval-evaluation.cjs",
     "knowledge:vector-check": "node scripts/check-knowledge-vector-runtime.cjs",

@@ -9,6 +9,41 @@ const {
     getLatestAiEvaluationHealth,
     evaluateRuleCase,
 } = require('../api/services/aiEvaluations.cjs');
+const {
+    AI_RELEASE_RUN_OWNER_KEY,
+    CORE_AI_RELEASE_CASE_KEYS,
+} = require('../api/services/aiEvaluationReleasePolicy.cjs');
+
+function insertCoreReleaseCases(db, now = new Date().toISOString()) {
+    const insert = db.prepare(`
+        INSERT OR IGNORE INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, review_status, source_type,
+            sort_order, created_at, updated_at
+        ) VALUES (?, ?, '发布门禁', '返回核心通过', 'rules', ?, 1, 1,
+                  'approved', 'system', ?, ?, ?)
+    `);
+    CORE_AI_RELEASE_CASE_KEYS.forEach((caseKey, index) => insert.run(
+        caseKey,
+        `核心案例 ${index + 1}`,
+        JSON.stringify({ requiredTerms: [['核心通过']] }),
+        100 + index,
+        now,
+        now
+    ));
+}
+
+function recordCoreReleasePasses(fixture, created) {
+    for (const evaluationCase of created.cases.filter(
+        item => CORE_AI_RELEASE_CASE_KEYS.includes(item.caseKey)
+    )) {
+        recordAiEvaluationResult('internal', created.run.id, {
+            caseId: evaluationCase.id,
+            answerText: '核心通过',
+            toolResults: [],
+        }, { dbAccessors: fixture.accessors });
+    }
+}
 
 function createFixture() {
     const db = new Database(':memory:');
@@ -955,8 +990,118 @@ test('AI 评测：运行生命周期保存结果、汇总并按 owner 隔离', (
     fixture.db.close();
 });
 
+test('AI 评测：manual 可按 caseKey 精确建单项运行并拒绝不可用或 release 筛选', () => {
+    const fixture = createFixture();
+    const now = new Date().toISOString();
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, review_status, sort_order, created_at, updated_at
+        ) VALUES
+            ('case-selected', '选中用例', '测试', '问题一', 'rules', '{}', 1, 1, 'approved', 10, ?, ?),
+            ('case-disabled', '停用用例', '测试', '问题二', 'rules', '{}', 0, 0, 'approved', 20, ?, ?),
+            ('case-pending', '待审用例', '测试', '问题三', 'rules', '{}', 1, 0, 'pending', 30, ?, ?)
+    `).run(now, now, now, now, now, now);
+    try {
+        const selected = createAiEvaluationRun('admin', {
+            dbAccessors: fixture.accessors,
+            scope: 'manual',
+            caseKey: 'case-selected',
+        });
+        assert.equal(selected.run.totalCount, 1);
+        assert.deepEqual(selected.cases.map(item => item.caseKey), ['case-selected']);
+        assert.equal(
+            fixture.db.prepare('SELECT owner_key FROM ai_evaluation_runs WHERE id = ?')
+                .get(selected.run.id).owner_key,
+            'diagnostic:admin:case-selected'
+        );
+        assert.throws(
+            () => createAiEvaluationRun('admin', {
+                dbAccessors: fixture.accessors,
+                scope: 'manual',
+                caseKey: 'case-missing',
+            }),
+            error => error.code === 'ai_evaluation_case_not_found' && error.statusCode === 404
+        );
+        for (const caseKey of ['case-disabled', 'case-pending']) {
+            assert.throws(
+                () => createAiEvaluationRun('admin', {
+                    dbAccessors: fixture.accessors,
+                    scope: 'manual',
+                    caseKey,
+                }),
+                error => error.code === 'ai_evaluation_case_unavailable'
+                    && error.statusCode === 422
+            );
+        }
+        assert.throws(
+            () => createAiEvaluationRun('internal', {
+                dbAccessors: fixture.accessors,
+                scope: 'release',
+                caseKey: 'case-selected',
+            }),
+            error => error.code === 'ai_evaluation_release_case_filter_forbidden'
+        );
+        assert.throws(
+            () => createAiEvaluationRun('internal', {
+                dbAccessors: fixture.accessors,
+                scope: 'manual',
+            }),
+            error => error.code === 'ai_evaluation_manual_owner_forbidden'
+                && error.statusCode === 403
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 评测：诊断运行使用独立 owner 且不覆盖 manual 全量运行概览', () => {
+    const fixture = createFixture();
+    const now = new Date().toISOString();
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, review_status, sort_order, created_at, updated_at
+        ) VALUES
+            ('case-full-a', '全量 A', '测试', '问题 A', 'rules', '{}', 1, 1, 'approved', 10, ?, ?),
+            ('case-full-b', '全量 B', '测试', '问题 B', 'rules', '{}', 1, 1, 'approved', 20, ?, ?)
+    `).run(now, now, now, now);
+    try {
+        const full = createAiEvaluationRun('admin', {
+            dbAccessors: fixture.accessors,
+            scope: 'manual',
+        });
+        const diagnostic = createAiEvaluationRun('admin', {
+            dbAccessors: fixture.accessors,
+            scope: 'manual',
+            caseKey: 'case-full-a',
+        });
+        assert.notEqual(diagnostic.run.id, full.run.id);
+        assert.equal(
+            fixture.db.prepare('SELECT status FROM ai_evaluation_runs WHERE id = ?')
+                .get(full.run.id).status,
+            'running'
+        );
+        recordAiEvaluationResult('admin', diagnostic.run.id, {
+            caseId: diagnostic.cases[0].id,
+            answerText: '诊断回答',
+            toolResults: [],
+        }, { dbAccessors: fixture.accessors });
+        completeAiEvaluationRun('admin', diagnostic.run.id, {
+            dbAccessors: fixture.accessors,
+        });
+        assert.equal(
+            getAiEvaluationOverview('admin', { dbAccessors: fixture.accessors }).latestRun.id,
+            full.run.id
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
 test('AI 评测：最近失败结果形成全局发布健康信号', () => {
     const fixture = createFixture();
+    insertCoreReleaseCases(fixture.db);
     fixture.db.prepare(`
         INSERT INTO ai_evaluation_cases (
             case_key, title, category, question, evaluator_type, config_json,
@@ -966,13 +1111,23 @@ test('AI 评测：最近失败结果形成全局发布健康信号', () => {
         requiredTerms: [['正确术语']],
     }), new Date().toISOString(), new Date().toISOString());
 
-    const created = createAiEvaluationRun('internal', { dbAccessors: fixture.accessors });
+    const created = createAiEvaluationRun('internal', {
+        dbAccessors: fixture.accessors,
+        scope: 'release',
+    });
     recordAiEvaluationResult('internal', created.run.id, {
         caseId: created.cases[0].id,
         answerText: '返回了错误术语。',
         toolResults: [],
     }, { dbAccessors: fixture.accessors });
+    recordCoreReleasePasses(fixture, created);
     completeAiEvaluationRun('internal', created.run.id, { dbAccessors: fixture.accessors });
+
+    assert.equal(
+        fixture.db.prepare('SELECT owner_key FROM ai_evaluation_runs WHERE id = ?')
+            .get(created.run.id).owner_key,
+        AI_RELEASE_RUN_OWNER_KEY
+    );
 
     const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
     assert.equal(health.status, 'attention');
@@ -987,6 +1142,7 @@ test('AI 评测：最近失败结果形成全局发布健康信号', () => {
 test('AI 评测：已停用用例的历史失败不再形成当前健康告警', () => {
     const fixture = createFixture();
     const now = new Date().toISOString();
+    insertCoreReleaseCases(fixture.db, now);
     fixture.db.prepare(`
         INSERT INTO ai_evaluation_cases (
             case_key, title, category, question, evaluator_type, config_json,
@@ -999,7 +1155,10 @@ test('AI 评测：已停用用例的历史失败不再形成当前健康告警',
         JSON.stringify({ requiredTerms: [['当前答案']] }), now, now
     );
 
-    const created = createAiEvaluationRun('internal', { dbAccessors: fixture.accessors });
+    const created = createAiEvaluationRun('internal', {
+        dbAccessors: fixture.accessors,
+        scope: 'release',
+    });
     const oldCase = created.cases.find(item => item.caseKey === 'case-disabled-failure');
     const activeCase = created.cases.find(item => item.caseKey === 'case-active-pass');
     recordAiEvaluationResult('internal', created.run.id, {
@@ -1012,8 +1171,13 @@ test('AI 评测：已停用用例的历史失败不再形成当前健康告警',
         answerText: '当前答案',
         toolResults: [],
     }, { dbAccessors: fixture.accessors });
+    recordCoreReleasePasses(fixture, created);
     completeAiEvaluationRun('internal', created.run.id, { dbAccessors: fixture.accessors });
     fixture.db.prepare('UPDATE ai_evaluation_cases SET enabled = 0 WHERE id = ?').run(oldCase.id);
+    fixture.db.prepare(`
+        UPDATE ai_evaluation_cases SET enabled = 0
+        WHERE case_key IN (${CORE_AI_RELEASE_CASE_KEYS.map(() => '?').join(', ')})
+    `).run(...CORE_AI_RELEASE_CASE_KEYS);
 
     const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
     assert.equal(health.status, 'healthy');
@@ -1022,5 +1186,30 @@ test('AI 评测：已停用用例的历史失败不再形成当前健康告警',
     assert.equal(health.evaluatedActiveCaseCount, 1);
     assert.equal(health.activeFailedCount, 0);
     assert.deepEqual(health.issues, []);
+    fixture.db.close();
+});
+
+test('AI 评测：发布健康忽略升级前遗留的 internal 手动运行', () => {
+    const fixture = createFixture();
+    const now = new Date().toISOString();
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, review_status, source_type,
+            sort_order, created_at, updated_at
+        ) VALUES ('legacy-health-case', '遗留健康案例', '发布门禁', '问题',
+                  'rules', '{}', 1, 1, 'approved', 'system', 1, ?, ?)
+    `).run(now, now);
+    fixture.db.prepare(`
+        INSERT INTO ai_evaluation_runs (
+            owner_key, status, total_count, passed_count, failed_count,
+            review_count, started_at, completed_at, created_at, updated_at
+        ) VALUES ('internal', 'completed', 1, 0, 1, 0, ?, ?, ?, ?)
+    `).run(now, now, now, now);
+
+    const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
+    assert.equal(health.status, 'not_run');
+    assert.equal(health.latestRun, null);
+    assert.equal(health.healthy, true);
     fixture.db.close();
 });

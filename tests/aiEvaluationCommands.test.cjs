@@ -9,6 +9,10 @@ const {
     executeReviewAiEvaluationCase,
     executeStartAiEvaluationRun,
 } = require('../api/services/aiEvaluationCommands.cjs');
+const {
+    AI_RELEASE_RUN_OWNER_KEY,
+    CORE_AI_RELEASE_CASE_KEYS,
+} = require('../api/services/aiEvaluationReleasePolicy.cjs');
 
 function createFixture(overrides = {}) {
     const db = new Database(':memory:');
@@ -216,6 +220,88 @@ test('AI 评测命令：手动检查与发布门禁共享核心系统项并追�
         );
         assert.equal(release.cases.filter(item => item.sourceType === 'system').length, 8);
         assert.equal(release.cases.filter(item => item.sourceType === 'feedback').length, 1);
+        assert.equal(
+            fixture.db.prepare('SELECT owner_key FROM ai_evaluation_runs WHERE id = ?')
+                .get(release.run.id).owner_key,
+            AI_RELEASE_RUN_OWNER_KEY
+        );
+
+        fixture.db.prepare(`
+            UPDATE ai_evaluation_cases SET release_gate_enabled = 0
+            WHERE case_key = ?
+        `).run(CORE_AI_RELEASE_CASE_KEYS[0]);
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'release' },
+            context('ai-evaluation-scope-release-incomplete-0001')
+        ), error => error.code === 'ai_evaluation_release_cases_incomplete'
+            && error.statusCode === 409);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 评测命令：单用例诊断仅允许普通登录身份且发布门禁拒绝筛选', () => {
+    const fixture = createFixture();
+    try {
+        const diagnostic = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: 'command-fixture-case' },
+            context('ai-evaluation-diagnostic-0001')
+        );
+        const replay = executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: 'command-fixture-case' },
+            context('ai-evaluation-diagnostic-0001')
+        );
+        assert.equal(diagnostic.cases.length, 1);
+        assert.equal(diagnostic.cases[0].caseKey, 'command-fixture-case');
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(replay.run.id, diagnostic.run.id);
+        const otherCase = fixture.db.prepare(`
+            SELECT case_key FROM ai_evaluation_cases
+            WHERE case_key <> 'command-fixture-case' AND enabled = 1
+            ORDER BY id LIMIT 1
+        `).get();
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: otherCase.case_key },
+            context('ai-evaluation-diagnostic-0001')
+        ), error => error.code === 'idempotency_key_conflict' && error.statusCode === 409);
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'manual', caseKey: 'command-fixture-case' },
+            context('ai-evaluation-diagnostic-internal-0001')
+        ), error => error.code === 'ai_evaluation_manual_owner_forbidden');
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'manual' },
+            context('ai-evaluation-manual-internal-0001')
+        ), error => error.code === 'ai_evaluation_manual_owner_forbidden');
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'internal',
+            { scope: 'release', caseKey: 'command-fixture-case' },
+            context('ai-evaluation-diagnostic-release-0001')
+        ), error => error.code === 'ai_evaluation_release_case_filter_forbidden');
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: 123 },
+            context('ai-evaluation-diagnostic-invalid-0001')
+        ), error => error.code === 'ai_evaluation_case_key_invalid');
+        assert.throws(() => executeStartAiEvaluationRun(
+            fixture.dependencies,
+            'admin',
+            { scope: 'manual', caseKey: 'missing-case' },
+            context('ai-evaluation-diagnostic-missing-0001')
+        ), error => error.code === 'ai_evaluation_case_not_found');
     } finally {
         fixture.db.close();
     }

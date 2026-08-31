@@ -2,18 +2,12 @@ require('dotenv').config({ quiet: true });
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+    CORE_AI_RELEASE_CASE_KEYS,
+    assertCoreAiReleaseCases,
+} = require('../api/services/aiEvaluationReleasePolicy.cjs');
 
 const baseUrl = String(process.env.AI_EVAL_BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
-const CORE_AI_RELEASE_CASE_KEYS = Object.freeze([
-    'part-current-price',
-    'coil-all-official-variants',
-    'coil-winding-profile',
-    'test-report-file-type',
-    'test-report-ignore-template-points',
-    'customer-quotation-display-order',
-    'complete-cable-semantics',
-    'cutting-shell-purpose-evidence',
-]);
 const CORE_AI_RELEASE_CASE_COUNT = CORE_AI_RELEASE_CASE_KEYS.length;
 let requestHeaders = {};
 let commandSequence = 0;
@@ -29,24 +23,53 @@ function commandHeaders(prefix) {
 function parseCliOptions(argv = process.argv.slice(2)) {
     let reportPath = '';
     let scope = 'manual';
+    let caseKey = '';
+    let caseKeyProvided = false;
     for (let index = 0; index < argv.length; index += 1) {
         const argument = String(argv[index] || '');
         if (argument.startsWith('--report=')) reportPath = argument.slice('--report='.length);
         if (argument === '--report') reportPath = String(argv[index + 1] || '');
         if (argument.startsWith('--scope=')) scope = argument.slice('--scope='.length);
         if (argument === '--scope') scope = String(argv[index + 1] || '');
+        if (argument.startsWith('--case-key=')) {
+            caseKeyProvided = true;
+            caseKey = argument.slice('--case-key='.length);
+        }
+        if (argument === '--case-key') {
+            caseKeyProvided = true;
+            const value = String(argv[index + 1] || '');
+            if (!value || value.startsWith('--')) {
+                throw new Error('--case-key 必须提供用例 key');
+            }
+            caseKey = value;
+        }
     }
     scope = scope.trim().toLowerCase();
     if (!['manual', 'release'].includes(scope)) {
         throw new Error('scope 只允许 manual 或 release');
     }
-    return { reportPath: reportPath.trim(), scope };
+    caseKey = caseKey.trim();
+    if (caseKeyProvided && !caseKey) throw new Error('--case-key 必须提供用例 key');
+    if (caseKey.length > 160) throw new Error('case key 不能超过 160 个字符');
+    if (scope === 'release' && caseKey) {
+        throw new Error('发布门禁必须运行完整用例集合，不能使用 --case-key');
+    }
+    return { reportPath: reportPath.trim(), scope, caseKey };
 }
 
 function buildReleaseGateReport(input = {}) {
+    const scope = input.scope === 'release' ? 'release' : 'manual';
+    const caseKey = String(input.caseKey || '').trim();
+    const execution = {
+        mode: scope === 'release' ? 'release' : caseKey ? 'diagnostic' : 'manual',
+        scope,
+        caseKey: caseKey || null,
+        releaseGate: scope === 'release',
+    };
     if (input.skipped) {
         return {
             schemaVersion: 1,
+            ...execution,
             generatedAt: input.generatedAt || new Date().toISOString(),
             status: 'skipped',
             blocked: false,
@@ -71,6 +94,7 @@ function buildReleaseGateReport(input = {}) {
         : !run || run.status !== 'completed' || failedCount > 0 || reviewCount > 0;
     return {
         schemaVersion: 1,
+        ...execution,
         generatedAt: input.generatedAt || new Date().toISOString(),
         status: input.error ? 'error' : blocked ? 'blocked' : 'passed',
         blocked,
@@ -135,35 +159,21 @@ async function requestJson(method, path, body, headers = {}) {
     return readJson(response, `${method} ${path}`);
 }
 
-function resolveEvaluationAuthentication(scope, env = process.env) {
+function resolveEvaluationAuthentication(scope, env = process.env, options = {}) {
     if (scope === 'release') {
         if (env.INTERNAL_SECRET) return { type: 'internal', secret: env.INTERNAL_SECRET };
         throw new Error('发布门禁缺少 INTERNAL_SECRET，不能降级为网页登录身份');
     }
     if (env.ACCESS_PASSWORD) return { type: 'login', password: env.ACCESS_PASSWORD };
-    if (env.INTERNAL_SECRET) return { type: 'internal', secret: env.INTERNAL_SECRET };
-    throw new Error('缺少 ACCESS_PASSWORD 或 INTERNAL_SECRET，无法执行无人值守回归');
+    throw new Error(
+        options.caseKey
+            ? '单用例诊断需要 ACCESS_PASSWORD，不能使用内部发布身份'
+            : '手动 AI 回归需要 ACCESS_PASSWORD，不能使用内部发布身份'
+    );
 }
 
 function assertCoreReleaseGateConfigured(overview) {
-    const systemCases = Array.isArray(overview?.systemCases) ? overview.systemCases : [];
-    const casesByKey = new Map(systemCases.map(item => [item.caseKey, item]));
-    const missingKeys = CORE_AI_RELEASE_CASE_KEYS.filter(caseKey => !casesByKey.has(caseKey));
-    const inactiveKeys = CORE_AI_RELEASE_CASE_KEYS.filter(caseKey => {
-        const item = casesByKey.get(caseKey);
-        return item && (
-            item.reviewStatus !== 'approved'
-            || item.enabled !== true
-            || item.releaseGateEnabled !== true
-        );
-    });
-    if (missingKeys.length > 0 || inactiveKeys.length > 0) {
-        throw new Error(
-            `核心 AI 发布检查配置不完整：缺少 ${missingKeys.join(', ') || '无'}；`
-            + `不可执行 ${inactiveKeys.join(', ') || '无'}`
-        );
-    }
-    return CORE_AI_RELEASE_CASE_KEYS.map(caseKey => casesByKey.get(caseKey));
+    return assertCoreAiReleaseCases(overview?.systemCases);
 }
 
 function evaluationClientTimeoutMs(env = process.env) {
@@ -174,8 +184,8 @@ function evaluationClientTimeoutMs(env = process.env) {
     return boundedServerTimeout + 15 * 1000;
 }
 
-async function authenticate(scope = 'manual') {
-    const authentication = resolveEvaluationAuthentication(scope);
+async function authenticate(scope = 'manual', options = {}) {
+    const authentication = resolveEvaluationAuthentication(scope, process.env, options);
     if (authentication.type === 'login') {
         const response = await fetch(`${baseUrl}/api/auth/login`, {
             method: 'POST',
@@ -259,15 +269,19 @@ async function streamQuestionWithRetry(question, options = {}) {
     throw lastError || new Error('AI 查询失败');
 }
 
-async function main(options = {}) {
+async function main(options = {}, dependencies = {}) {
     const scope = options.scope === 'release' ? 'release' : 'manual';
-    await authenticate(scope);
-    const health = await requestJson('GET', '/api/health');
+    const caseKey = String(options.caseKey || '').trim();
+    const authenticateRequest = dependencies.authenticate || authenticate;
+    const request = dependencies.requestJson || requestJson;
+    const askQuestion = dependencies.streamQuestionWithRetry || streamQuestionWithRetry;
+    await authenticateRequest(scope, { caseKey });
+    const health = await request('GET', '/api/health');
     if (health.ready !== true && !['ok', 'ready'].includes(health.status)) {
         throw new Error('API 健康检查未通过');
     }
 
-    const overview = await requestJson('GET', '/api/ai/evaluations/overview');
+    const overview = await request('GET', '/api/ai/evaluations/overview');
     if (scope === 'release') assertCoreReleaseGateConfigured(overview);
     const enabledCases = Number(
         scope === 'release'
@@ -279,21 +293,28 @@ async function main(options = {}) {
             throw new Error('发布门禁没有可执行用例，禁止跳过 AI 回归');
         }
         console.log('知识库 AI 回归：没有启用用例，本次手动检查跳过');
-        return buildReleaseGateReport({ health, skipped: true });
+        return buildReleaseGateReport({ health, skipped: true, scope, caseKey });
     }
 
-    const created = await requestJson(
+    const created = await request(
         'POST',
         '/api/ai/evaluations/runs',
-        { scope },
+        { scope, ...(caseKey ? { caseKey } : {}) },
         commandHeaders('ai-evaluation-run-start')
     );
     const runId = Number(created.run?.id);
     const runUpdatedAt = String(created.run?.updatedAt || '');
     const cases = Array.isArray(created.cases) ? created.cases : [];
     if (!runId || cases.length === 0) throw new Error('没有可执行的知识库回归用例');
+    if (caseKey && (cases.length !== 1 || cases[0].caseKey !== caseKey)) {
+        throw new Error(`服务端没有按 case key 精确创建诊断运行：${caseKey}`);
+    }
 
-    console.log(`知识库 AI 回归：运行 #${runId}，共 ${cases.length} 项`);
+    console.log(
+        caseKey
+            ? `知识库 AI 单用例诊断：运行 #${runId}，${caseKey}`
+            : `知识库 AI 回归：运行 #${runId}，共 ${cases.length} 项`
+    );
     const caseResults = [];
     for (let index = 0; index < cases.length; index += 1) {
         const evaluationCase = cases[index];
@@ -302,12 +323,12 @@ async function main(options = {}) {
         let errorText = '';
         let attempts = 0;
         try {
-            ({ answerText, toolResults, attempts } = await streamQuestionWithRetry(evaluationCase.question));
+            ({ answerText, toolResults, attempts } = await askQuestion(evaluationCase.question));
         } catch (error) {
             errorText = error instanceof Error ? error.message : 'AI 查询失败';
             attempts = 3;
         }
-        const result = await requestJson(
+        const result = await request(
             'POST',
             `/api/ai/evaluations/runs/${runId}/results`,
             {
@@ -331,7 +352,7 @@ async function main(options = {}) {
         console.log(`[${index + 1}/${cases.length}] ${marker} ${evaluationCase.title}`);
     }
 
-    const completed = await requestJson(
+    const completed = await request(
         'POST',
         `/api/ai/evaluations/runs/${runId}/complete`,
         { expectedUpdatedAt: runUpdatedAt || null },
@@ -345,6 +366,8 @@ async function main(options = {}) {
         health,
         run: completed,
         cases: caseResults,
+        scope,
+        caseKey,
     });
 }
 
@@ -356,7 +379,11 @@ if (require.main === module) {
         if (report.blocked) process.exitCode = 1;
     }).catch(error => {
         const message = error instanceof Error ? error.message : String(error);
-        const report = buildReleaseGateReport({ error: message });
+        const report = buildReleaseGateReport({
+            error: message,
+            scope: options.scope,
+            caseKey: options.caseKey,
+        });
         const savedPath = writeReleaseGateReport(options.reportPath, report);
         console.error(message);
         if (savedPath) console.error(`发布门禁报告：${savedPath}`);
@@ -370,6 +397,7 @@ module.exports = {
     assertCoreReleaseGateConfigured,
     buildReleaseGateReport,
     evaluationClientTimeoutMs,
+    main,
     parseCliOptions,
     resolveEvaluationAuthentication,
     streamQuestionWithRetry,
