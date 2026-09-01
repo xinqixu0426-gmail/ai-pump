@@ -1362,7 +1362,7 @@ export function QuotationsView() {
               />
             ) : null}
 
-            <section className="grid items-end gap-3 rounded-panel border border-line bg-slate-50/60 p-4 md:grid-cols-[minmax(14rem,22rem)_8rem] xl:grid-cols-[minmax(14rem,22rem)_8rem_minmax(18rem,1fr)]">
+            <section className="grid gap-3 rounded-panel border border-line bg-slate-50/60 p-4 md:grid-cols-[minmax(14rem,22rem)_8rem] xl:grid-cols-[minmax(14rem,22rem)_8rem_minmax(18rem,1fr)]">
               <label className="block">
                 <span className="text-xs font-medium text-ink">客户</span>
                 <select
@@ -1396,7 +1396,7 @@ export function QuotationsView() {
                   value={remark}
                   onChange={(event) => setRemark(event.target.value)}
                   rows={1}
-                  className="mt-1 min-h-9 w-full resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-5 text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  className="mt-1 block h-9 min-h-9 w-full resize-y rounded-md border border-line bg-white px-3 py-1.5 text-sm leading-5 text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   placeholder="报价说明、客户特殊要求等"
                 />
               </label>

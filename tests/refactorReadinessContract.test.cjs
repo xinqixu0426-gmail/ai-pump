@@ -563,6 +563,21 @@ test('Next UI 契约：P0 表单、面板和反馈使用统一基础组件', () 
     assert.match(coils, /<InlineNotice tone="danger"/);
 });
 
+test('Next UI 契约：横向表单按控件本体对齐且不受辅助说明撑高影响', () => {
+    const coils = readUtf8('apps/web-next/components/coils-view.tsx');
+    const quotations = readUtf8('apps/web-next/components/quotations-view.tsx');
+    const guide = readUtf8('docs/ui-component-guide.md');
+
+    assert.match(coils, /<Field label="自定义线重" hint=/);
+    assert.doesNotMatch(coils, /xl:grid-cols-\[minmax\(12rem,1\.4fr\)[^"\n]+xl:items-end/);
+    assert.match(coils, /className="sm:self-start sm:mt-8"/);
+    assert.doesNotMatch(quotations, /<section className="grid items-end gap-3 rounded-panel border border-line bg-slate-50\/60/);
+    assert.match(quotations, /className="mt-1 block h-9 min-h-9 w-full resize-y/);
+    assert.match(guide, /横向字段行必须对齐输入控件本体/);
+    assert.match(guide, /同行存在 `hint` \/ `error` 时，不得在父级直接用 `items-end`/);
+    assert.match(guide, /允许调整高度的文本区与单行控件同行时使用顶部对齐/);
+});
+
 test('Next UI 契约：相同表单功能统一走共享组件并阻止已收口页面回退', () => {
     const webRoot = path.join(repoRoot, 'apps/web-next');
     const checkboxOffenders = walkFiles(

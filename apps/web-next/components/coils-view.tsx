@@ -669,7 +669,7 @@ export function CoilsView() {
         <Panel>
           <PanelHeader title="成本试算" icon={<Calculator size={16} />} />
           <PanelBody>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1.4fr)_minmax(8rem,.8fr)_minmax(8rem,.8fr)_minmax(7rem,.7fr)_minmax(12rem,1fr)_auto] xl:items-end">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(12rem,1.4fr)_minmax(8rem,.8fr)_minmax(8rem,.8fr)_minmax(7rem,.7fr)_minmax(12rem,1fr)_auto]">
               <Field label="规格">
                 <Input
                   value={calcSpec}
@@ -716,7 +716,7 @@ export function CoilsView() {
                   placeholder="可选"
                 />
               </Field>
-              <Button type="button" variant="primary" onClick={() => void runCalculate()} disabled={calcLoading} icon={<Calculator size={15} />}>
+              <Button type="button" variant="primary" onClick={() => void runCalculate()} disabled={calcLoading} icon={<Calculator size={15} />} className="sm:self-start sm:mt-8">
                 {calcLoading ? '试算中' : '试算'}
               </Button>
             </div>
