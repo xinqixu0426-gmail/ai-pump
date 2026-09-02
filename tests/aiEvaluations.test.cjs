@@ -335,6 +335,61 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     );
     assert.equal(verifiedUnavailable.status, 'passed');
 
+    const colloquialUnavailable = evaluateRuleCase(
+        caseItem,
+        '没有叫 V1600-3"-12-180 的配方，系统里查不到这个型号，因此不能查看对应 Excel 附件。',
+        [{
+            name: 'get_recipe_technical_files',
+            result: {
+                success: false,
+                code: 'AI_RESOURCE_NOT_FOUND',
+                entityType: 'recipe',
+                query: 'V1600-3"-12-180',
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query_failure',
+                    calls: [{ method: 'GET', path: '/api/recipes' }],
+                },
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(colloquialUnavailable.status, 'passed');
+
+    for (const misleadingAnswer of [
+        '系统中不存在错误数据。',
+        '无法确认其他业务情况。',
+        '之前查不到目标配方，但现在已经找到，可以查看附件。',
+        '不存在无法查看附件的问题，附件已经提供。',
+        '无法确认是否存在，但性能测试报告实际存在。',
+        '目标配方不存在。现在已经找到。',
+        '查不到该附件。后续已提供附件。',
+        '无法查看该资料。实际资料已经存在。',
+        '系统中不存在错误记录。',
+        '无法确认客户的订单状态。',
+    ]) {
+        const misleading = evaluateRuleCase(
+            caseItem,
+            misleadingAnswer,
+            [{
+                name: 'get_recipe_technical_files',
+                result: {
+                    success: false,
+                    code: 'AI_RESOURCE_NOT_FOUND',
+                    entityType: 'recipe',
+                    query: 'V1600-3"-12-180',
+                    executionEvidence: {
+                        verified: true,
+                        kind: 'formal_api_query_failure',
+                        calls: [{ method: 'GET', path: '/api/recipes' }],
+                    },
+                },
+            }],
+            fixture.db
+        );
+        assert.equal(misleading.status, 'failed', misleadingAnswer);
+    }
+
     fixture.db.prepare(`INSERT INTO recipes VALUES (1, ?, NULL)`).run('V1600-3”-12-180');
     const verifiedEmptyFiles = evaluateRuleCase(
         caseItem,

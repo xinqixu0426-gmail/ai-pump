@@ -169,14 +169,23 @@ function numberPattern(value) {
     return new RegExp(`(^|[^\\d.])${numberBody}([^\\d.]|$)`);
 }
 
-function containsUnavailableConclusion(answer, configuredTerms = []) {
-    if (containsAny(answer, configuredTerms)) return true;
+function containsUnavailableConclusion(answer, configuredTerms = [], subjectTerms = []) {
     const normalized = normalizeAnswerForChecks(answer);
-    return (
-        /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)/.test(normalized)
-        || /(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)/.test(normalized)
-        || /(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/.test(normalized)
-    );
+    const normalizedTerms = configuredTerms.map(normalizeAnswerForChecks).filter(Boolean);
+    const normalizedSubjects = subjectTerms
+        .map(normalizeTargetText)
+        .filter(Boolean);
+    const unavailablePattern = /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)|(?:查|查询|检索|匹配)不到|不存在|无法(?:查询|查看|读取|提供|确认)|(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)|(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/;
+    const availabilityReversal = /不存在.{0,18}(?:无法(?:查询|查看|读取|提供)|问题|障碍)|(?:未找到|没有找到|查不到|查询不到|检索不到|匹配不到|不存在|无法(?:查询|查看|读取|提供|确认)).{0,96}(?:但|不过|然而|却|后来|后续|现(?:在)?|实际).{0,48}(?:已找到(?![^。！？]{0,12}(?:相近|候选))|已经找到(?![^。！？]{0,12}(?:相近|候选))|可以查看|可查看|已经提供|已提供|实际存在|确实存在|(?:目标|该|这个)?(?:配方|型号|报告|附件|资料|档案|方案).{0,8}(?:已|已经)?存在)/;
+    if (availabilityReversal.test(normalized)) return false;
+    return normalized
+        .split(/[。！？\n]/)
+        .some(sentence => {
+            const normalizedSentence = normalizeTargetText(sentence);
+            if (!normalizedSubjects.some(subject => normalizedSentence.includes(subject))) return false;
+            return unavailablePattern.test(sentence)
+                || normalizedTerms.some(term => sentence.includes(term));
+        });
 }
 
 function normalizeTargetText(value) {
@@ -331,7 +340,14 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
             : null;
         const unavailableConclusion = containsUnavailableConclusion(
             answer,
-            unavailableResultTerms
+            unavailableResultTerms,
+            [
+                `${spec}-${sheets}`,
+                '目标线圈方案',
+                '该线圈方案',
+                '正式线圈方案',
+                '线圈方案',
+            ]
         );
         return {
             type: prerequisite.type,
@@ -370,7 +386,18 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
     const observation = !available
         ? verifiedRecipeReportObservation(config, prerequisite, toolResults)
         : null;
-    const unavailableConclusion = containsUnavailableConclusion(answer, unavailableTerms);
+    const unavailableConclusion = containsUnavailableConclusion(answer, unavailableTerms, [
+        recipeName,
+        '目标配方',
+        '该配方',
+        '这个型号',
+        '该型号',
+        '性能测试报告',
+        '测试报告',
+        'Excel附件',
+        '附件',
+        '技术档案',
+    ]);
     const needsConfirmation = observation?.kind === 'needs_confirmation';
     const verifiedUnavailable = observation?.kind === 'verified_unavailable';
     return {
@@ -477,7 +504,14 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
                     '返回0条',
                     '没有该零件',
                 ];
-            const missingMatched = containsUnavailableConclusion(answer, missingPartTerms);
+            const missingMatched = containsUnavailableConclusion(answer, missingPartTerms, [
+                config.fact.model,
+                '目标零件',
+                '该零件',
+                '这个零件',
+                '该型号',
+                '零件库',
+            ]);
             addCheck(
                 checks,
                 'fact:part_missing',
@@ -537,8 +571,14 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
                     ? config.fact.unavailableTerms
                     : ['未填写绕组数据', '未设置绕组数据', '暂无绕组数据']),
             ];
-            const missingMatched = containsUnavailableConclusion(answer, missingTerms)
-                || containsAny(answer, missingTerms);
+            const missingMatched = containsUnavailableConclusion(answer, missingTerms, [
+                `${spec}-${sheets}`,
+                '目标线圈方案',
+                '该线圈方案',
+                '线圈方案',
+                '绕组数据',
+                '绕组值',
+            ]);
             addCheck(
                 checks,
                 'fact:coil_winding_unavailable',
