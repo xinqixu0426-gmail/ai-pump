@@ -198,6 +198,23 @@ test('V2 工具输入：按 ID 或业务名称定位时至少要求一种正式�
     assert.deepEqual(validateAiToolArgs('full_calculate', { pumphousing_model: 'V750 12-140' }), {
         pumphousing_model: 'V750 12-140',
     });
+    assert.deepEqual(validateAiToolArgs('build_recipe_bom_draft', {
+        shellModel: 'V750-大脚板-2寸',
+        coilSpec: '12',
+        coilSheets: 120,
+        packingParts: [
+            { model: '木箱', qty: 1, packingRole: 'container' },
+            { model: '珍珠棉', qty: 1, packingRole: 'pearlCotton' },
+        ],
+    }), {
+        shellModel: 'V750-大脚板-2寸',
+        coilSpec: '12',
+        coilSheets: 120,
+        packingParts: [
+            { model: '木箱', qty: 1, packingRole: 'container' },
+            { model: '珍珠棉', qty: 1, packingRole: 'pearlCotton' },
+        ],
+    });
     assert.throws(() => validateAiToolArgs('get_recipe_detail', {}), /不符合任何允许的输入形式/);
     assert.deepEqual(validateAiToolArgs('get_recipe_detail', { recipeName: 'TEST-PUMP-750A' }), {
         recipeName: 'TEST-PUMP-750A',

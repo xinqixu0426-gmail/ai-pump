@@ -3555,6 +3555,161 @@ const MIGRATIONS = Object.freeze([
             }
         },
     },
+    {
+        version: 76,
+        name: 'configured_template_cost_ai_evaluation',
+        signature: 'exact-template-configured-bom-cost-release-gate-v1',
+        up(db) {
+            const now = new Date().toISOString();
+            db.prepare(`
+                INSERT INTO ai_evaluation_cases (
+                    case_key, title, category, question, evaluator_type, config_json,
+                    enabled, release_gate_enabled, sort_order, source_type,
+                    review_status, confidence_score, reviewed_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'rules', ?, 1, 1, ?, 'system', 'approved', 100, ?, ?, ?)
+                ON CONFLICT(case_key) DO UPDATE SET
+                    title = excluded.title,
+                    category = excluded.category,
+                    question = excluded.question,
+                    evaluator_type = excluded.evaluator_type,
+                    config_json = excluded.config_json,
+                    enabled = excluded.enabled,
+                    release_gate_enabled = excluded.release_gate_enabled,
+                    sort_order = excluded.sort_order,
+                    review_status = excluded.review_status,
+                    confidence_score = excluded.confidence_score,
+                    reviewed_at = excluded.reviewed_at,
+                    updated_at = excluded.updated_at
+                WHERE ai_evaluation_cases.source_type = 'system'
+            `).run(
+                'configured-template-cost',
+                '完整模板配置生成正式 BOM 成本',
+                '成本',
+                'V750-大脚板-2寸的壳，做12-120片，带浮球，木箱，需要珍珠棉，成本大概多少',
+                JSON.stringify({
+                    requiredTerms: [
+                        ['V750-大脚板-2寸'],
+                        ['木箱'],
+                        ['珍珠棉'],
+                    ],
+                    forbiddenTerms: ['匹配到 2 个配方', '请确认具体是哪个配方'],
+                    requiredTools: ['build_recipe_bom_draft'],
+                    fact: {
+                        type: 'configured_bom_cost',
+                        templateModel: 'V750-大脚板-2寸',
+                        coilModel: '12-120',
+                        packingModels: ['v550木箱', '珍珠棉'],
+                    },
+                }),
+                90,
+                now,
+                now,
+                now
+            );
+        },
+    },
+    {
+        version: 77,
+        name: 'accept_direct_complete_cable_no_split_phrasing',
+        signature: 'complete-cable-gate-accepts-direct-no-split-conclusion-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).get();
+            if (!row) return;
+            let config;
+            try {
+                config = JSON.parse(row.config_json);
+            } catch {
+                return;
+            }
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            const noSplitGroup = requiredTerms.find(group => (
+                Array.isArray(group)
+                && group.some(term => ['不应该', '不宜', '不能', '不得', '不应'].includes(term))
+            ));
+            if (!noSplitGroup) return;
+            for (const term of ['不拆', '无需拆分', '不需要拆分']) {
+                if (!noSplitGroup.includes(term)) noSplitGroup.push(term);
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).run(JSON.stringify(config), new Date().toISOString());
+        },
+    },
+    {
+        version: 78,
+        name: 'accept_explicit_single_cutting_item_conclusion',
+        signature: 'cutting-gate-accepts-only-one-explicitly-marked-item-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+                  AND source_type = 'system'
+            `).get();
+            if (!row) return;
+            let config;
+            try {
+                config = JSON.parse(row.config_json);
+            } catch {
+                return;
+            }
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            const uncertaintyGroup = requiredTerms.find(group => (
+                Array.isArray(group)
+                && group.some(term => ['没有其他明确标注', '无明确标注'].includes(term))
+            ));
+            if (!uncertaintyGroup) return;
+            for (const term of ['只有1项明确标注', '系统中只有1项', '只有一项明确标注', '系统中只有一项']) {
+                if (!uncertaintyGroup.includes(term)) uncertaintyGroup.push(term);
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'cutting-shell-purpose-evidence'
+                  AND source_type = 'system'
+            `).run(JSON.stringify(config), new Date().toISOString());
+        },
+    },
+    {
+        version: 79,
+        name: 'require_configured_cost_answer_configuration_summary',
+        signature: 'configured-cost-gate-requires-coil-float-packing-and-total-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'configured-template-cost'
+                  AND source_type = 'system'
+            `).get();
+            if (!row) return;
+            let config;
+            try {
+                config = JSON.parse(row.config_json);
+            } catch {
+                return;
+            }
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            for (const group of [
+                ['12-120'],
+                ['浮球'],
+            ]) {
+                if (!requiredTerms.some(existing => (
+                    Array.isArray(existing) && existing.includes(group[0])
+                ))) requiredTerms.push(group);
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'configured-template-cost'
+                  AND source_type = 'system'
+            `).run(JSON.stringify({ ...config, requiredTerms }), new Date().toISOString());
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

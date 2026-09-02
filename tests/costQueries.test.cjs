@@ -311,12 +311,13 @@ test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
             recipeName: 'PUMP-A',
         });
         assert.equal(full.sourceOfTruth, 'costEngine');
-        assert.equal(full.costBasis, 'composedEstimate');
+        assert.equal(full.costBasis, 'currentFullCost');
         assert.equal(full.recipeCost.recipeId, 1);
         assert.equal(full.recipeCost.recipeName, 'PUMP-A');
-        assert.equal(full.recipeCost.totalCost, '10.00');
-        assert.equal(full.dynamicCost.totalCost, '0.00');
-        assert.equal(full.totalCost, '10.00');
+        assert.equal(full.recipeCost.totalCost, '20.00');
+        assert.equal(full.totalCost, '20.00');
+        assert.equal(full.compatibility.managedRolesReplacedOnce, true);
+        assert.equal(full.compatibility.replacement, 'preview_recipe_cost');
         assert.throws(
             () => fixture.queries.calculateFullEstimate({}),
             error => error.code === 'FULL_ESTIMATE_RECIPE_REQUIRED' && error.statusCode === 400
@@ -331,6 +332,38 @@ test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
                 && error.statusCode === 404
                 && /泵壳模板名不能作为成品型号/.test(error.message)
         );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('兼容完整估算按角色替换已有浮球和包装，不把动态项重复叠加', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`
+            UPDATE recipes
+            SET parts_json = ?, saved_total_cost = 40,
+                has_float = 1, float_wire = '0.55',
+                packing_parts_json = ?, configuration_policy_json = NULL
+            WHERE id = 1
+        `).run(
+            JSON.stringify([
+                { name: '轴承', model: '6201', qty: 1, snapshotPrice: 10, costRole: 'fixed' },
+                { name: '浮球', model: '浮球-线径0.55', qty: 1, snapshotPrice: 7, costRole: 'float' },
+                { name: 'v550木箱', model: 'v550木箱', qty: 1, snapshotPrice: 13, costRole: 'packing', packingRole: 'container' },
+            ]),
+            JSON.stringify([{ model: 'v550木箱', qty: 1, snapshotPrice: 13, packingRole: 'container' }])
+        );
+        const full = fixture.queries.calculateFullEstimate({
+            recipeId: 1,
+            hasFloat: false,
+            packingPartsJson: '[]',
+        });
+        assert.equal(full.costBasis, 'overridePreview');
+        assert.equal(full.totalCost, '20.00');
+        assert.equal(full.parts.some(part => part.costRole === 'float'), false);
+        assert.equal(full.parts.some(part => part.costRole === 'packing'), false);
+        assert.equal(full.compatibility.managedRolesReplacedOnce, true);
     } finally {
         fixture.db.close();
     }

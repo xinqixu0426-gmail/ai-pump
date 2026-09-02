@@ -6,7 +6,10 @@ const {
     plannerCapabilityDirectory,
     selectToolsForIntent,
 } = require('../api/services/aiCapabilityCatalogV2.cjs');
-const { discoveryCapabilitiesForIntent } = require('../api/services/aiCapabilityGraphV3.cjs');
+const {
+    discoveryCapabilitiesForIntent,
+    recoveryEvidenceSupportsUserGoal,
+} = require('../api/services/aiCapabilityGraphV3.cjs');
 
 test('V3 业务域目录：订单知识包与指定配方技术报告保持权威边界', () => {
     const prompt = buildDomainDirectoryPrompt();
@@ -30,25 +33,66 @@ test('V2 能力目录：注册表中的每个 AI 能力自动进入规划目录'
     assert.equal(byName.get('search_coils').requiredInputs, 'none');
 });
 
-test('V3 恢复调查：模型可见 discovery 能力不能越过第一阶段业务域信封', () => {
+test('V3 恢复调查：只读模式可跨域发现正式对象且始终不暴露写能力', () => {
     const capabilities = listAiCapabilities();
-    const quotationRecovery = discoveryCapabilitiesForIntent({ domains: ['quotation'] });
-    assert.equal(quotationRecovery.includes('get_all_recipes'), false);
+    const quotationRecovery = discoveryCapabilitiesForIntent({
+        mode: 'query',
+        domains: ['quotation'],
+        entityScope: 'collection',
+    });
+    assert.equal(quotationRecovery.includes('get_all_recipes'), true);
+    assert.equal(quotationRecovery.includes('search_parts'), true);
     assert.equal(quotationRecovery.includes('search_customers'), true);
     for (const name of quotationRecovery) {
         const capability = capabilities.find(item => item.toolName === name);
-        assert.equal(capability.domains.includes('quotation'), true);
+        assert.equal(capability.access, 'read');
+        assert.ok(capability.entityScopes.includes('collection'));
     }
-    for (const domain of new Set(capabilities.flatMap(item => item.domains))) {
-        for (const name of discoveryCapabilitiesForIntent({ domains: [domain] })) {
-            const capability = capabilities.find(item => item.toolName === name);
-            assert.equal(capability.domains.includes(domain), true, `${domain} 不得恢复到 ${name}`);
-        }
-    }
+    const commandRecovery = discoveryCapabilitiesForIntent({
+        mode: 'command',
+        domains: ['quotation'],
+        entityScope: 'collection',
+    });
     assert.equal(
-        discoveryCapabilitiesForIntent({ domains: ['recipe'] }).includes('get_all_recipes'),
-        true
+        commandRecovery.every(name => (
+            capabilities.find(item => item.toolName === name).domains.includes('quotation')
+        )),
+        true,
     );
+});
+
+test('V3 恢复证据：型号相同但实体类别不符时不能提前满足原问题', () => {
+    const options = { plannedCapabilityNames: ['get_template_detail'] };
+    assert.equal(recoveryEvidenceSupportsUserGoal(
+        'search_customers',
+        { data: [{ name: 'V1600 客户' }] },
+        'V1600 泵壳价格是多少',
+        options
+    ), false);
+    assert.equal(recoveryEvidenceSupportsUserGoal(
+        'search_parts',
+        { parts: [{ model: 'V1600 电机', category: '电机', price: 80 }] },
+        'V1600 泵壳价格是多少',
+        options
+    ), false);
+    assert.equal(recoveryEvidenceSupportsUserGoal(
+        'search_parts',
+        { parts: [{ model: 'V1600 泵壳密封圈', category: '密封件', price: 8 }] },
+        'V1600 泵壳价格是多少',
+        options
+    ), false);
+    assert.equal(recoveryEvidenceSupportsUserGoal(
+        'search_parts',
+        { parts: [{ model: 'V1600 泵壳螺丝', category: '螺丝', price: 2 }] },
+        'V1600 泵壳价格是多少',
+        options
+    ), false);
+    assert.equal(recoveryEvidenceSupportsUserGoal(
+        'search_parts',
+        { parts: [{ model: 'V1600-3寸', category: '泵壳', price: 105 }] },
+        'V1600 泵壳价格是多少',
+        options
+    ), true);
 });
 
 test('V2 能力目录：查询轮不暴露写能力，计划能力优先', () => {

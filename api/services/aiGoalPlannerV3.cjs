@@ -1,13 +1,13 @@
 const {
     DOMAIN_CAPABILITY_NAMES,
     getAiCapability,
-    listAiCapabilities,
 } = require('../capabilities/registry.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
 const {
     DEFAULT_MAX_PLANNER_CAPABILITIES,
     buildDomainDirectoryPrompt,
     buildPlannerDirectoryPrompt,
+    orderedPlannerCapabilities,
     plannedCapabilityNames,
 } = require('./aiCapabilityCatalogV2.cjs');
 const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
@@ -113,12 +113,99 @@ function domainPlannerTool() {
     };
 }
 
+function collapseOverlappingCostSteps(intent) {
+    const names = plannedCapabilityNames(intent);
+    if (!names.includes('build_recipe_bom_draft')) return intent;
+    const coveredByConfiguredBom = new Set([
+        'full_calculate',
+        'preview_recipe_cost',
+        'preview_pump_shell_cost',
+        'dynamic_config_cost',
+        'calculate_coil_cost',
+    ]);
+    const steps = intent.steps.filter(step => !coveredByConfiguredBom.has(step.capabilityName));
+    if (steps.length === intent.steps.length) return intent;
+    return Object.freeze({
+        ...intent,
+        steps: Object.freeze(steps),
+    });
+}
+
+function enforceCatalogPartPriceAuthority(intent, userText) {
+    const text = String(userText || '').replace(/\s+/g, '');
+    const explicitlyAsksCatalog = /零件|配件|物料|目录/.test(text);
+    const asksCatalogUnitPrice = /(?:零件|配件|物料|目录|目前|当前)?.{0,12}(?:单价|目录价|零件价格|价钱|多少钱)/.test(text)
+        || (explicitlyAsksCatalog && /价格|价钱|多少钱/.test(text));
+    const asksConfiguredShellCost = /(?:机筒|筒长|加长).{0,12}\d|\d.{0,8}(?:mm|毫米).{0,8}(?:机筒|筒长|加长)|(?:完整|配置|成品).{0,8}成本/.test(text);
+    if (!asksCatalogUnitPrice || asksConfiguredShellCost) return intent;
+    const capability = getAiCapability('search_parts');
+    if (!capability?.entityScopes.includes(intent.entityScope)) return intent;
+    const directCatalogQuestion = explicitlyAsksCatalog && !/(配方|模板)/.test(text);
+    const displacedCapabilities = directCatalogQuestion
+        ? new Set([
+            'preview_pump_shell_cost',
+            'get_all_recipes',
+            'get_recipe_detail',
+            'get_recipe_technical_files',
+            'search_templates',
+            'get_template_detail',
+        ])
+        : new Set(['preview_pump_shell_cost']);
+    const steps = intent.steps.filter(step => !displacedCapabilities.has(step.capabilityName));
+    if (!steps.some(step => step.capabilityName === 'search_parts')) {
+        steps.push(Object.freeze({
+            capabilityName: 'search_parts',
+            objective: '读取零件目录当前单价和来源',
+        }));
+    }
+    return Object.freeze({
+        ...intent,
+        mode: intent.mode === 'conversation' ? 'query' : intent.mode,
+        needsBusinessData: true,
+        requiresClarification: false,
+        ambiguities: Object.freeze([]),
+        domains: Object.freeze([...new Set([...intent.domains, 'catalog'])].slice(0, 4)),
+        steps: Object.freeze(steps),
+    });
+}
+
+function enforceBusinessChangeAuthority(intent, userText) {
+    const text = String(userText || '').replace(/\s+/g, '');
+    const asksChangeHistory = /修改过|改了什么|变更记录|发生过.{0,8}(?:修改|变更|调整)/.test(text);
+    const asksCurrentSnapshot = /(?:目前|当前|现在).{0,8}(?:状态|价格|库存|详情)/.test(text);
+    if (!asksChangeHistory || asksCurrentSnapshot || intent.requiresClarification) return intent;
+    const capability = getAiCapability('search_business_changes');
+    if (!capability?.entityScopes.includes(intent.entityScope)) return intent;
+    const displacedCapabilities = new Set([
+        'get_all_recipes',
+        'get_recent_orders',
+        'search_quotations',
+        'search_customers',
+        'search_templates',
+        'search_parts',
+        'search_coils',
+        'get_management_action_center',
+    ]);
+    const steps = intent.steps.filter(step => !displacedCapabilities.has(step.capabilityName));
+    if (!steps.some(step => step.capabilityName === 'search_business_changes')) {
+        steps.push(Object.freeze({
+            capabilityName: 'search_business_changes',
+            objective: '读取通用业务变更中心的正式变更记录',
+        }));
+    }
+    return Object.freeze({
+        ...intent,
+        mode: intent.mode === 'conversation' ? 'query' : intent.mode,
+        needsBusinessData: true,
+        domains: Object.freeze([...new Set([...intent.domains, 'business_history'])].slice(0, 4)),
+        steps: Object.freeze(steps),
+    });
+}
+
 function plannerTool(options = {}) {
-    const selectedDomains = new Set(options.domains || []);
-    const capabilityNames = listAiCapabilities()
-        .filter(capability => capability.domains.some(domain => selectedDomains.has(domain)))
+    const capabilityNames = orderedPlannerCapabilities(options)
         .slice(0, DEFAULT_MAX_PLANNER_CAPABILITIES)
-        .map(capability => capability.toolName);
+        .map(capability => capability.name);
     return {
         type: 'function',
         function: {
@@ -191,7 +278,7 @@ ${JSON.stringify({
 7. 不要为了“了解情况”先读取全量再二次筛选；优先选择能直接表达用户条件的能力。
 8. requiresClarification 只在缺少会改变执行目标的关键信息，或已经通过正式候选查询确认存在多个无法安全选择的对象时为 true；此时 ambiguities 必须写清需要用户确认的内容，并且 steps 必须为空。名称、型号、简称或疑似错别字本身不是提前澄清的理由，先交给执行层做只读候选发现。
 9. answerShape=count_with_brief 表示先给数量，再给每个命中对象的最短简报；不要扩展成流水账。
-10. steps 是当前目标所需事实和起始调查能力，不是不可调整的脚本，最多 5 步。正式 Query 成功但返回 0 条时，执行层可以在同一业务域内做有限次只读候选发现、缩短查询和别名重试；系统错误、写操作和跨目标扩展不得这样恢复。
+10. steps 是当前目标所需事实和起始调查能力，不是不可调整的脚本，最多 5 步。query/analysis 的业务域只用于把更可能的只读能力排在前面，不是读取权限边界；若名称可能同时代表零件、模板、配方或线圈等不同正式对象，应选择最直接的起始 Query，执行层可在正式零结果或已验证资源未找到后做有限次跨域只读调查。系统错误、写操作和跨目标扩展不得这样恢复。command 的业务域仍是硬信封。
 11. 先按能力的权威职责选择：已有正式记录的列表、数量、状态和实时库存用领域 Query；指定组合的计算、插值、草稿和差异分析用 Preview；用途、适用工况、兼容性、原因、工厂约定、明确确认关系、业务规则和独立资料必须用 Knowledge，即使同一个问题还询问“系统中有哪些”当前记录，也不能只安排领域 Query。不得用 Preview 代替 List，也不得用知识快照代替现有正式记录。
 12. 能力名称相近时比较 description 中的权威职责、适用目标和明确排除项；选择能直接回答目标且能区分关键零结果语义的最小能力，不并列安排职责重复的工具。
 13. 用户一个问题包含多个子目标时，逐项判断事实权威来源并为每种不同职责安排必要步骤。例如“当前有哪些正式记录”使用领域 Query，“用途、经验、规则依据、明确确认关系”使用 Knowledge；不能指望执行阶段临时扩搜计划外能力。
@@ -214,7 +301,12 @@ ${resolutionContextPrompt(resolutionContext)}
 ${aiTurnStatePrompt(turnState)}
 
 可用能力目录：
-${buildPlannerDirectoryPrompt({ domains, maxCapabilities: DEFAULT_MAX_PLANNER_CAPABILITIES })}`;
+${buildPlannerDirectoryPrompt({
+        domains,
+        mode: domainPlan.mode,
+        entityScope: domainPlan.entityScope,
+        maxCapabilities: DEFAULT_MAX_PLANNER_CAPABILITIES,
+    })}`;
 }
 
 function parsePlanArguments(message, toolName = 'submit_ai_intent_plan') {
@@ -420,12 +512,17 @@ async function planAiGoalV3(messages, options = {}) {
             domains: Object.freeze([...domainPlan.domains, 'knowledge'].slice(0, 4)),
         });
     }
+    domainPlan = enforceCatalogPartPriceAuthority(domainPlan, userText);
     if (typeof options.onPlanningPhase === 'function') {
         options.onPlanningPhase({ phase: 'domain', durationMs: Date.now() - domainStartedAt });
     }
     if (domainPlan.requiresClarification || domainPlan.mode === 'conversation') return domainPlan;
 
-    const tool = plannerTool({ domains: domainPlan.domains });
+    const tool = plannerTool({
+        domains: domainPlan.domains,
+        mode: domainPlan.mode,
+        entityScope: domainPlan.entityScope,
+    });
     if (tool.function.parameters.properties.steps.items.properties.capabilityName.enum.length === 0) {
         throw new AiIntentPlanError('目标业务域没有可用能力', 'AI_INTENT_CAPABILITY_DIRECTORY_EMPTY');
     }
@@ -452,14 +549,23 @@ async function planAiGoalV3(messages, options = {}) {
                 steps: rawStepsPlan.steps,
             }, {
                 pageContext: options.pageContext,
-                allowedDomains: domainPlan.domains,
+                allowedDomains: domainPlan.mode === 'command' ? domainPlan.domains : [],
                 allowedCapabilityNames:
                     tool.function.parameters.properties.steps.items.properties.capabilityName.enum,
             });
             if (typeof options.onPlanningPhase === 'function') {
                 options.onPlanningPhase({ phase: 'capability', durationMs: Date.now() - capabilityStartedAt });
             }
-            return enforceExplicitReadRequirements(normalized, userText);
+            return enforceExplicitReadRequirements(
+                enforceBusinessChangeAuthority(
+                    enforceCatalogPartPriceAuthority(
+                        collapseOverlappingCostSteps(normalized),
+                        userText
+                    ),
+                    userText
+                ),
+                userText
+            );
         } catch (error) {
             if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
             lastError = error;
@@ -485,6 +591,9 @@ module.exports = {
     INTENT_MODES,
     domainPlannerPrompt,
     domainPlannerTool,
+    collapseOverlappingCostSteps,
+    enforceBusinessChangeAuthority,
+    enforceCatalogPartPriceAuthority,
     enforceExplicitReadRequirements,
     explicitKnowledgeSearchRequested,
     normalizeDomainPlan,

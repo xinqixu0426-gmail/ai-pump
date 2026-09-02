@@ -238,9 +238,10 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 配方当前配件价 | `GET /api/recipes/:id/cost` | 只重算 `partsJson` 的当前配件参考价；不是保存成本，也不保证包含完整人工/管理费 |
 | 配方当日完整成本 | `GET /api/recipes/current-costs` | 批量按配方参数和当前模板重建完整 BOM，再按当前零件、动态配置和线圈价格重算，叠加人工、表面处理和管理费；用于配方列表展示当日成本及其与保存成本的差额。任一 BOM 项缺价时不返回正式总成本，页面必须显示“成本不完整”和缺价型号，不能把缺失项按 ¥0 混入金额；单条历史配方线圈选择未明确时只标记该条待处理，不阻断整批列表 |
 | 报价/订单配置试算 | `POST /api/recipes/:id/cost-preview` | 以配方快照为基线，重算客户覆盖的浮球、电缆、包装、线圈、机筒、表面处理和不锈钢接轴等动态项；返回最终配置快照、BOM、成本及库存方案 warning |
-| AI/N8N 组合估算 | `POST /api/cost/full-estimate` | 以 `recipeId/recipeName` 唯一绑定正式配方，再分别叠加配方配件、线圈和动态配置；配方未命中或歧义时整体失败 |
+| AI/N8N 已有配方兼容估算 | `POST /api/cost/full-estimate` | 以 `recipeId/recipeName` 唯一绑定正式配方，把临时线圈、浮球、电缆和包装按 BOM 角色替换后交给同一成本预览，只计价一次；配方未命中或歧义时整体失败 |
+| AI 模板临时配置估算 | `POST /api/recipes/bom-draft` | 绑定完整泵壳模板和正式配置零件，生成标准 BOM，并由 `costEngine` 在 `costPreview` 返回完整总成本；不写库 |
 
-`full-estimate` 的基础配方若已经包含相同线圈或动态项，不应再次传入，否则会重复计价。历史字段 ~~`pumphousing_model`~~ 仅兼容按配方名解析，不再描述为泵壳型号；泵壳模板试算统一使用 `preview_pump_shell_cost`。配方不存在、名称多匹配或错误传入模板名时接口整体返回失败，禁止把配方分项按 0 元继续形成总成本。成本 HTTP 路由的正式数据读取和组合编排统一在只读 `costQueries`，配件、人工和包装公式仍唯一委托 `api/services/costEngine.cjs`，线圈与动态项分别委托现有领域 service；前端和 AI 不新增独立成本计算口径。`compare_recipes` 与 `explain_cost_change` 统一复用当日完整配方成本，包含安装/打包工资、表面处理和管理费；任一 BOM 未定价时明确失败，不输出不完整对比。
+`full-estimate` 是已有配方兼容入口，传入临时动态配置时会替换配方中相同的受管角色，不要求调用方先删除原项，也不会重复计价。历史字段 ~~`pumphousing_model`~~ 仅兼容按配方名解析，不再描述为泵壳型号；完整泵壳模板 + 临时配置使用 `build_recipe_bom_draft`，只问泵壳本体且指定机筒长度时使用 `preview_pump_shell_cost`。配方不存在、名称多匹配或错误传入模板名时接口整体返回失败，禁止把配方分项按 0 元继续形成总成本。成本 HTTP 路由的正式数据读取和组合编排统一在只读 `costQueries`，配件、人工和包装公式仍唯一委托 `api/services/costEngine.cjs`；前端和 AI 不新增独立成本计算口径。`compare_recipes` 与 `explain_cost_change` 统一复用当日完整配方成本，包含安装/打包工资、表面处理和管理费；任一 BOM 未定价时明确失败，不输出不完整对比。
 
 ## 4. API 与鉴权
 
@@ -355,14 +356,14 @@ POST /api/rotor/save
 
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 目标规则是：写操作还必须位于写能力白名单并通过确认流程，查询工具不能借机写库。2026-08-02 审核确认转子生成/打印存在写能力漏标，且部分订单/报价 GET 有写副作用；修复前不能把现有 `WRITE_TOOLS` 或 HTTP Method 单独当作完整安全边界。
-- AI Agent Runtime V3 使用两阶段强制结构化规划：第一阶段只看精简业务域目录并提交当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、对象范围和歧义；第二阶段只看信封内最多 24 项相关能力并提交最多 5 个起始事实步骤，运行时再收敛为最多 18 个实际工具。多领域能力不能扩大第一阶段信封。正式 Query 成功但返回零条时，运行时会把零结果作为调查观察，在最多 3 轮恢复预算内开放同域只读 discovery/query，让模型主动缩短名称、查正式目录或使用正式候选重试。系统错误、写能力和跨域能力不会进入恢复调查。非 `command` 轮不开放写工具，纯闲聊不发送业务工具。DeepSeek V4 Flash 调用显式关闭 Thinking 模式；provider 仍保留不支持 `tool_choice` 时的协议级自动降级。新增能力完成注册表、唯一 JSON schema、能力图目标语义和 executor/API 映射后即可接入，无需增加句式补丁。
+- AI Agent Runtime V3 使用两阶段强制结构化规划：第一阶段只看精简业务域目录并提交当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、对象范围和歧义；第二阶段提交最多 5 个起始事实步骤。对 `query/analysis`，业务域只决定 48 项已登记只读 Query/Preview 的目录排序，不再裁掉其他领域的读取能力；对 `command`，业务域仍是硬信封。正常轮只开放当前计划工具，正式零结果或已验证资源未找到后，最多 3 个恢复轮可开放对象范围兼容的跨域只读 discovery/query，例如模板未找到后继续核对零件、配方或线圈目录。系统、网络、协议错误不会进入恢复，任何只读轮都不开放 write。模型提供的机筒长度、线圈片数等关键业务数值还必须能追溯到用户明确输入或本轮正式结果。纯闲聊不发送业务工具。DeepSeek V4 Flash 调用显式关闭 Thinking 模式；provider 仍保留不支持 `tool_choice` 时的协议级自动降级。新增能力完成注册表、唯一 JSON schema、能力图目标语义和 executor/API 映射后即可接入，无需增加句式补丁。
 - AI 系统上下文按“不可编辑核心规则 + 当前领域规则 + 可编辑工厂配置 + 相关纠错规则”组装。AI 工作台的“工厂配置”只维护术语、偏好和操作习惯，不能覆盖标准 API、来源真实性和写操作确认；旧整份提示词会先备份再迁移。纠正规则按当前问题筛选，避免无关历史习惯占用上下文或互相干扰。
 - AI Agent Runtime V3 将普通工具结果作为模型继续调查和提取结论的证据；证据以“不可信业务数据”角色进入最终合成，字段中的提示词或命令不会取得系统权限。`aiEntityResolverV3` 对客户、订单、配方、零件、线圈方案和泵壳模板复用同一套原词/前缀探针、候选评分和绑定协议：只读唯一高置信候选可透明绑定并告知规范名称，多候选结构化追问，写能力仅接受精确目标或人工确认。每个绑定都生成不含原始业务对象的 `resolutionReceipt`。Web 会持久化服务端生成的限长 `turnState`，紧邻追问可复用正式实体引用；新目标不会继承旧实体或写意图。V2 文件只保留兼容导出。
 - V3 最终提取按 `answerShape` 只返回当前问题的结果：内部 ID/sourceId/数据库序号默认不展示，列表不由模型自行计算分组数量，也不附加未询问的库存风险、相似项判断和后续建议。
-- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；两阶段能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema 和 `aiExecutionEvidence`：Query/Preview 必须有本轮正式 API 成功证据；零结果可进入有限只读调查，预算结束仍为零才回答未找到；HTTP/超时/协议失败立即停止结论。写工具必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。系统提示、历史、工具 schema、附件、图片预留和正式证据在每次 provider 请求中共享一个总输入预算；超限明确停止，不删除正式字段。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
+- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；两阶段能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema、关键参数 grounding 和 `aiExecutionEvidence`：Query/Preview 必须有本轮正式 API 证据；零结果及已验证的资源未找到可进入有限跨域只读调查，预算结束仍未找到才如实回答；HTTP/超时/协议失败立即停止结论。写工具在 query/recovery 中不可见，并必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。系统提示、历史、工具 schema、附件、图片预留和正式证据在每次 provider 请求中共享一个总输入预算；超限明确停止，不删除正式字段。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
 - 新建报价的询价助手使用报价域专用只读接口，直接读取统一文件库原始附件并强制调用已配置的 Kimi 开放平台：图片传原图，文档使用 Kimi 文件抽取；不再经过通用 AI 对话规划、本地 OCR 或 DeepSeek 静默降级。Kimi 失败时页面明确提示，人工核对后的摘要仍通过报价保存预览绑定，不影响成本和价格。
 - 能力注册表同时声明每项 AI capability 允许的 `entityScopes`。具名订单等 `single` 查询只开放单对象能力，不允许调用全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总；跨订单汇总必须使用 `collection/global`，防止无关订单信息混入回答。
-- 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。
+- 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。泵壳模板 + 线圈/浮球/电缆/包装的临时成品成本统一使用 `build_recipe_bom_draft`：服务端先绑定完整模板和正式配置零件，再形成 BOM 并调用 `costEngine` 返回总成本。已有配方的临时变化使用 `preview_recipe_cost`；兼容 `full_calculate` 也走同一角色覆盖口径，不重复计算原配方已有动态项。
 - AI 的零件、线圈、订单、采购、配方等事实查询统一由模型理解口语并选择正式 capability，再由 `aiToolInputValidatorV2` 直接按工具唯一 schema 校验类型化参数。线圈查询支持 `spec/sheets/material/slotType/schemeCode/schemeStatus/isDefault/ratedVoltageV/ratedFrequencyHz/market/schemeFamilyCode`；成本试算可用 `coilId/schemeCode/schemeFamilyCode`，库存调整在同组合仍有多套正式方案时必须明确方案编码。零结果与 API 失败明确区分，低库存正式口径仍为库存 1–5。
 - AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
 - AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
@@ -380,7 +381,7 @@ POST /api/rotor/save
 - AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
 - 已保存的 AI 回复支持标记“准确”或报告“内容错误、来源过期、资料不足”。反馈会保存当时的问答和知识来源快照，问题进入管理看板“知识库”的待处理队列。报告内容错误时可填写可复用的正确做法并选择“让 AI 长期记住”，系统会创建带全局/领域/对象范围、类型、优先级和有效期的纠正规则候选；候选必须人工批准且通过冲突判定后，才在后续相关问题中通过纠正规则运行时加载，不进入通用知识索引。原问题仅作为适用示例和来源追溯，规则不依赖原对话继续存在。来源过期、资料不足和未明确勾选的反馈不会创建规则。规则只约束 AI，不会改写订单、库存、配方、成本等业务数据。
 - 待处理反馈支持只读诊断和重新验证。诊断会检查原回答引用的知识是否待同步，无引用时搜索可能遗漏的知识，并区分“知识待同步、缺少引用、知识缺口、需业务复核”；重新验证会使用原问题重新查询当前数据，保存新回答和新来源供并排对比，最终仍由人工确认归档。
-- 知识库管理中心提供一键回归检查。系统内置项目关键问题，依次重新调用标准 AI 工具链，再用确定性规则核对当前数据库值、调用工具、来源、必需词和禁用词；结果简化为“通过、需要修复、需要确认/重试”，详细回答和失败原因默认折叠。正式查询确认目标不存在或不唯一并安全要求用户确认时不再误报；连接中断显示为需要重试。异常结果必须修复业务事实、工具调用或检查规则后重新验证，8 条核心门禁不能通过页面停用绕过，历史结果继续保留审计。AI 不负责给自己打分。
+- 知识库管理中心提供一键回归检查。系统内置项目关键问题，依次重新调用标准 AI 工具链，再用确定性规则核对当前数据库值、调用工具、来源、必需词和禁用词；结果简化为“通过、需要修复、需要确认/重试”，详细回答和失败原因默认折叠。正式查询确认目标不存在或不唯一并安全要求用户确认时不再误报；连接中断显示为需要重试。异常结果必须修复业务事实、工具调用或检查规则后重新验证，9 条核心门禁不能通过页面停用绕过，历史结果继续保留审计。AI 不负责给自己打分。
 - Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
 - 订单采购中的成品电缆按“根”汇总，一根由指定长度的线材和对应插头/规格组成；例如 30 台水泵使用 8m 新界式电缆时，采购计划显示 `30 根`，底层线材库存入库时再折算为 `240m`，不得把米数显示成成品电缆数量。
 - iPhone PWA 与桌面统一使用 `/ai`；手机端隐藏全局业务导航，使用全屏对话、会话历史抽屉和安全区输入框。
@@ -404,7 +405,7 @@ POST /api/rotor/save
 
 - `apps/web-next/` 是唯一 Web 前端，使用 Next.js、Tailwind 和本地组件；`:3000` 为主入口、`:3001` 为并行预览，`/api/*` 转发到 Express `:3002`。
 - 数据质量位于 `/dashboard?view=quality`，读取 `/api/quality/summary` 和 `/api/quality/business-alerts`；旧 `/quality` 只做兼容跳转。
-- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 108 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“业务域信封 → 信封内能力步骤 → schema 校验 → 正式 Query API → 完整 camelCase 资源 → 查询回执”；executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
+- AI executor 已通过内部 API client 调用标准 API，不直接访问数据库 helper。77 个 AI 工具、29 个 AI 写工具和 108 个正式业务 query/command/maintenance 由 `api/capabilities/registry.cjs` 统一治理。只读资源查询统一经过“业务域排序提示 → 起始只读能力 → schema 与关键参数来源校验 → 正式 Query API → 零结果后有限跨域只读调查 → 完整 camelCase 资源 → 查询回执”；command 才使用硬业务域信封。executor 不再用业务字段白名单换取回答简洁，只清除旧重复别名。列表数量仍由正式筛选和用户显式 `limit` 控制，模板与报价可按需读取完整详情；最终回答再按用户问题精简。批量零件录入使用 `/api/parts/batch-create-preview` → `/api/parts/batch-create`，最多 100 项、一次确认、整批事务和持久化幂等；同型号不同供应商可分别建档，同型号同供应商的现有记录在预览中跳过。
 - 通用 MCP 从同一 capability registry 和 `AI_TOOLS` schema 生成 48 项只读白名单及 18 项可授权写工具，通过统一 executor、internal API client 与执行证据门读取或变更正式事实。`print_rotor_drawing` 仍可由受保护的正式业务入口调用，但不进入 MCP 工具目录，避免远程 Agent 触发物理打印。Bearer service token 只用于 `/mcp`，不能调用普通 `/api/*`；写能力需独立开关、身份 allowlist、逐工具 allowlist、正式 Preview、HMAC 绑定的多轮状态和 MCP form elicitation 人工确认。`delete_recipe` 与 `delete_part` 都必须先取得正式软删除 Preview 并绑定目标版本，不能因已有 DELETE Command 绕过准入。目录与执行层都拒绝未授权工具。官方 SDK v2 使用一个 server factory 同时处理 2026-07-28 与 2025 版协议；旧客户端不支持交互确认时只读能力不受影响，写操作安全拒绝。
 - 正式成本只由 `costEngine` 及其标准 API 提供；库存、报价、订单状态和市场数据必须读取正式业务 API，知识库不能替代实时事实。
 - Query 不得产生隐式业务写入。Command 根据风险使用 Preview、`confirmationToken`、`Idempotency-Key`、资源版本、SQLite 事务、operation receipt 和强审计。
@@ -421,7 +422,7 @@ POST /api/rotor/save
 - 待复核任务按配方聚合并逐条处理；每次保存后展示规则学习刷新结果，暂时跳过只改变页面处理顺序，不改变反馈状态。
 - FTS/BM25 与本地向量使用 RRF 混合检索，精确型号、规格、客户名和合同号优先；向量异常时回退 FTS/LIKE。向量同步状态与 `knowledge_vector_sync_runs` 可追溯，固定检索评测由 `/api/knowledge/retrieval-evaluation` 和 `npm run test:knowledge-retrieval` 执行；少于 70% 用例或缺少任一配置检索类别时标记为“评测不完整”，不会用少量通过项掩盖资料缺失。
 - 独立工厂资料、业务附件和原始文件保留来源追溯。语义命中只表示候选相关，不能证明用途、兼容性、库存、价格、成本或订单事实。
-- AI 回答反馈可以形成结构化纠正规则与回归候选；规则具有作用范围、业务域、类型、规则主题、优先级、生效期、版本和冲突治理，所有新候选必须人工批准后才进入 AI 上下文。纠错规则不进入通用 RAG，防止过期、范围外或冲突规则绕过治理。反馈保存问题、回答和来源快照，删除原会话只隐藏聊天历史，不会删除已经形成的反馈、规则和回归证据。知识库页面可运行并查看 8 条不可绕过的核心系统检查，额外批准的纠错案例继续叠加进入生产发布门禁，具体见 [AI 学习发布门禁](./ai-learning-release-gate-guide.md)。
+- AI 回答反馈可以形成结构化纠正规则与回归候选；规则具有作用范围、业务域、类型、规则主题、优先级、生效期、版本和冲突治理，所有新候选必须人工批准后才进入 AI 上下文。纠错规则不进入通用 RAG，防止过期、范围外或冲突规则绕过治理。反馈保存问题、回答和来源快照，删除原会话只隐藏聊天历史，不会删除已经形成的反馈、规则和回归证据。知识库页面可运行并查看 9 条不可绕过的核心系统检查，额外批准的纠错案例继续叠加进入生产发布门禁，具体见 [AI 学习发布门禁](./ai-learning-release-gate-guide.md)。
 
 ### 8.3 AI、文件与订单追溯
 

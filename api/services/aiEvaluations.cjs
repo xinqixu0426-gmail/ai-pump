@@ -160,8 +160,13 @@ function containsForbiddenAssertion(answer, termValue) {
 }
 
 function numberPattern(value) {
-    const escaped = String(Number(value)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp(`(^|[^\\d.])${escaped}(?:\\.0+)?([^\\d.]|$)`);
+    const normalized = String(Number(value));
+    const [integerPart, decimalPart] = normalized.split('.');
+    const escapedInteger = integerPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const numberBody = decimalPart === undefined
+        ? `${escapedInteger}(?:\\.0+)?`
+        : `${escapedInteger}\\.${decimalPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}0*`;
+    return new RegExp(`(^|[^\\d.])${numberBody}([^\\d.]|$)`);
 }
 
 function containsUnavailableConclusion(answer, configuredTerms = []) {
@@ -622,6 +627,100 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
                 .filter(id => new RegExp(`#\\s*${id}(?!\\d)`).test(answer));
             addCheck(checks, 'fact:no_internal_ids', '不把数据库 ID 当作报价顺序', exposedIds.length === 0, exposedIds.length ? `发现内部编号：${exposedIds.map(id => `#${id}`).join('、')}` : '未暴露内部报价编号');
         }
+    }
+
+    if (config.fact?.type === 'configured_bom_cost') {
+        const expectedTemplate = String(config.fact.templateModel || '').trim();
+        const expectedCoil = String(config.fact.coilModel || '').trim();
+        const expectedPackingModels = Array.isArray(config.fact.packingModels)
+            ? config.fact.packingModels.map(value => String(value || '').trim()).filter(Boolean)
+            : [];
+        const observed = toolResults.find(tool => (
+            tool?.name === 'build_recipe_bom_draft'
+            && tool?.result?.executionEvidence?.verified === true
+            && tool?.result?.data?.costPreview
+            && Array.isArray(tool?.result?.data?.parts)
+        ));
+        const data = observed?.result?.data || {};
+        const preview = data.costPreview || {};
+        const parts = Array.isArray(data.parts) ? data.parts : [];
+        const modelMatches = expected => parts.filter(part => (
+            normalizeTargetText(part?.model) === normalizeTargetText(expected)
+        ));
+        const roleMatches = role => parts.filter(part => part?.costRole === role);
+        const templateParts = modelMatches(expectedTemplate);
+        const coilParts = modelMatches(expectedCoil).filter(part => part?.costRole === 'coil');
+        const floatParts = roleMatches('float');
+        const packingChecks = expectedPackingModels.map(model => ({
+            model,
+            matches: modelMatches(model).filter(part => part?.costRole === 'packing'),
+        }));
+        const total = Number(preview.currentTotalCost);
+        const verified = Boolean(observed);
+        addCheck(
+            checks,
+            'fact:configured_bom_evidence',
+            '使用正式模板配置 BOM 成本结果',
+            verified,
+            verified ? '取得已验证的 build_recipe_bom_draft 结果' : '没有取得已验证的模板配置 BOM 结果'
+        );
+        addCheck(
+            checks,
+            'fact:configured_bom_pricing',
+            '完整 BOM 已全部定价',
+            verified
+                && preview.sourceOfTruth === 'costEngine'
+                && preview.costBasis === 'configuredBomDraft'
+                && preview.pricingComplete === true
+                && Number.isFinite(total)
+                && total > 0,
+            preview.sourceOfTruth === 'costEngine'
+                && preview.costBasis === 'configuredBomDraft'
+                && preview.pricingComplete === true
+                && Number.isFinite(total)
+                && total > 0
+                ? `正式成本合计 ${total}`
+                : '结果不是 costEngine 的配置 BOM 成本，或 BOM 未完整定价'
+        );
+        addCheck(
+            checks,
+            'fact:configured_bom_template',
+            `完整保留模板 ${expectedTemplate}`,
+            templateParts.length === 1,
+            `正式 BOM 中匹配 ${templateParts.length} 条`
+        );
+        addCheck(
+            checks,
+            'fact:configured_bom_coil',
+            `线圈 ${expectedCoil} 只计一次`,
+            coilParts.length === 1,
+            `正式 BOM 中匹配 ${coilParts.length} 条`
+        );
+        addCheck(
+            checks,
+            'fact:configured_bom_float',
+            '浮球只计一次',
+            floatParts.length === 1,
+            `正式 BOM 中匹配 ${floatParts.length} 条`
+        );
+        for (const item of packingChecks) {
+            addCheck(
+                checks,
+                `fact:configured_bom_packing:${item.model}`,
+                `包装 ${item.model} 只计一次`,
+                item.matches.length === 1,
+                `正式 BOM 中匹配 ${item.matches.length} 条`
+            );
+        }
+        addCheck(
+            checks,
+            'fact:configured_bom_answer_total',
+            '回答总成本与正式成本结果一致',
+            Number.isFinite(total) && numberPattern(total).test(answer),
+            Number.isFinite(total)
+                ? `回答必须包含正式总成本 ${total}`
+                : '没有可核对的正式总成本'
+        );
     }
 
     const checksPassed = checks.length > 0 && checks.every(check => check.passed);

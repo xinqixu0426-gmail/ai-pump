@@ -105,9 +105,19 @@ function createFixture() {
             (40, 30, 'QDX10-A', '常用配置', '12', 160, '冷轧', '国标眼',
              150, 5, '叶轮A', 2, 100, 6, NULL);
     `);
-    const listedRecipes = [{ id: 1, name: 'QDX10' }];
+    const listedRecipe = { id: 1, name: 'QDX10' };
+    Object.defineProperties(listedRecipe, {
+        templateId: { value: 30 },
+        packingPartsJson: { value: '[{"model":"v550木箱"}]' },
+    });
+    const listedRecipes = [listedRecipe];
     const listedRecipesWithTechnicalCount = [{ id: 1, name: 'QDX10', technicalFileCount: 1 }];
-    const listedParts = [{ id: 10, model: '6201' }];
+    const listedParts = [
+        { id: 10, model: '6201' },
+        { id: 50, model: 'v550木箱', supplier: '甲', price: 13 },
+        { id: 51, model: 'v1600木箱', supplier: '乙', price: 19 },
+        { id: 52, model: '珍珠棉', supplier: '甲', price: 2 },
+    ];
     const listedCoils = [{ id: 20, spec: '12' }];
     const bomCalls = [];
     const queries = createRecipeQueries({
@@ -221,10 +231,19 @@ test('配方 Query 返回列表、详情及零件和正式线圈库存状态', (
 test('配方 Query 的 BOM 草稿复用正式引擎并带入变体、模板和泵壳元数据', () => {
     const fixture = createFixture();
     try {
-        assert.deepEqual(
-            fixture.queries.getBomDraft({ modelVariantId: 40 }),
-            { parts: [], contextLoaded: true }
-        );
+        const result = fixture.queries.getBomDraft({ modelVariantId: 40 });
+        assert.equal(result.contextLoaded, true);
+        assert.deepEqual(result.parts, []);
+        assert.deepEqual(result.costPreview, {
+            sourceOfTruth: 'costEngine',
+            costBasis: 'configuredBomDraft',
+            pricingComplete: true,
+            currentTotalCost: 9,
+            partsCost: 0,
+            laborCost: 9,
+            missingParts: [],
+            details: '安装工资: ¥4.00\n打包工资: ¥2.00\n表面处理(喷漆): ¥3.00\n管理费用: ¥0.00',
+        });
         assert.equal(fixture.bomCalls.length, 1);
         const call = fixture.bomCalls[0];
         assert.equal(call.context.variant.id, 40);
@@ -234,6 +253,83 @@ test('配方 Query 的 BOM 草稿复用正式引擎并带入变体、模板和�
         });
         assert.equal(call.context.partsCatalog, fixture.listedParts);
         assert.equal(call.context.coils, fixture.listedCoils);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方 Query 的配置零件用模板既有配置唯一落地，不能唯一时返回正式候选', () => {
+    const fixture = createFixture();
+    try {
+        fixture.queries.getBomDraft({
+            templateId: 30,
+            packingParts: [{ model: '木箱', qty: 1 }, { model: '珍珠棉', qty: 1 }],
+        });
+        const input = fixture.bomCalls[0].input;
+        assert.deepEqual(input.packingParts, [
+            {
+                model: 'v550木箱', qty: 1, partId: 50, supplier: '甲',
+                resolution: {
+                    source: 'template_recipe_consensus',
+                    query: '木箱',
+                    recipes: [{ recipeId: 1, recipeName: 'QDX10', model: 'v550木箱' }],
+                },
+            },
+            {
+                model: '珍珠棉', qty: 1, partId: 52, supplier: '甲',
+                resolution: { source: 'catalog_exact', query: '珍珠棉' },
+            },
+        ]);
+        assert.throws(
+            () => fixture.queries.getBomDraft({ packingParts: [{ model: '木箱' }] }),
+            error => (
+                error instanceof RecipeQueryError
+                && error.statusCode === 409
+                && error.code === 'CONFIGURED_PART_AMBIGUOUS'
+                && error.details.candidates.length === 2
+            )
+        );
+        fixture.listedRecipes.push({
+            id: 3,
+            name: 'QDX10-另一包装',
+            templateId: 30,
+            packingPartsJson: '[{"model":"v1600木箱"}]',
+        });
+        assert.throws(
+            () => fixture.queries.getBomDraft({
+                templateId: 30,
+                packingParts: [{ model: '木箱' }],
+            }),
+            error => (
+                error instanceof RecipeQueryError
+                && error.statusCode === 409
+                && error.code === 'CONFIGURED_PART_AMBIGUOUS'
+                && error.details.candidates.length === 2
+            )
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('配方 Query 的 BOM 草稿可正式解析 shellModel，并拒绝空配置和无效模板', () => {
+    const fixture = createFixture();
+    try {
+        const byName = fixture.queries.getBomDraft({ shellModel: 'SHELL-DY款-圆底脚' });
+        assert.equal(byName.contextLoaded, true);
+        assert.equal(fixture.bomCalls[0].context.template.id, 30);
+        assert.throws(
+            () => fixture.queries.getBomDraft({}),
+            error => error.code === 'RECIPE_BOM_CONFIGURATION_REQUIRED' && error.statusCode === 400
+        );
+        assert.throws(
+            () => fixture.queries.getBomDraft({ templateId: 999 }),
+            error => error.code === 'PUMP_SHELL_TEMPLATE_NOT_FOUND' && error.statusCode === 404
+        );
+        assert.throws(
+            () => fixture.queries.getBomDraft({ shellModel: '不存在' }),
+            error => error.code === 'PUMP_SHELL_TEMPLATE_NOT_FOUND' && error.statusCode === 404
+        );
     } finally {
         fixture.db.close();
     }

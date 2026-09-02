@@ -79,6 +79,77 @@ test('AI V3 实体解析：配方和泵壳模板错字由各自正式目录统�
     assert.deepEqual(template.args, { customBarrelLength: 180, templateId: 3 });
 });
 
+test('AI V3 实体解析：模板配置成本草稿绑定完整泵壳模板 ID', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'build_recipe_bom_draft',
+        args: {
+            shellModel: 'V750-大脚板-2寸',
+            coilSpec: '12',
+            coilSheets: 120,
+            hasFloat: true,
+            packingParts: [{ model: '木箱' }, { model: '珍珠棉' }],
+        },
+        executeToolCall: async () => verified([
+            { id: 1, shellModel: 'V750-大脚板-2寸', description: '不锈钢泵壳' },
+        ]),
+    });
+    assert.equal(result.status, 'exact');
+    assert.equal(result.args.templateId, 1);
+    assert.equal(Object.hasOwn(result.args, 'shellModel'), false);
+    assert.equal(result.args.coilSheets, 120);
+    assert.deepEqual(result.args.packingParts, [{ model: '木箱' }, { model: '珍珠棉' }]);
+});
+
+test('AI V3 实体解析：模型省略型号分隔符时仍绑定正式模板 ID', async () => {
+    const calls = [];
+    const result = await resolveAiToolTargetV3({
+        toolName: 'build_recipe_bom_draft',
+        args: {
+            shellModel: 'V750大脚板2寸',
+            coilSpec: '12',
+            coilSheets: 120,
+            hasFloat: true,
+        },
+        executeToolCall: async (_name, args) => {
+            calls.push(args.shellModel);
+            return verified(args.shellModel === 'V750'
+                ? [{ id: 1, shellModel: 'V750-大脚板-2寸', description: '不锈钢泵壳' }]
+                : []);
+        },
+    });
+    assert.equal(result.status, 'exact');
+    assert.equal(result.args.templateId, 1);
+    assert.equal(Object.hasOwn(result.args, 'shellModel'), false);
+    assert.deepEqual(calls, ['V750大脚板2寸', 'V750']);
+});
+
+test('AI V3 实体解析：full_calculate 兼容入口也使用统一配方候选澄清', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'full_calculate',
+        args: { recipeName: 'V750', stator: '12-120' },
+        executeToolCall: async () => verified([
+            { id: 2, name: 'v750-tokoy', spec: 'A' },
+            { id: 8, name: 'v750-tokoy-', spec: 'B' },
+        ]),
+    });
+    assert.equal(result.status, 'ambiguous');
+    assert.equal(result.result.code, 'AI_RESOURCE_AMBIGUOUS');
+    assert.equal(result.result.clarification.entityType, 'recipe');
+    assert.equal(result.result.clarification.candidates.length, 2);
+});
+
+test('AI V3 实体解析：full_calculate 旧 pumphousing_model 字段也统一绑定配方', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'full_calculate',
+        args: { pumphousing_model: 'V750-12-120', hasFloat: true },
+        executeToolCall: async () => verified([
+            { id: 9, name: 'V750-12-120', spec: '正式配方' },
+        ]),
+    });
+    assert.equal(result.status, 'exact');
+    assert.deepEqual(result.args, { recipeId: 9, hasFloat: true });
+});
+
 test('AI V3 实体评分：线圈规格与片数组合可作为统一候选身份', () => {
     assert.ok(candidateScore('12-140', '12-140') === 1);
     assert.ok(candidateScore('12-14O', '12-140') >= 0.6);

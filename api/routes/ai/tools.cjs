@@ -28,7 +28,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'full_calculate',
-            description: '一站式BOM综合计算（配方+线圈+浮球+电缆+包材）。当用户提到完整报价、总成本时使用',
+            description: '已有正式配方的兼容成本试算。只接受配方ID或可唯一匹配的完整配方名；配方内已有的线圈、浮球、电缆和包装会按角色替换而不是重复相加。用户给出泵壳模板和临时配置（线圈、浮球、木箱、珍珠棉等）时必须使用 build_recipe_bom_draft。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -41,7 +41,8 @@ const AI_TOOLS = [
                     boxType: { type: 'string', description: '包装类型' },
                     floatWire: { type: 'string', description: '浮球线径（可选）' },
                     cableWire: { type: 'string', description: '电缆线径（可选）' },
-                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '铜套规格：普通铜套 standard，新界式 xinjie' }
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '铜套规格：普通铜套 standard，新界式 xinjie' },
+                    packingPartsJson: { type: 'string', description: '包装零件 JSON 数组；覆盖配方原包装，不与原包装重复相加' }
                 },
                 anyOf: [
                     { type: 'object', properties: {}, required: ['recipeId'] },
@@ -692,11 +693,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'build_recipe_bom_draft',
-            description: '生成配方 BOM 草稿，不写库。适合用户给出泵壳模板/常用配置预设、线圈规格片数、机筒长度、浮球、电缆等参数时，先让系统按标准规则生成泵壳、长螺丝、线圈、电容、电缆等联动项目。',
+            description: '按正式泵壳模板和临时配置生成完整 BOM 并由正式成本引擎计算总成本，不写库。用户给出泵壳型号/模板、线圈规格片数、机筒长度、浮球、电缆、木箱、珍珠棉等并询问成本时优先使用；不得把泵壳模板缩写成配方名交给 full_calculate。包装和可选零件应原样传入用户说出的名称（例如“木箱”“珍珠棉”），服务端会按模板历史选择和正式零件目录解析；禁止自行翻译、缩写或生成 unknown_* 占位型号。',
             parameters: {
                 type: 'object',
                 properties: {
                     templateId: { type: 'number', description: '泵壳模板ID，可选' },
+                    shellModel: { type: 'string', description: '完整泵壳模板型号；系统会先解析为正式 templateId' },
                     modelVariantId: { type: 'number', description: '常用配置预设编号，可选；字段名为历史兼容标识' },
                     customBarrelLength: { type: 'number', description: '机筒长度 mm，可触发不锈钢泵壳整体价和长螺丝联动' },
                     longScrewExtraLength: { type: 'number', description: '长螺丝补偿长度 mm，可选' },
@@ -711,7 +713,38 @@ const AI_TOOLS = [
                     hasCable: { type: 'boolean', description: '是否带电缆' },
                     cableLength: { type: 'number', description: '电缆长度，米' },
                     cableWire: { type: 'string', description: '电缆线径，可选' },
-                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '电缆铜套规格' }
+                    cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'], description: '电缆铜套规格' },
+                    packingParts: {
+                        type: 'array',
+                        maxItems: 12,
+                        description: '包装项目。优先原样保留用户说出的名称；木箱、珍珠棉等可同时传入，由服务端解析正式型号。禁止生成 unknown_* 占位型号',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                partId: { type: 'integer', minimum: 1 },
+                                model: { type: 'string' },
+                                supplier: { type: 'string' },
+                                qty: { type: 'number', minimum: 0 },
+                                packingRole: { type: 'string', enum: ['container', 'pearlCotton', 'foam', 'fixed'] }
+                            },
+                            required: ['model']
+                        }
+                    },
+                    optionalParts: {
+                        type: 'array',
+                        maxItems: 20,
+                        description: '其他正式零件项目',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                partId: { type: 'integer', minimum: 1 },
+                                model: { type: 'string' },
+                                supplier: { type: 'string' },
+                                qty: { type: 'number', minimum: 0 }
+                            },
+                            required: ['model']
+                        }
+                    }
                 }
             }
         }
@@ -1548,4 +1581,4 @@ assertAiToolRegistryComplete(AI_TOOLS);
 const WRITE_TOOLS = new Set(writeCapabilityNames());
 
 
-module.exports = { AI_TOOLS, WRITE_TOOLS };
+module.exports = { AI_TOOLS, COST_OVERRIDE_SCHEMA, WRITE_TOOLS };

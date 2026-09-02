@@ -24,8 +24,6 @@ const {
     parseStatorInput,
     resolveWireFromCoils,
     resolveWire,
-    calculateFullEstimateCoilCost,
-    buildFullEstimateResult,
 } = require('./fullCostEstimate.cjs');
 const {
     buildCurrentRecipeCostFailure,
@@ -337,18 +335,6 @@ function createCostQueries({
             floatWire,
             cableWire,
         } = input;
-        const statorMaterial = (
-            input.statorMaterial
-            || input.material
-            || DEFAULT_COIL_MATERIAL
-        );
-        const statorSlotType = (
-            input.statorSlotType
-            || input.slotType
-            || '小眼'
-        );
-        const { partsCache, partsByModel } = loadPartsData();
-        const getPrice = createPartPriceGetter(partsByModel);
         const selectorName = String(recipeName || '').trim();
         const selectorId = Number(recipeId);
         if ((!Number.isInteger(selectorId) || selectorId <= 0) && !selectorName) {
@@ -391,65 +377,67 @@ function createCostQueries({
             );
         }
         const recipe = candidates[0];
-        const parts = parseRecipeParts(recipe.partsJson);
-        const recipeCost = {
-            recipeId: recipe.id ?? recipe.Id,
-            recipeName: recipe.name,
-            recipeSpec: recipe.spec,
-            ...calculateRecipeCost(
-                parts,
-                partsCache,
-                partsByModel
-            ),
-        };
+        const overrides = {};
+        if (stator) {
+            const { statorSpec, statorSheets } = parseStatorInput(stator);
+            overrides.coilSpec = statorSpec;
+            overrides.coilSheets = statorSheets;
+        }
+        if (input.statorMaterial || input.material) {
+            overrides.coilMaterial = input.statorMaterial || input.material;
+        }
+        if (input.statorSlotType || input.slotType) {
+            overrides.coilSlotType = input.statorSlotType || input.slotType;
+        }
+        if (Object.prototype.hasOwnProperty.call(input, 'hasFloat')) overrides.hasFloat = hasFloat;
+        if (floatWire) overrides.floatWire = floatWire;
+        if (input.floatAccessoryType) overrides.floatAccessoryType = floatAccessoryType;
+        if (Object.prototype.hasOwnProperty.call(input, 'cableLength')) {
+            overrides.hasCable = Number(cableLength) > 0;
+            overrides.cableLength = Number(cableLength || 0);
+        }
+        if (cableWire) overrides.cableWire = cableWire;
+        if (input.cableAccessoryType) overrides.cableAccessoryType = cableAccessoryType;
+        if (boxType) overrides.boxType = boxType;
+        if (input.packingPartsJson) overrides.packingPartsJson = input.packingPartsJson;
 
-        const { statorSpec, statorSheets } = parseStatorInput(stator);
-        const coils = listCoils();
-        const statorCost = calculateFullEstimateCoilCost(
-            coils,
-            statorSpec,
-            statorSheets,
-            statorMaterial,
-            statorSlotType
-        );
-        const dbWire = resolveWireFromCoils(
-            coils,
-            statorSpec,
-            statorSheets,
-            statorMaterial,
-            statorSlotType
-        );
-        const resolvedWire = resolveWire(
-            dbWire,
-            cableWire || floatWire
-        );
-        const dynamic = calculateDynamicConfigCost(
-            {
-                hasFloat,
-                floatWire,
-                floatAccessoryType,
-                cableLength,
-                cableWire,
-                cableAccessoryType,
-                boxType,
-                resolvedWire,
+        const preview = previewRecipeCost(recipe.id ?? recipe.Id, overrides);
+        const totalCost = Number(preview.data.unitCost || 0);
+        const coilPart = (preview.data.parts || []).find(part => part.costRole === 'coil');
+        return {
+            sourceOfTruth: 'costEngine',
+            costBasis: Object.keys(overrides).length > 0 ? 'overridePreview' : 'currentFullCost',
+            recipeCost: {
+                recipeId: recipe.id ?? recipe.Id,
+                recipeName: recipe.name,
+                recipeSpec: recipe.spec,
+                totalCost: totalCost.toFixed(2),
             },
-            {
-                partsCache,
-                partsByModel,
-                getPrice,
-                getSetting,
-            }
-        );
-        return buildFullEstimateResult({
-            recipeCost,
-            statorCost,
-            dynamicCost: {
-                totalCost: dynamic.totalCost.toFixed(2),
-                resolvedWire,
-                details: dynamic.details,
+            totalCost: totalCost.toFixed(2),
+            parts: preview.data.parts,
+            costSnapshot: preview.data.costSnapshot,
+            warnings: preview.data.warnings || [],
+            configurationSnapshot: preview.data.configurationSnapshot,
+            ...(coilPart ? {
+                statorCost: {
+                    cost: Number(coilPart.snapshotPrice || 0).toFixed(2),
+                    coilId: coilPart.coilId || null,
+                    inventoryType: coilPart.inventoryType || (coilPart.coilId ? 'coil' : 'none'),
+                    pricingMode: coilPart.pricingMode || 'calculated',
+                    kitPrice: Number(coilPart.kitPrice || 0),
+                    unitPrice: Number(coilPart.unitPrice || 0),
+                    wireWeight: Number(coilPart.wireWeight || 0),
+                    copperBase: Number(coilPart.copperBase || 0),
+                    formula: coilPart.formula || '',
+                    source: coilPart.coilCostSource || coilPart.source || '',
+                },
+            } : {}),
+            compatibility: {
+                deprecatedTool: 'full_calculate',
+                replacement: 'preview_recipe_cost',
+                managedRolesReplacedOnce: true,
             },
-        });
+        };
     }
 
     function getRecipeDifference(input = {}) {

@@ -44,13 +44,20 @@ const {
     buildAiPageContextNote,
     normalizeAiPageContext,
 } = require('./aiPageContext.cjs');
-const { validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
+const {
+    normalizeExplicitCoilShorthandArgs,
+    validateAiToolIdentifierGrounding,
+} = require('./aiToolIdentifierGrounding.cjs');
 const {
     getKnowledgeCompanionCall,
     normalizeKnowledgeCompanionToolCalls,
 } = require('./aiKnowledgeCompanionsV2.cjs');
 const { resolveAiToolTargetV3 } = require('./aiEntityResolverV3.cjs');
-const { capabilityGraphNode, discoveryCapabilitiesForIntent } = require('./aiCapabilityGraphV3.cjs');
+const {
+    capabilityGraphNode,
+    discoveryCapabilitiesForIntent,
+    recoveryEvidenceSupportsUserGoal,
+} = require('./aiCapabilityGraphV3.cjs');
 const {
     completedCapabilityNames,
     isVerifiedEmptyObservation,
@@ -132,16 +139,46 @@ function answerInstruction(intent) {
 
 function requiredEvidenceSatisfied(intent, toolResults, options = {}) {
     if (!intent.needsBusinessData) return true;
-    if (
-        !hasVerifiedToolEvidence(toolResults)
-        || toolResults.some(item => item?.result?.success === false)
-    ) return false;
+    if (!hasVerifiedToolEvidence(toolResults)) return false;
+    const failed = toolResults.filter(item => item?.result?.success === false);
+    if (failed.some(item => !isRecoverableReadMiss(item))) return false;
+    if (options.allowRecoveredReadEvidence || options.acceptVerifiedEmpty) {
+        const completed = completedCapabilityNames(toolResults, {
+            acceptVerifiedEmpty: options.acceptVerifiedEmpty,
+        });
+        const verifiedMisses = new Set(failed
+            .filter(isRecoverableReadMiss)
+            .map(item => item.name));
+        return plannedCapabilityNames(intent).every(name => (
+            completed.has(name) || verifiedMisses.has(name)
+        ));
+    }
+    if (failed.length > 0) return false;
     const called = options.agentVersion === 3
         ? completedCapabilityNames(toolResults, {
             acceptVerifiedEmpty: options.acceptVerifiedEmpty,
         })
         : new Set(toolResults.map(item => item.name));
     return plannedCapabilityNames(intent).every(name => called.has(name));
+}
+
+function isRecoverableReadMiss(item = {}) {
+    const capability = getAiCapability(item?.name);
+    if (capability?.access !== 'read') return false;
+    if (isVerifiedEmptyObservation(item?.result)) return true;
+    return Boolean(
+        item?.result?.success === false
+        && item.result.code === 'AI_RESOURCE_NOT_FOUND'
+        && item.result.executionEvidence?.verified === true
+        && item.result.executionEvidence.kind === 'formal_api_query_failure'
+    );
+}
+
+function canAdjustReadStrategy(item = {}) {
+    if (!isRecoverableReadMiss(item)) return false;
+    // 技术档案严格绑定用户指定的正式配方。该目标不存在时可以回答已验证的
+    // 不可用结论，但不得改换其他配方继续查附件。
+    return item.name !== 'get_recipe_technical_files';
 }
 
 function missingEvidenceReply(intent, toolResults) {
@@ -383,12 +420,13 @@ async function runAiAgentRuntimeV3(input = {}) {
     let evidencePrioritized = false;
     let toolCallCount = 0;
     const readCorrectionCapabilities = new Set();
-    let planMismatchCorrectionUsed = false;
+    const planMismatchCorrections = new Set();
     let identifierCorrectionUsed = false;
     let responseProtocolCorrectionUsed = false;
     let agentRecoveryMode = false;
     let agentRecoveryRounds = 0;
     let acceptVerifiedEmpty = false;
+    let recoveredReadEvidence = false;
     let entityDiscoveryCallCount = 0;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
@@ -396,6 +434,11 @@ async function runAiAgentRuntimeV3(input = {}) {
         const calledToolNames = input.agentVersion === 3
             ? completedCapabilityNames(toolResults, { acceptVerifiedEmpty })
             : new Set(toolResults.map(item => item.name));
+        if (input.agentVersion === 3 && acceptVerifiedEmpty) {
+            for (const item of toolResults.filter(isRecoverableReadMiss)) {
+                calledToolNames.add(item.name);
+            }
+        }
         const nextPlannedCapability = plannedCapabilityNames(intent)
             .find(name => !calledToolNames.has(name));
         const plannedTool = nextPlannedCapability
@@ -409,7 +452,9 @@ async function runAiAgentRuntimeV3(input = {}) {
             ].filter(Boolean);
             roundTools = [...new Set(recoveryNames)]
                 .map(getAiToolDefinition)
-                .filter(Boolean);
+                .filter(tool => (
+                    tool && getAiCapability(tool.function.name)?.access === 'read'
+                ));
         }
         if (!plannedTool) {
             currentMessages.push({
@@ -516,13 +561,13 @@ async function runAiAgentRuntimeV3(input = {}) {
             ));
         if (
             correctablePlanMismatch
-            && !planMismatchCorrectionUsed
+            && !planMismatchCorrections.has(nextPlannedCapability)
         ) {
             if (toolCallCount + rejectedPreparedCalls.length > MAX_TOOL_CALLS) {
                 throw new Error(`V3 工具调用超过单轮上限 ${MAX_TOOL_CALLS}`);
             }
             toolCallCount += rejectedPreparedCalls.length;
-            planMismatchCorrectionUsed = true;
+            planMismatchCorrections.add(nextPlannedCapability);
             readCorrectionCapabilities.add(nextPlannedCapability);
             const rejectedToolCalls = rejectedPreparedCalls.map(item => item.toolCall);
             currentMessages.push({
@@ -558,6 +603,23 @@ async function runAiAgentRuntimeV3(input = {}) {
         let preparedCalls = validatedPreparedCalls.length > 0
             ? validatedPreparedCalls.slice(0, 1)
             : candidatePreparedCalls;
+        preparedCalls = preparedCalls.map(prepared => {
+            if (prepared.validationStatus !== 'validated') return prepared;
+            const normalizedArgs = normalizeExplicitCoilShorthandArgs(
+                parseAiToolArguments(prepared.toolCall.function.arguments),
+                scopedMessages
+            );
+            return {
+                ...prepared,
+                toolCall: {
+                    ...prepared.toolCall,
+                    function: {
+                        ...prepared.toolCall.function,
+                        arguments: JSON.stringify(normalizedArgs),
+                    },
+                },
+            };
+        });
         const roundResultStart = toolResults.length;
         if (input.agentVersion === 3) {
             const resolvedCalls = [];
@@ -654,9 +716,16 @@ async function runAiAgentRuntimeV3(input = {}) {
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 if (!identifierCorrectionUsed) {
                     identifierCorrectionUsed = true;
-                    const correction = groundingIssue.issue.code === 'UNGROUNDED_QUOTATION_ID'
+                    const ungroundedBusinessNumber = groundingIssue.issue.code === 'UNGROUNDED_BUSINESS_NUMBER';
+                    const correction = ungroundedBusinessNumber
+                        ? `${groundingIssue.issue.error} 不得补造数值或反复调用该试算；请改用当前开放的正式只读目录能力调查用户所指业务对象，缺少真实试算参数时只回答可核验的现有事实。`
+                        : groundingIssue.issue.code === 'UNGROUNDED_QUOTATION_ID'
                         ? `${groundingIssue.issue.error} 请先调用 search_quotations 按正式条件定位报价，不得生成报价ID。`
                         : `${groundingIssue.issue.error} 请重新调用同一工具；保留用户给出的名称或合同号并改用 orderQuery，不得生成订单ID。`;
+                    if (ungroundedBusinessNumber && intent.mode !== 'command') {
+                        agentRecoveryMode = true;
+                        agentRecoveryRounds += 1;
+                    }
                     currentMessages.push({
                         role: 'system',
                         content: correction,
@@ -772,12 +841,38 @@ async function runAiAgentRuntimeV3(input = {}) {
                 break;
             }
             const roundResults = toolResults.slice(roundResultStart);
-            const hasEmptyObservation = roundResults.some(item => (
-                isVerifiedEmptyObservation(item?.result)
-            ));
+            const hasReadMiss = roundResults.some(isRecoverableReadMiss);
+            const canRecoverReadMiss = roundResults.some(canAdjustReadStrategy);
+            if (intent.mode === 'command' && hasReadMiss) {
+                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                break;
+            }
+            const hasTerminalTargetMiss = input.agentVersion === 3
+                && roundResults.some(item => (
+                    isRecoverableReadMiss(item) && !canAdjustReadStrategy(item)
+                ));
+            if (hasTerminalTargetMiss) {
+                acceptVerifiedEmpty = true;
+                agentRecoveryMode = false;
+                const synthesisStartedAt = Date.now();
+                finalContent = await synthesizeVerifiedAnswer({
+                    provider,
+                    systemPrompt,
+                    userText: latestUserText(messages),
+                    intent,
+                    toolResults,
+                    onProvider: announceProvider,
+                    onUsage: collectUsage,
+                    env: input.env,
+                    dbAccessors: input.dbAccessors,
+                    signal: input.signal,
+                });
+                synthesisMs += Date.now() - synthesisStartedAt;
+                break;
+            }
             if (
                 input.agentVersion === 3
-                && hasEmptyObservation
+                && canRecoverReadMiss
                 && agentRecoveryRounds < MAX_AGENT_RECOVERY_ROUNDS
             ) {
                 agentRecoveryRounds += 1;
@@ -785,27 +880,40 @@ async function runAiAgentRuntimeV3(input = {}) {
                 currentMessages.push({
                     role: 'system',
                     content: [
-                        '刚才的正式 Query 已成功执行，但当前条件返回 0 条。这是调查观察，不是系统失败。',
-                        '请根据用户原始目标主动调整只读调查策略：可以缩短名称、查询正式资源目录、尝试简称/前后缀/规格，或用正式候选重新调用原能力。',
+                        '刚才的正式只读能力已取得可核验的空结果或资源未找到结果。这是调查观察，不是系统故障。',
+                        '请根据用户原始目标主动调整只读调查策略：可以跨业务目录判断同一名称实际属于零件、模板、配方、线圈、订单或客户，缩短名称、尝试简称/前后缀/规格，或用正式候选重新查询。',
                         '只能调用本轮开放的只读能力；不得编造候选、不得生成内部 ID、不得改变用户原始目标。若没有可靠的新调查方向，可以停止调用并如实回答未找到。',
                     ].join('\n'),
                 });
                 emit('status', { status: 'thinking', message: '当前条件无结果，正在调整正式查询策略...' });
                 continue;
             }
-            if (input.agentVersion === 3 && hasEmptyObservation) {
+            if (input.agentVersion === 3 && hasReadMiss) {
                 acceptVerifiedEmpty = true;
                 agentRecoveryMode = false;
             }
             if (
                 input.agentVersion === 3
                 && agentRecoveryMode
-                && roundResults.some(item => isVerifiedPositiveObservation(item?.result))
+                && roundResults.some(item => (
+                    isVerifiedPositiveObservation(item?.result)
+                    && (
+                        plannedCapabilityNames(intent).includes(item.name)
+                        || recoveryEvidenceSupportsUserGoal(
+                            item.name,
+                            item.result,
+                            latestUserText(messages),
+                            { plannedCapabilityNames: plannedCapabilityNames(intent) }
+                        )
+                    )
+                ))
             ) {
+                recoveredReadEvidence = true;
                 agentRecoveryMode = false;
             }
             if (toolResults.some(item => (
-                item?.result?.success === false || !hasVerifiedExecution(item.result)
+                !hasVerifiedExecution(item.result)
+                || (item?.result?.success === false && !isRecoverableReadMiss(item))
             ))) {
                 finalContent = safeMissingBusinessEvidenceReply(toolResults);
                 break;
@@ -813,6 +921,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             if (requiredEvidenceSatisfied(intent, toolResults, {
                 agentVersion: input.agentVersion,
                 acceptVerifiedEmpty,
+                allowRecoveredReadEvidence: recoveredReadEvidence,
             })) {
                 const synthesisStartedAt = Date.now();
                 finalContent = await synthesizeVerifiedAnswer({
@@ -839,6 +948,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             && !requiredEvidenceSatisfied(intent, toolResults, {
                 agentVersion: input.agentVersion,
                 acceptVerifiedEmpty,
+                allowRecoveredReadEvidence: recoveredReadEvidence,
             })
             && nextPlannedCapability
             && !readCorrectionCapabilities.has(nextPlannedCapability)
@@ -856,7 +966,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         if (
             input.agentVersion === 3
             && agentRecoveryMode
-            && toolResults.some(item => isVerifiedEmptyObservation(item?.result))
+            && toolResults.some(isRecoverableReadMiss)
         ) {
             acceptVerifiedEmpty = true;
             const synthesisStartedAt = Date.now();
@@ -876,6 +986,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         } else if (intent.needsBusinessData && !requiredEvidenceSatisfied(intent, toolResults, {
             agentVersion: input.agentVersion,
             acceptVerifiedEmpty,
+            allowRecoveredReadEvidence: recoveredReadEvidence,
         })) {
             finalContent = missingEvidenceReply(intent, toolResults);
         } else if (
@@ -928,7 +1039,10 @@ async function runAiAgentRuntimeV3(input = {}) {
             ? 'confirmation'
             : findToolClarification(toolResults)
                 ? 'clarification'
-            : toolResults.some(item => item?.result?.success === false)
+            : toolResults.some(item => (
+                (intent.mode === 'command' && isRecoverableReadMiss(item))
+                || (item?.result?.success === false && !isRecoverableReadMiss(item))
+            ))
                 ? 'failed_evidence'
                 : 'completed',
     };

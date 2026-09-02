@@ -6,6 +6,7 @@ const {
     verifiedResolvedOrderIds,
     verifiedResolvedQuotationIds,
     validateAiToolIdentifierGrounding,
+    normalizeExplicitCoilShorthandArgs,
 } = require('../api/services/aiToolIdentifierGrounding.cjs');
 
 function verifiedResult(result = {}) {
@@ -173,4 +174,82 @@ test('AI 报价标识落地：报价数量不被误认为明确报价ID', () => 
         messages: [{ role: 'user', content: '给客户做报价 18 份' }],
     });
     assert.equal(rejected.code, 'UNGROUNDED_QUOTATION_ID');
+});
+
+test('AI 业务数值落地：阻止模型猜测机筒长度和线圈片数', () => {
+    const shellIssue = validateAiToolIdentifierGrounding({
+        toolName: 'preview_pump_shell_cost',
+        args: { shellModel: 'V1600', customBarrelLength: 180 },
+        messages: [{ role: 'user', content: 'V1600 泵壳价格是多少' }],
+    });
+    assert.equal(shellIssue.code, 'UNGROUNDED_BUSINESS_NUMBER');
+
+    const coilIssue = validateAiToolIdentifierGrounding({
+        toolName: 'calculate_coil_cost',
+        args: { spec: '12-120', sheets: 120 },
+        messages: [{ role: 'user', content: '查询规格 12 的线圈成本' }],
+    });
+    assert.equal(coilIssue.code, 'UNGROUNDED_BUSINESS_NUMBER');
+
+    for (const sample of [
+        ['preview_recipe_cost', { recipeName: 'V750', customBarrelLength: 180 }],
+        ['preview_recipe_cost', { recipeName: 'V750', overrides: { coilSheets: 140 } }],
+        ['full_calculate', { recipeName: 'V750', cableLength: 20 }],
+        ['dynamic_config_cost', { cableLength: 20 }],
+        ['build_recipe_bom_draft', { coilWireWeight: 0.8 }],
+        ['calculate_coil_cost', { spec: '12', sheets: 120, wireWeight: 0.8 }],
+    ]) {
+        const rejected = validateAiToolIdentifierGrounding({
+            toolName: sample[0],
+            args: sample[1],
+            messages: [{ role: 'user', content: '查询 V750 当前成本' }],
+        });
+        assert.equal(rejected.code, 'UNGROUNDED_BUSINESS_NUMBER', sample[0]);
+    }
+});
+
+test('AI 业务数值落地：用户明确字段数值或正式结果可以授权计算参数', () => {
+    assert.equal(validateAiToolIdentifierGrounding({
+        toolName: 'preview_pump_shell_cost',
+        args: { shellModel: 'V1500', customBarrelLength: 220 },
+        messages: [{ role: 'user', content: 'V1500 使用 220mm 机筒时泵壳多少钱' }],
+    }), null);
+    assert.equal(validateAiToolIdentifierGrounding({
+        toolName: 'calculate_coil_cost',
+        args: { spec: '12', sheets: 120 },
+        messages: [{ role: 'user', content: '按 12-120 方案计算线圈成本' }],
+    }), null);
+    assert.equal(validateAiToolIdentifierGrounding({
+        toolName: 'calculate_coil_cost',
+        args: { spec: '12', sheets: 120 },
+        messages: [{ role: 'user', content: '按刚才查到的方案计算线圈成本' }],
+        toolResults: [{
+            name: 'search_coils',
+            result: verifiedResult({ data: [{ spec: '12', sheets: 120 }] }),
+        }],
+    }), null);
+});
+
+test('AI 业务数值落地：12-120 简写纠正模型误填的片数并保留其他配置', () => {
+    assert.deepEqual(normalizeExplicitCoilShorthandArgs({
+        shellModel: 'V750-大脚板-2寸',
+        coilSpec: '12',
+        coilSheets: 12,
+        hasFloat: true,
+    }, [{
+        role: 'user',
+        content: 'V750-大脚板-2寸的壳，做12-120片，带浮球，木箱，需要珍珠棉',
+    }]), {
+        shellModel: 'V750-大脚板-2寸',
+        coilSpec: '12',
+        coilSheets: 120,
+        hasFloat: true,
+    });
+    assert.deepEqual(normalizeExplicitCoilShorthandArgs({
+        spec: '12',
+        sheets: 12,
+    }, [{ role: 'user', content: '比较 12-120 和 12-140' }]), {
+        spec: '12',
+        sheets: 12,
+    });
 });

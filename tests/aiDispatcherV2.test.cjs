@@ -1051,6 +1051,90 @@ test('AI V3 调度器：首次误选配方详情时不执行并纠正回本轮�
     assert.doesNotMatch(result.finalContent, /未授权调用工具/);
 });
 
+test('AI V3 调度器：多步骤查询可分别纠正一次计划偏离', async () => {
+    let calls = 0;
+    const requestedUrls = [];
+    const provider = async (_messages, options) => {
+        calls += 1;
+        if (calls === 1) {
+            return planResponse({
+                goal: '同时查询正式零件和线圈资料',
+                mode: 'query',
+                domains: ['catalog', 'coil'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'collection',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'search_parts', objective: '查询正式零件' },
+                    { capabilityName: 'search_coils', objective: '查询正式线圈' },
+                ],
+            });
+        }
+        if (calls === 2 || calls === 4) {
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: `wrong-plan-tool-${calls}`,
+                    type: 'function',
+                    function: {
+                        name: 'get_recipe_detail',
+                        arguments: JSON.stringify({ recipeId: 1 }),
+                    },
+                }],
+            });
+        }
+        if (calls === 3) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_parts']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'corrected-parts-search',
+                    type: 'function',
+                    function: { name: 'search_parts', arguments: JSON.stringify({ keyword: '泵壳' }) },
+                }],
+            });
+        }
+        if (calls === 5) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_coils']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'corrected-coils-search',
+                    type: 'function',
+                    function: { name: 'search_coils', arguments: JSON.stringify({ spec: '12' }) },
+                }],
+            });
+        }
+        assert.deepEqual(options.tools, []);
+        return providerResponse({ content: '已取得正式零件和线圈资料。' });
+    };
+    global.fetch = async url => {
+        requestedUrls.push(String(url));
+        return new Response(JSON.stringify({
+            success: true,
+            data: String(url).includes('/api/coils')
+                ? [{ id: 2, spec: '12', sheets: 120 }]
+                : [{ id: 1, model: 'TEST-泵壳', price: 95 }],
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '查一下泵壳和 12 规格线圈' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(calls, 6);
+    assert.deepEqual(result.toolResults.map(item => item.name), ['search_parts', 'search_coils']);
+    assert.equal(requestedUrls.length, 2);
+    assert.ok(requestedUrls.every(url => !url.includes('/api/recipes/')));
+    assert.match(result.finalContent, /正式零件和线圈资料/);
+    assert.doesNotMatch(result.finalContent, /未授权调用工具/);
+});
+
 test('AI V3 调度器：连续两次误选计划外工具后有界失败且不执行', async () => {
     let calls = 0;
     let apiCalled = false;
@@ -1593,4 +1677,333 @@ test('AI V3 Agent：正式查询零结果会把观察交还模型并允许调整
     assert.equal(result.toolResults[0].result.count, 0);
     assert.equal(result.toolResults[1].result.count, 1);
     assert.match(result.finalContent, /18μF/);
+});
+
+test('AI V3 Agent：V1600 模板未命中后可跨域查询正式零件且恢复轮不开放写能力', async () => {
+    let providerCalls = 0;
+    const provider = async (messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询 V1600 泵壳当前价格',
+                mode: 'query',
+                domains: ['recipe', 'cost'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'medium',
+                steps: [{ capabilityName: 'get_template_detail', objective: '先查询泵壳模板' }],
+            });
+        }
+        if (providerCalls === 2) {
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'template-miss',
+                    type: 'function',
+                    function: {
+                        name: 'get_template_detail',
+                        arguments: JSON.stringify({ shellModel: 'V1600' }),
+                    },
+                }],
+            });
+        }
+        if (providerCalls === 3) {
+            const names = options.tools.map(tool => tool.function.name);
+            assert.equal(options.toolChoice, undefined);
+            assert.ok(names.includes('search_parts'));
+            assert.equal(names.some(name => /^(create|update|delete|adjust|sync|archive)_/.test(name)), false);
+            assert.ok(messages.some(message => (
+                message.role === 'system' && /跨业务目录/.test(message.content)
+            )));
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'unrelated-customer-hit',
+                    type: 'function',
+                    function: {
+                        name: 'search_customers',
+                        arguments: JSON.stringify({ name: '老王' }),
+                    },
+                }],
+            });
+        }
+        if (providerCalls === 4) {
+            assert.equal(options.toolChoice, undefined);
+            assert.ok(options.tools.some(tool => tool.function.name === 'search_parts'));
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'part-hit',
+                    type: 'function',
+                    function: {
+                        name: 'search_parts',
+                        arguments: JSON.stringify({ keyword: 'V1600' }),
+                    },
+                }],
+            });
+        }
+        return providerResponse({ content: 'V1600-3寸泵壳当前价格为 105 元。' });
+    };
+    global.fetch = async url => {
+        const value = String(url);
+        if (value.includes('/api/customers')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{ id: 9, name: '老王' }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.includes('/api/parts')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{
+                    id: 8,
+                    model: 'V1600-3寸',
+                    category: '泵壳',
+                    supplier: '孚元',
+                    stock: 0,
+                    price: 105,
+                }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ success: true, data: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: 'V1600 泵壳价格是多少' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(providerCalls, 5);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'get_template_detail',
+        'search_customers',
+        'search_parts',
+    ]);
+    assert.equal(result.toolResults[0].result.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.equal(result.toolResults[2].result.parts[0].price, 105);
+    assert.match(result.finalContent, /105/);
+});
+
+test('AI V3 Agent：多步骤只读调查恢复后仍完成剩余业务规则查询', async () => {
+    let providerCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询切割用途泵壳和明确专用配件',
+                mode: 'query',
+                domains: ['catalog', 'knowledge'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'collection',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'search_parts', objective: '查询正式零件' },
+                    { capabilityName: 'search_factory_knowledge', objective: '查询用途业务规则' },
+                ],
+            });
+        }
+        if (providerCalls === 2) {
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'cutting-parts-miss',
+                type: 'function',
+                function: { name: 'search_parts', arguments: JSON.stringify({ keyword: '切割杂草' }) },
+            }] });
+        }
+        if (providerCalls === 3) {
+            assert.equal(options.toolChoice, undefined);
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'cutting-parts-recovery',
+                type: 'function',
+                function: { name: 'search_parts', arguments: JSON.stringify({ keyword: '切割' }) },
+            }] });
+        }
+        if (providerCalls === 4) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_factory_knowledge']);
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'cutting-rule',
+                type: 'function',
+                function: {
+                    name: 'search_factory_knowledge',
+                    arguments: JSON.stringify({ query: '切割', entryType: 'business_rule', sourceTable: 'business_rules' }),
+                },
+            }] });
+        }
+        return providerResponse({ content: '明确记录的是 800平刀切割泵壳；没有其他明确标注的切割专用配件。' });
+    };
+    global.fetch = async url => {
+        const value = new URL(String(url));
+        if (value.pathname === '/api/parts') {
+            const hit = value.searchParams.get('keyword') === '切割';
+            return new Response(JSON.stringify({
+                success: true,
+                data: hit ? [{ id: 13, model: '800平刀切割泵壳', category: '泵壳', price: 95 }] : [],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.pathname === '/api/knowledge/overview') {
+            return new Response(JSON.stringify({ success: true, data: {} }), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        if (value.pathname === '/api/knowledge/1') {
+            return new Response(JSON.stringify({
+                success: true,
+                data: {
+                    id: 1,
+                    entryType: 'business_rule',
+                    sourceTable: 'business_rules',
+                    title: '切割用途规则',
+                    content: '明确记录 800平刀切割泵壳；没有其他明确标注的切割专用配件。',
+                },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.pathname === '/api/knowledge') {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{
+                    id: 1,
+                    entryType: 'business_rule',
+                    sourceTable: 'business_rules',
+                    title: '切割用途规则',
+                    evidenceLevel: 'explicit_text',
+                    matchMode: 'fts',
+                }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        throw new Error(`unexpected URL: ${value}`);
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '切割杂草用的泵壳是哪一个？系统中有哪些明确标注的切割专用配件？' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(providerCalls, 5);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'search_parts',
+        'search_parts',
+        'search_factory_knowledge',
+    ]);
+    assert.match(result.finalContent, /800平刀切割泵壳/);
+});
+
+test('AI V3 Agent：指定配方技术档案不存在时不得换成其他配方', async () => {
+    let providerCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '查询指定配方技术档案',
+                mode: 'query',
+                domains: ['recipe'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'get_recipe_technical_files', objective: '查询指定配方附件' },
+                    { capabilityName: 'search_factory_knowledge', objective: '查询附件分类规则' },
+                ],
+            });
+        }
+        if (providerCalls === 2) {
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'missing-recipe-files',
+                type: 'function',
+                function: {
+                    name: 'get_recipe_technical_files',
+                    arguments: JSON.stringify({ recipeName: 'V1600-3”-12-180' }),
+                },
+            }] });
+        }
+        assert.deepEqual(options.tools, []);
+        return providerResponse({ content: '未找到配方 V1600-3”-12-180，因此当前无法提供该配方的性能测试报告。' });
+    };
+    global.fetch = async url => {
+        assert.match(String(url), /\/api\/recipes/);
+        return new Response(JSON.stringify({ success: true, data: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: 'V1600-3”-12-180配方技术档案中的Excel附件是什么资料？' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(providerCalls, 3);
+    assert.equal(result.toolResults.length, 1);
+    assert.equal(result.toolResults[0].result.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.match(result.finalContent, /未找到配方 V1600/);
+});
+
+test('AI V3 Agent：command 前置只读未找到时安全停止且不开放后续写能力', async () => {
+    let providerCalls = 0;
+    let writeApiCalls = 0;
+    const provider = async (_messages, options) => {
+        providerCalls += 1;
+        if (providerCalls === 1) {
+            return planResponse({
+                goal: '修改指定零件资料',
+                mode: 'command',
+                domains: ['catalog'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'confirmation',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'search_parts', objective: '先唯一定位正式零件' },
+                    { capabilityName: 'update_part', objective: '生成受确认保护的修改' },
+                ],
+            });
+        }
+        if (providerCalls === 2) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_parts']);
+            return providerResponse({
+                content: '',
+                tool_calls: [{
+                    id: 'part-miss-before-write',
+                    type: 'function',
+                    function: {
+                        name: 'search_parts',
+                        arguments: JSON.stringify({ keyword: '不存在零件' }),
+                    },
+                }],
+            });
+        }
+        throw new Error('command 未找到后不应再次请求模型或开放写能力');
+    };
+    global.fetch = async (_url, options = {}) => {
+        if (String(options.method || 'GET').toUpperCase() !== 'GET') writeApiCalls += 1;
+        return new Response(JSON.stringify({ success: true, data: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '把不存在零件的备注改一下' }],
+        fetchAiProvider: provider,
+        allowWrite: true,
+    });
+
+    assert.equal(providerCalls, 2);
+    assert.equal(writeApiCalls, 0);
+    assert.deepEqual(result.toolResults.map(item => item.name), ['search_parts']);
+    assert.match(result.finalContent, /没有取得正式业务 API 的有效结果/);
+    assert.equal(result.telemetry.outcome, 'failed_evidence');
 });

@@ -111,7 +111,11 @@ test('V2 意图计划：模型必须通过强制结构化协议提交计划', as
     assert.match(requests[1].messages[0].content, /get_recent_orders/);
     assert.match(requests[1].messages[0].content, /requires=none/);
     assert.match(requests[1].messages[0].content, /requires 由正式 JSON Schema 自动生成/);
-    assert.doesNotMatch(requests[1].messages[0].content, /search_parts/);
+    assert.match(requests[1].messages[0].content, /search_parts/);
+    assert.equal(
+        requests[1].options.tools[0].function.parameters.properties.steps.items.properties.capabilityName.enum.includes('create_part'),
+        false
+    );
     assert.match(requestMessages[0].content, /不得用 Preview 代替 List/);
     assert.match(requestMessages[0].content, /上一轮 assistant 已列出正式候选/);
     assert.match(requestMessages[0].content, /不得用知识快照代替现有正式记录/);
@@ -151,21 +155,29 @@ test('V3 意图计划：多领域能力不会扩大第一阶段确定的业务�
     assert.deepEqual(normalized.domains, ['quotation']);
 });
 
-test('V3 两阶段规划：详细计划不能越过目标信封选择其他业务域能力', async () => {
-    await assert.rejects(
-        () => planAiIntentV2([{ role: 'user', content: '查询采购中订单' }], {
-            fetchAiProvider: async (_messages, options) => structuredPlanResponse(
-                options,
-                options.toolChoice.function.name === 'submit_ai_domain_plan'
-                    ? plan({ domains: ['order'] })
-                    : plan({
-                        domains: ['catalog'],
-                        steps: [{ capabilityName: 'search_parts', objective: '越域读取零件' }],
-                    })
-            ),
-        }),
-        /本阶段未下发能力/
-    );
+test('V3 两阶段规划：查询可跨域选择只读能力但不能选择写能力', async () => {
+    const result = await planAiIntentV2([{ role: 'user', content: '查询采购中订单涉及的零件' }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(
+            options,
+            options.toolChoice.function.name === 'submit_ai_domain_plan'
+                ? plan({ domains: ['order'] })
+                : plan({
+                    domains: ['catalog'],
+                    steps: [{ capabilityName: 'search_parts', objective: '跨域读取正式零件' }],
+                })
+        ),
+    });
+    assert.deepEqual(result.domains, ['order']);
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_parts']);
+
+    await assert.rejects(() => planAiIntentV2([{ role: 'user', content: '查询采购中订单' }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(
+            options,
+            options.toolChoice.function.name === 'submit_ai_domain_plan'
+                ? plan({ domains: ['order'] })
+                : plan({ steps: [{ capabilityName: 'create_part', objective: '越权写零件' }] })
+        ),
+    }), /本阶段未下发能力/);
 });
 
 test('V3 两阶段规划：第二阶段只采纳能力步骤，目标信封始终由服务端继承', async () => {
@@ -240,6 +252,113 @@ test('V3 意图计划：用途与兼容性问题即使模型漏规划也补齐�
         result.steps.map(step => step.capabilityName),
         ['search_parts', 'search_factory_knowledge']
     );
+});
+
+test('V3 意图计划：完整配置 BOM 覆盖的成本能力不再重复规划', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: 'V750-大脚板-2寸做12-120片，带浮球、木箱和珍珠棉，成本多少？',
+    }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(options, plan({
+            goal: '计算完整模板配置成本',
+            domains: ['recipe', 'cost'],
+            entityScope: 'single',
+            steps: [
+                { capabilityName: 'build_recipe_bom_draft', objective: '生成完整配置 BOM 成本' },
+                { capabilityName: 'preview_pump_shell_cost', objective: '再次计算泵壳成本' },
+                { capabilityName: 'calculate_coil_cost', objective: '再次计算线圈成本' },
+            ],
+        })),
+    });
+    assert.deepEqual(
+        result.steps.map(step => step.capabilityName),
+        ['build_recipe_bom_draft']
+    );
+});
+
+test('V3 意图计划：零件当前单价固定使用实时零件目录而不是机筒成本试算', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: '查询800平刀切割泵壳目前的单价，并说明数据来源。',
+    }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(options, plan({
+            goal: '查询泵壳单价',
+            domains: ['catalog', 'cost'],
+            entityScope: 'single',
+            steps: [{ capabilityName: 'preview_pump_shell_cost', objective: '试算泵壳成本' }],
+        })),
+    });
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_parts']);
+});
+
+test('V3 意图计划：相关零件现在多少钱只保留零件目录查询', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: 'V1600相关零件有哪些？我主要想知道泵壳现在多少钱。',
+    }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(options, plan({
+            goal: '查询 V1600 相关零件和当前泵壳价格',
+            domains: ['recipe', 'catalog'],
+            entityScope: 'collection',
+            steps: [
+                { capabilityName: 'get_all_recipes', objective: '查询相近配方' },
+                { capabilityName: 'get_recipe_detail', objective: '读取相近配方详情' },
+                { capabilityName: 'search_parts', objective: '查询零件目录' },
+                { capabilityName: 'search_templates', objective: '查询相近模板' },
+            ],
+        })),
+    });
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_parts']);
+});
+
+test('V3 意图计划：零件当前价格不会被第一阶段误判为成本口径澄清', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: 'V1600相关零件有哪些？我主要想知道泵壳现在多少钱。',
+    }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(
+            options,
+            options.toolChoice.function.name === 'submit_ai_domain_plan'
+                ? plan({
+                    goal: '查询 V1600 泵壳价格',
+                    domains: ['recipe', 'catalog'],
+                    entityScope: 'collection',
+                    requiresClarification: true,
+                    ambiguities: ['需要确认零件单价还是配方成本'],
+                    steps: [],
+                })
+                : plan({
+                    goal: '查询 V1600 相关零件和当前泵壳价格',
+                    domains: ['recipe', 'catalog'],
+                    entityScope: 'collection',
+                    steps: [
+                        { capabilityName: 'get_recipe_detail', objective: '读取相近配方详情' },
+                        { capabilityName: 'search_parts', objective: '查询零件目录' },
+                    ],
+                })
+        ),
+    });
+    assert.equal(result.requiresClarification, false);
+    assert.deepEqual(result.ambiguities, []);
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_parts']);
+});
+
+test('V3 意图计划：业务变更问题不再附带读取当前全量业务列表', async () => {
+    const result = await planAiIntentV2([{
+        role: 'user',
+        content: '系统里有哪些修改过的配方？分别改了什么？',
+    }], {
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(options, plan({
+            goal: '查询修改过的配方及变更内容',
+            domains: ['recipe', 'business_history'],
+            entityScope: 'collection',
+            steps: [
+                { capabilityName: 'search_business_changes', objective: '读取配方变更记录' },
+                { capabilityName: 'get_all_recipes', objective: '读取全部当前配方' },
+            ],
+        })),
+    });
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['search_business_changes']);
 });
 
 test('V2 意图计划：单订单目标禁止使用全局经营和准备总览', () => {

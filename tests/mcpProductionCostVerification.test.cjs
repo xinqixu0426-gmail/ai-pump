@@ -70,13 +70,17 @@ function createFakeClient(options = {}) {
                     success: true,
                     data: {
                         sourceOfTruth: 'costEngine',
-                        costBasis: 'composedEstimate',
+                        costBasis: 'overridePreview',
                         recipeCost: {
                             recipeId: 1,
                             recipeName: 'v550-tokoy',
                             totalCost: '251.49',
                         },
                         totalCost: '251.49',
+                        compatibility: {
+                            managedRolesReplacedOnce: true,
+                            replacement: 'preview_recipe_cost',
+                        },
                     },
                 });
             }
@@ -116,7 +120,7 @@ test('生产 MCP 成本验收：三个只读场景共用正式口径且报告不
 
     assert.equal(report.status, 'passed');
     assert.equal(report.protocolVersion, '2026-07-28');
-    assert.equal(report.scenarios.fullEstimateBindsRecipe.costBasis, 'composedEstimate');
+    assert.equal(report.scenarios.fullEstimateBindsRecipe.costBasis, 'overridePreview');
     assert.equal(report.scenarios.pumpShellNameFailsExplicitly.errorCode, 'FULL_ESTIMATE_RECIPE_NOT_FOUND');
     assert.equal(report.scenarios.comparisonUsesSameFullCostBasis.totalDiff, 19.55);
     assert.equal(report.scenarios.comparisonUsesSameFullCostBasis.compareDataMode, 'live');

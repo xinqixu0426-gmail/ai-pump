@@ -15,7 +15,7 @@ const {
     writeReleaseGateReport,
 } = require('../scripts/run-knowledge-evaluation.cjs');
 
-function coreSystemCases(count = 8, overrides = {}) {
+function coreSystemCases(count = CORE_AI_RELEASE_CASE_KEYS.length, overrides = {}) {
     return CORE_AI_RELEASE_CASE_KEYS.slice(0, count).map((caseKey, index) => ({
         id: index + 1,
         caseKey,
@@ -118,10 +118,15 @@ test('AI 单用例诊断：runner 只向服务端请求一个 caseKey 且报告�
     assert.deepEqual(report.totals, { total: 1, passed: 1, failed: 0, review: 0 });
 });
 
-test('AI 发布门禁：8 条核心系统检查缺失或停用时禁止跳过', () => {
-    assert.equal(assertCoreReleaseGateConfigured({ systemCases: coreSystemCases() }).length, 8);
+test('AI 发布门禁：核心系统检查缺失或停用时禁止跳过', () => {
+    assert.equal(
+        assertCoreReleaseGateConfigured({ systemCases: coreSystemCases() }).length,
+        CORE_AI_RELEASE_CASE_KEYS.length
+    );
     assert.throws(
-        () => assertCoreReleaseGateConfigured({ systemCases: coreSystemCases(7) }),
+        () => assertCoreReleaseGateConfigured({
+            systemCases: coreSystemCases(CORE_AI_RELEASE_CASE_KEYS.length - 1),
+        }),
         /配置不完整/
     );
     const disabled = coreSystemCases();

@@ -53,9 +53,11 @@ test('关键 API 集成契约：/api/recipes/bom-draft 只生成 BOM 草稿不�
 
     assert.match(section, /recipeQueries\.getBomDraft\(req\.body \|\| \{\}\)/);
     assert.doesNotMatch(section, /db\.prepare|SELECT /);
-    assert.match(queries, /return buildBomDraft\(input, \{/);
-    assert.match(queries, /partsCatalog: listParts\(\)/);
+    assert.match(queries, /const draft = buildBomDraft\(normalizedInput, \{/);
+    assert.match(queries, /const partsCatalog = listParts\(\)/);
     assert.match(queries, /coils: listCoils\(\)/);
+    assert.match(queries, /buildRecipeCostDraft\(\{/);
+    assert.match(queries, /costBasis: 'configuredBomDraft'/);
     assert.match(queries, /loadTemplateContext\(templateId\)/);
     assert.match(queries, /templateRow\(/);
     assert.match(queries, /modelVariantRow\(/);
@@ -938,7 +940,7 @@ test('关键 API 集成契约：成本路由只做协议适配且不复用其他
     assert.doesNotMatch(route, /JSON\.parse\(/);
     assert.match(queries, /calculateRecipeCost/);
     assert.match(queries, /calculateDynamicConfigCost/);
-    assert.match(queries, /calculateFullEstimateCoilCost/);
+    assert.match(queries, /previewRecipeCost\(recipe\.id \?\? recipe\.Id, overrides\)/);
     assertNoWrites(queries);
 });
 

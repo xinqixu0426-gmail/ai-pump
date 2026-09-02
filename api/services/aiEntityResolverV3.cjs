@@ -37,6 +37,10 @@ function buildSearchProbes(value) {
             append(normalized.slice(0, length));
         }
     } else {
+        // 型号中的分隔符经常被模型或用户省略，例如
+        // V750-大脚板-2寸 -> V750大脚板2寸。先用稳定型号前缀调查正式目录，
+        // 再用忽略分隔符的完整身份评分选择，避免依赖脆弱的逐字符截断。
+        append(original.match(/^[A-Za-z]+\d+/)?.[0]);
         const tokens = original.split(/[^\p{Letter}\p{Number}]+/u).filter(Boolean);
         tokens.sort((left, right) => right.length - left.length).forEach(append);
         for (let length = normalized.length - 1; length >= 2; length -= 1) {
@@ -218,7 +222,12 @@ async function resolveAiToolTargetV3(input = {}) {
     const target = TOOL_TARGETS[input.toolName];
     if (!target) return { status: 'not_applicable', args: input.args };
     const descriptor = ENTITY_DESCRIPTORS[target.entityType];
-    const mention = String(input.args?.[target.inputField] || '').trim();
+    const inputFields = Array.isArray(target.inputFields)
+        ? target.inputFields
+        : [target.inputField];
+    const mention = String(inputFields
+        .map(field => input.args?.[field])
+        .find(value => String(value || '').trim()) || '').trim();
     if (!descriptor || !mention) return { status: 'not_applicable', args: input.args };
     const capability = getAiCapability(input.toolName);
     const discoveryCapability = descriptor.discoveryCapability;
@@ -334,7 +343,7 @@ async function resolveAiToolTargetV3(input = {}) {
         }
     } else if (target.outputIdField && selected.id) {
         args[target.outputIdField] = selected.id;
-        delete args[target.inputField];
+        inputFields.forEach(field => delete args[field]);
     } else {
         args[target.outputField || target.inputField] = selected.name;
     }

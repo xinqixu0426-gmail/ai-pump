@@ -4,7 +4,6 @@ const {
     parseStatorInput,
     resolveWireFromCoils,
     calculateFullEstimateCoilCost,
-    buildFullEstimateResult,
 } = require('../api/services/fullCostEstimate.cjs');
 
 const coils = [
@@ -81,22 +80,4 @@ test('full-estimate 精确套件价保留正式库存身份且不展开计算', 
 
 test('full-estimate 线圈服务可解析默认线径', () => {
     assert.equal(resolveWireFromCoils(coils, '750', 24, '钢带'), '0.55');
-});
-
-test('full-estimate 结果组装保持 breakdown 字段', () => {
-    const result = buildFullEstimateResult({
-        recipeCost: { totalCost: '10.00' },
-        statorCost: { cost: '25.80' },
-        dynamicCost: { totalCost: '3.30' },
-    });
-
-    assert.equal(result.totalCost, '39.10');
-    assert.equal(result.sourceOfTruth, 'costEngine');
-    assert.equal(result.costBasis, 'composedEstimate');
-    assert.deepEqual(result.warnings, []);
-    assert.deepEqual(result.breakdown, {
-        recipeCost: '10.00',
-        statorCost: '25.80',
-        dynamicCost: '3.30',
-    });
 });

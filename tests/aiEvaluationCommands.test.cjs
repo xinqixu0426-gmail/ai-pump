@@ -218,7 +218,10 @@ test('AI 评测命令：手动检查与发布门禁共享核心系统项并追�
             { scope: 'release' },
             context('ai-evaluation-scope-release-0001')
         );
-        assert.equal(release.cases.filter(item => item.sourceType === 'system').length, 8);
+        assert.equal(
+            release.cases.filter(item => item.sourceType === 'system').length,
+            CORE_AI_RELEASE_CASE_KEYS.length
+        );
         assert.equal(release.cases.filter(item => item.sourceType === 'feedback').length, 1);
         assert.equal(
             fixture.db.prepare('SELECT owner_key FROM ai_evaluation_runs WHERE id = ?')

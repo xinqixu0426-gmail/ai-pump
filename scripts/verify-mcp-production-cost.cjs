@@ -179,7 +179,8 @@ async function evaluateProductionCostScenarios(client, env = process.env, option
     const full = resultBody(fullCall.result);
     assert(!fullCall.result?.isError, 'full_calculate 正式配方调用失败');
     assert(full?.sourceOfTruth === 'costEngine', 'full_calculate sourceOfTruth 不是 costEngine');
-    assert(full?.costBasis === 'composedEstimate', 'full_calculate costBasis 不是 composedEstimate');
+    assert(full?.costBasis === 'overridePreview', 'full_calculate costBasis 不是 overridePreview');
+    assert(full?.compatibility?.managedRolesReplacedOnce === true, 'full_calculate 未声明受管角色只替换一次');
     assert(Number(full?.recipeCost?.recipeId) === Number(left.id), 'full_calculate 未绑定请求的正式配方');
     assert(!full?.recipeCost?.error, 'full_calculate 仍把配方错误内嵌在成功响应中');
 

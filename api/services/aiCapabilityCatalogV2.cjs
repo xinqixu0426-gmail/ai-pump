@@ -5,7 +5,7 @@ const {
 } = require('../capabilities/registry.cjs');
 
 const DEFAULT_MAX_OFFERED_TOOLS = 18;
-const DEFAULT_MAX_PLANNER_CAPABILITIES = 24;
+const DEFAULT_MAX_PLANNER_CAPABILITIES = 64;
 const TOOL_BY_NAME = new Map(AI_TOOLS.map(tool => [tool.function.name, tool]));
 const DOMAIN_DIRECTORY = Object.freeze({
     business_history: '跨业务修改记录、修改时间、原因和关联对象',
@@ -65,16 +65,33 @@ function buildDomainDirectoryPrompt() {
         .join('\n');
 }
 
-function buildPlannerDirectoryPrompt(options = {}) {
+function orderedPlannerCapabilities(options = {}) {
     const selectedDomains = new Set(options.domains || []);
+    const mode = options.mode || 'query';
+    const entityScope = options.entityScope || 'none';
+    const intent = { mode, entityScope };
+    const inSelectedDomain = capability => (
+        capability.domains.some(domain => selectedDomains.has(domain))
+    );
+    return plannerCapabilityDirectory()
+        .map(item => ({ item, capability: getAiCapability(item.name) }))
+        .filter(({ capability }) => capabilityAllowedForIntent(capability, intent))
+        .filter(({ capability }) => (
+            mode !== 'command' || selectedDomains.size === 0 || inSelectedDomain(capability)
+        ))
+        .sort((left, right) => (
+            Number(inSelectedDomain(right.capability)) - Number(inSelectedDomain(left.capability))
+        ))
+        .map(({ item }) => item);
+}
+
+function buildPlannerDirectoryPrompt(options = {}) {
     const maxCapabilities = Math.max(
         1,
         Math.min(Number(options.maxCapabilities) || DEFAULT_MAX_PLANNER_CAPABILITIES, AI_TOOLS.length)
     );
     const groups = new Map();
-    const directory = plannerCapabilityDirectory()
-        .filter(item => selectedDomains.size === 0 || item.domains.some(domain => selectedDomains.has(domain)))
-        .slice(0, maxCapabilities);
+    const directory = orderedPlannerCapabilities(options).slice(0, maxCapabilities);
     for (const item of directory) {
         const domain = item.domains[0] || 'general';
         if (!groups.has(domain)) groups.set(domain, []);
@@ -138,6 +155,7 @@ module.exports = {
     getAiToolDefinition,
     plannedCapabilityNames,
     plannerCapabilityDirectory,
+    orderedPlannerCapabilities,
     requiredInputSummary,
     selectToolsForIntent,
 };

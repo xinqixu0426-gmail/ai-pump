@@ -1,14 +1,17 @@
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
+const { buildRecipeCostDraft, findUnpricedRecipeParts } = require('./costEngine.cjs');
 const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
 const { normalizeOptionalBoolean } = require('./queryValidation.cjs');
 const { parseJsonArray, parsePositiveId } = require('./validation.cjs');
 
 class RecipeQueryError extends Error {
-    constructor(message, statusCode = 400) {
+    constructor(message, statusCode = 400, code = null, details = undefined) {
         super(message);
         this.name = 'RecipeQueryError';
         this.statusCode = statusCode;
+        if (code) this.code = code;
+        if (details !== undefined) this.details = details;
     }
 }
 
@@ -208,6 +211,9 @@ function createRecipeQueries({
 
     function getBomDraft(input = {}) {
         const variantId = parsePositiveId(input?.modelVariantId);
+        if (input?.modelVariantId != null && !variantId) {
+            throw new RecipeQueryError('非法常用配置预设编号');
+        }
         const variant = variantId
             ? modelVariantRow(db.prepare(`
                 SELECT *
@@ -215,16 +221,202 @@ function createRecipeQueries({
                 WHERE id = ? AND deleted_at IS NULL
             `).get(variantId))
             : null;
-        const templateId = input?.templateId ?? variant?.templateId;
+        if (variantId && !variant) {
+            throw new RecipeQueryError('常用配置预设不存在', 404, 'MODEL_VARIANT_NOT_FOUND');
+        }
+        const shellModel = String(input?.shellModel || '').trim();
+        let templateId = input?.templateId ?? variant?.templateId;
+        if (input?.templateId != null && !parsePositiveId(input.templateId)) {
+            throw new RecipeQueryError('非法泵壳模板ID');
+        }
+        if (!templateId && shellModel) {
+            const templates = db.prepare('SELECT * FROM pump_shell_templates ORDER BY id').all()
+                .map(templateRow);
+            const exact = templates.filter(item => (
+                String(item?.shellModel || '').trim().toLocaleLowerCase() === shellModel.toLocaleLowerCase()
+            ));
+            const candidates = exact.length > 0
+                ? exact
+                : templates.filter(item => (
+                    String(item?.shellModel || '').toLocaleLowerCase().includes(shellModel.toLocaleLowerCase())
+                ));
+            if (candidates.length !== 1) {
+                throw new RecipeQueryError(
+                    candidates.length > 1
+                        ? `泵壳模板“${shellModel}”匹配到多条记录，请使用完整型号`
+                        : `泵壳模板“${shellModel}”不存在`,
+                    candidates.length > 1 ? 409 : 404,
+                    candidates.length > 1 ? 'PUMP_SHELL_TEMPLATE_AMBIGUOUS' : 'PUMP_SHELL_TEMPLATE_NOT_FOUND',
+                    {
+                        shellModel,
+                        candidates: candidates.slice(0, 12).map(item => ({
+                            templateId: item.id ?? item.Id,
+                            shellModel: item.shellModel,
+                            description: item.description || '',
+                        })),
+                    }
+                );
+            }
+            templateId = candidates[0].id ?? candidates[0].Id;
+        }
         const { template, shellMeta } = loadTemplateContext(templateId);
-        return buildBomDraft(input, {
+        if (templateId && !template) {
+            throw new RecipeQueryError('泵壳模板不存在', 404, 'PUMP_SHELL_TEMPLATE_NOT_FOUND', {
+                templateId: Number(templateId),
+            });
+        }
+        const hasStandaloneConfiguration = Boolean(
+            input.coilSpec
+            || input.coilSheets
+            || input.hasFloat
+            || input.hasCable
+            || parseJsonArray(input.packingParts || input.packingPartsJson).length > 0
+            || parseJsonArray(input.optionalParts || input.extraParts).length > 0
+        );
+        if (!template && !variant && !hasStandaloneConfiguration) {
+            throw new RecipeQueryError(
+                'BOM 草稿必须提供正式泵壳模板、常用配置预设或至少一项有效配置',
+                400,
+                'RECIPE_BOM_CONFIGURATION_REQUIRED'
+            );
+        }
+        const partsCatalog = listParts();
+        const normalizeConfiguredParts = (value, field, recipeField) => {
+            const selections = parseJsonArray(value);
+            return selections.map((selection) => {
+                const query = String(selection?.model || '').trim();
+                if (!query) return selection;
+                const supplier = String(selection?.supplier || '').trim();
+                const exact = partsCatalog.filter(part => (
+                    String(part.model || '').trim().toLocaleLowerCase() === query.toLocaleLowerCase()
+                    && (!supplier || String(part.supplier || '').trim() === supplier)
+                ));
+                let matches = exact;
+                let resolutionSource = exact.length === 1 ? 'catalog_exact' : '';
+                let resolutionRecipes = [];
+                if (matches.length === 0) {
+                    const configuredModels = new Set();
+                    for (const recipe of listRecipes()) {
+                        if (Number(recipe.templateId || 0) !== Number(templateId || 0)) continue;
+                        for (const configured of parseJsonArray(recipe[recipeField])) {
+                            const model = String(configured?.model || '').trim();
+                            if (model.toLocaleLowerCase().includes(query.toLocaleLowerCase())) {
+                                configuredModels.add(model);
+                                resolutionRecipes.push({
+                                    recipeId: recipe.id ?? recipe.Id,
+                                    recipeName: recipe.name || '',
+                                    model,
+                                });
+                            }
+                        }
+                    }
+                    if (configuredModels.size === 1) {
+                        const [configuredModel] = configuredModels;
+                        matches = partsCatalog.filter(part => (
+                            String(part.model || '').trim() === configuredModel
+                            && (!supplier || String(part.supplier || '').trim() === supplier)
+                        ));
+                        if (matches.length === 1) resolutionSource = 'template_recipe_consensus';
+                    }
+                }
+                if (matches.length === 0) {
+                    matches = partsCatalog.filter(part => (
+                        String(part.model || '').toLocaleLowerCase().includes(query.toLocaleLowerCase())
+                        && (!supplier || String(part.supplier || '').trim() === supplier)
+                    ));
+                    if (matches.length === 1) resolutionSource = 'catalog_unique_partial';
+                }
+                if (matches.length !== 1) {
+                    throw new RecipeQueryError(
+                        matches.length > 1
+                            ? `${field}“${query}”匹配到多条正式零件，请选择完整型号`
+                            : `${field}“${query}”未匹配到正式零件`,
+                        matches.length > 1 ? 409 : 404,
+                        matches.length > 1 ? 'CONFIGURED_PART_AMBIGUOUS' : 'CONFIGURED_PART_NOT_FOUND',
+                        {
+                            field,
+                            query,
+                            candidates: matches.slice(0, 12).map(part => ({
+                                partId: part.id ?? part.Id,
+                                model: part.model,
+                                supplier: part.supplier || '',
+                                price: Number(part.price || 0),
+                            })),
+                        }
+                    );
+                }
+                const matched = matches[0];
+                return {
+                    ...selection,
+                    partId: matched.id ?? matched.Id,
+                    model: matched.model,
+                    supplier: matched.supplier || '',
+                    resolution: {
+                        source: resolutionSource || 'catalog_exact',
+                        query,
+                        ...(resolutionSource === 'template_recipe_consensus'
+                            ? { recipes: resolutionRecipes }
+                            : {}),
+                    },
+                };
+            });
+        };
+        const normalizedInput = {
+            ...input,
+            packingParts: normalizeConfiguredParts(
+                input.packingParts || input.packingPartsJson,
+                '包装项目',
+                'packingPartsJson'
+            ),
+            optionalParts: normalizeConfiguredParts(
+                input.optionalParts || input.extraParts,
+                '可选零件',
+                'extraPartsJson'
+            ),
+        };
+        const draft = buildBomDraft(normalizedInput, {
             template,
             variant,
             shellMeta,
-            partsCatalog: listParts(),
+            partsCatalog,
             coils: listCoils(),
             getSetting,
         });
+        const surfaceTreatmentMode = template?.surfaceTreatmentMode
+            || (template?.paintingWage != null ? 'painting' : 'none');
+        const costDraft = buildRecipeCostDraft({
+            parts: draft.parts || [],
+            customBarrelLength: draft.customBarrelLength ?? normalizedInput.customBarrelLength,
+            longScrewExtraLength: draft.longScrewExtraLength ?? normalizedInput.longScrewExtraLength,
+            assemblyWage: Number(template?.assemblyWage || 0),
+            packingWage: Number(template?.packingWage || 0),
+            surfaceTreatmentMode,
+            surfaceTreatmentCost: surfaceTreatmentMode === 'none'
+                ? 0
+                : Number(template?.surfaceTreatmentCost ?? template?.paintingWage ?? 0),
+            managementFee: Number(getSetting('management_fee') || 0),
+            coilMaterial: normalizedInput.coilMaterial || variant?.coilMaterial || '钢带',
+        }, { partsCatalog });
+        const unpricedParts = findUnpricedRecipeParts(costDraft.parts);
+        return {
+            ...draft,
+            parts: costDraft.parts,
+            costPreview: {
+                sourceOfTruth: 'costEngine',
+                costBasis: 'configuredBomDraft',
+                pricingComplete: unpricedParts.length === 0,
+                currentTotalCost: unpricedParts.length === 0 ? costDraft.savedTotalCost : null,
+                partsCost: costDraft.partsCost,
+                laborCost: costDraft.laborCost,
+                missingParts: unpricedParts.map(part => ({
+                    partId: part.partId || null,
+                    model: part.model || '',
+                    supplier: part.supplier || '',
+                    qty: Number(part.qty || 1),
+                })),
+                details: costDraft.savedCostDetails,
+            },
+        };
     }
 
     function getModelVariantDraft(rawModelVariantId) {

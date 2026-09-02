@@ -337,6 +337,10 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const coilWindingProfileMigration = MIGRATIONS.find(migration => migration.version === 63);
         const enableCoreAiReleaseGateMigration = MIGRATIONS.find(migration => migration.version === 72);
         const restoreCoreAiReleaseCasesMigration = MIGRATIONS.find(migration => migration.version === 73);
+        const configuredTemplateCostMigration = MIGRATIONS.find(migration => migration.version === 76);
+        const directCableNoSplitMigration = MIGRATIONS.find(migration => migration.version === 77);
+        const explicitSingleCuttingItemMigration = MIGRATIONS.find(migration => migration.version === 78);
+        const configuredCostAnswerSummaryMigration = MIGRATIONS.find(migration => migration.version === 79);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -353,6 +357,10 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(coilWindingProfileMigration);
         assert.ok(enableCoreAiReleaseGateMigration);
         assert.ok(restoreCoreAiReleaseCasesMigration);
+        assert.ok(configuredTemplateCostMigration);
+        assert.ok(directCableNoSplitMigration);
+        assert.ok(explicitSingleCuttingItemMigration);
+        assert.ok(configuredCostAnswerSummaryMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -402,6 +410,14 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         `).run();
         restoreCoreAiReleaseCasesMigration.up(db);
         restoreCoreAiReleaseCasesMigration.up(db);
+        configuredTemplateCostMigration.up(db);
+        configuredTemplateCostMigration.up(db);
+        directCableNoSplitMigration.up(db);
+        directCableNoSplitMigration.up(db);
+        explicitSingleCuttingItemMigration.up(db);
+        explicitSingleCuttingItemMigration.up(db);
+        configuredCostAnswerSummaryMigration.up(db);
+        configuredCostAnswerSummaryMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, release_gate_enabled, review_status, source_type
@@ -420,6 +436,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
                 'customer-quotation-display-order',
                 'complete-cable-semantics',
                 'cutting-shell-purpose-evidence',
+                'configured-template-cost',
             ]
         );
         assert.ok(systemCases.every(item => (
@@ -476,6 +493,7 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(cableRequiredTerms.includes('共同组成一条'));
         assert.ok(cableRequiredTerms.includes('单一整体业务项'));
         assert.ok(cableRequiredTerms.includes('作为一条成品电缆'));
+        assert.ok(JSON.parse(cableCase.config_json).requiredTerms[2].includes('不拆'));
         const windingCase = db.prepare(`
             SELECT enabled, release_gate_enabled, config_json
             FROM ai_evaluation_cases
@@ -488,6 +506,19 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.deepEqual(windingConfig.requiredTools, ['search_coils']);
         assert.deepEqual(windingConfig.requiredSourceTables, ['coils']);
         assert.ok(windingConfig.forbiddenTerms.includes('没有绕组数据字段'));
+        const configuredCostCase = db.prepare(`
+            SELECT question, enabled, release_gate_enabled, config_json
+            FROM ai_evaluation_cases
+            WHERE case_key = 'configured-template-cost'
+        `).get();
+        const configuredCostConfig = JSON.parse(configuredCostCase.config_json);
+        assert.match(configuredCostCase.question, /V750-大脚板-2寸/);
+        assert.equal(configuredCostCase.enabled, 1);
+        assert.equal(configuredCostCase.release_gate_enabled, 1);
+        assert.equal(configuredCostConfig.fact.type, 'configured_bom_cost');
+        assert.deepEqual(configuredCostConfig.requiredTools, ['build_recipe_bom_draft']);
+        assert.ok(configuredCostConfig.requiredTerms.some(group => group.includes('12-120')));
+        assert.ok(configuredCostConfig.requiredTerms.some(group => group.includes('浮球')));
         const cuttingCase = db.prepare(`
             SELECT config_json FROM ai_evaluation_cases
             WHERE case_key = 'cutting-shell-purpose-evidence'
@@ -497,6 +528,9 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         );
         assert.ok(
             JSON.parse(cuttingCase.config_json).requiredTerms[1].includes('无明确标注')
+        );
+        assert.ok(
+            JSON.parse(cuttingCase.config_json).requiredTerms[1].includes('只有1项明确标注')
         );
         assert.equal(
             JSON.parse(cuttingCase.config_json).requiredTerms.some(group => (

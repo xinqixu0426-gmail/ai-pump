@@ -114,6 +114,7 @@ async function executeBusinessTool(toolName, args, internalFetch) {
         case 'build_recipe_bom_draft': {
             const data = await postJson(internalFetch, '/api/recipes/bom-draft', {
                 templateId: args.templateId,
+                shellModel: args.shellModel,
                 modelVariantId: args.modelVariantId,
                 customBarrelLength: args.customBarrelLength,
                 longScrewExtraLength: args.longScrewExtraLength,
@@ -131,12 +132,15 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 cableAccessoryType: args.cableAccessoryType,
                 packingParts: args.packingParts || [],
                 optionalParts: args.optionalParts || [],
+                requireStablePartIdentity: true,
             }, '生成配方 BOM 草稿失败');
             return {
                 success: true,
                 intent: 'recipe_bom_draft',
-                summary: `BOM 草稿已生成，共 ${Array.isArray(data.parts) ? data.parts.length : 0} 个项目。`,
-                display: { mode: 'compact', title: 'BOM 草稿' },
+                summary: data.costPreview?.pricingComplete === false
+                    ? `BOM 已生成，共 ${Array.isArray(data.parts) ? data.parts.length : 0} 个项目；存在 ${Array.isArray(data.costPreview?.missingParts) ? data.costPreview.missingParts.length : 0} 个未定价项目，不能给出总成本。`
+                    : `BOM 和成本试算已生成，共 ${Array.isArray(data.parts) ? data.parts.length : 0} 个项目，当前总成本 ${Number(data.costPreview?.currentTotalCost || 0).toFixed(2)} 元。`,
+                display: { mode: 'compact', title: '配置 BOM 与成本试算' },
                 data,
             };
         }
@@ -156,6 +160,8 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 cableLength: args.cableLength,
                 cableWire: args.cableWire,
                 cableAccessoryType: args.cableAccessoryType,
+                boxType: args.boxType,
+                packingPartsJson: args.packingPartsJson,
             };
             const normalizedOverrides = Object.fromEntries(
                 Object.entries(overrides).filter(([, value]) => value !== undefined)

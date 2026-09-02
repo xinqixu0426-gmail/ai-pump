@@ -5490,6 +5490,72 @@ test('AI full_calculate 保留正式套件价和线圈库存身份', async () =>
     assert.equal(calls.length, 1);
 });
 
+test('AI 模板配置成本把完整 BOM 和包装交给正式成本草稿 API', async () => {
+    const calls = installFetchStub((call) => {
+        assert.equal(call.method, 'POST');
+        assert.match(call.url, /\/api\/recipes\/bom-draft$/);
+        assert.equal(call.body.templateId, 1);
+        assert.equal(call.body.coilSheets, 120);
+        assert.equal(call.body.requireStablePartIdentity, true);
+        assert.deepEqual(call.body.packingParts, [
+            { model: '木箱', qty: 1, packingRole: 'container' },
+            { model: '珍珠棉', qty: 1, packingRole: 'pearlCotton' },
+        ]);
+        return jsonResponse({
+            success: true,
+            data: {
+                parts: [{ model: 'v550木箱' }, { model: '珍珠棉' }],
+                costPreview: {
+                    sourceOfTruth: 'costEngine',
+                    costBasis: 'configuredBomDraft',
+                    currentTotalCost: 253.54,
+                },
+            },
+        });
+    });
+
+    const result = await executeToolCall('build_recipe_bom_draft', {
+        templateId: 1,
+        coilSpec: '12',
+        coilSheets: 120,
+        hasFloat: true,
+        packingParts: [
+            { model: '木箱', qty: 1, packingRole: 'container' },
+            { model: '珍珠棉', qty: 1, packingRole: 'pearlCotton' },
+        ],
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.match(result.summary, /253\.54/);
+    assert.equal(result.data.costPreview.currentTotalCost, 253.54);
+    assert.equal(calls.length, 1);
+});
+
+test('AI 模板配置成本存在未定价零件时不把总成本回答成 0 元', async () => {
+    installFetchStub(() => jsonResponse({
+        success: true,
+        data: {
+            parts: [{ model: '待定珍珠棉' }],
+            costPreview: {
+                sourceOfTruth: 'costEngine',
+                costBasis: 'configuredBomDraft',
+                pricingComplete: false,
+                currentTotalCost: null,
+                missingParts: [{ model: '待定珍珠棉' }],
+            },
+        },
+    }));
+
+    const result = await executeToolCall('build_recipe_bom_draft', {
+        shellModel: 'V750-大脚板-2寸',
+        coilSpec: '12',
+        coilSheets: 120,
+    }, { allowWrite: false });
+
+    assert.match(result.summary, /不能给出总成本/);
+    assert.doesNotMatch(result.summary, /0\.00/);
+});
+
 test('V10.2 AI executor：客户要求只能保存草稿且必须先确认', async () => {
     const calls = installFetchStub((call) => {
         assert.equal(call.method, 'PUT');

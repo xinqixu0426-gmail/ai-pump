@@ -343,11 +343,12 @@ function buildRecipeBomDraft(input, context) {
             ...(isManual
                 ? { costSource: 'manual', formula: `手输价 ${manualPrice}` }
                 : {}),
+            ...(part.resolution ? { resolution: part.resolution } : {}),
         });
     });
 
     if (toBool(input.hasFloat)) {
-        const model = wireModel('浮球', input.floatWire || '');
+        const model = wireModel('浮球', input.floatWire || coilSnapshot?.wireGauge || '');
         const accessoryType = input.floatAccessoryType || 'standard';
         const matchedFloat = requireStablePartIdentity
             ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'floatWire' })
@@ -370,7 +371,7 @@ function buildRecipeBomDraft(input, context) {
     }
 
     if (toBool(input.hasCable)) {
-        const model = configuredWireModel('电缆', input.cableWire, '');
+        const model = configuredWireModel('电缆', input.cableWire || coilSnapshot?.wireGauge, '');
         const matchedCable = requireStablePartIdentity
             ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'cableWire' })
             : null;
@@ -429,6 +430,7 @@ function buildRecipeBomDraft(input, context) {
                     : getPriceByModelAndSupplier(partsCatalog, model, supplier),
             packagingMaterial,
             packingRole,
+            ...(part.resolution ? { resolution: part.resolution } : {}),
             ...(isManual ? { costSource: 'manual', source: 'manual', formula: `手输价 ${Number(part.snapshotPrice || 0)}` } : {}),
         });
     });

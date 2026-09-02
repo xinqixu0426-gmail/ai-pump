@@ -159,7 +159,8 @@ test('供应商线圈转子套件价贯穿真实 HTTP CRUD 与成本试算', asy
         },
     });
     assert.equal(fullEstimate.response.status, 200);
-    assert.equal(fullEstimate.payload.data.totalCost, '88.50');
+    assert.equal(fullEstimate.payload.data.costBasis, 'overridePreview');
+    assert.equal(fullEstimate.payload.data.totalCost, '93.50');
     assert.equal(fullEstimate.payload.data.statorCost.coilId, coilId);
     assert.equal(fullEstimate.payload.data.statorCost.inventoryType, 'coil');
     assert.equal(fullEstimate.payload.data.statorCost.pricingMode, 'kit');

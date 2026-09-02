@@ -7,6 +7,7 @@ const CORE_AI_RELEASE_CASE_KEYS = Object.freeze([
     'customer-quotation-display-order',
     'complete-cable-semantics',
     'cutting-shell-purpose-evidence',
+    'configured-template-cost',
 ]);
 
 const AI_RELEASE_RUN_OWNER_KEY = 'release:internal';

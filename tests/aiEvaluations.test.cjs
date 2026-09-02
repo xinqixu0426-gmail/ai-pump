@@ -923,6 +923,59 @@ test('AI 评测：客户报价检查识别错误数量和内部数据库编号',
     fixture.db.close();
 });
 
+test('AI 评测：模板配置成本必须完整保留型号、配置和正式总成本', () => {
+    const fixture = createFixture();
+    const caseItem = {
+        config: {
+            requiredTerms: [
+                ['V750-大脚板-2寸'],
+                ['12-120'],
+                ['浮球'],
+                ['木箱'],
+                ['珍珠棉'],
+            ],
+            requiredTools: ['build_recipe_bom_draft'],
+            fact: {
+                type: 'configured_bom_cost',
+                templateModel: 'V750-大脚板-2寸',
+                coilModel: '12-120',
+                packingModels: ['v550木箱', '珍珠棉'],
+            },
+        },
+    };
+    const toolResults = [{
+        name: 'build_recipe_bom_draft',
+        result: {
+            executionEvidence: { verified: true },
+            data: {
+                parts: [
+                    { model: 'V750-大脚板-2寸', costRole: 'stainlessShellBundle' },
+                    { model: '12-120', costRole: 'coil' },
+                    { model: '浮球', costRole: 'float' },
+                    { model: 'v550木箱', costRole: 'packing' },
+                    { model: '珍珠棉', costRole: 'packing' },
+                ],
+                costPreview: {
+                    sourceOfTruth: 'costEngine',
+                    costBasis: 'configuredBomDraft',
+                    pricingComplete: true,
+                    currentTotalCost: 253.54,
+                },
+            },
+        },
+    }];
+
+    const completeAnswer = 'V750-大脚板-2寸，12-120线圈，带浮球、木箱和珍珠棉，当前正式成本约 253.54 元。';
+    assert.equal(evaluateRuleCase(caseItem, completeAnswer, toolResults, fixture.db).status, 'passed');
+    assert.equal(evaluateRuleCase(caseItem, '当前正式成本约 253.54 元。', toolResults, fixture.db).status, 'failed');
+    const duplicated = structuredClone(toolResults);
+    duplicated[0].result.data.parts.push({ model: '珍珠棉', costRole: 'packing' });
+    const failed = evaluateRuleCase(caseItem, completeAnswer, duplicated, fixture.db);
+    assert.equal(failed.status, 'failed');
+    assert.equal(failed.checks.find(check => check.key === 'fact:configured_bom_packing:珍珠棉').passed, false);
+    fixture.db.close();
+});
+
 test('AI 评测：零报价接受明确无历史报价结论并拒绝含糊回答', () => {
     const fixture = createFixture();
     fixture.db.prepare('DELETE FROM quotations').run();
