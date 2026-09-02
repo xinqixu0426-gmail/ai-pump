@@ -950,6 +950,35 @@ test('AI 评测：切割泵壳必须使用明确证据且不得把 SPA 语义候
 
     assert.equal(correct.status, 'passed');
 
+    const productionWording = evaluateRuleCase(
+        caseItem,
+        '明确用于切割杂草的是 800平刀切割泵壳；“切边6mm长螺丝”是外六角螺丝。现有记录未明确该泵壳是否附带刀片。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(productionWording.status, 'passed');
+
+    const positiveRecord = evaluateRuleCase(
+        caseItem,
+        '800平刀切割泵壳配切边6mm长螺丝，现有记录很明确，属于外六角螺丝。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(positiveRecord.status, 'failed');
+
+    for (const unrelatedUncertainty of [
+        '800平刀切割泵壳配切边6mm长螺丝，属于外六角螺丝；无法确认电缆成本。',
+        '800平刀切割泵壳配切边6mm长螺丝，属于外六角螺丝；只有一项明确标注的是其他业务项。',
+    ]) {
+        const unrelated = evaluateRuleCase(
+            caseItem,
+            unrelatedUncertainty,
+            toolResults,
+            fixture.db
+        );
+        assert.equal(unrelated.status, 'failed', unrelatedUncertainty);
+    }
+
     const explicitWarning = evaluateRuleCase(
         caseItem,
         '系统未确认是否附带刀片，请勿推断为全套含刀。',

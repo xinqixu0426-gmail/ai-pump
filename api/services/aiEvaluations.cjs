@@ -111,6 +111,21 @@ function containsAny(answer, terms) {
     return terms.some(term => normalized.includes(normalizeAnswerForChecks(term)));
 }
 
+function containsRequiredTermGroup(answer, terms) {
+    const normalizedTerms = terms.map(normalizeAnswerForChecks);
+    const isEvidenceUncertaintyGroup = normalizedTerms.some(term => (
+        /(?:未|没有|无).*(?:记录|明确|标注)/.test(term)
+    )) && normalizedTerms.some(term => /(?:不能|无法)确认/.test(term));
+    if (!isEvidenceUncertaintyGroup) return containsAny(answer, terms);
+    const specificTerms = terms.filter(term => !/^(?:不能|无法)确认$/.test(normalizeAnswerForChecks(term)));
+    if (containsAny(answer, specificTerms)) return true;
+    return normalizeAnswerForChecks(answer)
+        .split(/[。！？\n]/)
+        .some(sentence => (
+            /(?:系统|现有|当前|已有)?(?:记录|资料|来源|档案|证据).{0,12}(?:未|没有|无|不).{0,8}(?:明确|记录|确认|标注)/.test(sentence)
+        ));
+}
+
 function containsMissingCustomerConclusion(answer, configuredTerms) {
     if (containsAny(answer, configuredTerms)) return true;
     return normalizeAnswerForChecks(answer)
@@ -451,7 +466,7 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
     if (strictEvidenceRequired) {
         for (const terms of Array.isArray(config.requiredTerms) ? config.requiredTerms : []) {
             const group = Array.isArray(terms) ? terms : [terms];
-            addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsAny(answer, group), '回答必须包含至少一个指定词');
+            addCheck(checks, `required:${group.join('|')}`, `包含 ${group.join(' 或 ')}`, containsRequiredTermGroup(answer, group), '回答必须包含至少一个指定词或等价结论');
         }
     }
     for (const term of Array.isArray(config.forbiddenTerms) ? config.forbiddenTerms : []) {
