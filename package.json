@@ -8,6 +8,7 @@
     "build": "npm run web-next:build",
     "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
     "test": "node scripts/run-tests.cjs",
+    "test:ai-architecture": "node scripts/run-ai-architecture-acceptance.cjs",
     "test:mcp": "node --test tests/mcp.test.cjs",
     "test:mcp:conformance": "node scripts/run-mcp-conformance.cjs",
     "verify:mcp-local": "npm run test:mcp && npm run test:mcp:conformance && node scripts/run-deep-api-smoke.cjs --scope=mcp",

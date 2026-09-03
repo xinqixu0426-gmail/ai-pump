@@ -61,6 +61,30 @@ R2-only 的兼容回答链路；同时打开 R2 与 R3 时，首批单实体只�
 R3 不改变当前 9 条 legacy release cases，也不替代真实 AI 发布门禁；在 R4 完成 shadow/evaluation
 校准前，该开关不得作为生产默认值。
 
+### 2.2 R4-A Dynamic Oracle 架构验收
+
+R4-A 是独立、确定性的架构验收层，运行命令为：
+
+```bash
+npm run test:ai-architecture
+```
+
+它不修改运行时，也不作为 LLM judge。每个 case 先声明 required Facts，再由隔离测试中的正式
+API 或正式 service 构造 oracle；ExpectedClaimSet 的业务值只能从该 oracle 读取。验收器随后按
+entity、predicate、temporal scope、scenario、qualifiers、value、unit 和 evidence class 结构化比较
+实际 Claims，并核对 InvestigationState、AnswerPlan、renderer grounding、技术失败语义与只读能力边界。
+成本 oracle 只引用正式成本 API/service 已返回的值，验收器不重复计算成本。
+
+R4-A 报告按 case 输出有界的错误码、能力名、Behavior 类型和 Observation outcome，并聚合：
+Evidence Preservation Rate、Unsupported Business Claim Rate、Required Claim Coverage Rate、
+False Not-Found Rate、Ambiguity Auto-Resolution Rate、Read Write-Exposure Rate、
+Dynamic Oracle Agreement Rate、Renderer Grounding Pass Rate、Technical Failure Semantic Accuracy。
+
+这套架构验收与现有 9 条 release cases 的职责不同：9 条 legacy cases 继续原样服务真实 AI 发布门禁，
+R4-A 负责验证 R1-R3 的结构化不变量，不读取固定答案文本、固定价格或问题级正则，也不会启动
+生产数据库、修改生产配置或打开 R2/R3 feature flag。R4-A 通过不等于真实 AI 发布通过；
+`npm run verify:ai-release` 仍只在已有安全隔离或正式发布流程中执行。
+
 ## 3. 日常使用
 
 ### 3.1 让 AI 学习一次纠错
