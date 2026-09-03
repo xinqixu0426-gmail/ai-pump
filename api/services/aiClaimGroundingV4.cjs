@@ -1,4 +1,8 @@
 const { factIdentityKey } = require('./aiFactModelV4.cjs');
+const {
+    isCurrentInventoryQuantityIdentity,
+    materializeNumericBusinessScalarFact,
+} = require('./aiNumericScalarFactsV4.cjs');
 
 const CLAIM_TYPES = new Set([
     'entity_identity',
@@ -138,6 +142,12 @@ function finiteValue(value) {
 }
 
 function scalarFromEvidence(requirement, evidence) {
+    if (isCurrentInventoryQuantityIdentity(requirement.identity)) {
+        const fact = materializeNumericBusinessScalarFact(requirement, evidence);
+        return fact
+            ? { value: fact.numericValue, predicate: fact.predicate, unit: fact.unit }
+            : { value: null, predicate: requirement.identity.predicate, unit: null };
+    }
     const result = unwrapResult(evidence);
     const data = result.data && !Array.isArray(result.data) ? result.data : result;
     const row = selectEntityRow(result, requirement.identity) || data;
@@ -148,7 +158,7 @@ function scalarFromEvidence(requirement, evidence) {
     }
     const byScenario = {
         catalog_current: [row?.price, row?.unitPrice, row?.currentPrice],
-        coil_current: [row?.stock, row?.currentStock, row?.inventory, data?.totalCost],
+        coil_current: [row?.stock, row?.currentStock, row?.inventory],
         current_template_cost: [data?.shellPrice, data?.costPreview?.currentTotalCost, data?.currentTotalCost],
         current_coil_cost: [data?.totalCost, data?.currentTotalCost],
         current_full_cost: [data?.costPreview?.currentTotalCost, data?.currentTotalCost, data?.totalCost],
@@ -179,6 +189,7 @@ function claimTypeForRequirement(requirement) {
     return {
         entityIdentity: 'entity_identity',
         currentScalar: 'scalar_value',
+        inventoryQuantity: 'scalar_value',
         currentRecipeCost: 'scalar_value',
         savedRecipeCostSnapshot: 'scalar_value',
         unit: 'scalar_value',
@@ -237,7 +248,7 @@ function candidatesForRequirement(requirement, observations = []) {
     return [...new Map(candidates.map(item => [JSON.stringify(item), item])).values()];
 }
 
-function claimFromEvidence(requirement, evidence, claimId) {
+function claimFromEvidence(requirement, evidence, claimId, numericFact = null) {
     const ambiguityProbeSatisfied = requirement.status === 'negative_satisfied'
         && requirement.identity.predicate === 'ambiguity';
     const claimType = ambiguityProbeSatisfied ? 'status' : claimTypeForRequirement(requirement);
@@ -257,7 +268,13 @@ function claimFromEvidence(requirement, evidence, claimId) {
     let unit = requirement.identity.qualifiers?.unit || null;
     let predicate = requirement.identity.predicate;
     if (claimType === 'scalar_value') {
-        const scalar = scalarFromEvidence(requirement, evidence);
+        const scalar = numericFact
+            ? {
+                value: numericFact.numericValue,
+                predicate: numericFact.predicate,
+                unit: numericFact.unit,
+            }
+            : scalarFromEvidence(requirement, evidence);
         if (scalar.value === null || scalar.value === undefined) return null;
         ({ value, unit, predicate } = scalar);
     } else if (claimType === 'entity_identity') {
@@ -266,8 +283,10 @@ function claimFromEvidence(requirement, evidence, claimId) {
     } else if (claimType === 'status') {
         value = ambiguityProbeSatisfied
             ? 'no_competing_entity_match'
-            : getPath(result, requirement.identity.qualifiers?.valuePath)
-                ?? row.schemeStatus ?? row.status ?? row.stockStatus ?? null;
+            : requirement.identity.scenario === 'current_inventory'
+                ? row.inventoryStatus ?? row.stockStatus ?? null
+                : getPath(result, requirement.identity.qualifiers?.valuePath)
+                    ?? row.schemeStatus ?? row.status ?? row.stockStatus ?? null;
         if (value === null) return null;
     } else if (claimType === 'relationship') {
         value = getPath(result, requirement.identity.qualifiers?.valuePath) ?? row;
@@ -308,10 +327,15 @@ function buildClaimsFromInvestigation(input = {}) {
         sequence += 1;
         const claimId = `claim-${sequence}`;
         if (requirement.status === 'satisfied' || requirement.status === 'negative_satisfied') {
+            const numericFact = (state.numericFacts || []).find(item => (
+                item.factKey === requirement.factKey
+                && item.evidenceRefs.some(ref => requirement.evidenceIds.includes(ref))
+            )) || null;
             const claim = claimFromEvidence(
                 requirement,
                 evidenceForRequirement(requirement, evidenceLedger),
-                claimId
+                claimId,
+                numericFact
             );
             if (claim) claims.push(claim);
             continue;

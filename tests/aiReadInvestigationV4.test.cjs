@@ -8,6 +8,11 @@ if (process.env.NODE_ENV !== 'test' || !process.env.PUMP_TEST_DATABASE_PATH) {
 
 const { createObservation } = require('../api/services/aiObservationV3.cjs');
 const {
+    buildClaimsFromInvestigation,
+    validateClaims,
+} = require('../api/services/aiClaimGroundingV4.cjs');
+const { composeGroundedAnswerV4 } = require('../api/services/aiGroundedAnswerV4.cjs');
+const {
     createFactRequirement,
     createInvestigationGoal,
     createInvestigationState,
@@ -31,6 +36,7 @@ const {
 } = require('../api/services/aiReadInvestigationRuntimeV4.cjs');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
 const partsRouter = require('../api/routes/parts.cjs');
+const coilsRouter = require('../api/routes/coils.cjs');
 const { db, stopBackupScheduler } = require('../api/db.cjs');
 
 function verifiedResult(data) {
@@ -580,6 +586,99 @@ test('800平刀切割泵壳真实集成：正式 API 动态值形成 Fact Eviden
         || observed.evidence.toolResult.result.items;
     assert.equal(observedParts.find(item => item.id === expected.id).price, expected.price);
     assert.notEqual(expected.price, 95);
+});
+
+test('正式 Part/Coil API 库存值物化为同一 numeric Fact contract', async t => {
+    const previousPort = process.env.PORT;
+    const part = db.prepare(`
+        INSERT INTO parts (model, category, price, supplier, stock, remark, created_at, updated_at)
+        VALUES (?, '测试件', 1, 'R2.3隔离测试', 0, '', datetime('now'), datetime('now'))
+    `).run(`R2.3-part-${Date.now()}`);
+    const coil = db.prepare(`
+        INSERT INTO coils (spec, sheets, stock, created_at, updated_at)
+        VALUES (?, 120, 0, datetime('now'), datetime('now'))
+    `).run(`R2.3-coil-${Date.now()}`);
+    const app = express();
+    app.use(express.json());
+    app.use('/api/parts', partsRouter);
+    app.use('/api/coils', coilsRouter);
+    const server = await new Promise(resolve => {
+        const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+    });
+    process.env.PORT = String(server.address().port);
+    t.after(async () => {
+        db.prepare('DELETE FROM coils WHERE id = ?').run(coil.lastInsertRowid);
+        db.prepare('DELETE FROM parts WHERE id = ?').run(part.lastInsertRowid);
+        process.env.PORT = previousPort;
+        server.closeAllConnections?.();
+        await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    });
+
+    for (const item of [
+        { entityType: 'part', id: part.lastInsertRowid, capabilityName: 'search_parts', queryKey: 'keyword', unit: '件' },
+        { entityType: 'coil', id: coil.lastInsertRowid, capabilityName: 'search_coils', queryKey: 'spec', unit: '套' },
+    ]) {
+        const target = item.entityType === 'part'
+            ? db.prepare('SELECT model FROM parts WHERE id = ?').get(item.id).model
+            : db.prepare('SELECT spec FROM coils WHERE id = ?').get(item.id).spec;
+        const goal = goalFromIntent({
+            goal: '读取当前库存数量',
+            mode: 'query',
+            entityScope: 'single',
+            domains: [item.entityType === 'part' ? 'catalog' : 'coil'],
+            targetMentions: [target],
+            requiredFactIntents: [{
+                entityType: item.entityType,
+                predicate: 'inventoryQuantity',
+                temporalScope: 'current',
+                scenario: 'current_inventory',
+            }],
+            steps: [{ capabilityName: item.capabilityName }],
+        });
+        const controller = createReadInvestigationController({ goal });
+        const selected = controller.next();
+        assert.equal(selected.capabilityName, item.capabilityName);
+        const args = { [item.queryKey]: target };
+        const result = await executeToolCall(item.capabilityName, args);
+        const observed = controller.observe({
+            capabilityName: item.capabilityName,
+            requirementId: selected.requirementId,
+            args,
+            parameterProvenance: { [item.queryKey]: 'original_user' },
+            result,
+        });
+        assert.equal(observed.state.status, 'completed', JSON.stringify(observed.state));
+        assert.equal(observed.state.numericFacts[0].numericValue, 0);
+        assert.equal(observed.state.numericFacts[0].unit, item.unit);
+        assert.equal(observed.state.numericFacts[0].subject.entityType, item.entityType);
+        assert.deepEqual(observed.state.numericFacts[0].evidenceRefs, [observed.evidence.evidenceId]);
+        assert.equal(observed.state.numericFacts[0].authority.kind, 'live_business');
+        assert.equal(observed.state.numericFacts[0].authority.sourceOfTruth, observed.evidence.sourceOfTruth);
+        const evidenceLedger = controller.ledger.snapshot();
+        const claims = buildClaimsFromInvestigation({
+            state: observed.state,
+            evidenceLedger,
+            observations: observed.state.observations,
+        });
+        assert.equal(claims[0].value, 0);
+        assert.equal(claims[0].unit, item.unit);
+        assert.equal(claims[0].predicate, 'inventory.quantity');
+        assert.equal(validateClaims(claims, {
+            requirements: observed.state.requirements,
+            state: observed.state,
+            evidenceLedger,
+            observations: observed.state.observations,
+        }).valid, true);
+        const answer = await composeGroundedAnswerV4({
+            goal: '读取当前库存数量',
+            state: observed.state,
+            evidenceLedger,
+            observations: observed.state.observations,
+            answerShape: 'direct',
+        });
+        assert.equal(answer.rendering, 'deterministic');
+        assert.match(answer.content, new RegExp(`0 ${item.unit}`));
+    }
 });
 
 test.after(() => {

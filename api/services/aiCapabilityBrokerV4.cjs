@@ -20,14 +20,21 @@ function domainsOverlap(left = [], right = []) {
 
 function profileSupportsRequirement(profile, requirement, goal) {
     const identity = requirement.identity;
+    const exactFactSupport = (profile?.factSignatures || []).some(signature => (
+        signature.entityType === identity.entityType
+        && signature.predicate === identity.predicate
+        && signature.temporalScope === identity.temporalScope
+        && signature.scenario === identity.scenario
+    ));
+    const legacyFactSupport = profile?.predicates.includes(identity.predicate)
+        && profile.temporalScopes.includes(identity.temporalScope)
+        && profile.scenarios.includes(identity.scenario);
     return Boolean(
         profile
         && profile.entityScopes.includes(goal.entityScope)
         && (identity.predicate === 'ambiguity' || domainsOverlap(goal.domains, profile.domains))
         && profile.entityTypes.includes(identity.entityType)
-        && profile.predicates.includes(identity.predicate)
-        && profile.temporalScopes.includes(identity.temporalScope)
-        && profile.scenarios.includes(identity.scenario)
+        && (exactFactSupport || legacyFactSupport)
         && (!requirement.requiredSourceOfTruth
             || requirement.requiredSourceOfTruth === profile.sourceOfTruth)
         && (!requirement.requiredAuthority

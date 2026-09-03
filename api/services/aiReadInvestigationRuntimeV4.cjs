@@ -9,6 +9,7 @@ const {
     authorizeCapabilityCall,
     authorizeResolutionCall,
     entityTargetArguments,
+    profileSupportsRequirement,
     reuseEntityBinding,
     selectNextCapability,
 } = require('./aiCapabilityBrokerV4.cjs');
@@ -376,8 +377,20 @@ function createReadInvestigationController(input = {}) {
         state = reduceObservation(state, { observation, evidence: null });
         return state;
     };
-    const replay = (observation, evidence = null) => {
-        state = reduceObservation(state, { observation, evidence });
+    const replay = (observation, evidence = null, options = {}) => {
+        if (options.resolutionReceipt?.selected && options.requirementId) {
+            state = bindResolvedEntity(state, options.requirementId, options.resolutionReceipt, {
+                logicalTarget: goal.originalTarget,
+            });
+        }
+        const requirement = options.requirementId
+            ? state.requirements.find(item => item.requirementId === options.requirementId)
+            : null;
+        const factKey = requirement?.factKey || observation.factKey;
+        state = reduceObservation(state, {
+            observation: factKey === observation.factKey ? observation : { ...observation, factKey },
+            evidence: evidence && factKey !== evidence.factKey ? { ...evidence, factKey } : evidence,
+        });
         return state;
     };
     const exhaustBudget = () => {
@@ -408,31 +421,58 @@ function createReadInvestigationController(input = {}) {
     });
 }
 
-function replayReadInvestigationShadow(input = {}) {
+function replayReadInvestigationProjection(input = {}) {
     const controller = createReadInvestigationController(input);
     if (!controller) return null;
+    const projectedEvidenceLedger = [];
     for (const observation of input.observations || []) {
         const profile = readInvestigationProfile(observation.capabilityName);
         const compatible = controller.state().requirements.filter(item => (
             item.status === 'open'
-            && profile?.entityTypes.includes(item.identity.entityType)
-            && profile.predicates.includes(item.identity.predicate)
-            && profile.temporalScopes.includes(item.identity.temporalScope)
-            && profile.scenarios.includes(item.identity.scenario)
+            && profileSupportsRequirement(profile, item, controller.goal)
         ));
         if (compatible.length !== 1) continue;
         const requirement = compatible[0];
+        const descriptor = ENTITY_DESCRIPTORS[requirement.identity.entityType];
+        const resolutionReceipt = requirement.identity.entityId === null
+            && descriptor?.discoveryCapability === observation.capabilityName
+            ? resolveFormalEntityResultV3({
+                entityType: requirement.identity.entityType,
+                originalMention: controller.goal.originalTarget,
+                sourceCapability: observation.capabilityName,
+                result: observation.result,
+            })
+            : null;
         const evidence = (input.evidenceRecords || []).find(item => (
             (observation.observationId && item.observationId === observation.observationId)
             || (!observation.observationId && item.capabilityName === observation.capabilityName)
         ));
         if (evidence && evidence.factKey !== observation.factKey) continue;
-        controller.replay(
-            { ...observation, factKey: requirement.factKey },
-            evidence ? { ...evidence, factKey: requirement.factKey } : null
+        const nextState = controller.replay(
+            observation,
+            evidence,
+            { requirementId: requirement.requirementId, resolutionReceipt }
         );
+        if (evidence) {
+            const boundRequirement = nextState.requirements.find(item => (
+                item.requirementId === requirement.requirementId
+            ));
+            projectedEvidenceLedger.push(Object.freeze({
+                ...evidence,
+                factKey: boundRequirement?.factKey || evidence.factKey,
+            }));
+        }
     }
-    return controller.state();
+    const state = controller.state();
+    return Object.freeze({
+        state,
+        observations: state.observations,
+        evidenceLedger: Object.freeze(projectedEvidenceLedger),
+    });
+}
+
+function replayReadInvestigationShadow(input = {}) {
+    return replayReadInvestigationProjection(input)?.state || null;
 }
 
 module.exports = {
@@ -443,5 +483,6 @@ module.exports = {
     inferParameterProvenance,
     readInvestigationFlags,
     readInvestigationStateReply,
+    replayReadInvestigationProjection,
     replayReadInvestigationShadow,
 };

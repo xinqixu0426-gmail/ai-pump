@@ -153,6 +153,7 @@ function createInvestigationState(input = {}) {
         behaviorEvents: [...(input.behaviorEvents || [])],
         observations: [...(input.observations || [])],
         evidenceIds: [...(input.evidenceIds || [])],
+        numericFacts: [...(input.numericFacts || [])],
         budget: {
             maxCalls: Number(input.budget?.maxCalls) || 10,
             usedCalls: Number(input.budget?.usedCalls) || 0,

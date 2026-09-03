@@ -97,7 +97,7 @@ test('V2 意图计划：模型必须通过强制结构化协议提交计划', as
     assert.equal(requestOptions.toolChoice.function.name, 'submit_ai_intent_plan');
     assert.deepEqual(
         Object.keys(requestOptions.tools[0].function.parameters.properties),
-        ['steps']
+        ['requiredFactIntents', 'steps']
     );
     assert.equal(requestOptions.attachmentMode, 'metadata');
     assert.equal(requests.length, 2);

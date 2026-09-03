@@ -5,6 +5,11 @@ const {
     deriveInvestigationStatus,
     normalizeLogicalTarget,
 } = require('./aiFactModelV4.cjs');
+const {
+    hasExplicitInventoryStatus,
+    isCurrentInventoryQuantityIdentity,
+    materializeNumericBusinessScalarFact,
+} = require('./aiNumericScalarFactsV4.cjs');
 
 const TECHNICAL_FAILURES = new Set([
     'timeout',
@@ -157,6 +162,7 @@ function reduceObservation(state, input = {}) {
         throw new TypeError('Fact Reducer 只接受 Observation');
     }
     const evidence = input.evidence || null;
+    const materializedFacts = [];
     const requirements = state.requirements.map(requirement => {
         if (requirement.factKey !== observation.factKey || requirement.status !== 'open') {
             return requirement;
@@ -198,6 +204,14 @@ function reduceObservation(state, input = {}) {
             });
         }
         if (observation.outcome === 'success_non_empty') {
+            if (isCurrentInventoryQuantityIdentity(requirement.identity)) {
+                const fact = materializeNumericBusinessScalarFact(requirement, evidence);
+                if (!fact) return requirement;
+                materializedFacts.push(fact);
+            }
+            if (requirement.identity.predicate === 'currentStatus'
+                && requirement.identity.scenario === 'current_inventory'
+                && !hasExplicitInventoryStatus(requirement, evidence)) return requirement;
             return replaceRequirement(requirement, {
                 status: 'satisfied',
                 observationIds,
@@ -213,6 +227,9 @@ function reduceObservation(state, input = {}) {
         evidenceIds: evidence?.evidenceId
             ? [...state.evidenceIds, evidence.evidenceId]
             : state.evidenceIds,
+        numericFacts: materializedFacts.length > 0
+            ? [...state.numericFacts, ...materializedFacts]
+            : state.numericFacts,
     });
 }
 

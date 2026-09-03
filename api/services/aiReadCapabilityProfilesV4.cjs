@@ -1,4 +1,8 @@
 const { getAiCapability } = require('../capabilities/registry.cjs');
+const {
+    CURRENT_INVENTORY_SCENARIO,
+    INVENTORY_QUANTITY_PREDICATE,
+} = require('./aiNumericScalarFactsV4.cjs');
 
 const READ_INVESTIGATION_PROFILES = Object.freeze({
     search_parts: Object.freeze({
@@ -6,12 +10,20 @@ const READ_INVESTIGATION_PROFILES = Object.freeze({
         predicates: Object.freeze(['entityIdentity', 'currentScalar', 'unit', 'currentStatus', 'singleResourceDetail', 'verifiedNotFound', 'ambiguity']),
         temporalScopes: Object.freeze(['current']),
         scenarios: Object.freeze(['catalog_current']),
+        factSignatures: Object.freeze([Object.freeze({
+            entityType: 'part', predicate: INVENTORY_QUANTITY_PREDICATE,
+            temporalScope: 'current', scenario: CURRENT_INVENTORY_SCENARIO,
+        })]),
     }),
     search_coils: Object.freeze({
         entityTypes: Object.freeze(['coil']),
         predicates: Object.freeze(['entityIdentity', 'currentScalar', 'unit', 'currentStatus', 'singleResourceDetail', 'verifiedNotFound', 'ambiguity']),
         temporalScopes: Object.freeze(['current']),
         scenarios: Object.freeze(['coil_current']),
+        factSignatures: Object.freeze([Object.freeze({
+            entityType: 'coil', predicate: INVENTORY_QUANTITY_PREDICATE,
+            temporalScope: 'current', scenario: CURRENT_INVENTORY_SCENARIO,
+        })]),
     }),
     search_templates: Object.freeze({
         entityTypes: Object.freeze(['template']),

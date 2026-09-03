@@ -61,6 +61,8 @@ R2-only 的兼容回答链路；同时打开 R2 与 R3 时，首批单实体只�
 R3 不改变当前 9 条 legacy release cases，也不替代真实 AI 发布门禁；在 R4 完成 shadow/evaluation
 校准前，该开关不得作为生产默认值。
 
+R2.3/R3.1 的第一批 Formal Numeric Business Scalar contract 覆盖 Part/Coil 当前库存数量。R4-B 必须从正式 API 动态构造 ExpectedClaimSet，并覆盖正数、合法 `0`、Part“件”/Coil“套”、quantity/status 分离、wrong entity、current/snapshot 隔离；运行时不得把线圈 `totalCost` 或 `schemeStatus` 当成库存数量/库存状态，也不得由 renderer 改写正式数值。
+
 ### 2.2 R4-A Dynamic Oracle 架构验收
 
 R4-A 是独立、确定性的架构验收层，运行命令为：

@@ -92,6 +92,7 @@ function predicateLabel(claim) {
     const labels = {
         'price.current': '当前价格',
         'inventory.current': '当前库存',
+        'inventory.quantity': '当前库存数量',
         'cost.current.recipe': '当前完整成本',
         'cost.current.template': '当前泵壳成本',
         'cost.current.coil': '当前线圈成本',

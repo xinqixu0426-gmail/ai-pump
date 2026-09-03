@@ -13,6 +13,11 @@ const {
 const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 const { resolutionContextPrompt } = require('./aiResourceResolutionV3.cjs');
 const { aiTurnStatePrompt } = require('./aiTurnStateV3.cjs');
+const {
+    CURRENT_INVENTORY_SCENARIO,
+    INVENTORY_QUANTITY_PREDICATE,
+    normalizeInventoryFactIntent,
+} = require('./aiNumericScalarFactsV4.cjs');
 
 // AI V3 的实际目标规划器；V2 文件仅保留兼容导出。
 const INTENT_MODES = Object.freeze(['conversation', 'query', 'analysis', 'command']);
@@ -214,6 +219,21 @@ function plannerTool(options = {}) {
             parameters: {
                 type: 'object',
                 properties: {
+                    requiredFactIntents: {
+                        type: 'array',
+                        maxItems: 3,
+                        description: '规范业务事实，不填写工具、单位或来源。',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                entityType: { type: 'string', enum: ['part', 'coil'] },
+                                predicate: { type: 'string', enum: [INVENTORY_QUANTITY_PREDICATE] },
+                                temporalScope: { type: 'string', enum: ['current'] },
+                                scenario: { type: 'string', enum: [CURRENT_INVENTORY_SCENARIO] },
+                            },
+                            required: ['entityType', 'predicate', 'temporalScope', 'scenario'],
+                        },
+                    },
                     steps: {
                         type: 'array',
                         maxItems: 5,
@@ -227,7 +247,7 @@ function plannerTool(options = {}) {
                         },
                     },
                 },
-                required: ['steps'],
+                required: ['requiredFactIntents', 'steps'],
             },
         },
     };
@@ -255,7 +275,7 @@ function plannerPrompt(pageContext, resolutionContext, turnState, domains, domai
     const pageNote = pageContext
         ? `当前页面上下文仅是候选指代：${pageContext.resourceType} #${pageContext.resourceId}，视图 ${pageContext.view}。只有用户明确指代当前页面对象时才使用 page_context。`
         : '当前没有页面上下文，不得选择 page_context。';
-    return `你是 AI 调度器 V3 的能力规划器。目标与风险信封已经由上一阶段确定。你只提交 steps，不重复提交或修改目标、模式、业务域、回答形态、对象范围和上下文来源；不回答用户，不执行工具，不输出推理过程。
+    return `你是 AI 调度器 V3 的能力规划器。目标与风险信封已经由上一阶段确定。你只提交 requiredFactIntents 和 steps，不重复提交或修改目标、模式、业务域、回答形态和对象范围；不回答用户，不执行工具，不输出推理过程。
 
 服务端固定继承的目标信封：
 ${JSON.stringify({
@@ -293,6 +313,7 @@ ${JSON.stringify({
 22. 能力目录中的 requires 由正式 JSON Schema 自动生成。只有用户当前消息、可信页面/上一轮绑定，或更早计划步骤的正式结果能够提供全部必填输入时，才能把该能力列为必要步骤；缺少必填输入时不得抱着“也许有用”的想法追加 Preview 或详情能力。一个 Query 已直接返回目标要求的全部正式字段时，不得再安排职责重叠的 Preview。
 23. “由什么组成、是否拆分、计费/收费口径如何”是在解释工厂规则，不等于询问当前零件单价或要求数值成本试算。用户明确要求 Knowledge 且没有索要当前数值时，只安排 Knowledge；不能因为规则文字出现费用、成本、零件或规格就追加 catalog/cost。只有明确询问当前单价、具体金额或给出完整试算输入时才增加相应 Query/Preview。
 24. 指定成品型号的性能测试报告、测试曲线、有效测试数据或逐条测试点只使用 get_recipe_technical_files。转子出图历史只回答转子 PDF 出图任务、jobId 和生成记录；不能因为型号中包含数字、片数或引号就用 get_rotor_drawing_history 代替配方技术档案。
+25. requiredFactIntents 表达业务事实，不表达工具。查询指定 Part 或 Coil 的当前库存数量时，登记 inventoryQuantity/current/current_inventory；库存状态不是库存数量，不能互相替代。单位和数据权威由服务端正式契约决定，不得填写或猜测。其他尚未进入 Fact 目录的目标保持 requiredFactIntents 为空，由既有 steps 兼容路径处理。
 
 ${pageNote}
 
@@ -366,6 +387,19 @@ function normalizeIntentPlan(raw, options = {}) {
     if (!Array.isArray(raw.steps) || raw.steps.length > 5) {
         throw new AiIntentPlanError('steps 必须是最多 5 项的数组');
     }
+    const rawFactIntents = raw.requiredFactIntents || [];
+    if (!Array.isArray(rawFactIntents) || rawFactIntents.length > 3) {
+        throw new AiIntentPlanError('requiredFactIntents 必须是最多 3 项的数组');
+    }
+    if (rawFactIntents.length > 0
+        && (!['query', 'analysis'].includes(raw.mode) || entityScope !== 'single')) {
+        throw new AiIntentPlanError('结构化 Fact intent 仅支持 single Query/Analysis');
+    }
+    const requiredFactIntents = rawFactIntents.map((item, index) => {
+        const normalized = normalizeInventoryFactIntent(item);
+        if (!normalized) throw new AiIntentPlanError(`requiredFactIntents[${index}] 未登记`);
+        return normalized;
+    });
     if (!Array.isArray(raw.ambiguities) || raw.ambiguities.length > 3) {
         throw new AiIntentPlanError('ambiguities 必须是最多 3 项的数组');
     }
@@ -438,6 +472,7 @@ function normalizeIntentPlan(raw, options = {}) {
             normalizeText(item, `ambiguities[${index}]`, 160)
         ))),
         confidence: raw.confidence,
+        requiredFactIntents: Object.freeze(requiredFactIntents),
         steps: Object.freeze(steps),
     });
 }
@@ -546,6 +581,7 @@ async function planAiGoalV3(messages, options = {}) {
             const rawStepsPlan = await requestStructuredPlan(provider, plannerMessages, tool, options);
             const normalized = normalizeIntentPlan({
                 ...domainPlan,
+                requiredFactIntents: rawStepsPlan.requiredFactIntents,
                 steps: rawStepsPlan.steps,
             }, {
                 pageContext: options.pageContext,
