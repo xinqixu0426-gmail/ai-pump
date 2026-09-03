@@ -70,6 +70,8 @@
 - `resultProvenance` 只描述正式 executor 回执的证据属性，不得由 AI 根据答案文字猜测。库存、成本、订单状态、报价和价格等实时正式事实必须登记为 `live_business`；知识快照、派生建议和普通执行回执不得冒充实时事实。
 - AI tool 的成功状态必须经过统一执行证据门。Query/Preview 至少取得一条本轮正式 API 成功结果，才能返回业务事实；普通 Command 必须取得与该 AI capability 的 `formalCapabilityIds` 匹配的正式回执，且回执同时具备 `operationId`、`status=completed`（兼容响应可使用 `operationStatus=completed`）和非空 `auditId/auditIds`。只有能力注册表显式声明 `completionMode=accepted_async` 的外部命令，才可把 `accepted/processing` 作为“正式任务已受理”的证据；此时 operation 与强审计必须已持久化，结果必须保留异步状态并提供正式回读入口，AI 不得宣称外部副作用已经完成。
 - 模型文字、executor 自行构造的 `success:true`、确认卡片和客户端传入的操作号都不是执行证据。证据缺失、能力不匹配或审计缺失时，统一执行器必须把结果降级为失败；`/api/ai/confirm-tool` 不得完成确认状态，最终回复不得补写业务数据。
+- AI 调查记录必须区分三层：`BehaviorEvent` 只记录模型/runtime 行为，`Observation` 只记录实际尝试正式 capability/API 后的结果，`EvidenceRecord` 只由具有业务证明力的 Observation 晋升。计划外工具、schema 拒绝、重复调用、计划漂移、重试和预算事件永远不得进入 Evidence Ledger，也不得作为业务失败或“未找到”的依据。
+- Evidence Ledger 必须采用只追加语义。后续模型错误、计划漂移或被拒绝调用不得删除、覆盖或使已经取得的正式 Evidence 失效；只有同一 Fact、同一正式来源的更高业务版本或更新权威时态 Evidence 才能显式 supersede 旧记录。`success_empty/resource_not_found/ambiguous/timeout/transport_failure/protocol_failure/cancelled` 必须保持结构化可区分，技术失败不得转换成已验证负证据。
 - 自然语言中的名称、型号、编号和简称只能作为待解析候选，不能直接成为 high/critical 写操作确认卡中的正式目标。签发 AI confirmation token 前必须通过正式 Query/Preview 唯一解析为标准资源标识和标准名称，并以正式 Preview 返回的当前值、预计值、资源版本和业务确认凭证生成确认内容；零匹配、多匹配或 Preview 不完整时不得签发确认。正式 Preview 的服务端上下文必须与 AI confirmation token 绑定且不得下发客户端，确认执行时只能消费该已绑定上下文，不能重新信任模型参数。
 - AI 确认卡只能来自 executor 的结构化 `requiresConfirmation + confirmationToken + argsHash + rows` 回执，模型 Markdown、标题、表格或“请确认”文字永远不能作为确认卡或可执行状态。写意图轮次没有结构化确认、正式失败或缺参追问时，服务端必须丢弃模型正文并返回安全说明；“是/确认/执行”等自然语言只能延续待确认语义，不能替代服务端 token。
 - 库存等可回读写操作取得正式 operation/audit 回执后，还必须核对回执中的资源、数量和前后值与 Preview 一致，并通过正式 Query 回读最终状态。回执数量、增量或回读任一不一致时不得声明成功；应明确操作可能已提交但验收失败，交由幂等重查处理，不能盲目重写。

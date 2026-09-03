@@ -54,7 +54,11 @@ async function readApiJson(response, fallbackError) {
     try {
         result = text ? JSON.parse(text) : {};
     } catch {
-        throw new Error(fallbackError || `API 返回了非 JSON 响应：${response.status}`);
+        const error = new Error(fallbackError || `API 返回了非 JSON 响应：${response.status}`);
+        error.code = 'INTERNAL_API_PROTOCOL_FAILURE';
+        error.statusCode = response.status;
+        error.formalApiOutcome = 'protocol_failure';
+        throw error;
     }
     if (!response.ok || result.success === false) {
         const error = new Error(result.error || fallbackError || `API 调用失败：${response.status}`);

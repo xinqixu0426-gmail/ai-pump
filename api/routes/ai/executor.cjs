@@ -385,6 +385,8 @@ async function executeToolCall(toolName, args, options = {}) {
             {
                 success: false,
                 code: err.code || null,
+                statusCode: err.statusCode || null,
+                formalApiOutcome: err.formalApiOutcome || null,
                 error: err.message,
             },
             typeof internalFetch.getApiTrace === 'function'

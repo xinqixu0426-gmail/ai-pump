@@ -60,8 +60,12 @@ const {
 } = require('./aiCapabilityGraphV3.cjs');
 const {
     completedCapabilityNames,
+    createBehaviorEvent,
+    createEvidenceLedger,
+    createObservation,
     isVerifiedEmptyObservation,
     isVerifiedPositiveObservation,
+    observationFromToolResult,
 } = require('./aiObservationV3.cjs');
 const {
     aiTurnStatePrompt,
@@ -371,6 +375,9 @@ async function runAiAgentRuntimeV3(input = {}) {
         return {
             finalContent,
             toolResults: [],
+            behaviorEvents: [],
+            observations: [],
+            evidenceLedger: [],
             turnState: clarificationTurnState,
             speech,
             intent,
@@ -416,6 +423,21 @@ async function runAiAgentRuntimeV3(input = {}) {
     });
     let currentMessages = [{ role: 'system', content: systemPrompt }, ...scopedMessages];
     const toolResults = [];
+    const behaviorEvents = [];
+    const observations = [];
+    const evidenceLedger = createEvidenceLedger();
+    const recordBehavior = (type, details = {}) => {
+        behaviorEvents.push(createBehaviorEvent(type, details));
+    };
+    const recordFormalObservation = (name, args, result) => {
+        const observation = observationFromToolResult(name, args, result);
+        observations.push(observation);
+        evidenceLedger.appendObservation(observation, {
+            toolResult: { name, view_type: viewTypeForAiTool(name), result },
+        });
+        return observation;
+    };
+    const synthesisEvidenceResults = () => evidenceLedger.toolResults();
     let finalContent = '';
     let evidencePrioritized = false;
     let toolCallCount = 0;
@@ -542,11 +564,87 @@ async function runAiAgentRuntimeV3(input = {}) {
         const rejectedPreparedCalls = candidatePreparedCalls.filter(item => (
             item.validationStatus === 'rejected'
         ));
+        for (const toolCall of resolutionBinding.toolCalls) {
+            recordBehavior('tool_proposed', {
+                toolName: toolCall.function?.name || '',
+            });
+        }
+        for (const rejected of rejectedPreparedCalls) {
+            const notAllowed = [
+                'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN',
+                'AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN',
+            ].includes(rejected.validationCode);
+            recordBehavior(notAllowed ? 'tool_rejected_not_allowed' : 'tool_schema_rejected', {
+                toolName: rejected.toolCall.function?.name || '',
+                code: rejected.validationCode,
+            });
+        }
         if (validatedPreparedCalls.length > 0 && rejectedPreparedCalls.length > 0) {
             dispatcherLogger.warn('忽略模型附带的计划外工具调用', {
                 plannedCapability: nextPlannedCapability || '',
                 rejectedTools: rejectedPreparedCalls.map(item => item.toolCall.function?.name || ''),
             });
+        }
+        const completedReadCapabilities = completedCapabilityNames(toolResults, {
+            acceptVerifiedEmpty,
+        });
+        const redundantCompletedReadCalls = validatedPreparedCalls.length === 0
+            && rejectedPreparedCalls.length > 0
+            && rejectedPreparedCalls.every(item => {
+                const name = item.toolCall.function?.name || '';
+                return item.validationCode === 'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
+                    && getAiCapability(name)?.access === 'read'
+                    && completedReadCapabilities.has(name);
+            });
+        if (redundantCompletedReadCalls) {
+            for (const rejected of rejectedPreparedCalls) {
+                recordBehavior('duplicate_call_suppressed', {
+                    toolName: rejected.toolCall.function?.name || '',
+                    code: 'AI_REDUNDANT_READ_TOOL_CALL',
+                });
+            }
+            const rejectedToolCalls = rejectedPreparedCalls.map(item => item.toolCall);
+            currentMessages.push({
+                role: 'assistant',
+                content,
+                ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+                tool_calls: rejectedToolCalls,
+            });
+            for (const rejected of rejectedPreparedCalls) {
+                currentMessages.push(buildAiToolResultMessage(rejected.toolCall, {
+                    success: false,
+                    code: 'AI_REDUNDANT_READ_TOOL_CALL',
+                    error: '该只读能力本轮已成功完成，无需重复调用。',
+                    validation: {
+                        status: 'rejected',
+                        toolName: rejected.toolCall.function?.name || '',
+                    },
+                }));
+            }
+            currentMessages.push({
+                role: 'system',
+                content: nextPlannedCapability
+                    ? `重复的只读调用已忽略且不会写入业务证据。请继续调用当前计划能力 ${nextPlannedCapability}。`
+                    : '重复的只读调用已忽略且不会写入业务证据。请根据现有正式证据直接回答。',
+            });
+            if (!nextPlannedCapability) {
+                const synthesisStartedAt = Date.now();
+                finalContent = await synthesizeVerifiedAnswer({
+                    provider,
+                    systemPrompt,
+                    userText: latestUserText(messages),
+                    intent,
+                    toolResults: synthesisEvidenceResults(),
+                    onProvider: announceProvider,
+                    onUsage: collectUsage,
+                    env: input.env,
+                    dbAccessors: input.dbAccessors,
+                    signal: input.signal,
+                });
+                synthesisMs += Date.now() - synthesisStartedAt;
+                break;
+            }
+            continue;
         }
         const correctablePlanMismatch = input.agentVersion === 3
             && intent.mode === 'query'
@@ -564,11 +662,23 @@ async function runAiAgentRuntimeV3(input = {}) {
             && !planMismatchCorrections.has(nextPlannedCapability)
         ) {
             if (toolCallCount + rejectedPreparedCalls.length > MAX_TOOL_CALLS) {
+                recordBehavior('budget_exceeded', {
+                    code: 'MAX_TOOL_CALLS',
+                    details: { limit: MAX_TOOL_CALLS },
+                });
                 throw new Error(`V3 工具调用超过单轮上限 ${MAX_TOOL_CALLS}`);
             }
             toolCallCount += rejectedPreparedCalls.length;
             planMismatchCorrections.add(nextPlannedCapability);
             readCorrectionCapabilities.add(nextPlannedCapability);
+            recordBehavior('plan_drift', {
+                toolName: rejectedPreparedCalls[0]?.toolCall.function?.name || '',
+                details: { plannedCapability: nextPlannedCapability },
+            });
+            recordBehavior('retry_requested', {
+                toolName: nextPlannedCapability,
+                code: 'PLAN_DRIFT_RETRY',
+            });
             const rejectedToolCalls = rejectedPreparedCalls.map(item => item.toolCall);
             currentMessages.push({
                 role: 'assistant',
@@ -599,6 +709,31 @@ async function runAiAgentRuntimeV3(input = {}) {
             });
             emit('status', { status: 'thinking', message: '正在校正正式业务能力...' });
             continue;
+        }
+        if (validatedPreparedCalls.length === 0 && rejectedPreparedCalls.length > 0) {
+            if (requiredEvidenceSatisfied(intent, toolResults, {
+                agentVersion: input.agentVersion,
+                acceptVerifiedEmpty,
+                allowRecoveredReadEvidence: recoveredReadEvidence,
+            })) {
+                const synthesisStartedAt = Date.now();
+                finalContent = await synthesizeVerifiedAnswer({
+                    provider,
+                    systemPrompt,
+                    userText: latestUserText(messages),
+                    intent,
+                    toolResults: synthesisEvidenceResults(),
+                    onProvider: announceProvider,
+                    onUsage: collectUsage,
+                    env: input.env,
+                    dbAccessors: input.dbAccessors,
+                    signal: input.signal,
+                });
+                synthesisMs += Date.now() - synthesisStartedAt;
+            } else {
+                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+            }
+            break;
         }
         let preparedCalls = validatedPreparedCalls.length > 0
             ? validatedPreparedCalls.slice(0, 1)
@@ -651,10 +786,25 @@ async function runAiAgentRuntimeV3(input = {}) {
                             })
                         ));
                         throwIfAiRequestAborted(input.signal);
+                        recordFormalObservation(name, args, discoveryResult);
                         return discoveryResult;
                     },
                     confirmationSubject,
                 });
+                if (resolution.status === 'ambiguous' && resolution.receipt?.sourceCapability) {
+                    const sourceCapability = getAiCapability(resolution.receipt.sourceCapability);
+                    observations.push(createObservation({
+                        attempted: true,
+                        outcome: 'ambiguous',
+                        capabilityName: resolution.receipt.sourceCapability,
+                        factKey: `entity_resolution:${resolution.receipt.entityType}:${resolution.receipt.originalMention}`,
+                        args: { query: resolution.receipt.originalMention },
+                        verified: false,
+                        sourceOfTruth: sourceCapability?.sourceOfTruth || null,
+                        dataMode: sourceCapability?.dataMode || null,
+                        result: resolution.result || { resolutionReceipt: resolution.receipt },
+                    }));
+                }
                 resolvedCalls.push({
                     ...prepared,
                     toolCall: {
@@ -682,6 +832,10 @@ async function runAiAgentRuntimeV3(input = {}) {
 
         if (toolCalls.length > 0) {
             if (toolCallCount + toolCalls.length > MAX_TOOL_CALLS) {
+                recordBehavior('budget_exceeded', {
+                    code: 'MAX_TOOL_CALLS',
+                    details: { limit: MAX_TOOL_CALLS },
+                });
                 throw new Error(`V3 工具调用超过单轮上限 ${MAX_TOOL_CALLS}`);
             }
             toolCallCount += toolCalls.length;
@@ -711,11 +865,19 @@ async function runAiAgentRuntimeV3(input = {}) {
                     error: groundingIssue.issue.error,
                     validation: { status: 'rejected', toolName: name },
                 };
+                recordBehavior('tool_schema_rejected', {
+                    toolName: name,
+                    code: groundingIssue.issue.code,
+                });
                 emit('tool_call', { name, args });
                 emit('tool_result', { name, result });
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 if (!identifierCorrectionUsed) {
                     identifierCorrectionUsed = true;
+                    recordBehavior('retry_requested', {
+                        toolName: name,
+                        code: groundingIssue.issue.code,
+                    });
                     const ungroundedBusinessNumber = groundingIssue.issue.code === 'UNGROUNDED_BUSINESS_NUMBER';
                     const correction = ungroundedBusinessNumber
                         ? `${groundingIssue.issue.error} 不得补造数值或反复调用该试算；请改用当前开放的正式只读目录能力调查用户所指业务对象，缺少真实试算参数时只回答可核验的现有事实。`
@@ -738,7 +900,6 @@ async function runAiAgentRuntimeV3(input = {}) {
                     });
                     continue;
                 }
-                toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
                 finalContent = safeMissingBusinessEvidenceReply(toolResults);
                 break;
             }
@@ -753,6 +914,9 @@ async function runAiAgentRuntimeV3(input = {}) {
                         : `正在调用: ${name}...`,
                 });
                 emit('tool_call', { name, args });
+                const formallyExecuted = prepared.validationStatus === 'validated'
+                    && !prepared.resolutionResult
+                    && prepared.resolutionStatus !== 'system_error';
                 let result = prepared.validationStatus === 'rejected'
                     ? {
                         success: false,
@@ -780,9 +944,11 @@ async function runAiAgentRuntimeV3(input = {}) {
                     result = { ...result, resolutionReceipt: prepared.resolutionReceipt };
                 }
                 result = enforceAiToolResultBudget(name, result, toolResults);
-                toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 emit('tool_result', { name, result });
+                if (prepared.validationStatus === 'rejected') continue;
+                toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
+                if (formallyExecuted) recordFormalObservation(name, args, result);
 
                 const companionCall = prepared.validationStatus === 'validated'
                     && result?.success !== false
@@ -793,6 +959,10 @@ async function runAiAgentRuntimeV3(input = {}) {
                 ));
                 if (companionCall && !companionAlreadyCalled) {
                     if (toolCallCount + 1 > MAX_TOOL_CALLS) {
+                        recordBehavior('budget_exceeded', {
+                            code: 'MAX_TOOL_CALLS',
+                            details: { limit: MAX_TOOL_CALLS },
+                        });
                         throw new Error(`V3 工具调用超过单轮上限 ${MAX_TOOL_CALLS}`);
                     }
                     toolCallCount += 1;
@@ -821,6 +991,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                         view_type: viewTypeForAiTool(companionName),
                         result: companionResult,
                     });
+                    recordFormalObservation(companionName, companionArgs, companionResult);
                     emit('tool_result', { name: companionName, result: companionResult });
                 }
             }
@@ -860,7 +1031,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     systemPrompt,
                     userText: latestUserText(messages),
                     intent,
-                    toolResults,
+                    toolResults: synthesisEvidenceResults(),
                     onProvider: announceProvider,
                     onUsage: collectUsage,
                     env: input.env,
@@ -929,7 +1100,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     systemPrompt,
                     userText: latestUserText(messages),
                     intent,
-                    toolResults,
+                    toolResults: synthesisEvidenceResults(),
                     onProvider: announceProvider,
                     onUsage: collectUsage,
                     env: input.env,
@@ -975,7 +1146,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                 systemPrompt,
                 userText: latestUserText(messages),
                 intent,
-                toolResults,
+                toolResults: synthesisEvidenceResults(),
                 onProvider: announceProvider,
                 onUsage: collectUsage,
                 env: input.env,
@@ -1047,7 +1218,17 @@ async function runAiAgentRuntimeV3(input = {}) {
                 : 'completed',
     };
     dispatcherLogger.info('AI V3 调度完成', telemetry);
-    return { finalContent, toolResults, turnState: nextTurnState, speech, intent, telemetry };
+    return {
+        finalContent,
+        toolResults,
+        behaviorEvents,
+        observations,
+        evidenceLedger: evidenceLedger.snapshot(),
+        turnState: nextTurnState,
+        speech,
+        intent,
+        telemetry,
+    };
 }
 
 async function runAiDispatcherV2(input = {}) {

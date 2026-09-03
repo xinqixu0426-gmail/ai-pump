@@ -1180,13 +1180,14 @@ test('AI V3 调度器：连续两次误选计划外工具后有界失败且不�
 
     assert.equal(calls, 3);
     assert.equal(apiCalled, false);
-    assert.equal(result.toolResults.length, 1);
-    assert.equal(result.toolResults[0].name, 'get_recipe_detail');
-    assert.equal(
-        result.toolResults[0].result.code,
-        'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
-    );
-    assert.match(result.finalContent, /未授权调用工具 get_recipe_detail/);
+    assert.equal(result.toolResults.length, 0);
+    assert.equal(result.observations.length, 0);
+    assert.equal(result.evidenceLedger.length, 0);
+    assert.equal(result.behaviorEvents.filter(event => (
+        event.type === 'tool_rejected_not_allowed'
+        && event.toolName === 'get_recipe_detail'
+    )).length, 2);
+    assert.match(result.finalContent, /没有取得正式业务 API/);
 });
 
 test('AI V3 调度器：写计划误选工具时不得进入只读纠偏或再次开放写能力', async () => {
@@ -1238,12 +1239,13 @@ test('AI V3 调度器：写计划误选工具时不得进入只读纠偏或再�
 
     assert.equal(calls, 2);
     assert.equal(apiCalled, false);
-    assert.equal(result.toolResults.length, 1);
-    assert.equal(result.toolResults[0].name, 'get_recipe_detail');
-    assert.equal(
-        result.toolResults[0].result.code,
-        'AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN'
-    );
+    assert.equal(result.toolResults.length, 0);
+    assert.equal(result.observations.length, 0);
+    assert.equal(result.evidenceLedger.length, 0);
+    assert.ok(result.behaviorEvents.some(event => (
+        event.type === 'tool_rejected_not_allowed'
+        && event.toolName === 'get_recipe_detail'
+    )));
 });
 
 test('V2 调度器：部分计划完成后会纠正并补调缺失的下一能力', async () => {
@@ -1375,7 +1377,7 @@ test('AI V3 调度器：配方关键词命中多个正式对象时列出候选�
         });
     };
     global.fetch = async url => {
-        assert.match(String(url), /\/api\/recipes$/);
+        assert.match(String(url), /\/api\/recipes(?:\?|$)/);
         return new Response(JSON.stringify({
             success: true,
             data: [
@@ -1385,13 +1387,15 @@ test('AI V3 调度器：配方关键词命中多个正式对象时列出候选�
         }), { headers: { 'Content-Type': 'application/json' } });
     };
 
-    const result = await runAiDispatcherV2({
+    const result = await runAiDispatcherV3({
         messages: [{ role: 'user', content: 'V750 的成本是多少' }],
         fetchAiProvider: provider,
     });
 
     assert.equal(calls, 2);
     assert.equal(result.telemetry.outcome, 'clarification');
+    assert.ok(result.observations.some(item => item.outcome === 'ambiguous'));
+    assert.ok(!result.evidenceLedger.some(item => item.factKey.startsWith('entity_resolution:')));
     assert.equal(result.toolResults[0].result.requiresClarification, true);
     assert.match(result.finalContent, /v750-普通/);
     assert.match(result.finalContent, /v750-tokoy/);
@@ -1677,6 +1681,94 @@ test('AI V3 Agent：正式查询零结果会把观察交还模型并允许调整
     assert.equal(result.toolResults[0].result.count, 0);
     assert.equal(result.toolResults[1].result.count, 1);
     assert.match(result.finalContent, /18μF/);
+});
+
+test('AI V3 调度器：连续重复已完成只读能力不污染证据并继续下一计划', async () => {
+    let calls = 0;
+    const provider = async (_messages, options) => {
+        calls += 1;
+        if (calls === 1) {
+            return planResponse({
+                goal: '查询零件价格和对应业务规则',
+                mode: 'query',
+                domains: ['catalog', 'knowledge'],
+                needsBusinessData: true,
+                contextMode: 'current_turn',
+                answerShape: 'direct',
+                entityScope: 'single',
+                requiresClarification: false,
+                ambiguities: [],
+                confidence: 'high',
+                steps: [
+                    { capabilityName: 'search_parts', objective: '查询正式零件价格' },
+                    { capabilityName: 'search_factory_knowledge', objective: '查询对应业务规则' },
+                ],
+            });
+        }
+        if (calls === 2) {
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'parts-first',
+                type: 'function',
+                function: { name: 'search_parts', arguments: JSON.stringify({ keyword: '800平刀切割泵壳' }) },
+            }] });
+        }
+        if (calls === 3 || calls === 4) {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['search_factory_knowledge']);
+            return providerResponse({ content: '', tool_calls: [{
+                id: `parts-redundant-${calls}`,
+                type: 'function',
+                function: { name: 'search_parts', arguments: JSON.stringify({ keyword: '800平刀切割泵壳' }) },
+            }] });
+        }
+        if (calls === 5) {
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'knowledge-next',
+                type: 'function',
+                function: { name: 'search_factory_knowledge', arguments: JSON.stringify({ query: '切割泵壳' }) },
+            }] });
+        }
+        return providerResponse({ content: '800平刀切割泵壳当前价格 95 元。' });
+    };
+    global.fetch = async url => {
+        const value = new URL(String(url));
+        if (value.pathname === '/api/parts') {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{ id: 1, model: '800平刀切割泵壳', price: 95 }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.pathname === '/api/knowledge/overview') {
+            return new Response(JSON.stringify({ success: true, data: {} }), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        if (value.pathname === '/api/knowledge/1') {
+            return new Response(JSON.stringify({
+                success: true,
+                data: { id: 1, title: '切割泵壳规则', content: '切割使用 800平刀切割泵壳。' },
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        if (value.pathname === '/api/knowledge') {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{ id: 1, title: '切割泵壳规则', evidenceLevel: 'explicit_text', matchMode: 'fts' }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
+        throw new Error(`unexpected URL: ${value}`);
+    };
+
+    const result = await runAiDispatcherV3({
+        messages: [{ role: 'user', content: '800平刀切割泵壳多少钱，有什么业务规则？' }],
+        fetchAiProvider: provider,
+    });
+
+    assert.equal(calls, 6);
+    assert.deepEqual(result.toolResults.map(item => item.name), [
+        'search_parts',
+        'search_factory_knowledge',
+    ]);
+    assert.ok(result.toolResults.every(item => item.result.code !== 'AI_REDUNDANT_READ_TOOL_CALL'));
+    assert.match(result.finalContent, /95 元/);
 });
 
 test('AI V3 Agent：V1600 模板未命中后可跨域查询正式零件且恢复轮不开放写能力', async () => {
