@@ -54,6 +54,13 @@ R2.1 起，正式启用的 V4 请求由独立 read investigation driver 控制�
 完成判断。`completed_negative`、`needs_clarification`、`failed_unverified` 和 `budget_exhausted`
 均直接结束 V4 调查，不触发 V3 扩搜；只有 `fallbackReason=v4_internal_failure` 表示实现层内部失败并允许回退。
 
+R3 Claim Grounding 使用独立默认关闭的 `AI_CLAIM_GROUNDING_V4_ENABLED`。只打开 R2 开关时仍保持
+R2-only 的兼容回答链路；同时打开 R2 与 R3 时，首批单实体只读范围按 Fact/Evidence 构造 Claim，
+验证 required Fact、Claim 和 AnswerPlan coverage，并优先确定性输出。复杂 renderer 不开放工具，
+结构化结果最多修复一次；失败后继续用原 Claims 确定性回答，不回退 legacy free-form composer。
+R3 不改变当前 9 条 legacy release cases，也不替代真实 AI 发布门禁；在 R4 完成 shadow/evaluation
+校准前，该开关不得作为生产默认值。
+
 ## 3. 日常使用
 
 ### 3.1 让 AI 学习一次纠错

@@ -80,6 +80,11 @@ const {
     runReadInvestigationExecutionV4,
 } = require('./aiReadInvestigationDriverV4.cjs');
 const {
+    claimGroundingFlags,
+    composeGroundedAnswerV4,
+    eligibleClaimGroundingIntent,
+} = require('./aiGroundedAnswerV4.cjs');
+const {
     aiTurnStatePrompt,
     buildAiTurnStateV3,
     normalizeAiTurnStateV3,
@@ -476,8 +481,29 @@ async function runAiAgentRuntimeV3(input = {}) {
         const shouldFallbackToV3 = requiresV3Fallback(v4Result.fallbackReason);
         if (!shouldFallbackToV3) {
             const v4ToolResults = v4Result.compatibilityToolResults;
+            const useClaimGroundingV4 = claimGroundingFlags(input.env || process.env).enabled
+                && eligibleClaimGroundingIntent(intent);
             let finalContent;
-            if (['completed', 'completed_negative'].includes(v4Result.status)) {
+            let groundedAnswerV4 = null;
+            if (useClaimGroundingV4) {
+                const synthesisStartedAt = Date.now();
+                groundedAnswerV4 = await composeGroundedAnswerV4({
+                    goal: latestUserText(messages),
+                    investigationGoal: readInvestigationV4.goal,
+                    state: v4Result.state,
+                    observations: v4Result.observations,
+                    evidenceLedger: v4Result.evidenceLedger,
+                    answerShape: intent.answerShape,
+                    renderer: provider,
+                    onProvider: announceProvider,
+                    onUsage: collectUsage,
+                    env: input.env,
+                    dbAccessors: input.dbAccessors,
+                    signal: input.signal,
+                });
+                finalContent = groundedAnswerV4.content;
+                synthesisMs += Date.now() - synthesisStartedAt;
+            } else if (['completed', 'completed_negative'].includes(v4Result.status)) {
                 const synthesisStartedAt = Date.now();
                 finalContent = await synthesizeVerifiedAnswer({
                     provider,
@@ -535,6 +561,11 @@ async function runAiAgentRuntimeV3(input = {}) {
                 observations: v4Result.observations,
                 evidenceLedger: v4Result.evidenceLedger,
                 investigationState: v4Result.state,
+                ...(groundedAnswerV4 ? {
+                    claims: groundedAnswerV4.claims,
+                    answerPlan: groundedAnswerV4.answerPlan,
+                    answerRendering: groundedAnswerV4.rendering,
+                } : {}),
                 fallbackReason: null,
                 turnState: nextTurnState,
                 speech,

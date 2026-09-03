@@ -668,7 +668,9 @@ AI 查询全部使用 V3 模型调度，不再保留“规则先编译、模型�
 
 `calculate_coil_cost` 在材质或槽眼未唯一时返回的正式候选保留 `pricingMode/kitPrice/wireWeight/copperBase/cost`，使套件价候选明确区分最终套件成本与不参与计价的参考线重、铜价基数。
 
-计划内能力全部取得验证证据后，调度器另起无工具的回答提取请求，只传当前用户目标和本轮正式结果，不复用工具执行对话继续扩搜。供应商若把 DSML/tool call 协议写入文本，协议门会拦截并校正一次，内部标记不得成为最终回答。
+R3 Claim Grounding 未启用时，计划内能力全部取得验证证据后，调度器另起无工具的回答提取请求，只传当前用户目标和本轮正式结果，不复用工具执行对话继续扩搜。供应商若把 DSML/tool call 协议写入文本，协议门会拦截并校正一次，内部标记不得成为最终回答。
+
+R3 Claim Grounding 由独立开关 `AI_CLAIM_GROUNDING_V4_ENABLED=true` 启用，默认关闭，并且只有同时进入 R2 V4 的 `query/analysis + single` 首批 part/coil/template/recipe/cost 范围才生效。该路径不再把兼容 `toolResults` 直接交给自由 Markdown 合成，而是由服务端从 terminal InvestigationState、FactRequirements、Observations 和 Evidence Ledger 构造 verified Claims，检查 entity/predicate/时态/场景/单位/值与 required Fact coverage，再生成 AnswerPlan。单一事实、正式未找到、歧义和未验证失败均确定性输出；复杂多 Claim renderer 只能接收当前目标、AnswerPlan、Claim labels 和允许的 premise refs，不能使用工具或历史 assistant 结论，factual 内容最终仍由服务端按 Claim 输出。renderer 校验或一次受限修复失败时保留原 Claims 并确定性降级，不进入 legacy free-form composer。Claim identity 不含 capability/tool/planner；current cost 与 saved cost snapshot 不可互换，成本值只能来自正式成本 Evidence。
 
 单一正式 Query 已完整回答当前列表或状态问题时，应直接整理结果，不再扩展相邻统计；当前目标需要不同职责的证据时，必须在意图计划中显式安排对应能力。知识库只用于用途、经验、规则依据、历史确认知识或用户明确点名的知识查询，不回答实时业务列表。零件低库存口径仍为库存 1–5；“有没有缺货的零件”只传 `stockStatus=out`，“列出所有零件”不传关键词，“列出电缆”只传 `keyword=电缆`；“列出还在报价中的报价”只传 `status=报价中`。订单状态的“改为/改成/设为/设置为/变更为”属于写意图，否定表达和“修改记录/历史/日志”查询不得升级为写操作。该调整不删除底层业务 API，也不影响历史会话中已保存的旧工具结果展示。
 

@@ -36,6 +36,8 @@
 
 R2 的只读实验路径采用独立 driver：`InvestigationGoal → FactRequirement[] → InvestigationState → Capability Broker → 正式 capability → Observation/Evidence → Fact Reducer`。它仅适用于 `query/analysis + single`，由默认关闭的 `AI_READ_INVESTIGATION_V4_ENABLED` 控制；一旦进入该路径，下一能力与 `completed/completed_negative/needs_clarification/failed_unverified/budget_exhausted` 终态只由 Fact 状态、Broker、正式 Observation/Evidence、解析状态和预算决定，不读取 V3 `toolResults`、recovery/correction 状态或 planner-step 完成状态。Planner steps 仅作 Broker 初始排序提示；业务终态不会返回 V3 recovery，只有结构化 `fallbackReason=v4_internal_failure` 的实现层内部失败允许回退。兼容 `toolResults` 只在终态后从 Evidence Ledger 投影，供现有回答合成、SSE、turnState、UI 和测试使用。shadow 开关只回放本轮既有正式 Observation/Evidence，不得追加 API 调用或改变 SSE、turnState、业务回答。未解析对象的 `entityId` 必须保持 `null`，只能通过统一实体解析器签发的 `resolutionReceipt` 绑定。Command、Preview 分类及既有确认与执行安全协议不受该实验路径影响。
 
+R3 回答封板在上述 V4 终态之后执行，并由独立默认关闭的 `AI_CLAIM_GROUNDING_V4_ENABLED` 控制。支持范围内必须先由服务端把 FactRequirement 和 EvidenceRecord 构造成业务 Claim，再验证 required Fact → Claim → AnswerPlan 的完整 coverage；简单身份、单值、状态、正式未找到、歧义和不可用回答使用确定性 formatter。复杂多 Claim 回答只允许无工具的结构化 renderer 排序 Claim refs 和选择受限连接方式，factual 文本仍由服务端按原 Claim 生成；最多一次 constrained repair，仍失败则使用原 AnswerPlan 确定性输出，不得退回 legacy 自由 Markdown。当前成本与保存快照按 Fact/Claim identity 隔离，AI 层禁止重算正式成本。
+
 - 模型负责口语、简称、疑问、否定和跨领域目标的语义理解；禁止为业务意图继续添加关键词正则。正则只处理 ID、数值、单位、token 和传输协议等确定性语法。
 - 第一阶段模型只看到精简业务域目录并提交结构化目标、读写风险、业务域、上下文来源、回答形态、对象范围和歧义；第二阶段只提交最多 5 个起始事实步骤。`query/analysis` 的业务域只负责把相关能力排在前面，目录包含全部对象范围兼容的已登记 read Query/Preview；`command` 仍只看到硬信封内能力。服务端继承第一阶段字段并拒绝未下发、对象范围不符或读写模式不符的步骤；非 `command` 永远不能计划 write。
 - 正常执行只开放当前计划能力；正式 Query 返回零结果或已验证资源未找到时，Agent 可以在限定轮次、调用数量和对象范围内使用公共能力图声明的跨域只读 discovery/query 调整调查策略。恢复目录逐项校验 `access=read`，不得出现写能力、未登记能力或跨目标扩展；系统/网络/协议失败不进入恢复。
