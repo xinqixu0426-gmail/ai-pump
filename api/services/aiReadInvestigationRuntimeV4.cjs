@@ -8,6 +8,8 @@ const {
 const {
     authorizeCapabilityCall,
     authorizeResolutionCall,
+    entityTargetArguments,
+    reuseEntityBinding,
     selectNextCapability,
 } = require('./aiCapabilityBrokerV4.cjs');
 const { ENTITY_DESCRIPTORS } = require('./aiCapabilityGraphV3.cjs');
@@ -194,6 +196,7 @@ function createReadInvestigationController(input = {}) {
     };
     const authorize = call => authorizeCapabilityCall({ ...call, goal, state });
     const authorizeDiscovery = call => authorizeResolutionCall({ ...call, goal, state });
+    const reuseBinding = call => reuseEntityBinding({ ...call, goal, state });
     const reject = (type, details = {}) => {
         state = recordBehaviorEvent(state, createBehaviorEvent(type, details));
         return state;
@@ -218,7 +221,14 @@ function createReadInvestigationController(input = {}) {
             state = bindResolvedEntity(
                 state,
                 inputObservation.requirementId,
-                effectiveReceipt
+                effectiveReceipt,
+                {
+                    logicalTarget: goal.originalTarget,
+                    targetArguments: entityTargetArguments(
+                        inputObservation.capabilityName,
+                        inputObservation.args
+                    ),
+                }
             );
         }
         const decision = authorize({ ...inputObservation, resolutionReceipt: effectiveReceipt });
@@ -385,6 +395,7 @@ function createReadInvestigationController(input = {}) {
         next,
         authorize,
         authorizeDiscovery,
+        reuseBinding,
         reject,
         observe,
         recordDiscovery,

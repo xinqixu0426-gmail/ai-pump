@@ -70,6 +70,7 @@ async function runReadInvestigationDriverV4(input = {}) {
                 state: controller.state(),
                 authorize: controller.authorize,
                 authorizeDiscovery: controller.authorizeDiscovery,
+                reuseBinding: controller.reuseBinding,
                 recordDiscovery: controller.recordDiscovery,
             });
             if (!outcome || typeof outcome !== 'object') {
@@ -171,6 +172,7 @@ async function runReadInvestigationExecutionV4(input = {}) {
             decision,
             authorize,
             authorizeDiscovery,
+            reuseBinding,
             recordDiscovery,
         }) => {
             input.throwIfAborted?.();
@@ -296,29 +298,42 @@ async function runReadInvestigationExecutionV4(input = {}) {
                 parseAiToolArguments(toolCall.function.arguments),
                 scopedMessages
             );
-            const initialProvenance = inferParameterProvenance(args, latestUserText);
-            const initialAuthorization = authorize({
+            const reusedBinding = reuseBinding({
                 capabilityName,
                 requirementId: decision.requirementId,
                 args,
-                parameterProvenance: initialProvenance,
             });
-            if (!initialAuthorization.allowed) {
-                return {
-                    kind: 'behavior_rejected',
-                    events: [{
-                        type: initialAuthorization.code === 'DUPLICATE_CALL'
-                            ? 'duplicate_call_suppressed'
-                            : 'tool_rejected_not_allowed',
-                        details: { toolName: capabilityName, code: initialAuthorization.code },
-                    }],
-                };
-            }
+            let resolution = reusedBinding
+                ? {
+                    status: 'reused_binding',
+                    args: reusedBinding.args,
+                    receipt: reusedBinding.resolutionReceipt,
+                }
+                : null;
+            if (!resolution) {
+                const initialProvenance = inferParameterProvenance(args, latestUserText);
+                const initialAuthorization = authorize({
+                    capabilityName,
+                    requirementId: decision.requirementId,
+                    args,
+                    parameterProvenance: initialProvenance,
+                });
+                if (!initialAuthorization.allowed) {
+                    return {
+                        kind: 'behavior_rejected',
+                        events: [{
+                            type: initialAuthorization.code === 'DUPLICATE_CALL'
+                                ? 'duplicate_call_suppressed'
+                                : 'tool_rejected_not_allowed',
+                            details: { toolName: capabilityName, code: initialAuthorization.code },
+                        }],
+                    };
+                }
 
-            const resolution = await resolveAiToolTargetV3({
-                toolName: capabilityName,
-                args,
-                executeToolCall: async (discoveryCapability, discoveryArgs, discoveryOptions = {}) => {
+                resolution = await resolveAiToolTargetV3({
+                    toolName: capabilityName,
+                    args,
+                    executeToolCall: async (discoveryCapability, discoveryArgs, discoveryOptions = {}) => {
                     input.throwIfAborted?.();
                     const provenance = inferParameterProvenance(discoveryArgs, latestUserText);
                     const discoveryInput = {
@@ -369,9 +384,10 @@ async function runReadInvestigationExecutionV4(input = {}) {
                             error: '实体解析 discovery 记录被 V4 Broker 拒绝',
                             executionEvidence: { verified: false },
                         };
-                },
-                confirmationSubject: input.confirmationSubject,
-            });
+                    },
+                    confirmationSubject: input.confirmationSubject,
+                });
+            }
             if (resolution.status === 'ambiguous') {
                 currentMessages = [
                     ...currentMessages,

@@ -1,7 +1,9 @@
 const {
+    createEntityBinding,
     createFactRequirement,
     createInvestigationState,
     deriveInvestigationStatus,
+    normalizeLogicalTarget,
 } = require('./aiFactModelV4.cjs');
 
 const TECHNICAL_FAILURES = new Set([
@@ -51,11 +53,35 @@ function recordAttempt(state, input = {}) {
     });
 }
 
-function bindResolvedEntity(state, requirementId, resolutionReceipt = {}) {
+function bindResolvedEntity(state, requirementId, resolutionReceipt = {}, options = {}) {
     const selectedId = resolutionReceipt?.selected?.id ?? resolutionReceipt?.selectedId ?? null;
     if (selectedId === null || selectedId === undefined) return state;
+    const sourceRequirement = state.requirements.find(requirement => (
+        requirement.requirementId === requirementId
+    ));
+    if (!sourceRequirement) return state;
+    const receiptEntityType = String(resolutionReceipt.entityType || sourceRequirement.identity.entityType);
+    if (receiptEntityType !== sourceRequirement.identity.entityType) return state;
+    const logicalTarget = normalizeLogicalTarget(
+        sourceRequirement.identity.qualifiers?.targetMention
+        || options.logicalTarget
+        || resolutionReceipt.originalMention
+    );
+    const reusable = resolutionReceipt.kind === 'entity_resolution'
+        && ['exact', 'unique_candidate'].includes(resolutionReceipt.status)
+        && logicalTarget
+        && Array.isArray(resolutionReceipt.sourceEvidence)
+        && resolutionReceipt.sourceEvidence.some(item => (
+            item?.capabilityName === resolutionReceipt.sourceCapability
+            && item?.executionEvidence?.verified === true
+        ));
     const requirements = state.requirements.map(requirement => (
         requirement.requirementId === requirementId
+            || (reusable
+                && requirement.identity.entityType === receiptEntityType
+                && (!requirement.identity.entityId
+                    || String(requirement.identity.entityId) === String(selectedId))
+                && normalizeLogicalTarget(requirement.identity.qualifiers?.targetMention) === logicalTarget)
             ? createFactRequirement({
                 ...requirement,
                 identity: {
@@ -67,7 +93,34 @@ function bindResolvedEntity(state, requirementId, resolutionReceipt = {}) {
             })
             : requirement
     ));
-    return rebuildState(state, { requirements });
+    if (!reusable) return rebuildState(state, { requirements });
+    const binding = createEntityBinding({
+        investigationId: state.goalId,
+        entityType: receiptEntityType,
+        entityId: selectedId,
+        canonicalName: resolutionReceipt.selected?.name,
+        logicalTarget,
+        originalMention: resolutionReceipt.originalMention,
+        resolutionStatus: resolutionReceipt.status,
+        resolutionReceipt,
+        sourceCapability: resolutionReceipt.sourceCapability,
+        sourceEvidence: resolutionReceipt.sourceEvidence,
+        targetArguments: options.targetArguments,
+    });
+    const existing = state.entityBindings.find(item => item.bindingId === binding.bindingId);
+    const entityBindings = existing
+        ? state.entityBindings.map(item => item.bindingId === binding.bindingId
+            ? createEntityBinding({
+                ...item,
+                ...binding,
+                targetArguments: {
+                    ...item.targetArguments,
+                    ...binding.targetArguments,
+                },
+            })
+            : item)
+        : [...state.entityBindings, binding];
+    return rebuildState(state, { requirements, entityBindings });
 }
 
 function markCrossEntityAmbiguity(state, receipts = [], currentRequirementId = null) {

@@ -1,5 +1,5 @@
 const { getAiToolDefinition } = require('./aiCapabilityCatalogV2.cjs');
-const { factIdentityKey } = require('./aiFactModelV4.cjs');
+const { factIdentityKey, normalizeLogicalTarget } = require('./aiFactModelV4.cjs');
 const { ENTITY_DESCRIPTORS, TOOL_TARGETS } = require('./aiCapabilityGraphV3.cjs');
 const {
     listReadInvestigationProfiles,
@@ -95,6 +95,88 @@ function targetMatchesOriginal(args = {}, originalTarget, resolutionReceipt) {
         if (target && !target.includes(text) && !text.includes(target)) return false;
     }
     return true;
+}
+
+function entityTargetArguments(capabilityName, args = {}) {
+    const target = TOOL_TARGETS[capabilityName];
+    if (!target) return Object.freeze({});
+    const fields = target.outputFields
+        ? Object.keys(target.outputFields)
+        : [target.outputIdField || target.outputField].filter(Boolean);
+    return Object.freeze(Object.fromEntries(fields
+        .filter(field => args[field] !== undefined && args[field] !== null)
+        .map(field => [field, args[field]])));
+}
+
+function explicitTargetMatchesBinding(target, args, binding) {
+    const inputFields = Array.isArray(target.inputFields)
+        ? target.inputFields
+        : [target.inputField].filter(Boolean);
+    const acceptedText = [binding.canonicalName, binding.originalMention]
+        .map(normalizeLogicalTarget)
+        .filter(Boolean);
+    for (const field of inputFields) {
+        const value = args?.[field];
+        if (value === undefined || value === null || value === '') continue;
+        const text = normalizeLogicalTarget(value);
+        if (!acceptedText.includes(text)) {
+            return false;
+        }
+    }
+    for (const [field, value] of Object.entries(args || {})) {
+        if (!/id$/i.test(field) || value === undefined || value === null) continue;
+        if (String(value) !== binding.entityId) return false;
+    }
+    return true;
+}
+
+function applyEntityBinding(capabilityName, args, binding) {
+    const target = TOOL_TARGETS[capabilityName];
+    if (!target || target.entityType !== binding.entityType) return null;
+    const next = { ...(args || {}) };
+    const inputFields = Array.isArray(target.inputFields)
+        ? target.inputFields
+        : [target.inputField].filter(Boolean);
+    if (target.outputFields) {
+        for (const field of Object.keys(target.outputFields)) {
+            if (binding.targetArguments[field] === undefined) return null;
+            next[field] = binding.targetArguments[field];
+        }
+    } else if (target.outputIdField) {
+        next[target.outputIdField] = Number.isSafeInteger(Number(binding.entityId))
+            ? Number(binding.entityId)
+            : binding.entityId;
+        inputFields.forEach(field => delete next[field]);
+    } else if (target.outputField) {
+        if (!binding.canonicalName) return null;
+        next[target.outputField] = binding.canonicalName;
+    } else {
+        return null;
+    }
+    return Object.freeze(next);
+}
+
+function reuseEntityBinding(input = {}) {
+    const requirement = input.state?.requirements.find(item => (
+        item.requirementId === input.requirementId && item.status === 'open'
+    ));
+    const target = TOOL_TARGETS[input.capabilityName];
+    if (!requirement || !target || target.entityType !== requirement.identity.entityType) return null;
+    const logicalTarget = normalizeLogicalTarget(
+        requirement.identity.qualifiers?.targetMention || input.goal?.originalTarget
+    );
+    if (!logicalTarget) return null;
+    const binding = (input.state.entityBindings || []).find(item => (
+        item.investigationId === input.goal?.goalId
+        && item.status === 'resolved'
+        && item.entityType === requirement.identity.entityType
+        && item.logicalTarget === logicalTarget
+        && (!requirement.identity.entityId || item.entityId === requirement.identity.entityId)
+    ));
+    if (!binding || !explicitTargetMatchesBinding(target, input.args, binding)) return null;
+    const args = applyEntityBinding(input.capabilityName, input.args, binding);
+    if (!args) return null;
+    return Object.freeze({ binding, args, resolutionReceipt: binding.resolutionReceipt });
 }
 
 function openRequirements(state) {
@@ -202,9 +284,11 @@ module.exports = {
     TRUSTED_PARAMETER_PROVENANCE,
     authorizeCapabilityCall,
     authorizeResolutionCall,
+    entityTargetArguments,
     callSignature,
     hasTrustedParameters,
     profileSupportsRequirement,
+    reuseEntityBinding,
     selectNextCapability,
     targetMatchesOriginal,
 };

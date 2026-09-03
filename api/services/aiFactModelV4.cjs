@@ -16,6 +16,8 @@ const INVESTIGATION_STATUSES = new Set([
     'budget_exhausted',
 ]);
 
+const ENTITY_BINDING_STATUSES = new Set(['resolved']);
+
 function stableValue(value) {
     if (Array.isArray(value)) return value.map(stableValue);
     if (!value || typeof value !== 'object') return value;
@@ -81,6 +83,42 @@ function createFactRequirement(input = {}) {
     });
 }
 
+function normalizeLogicalTarget(value) {
+    return String(value || '').normalize('NFKC').trim().toLowerCase();
+}
+
+function createEntityBinding(input = {}) {
+    const investigationId = String(input.investigationId || '').trim();
+    const entityType = String(input.entityType || '').trim();
+    const entityId = input.entityId === undefined || input.entityId === null
+        ? ''
+        : String(input.entityId).trim();
+    const logicalTarget = normalizeLogicalTarget(input.logicalTarget);
+    const status = String(input.status || 'resolved').trim();
+    if (!investigationId || !entityType || !entityId || !logicalTarget) {
+        throw new TypeError('EntityBinding 需要 investigationId、entityType、entityId 和 logicalTarget');
+    }
+    if (!ENTITY_BINDING_STATUSES.has(status)) {
+        throw new TypeError(`未知 EntityBinding status: ${status}`);
+    }
+    return immutable({
+        bindingId: input.bindingId
+            || `binding:${investigationId}:${entityType}:${logicalTarget}`,
+        investigationId,
+        entityType,
+        entityId,
+        canonicalName: String(input.canonicalName || '').trim() || null,
+        logicalTarget,
+        originalMention: String(input.originalMention || '').trim() || null,
+        status,
+        resolutionStatus: input.resolutionStatus || null,
+        resolutionReceipt: input.resolutionReceipt || null,
+        sourceCapability: input.sourceCapability || null,
+        sourceEvidence: input.sourceEvidence || [],
+        targetArguments: stableValue(input.targetArguments || {}),
+    });
+}
+
 function deriveInvestigationStatus(requirements, options = {}) {
     if (options.budgetExhausted && requirements.some(item => item.status === 'open')) {
         return 'budget_exhausted';
@@ -110,6 +148,7 @@ function createInvestigationState(input = {}) {
         goalId: input.goalId || null,
         status,
         requirements,
+        entityBindings: (input.entityBindings || []).map(createEntityBinding),
         attemptedCalls: [...(input.attemptedCalls || [])],
         behaviorEvents: [...(input.behaviorEvents || [])],
         observations: [...(input.observations || [])],
@@ -141,12 +180,15 @@ function createInvestigationGoal(input = {}) {
 }
 
 module.exports = {
+    ENTITY_BINDING_STATUSES,
     FACT_REQUIREMENT_STATUSES,
     INVESTIGATION_STATUSES,
+    createEntityBinding,
     createFactRequirement,
     createInvestigationGoal,
     createInvestigationState,
     deriveInvestigationStatus,
     factIdentityKey,
+    normalizeLogicalTarget,
     normalizeFactIdentity,
 };
