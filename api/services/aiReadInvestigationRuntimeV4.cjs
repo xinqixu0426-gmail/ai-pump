@@ -370,6 +370,14 @@ function createReadInvestigationController(input = {}) {
         state = reduceObservation(state, { observation, evidence });
         return state;
     };
+    const exhaustBudget = () => {
+        state = markBudgetExhausted(state);
+        return state;
+    };
+    const failUnverified = reason => {
+        state = markOpenRequirementsUnavailable(state, reason);
+        return state;
+    };
 
     return Object.freeze({
         goal,
@@ -382,6 +390,8 @@ function createReadInvestigationController(input = {}) {
         recordDiscovery,
         recordResolutionOutcome,
         replay,
+        exhaustBudget,
+        failUnverified,
         state: () => state,
         evidenceToolResults: () => ledger.toolResults(),
     });

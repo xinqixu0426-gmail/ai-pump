@@ -69,11 +69,16 @@ const {
 } = require('./aiObservationV3.cjs');
 const {
     createReadInvestigationController,
+    eligibleReadInvestigationIntent,
     inferParameterProvenance,
     readInvestigationFlags,
     readInvestigationStateReply,
     replayReadInvestigationShadow,
 } = require('./aiReadInvestigationRuntimeV4.cjs');
+const {
+    requiresV3Fallback,
+    runReadInvestigationExecutionV4,
+} = require('./aiReadInvestigationDriverV4.cjs');
 const {
     aiTurnStatePrompt,
     buildAiTurnStateV3,
@@ -429,12 +434,12 @@ async function runAiAgentRuntimeV3(input = {}) {
         ].filter(Boolean).join('\n\n'),
     });
     let currentMessages = [{ role: 'system', content: systemPrompt }, ...scopedMessages];
-    const toolResults = [];
     const behaviorEvents = [];
     const observations = [];
-    const evidenceLedger = createEvidenceLedger();
+    let evidenceLedger = createEvidenceLedger();
     const readInvestigationFlagsV4 = readInvestigationFlags(input.env || process.env);
-    const readInvestigationV4 = readInvestigationFlagsV4.enabled
+    let readInvestigationV4 = readInvestigationFlagsV4.enabled
+        && eligibleReadInvestigationIntent(intent)
         ? createReadInvestigationController({
             intent,
             originalTarget: latestUserText(messages),
@@ -442,6 +447,118 @@ async function runAiAgentRuntimeV3(input = {}) {
             budget: { maxCalls: MAX_TOOL_CALLS },
         })
         : null;
+    let v4FallbackReason = null;
+
+    if (readInvestigationV4) {
+        const v4Result = await runReadInvestigationExecutionV4({
+            controller: readInvestigationV4,
+            provider,
+            currentMessages,
+            scopedMessages,
+            userText: latestUserText(messages),
+            executeToolCall,
+            executeToolWithTiming,
+            maxIterations: MAX_TOOL_ROUNDS,
+            maxEntityDiscoveryCalls: MAX_ENTITY_DISCOVERY_CALLS,
+            stream: Boolean(input.stream),
+            onProvider: announceProvider,
+            onUsage: collectUsage,
+            throwIfAborted: () => throwIfAiRequestAborted(input.signal),
+            emit,
+            writeTools: WRITE_TOOLS,
+            confirmationSubject,
+            env: input.env,
+            dbAccessors: input.dbAccessors,
+            signal: input.signal,
+        });
+        const v4ProviderTtftMs = v4Result.providerTtftMs;
+        const v4EntityDiscoveryCalls = v4Result.entityDiscoveryCalls;
+        const shouldFallbackToV3 = requiresV3Fallback(v4Result.fallbackReason);
+        if (!shouldFallbackToV3) {
+            const v4ToolResults = v4Result.compatibilityToolResults;
+            let finalContent;
+            if (['completed', 'completed_negative'].includes(v4Result.status)) {
+                const synthesisStartedAt = Date.now();
+                finalContent = await synthesizeVerifiedAnswer({
+                    provider,
+                    systemPrompt,
+                    userText: latestUserText(messages),
+                    intent,
+                    toolResults: v4ToolResults,
+                    onProvider: announceProvider,
+                    onUsage: collectUsage,
+                    env: input.env,
+                    dbAccessors: input.dbAccessors,
+                    signal: input.signal,
+                });
+                synthesisMs += Date.now() - synthesisStartedAt;
+            } else {
+                finalContent = readInvestigationStateReply(v4Result.state);
+            }
+            if (input.stream) emit('content', { content: finalContent });
+            if (v4ToolResults.length > 0) {
+                emit('detail', {
+                    detailType: v4ToolResults.length === 1 ? v4ToolResults[0].name : 'multi_tool',
+                    toolResults: v4ToolResults,
+                });
+            }
+            const nextTurnState = buildAiTurnStateV3(
+                v4ToolResults,
+                intent.contextMode === 'previous_turn' ? turnState : null
+            );
+            if (nextTurnState) emit('turn_state', { turnState: nextTurnState });
+            emit('done', {});
+            const speech = finalContent
+                .split(/[。\n]/)[0]
+                .replace(/[*#`\-]/g, '')
+                .trim() || finalContent.slice(0, 100);
+            const telemetry = {
+                totalMs: Date.now() - startedAt,
+                planningMs,
+                synthesisMs,
+                plannedSteps: intent.steps.length,
+                executedTools: v4Result.state.budget.usedCalls,
+                entityDiscoveryCalls: v4EntityDiscoveryCalls,
+                providerEvents,
+                providerTtftMs: v4ProviderTtftMs,
+                usage: aggregateProviderUsage(providerUsages),
+                stageLatencyMs: { ...planningPhases, synthesisMs },
+                toolSteps,
+                requestId: input.requestId || null,
+                outcome: v4Result.status,
+            };
+            dispatcherLogger.info('AI V4 只读调查完成', telemetry);
+            return {
+                finalContent,
+                toolResults: v4ToolResults,
+                behaviorEvents: v4Result.behaviorEvents,
+                observations: v4Result.observations,
+                evidenceLedger: v4Result.evidenceLedger,
+                investigationState: v4Result.state,
+                fallbackReason: null,
+                turnState: nextTurnState,
+                speech,
+                intent,
+                telemetry,
+            };
+        }
+
+        v4FallbackReason = v4Result.fallbackReason;
+        behaviorEvents.push(...v4Result.behaviorEvents, createBehaviorEvent('retry_requested', {
+            code: 'V4_INTERNAL_FAILURE',
+            details: { message: v4Result.error?.message || 'unknown V4 internal failure' },
+        }));
+        observations.push(...v4Result.observations);
+        evidenceLedger = createEvidenceLedger();
+        readInvestigationV4 = null;
+        currentMessages = [{ role: 'system', content: systemPrompt }, ...scopedMessages];
+        dispatcherLogger.error('AI V4 内部失败，回退 V3 runtime', {
+            requestId: input.requestId || null,
+            fallbackReason: v4FallbackReason,
+            error: v4Result.error?.message || String(v4Result.error),
+        });
+    }
+    const toolResults = [];
     const recordBehavior = (type, details = {}) => {
         behaviorEvents.push(createBehaviorEvent(type, details));
         if (readInvestigationV4) readInvestigationV4.reject(type, details);
@@ -1353,6 +1470,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         stageLatencyMs: { ...planningPhases, synthesisMs },
         toolSteps,
         requestId: input.requestId || null,
+        ...(v4FallbackReason ? { fallbackReason: v4FallbackReason } : {}),
         outcome: pendingConfirmation(toolResults)
             ? 'confirmation'
             : findToolClarification(toolResults)
@@ -1392,6 +1510,7 @@ async function runAiAgentRuntimeV3(input = {}) {
         behaviorEvents,
         observations,
         evidenceLedger: evidenceLedger.snapshot(),
+        ...(v4FallbackReason ? { fallbackReason: v4FallbackReason } : {}),
         turnState: nextTurnState,
         speech,
         intent,

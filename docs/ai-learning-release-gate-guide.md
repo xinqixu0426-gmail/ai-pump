@@ -49,6 +49,11 @@ R2 Fact-driven Read Investigation Runtime 目前是默认关闭的内部灰度�
 Command 和当前发布门禁协议不受这两个开关影响。启用前必须运行 R2 focused、R1 evidence invariants、
 AI 相关测试、全量测试、API 契约和 lint；真实 AI gate 仍只在既有隔离/生产发布流程中运行。
 
+R2.1 起，正式启用的 V4 请求由独立 read investigation driver 控制到 Fact 终态；V3 的
+`toolResults`、recovery/correction 状态和 planner-step 完成状态不参与 V4 的下一能力、失败、澄清或
+完成判断。`completed_negative`、`needs_clarification`、`failed_unverified` 和 `budget_exhausted`
+均直接结束 V4 调查，不触发 V3 扩搜；只有 `fallbackReason=v4_internal_failure` 表示实现层内部失败并允许回退。
+
 ## 3. 日常使用
 
 ### 3.1 让 AI 学习一次纠错

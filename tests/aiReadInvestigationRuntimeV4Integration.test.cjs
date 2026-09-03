@@ -180,6 +180,162 @@ test('V4 enabled：planner 只给首个实体时仍执行跨实体探测并对�
     assert.doesNotMatch(result.finalContent, /87\.35/);
 });
 
+test('V4 enabled：正式 API 技术失败直接终止为 failed_unverified', async t => {
+    const previousFetch = global.fetch;
+    let formalCalls = 0;
+    let runtimeRounds = 0;
+    global.fetch = async () => {
+        formalCalls += 1;
+        return new Response(JSON.stringify({ success: false, error: 'upstream timeout' }), {
+            status: 504,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    };
+    t.after(() => { global.fetch = previousFetch; });
+
+    const provider = async (_messages, options = {}) => {
+        const forced = options.toolChoice?.function?.name;
+        if (forced === 'submit_ai_domain_plan') {
+            const { steps: _steps, ...domain } = intentPlan();
+            return plannerCall('submit_ai_domain_plan', domain);
+        }
+        if (forced === 'submit_ai_intent_plan') {
+            return plannerCall('submit_ai_intent_plan', intentPlan());
+        }
+        if (Array.isArray(options.tools) && options.tools.length > 0) {
+            runtimeRounds += 1;
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'timeout-parts',
+                type: 'function',
+                function: {
+                    name: options.tools[0].function.name,
+                    arguments: JSON.stringify({ keyword: '800平刀切割泵壳' }),
+                },
+            }] });
+        }
+        throw new Error('failed_unverified 不应进入答案合成或 legacy recovery');
+    };
+
+    const result = await runAiAgentRuntimeV3({
+        messages: [{ role: 'user', content: '800平刀切割泵壳现在多少钱' }],
+        fetchAiProvider: provider,
+        agentVersion: 3,
+        env: { AI_READ_INVESTIGATION_V4_ENABLED: 'true' },
+    });
+
+    assert.equal(result.investigationState.status, 'failed_unverified');
+    assert.equal(result.telemetry.outcome, 'failed_unverified');
+    assert.equal(runtimeRounds, 1);
+    assert.equal(formalCalls, 1);
+    assert.match(result.finalContent, /无法验证|未能完成验证|失败/);
+});
+
+for (const providerFailure of [
+    { label: 'timeout', code: 'AI_PROVIDER_TIMEOUT' },
+    { label: 'transport', code: 'AI_PROVIDER_NETWORK' },
+    { label: 'protocol', malformedJson: true },
+]) {
+    test(`V4 provider ${providerFailure.label} 终止为 failed_unverified，不回退旧 V3`, async t => {
+        const previousFetch = global.fetch;
+        global.fetch = async () => new Response(JSON.stringify({
+            success: true,
+            data: [{ id: 910, model: '800平刀切割泵壳', price: 89.5 }],
+        }), { headers: { 'Content-Type': 'application/json' } });
+        t.after(() => { global.fetch = previousFetch; });
+
+        let runtimeRounds = 0;
+        const provider = async (_messages, options = {}) => {
+            const forced = options.toolChoice?.function?.name;
+            if (forced === 'submit_ai_domain_plan') {
+                const { steps: _steps, ...domain } = intentPlan();
+                return plannerCall('submit_ai_domain_plan', domain);
+            }
+            if (forced === 'submit_ai_intent_plan') {
+                return plannerCall('submit_ai_intent_plan', intentPlan());
+            }
+            if (Array.isArray(options.tools) && options.tools.length > 0) {
+                runtimeRounds += 1;
+                if (providerFailure.malformedJson) {
+                    return new Response('{not-json', {
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+                }
+                const error = new Error(`simulated provider ${providerFailure.label}`);
+                error.code = providerFailure.code;
+                throw error;
+            }
+            throw new Error('provider failure 不应进入答案合成或 legacy recovery');
+        };
+
+        const result = await runAiAgentRuntimeV3({
+            messages: [{ role: 'user', content: '800平刀切割泵壳现在多少钱' }],
+            fetchAiProvider: provider,
+            agentVersion: 3,
+            env: { AI_READ_INVESTIGATION_V4_ENABLED: 'true' },
+        });
+
+        assert.equal(result.investigationState.status, 'failed_unverified');
+        assert.equal(result.fallbackReason, null);
+        assert.equal(result.telemetry.outcome, 'failed_unverified');
+        assert.equal(runtimeRounds, 1);
+        assert.match(result.finalContent, /无法验证|未能完成验证|失败/);
+    });
+}
+
+test('V4 enabled 但 intent 不符合单实体范围时正常留在 V3，且不标记 internal fallback', async t => {
+    const previousFetch = global.fetch;
+    let formalCalls = 0;
+    global.fetch = async url => {
+        const value = new URL(String(url));
+        if (value.pathname !== '/api/parts') throw new Error(`unexpected URL: ${value}`);
+        formalCalls += 1;
+        return new Response(JSON.stringify({
+            success: true,
+            data: [{ id: 911, model: '800平刀切割泵壳', price: 90.25 }],
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+    t.after(() => { global.fetch = previousFetch; });
+
+    let runtimeRounds = 0;
+    const collectionPlan = { ...intentPlan(), entityScope: 'collection' };
+    const provider = async (_messages, options = {}) => {
+        const forced = options.toolChoice?.function?.name;
+        if (forced === 'submit_ai_domain_plan') {
+            const { steps: _steps, ...domain } = collectionPlan;
+            return plannerCall('submit_ai_domain_plan', domain);
+        }
+        if (forced === 'submit_ai_intent_plan') {
+            return plannerCall('submit_ai_intent_plan', collectionPlan);
+        }
+        if (Array.isArray(options.tools) && options.tools.length > 0) {
+            runtimeRounds += 1;
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'collection-parts',
+                type: 'function',
+                function: {
+                    name: 'search_parts',
+                    arguments: JSON.stringify({ keyword: '800平刀切割泵壳' }),
+                },
+            }] });
+        }
+        return providerResponse({ content: '找到 1 个泵壳，当前价格为 90.25 元。' });
+    };
+
+    const result = await runAiAgentRuntimeV3({
+        messages: [{ role: 'user', content: '查找所有 800平刀切割泵壳' }],
+        fetchAiProvider: provider,
+        agentVersion: 3,
+        env: { AI_READ_INVESTIGATION_V4_ENABLED: 'true' },
+    });
+
+    assert.equal(Object.hasOwn(result, 'investigationState'), false);
+    assert.equal(Object.hasOwn(result, 'fallbackReason'), false);
+    assert.equal(Object.hasOwn(result.telemetry, 'fallbackReason'), false);
+    assert.equal(runtimeRounds, 1);
+    assert.equal(formalCalls, 1);
+    assert.match(result.finalContent, /90\.25/);
+});
+
 test('V4 flags 默认关闭；shadow 不改变 V3 返回协议或额外执行 capability', async t => {
     const previousFetch = global.fetch;
     let formalCalls = 0;
