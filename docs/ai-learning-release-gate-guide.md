@@ -41,6 +41,14 @@ AI 偶尔会误解工厂俗称、业务分类或操作习惯。用户指出错�
 - 自动生成的回归候选负责防止模型升级后重新犯错；所有候选先待确认，人工批准后才执行。
 - 正式资料不存在时，单个工具的零结果只能作为调查观察；检查必须在限定预算内完成与目标相关的跨域只读调查，并取得所有相关正式对象均未找到的 API 负结果后才能判定不存在。无关工具的正结果或其他工具的歧义不能冒充证据；需要选择目标对象时标记为“需要确认”，不会错误记成已通过或知识损坏。模型后来提出的计划外工具、schema 错误或 plan drift 只记录为 BehaviorEvent，不进入 Evidence Ledger，也不能撤销已经取得的正式业务证据。
 
+R2 Fact-driven Read Investigation Runtime 目前是默认关闭的内部灰度路径，仅覆盖
+`query/analysis + single` 的 part、coil、template、recipe、cost 首批只读能力。
+`AI_READ_INVESTIGATION_V4_ENABLED=true` 才会让 FactRequirement 状态参与正式调查；
+`AI_READ_INVESTIGATION_V4_SHADOW_ENABLED=true` 只重放本轮已有 Observation/Evidence 生成脱敏状态日志，
+不额外调用 API、不写业务、不申请确认凭证，也不改变 V3 回答、SSE 或 `turnState`。
+Command 和当前发布门禁协议不受这两个开关影响。启用前必须运行 R2 focused、R1 evidence invariants、
+AI 相关测试、全量测试、API 契约和 lint；真实 AI gate 仍只在既有隔离/生产发布流程中运行。
+
 ## 3. 日常使用
 
 ### 3.1 让 AI 学习一次纠错

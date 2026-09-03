@@ -134,8 +134,16 @@ function candidateView(candidate, descriptor, query) {
 }
 
 function resultRows(result) {
-    if (Array.isArray(result?.data)) return result.data;
-    if (Array.isArray(result?.items)) return result.items;
+    for (const rows of [
+        result?.data,
+        result?.items,
+        result?.parts,
+        result?.coils,
+        result?.templates,
+        result?.recipes,
+    ]) {
+        if (Array.isArray(rows)) return rows;
+    }
     return [];
 }
 
@@ -183,6 +191,46 @@ function resolutionReceipt(input = {}) {
         sourceCapability: input.sourceCapability,
         sourceEvidence: input.sourceEvidence || [],
     };
+}
+
+function resolveFormalEntityResultV3(input = {}) {
+    const descriptor = ENTITY_DESCRIPTORS[input.entityType];
+    const mention = String(input.originalMention || '').trim();
+    if (!descriptor || !mention) return null;
+    const candidates = new Map();
+    mergeCandidates(candidates, resultRows(input.result), descriptor, mention);
+    const ranked = [...candidates.values()]
+        .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name, 'zh-CN'))
+        .slice(0, MAX_CANDIDATES);
+    if (ranked.length === 0) {
+        return resolutionReceipt({
+            entityType: input.entityType,
+            originalMention: mention,
+            probes: [mention],
+            status: 'not_found',
+            candidates: [],
+            sourceCapability: input.sourceCapability,
+            sourceEvidence: input.sourceEvidence || [],
+        });
+    }
+    const selected = ranked[0];
+    const exact = selected.score === 1;
+    const uniqueExact = exact && ranked.filter(candidate => candidate.score === 1).length === 1;
+    const margin = selected.score - Number(ranked[1]?.score || 0);
+    const uniqueEnough = ranked.length === 1
+        ? selected.score >= AUTO_BIND_SCORE
+        : selected.score >= AUTO_BIND_SCORE && margin >= AUTO_BIND_MARGIN;
+    const canAutoBind = uniqueExact || uniqueEnough;
+    return resolutionReceipt({
+        entityType: input.entityType,
+        originalMention: mention,
+        probes: [mention],
+        status: canAutoBind ? (uniqueExact ? 'exact' : 'unique_candidate') : 'ambiguous',
+        selected: canAutoBind ? selected : null,
+        candidates: ranked,
+        sourceCapability: input.sourceCapability,
+        sourceEvidence: input.sourceEvidence || [],
+    });
 }
 
 function clarificationResource(candidate, entityType) {
@@ -356,5 +404,6 @@ module.exports = {
     buildSearchProbes,
     candidateScore,
     editDistance,
+    resolveFormalEntityResultV3,
     resolveAiToolTargetV3,
 };

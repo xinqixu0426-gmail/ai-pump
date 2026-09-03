@@ -68,6 +68,13 @@ const {
     observationFromToolResult,
 } = require('./aiObservationV3.cjs');
 const {
+    createReadInvestigationController,
+    inferParameterProvenance,
+    readInvestigationFlags,
+    readInvestigationStateReply,
+    replayReadInvestigationShadow,
+} = require('./aiReadInvestigationRuntimeV4.cjs');
+const {
     aiTurnStatePrompt,
     buildAiTurnStateV3,
     normalizeAiTurnStateV3,
@@ -426,10 +433,53 @@ async function runAiAgentRuntimeV3(input = {}) {
     const behaviorEvents = [];
     const observations = [];
     const evidenceLedger = createEvidenceLedger();
+    const readInvestigationFlagsV4 = readInvestigationFlags(input.env || process.env);
+    const readInvestigationV4 = readInvestigationFlagsV4.enabled
+        ? createReadInvestigationController({
+            intent,
+            originalTarget: latestUserText(messages),
+            evidenceLedger,
+            budget: { maxCalls: MAX_TOOL_CALLS },
+        })
+        : null;
     const recordBehavior = (type, details = {}) => {
         behaviorEvents.push(createBehaviorEvent(type, details));
+        if (readInvestigationV4) readInvestigationV4.reject(type, details);
     };
-    const recordFormalObservation = (name, args, result) => {
+    const recordFormalObservation = (
+        name,
+        args,
+        result,
+        resolutionReceipt = null,
+        requirementId = null
+    ) => {
+        const brokerSelection = requirementId
+            ? { status: 'selected', capabilityName: name, requirementId }
+            : readInvestigationV4?.next();
+        if (brokerSelection?.status === 'selected' && brokerSelection.capabilityName === name) {
+            const recorded = readInvestigationV4.observe({
+                capabilityName: name,
+                requirementId: brokerSelection.requirementId,
+                args,
+                parameterProvenance: inferParameterProvenance(
+                    args,
+                    latestUserText(messages),
+                    resolutionReceipt
+                ),
+                resolutionReceipt,
+                result,
+                toolResult: { name, view_type: viewTypeForAiTool(name), result },
+            });
+            if (recorded.accepted) {
+                observations.push(recorded.observation);
+                if (recorded.crossEntityObservation) {
+                    observations.push(recorded.crossEntityObservation);
+                }
+                return recorded.observation;
+            }
+            return null;
+        }
+        if (readInvestigationV4) return null;
         const observation = observationFromToolResult(name, args, result);
         observations.push(observation);
         evidenceLedger.appendObservation(observation, {
@@ -438,6 +488,12 @@ async function runAiAgentRuntimeV3(input = {}) {
         return observation;
     };
     const synthesisEvidenceResults = () => evidenceLedger.toolResults();
+    const evidenceSatisfied = options => readInvestigationV4
+        ? ['completed', 'completed_negative'].includes(readInvestigationV4.state().status)
+        : requiredEvidenceSatisfied(intent, toolResults, options);
+    const investigationFallbackReply = () => readInvestigationV4
+        ? readInvestigationStateReply(readInvestigationV4.state())
+        : safeMissingBusinessEvidenceReply(toolResults);
     let finalContent = '';
     let evidencePrioritized = false;
     let toolCallCount = 0;
@@ -461,13 +517,19 @@ async function runAiAgentRuntimeV3(input = {}) {
                 calledToolNames.add(item.name);
             }
         }
-        const nextPlannedCapability = plannedCapabilityNames(intent)
-            .find(name => !calledToolNames.has(name));
+        const brokerSelection = readInvestigationV4?.next();
+        const nextPlannedCapability = brokerSelection?.status === 'selected'
+            ? brokerSelection.capabilityName
+            : readInvestigationV4
+                ? null
+                : plannedCapabilityNames(intent).find(name => !calledToolNames.has(name));
         const plannedTool = nextPlannedCapability
-            ? offeredTools.find(tool => tool.function.name === nextPlannedCapability)
+            ? readInvestigationV4
+                ? getAiToolDefinition(nextPlannedCapability)
+                : offeredTools.find(tool => tool.function.name === nextPlannedCapability)
             : null;
         let roundTools = plannedTool ? [plannedTool] : [];
-        if (input.agentVersion === 3 && agentRecoveryMode) {
+        if (input.agentVersion === 3 && agentRecoveryMode && !readInvestigationV4) {
             const recoveryNames = [
                 nextPlannedCapability,
                 ...discoveryCapabilitiesForIntent(intent),
@@ -711,7 +773,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             continue;
         }
         if (validatedPreparedCalls.length === 0 && rejectedPreparedCalls.length > 0) {
-            if (requiredEvidenceSatisfied(intent, toolResults, {
+            if (evidenceSatisfied({
                 agentVersion: input.agentVersion,
                 acceptVerifiedEmpty,
                 allowRecoveredReadEvidence: recoveredReadEvidence,
@@ -731,7 +793,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                 });
                 synthesisMs += Date.now() - synthesisStartedAt;
             } else {
-                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                finalContent = investigationFallbackReply();
             }
             break;
         }
@@ -764,6 +826,34 @@ async function runAiAgentRuntimeV3(input = {}) {
                     continue;
                 }
                 const originalArgs = parseAiToolArguments(prepared.toolCall.function.arguments);
+                const brokerSelection = readInvestigationV4?.next();
+                if (readInvestigationV4) {
+                    const brokerDecision = brokerSelection?.status === 'selected'
+                        && brokerSelection.capabilityName === prepared.toolCall.function.name
+                        ? readInvestigationV4.authorize({
+                            capabilityName: prepared.toolCall.function.name,
+                            requirementId: brokerSelection.requirementId,
+                            args: originalArgs,
+                            parameterProvenance: inferParameterProvenance(
+                                originalArgs,
+                                latestUserText(messages)
+                            ),
+                        })
+                        : { allowed: false, code: 'CAPABILITY_FACT_MISMATCH' };
+                    if (!brokerDecision.allowed) {
+                        recordBehavior('tool_rejected_not_allowed', {
+                            toolName: prepared.toolCall.function.name,
+                            code: brokerDecision.code,
+                        });
+                        resolvedCalls.push({
+                            ...prepared,
+                            validationStatus: 'rejected',
+                            validationCode: brokerDecision.code,
+                            validationError: '只读调查 Broker 拒绝了该 capability 调用',
+                        });
+                        continue;
+                    }
+                }
                 const resolution = await resolveAiToolTargetV3({
                     toolName: prepared.toolCall.function.name,
                     args: originalArgs,
@@ -779,6 +869,31 @@ async function runAiAgentRuntimeV3(input = {}) {
                         }
                         entityDiscoveryCallCount += 1;
                         const [name, args, discoveryOptions = {}] = discoveryArguments;
+                        const discoveryInput = readInvestigationV4 ? {
+                            parentCapabilityName: prepared.toolCall.function.name,
+                            capabilityName: name,
+                            requirementId: brokerSelection.requirementId,
+                            args,
+                            parameterProvenance: inferParameterProvenance(
+                                args,
+                                latestUserText(messages)
+                            ),
+                        } : null;
+                        const discoveryDecision = discoveryInput
+                            ? readInvestigationV4.authorizeDiscovery(discoveryInput)
+                            : null;
+                        if (discoveryDecision && !discoveryDecision.allowed) {
+                            recordBehavior('tool_rejected_not_allowed', {
+                                toolName: name,
+                                code: discoveryDecision.code,
+                            });
+                            return {
+                                success: false,
+                                code: discoveryDecision.code,
+                                error: '实体解析 discovery 被只读调查 Broker 拒绝',
+                                executionEvidence: { verified: false },
+                            };
+                        }
                         const discoveryResult = await executeToolWithTiming(name, () => (
                             executeToolCall(name, args, {
                                 ...discoveryOptions,
@@ -786,11 +901,25 @@ async function runAiAgentRuntimeV3(input = {}) {
                             })
                         ));
                         throwIfAiRequestAborted(input.signal);
-                        recordFormalObservation(name, args, discoveryResult);
+                        if (readInvestigationV4) {
+                            const recorded = readInvestigationV4.recordDiscovery({
+                                ...discoveryInput,
+                                result: discoveryResult,
+                            });
+                            if (recorded.accepted) observations.push(recorded.observation);
+                        } else {
+                            recordFormalObservation(name, args, discoveryResult);
+                        }
                         return discoveryResult;
                     },
                     confirmationSubject,
                 });
+                if (readInvestigationV4 && resolution.receipt?.status === 'ambiguous') {
+                    readInvestigationV4.recordResolutionOutcome({
+                        requirementId: brokerSelection.requirementId,
+                        receipt: resolution.receipt,
+                    });
+                }
                 if (resolution.status === 'ambiguous' && resolution.receipt?.sourceCapability) {
                     const sourceCapability = getAiCapability(resolution.receipt.sourceCapability);
                     observations.push(createObservation({
@@ -818,6 +947,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     resolutionResult: resolution.result || null,
                     resolutionStatus: resolution.status,
                     resolutionError: resolution.error || '',
+                    v4RequirementId: brokerSelection?.requirementId || null,
                 });
             }
             preparedCalls = resolvedCalls;
@@ -900,7 +1030,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     });
                     continue;
                 }
-                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                finalContent = investigationFallbackReply();
                 break;
             }
             for (const prepared of preparedCalls) {
@@ -947,8 +1077,19 @@ async function runAiAgentRuntimeV3(input = {}) {
                 currentMessages.push(buildAiToolResultMessage(toolCall, result));
                 emit('tool_result', { name, result });
                 if (prepared.validationStatus === 'rejected') continue;
-                toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
-                if (formallyExecuted) recordFormalObservation(name, args, result);
+                let formalObservation = null;
+                if (formallyExecuted) {
+                    formalObservation = recordFormalObservation(
+                        name,
+                        args,
+                        result,
+                        prepared.resolutionReceipt,
+                        prepared.v4RequirementId
+                    );
+                }
+                if (!readInvestigationV4 || formalObservation) {
+                    toolResults.push({ name, view_type: viewTypeForAiTool(name), result });
+                }
 
                 const companionCall = prepared.validationStatus === 'validated'
                     && result?.success !== false
@@ -1015,10 +1156,11 @@ async function runAiAgentRuntimeV3(input = {}) {
             const hasReadMiss = roundResults.some(isRecoverableReadMiss);
             const canRecoverReadMiss = roundResults.some(canAdjustReadStrategy);
             if (intent.mode === 'command' && hasReadMiss) {
-                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                finalContent = investigationFallbackReply();
                 break;
             }
             const hasTerminalTargetMiss = input.agentVersion === 3
+                && !readInvestigationV4
                 && roundResults.some(item => (
                     isRecoverableReadMiss(item) && !canAdjustReadStrategy(item)
                 ));
@@ -1043,6 +1185,7 @@ async function runAiAgentRuntimeV3(input = {}) {
             }
             if (
                 input.agentVersion === 3
+                && !readInvestigationV4
                 && canRecoverReadMiss
                 && agentRecoveryRounds < MAX_AGENT_RECOVERY_ROUNDS
             ) {
@@ -1059,12 +1202,13 @@ async function runAiAgentRuntimeV3(input = {}) {
                 emit('status', { status: 'thinking', message: '当前条件无结果，正在调整正式查询策略...' });
                 continue;
             }
-            if (input.agentVersion === 3 && hasReadMiss) {
+            if (input.agentVersion === 3 && hasReadMiss && !readInvestigationV4) {
                 acceptVerifiedEmpty = true;
                 agentRecoveryMode = false;
             }
             if (
                 input.agentVersion === 3
+                && !readInvestigationV4
                 && agentRecoveryMode
                 && roundResults.some(item => (
                     isVerifiedPositiveObservation(item?.result)
@@ -1086,10 +1230,10 @@ async function runAiAgentRuntimeV3(input = {}) {
                 !hasVerifiedExecution(item.result)
                 || (item?.result?.success === false && !isRecoverableReadMiss(item))
             ))) {
-                finalContent = safeMissingBusinessEvidenceReply(toolResults);
+                finalContent = investigationFallbackReply();
                 break;
             }
-            if (requiredEvidenceSatisfied(intent, toolResults, {
+            if (evidenceSatisfied({
                 agentVersion: input.agentVersion,
                 acceptVerifiedEmpty,
                 allowRecoveredReadEvidence: recoveredReadEvidence,
@@ -1116,7 +1260,7 @@ async function runAiAgentRuntimeV3(input = {}) {
 
         if (
             intent.needsBusinessData
-            && !requiredEvidenceSatisfied(intent, toolResults, {
+            && !evidenceSatisfied({
                 agentVersion: input.agentVersion,
                 acceptVerifiedEmpty,
                 allowRecoveredReadEvidence: recoveredReadEvidence,
@@ -1136,6 +1280,7 @@ async function runAiAgentRuntimeV3(input = {}) {
 
         if (
             input.agentVersion === 3
+            && !readInvestigationV4
             && agentRecoveryMode
             && toolResults.some(isRecoverableReadMiss)
         ) {
@@ -1154,12 +1299,14 @@ async function runAiAgentRuntimeV3(input = {}) {
                 signal: input.signal,
             });
             synthesisMs += Date.now() - synthesisStartedAt;
-        } else if (intent.needsBusinessData && !requiredEvidenceSatisfied(intent, toolResults, {
+        } else if (intent.needsBusinessData && !evidenceSatisfied({
             agentVersion: input.agentVersion,
             acceptVerifiedEmpty,
             allowRecoveredReadEvidence: recoveredReadEvidence,
         })) {
-            finalContent = missingEvidenceReply(intent, toolResults);
+            finalContent = readInvestigationV4
+                ? investigationFallbackReply()
+                : missingEvidenceReply(intent, toolResults);
         } else if (
             intent.mode === 'command'
             && !intent.requiresClarification
@@ -1217,6 +1364,27 @@ async function runAiAgentRuntimeV3(input = {}) {
                 ? 'failed_evidence'
                 : 'completed',
     };
+    if (readInvestigationFlagsV4.shadow && !readInvestigationFlagsV4.enabled) {
+        try {
+            const shadowState = replayReadInvestigationShadow({
+                intent,
+                originalTarget: latestUserText(messages),
+                observations,
+                evidenceRecords: evidenceLedger.snapshot(),
+                budget: { maxCalls: MAX_TOOL_CALLS },
+            });
+            dispatcherLogger.info('AI V4 只读调查 shadow 完成', {
+                requestId: input.requestId || null,
+                status: shadowState?.status || 'not_applicable',
+                facts: shadowState?.requirements.length || 0,
+            });
+        } catch (error) {
+            dispatcherLogger.warn('AI V4 只读调查 shadow 失败，不影响 V3 输出', {
+                requestId: input.requestId || null,
+                error: error?.message || String(error),
+            });
+        }
+    }
     dispatcherLogger.info('AI V3 调度完成', telemetry);
     return {
         finalContent,

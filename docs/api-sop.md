@@ -34,6 +34,8 @@
 
 `用户表达 → 第一阶段目标/风险/业务域排序或写信封 → 第二阶段能力步骤 → 能力图 → Agent 调查循环（假设 → tool schema/参数来源 → 正式 API → 结构化观察 → 调整）→ 正式实体绑定 → 证据门 → 结果提取`
 
+R2 的只读实验路径在上述调查循环内部采用 `InvestigationGoal → FactRequirement[] → InvestigationState → Capability Broker → 正式 capability → Observation/Evidence → Fact Reducer`。它仅适用于 `query/analysis + single`，由默认关闭的 `AI_READ_INVESTIGATION_V4_ENABLED` 控制；shadow 开关只回放本轮既有正式 Observation/Evidence，不得追加 API 调用或改变 SSE、turnState、业务回答。Planner steps 仅作候选排序提示，未解析对象的 `entityId` 必须保持 `null`，只能通过统一实体解析器签发的 `resolutionReceipt` 绑定。Command、Preview 分类及既有确认与执行安全协议不受该实验路径影响。
+
 - 模型负责口语、简称、疑问、否定和跨领域目标的语义理解；禁止为业务意图继续添加关键词正则。正则只处理 ID、数值、单位、token 和传输协议等确定性语法。
 - 第一阶段模型只看到精简业务域目录并提交结构化目标、读写风险、业务域、上下文来源、回答形态、对象范围和歧义；第二阶段只提交最多 5 个起始事实步骤。`query/analysis` 的业务域只负责把相关能力排在前面，目录包含全部对象范围兼容的已登记 read Query/Preview；`command` 仍只看到硬信封内能力。服务端继承第一阶段字段并拒绝未下发、对象范围不符或读写模式不符的步骤；非 `command` 永远不能计划 write。
 - 正常执行只开放当前计划能力；正式 Query 返回零结果或已验证资源未找到时，Agent 可以在限定轮次、调用数量和对象范围内使用公共能力图声明的跨域只读 discovery/query 调整调查策略。恢复目录逐项校验 `access=read`，不得出现写能力、未登记能力或跨目标扩展；系统/网络/协议失败不进入恢复。

@@ -165,6 +165,8 @@ function observationFromToolResult(toolName, args, result, options = {}) {
     return createObservation({
         attempted: true,
         capabilityName: toolName,
+        factKey: options.factKey,
+        observationId: options.observationId,
         args,
         result,
         trace: options.trace,
