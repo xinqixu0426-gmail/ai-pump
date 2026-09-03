@@ -119,7 +119,7 @@ MCP tool、executor 或 AI 证据门变化还必须运行：
 npm run verify:ai-release
 ```
 
-Guardian 继续按项目阶段运行 focused/commit/push；它只观察，不替代上述 MCP 专项检查。
+上述 MCP 专项检查是当前权威验收入口。
 
 ## 4. 变更边界
 

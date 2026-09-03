@@ -2,9 +2,7 @@
 
 > 当前版本说明，更新于 2026-08-31。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
 
-开发治理入口为根目录 [AGENTS.md](../AGENTS.md)、[ADF workflow skill](../.agents/skills/adf-workflow/SKILL.md) 和 [Guardian 配置](../.guardian/config.yaml)。它们分别保存项目协作边界、通用执行 SOP 与路径/验证映射；业务规则、API、数据库和成本事实仍只维护在本页下列权威文档与正式代码中。
-
-纯回答、只读审计、解释、诊断和状态查询不进入 ADF delivery workflow。开发任务的确定性验证按模块选择：治理/文档运行轻量静态契约，API 运行能力契约，业务 commit 保留 lint 与完整测试。API、`shared/**` 及根工具链 push 同时运行 deep API 与 Web build；Web-only push 运行 Web build。只有完全由仓库内容决定的治理/API 契约可复用同一 session 下严格指纹一致的通过证据；完整测试、deep API 和 build 始终重新运行，因为它们还受临时数据库、当前业务库快照或 Node/npm 环境影响。
+开发协作边界见根目录 [AGENTS.md](../AGENTS.md)。业务规则、API、数据库和成本事实只维护在本页下列权威文档与正式代码中；开发任务按实际影响运行对应测试、API 契约、deep API、build、真实 AI 与生产验收。
 
 API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”：
 

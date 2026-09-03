@@ -189,14 +189,6 @@ AI 回答中明确报告错误并保存正确做法后，系统会同步生成�
 - 发布前使用 `npm run db:backup:release` 生成与 Git commit、Schema 版本绑定的可验证快照；可通过 `DB_BACKUP_MIRROR_DIR` 同步已完成备份到异机目录。
 - 启动时更新铜价，此后每天 15:00 BJT 更新。
 
-## 开发治理
-
-本仓库接入 ADF v0.3。业务事实仍由代码、SQLite schema、测试、[项目协作规范](AGENTS.md) 和 [项目文档](docs/README.md) 持有；Guardian 只记录任务 baseline、检查配置映射并运行确定性验证，不修改业务实现。
-
-非简单任务统一由 `.agents/skills/adf-workflow/` 编排，按风险使用只读 Explorer/Reviewer、Task Contract 和 focused/commit/push gate。Guardian Core 不复制进业务仓库，每台开发机器通过 `AI_DEV_FRAMEWORK_ROOT` 指向已构建的 Framework。项目当前保持 `reportOnly: true`，所有 delivery 动作均为 manual，生产部署始终需要当前人工确认。
-
-项目级 Stop Hook 位于 `.codex/`，只有在 Codex 中 review/trust 后才生效；它只阻止 active lifecycle 被提前结束，不执行测试、commit、push 或部署。具体职责和日常流程以 [AGENTS.md](AGENTS.md) 为准，路径与验证命令以 [.guardian/config.yaml](.guardian/config.yaml) 为准。
-
 ## 生产发布
 
 生产环境为 Mac Mini：
