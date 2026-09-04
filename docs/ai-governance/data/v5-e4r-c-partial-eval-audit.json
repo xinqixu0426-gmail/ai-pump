@@ -1,0 +1,605 @@
+{
+  "schema_version": 1,
+  "audit": "V5-E4R-C-A Protocol V2 Partial Evaluation Audit",
+  "frozen_commit": "4bb78cf65d37df5d6aab319adcbdb1aed17839a1",
+  "freeze_verification": {
+    "expected_hashes": {
+      "prompt_v2": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+      "task_class_catalog": "c298bcf127030602b5f82cdcc8aed61554a789aacc1b082ade70eed1ca5d0ef9",
+      "source_span_code": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+      "protocol_v2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+      "model_settings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+      "input_envelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded"
+    },
+    "current_hashes": {
+      "prompt_v2": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+      "task_class_catalog": "c298bcf127030602b5f82cdcc8aed61554a789aacc1b082ade70eed1ca5d0ef9",
+      "source_span_code": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+      "protocol_v2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+      "model_settings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+      "input_envelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded"
+    },
+    "all_match": true
+  },
+  "evaluation_path_inventory": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "execution_status": "EXECUTED",
+      "expected_task_class_ref": "tc_004",
+      "actual_task_class_ref": "tc_003",
+      "protocol_status": "VALID",
+      "overall_comparison": "V5_FALSE_BLOCK"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "execution_status": "EXECUTED",
+      "expected_task_class_ref": "tc_004",
+      "actual_task_class_ref": "tc_003",
+      "protocol_status": "VALID",
+      "overall_comparison": "V5_FALSE_BLOCK"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "execution_status": "EXECUTED",
+      "expected_task_class_ref": "tc_004",
+      "actual_task_class_ref": "tc_003",
+      "protocol_status": "VALID",
+      "overall_comparison": "V5_FALSE_BLOCK"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "execution_status": "EXECUTED",
+      "expected_task_class_ref": "tc_024",
+      "actual_task_class_ref": "tc_024",
+      "protocol_status": "VALID",
+      "overall_comparison": "AGREE"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "execution_status": "EXECUTED",
+      "expected_task_class_ref": "tc_024",
+      "actual_task_class_ref": "tc_024",
+      "protocol_status": "VALID",
+      "overall_comparison": "AGREE"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "execution_status": "STOP_TRIGGER",
+      "expected_task_class_ref": "tc_024",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_AVAILABLE",
+      "overall_comparison": "V5_INSUFFICIENT_DATA"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "execution_status": "NOT_EXECUTED",
+      "expected_task_class_ref": "tc_002",
+      "actual_task_class_ref": null,
+      "protocol_status": "NOT_RUN",
+      "overall_comparison": "NOT_RUN"
+    }
+  ],
+  "path_counts": {
+    "frozen": 15,
+    "executed_or_observed": 6,
+    "completed_interpreter_outcomes": 5,
+    "remaining": 9,
+    "stop_path_id": "P06-EXACT-001-V4R3"
+  },
+  "evaluation_control_flow": {
+    "shadow_incomparable_producer": "aiShadowComparisonV4.rolloutReadiness",
+    "frozen_runner_mapping": "INCOMPLETE -> process exit status 2",
+    "evaluator_allowed_statuses": [
+      0,
+      1
+    ],
+    "evaluator_status_2_action": "THROW_AND_ABORT_LOOP",
+    "shadow_incomparable_semantics": "CASE_LEVEL",
+    "stop_root_cause": "EVALUATOR_DESIGN_FAILURE",
+    "remaining_corpus_resume_allowed": true,
+    "first_six_must_be_rerun": false,
+    "resume_path_ids": [
+      "P06-FLATBLADE-001-LEGACY",
+      "P06-FLATBLADE-001-V4I",
+      "P06-FLATBLADE-001-V4R3",
+      "P06-INVENTORY-001-LEGACY",
+      "P06-INVENTORY-001-V4I",
+      "P06-INVENTORY-001-V4R3",
+      "P06-SIMPLE-001-LEGACY",
+      "P06-SIMPLE-001-V4I",
+      "P06-SIMPLE-001-V4R3"
+    ],
+    "one_shot_integrity": "YES_BUT_INCOMPLETE"
+  },
+  "task_class_catalog": {
+    "version": 1,
+    "count": 27,
+    "global_selection_space": 27,
+    "all_classes_shown_for_every_request": true,
+    "classes": [
+      {
+        "class_ref": "tc_001",
+        "domain": "business_history",
+        "operation": "read",
+        "entity_types": [
+          "business_record"
+        ],
+        "semantic_description": "Historical business change and audit records. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A business change or audit record.",
+        "projected_capability_candidates": [
+          "business_history.read"
+        ]
+      },
+      {
+        "class_ref": "tc_002",
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "semantic_description": "Part catalog facts, including a part model, current catalog price, or current stock. Read current part-catalog facts, including stock and current catalog price. Referenced object: A generic component or part catalog item; not a coil unless the referenced object is explicitly a coil scheme.",
+        "projected_capability_candidates": [
+          "inventory.read"
+        ]
+      },
+      {
+        "class_ref": "tc_003",
+        "domain": "coil",
+        "operation": "cost",
+        "entity_types": [
+          "coil"
+        ],
+        "semantic_description": "Coil and winding-scheme specifications, inventory, and coil-material cost. Calculate coil or winding material cost. Referenced object: A specialized coil or winding scheme; do not infer this subtype from identifier shape alone.",
+        "projected_capability_candidates": [
+          "coil.cost"
+        ]
+      },
+      {
+        "class_ref": "tc_004",
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "semantic_description": "Coil and winding-scheme specifications, inventory, and coil-material cost. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A specialized coil or winding scheme; do not infer this subtype from identifier shape alone.",
+        "projected_capability_candidates": [
+          "coil.read"
+        ]
+      },
+      {
+        "class_ref": "tc_005",
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [
+          "cost_context"
+        ],
+        "semantic_description": "Generic cost calculation not bound to a named recipe or other specific business document. Calculate a generic unbound cost context. Referenced object: A generic calculation context that is not a named recipe or business document.",
+        "projected_capability_candidates": [
+          "cost.calculate"
+        ]
+      },
+      {
+        "class_ref": "tc_006",
+        "domain": "drawing",
+        "operation": "read",
+        "entity_types": [
+          "drawing"
+        ],
+        "semantic_description": "Rotor drawing records and drawing generation or printing. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A rotor drawing record.",
+        "projected_capability_candidates": [
+          "drawing.read"
+        ]
+      },
+      {
+        "class_ref": "tc_007",
+        "domain": "file",
+        "operation": "search",
+        "entity_types": [
+          "file"
+        ],
+        "semantic_description": "Factory file archive discovery and archiving. Search the factory file archive for matching file targets. Referenced object: A general factory file or archive target.",
+        "projected_capability_candidates": [
+          "file.search"
+        ]
+      },
+      {
+        "class_ref": "tc_008",
+        "domain": "knowledge",
+        "operation": "read",
+        "entity_types": [
+          "knowledge"
+        ],
+        "semantic_description": "Factory knowledge entries and knowledge-index maintenance. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A factory knowledge entry or knowledge index.",
+        "projected_capability_candidates": [
+          "knowledge.read"
+        ]
+      },
+      {
+        "class_ref": "tc_009",
+        "domain": "management",
+        "operation": "plan_workflow",
+        "entity_types": [
+          "workflow"
+        ],
+        "semantic_description": "Factory-wide management summaries, alerts, and workflow control. Plan a factory workflow without executing it. Referenced object: A factory workflow run or workflow plan.",
+        "projected_capability_candidates": [
+          "management.workflow.plan"
+        ]
+      },
+      {
+        "class_ref": "tc_010",
+        "domain": "management",
+        "operation": "read",
+        "entity_types": [
+          "global"
+        ],
+        "semantic_description": "Factory-wide management summaries, alerts, and workflow control. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A global management scope with no narrower business entity.",
+        "projected_capability_candidates": [
+          "management.read"
+        ]
+      },
+      {
+        "class_ref": "tc_011",
+        "domain": "order",
+        "operation": "build_draft",
+        "entity_types": [
+          "order"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Build a non-executing draft for an order or quotation. Referenced object: A customer order.",
+        "projected_capability_candidates": [
+          "order.draft"
+        ]
+      },
+      {
+        "class_ref": "tc_012",
+        "domain": "order",
+        "operation": "plan_readiness",
+        "entity_types": [
+          "order"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Plan order-readiness actions without executing them. Referenced object: A customer order.",
+        "projected_capability_candidates": [
+          "order.readiness.plan"
+        ]
+      },
+      {
+        "class_ref": "tc_013",
+        "domain": "order",
+        "operation": "read",
+        "entity_types": [
+          "order"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A customer order.",
+        "projected_capability_candidates": [
+          "order.read"
+        ]
+      },
+      {
+        "class_ref": "tc_014",
+        "domain": "order",
+        "operation": "read_knowledge",
+        "entity_types": [
+          "order"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Read the knowledge package attached to an order. Referenced object: A customer order.",
+        "projected_capability_candidates": [
+          "order.knowledge.read"
+        ]
+      },
+      {
+        "class_ref": "tc_015",
+        "domain": "order",
+        "operation": "read_purchase",
+        "entity_types": [
+          "purchase"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Read purchasing status or overview for an order. Referenced object: An order-scoped purchasing aggregate.",
+        "projected_capability_candidates": [
+          "purchase.read"
+        ]
+      },
+      {
+        "class_ref": "tc_016",
+        "domain": "order",
+        "operation": "read_readiness",
+        "entity_types": [
+          "order"
+        ],
+        "semantic_description": "Orders, purchasing, order readiness, and order-scoped work. Read order-readiness status. Referenced object: A customer order.",
+        "projected_capability_candidates": [
+          "order.readiness.read"
+        ]
+      },
+      {
+        "class_ref": "tc_017",
+        "domain": "quality",
+        "operation": "analyze_recipe",
+        "entity_types": [
+          "recipe"
+        ],
+        "semantic_description": "Factory data quality and recipe-configuration quality analysis. Analyze whether a named recipe configuration is coherent. Referenced object: A named pump recipe or formula with BOM and recipe-level cost.",
+        "projected_capability_candidates": [
+          "quality.recipe.analyze"
+        ]
+      },
+      {
+        "class_ref": "tc_018",
+        "domain": "quality",
+        "operation": "read",
+        "entity_types": [
+          "factory"
+        ],
+        "semantic_description": "Factory data quality and recipe-configuration quality analysis. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: The factory-wide singleton scope.",
+        "projected_capability_candidates": [
+          "quality.read"
+        ]
+      },
+      {
+        "class_ref": "tc_019",
+        "domain": "quotation",
+        "operation": "build_draft",
+        "entity_types": [
+          "quotation"
+        ],
+        "semantic_description": "Quotations, quotation customers, quotation files, and quotation drafts. Build a non-executing draft for an order or quotation. Referenced object: A customer quotation.",
+        "projected_capability_candidates": [
+          "quotation.draft"
+        ]
+      },
+      {
+        "class_ref": "tc_020",
+        "domain": "quotation",
+        "operation": "explain_cost",
+        "entity_types": [
+          "quotation"
+        ],
+        "semantic_description": "Quotations, quotation customers, quotation files, and quotation drafts. Explain a quotation cost change. Referenced object: A customer quotation.",
+        "projected_capability_candidates": [
+          "quotation.cost.explain"
+        ]
+      },
+      {
+        "class_ref": "tc_021",
+        "domain": "quotation",
+        "operation": "inspect_file",
+        "entity_types": [
+          "file"
+        ],
+        "semantic_description": "Quotations, quotation customers, quotation files, and quotation drafts. Inspect a quotation file without archiving it. Referenced object: A general factory file or archive target.",
+        "projected_capability_candidates": [
+          "quotation.file.inspect"
+        ]
+      },
+      {
+        "class_ref": "tc_022",
+        "domain": "quotation",
+        "operation": "read",
+        "entity_types": [
+          "quotation"
+        ],
+        "semantic_description": "Quotations, quotation customers, quotation files, and quotation drafts. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A customer quotation.",
+        "projected_capability_candidates": [
+          "quotation.read"
+        ]
+      },
+      {
+        "class_ref": "tc_023",
+        "domain": "quotation",
+        "operation": "read_customer",
+        "entity_types": [
+          "customer"
+        ],
+        "semantic_description": "Quotations, quotation customers, quotation files, and quotation drafts. Read quotation-customer records or customer history. Referenced object: A customer account or customer history subject.",
+        "projected_capability_candidates": [
+          "quotation.customer.read"
+        ]
+      },
+      {
+        "class_ref": "tc_024",
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "semantic_description": "Named pump recipes, formulas, BOM composition, recipe files, templates, and recipe-level cost preview. Preview or compare the complete cost of a named recipe. Referenced object: A named pump recipe or formula with BOM and recipe-level cost.",
+        "projected_capability_candidates": [
+          "recipe.cost.preview"
+        ]
+      },
+      {
+        "class_ref": "tc_025",
+        "domain": "recipe",
+        "operation": "read",
+        "entity_types": [
+          "recipe"
+        ],
+        "semantic_description": "Named pump recipes, formulas, BOM composition, recipe files, templates, and recipe-level cost preview. Read a specific domain object or list; not free-text search and not a specialized inventory operation. Referenced object: A named pump recipe or formula with BOM and recipe-level cost.",
+        "projected_capability_candidates": [
+          "recipe.read"
+        ]
+      },
+      {
+        "class_ref": "tc_026",
+        "domain": "recipe",
+        "operation": "read_files",
+        "entity_types": [
+          "recipe"
+        ],
+        "semantic_description": "Named pump recipes, formulas, BOM composition, recipe files, templates, and recipe-level cost preview. Read technical files attached to a named recipe. Referenced object: A named pump recipe or formula with BOM and recipe-level cost.",
+        "projected_capability_candidates": [
+          "recipe.files.read"
+        ]
+      },
+      {
+        "class_ref": "tc_027",
+        "domain": "recipe",
+        "operation": "read_template",
+        "entity_types": [
+          "template"
+        ],
+        "semantic_description": "Named pump recipes, formulas, BOM composition, recipe files, templates, and recipe-level cost preview. Read pump-shell template records used by recipes. Referenced object: A pump-shell template used by recipes.",
+        "projected_capability_candidates": [
+          "recipe.template.read"
+        ]
+      }
+    ]
+  },
+  "coil_read_vs_cost": {
+    "expected_class_ref": "tc_004",
+    "actual_class_ref": "tc_003",
+    "wrong_path_ids": [
+      "P06-COIL-001-LEGACY",
+      "P06-COIL-001-V4I",
+      "P06-COIL-001-V4R3"
+    ],
+    "classification_consistency": "CONSISTENT_WRONG_CLASSIFICATION",
+    "source_semantic_explicitness": "SEMANTICALLY_EXPLICIT",
+    "safe_pre_routing_context_available": false,
+    "structural_comparison": {
+      "same_domain": true,
+      "same_entity_types": true,
+      "different_operation": true,
+      "token_jaccard": 0.7096774193548387,
+      "token_overlap_coefficient": 0.9565217391304348,
+      "classification": "OVERLAPPING"
+    },
+    "task_class_semantic_overlap": true,
+    "task_class_description_failure": true,
+    "task_class_granularity_failure": false,
+    "insufficient_pre_routing_context": false,
+    "primary_root_cause": "TASK_CLASS_DESCRIPTION_FAILURE",
+    "secondary_root_causes": [
+      "TASK_CLASS_SEMANTIC_OVERLAP",
+      "MODEL_SELECTION_FAILURE"
+    ]
+  },
+  "false_blocks": {
+    "path_count": 3,
+    "unique_source_groups": 1,
+    "path_ids": [
+      "P06-COIL-001-LEGACY",
+      "P06-COIL-001-V4I",
+      "P06-COIL-001-V4R3"
+    ],
+    "primary_root_cause": "TASK_CLASS_DESCRIPTION_FAILURE"
+  },
+  "exact_entity_partial_result": {
+    "attempted": 3,
+    "correct": 2,
+    "failed": 0,
+    "stop_trigger_without_interpreter_outcome": 1,
+    "remaining_not_executed": 0,
+    "stop_path_id": "P06-EXACT-001-V4R3",
+    "failure_root_cause": "EVALUATION_NOT_INTERPRETER_FAILURE",
+    "correct_exact_span_exists_for_stop_path": true
+  },
+  "source_span_protocol": {
+    "catalog_failure_count": 0,
+    "model_wrong_span_selection_count": 0,
+    "observed_valid_selections": 5,
+    "observed_exact_anchors": 5,
+    "source_anchor_decision": "KEEP_EXACT"
+  },
+  "downstream_responsibility": {
+    "capability_router_root_cause": false,
+    "tool_exposure_root_cause": false
+  },
+  "decisions": {
+    "external_contract_v1_sufficient": true,
+    "interpreter_model": "KEEP",
+    "deterministic_structural_prefilter_available_for_frozen_coil_group": false,
+    "structural_prefilter_inputs": [],
+    "task_class_local_contrast_recommended": true,
+    "hierarchical_single_call_selection_recommended": false,
+    "recommended_v2_1_mechanism_classes": [
+      "EVALUATOR_CONTINUATION_FIX",
+      "TASK_CLASS_DESCRIPTION_REVISION",
+      "TASK_CLASS_LOCAL_CONTRAST"
+    ],
+    "maximum_v2_1_change_scope": "Evaluator continuation plus Task Class semantic descriptions/local contrasts; no protocol, model, router, Tool exposure, Contract V1, or source-anchor change."
+  },
+  "side_effects": {
+    "real_interpreter_model_calls": 0,
+    "v5_tool_calls": 0,
+    "v5_business_api_calls": 0,
+    "v5_writes": 0
+  }
+}
