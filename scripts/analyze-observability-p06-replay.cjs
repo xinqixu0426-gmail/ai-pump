@@ -50,10 +50,6 @@ function traceId(span) {
   return String(span?.context?.trace_id || span?.context?.traceId || span?.trace_id || '');
 }
 
-function spanId(span) {
-  return String(span?.context?.span_id || span?.context?.spanId || span?.span_id || '');
-}
-
 function attributes(span) {
   return span?.attributes && typeof span.attributes === 'object' ? span.attributes : {};
 }
@@ -206,7 +202,7 @@ function firstSpan(spans, predicate) {
     .find(predicate) || null;
 }
 
-function classifyFailure({ caseKey, pathName, pathReport, spans, summary, contract }) {
+function classifyFailure({ caseKey: _caseKey, pathName: _pathName, pathReport, spans, summary, contract }) {
   if (pathReport.classification !== 'FAIL') {
     return { failureClass: null, secondaryClasses: [], firstDivergence: null, notes: 'Oracle trajectory satisfied.' };
   }
@@ -362,8 +358,17 @@ async function main() {
     const contract = CASE_CONTRACTS[reportCase.caseKey];
     for (const [reportPath, requestPath, idSuffix] of PATHS) {
       const requestId = `p06-${reportCase.caseKey}-${requestPath}`;
-      const root = spans.find(span => span.parent_id === null && attributes(span)['pump.request.id'] === requestId);
+      const root = spans.find(span => (
+        span.parent_id === null
+        && span.name === 'invoke_agent pump_factory_assistant'
+        && attributes(span)['pump.request.id'] === requestId
+      ));
       const scoped = root ? spans.filter(span => traceId(span) === traceId(root)) : [];
+      const shadowProjection = spans.find(span => (
+        span.name === 'pump.ai.v5.shadow.project'
+        && attributes(span)['pump.request.id'] === requestId
+      ));
+      const shadowAttributes = shadowProjection ? attributes(shadowProjection) : {};
       const integrity = scoped.length ? validateTraceIntegrity(scoped) : { pass: false };
       const pathReport = reportCase.paths[reportPath];
       const summary = structuralSummary(scoped, contract);
@@ -395,6 +400,17 @@ async function main() {
           entity_resolutions: summary.entity_resolutions,
           verifications: summary.verifications,
           premature_verification_count: summary.premature_verification_count,
+          shadow_projection: shadowProjection ? {
+            entity_facts_available: shadowAttributes['pump.ai.v5.facts.entity_available'] === true,
+            capability_facts_available: shadowAttributes['pump.ai.v5.facts.capability_available'] === true,
+            argument_facts_available: shadowAttributes['pump.ai.v5.facts.argument_available'] === true,
+            state_facts_available: shadowAttributes['pump.ai.v5.facts.state_available'] === true,
+            verification_facts_available: shadowAttributes['pump.ai.v5.facts.verification_available'] === true,
+            argument_validation_status: shadowAttributes['pump.ai.v5.argument.validation_status'] || 'UNKNOWN',
+            entity_status: shadowAttributes['pump.ai.v5.entity.status'] || 'UNKNOWN',
+            state_valid: shadowAttributes['pump.ai.v5.state.valid'] === true,
+            verification_status: shadowAttributes['pump.ai.v5.verification.status'] || 'UNKNOWN',
+          } : null,
         },
         trace_id: root ? traceId(root) : null,
         trajectory_hash: summary.trajectory_hash,

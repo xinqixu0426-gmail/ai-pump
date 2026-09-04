@@ -116,8 +116,12 @@ test('V5 production import is limited to the P13 dispatcher mirror hook with no 
     const productionImports = sourceFiles
         .filter(file => !file.startsWith(`${v5Root}${path.sep}`))
         .filter(file => /(?:require\s*\(|from\s+)[^\n]*ai-v5/i.test(fs.readFileSync(file, 'utf8')));
-    assert.deepEqual(productionImports, [path.join(apiRoot, 'services', 'aiDispatcherV3.cjs')]);
-    const dispatcher = fs.readFileSync(productionImports[0], 'utf8');
+    assert.deepEqual(productionImports, [
+        path.join(apiRoot, 'services', 'aiDispatcherV3.cjs'),
+        path.join(apiRoot, 'services', 'aiToolProtocol.cjs'),
+        path.join(apiRoot, 'services', 'observability.cjs'),
+    ]);
+    const dispatcher = fs.readFileSync(path.join(apiRoot, 'services', 'aiDispatcherV3.cjs'), 'utf8');
     assert.match(dispatcher, /ai-v5\/shadowProjection\.cjs/);
     assert.match(dispatcher, /ai-v5\/shadowMirror\.cjs/);
     assert.doesNotMatch(dispatcher, /ai-v5\/(?:controlledRuntime|policy|capabilityRouter|executor)/);

@@ -99,7 +99,7 @@ function fakeRes() {
 test('shadow flags default disabled/rate zero and accept only exact true plus bounded rate', () => {
     assert.deepEqual(readV5ShadowConfig({}), {
         enabled: false, sampleRate: 0, maxConcurrency: 4, timeoutMs: 100,
-        project: 'pump-ai-v5e2-shadow',
+        project: 'pump-ai-v5e3-shadow',
     });
     assert.equal(readV5ShadowConfig({ AI_V5_SHADOW_ENABLED: '1', AI_V5_SHADOW_SAMPLE_RATE: '1.1' }).enabled, false);
     assert.equal(readV5ShadowConfig({ AI_V5_SHADOW_ENABLED: 'true', AI_V5_SHADOW_SAMPLE_RATE: 'banana' }).sampleRate, 0);
@@ -188,12 +188,13 @@ test('deterministic success, C02, R02 and A01 comparisons have stable taxonomy',
 
 test('P06 production adapter preserves C02/R02/A01 blocks and zero success false blocks', () => {
     const evaluation = evaluateP06ProductionShadowControls(p06Cases, { createdAt: AT });
-    assert.deepEqual(evaluation.metrics, {
-        c02Analyzed: 3, c02Blocked: 3,
-        r02Analyzed: 3, r02Blocked: 3,
-        a01Analyzed: 2, a01Blocked: 2,
-        successControls: 7, successFalseBlocks: 0,
-    });
+    assert.equal(evaluation.metrics.c02Comparable, 3);
+    assert.equal(evaluation.metrics.r02Comparable, 3);
+    assert.equal(evaluation.metrics.a01Comparable, 2);
+    assert.equal(evaluation.metrics.blockedFailures, 8);
+    assert.equal(evaluation.metrics.successControls, 7);
+    assert.equal(evaluation.metrics.falseBlocks, 0);
+    assert.equal(evaluation.metrics.overallComparableRate, 8 / 15);
 });
 
 test('incomplete production-safe projection is explicit and never fabricated', () => {

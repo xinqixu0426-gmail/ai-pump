@@ -3,6 +3,7 @@ const { getAiCapability } = require('../capabilities/registry.cjs');
 const {
     validateAiToolArgs,
 } = require('./aiToolInputValidatorV2.cjs');
+const { recordArgumentValidationFact } = require('./ai-v5/shadowFacts.cjs');
 
 const VIEW_TYPE_MAP = {
     search_business_changes: 'business_change_history',
@@ -72,7 +73,7 @@ function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
         ? new Set(options.allowedToolNames)
         : null;
     const writeTools = options.writeTools || new Set();
-    return toolCalls.map(toolCall => {
+    const prepared = toolCalls.map(toolCall => {
         const name = toolCall.function?.name || '';
         if (allowedToolNames && !allowedToolNames.has(name)) {
             return {
@@ -124,6 +125,15 @@ function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
             };
         }
     });
+    for (const item of prepared) {
+        recordArgumentValidationFact({
+            toolName: item.toolCall?.function?.name,
+            status: item.validationStatus,
+            validationCode: item.validationCode,
+            args: parseAiToolArguments(item.toolCall?.function?.arguments),
+        });
+    }
+    return prepared;
 }
 
 function buildAiToolPlan(toolCalls = [], writeTools = new Set(), options = {}) {

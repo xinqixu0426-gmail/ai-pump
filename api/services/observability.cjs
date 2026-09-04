@@ -1,5 +1,12 @@
 const { createLogger } = require('../logger.cjs');
 const { createHash } = require('node:crypto');
+const {
+  recordEntityNormalizationFact,
+  recordEntityResolutionFact,
+  recordRoutingFact,
+  recordToolExecutionFact,
+  recordVerificationFact,
+} = require('./ai-v5/shadowFacts.cjs');
 
 const DEFAULT_PROJECT = 'pump-ai-v4-baseline';
 const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:6006';
@@ -606,7 +613,12 @@ function withEntityNormalizationSpan(metadata = {}, operation) {
         },
       };
     },
-  }, operation);
+  }, control => {
+    const result = operation(control);
+    const output = typeof metadata.output === 'function' ? metadata.output(result) : metadata.output;
+    recordEntityNormalizationFact(metadata, output);
+    return result;
+  });
 }
 
 function withEntityResolutionSpan(metadata = {}, operation) {
@@ -637,7 +649,11 @@ function withEntityResolutionSpan(metadata = {}, operation) {
         },
       };
     },
-  }, operation);
+  }, async control => {
+    const result = await operation(control);
+    recordEntityResolutionFact(metadata, result);
+    return result;
+  });
 }
 
 function withRoutingSpan(metadata = {}, operation) {
@@ -661,7 +677,11 @@ function withRoutingSpan(metadata = {}, operation) {
         },
       };
     },
-  }, operation);
+  }, control => {
+    const result = operation(control);
+    recordRoutingFact(metadata, result);
+    return result;
+  });
 }
 
 function verificationAttributes(metadata = {}, decision) {
@@ -692,7 +712,11 @@ function withVerificationSpan(metadata = {}, operation) {
     resultStatus(result) {
       return { attributes: verificationAttributes(metadata, result) };
     },
-  }, operation);
+  }, control => {
+    const result = operation(control);
+    recordVerificationFact(metadata, result);
+    return result;
+  });
 }
 
 function withAgentSpan(metadata = {}, operation) {
@@ -774,6 +798,15 @@ function withV5ShadowProjectionSpan(metadata = {}, operation) {
           'pump.ai.v5.projection.status': safeLabel(result?.projectionStatus || result?.status),
           'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
           'pump.ai.v5.tool_names': tools,
+          'pump.ai.v5.facts.entity_available': result?.availability?.entityFactsAvailable === true,
+          'pump.ai.v5.facts.capability_available': result?.availability?.capabilityFactsAvailable === true,
+          'pump.ai.v5.facts.argument_available': result?.availability?.argumentFactsAvailable === true,
+          'pump.ai.v5.facts.state_available': result?.availability?.stateFactsAvailable === true,
+          'pump.ai.v5.facts.verification_available': result?.availability?.verificationFactsAvailable === true,
+          'pump.ai.v5.argument.validation_status': safeLabel(result?.argumentAssessment?.status),
+          'pump.ai.v5.entity.status': safeLabel(result?.entityAssessment?.status),
+          'pump.ai.v5.state.valid': result?.stateAssessment?.valid === true,
+          'pump.ai.v5.verification.status': safeLabel(result?.verificationAssessment?.status),
           ...(result?.capabilityAssessment?.intendedCapabilityId ? {
             'pump.ai.v5.capability_id': safeLabel(result.capabilityAssessment.intendedCapabilityId),
           } : {}),
@@ -793,6 +826,13 @@ function withV5ShadowComparisonSpan(metadata = {}, operation) {
         error: result?.comparisonStatus === 'SHADOW_ERROR',
         attributes: {
           'pump.ai.v5.comparison.status': safeLabel(result?.comparisonStatus),
+          'pump.ai.v5.comparison.entity': safeLabel(result?.entityComparison?.status),
+          'pump.ai.v5.comparison.capability': safeLabel(result?.capabilityComparison?.status),
+          'pump.ai.v5.comparison.tool_exposure': safeLabel(result?.toolExposureComparison?.status),
+          'pump.ai.v5.comparison.argument': safeLabel(result?.argumentComparison?.status),
+          'pump.ai.v5.comparison.state': safeLabel(result?.stateComparison?.status),
+          'pump.ai.v5.comparison.policy': safeLabel(result?.policyComparison?.status),
+          'pump.ai.v5.comparison.verification': safeLabel(result?.verificationComparison?.status),
           'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
         },
       };
@@ -873,7 +913,16 @@ function withToolSpan(metadata = {}, operation) {
         },
       };
     },
-  }, operation);
+  }, async control => {
+    try {
+      const result = await operation(control);
+      recordToolExecutionFact(metadata, result, false);
+      return result;
+    } catch (error) {
+      recordToolExecutionFact(metadata, null, true);
+      throw error;
+    }
+  });
 }
 
 function emitSyntheticSmokeSpan() {

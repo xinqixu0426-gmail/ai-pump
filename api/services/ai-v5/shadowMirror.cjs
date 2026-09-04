@@ -14,7 +14,7 @@ const DEFAULT_V5_SHADOW_ENABLED = false;
 const DEFAULT_V5_SHADOW_SAMPLE_RATE = 0;
 const DEFAULT_V5_SHADOW_MAX_CONCURRENCY = 4;
 const DEFAULT_V5_SHADOW_TIMEOUT_MS = 100;
-const SHADOW_PROJECT = 'pump-ai-v5e2-shadow';
+const SHADOW_PROJECT = 'pump-ai-v5e3-shadow';
 const logger = createLogger('ai-v5-shadow');
 
 function freeze(value) {
@@ -92,6 +92,15 @@ function assembleOutcome(facts, projection, comparison) {
         policyAssessment: projection.policyAssessment,
         evidenceAssessment: projection.evidenceAssessment,
         verificationAssessment: projection.verificationAssessment,
+        argumentAssessment: projection.argumentAssessment,
+        availability: projection.availability,
+        entityComparison: comparison.entityComparison,
+        capabilityComparison: comparison.capabilityComparison,
+        toolExposureComparison: comparison.toolExposureComparison,
+        argumentComparison: comparison.argumentComparison,
+        stateComparison: comparison.stateComparison,
+        policyComparison: comparison.policyComparison,
+        verificationComparison: comparison.verificationComparison,
         comparisonStatus: comparison.comparisonStatus,
         reasonCodes: [...new Set([...projection.reasonCodes, ...comparison.reasonCodes])],
     });
