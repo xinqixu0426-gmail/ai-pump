@@ -710,6 +710,96 @@ function withAgentSpan(metadata = {}, operation) {
   }, operation);
 }
 
+function getActiveTraceContext() {
+  try {
+    const span = phoenix?.trace?.getSpan?.(phoenix.context.active());
+    const context = span?.spanContext?.();
+    if (!context || !context.traceId || !context.spanId) return null;
+    return Object.freeze({ traceId: context.traceId, spanId: context.spanId });
+  } catch {
+    return null;
+  }
+}
+
+function withDetachedTrace(operation) {
+  try {
+    if (phoenix?.context?.active && phoenix?.context?.with && phoenix?.trace?.deleteSpan) {
+      const detached = phoenix.trace.deleteSpan(phoenix.context.active());
+      return phoenix.context.with(detached, operation);
+    }
+  } catch {
+    // Shadow tracing must remain detached and fail-open.
+  }
+  return operation();
+}
+
+function shadowCorrelationAttributes(metadata = {}) {
+  return {
+    ...correlationAttribute('pump.request.id', metadata.sourceRequestId),
+    ...(metadata.sourceRequestIdHash ? { 'pump.request.id_hash': metadata.sourceRequestIdHash } : {}),
+    ...(metadata.sourceTraceId ? { 'pump.ai.v5.source_trace_id': safeLabel(metadata.sourceTraceId) } : {}),
+    'pump.ai.v5.shadow_task_id': safeLabel(metadata.shadowTaskId),
+  };
+}
+
+function withV5ShadowSpan(metadata = {}, operation) {
+  return withDetachedTrace(() => withObservedSpan({
+    name: 'pump.ai.v5.shadow',
+    kind: 'CHAIN',
+    attributes: shadowCorrelationAttributes(metadata),
+    resultStatus(result) {
+      return {
+        error: result?.comparisonStatus === 'SHADOW_ERROR',
+        attributes: {
+          'pump.ai.v5.comparison.status': safeLabel(result?.comparisonStatus),
+          'pump.ai.v5.projection.status': safeLabel(result?.projectionStatus),
+        },
+      };
+    },
+  }, operation));
+}
+
+function withV5ShadowProjectionSpan(metadata = {}, operation) {
+  return withObservedSpan({
+    name: 'pump.ai.v5.shadow.project',
+    kind: 'CHAIN',
+    attributes: shadowCorrelationAttributes(metadata),
+    resultStatus(result) {
+      const tools = Array.isArray(result?.toolExposureAssessment?.tools)
+        ? result.toolExposureAssessment.tools.map(item => safeLabel(item.toolName))
+        : [];
+      return {
+        error: result?.status === 'INVALID',
+        attributes: {
+          'pump.ai.v5.projection.status': safeLabel(result?.projectionStatus || result?.status),
+          'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
+          'pump.ai.v5.tool_names': tools,
+          ...(result?.capabilityAssessment?.intendedCapabilityId ? {
+            'pump.ai.v5.capability_id': safeLabel(result.capabilityAssessment.intendedCapabilityId),
+          } : {}),
+        },
+      };
+    },
+  }, operation);
+}
+
+function withV5ShadowComparisonSpan(metadata = {}, operation) {
+  return withObservedSpan({
+    name: 'pump.ai.v5.shadow.compare',
+    kind: 'CHAIN',
+    attributes: shadowCorrelationAttributes(metadata),
+    resultStatus(result) {
+      return {
+        error: result?.comparisonStatus === 'SHADOW_ERROR',
+        attributes: {
+          'pump.ai.v5.comparison.status': safeLabel(result?.comparisonStatus),
+          'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
+        },
+      };
+    },
+  }, operation);
+}
+
 function withModelSpan(metadata = {}, operation) {
   const model = safeLabel(metadata.model);
   return withObservedSpan({
@@ -823,6 +913,7 @@ module.exports = {
   PUMP_AI_TRACE_SCHEMA_VERSION,
   PRIVACY_TRACE_CONFIG,
   emitSyntheticSmokeSpan,
+  getActiveTraceContext,
   getObservabilityState,
   initializeObservability,
   isSensitiveTraceKey,
@@ -840,5 +931,8 @@ module.exports = {
   withModelSpan,
   withRoutingSpan,
   withToolSpan,
+  withV5ShadowComparisonSpan,
+  withV5ShadowProjectionSpan,
+  withV5ShadowSpan,
   withVerificationSpan,
 };

@@ -100,7 +100,7 @@ test('P06 R02 is explicitly out of scope and no routing decision is introduced',
     assert.equal(analyses.every(item => item.wouldBeBlocked === 'UNKNOWN'), true);
 });
 
-test('V5-A remains isolated from production imports, execution, network, and database modules', () => {
+test('V5 production import is limited to the P13 dispatcher mirror hook with no execution dependency', () => {
     const apiRoot = path.resolve(__dirname, '..', 'api');
     const v5Root = path.join(apiRoot, 'services', 'ai-v5');
     const sourceFiles = [];
@@ -116,15 +116,25 @@ test('V5-A remains isolated from production imports, execution, network, and dat
     const productionImports = sourceFiles
         .filter(file => !file.startsWith(`${v5Root}${path.sep}`))
         .filter(file => /(?:require\s*\(|from\s+)[^\n]*ai-v5/i.test(fs.readFileSync(file, 'utf8')));
-    assert.deepEqual(productionImports, []);
+    assert.deepEqual(productionImports, [path.join(apiRoot, 'services', 'aiDispatcherV3.cjs')]);
+    const dispatcher = fs.readFileSync(productionImports[0], 'utf8');
+    assert.match(dispatcher, /ai-v5\/shadowProjection\.cjs/);
+    assert.match(dispatcher, /ai-v5\/shadowMirror\.cjs/);
+    assert.doesNotMatch(dispatcher, /ai-v5\/(?:controlledRuntime|policy|capabilityRouter|executor)/);
 
     const forbiddenV5Imports = fs.readdirSync(v5Root)
         .filter(name => name.endsWith('.cjs'))
         .flatMap(name => {
             const content = fs.readFileSync(path.join(v5Root, name), 'utf8');
-            return /(?:executor|internalApiClient|aiProvider|observability|db\.cjs|fetch\s*\()/i.test(content)
+            return /(?:executor|internalApiClient|aiProvider|db\.cjs|fetch\s*\()/i.test(content)
                 ? [name]
                 : [];
         });
     assert.deepEqual(forbiddenV5Imports, []);
+    const observabilityImporters = fs.readdirSync(v5Root)
+        .filter(name => name.endsWith('.cjs'))
+        .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(
+            fs.readFileSync(path.join(v5Root, name), 'utf8')
+        ));
+    assert.deepEqual(observabilityImporters, ['shadowMirror.cjs']);
 });
