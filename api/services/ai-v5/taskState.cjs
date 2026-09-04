@@ -96,6 +96,9 @@ function transitionFailure(from, to, reason) {
 
 function assertTransitionPreconditions(task, to, context = {}) {
     if (to === 'EXECUTING') {
+        if (context.policyDecision !== 'ALLOW') {
+            transitionFailure(task.state, to, 'POLICY_ALLOW_REQUIRED');
+        }
         if (!task.requestedCapability) {
             transitionFailure(task.state, to, 'CAPABILITY_NOT_RESOLVED');
         }

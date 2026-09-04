@@ -202,7 +202,10 @@ test('ToolExposure cannot bypass V5-A EXECUTING preconditions', () => {
         validationStatus: 'validated',
     });
     const ready = createV5Task({ ...selected.shadowTask, execution: { toolRequest, toolResult: null } });
-    assert.equal(transitionTask(ready, 'EXECUTING', { timestamp: NOW }).state, 'EXECUTING');
+    assert.equal(transitionTask(ready, 'EXECUTING', {
+        timestamp: NOW,
+        policyDecision: 'ALLOW',
+    }).state, 'EXECUTING');
 });
 
 test('P06 R02 reverse-index analysis shows all three wrong tools blocked by sensible boundaries', () => {

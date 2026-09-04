@@ -71,6 +71,7 @@ const ALL_PRECONDITIONS = Object.freeze({
     openEvidenceRequirement: true,
     remainingBudget: true,
     untriedEligibleCapability: true,
+    policyDecision: 'ALLOW',
 });
 
 const EXPECTED_TRANSITIONS = Object.freeze({
@@ -315,6 +316,9 @@ test('EXECUTING requires matching resolved capability and validated ToolRequest'
     }), 'EXECUTING', ALL_PRECONDITIONS), { code: 'V5_STATE_TRANSITION_REJECTED' });
 
     assert.equal(transitionTask(taskAt('ROUTING'), 'EXECUTING', ALL_PRECONDITIONS).state, 'EXECUTING');
+    assert.throws(() => transitionTask(taskAt('ROUTING'), 'EXECUTING', {
+        ...ALL_PRECONDITIONS, policyDecision: 'DENY',
+    }), { code: 'V5_STATE_TRANSITION_REJECTED' });
 });
 
 test('VERIFYING requires completed execution plus task-scoped ledger or an explicit evidence-free path', () => {
