@@ -30,6 +30,7 @@ const {
 const {
     validateAiToolArgs,
 } = require('../../services/aiToolInputValidatorV2.cjs');
+const { withToolSpan } = require('../../services/observability.cjs');
 
 const TOOL_EXECUTORS = Object.freeze({
     cost: executeCostTool,
@@ -280,7 +281,7 @@ function buildWriteConfirmation(toolName, args, options = {}) {
  * @param {object} options
  * @param {boolean} options.allowWrite - 是否允许执行写操作（默认 false）
  */
-async function executeToolCall(toolName, args, options = {}) {
+async function executeToolCallImplementation(toolName, args, options = {}) {
     const { allowWrite = false } = options;
 
     const capability = getAiCapability(toolName);
@@ -394,6 +395,16 @@ async function executeToolCall(toolName, args, options = {}) {
                 : []
         );
     }
+}
+
+async function executeToolCall(toolName, args, options = {}) {
+    const capability = getAiCapability(toolName);
+    return withToolSpan({
+        toolName,
+        executorType: capability?.executorKey || 'unregistered',
+        access: capability?.access || 'unknown',
+        args,
+    }, () => executeToolCallImplementation(toolName, args, options));
 }
 
 module.exports = { executeToolCall, buildWriteConfirmation };

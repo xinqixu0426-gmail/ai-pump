@@ -22,6 +22,7 @@ const PRIVACY_TRACE_CONFIG = Object.freeze({
 
 let provider = null;
 let phoenix = null;
+let openInferenceTracer = null;
 let state = initialState();
 
 function initialState() {
@@ -134,10 +135,12 @@ function initializeObservability(options = {}) {
       global: true,
       instrumentations: [],
     });
+    openInferenceTracer = null;
     state.status = 'enabled';
   } catch (error) {
     provider = null;
     phoenix = null;
+    openInferenceTracer = null;
     state.status = 'degraded';
     state.lastErrorType = errorType(error);
     warn(targetLogger, 'Observability 初始化失败，应用将继续启动', {
@@ -174,6 +177,7 @@ async function safeForceFlush(options = {}) {
 async function safeShutdown(options = {}) {
   const activeProvider = provider;
   provider = null;
+  openInferenceTracer = null;
   if (!activeProvider || typeof activeProvider.shutdown !== 'function') return true;
   try {
     await activeProvider.shutdown();
@@ -189,6 +193,188 @@ async function safeShutdown(options = {}) {
     });
     return false;
   }
+}
+
+function activeTracer() {
+  if (!provider || state.status !== 'enabled' || typeof provider.getTracer !== 'function') {
+    return null;
+  }
+  if (openInferenceTracer) return openInferenceTracer;
+  const tracer = provider.getTracer('pump-ai-observability');
+  openInferenceTracer = typeof phoenix?.OITracer === 'function'
+    ? new phoenix.OITracer({ tracer, traceConfig: PRIVACY_TRACE_CONFIG })
+    : tracer;
+  return openInferenceTracer;
+}
+
+function safeSpanCall(operation) {
+  try {
+    return operation();
+  } catch {
+    return undefined;
+  }
+}
+
+function safeLabel(value, fallback = 'unknown') {
+  const normalized = String(value || '').trim();
+  return normalized ? normalized.slice(0, 160) : fallback;
+}
+
+function safeArgumentKeys(args) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return [];
+  return Object.keys(args)
+    .filter(key => !/password|secret|token|api.?key|authorization|cookie/i.test(key))
+    .slice(0, 50)
+    .map(key => safeLabel(key));
+}
+
+function openInferenceKind(kind) {
+  return phoenix?.OpenInferenceSpanKind?.[kind] || kind;
+}
+
+function spanStatusCode(status) {
+  return phoenix?.SpanStatusCode?.[status] ?? (status === 'ERROR' ? 2 : 1);
+}
+
+async function withObservedSpan(spec, operation) {
+  let tracer;
+  try {
+    tracer = activeTracer();
+  } catch {
+    tracer = null;
+  }
+  if (!tracer) return operation({ update() {} });
+
+  let operationStarted = false;
+  let operationCompleted = false;
+  let operationResult;
+  let operationError;
+  try {
+    return await tracer.startActiveSpan(spec.name, {
+      attributes: {
+        [phoenix?.SemanticConventions?.OPENINFERENCE_SPAN_KIND || 'openinference.span.kind']:
+          openInferenceKind(spec.kind),
+        ...spec.attributes,
+      },
+    }, async span => {
+      operationStarted = true;
+      const control = {
+        update(update = {}) {
+          if (update.name) safeSpanCall(() => span.updateName(safeLabel(update.name)));
+          if (update.attributes) safeSpanCall(() => span.setAttributes(update.attributes));
+        },
+      };
+      try {
+        operationResult = await operation(control);
+        if (typeof spec.resultStatus === 'function') {
+          const resultStatus = spec.resultStatus(operationResult);
+          if (resultStatus?.attributes) {
+            safeSpanCall(() => span.setAttributes(resultStatus.attributes));
+          }
+          safeSpanCall(() => span.setStatus({
+            code: spanStatusCode(resultStatus?.error ? 'ERROR' : 'OK'),
+          }));
+        } else {
+          safeSpanCall(() => span.setStatus({ code: spanStatusCode('OK') }));
+        }
+        operationCompleted = true;
+        return operationResult;
+      } catch (error) {
+        operationError = error;
+        safeSpanCall(() => span.setAttribute('error.type', errorType(error)));
+        safeSpanCall(() => span.setStatus({ code: spanStatusCode('ERROR') }));
+        throw error;
+      } finally {
+        safeSpanCall(() => span.end());
+      }
+    });
+  } catch (error) {
+    if (operationError) throw operationError;
+    if (operationCompleted) return operationResult;
+    if (operationStarted) throw error;
+    return operation({ update() {} });
+  }
+}
+
+function withAgentSpan(metadata = {}, operation) {
+  return withObservedSpan({
+    name: 'invoke_agent pump_factory_assistant',
+    kind: 'AGENT',
+    attributes: {
+      'gen_ai.operation.name': 'invoke_agent',
+      'assistant.runtime': 'pump_factory_assistant',
+      'assistant.streaming': Boolean(metadata.streaming),
+      ...(metadata.route ? { 'assistant.route': safeLabel(metadata.route) } : {}),
+    },
+  }, operation);
+}
+
+function withModelSpan(metadata = {}, operation) {
+  const model = safeLabel(metadata.model);
+  return withObservedSpan({
+    name: `chat ${model}`,
+    kind: 'LLM',
+    attributes: {
+      'gen_ai.operation.name': 'chat',
+      'gen_ai.request.model': model,
+      'gen_ai.provider.name': safeLabel(metadata.provider),
+      'gen_ai.request.streaming': Boolean(metadata.streaming),
+      'gen_ai.tool.definitions.count': Number(metadata.toolDefinitionCount) || 0,
+    },
+  }, operation);
+}
+
+function traceModelProvider(providerFunction) {
+  if (typeof providerFunction !== 'function') return providerFunction;
+  if (!provider || state.status !== 'enabled') return providerFunction;
+  return (messages, options = {}) => withModelSpan({
+    streaming: Boolean(options.stream),
+    toolDefinitionCount: Array.isArray(options.tools) ? options.tools.length : 0,
+  }, control => {
+    const onProvider = options.onProvider;
+    return providerFunction(messages, {
+      ...options,
+      onProvider(info = {}) {
+        const model = safeLabel(info.model);
+        control.update({
+          name: `chat ${model}`,
+          attributes: {
+            'gen_ai.request.model': model,
+            'gen_ai.provider.name': safeLabel(info.provider),
+          },
+        });
+        return onProvider?.(info);
+      },
+    });
+  });
+}
+
+function withToolSpan(metadata = {}, operation) {
+  const toolName = safeLabel(metadata.toolName);
+  const argumentKeys = safeArgumentKeys(metadata.args);
+  return withObservedSpan({
+    name: `execute_tool ${toolName}`,
+    kind: 'TOOL',
+    attributes: {
+      'tool.name': toolName,
+      'tool.executor.type': safeLabel(metadata.executorType),
+      'tool.access': safeLabel(metadata.access),
+      'tool.argument.key_count': metadata.args && typeof metadata.args === 'object'
+        ? Object.keys(metadata.args).length
+        : 0,
+      ...(argumentKeys.length ? { 'tool.argument.keys': argumentKeys } : {}),
+    },
+    resultStatus(result) {
+      const failed = result?.success === false;
+      return {
+        error: failed,
+        attributes: {
+          'tool.execution.status': failed ? 'error' : 'success',
+          'tool.result.type': Array.isArray(result) ? 'array' : typeof result,
+        },
+      };
+    },
+  }, operation);
 }
 
 function emitSyntheticSmokeSpan() {
@@ -214,6 +400,7 @@ async function resetObservabilityForTesting() {
   await safeShutdown({ logger: { warn() {} } });
   provider = null;
   phoenix = null;
+  openInferenceTracer = null;
   state = initialState();
 }
 
@@ -229,4 +416,8 @@ module.exports = {
   resetObservabilityForTesting,
   safeForceFlush,
   safeShutdown,
+  traceModelProvider,
+  withAgentSpan,
+  withModelSpan,
+  withToolSpan,
 };
