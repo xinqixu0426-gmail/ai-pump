@@ -34,8 +34,10 @@ function caseReport(overrides = {}) {
     };
 }
 
-test('frozen Protocol V2 hashes still match before continuation', () => {
-    assert.doesNotThrow(() => verifyFrozenInterpreterHashes());
+test('B1 freeze detects the explicitly approved B2 Task Class semantic revision', () => {
+    assert.throws(() => verifyFrozenInterpreterHashes(), error => (
+        error?.code === 'P15R_C_FROZEN_HASH_MISMATCH'
+    ));
 });
 
 test('runner status 0 records the selected case and continues', () => {

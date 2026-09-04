@@ -37,7 +37,10 @@ if (process.argv.includes('--worker')) {
     const { collectV5ShadowFacts } = require('../api/services/ai-v5/shadowFacts.cjs');
     const { captureSafeV4ShadowFacts } = require('../api/services/ai-v5/shadowProjection.cjs');
     const { scheduleV5ShadowMirror } = require('../api/services/ai-v5/shadowMirror.cjs');
-    const { extractSourceUserRequest } = require('../api/services/ai-v5/independentShadow.cjs');
+    const {
+        extractSourceUserRequest,
+        runV5IndependentShadow,
+    } = require('../api/services/ai-v5/independentShadow.cjs');
     const { createV5InterpreterInputEnvelope } = require('../api/services/ai-v5/taskInterpreterInput.cjs');
     observability.initializeObservability();
 
@@ -59,10 +62,41 @@ if (process.argv.includes('--worker')) {
                     .replace(/^shadow:/, '').replace(/[^a-zA-Z0-9._-]/g, '-');
                 const requestId = `p15-${caseKey}-${pathName.toLowerCase()}`.slice(0, 128);
                 const provider = observability.traceModelProvider(input.fetchAiProvider || fetchAiProvider);
+                let interpreterEnvelope = null;
+                try {
+                    interpreterEnvelope = createV5InterpreterInputEnvelope({
+                        rawUserRequest: extractSourceUserRequest(input.messages),
+                        pageContext: input.pageContext ?? null,
+                    });
+                } catch { /* Shadow input cannot affect V4. */ }
                 try {
                     return await observability.withAgentSpan({
                         streaming: Boolean(input.stream), route: 'p15_real_replay', requestId,
                     }, async () => {
+                        if (process.env.PUMP_P15_INTERPRETER_BEFORE_V4 === 'true') {
+                            const shadowTaskId = `v5-shadow-b2-${caseKey}-${pathName.toLowerCase()}`.slice(0, 160);
+                            const traceContext = observability.getActiveTraceContext();
+                            const independent = await runV5IndependentShadow({
+                                sourceRequest: extractSourceUserRequest(input.messages),
+                                interpreterEnvelope,
+                                pageContext: input.pageContext ?? null,
+                                shadowTaskId,
+                            }, {
+                                env: process.env,
+                                timeoutMs: Number(process.env.AI_V5_INTERPRETER_TIMEOUT_MS) || undefined,
+                                observeModelCall: (metadata, operation) => observability.withModelSpan(metadata, operation),
+                            });
+                            writeSafeInterpreterRecord({
+                                caseId: `${caseKey}:${pathName}`,
+                                sourceTraceId: traceContext?.traceId || null,
+                                shadowTaskId,
+                                independent,
+                            });
+                            const collected = await collectV5ShadowFacts(() => originalRuntime({
+                                ...input, requestId, fetchAiProvider: provider,
+                            }));
+                            return collected.result;
+                        }
                         const collected = await collectV5ShadowFacts(() => originalRuntime({
                             ...input, requestId, fetchAiProvider: provider,
                         }));
@@ -71,13 +105,6 @@ if (process.argv.includes('--worker')) {
                             { requestId, allowWrite: false }, collected.result, traceContext,
                             { shadowFacts: collected.shadowFacts }
                         );
-                        let interpreterEnvelope = null;
-                        try {
-                            interpreterEnvelope = createV5InterpreterInputEnvelope({
-                                rawUserRequest: extractSourceUserRequest(input.messages),
-                                pageContext: input.pageContext ?? null,
-                            });
-                        } catch { /* Shadow input cannot affect V4. */ }
                         let capturedOutcome = null;
                         const scheduled = scheduleV5ShadowMirror(facts, {
                             env: process.env,

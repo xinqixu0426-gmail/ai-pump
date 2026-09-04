@@ -7,6 +7,11 @@ const {
     ENTITY_TYPE_SEMANTICS,
     OPERATION_SEMANTICS,
 } = require('./taskInterpreterSemantics.cjs');
+const {
+    V5_TASK_CLASS_SEMANTICS_VERSION,
+    buildTaskClassSemanticView,
+    validateTaskClassSemanticView,
+} = require('./taskClassSemantics.cjs');
 
 const V5_TASK_CLASS_CATALOG_VERSION = 1;
 
@@ -39,7 +44,7 @@ function buildTaskClassCatalog(capabilities = listV5Capabilities()) {
         || left.operation.localeCompare(right.operation)
         || left.entityTypes.join('\0').localeCompare(right.entityTypes.join('\0'))
     ));
-    return deepFreeze(sorted.map((item, index) => ({
+    const identities = sorted.map((item, index) => ({
         classRef: `tc_${String(index + 1).padStart(3, '0')}`,
         domain: item.domain,
         operation: item.operation,
@@ -50,11 +55,15 @@ function buildTaskClassCatalog(capabilities = listV5Capabilities()) {
             entityType,
             semanticDescription: ENTITY_TYPE_SEMANTICS[entityType],
         })),
-        semanticDescription: [
-            DOMAIN_SEMANTICS[item.domain],
-            OPERATION_SEMANTICS[item.operation],
-            `Referenced object: ${item.entityTypes.map(type => ENTITY_TYPE_SEMANTICS[type]).join(' + ')}`,
-        ].join(' '),
+    }));
+    const semanticByRef = new Map(buildTaskClassSemanticView(identities)
+        .map(item => [item.classRef, item]));
+    return deepFreeze(identities.map(item => ({
+        ...item,
+        semanticVersion: V5_TASK_CLASS_SEMANTICS_VERSION,
+        primaryMeaning: semanticByRef.get(item.classRef).primaryMeaning,
+        localAlternatives: semanticByRef.get(item.classRef).localAlternatives,
+        semanticDescription: semanticByRef.get(item.classRef).primaryMeaning,
     })));
 }
 
@@ -67,7 +76,11 @@ function getV5TaskClass(classRef) {
 function taskClassModelView(catalog = V5_TASK_CLASS_CATALOG) {
     return deepFreeze(catalog.map(item => ({
         classRef: item.classRef,
-        semanticDescription: item.semanticDescription,
+        primaryMeaning: item.primaryMeaning,
+        localAlternatives: item.localAlternatives.map(alternative => ({
+            classRef: alternative.classRef,
+            useWhen: alternative.useWhen,
+        })),
         entitySlots: item.entitySlots.map(slot => ({
             slotRef: slot.slotRef,
             entityTypeRef: slot.entityTypeRef,
@@ -90,7 +103,13 @@ function validateTaskClassCatalog(catalog = V5_TASK_CLASS_CATALOG) {
         if (!Array.isArray(item.entitySlots) || item.entitySlots.length !== item.entityTypes.length) throw new TypeError(`V5 task class slots invalid: ${item.classRef}`);
         if (new Set(item.entitySlots.map(slot => slot.slotRef)).size !== item.entitySlots.length) throw new TypeError(`V5 task class slot duplicate: ${item.classRef}`);
         if (typeof item.semanticDescription !== 'string' || !item.semanticDescription) throw new TypeError(`V5 task class description missing: ${item.classRef}`);
+        if (item.semanticVersion !== V5_TASK_CLASS_SEMANTICS_VERSION) throw new TypeError(`V5 task class semantic version invalid: ${item.classRef}`);
     }
+    validateTaskClassSemanticView(catalog, catalog.map(item => ({
+        classRef: item.classRef,
+        primaryMeaning: item.primaryMeaning,
+        localAlternatives: item.localAlternatives,
+    })));
     const expected = buildTaskClassCatalog();
     if (JSON.stringify(catalog) !== JSON.stringify(expected)) throw new TypeError('V5 task class catalog is not deterministic');
     const serializedView = JSON.stringify(taskClassModelView(catalog));
@@ -104,6 +123,7 @@ validateTaskClassCatalog();
 module.exports = {
     V5_TASK_CLASS_CATALOG,
     V5_TASK_CLASS_CATALOG_VERSION,
+    V5_TASK_CLASS_SEMANTICS_VERSION,
     buildTaskClassCatalog,
     getV5TaskClass,
     taskClassModelView,
