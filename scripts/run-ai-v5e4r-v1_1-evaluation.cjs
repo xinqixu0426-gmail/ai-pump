@@ -80,6 +80,9 @@ function safeActual(independent) {
         entityAnchorStatuses: Object.freeze([...(independent?.entityAnchorStatuses || [])]),
         capabilityId: independent?.capabilityId || null,
         allowedToolNames: Object.freeze([...(independent?.allowedToolNames || [])]),
+        protocolStatus: independent?.protocolStatus || independent?.interpreterStatus || null,
+        taskClassRef: independent?.taskClassRef || null,
+        sourceSpanRefs: Object.freeze([...(independent?.sourceSpanRefs || [])]),
     });
 }
 

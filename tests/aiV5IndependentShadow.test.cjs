@@ -9,6 +9,8 @@ const {
 } = require('../api/services/ai-v5/independentShadow.cjs');
 const { createV5ShadowMirror } = require('../api/services/ai-v5/shadowMirror.cjs');
 const { captureSafeV4ShadowFacts } = require('../api/services/ai-v5/shadowProjection.cjs');
+const { V5_TASK_CLASS_CATALOG } = require('../api/services/ai-v5/taskClassCatalog.cjs');
+const { createV5SourceSpanCatalog } = require('../api/services/ai-v5/sourceSpanCatalog.cjs');
 
 function response(value) {
     return async () => ({
@@ -16,15 +18,14 @@ function response(value) {
     });
 }
 
-function inventoryInterpretation(candidateText = '800平刀') {
-    return {
-        version: 1,
-        domain: 'catalog',
-        operation: 'read_inventory',
-        entityCandidates: [{ entityType: 'part', candidateText }],
-        needsClarification: false,
-        reasonCodes: ['INTERPRETATION_COMPLETE'],
-    };
+function protocolFor(source, candidateText = '800平刀', route = {}) {
+    const taskClass = V5_TASK_CLASS_CATALOG.find(item => item.domain === (route.domain || 'catalog')
+        && item.operation === (route.operation || 'read_inventory')
+        && item.entityTypes.includes(route.entityType || 'part'));
+    const span = createV5SourceSpanCatalog(source).spans.find(item => item.text === candidateText);
+    return { protocolVersion: 2, taskClassRef: taskClass.classRef,
+        entitySelections: [{ slotRef: taskClass.entitySlots[0].slotRef, spanRef: span?.spanRef || 'sp_DOES_NOT_EXIST' }],
+        needsClarification: false };
 }
 
 function mirrorFacts(index = 1) {
@@ -58,7 +59,7 @@ test('valid interpretation independently selects capability and bounded exposure
         sourceRequest: '请查询800平刀当前库存', shadowTaskId: 'v5-shadow-p15-valid',
     }, {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: response(inventoryInterpretation()),
+        modelRequest: response(protocolFor('请查询800平刀当前库存')),
         now: '2026-09-04T00:00:00.000Z',
     });
     assert.equal(outcome.interpreterStatus, 'VALID');
@@ -75,15 +76,13 @@ test('altered entity output fails before routing and exposes no tools', async ()
         sourceRequest: '查询v750-tokoy-成本', shadowTaskId: 'v5-shadow-p15-altered',
     }, {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: response({
-            version: 1, domain: 'recipe', operation: 'preview_cost',
-            entityCandidates: [{ entityType: 'recipe', candidateText: 'v750-tokoy' }],
-            needsClarification: false, reasonCodes: ['INTERPRETATION_COMPLETE'],
-        }),
+        modelRequest: response({ ...protocolFor('查询v750-tokoy-成本', 'v750-tokoy-', {
+            domain: 'recipe', operation: 'preview_cost', entityType: 'recipe',
+        }), entitySelections: [{ slotRef: 'slot_01', spanRef: 'sp_DOES_NOT_EXIST' }] }),
     });
     assert.equal(outcome.interpreterStatus, 'INVALID');
-    assert.equal(outcome.interpreterReasonCode, 'INVALID_ENTITY_REFERENCE');
-    assert.equal(outcome.capabilityOutcome, 'INVALID');
+    assert.equal(outcome.interpreterReasonCode, 'INVALID_SPAN_REF');
+    assert.equal(outcome.capabilityOutcome, 'NOT_RUN');
     assert.deepEqual(outcome.allowedToolNames, []);
 });
 
@@ -92,7 +91,7 @@ test('Oracle comparison verifies expected exposure and excludes a wrong V4 Tool'
         sourceRequest: '请查询800平刀当前库存', shadowTaskId: 'v5-shadow-p15-r02',
     }, {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: response(inventoryInterpretation()),
+        modelRequest: response(protocolFor('请查询800平刀当前库存')),
     });
     const comparison = evaluateIndependentShadow(outcome, {
         primary_tool: 'search_parts', allowed_tools: ['search_parts'],
@@ -113,7 +112,7 @@ test('mirror uses the existing capacity boundary and records exactly one interpr
     });
     const scheduled = mirror.mirror(mirrorFacts(), {
         sourceRequest: '请查询800平刀当前库存',
-        interpreterModelRequest: response(inventoryInterpretation()),
+        interpreterModelRequest: response(protocolFor('请查询800平刀当前库存')),
     });
     const outcome = await scheduled.completion;
     assert.equal(outcome.independentShadow.capabilityId, 'inventory.read');
@@ -134,7 +133,7 @@ test('ten concurrent independent requests remain isolated with zero content pers
     });
     const scheduled = Array.from({ length: 10 }, (_, index) => mirror.mirror(mirrorFacts(index + 1), {
         sourceRequest: `请求${index}查询800平刀当前库存`,
-        interpreterModelRequest: response(inventoryInterpretation()),
+        interpreterModelRequest: response(protocolFor(`请求${index}查询800平刀当前库存`)),
     }));
     await Promise.all(scheduled.map(item => item.completion));
     assert.equal(new Set(outcomes.map(item => item.shadowTaskId)).size, 10);
@@ -149,7 +148,7 @@ test('independent shadow output contains no prompt, candidate, Tool value or bus
         sourceRequest: `查${sentinel}库存`, shadowTaskId: 'v5-shadow-p15-privacy',
     }, {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: response(inventoryInterpretation(sentinel)),
+        modelRequest: response(protocolFor(`查${sentinel}库存`, sentinel)),
     });
     const serialized = JSON.stringify(outcome);
     for (const value of [sentinel, 'P15_SECRET_SENTINEL', 'P15_TOOL_VALUE_SENTINEL']) {

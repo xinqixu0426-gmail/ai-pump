@@ -17,21 +17,20 @@ const {
     interpretV5Task,
 } = require('../api/services/ai-v5/taskInterpreter.cjs');
 const { createV5InterpreterInputEnvelope } = require('../api/services/ai-v5/taskInterpreterInput.cjs');
+const { V5_TASK_CLASS_CATALOG } = require('../api/services/ai-v5/taskClassCatalog.cjs');
+const { createV5SourceSpanCatalog } = require('../api/services/ai-v5/sourceSpanCatalog.cjs');
 
 function envelope(rawUserRequest = 'fixture') {
     return createV5InterpreterInputEnvelope({ rawUserRequest, pageContext: null });
 }
 
-function interpretation(overrides = {}) {
-    return {
-        version: 1,
-        domain: 'catalog',
-        operation: 'read_inventory',
-        entityCandidates: [{ entityType: 'part', candidateText: '800平刀' }],
-        needsClarification: false,
-        reasonCodes: ['INTERPRETATION_COMPLETE'],
-        ...overrides,
-    };
+function protocol(source = '请查800平刀库存', overrides = {}) {
+    const taskClass = V5_TASK_CLASS_CATALOG.find(item => item.domain === 'catalog'
+        && item.operation === 'read_inventory' && item.entityTypes.includes('part'));
+    const span = createV5SourceSpanCatalog(source).spans.find(item => item.text === '800平刀');
+    return { protocolVersion: 2, taskClassRef: taskClass.classRef,
+        entitySelections: [{ slotRef: taskClass.entitySlots[0].slotRef, spanRef: span?.spanRef || 'sp_001' }],
+        needsClarification: false, ...overrides };
 }
 
 function fakeResponse(value, usage = null) {
@@ -49,9 +48,9 @@ function fakeResponse(value, usage = null) {
     };
 }
 
-test('Task Interpreter contract remains version 1 while prompt is 1.1 with deterministic settings', () => {
+test('Task Interpreter contract remains version 1 while internal prompt is V2 with deterministic settings', () => {
     assert.equal(V5_TASK_INTERPRETER_VERSION, 1);
-    assert.equal(V5_TASK_INTERPRETER_PROMPT_VERSION, '1.1');
+    assert.equal(V5_TASK_INTERPRETER_PROMPT_VERSION, 2);
     assert.equal(V5_INTERPRETER_RETRY_COUNT, 0);
     assert.deepEqual(V5_INTERPRETER_MODEL_SETTINGS, {
         temperature: 0, topP: null, responseFormat: { type: 'json_object' }, maxOutputTokens: 512,
@@ -61,7 +60,7 @@ test('Task Interpreter contract remains version 1 while prompt is 1.1 with deter
 test('valid structural interpretation passes strict validation', async () => {
     const result = await interpretV5Task(envelope('请查800平刀库存'), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: fakeResponse(interpretation()),
+        modelRequest: fakeResponse(protocol('请查800平刀库存')),
     });
     assert.equal(result.status, 'VALID');
     assert.equal(result.modelCalls, 1);
@@ -74,18 +73,18 @@ test('invalid JSON fails closed', async () => {
         modelRequest: fakeResponse('{not-json'),
     });
     assert.equal(result.status, 'INVALID');
-    assert.equal(result.reasonCode, 'INTERPRETATION_JSON_INVALID');
+    assert.equal(result.reasonCode, 'PROTOCOL_V2_JSON_INVALID');
 });
 
 for (const [name, overrides, reason] of [
-    ['unknown domain', { domain: 'whatever' }, 'INTERPRETATION_DOMAIN_INVALID'],
-    ['unknown operation', { operation: 'something' }, 'INTERPRETATION_OPERATION_INVALID'],
-    ['unknown entity type', { entityCandidates: [{ entityType: 'unknown_type', candidateText: 'fixture' }] }, 'INTERPRETATION_ENTITY_TYPE_INVALID'],
+    ['unknown task class', { taskClassRef: 'tc_DOES_NOT_EXIST' }, 'INVALID_TASK_CLASS_REF'],
+    ['unknown source span', { entitySelections: [{ slotRef: 'slot_01', spanRef: 'sp_DOES_NOT_EXIST' }] }, 'INVALID_SPAN_REF'],
+    ['free domain field', { domain: 'whatever' }, 'PROTOCOL_V2_SCHEMA_INVALID'],
 ]) {
     test(`${name} fails closed`, async () => {
         const result = await interpretV5Task(envelope(), {
             selected: { provider: 'test-provider', model: 'test-interpreter' },
-            modelRequest: fakeResponse(interpretation(overrides)),
+            modelRequest: fakeResponse(protocol('fixture', overrides)),
         });
         assert.equal(result.status, 'INVALID');
         assert.equal(result.reasonCode, reason);
@@ -95,10 +94,10 @@ for (const [name, overrides, reason] of [
 test('model Tool field is rejected by strict top-level schema', async () => {
     const result = await interpretV5Task(envelope(), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
-        modelRequest: fakeResponse({ ...interpretation(), toolName: 'search_parts' }),
+        modelRequest: fakeResponse({ ...protocol('fixture'), toolName: 'search_parts' }),
     });
     assert.equal(result.status, 'INVALID');
-    assert.equal(result.reasonCode, 'INTERPRETATION_SCHEMA_INVALID');
+    assert.equal(result.reasonCode, 'PROTOCOL_V2_SCHEMA_INVALID');
 });
 
 test('model error is contained without leaking its message', async () => {
@@ -161,7 +160,11 @@ test('multiple entities are independently anchored and any failure invalidates t
 });
 
 test('validator cannot be bypassed with a domain-operation mismatch', () => {
-    assert.throws(() => validateV5TaskInterpretation(interpretation({
+    assert.throws(() => validateV5TaskInterpretation({
+        version: 1,
         domain: 'coil', operation: 'read_inventory',
-    })), error => error.reasonCode === 'INTERPRETATION_DOMAIN_OPERATION_INVALID');
+        entityCandidates: [{ entityType: 'part', candidateText: 'fixture' }],
+        needsClarification: false,
+        reasonCodes: ['INTERPRETATION_COMPLETE'],
+    }), error => error.reasonCode === 'INTERPRETATION_DOMAIN_OPERATION_INVALID');
 });

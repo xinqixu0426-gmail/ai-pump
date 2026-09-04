@@ -27,10 +27,10 @@ test('semantic taxonomy exactly covers current capability and ontology IDs', () 
     assert.deepEqual(Object.keys(ENTITY_TYPE_SEMANTICS).sort(), listV5EntityTypes().map(x => x.entityType).sort());
 });
 
-test('V1.1 instruction is general, exact-copy oriented, and exposes no Tool choice', () => {
-    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /character-for-character/);
-    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /never emit a near match/i);
-    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /Do not emit toolName/);
+test('V2 instruction only permits catalog references and exposes no Tool choice', () => {
+    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /provided taskClassRef/);
+    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /never rewrite source text/i);
+    assert.match(V5_TASK_INTERPRETER_INSTRUCTION, /Do not output.*toolName/);
     for (const frozenCaseText of ['800平刀', 'v750-tokoy-']) {
         assert.equal(V5_TASK_INTERPRETER_INSTRUCTION.includes(frozenCaseText), false);
     }

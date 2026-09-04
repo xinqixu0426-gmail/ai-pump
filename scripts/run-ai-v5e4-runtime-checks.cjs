@@ -7,21 +7,24 @@ process.env.NODE_TEST_CONTEXT = 'p15-independent-runtime-checks';
 const { performance } = require('node:perf_hooks');
 const { runAiDispatcherV3 } = require('../api/services/aiDispatcherV3.cjs');
 const { createV5ShadowMirror } = require('../api/services/ai-v5/shadowMirror.cjs');
+const { V5_TASK_CLASS_CATALOG } = require('../api/services/ai-v5/taskClassCatalog.cjs');
 
 function percentile(values, fraction) {
     const sorted = [...values].sort((a, b) => a - b);
     return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
 }
 
-function fakeModelRequest() {
+function fakeModelRequest(messages) {
+    const taskClass = V5_TASK_CLASS_CATALOG.find(item => item.domain === 'catalog'
+        && item.operation === 'read_inventory' && item.entityTypes.includes('part'));
+    const spanLine = messages[1].content.split('\n').find(line => line.startsWith('Source spans: '));
+    const span = JSON.parse(spanLine.slice('Source spans: '.length)).find(item => item.text === '800平刀');
     return Promise.resolve({
         content: JSON.stringify({
-            version: 1,
-            domain: 'catalog',
-            operation: 'read_inventory',
-            entityCandidates: [{ entityType: 'part', candidateText: '800平刀' }],
+            protocolVersion: 2,
+            taskClassRef: taskClass.classRef,
+            entitySelections: [{ slotRef: taskClass.entitySlots[0].slotRef, spanRef: span.spanRef }],
             needsClarification: false,
-            reasonCodes: ['INTERPRETATION_COMPLETE'],
         }),
         provider: 'test-provider',
         model: 'test-interpreter',
