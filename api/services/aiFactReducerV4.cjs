@@ -10,6 +10,10 @@ const {
     isCurrentInventoryQuantityIdentity,
     materializeNumericBusinessScalarFact,
 } = require('./aiNumericScalarFactsV4.cjs');
+const {
+    normalizeStableEntityIdentity,
+    stableEntityIdentityComparison,
+} = require('./aiStableEntityIdentityV4.cjs');
 
 const TECHNICAL_FAILURES = new Set([
     'timeout',
@@ -59,7 +63,10 @@ function recordAttempt(state, input = {}) {
 }
 
 function bindResolvedEntity(state, requirementId, resolutionReceipt = {}, options = {}) {
-    const selectedId = resolutionReceipt?.selected?.id ?? resolutionReceipt?.selectedId ?? null;
+    const selectedId = resolutionReceipt?.selected?.id
+        ?? resolutionReceipt?.selected?.stableIdentity?.primaryStableId
+        ?? resolutionReceipt?.selectedId
+        ?? null;
     if (selectedId === null || selectedId === undefined) return state;
     const sourceRequirement = state.requirements.find(requirement => (
         requirement.requirementId === requirementId
@@ -67,6 +74,27 @@ function bindResolvedEntity(state, requirementId, resolutionReceipt = {}, option
     if (!sourceRequirement) return state;
     const receiptEntityType = String(resolutionReceipt.entityType || sourceRequirement.identity.entityType);
     if (receiptEntityType !== sourceRequirement.identity.entityType) return state;
+    const selectedStableIdentity = normalizeStableEntityIdentity(
+        resolutionReceipt.selected?.stableIdentity || {
+            entityType: receiptEntityType,
+            primaryStableId: selectedId,
+            canonicalName: resolutionReceipt.selected?.name,
+        }
+    );
+    if (!selectedStableIdentity
+        || selectedStableIdentity.entityType !== receiptEntityType
+        || selectedStableIdentity.primaryStableId !== String(selectedId)) {
+        throw new TypeError('resolution receipt stable identity 冲突');
+    }
+    if ((sourceRequirement.identity.entityId
+            && String(sourceRequirement.identity.entityId) !== String(selectedId))
+        || (sourceRequirement.identity.stableEntityIdentity
+            && stableEntityIdentityComparison(
+                sourceRequirement.identity.stableEntityIdentity,
+                selectedStableIdentity
+            ) !== 'same')) {
+        throw new TypeError('resolved entity 与现有 Fact subject 冲突');
+    }
     const logicalTarget = normalizeLogicalTarget(
         sourceRequirement.identity.qualifiers?.targetMention
         || options.logicalTarget
@@ -86,12 +114,18 @@ function bindResolvedEntity(state, requirementId, resolutionReceipt = {}, option
                 && requirement.identity.entityType === receiptEntityType
                 && (!requirement.identity.entityId
                     || String(requirement.identity.entityId) === String(selectedId))
+                && (!requirement.identity.stableEntityIdentity
+                    || stableEntityIdentityComparison(
+                        requirement.identity.stableEntityIdentity,
+                        selectedStableIdentity
+                    ) === 'same')
                 && normalizeLogicalTarget(requirement.identity.qualifiers?.targetMention) === logicalTarget)
             ? createFactRequirement({
                 ...requirement,
                 identity: {
                     ...requirement.identity,
                     entityId: selectedId,
+                    stableEntityIdentity: selectedStableIdentity,
                     qualifiers: Object.fromEntries(Object.entries(requirement.identity.qualifiers)
                         .filter(([key]) => key !== 'targetMention')),
                 },
@@ -103,6 +137,7 @@ function bindResolvedEntity(state, requirementId, resolutionReceipt = {}, option
         investigationId: state.goalId,
         entityType: receiptEntityType,
         entityId: selectedId,
+        stableEntityIdentity: selectedStableIdentity,
         canonicalName: resolutionReceipt.selected?.name,
         logicalTarget,
         originalMention: resolutionReceipt.originalMention,

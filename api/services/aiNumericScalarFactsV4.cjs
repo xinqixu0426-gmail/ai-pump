@@ -1,6 +1,10 @@
 const INVENTORY_QUANTITY_PREDICATE = 'inventoryQuantity';
 const INVENTORY_QUANTITY_CLAIM_PREDICATE = 'inventory.quantity';
 const CURRENT_INVENTORY_SCENARIO = 'current_inventory';
+const {
+    normalizeStableEntityIdentity,
+    stableEntityIdentityMatches,
+} = require('./aiStableEntityIdentityV4.cjs');
 
 const INVENTORY_ENTITY_CONTRACTS = Object.freeze({
     part: Object.freeze({
@@ -63,14 +67,18 @@ function resultRows(result = {}, entityType) {
     return [];
 }
 
-function rowEntityId(row = {}, entityType) {
-    return row.id ?? row.Id ?? row[`${entityType}Id`] ?? null;
-}
-
 function exactEntityRow(result, identity) {
-    if (identity.entityId === null || identity.entityId === undefined) return null;
+    const expectedIdentity = identity.stableEntityIdentity
+        || normalizeStableEntityIdentity({
+            entityType: identity.entityType,
+            primaryStableId: identity.entityId,
+        });
+    if (!expectedIdentity) return null;
     const matches = resultRows(result, identity.entityType).filter(row => (
-        String(rowEntityId(row, identity.entityType) ?? '') === String(identity.entityId)
+        stableEntityIdentityMatches(expectedIdentity, {
+            entityType: identity.entityType,
+            record: row,
+        })
     ));
     return matches.length === 1 ? matches[0] : null;
 }
@@ -97,6 +105,11 @@ function materializeNumericBusinessScalarFact(requirement, evidence) {
         || !evidence.evidenceId
         || (requirement.requiredSourceOfTruth
             && evidence.sourceOfTruth !== requirement.requiredSourceOfTruth)) return null;
+    if (evidence.subjectIdentity
+        && !stableEntityIdentityMatches(identity.stableEntityIdentity || {
+            entityType: identity.entityType,
+            primaryStableId: identity.entityId,
+        }, evidence.subjectIdentity)) return null;
     const result = unwrapFormalResult(evidence);
     const row = exactEntityRow(result, identity);
     if (!row) return null;
@@ -112,6 +125,10 @@ function materializeNumericBusinessScalarFact(requirement, evidence) {
             entityType: identity.entityType,
             entityId: String(identity.entityId),
             canonicalName: canonicalName === null ? null : String(canonicalName),
+            stableEntityIdentity: identity.stableEntityIdentity || normalizeStableEntityIdentity({
+                entityType: identity.entityType,
+                record: row,
+            }),
         },
         predicate: INVENTORY_QUANTITY_CLAIM_PREDICATE,
         numericValue,

@@ -3,6 +3,10 @@ const {
     isCurrentInventoryQuantityIdentity,
     materializeNumericBusinessScalarFact,
 } = require('./aiNumericScalarFactsV4.cjs');
+const {
+    normalizeStableEntityIdentity,
+    stableEntityIdentityMatches,
+} = require('./aiStableEntityIdentityV4.cjs');
 
 const CLAIM_TYPES = new Set([
     'entity_identity',
@@ -49,6 +53,9 @@ function normalizeSubject(subject = {}) {
             ? null
             : String(subject.entityId),
         canonicalName: String(subject.canonicalName || '').trim() || null,
+        stableEntityIdentity: subject.stableEntityIdentity
+            ? normalizeStableEntityIdentity(subject.stableEntityIdentity)
+            : null,
     });
 }
 
@@ -117,15 +124,18 @@ function resultRows(result = {}) {
     return result && typeof result === 'object' ? [result] : [];
 }
 
-function rowEntityId(row = {}) {
-    return row.id ?? row.Id ?? row.partId ?? row.coilId ?? row.templateId ?? row.recipeId ?? null;
-}
-
 function selectEntityRow(result, identity = {}) {
     const rows = resultRows(result);
     if (rows.length === 0) return null;
-    if (identity.entityId === null || identity.entityId === undefined) return rows[0];
-    return rows.find(row => String(rowEntityId(row) ?? '') === String(identity.entityId)) || null;
+    const expectedIdentity = identity.stableEntityIdentity || normalizeStableEntityIdentity({
+        entityType: identity.entityType,
+        primaryStableId: identity.entityId,
+    });
+    if (!expectedIdentity) return rows[0];
+    return rows.find(row => stableEntityIdentityMatches(expectedIdentity, {
+        entityType: identity.entityType,
+        record: row,
+    })) || null;
 }
 
 function canonicalName(row = {}, result = {}) {
@@ -263,6 +273,12 @@ function claimFromEvidence(requirement, evidence, claimId, numericFact = null) {
         entityType: requirement.identity.entityType,
         entityId: requirement.identity.entityId ?? row.id ?? row.Id ?? null,
         canonicalName: canonicalName(row, result),
+        stableEntityIdentity: requirement.identity.stableEntityIdentity
+            || numericFact?.subject?.stableEntityIdentity
+            || normalizeStableEntityIdentity({
+                entityType: requirement.identity.entityType,
+                record: row,
+            }),
     };
     let value = null;
     let unit = requirement.identity.qualifiers?.unit || null;
@@ -394,6 +410,13 @@ function validateClaimAgainstEvidence(claim, context = {}) {
         || claim.temporalScope !== requirement.identity.temporalScope
         || claim.scenario !== requirement.identity.scenario) {
         return { valid: false, code: 'CLAIM_SCOPE_MISMATCH' };
+    }
+    if (requirement.identity.stableEntityIdentity
+        && !stableEntityIdentityMatches(
+            requirement.identity.stableEntityIdentity,
+            claim.subject.stableEntityIdentity
+        )) {
+        return { valid: false, code: 'CLAIM_STABLE_ENTITY_IDENTITY_MISMATCH' };
     }
     if (!sameValue(claim.qualifiers, requirement.identity.qualifiers)) {
         return { valid: false, code: 'CLAIM_QUALIFIERS_MISMATCH' };

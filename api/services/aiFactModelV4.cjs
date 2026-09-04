@@ -17,6 +17,10 @@ const INVESTIGATION_STATUSES = new Set([
 ]);
 
 const ENTITY_BINDING_STATUSES = new Set(['resolved']);
+const {
+    normalizeStableEntityIdentity,
+    stableEntityIdentityComparison,
+} = require('./aiStableEntityIdentityV4.cjs');
 
 function stableValue(value) {
     if (Array.isArray(value)) return value.map(stableValue);
@@ -43,9 +47,22 @@ function normalizeFactIdentity(input = {}) {
     if (!entityType || !predicate || !temporalScope || !scenario) {
         throw new TypeError('FactIdentity 需要 entityType、predicate、temporalScope 和 scenario');
     }
+    const stableEntityIdentity = input.stableEntityIdentity
+        ? normalizeStableEntityIdentity(input.stableEntityIdentity)
+        : null;
+    if (stableEntityIdentity && stableEntityIdentity.entityType !== entityType) {
+        throw new TypeError('FactIdentity stable entity type 冲突');
+    }
+    if (stableEntityIdentity
+        && stableEntityIdentity.primaryStableId !== null
+        && entityId !== null
+        && stableEntityIdentity.primaryStableId !== entityId) {
+        throw new TypeError('FactIdentity stable primary id 冲突');
+    }
     return immutable({
         entityType,
         entityId,
+        stableEntityIdentity,
         predicate,
         temporalScope,
         scenario,
@@ -101,12 +118,26 @@ function createEntityBinding(input = {}) {
     if (!ENTITY_BINDING_STATUSES.has(status)) {
         throw new TypeError(`未知 EntityBinding status: ${status}`);
     }
+    const stableEntityIdentity = normalizeStableEntityIdentity(input.stableEntityIdentity || {
+        entityType,
+        primaryStableId: entityId,
+        canonicalName: input.canonicalName,
+    });
+    if (!stableEntityIdentity
+        || stableEntityIdentity.entityType !== entityType
+        || stableEntityIdentityComparison(stableEntityIdentity, {
+            entityType,
+            primaryStableId: entityId,
+        }) !== 'same') {
+        throw new TypeError('EntityBinding stable identity 与 entityId 冲突');
+    }
     return immutable({
         bindingId: input.bindingId
             || `binding:${investigationId}:${entityType}:${logicalTarget}`,
         investigationId,
         entityType,
         entityId,
+        stableEntityIdentity,
         canonicalName: String(input.canonicalName || '').trim() || null,
         logicalTarget,
         originalMention: String(input.originalMention || '').trim() || null,

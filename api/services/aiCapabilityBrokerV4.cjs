@@ -5,6 +5,7 @@ const {
     listReadInvestigationProfiles,
     readInvestigationProfile,
 } = require('./aiReadCapabilityProfilesV4.cjs');
+const { stableBusinessKeyValues } = require('./aiStableEntityIdentityV4.cjs');
 
 const TRUSTED_PARAMETER_PROVENANCE = new Set([
     'original_user',
@@ -32,7 +33,12 @@ function profileSupportsRequirement(profile, requirement, goal) {
     return Boolean(
         profile
         && profile.entityScopes.includes(goal.entityScope)
-        && (identity.predicate === 'ambiguity' || domainsOverlap(goal.domains, profile.domains))
+        // A structured Fact signature is the execution authority. Planner domains
+        // are coarse routing output and may rank legacy profiles, but cannot veto
+        // an exact entity/predicate/temporal/scenario match.
+        && (identity.predicate === 'ambiguity'
+            || exactFactSupport
+            || domainsOverlap(goal.domains, profile.domains))
         && profile.entityTypes.includes(identity.entityType)
         && (exactFactSupport || legacyFactSupport)
         && (!requirement.requiredSourceOfTruth
@@ -115,11 +121,41 @@ function entityTargetArguments(capabilityName, args = {}) {
         .map(field => [field, args[field]])));
 }
 
+function bindingTargetForCapability(capabilityName, binding) {
+    const configured = TOOL_TARGETS[capabilityName];
+    if (configured) return configured;
+    const descriptorEntry = Object.entries(ENTITY_DESCRIPTORS).find(([, descriptor]) => (
+        descriptor.discoveryCapability === capabilityName
+    ));
+    if (!descriptorEntry || descriptorEntry[0] !== binding.entityType) return null;
+    const properties = getAiToolDefinition(capabilityName)?.function?.parameters?.properties || {};
+    const businessKeys = binding.stableEntityIdentity?.stableBusinessKeys || {};
+    const stableBusinessKey = Object.keys(businessKeys).find(key => Object.hasOwn(properties, key));
+    if (stableBusinessKey) {
+        return Object.freeze({
+            entityType: binding.entityType,
+            inputField: stableBusinessKey,
+            outputField: stableBusinessKey,
+            stableBusinessKey,
+        });
+    }
+    const discoveryField = descriptorEntry[1].discoveryArgs?.find(field => field && Object.hasOwn(properties, field));
+    return discoveryField ? Object.freeze({
+        entityType: binding.entityType,
+        inputField: discoveryField,
+        outputField: discoveryField,
+    }) : null;
+}
+
 function explicitTargetMatchesBinding(target, args, binding) {
     const inputFields = Array.isArray(target.inputFields)
         ? target.inputFields
         : [target.inputField].filter(Boolean);
-    const acceptedText = [binding.canonicalName, binding.originalMention]
+    const acceptedText = [
+        binding.canonicalName,
+        binding.originalMention,
+        ...stableBusinessKeyValues(binding.stableEntityIdentity),
+    ]
         .map(normalizeLogicalTarget)
         .filter(Boolean);
     for (const field of inputFields) {
@@ -138,13 +174,18 @@ function explicitTargetMatchesBinding(target, args, binding) {
 }
 
 function applyEntityBinding(capabilityName, args, binding) {
-    const target = TOOL_TARGETS[capabilityName];
+    const target = bindingTargetForCapability(capabilityName, binding);
     if (!target || target.entityType !== binding.entityType) return null;
     const next = { ...(args || {}) };
     const inputFields = Array.isArray(target.inputFields)
         ? target.inputFields
         : [target.inputField].filter(Boolean);
-    if (target.outputFields) {
+    if (target.stableBusinessKey) {
+        const value = binding.stableEntityIdentity?.stableBusinessKeys?.[target.stableBusinessKey];
+        if (!value) return null;
+        next[target.outputField] = value;
+        inputFields.filter(field => field !== target.outputField).forEach(field => delete next[field]);
+    } else if (target.outputFields) {
         for (const field of Object.keys(target.outputFields)) {
             if (binding.targetArguments[field] === undefined) return null;
             next[field] = binding.targetArguments[field];
@@ -167,13 +208,21 @@ function reuseEntityBinding(input = {}) {
     const requirement = input.state?.requirements.find(item => (
         item.requirementId === input.requirementId && item.status === 'open'
     ));
-    const target = TOOL_TARGETS[input.capabilityName];
+    const candidateBindings = input.state?.entityBindings || [];
+    const provisionalBinding = candidateBindings.find(item => (
+        item.investigationId === input.goal?.goalId
+        && item.status === 'resolved'
+        && item.entityType === requirement?.identity.entityType
+    ));
+    const target = provisionalBinding
+        ? bindingTargetForCapability(input.capabilityName, provisionalBinding)
+        : TOOL_TARGETS[input.capabilityName];
     if (!requirement || !target || target.entityType !== requirement.identity.entityType) return null;
     const logicalTarget = normalizeLogicalTarget(
         requirement.identity.qualifiers?.targetMention || input.goal?.originalTarget
     );
     if (!logicalTarget) return null;
-    const binding = (input.state.entityBindings || []).find(item => (
+    const binding = candidateBindings.find(item => (
         item.investigationId === input.goal?.goalId
         && item.status === 'resolved'
         && item.entityType === requirement.identity.entityType
@@ -242,7 +291,10 @@ function authorizeCapabilityCall(input = {}) {
         return Object.freeze({ allowed: false, code: 'ORIGINAL_TARGET_MISMATCH' });
     }
     const signature = callSignature(input.capabilityName, input.args);
-    if (input.state.attemptedCalls.some(item => item.signature === signature)) {
+    if (input.state.attemptedCalls.some(item => (
+        item.signature === signature
+        && (!item.requirementId || item.requirementId === input.requirementId)
+    ))) {
         return Object.freeze({ allowed: false, code: 'DUPLICATE_CALL' });
     }
     return Object.freeze({
@@ -281,7 +333,10 @@ function authorizeResolutionCall(input = {}) {
         return Object.freeze({ allowed: false, code: 'ORIGINAL_TARGET_MISMATCH' });
     }
     const signature = callSignature(input.capabilityName, input.args);
-    if (input.state.attemptedCalls.some(item => item.signature === signature)) {
+    if (input.state.attemptedCalls.some(item => (
+        item.signature === signature
+        && (!item.requirementId || item.requirementId === input.requirementId)
+    ))) {
         return Object.freeze({ allowed: false, code: 'DUPLICATE_CALL' });
     }
     return Object.freeze({ allowed: true, signature, factKey: requirement.factKey });

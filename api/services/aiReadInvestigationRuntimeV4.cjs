@@ -24,6 +24,7 @@ const {
     recordBehaviorEvent,
     reduceObservation,
 } = require('./aiFactReducerV4.cjs');
+const { stableBusinessKeyValues } = require('./aiStableEntityIdentityV4.cjs');
 const {
     primaryFactForCapability,
     readInvestigationProfile,
@@ -65,10 +66,15 @@ function inferParameterProvenance(args = {}, originalTarget = '', resolutionRece
     const target = String(originalTarget || '');
     const provenance = {};
     const selectedId = resolutionReceipt?.selected?.id ?? resolutionReceipt?.selectedId ?? null;
+    const selectedBusinessKeys = new Set(stableBusinessKeyValues(
+        resolutionReceipt?.selected?.stableIdentity
+    ));
     for (const [field, value] of Object.entries(args || {})) {
         if (value === undefined || value === null || typeof value === 'object') continue;
         const text = String(value).trim();
         if (/id$/i.test(field) && selectedId !== null && String(selectedId) === text) {
+            provenance[field] = 'resolution_receipt';
+        } else if (selectedBusinessKeys.has(text)) {
             provenance[field] = 'resolution_receipt';
         } else if (text && target.includes(text)) {
             provenance[field] = 'original_user';
@@ -90,8 +96,8 @@ function eligibleReadInvestigationIntent(intent = {}) {
 
 function goalFromIntent(intent = {}, options = {}) {
     if (!eligibleReadInvestigationIntent(intent)) return null;
-    const originalTarget = options.originalTarget
-        || intent.targetMentions?.[0]
+    const originalTarget = intent.targetMentions?.[0]
+        || options.originalTarget
         || intent.goal
         || null;
     const targetMention = String(originalTarget || '').normalize('NFKC').trim().toLowerCase();
@@ -257,6 +263,9 @@ function createReadInvestigationController(input = {}) {
         const observationOptions = {
             factKey: decision.factKey,
             observationId: `${goal.goalId}:observation:${observationSequence}`,
+            subjectIdentity: state.requirements.find(item => (
+                item.requirementId === inputObservation.requirementId
+            ))?.identity.stableEntityIdentity || null,
             trace: inputObservation.trace,
             error: inputObservation.error,
             cancelled: inputObservation.cancelled,

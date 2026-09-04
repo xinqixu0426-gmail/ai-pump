@@ -44,6 +44,83 @@ function firstPrice(result) {
     return rows[0]?.price;
 }
 
+test('real_provider_coil_inventory_reaches_search_coils', async t => {
+    const previousFetch = global.fetch;
+    const formalCalls = [];
+    global.fetch = async url => {
+        const value = new URL(String(url));
+        formalCalls.push(`${value.pathname}?${value.searchParams.toString()}`);
+        if (value.pathname !== '/api/coils') throw new Error(`unexpected URL: ${value}`);
+        return new Response(JSON.stringify({
+            success: true,
+            data: [{ id: 2, schemeCode: 'COIL-0002', stock: 7 }],
+        }), { headers: { 'Content-Type': 'application/json' } });
+    };
+    t.after(() => { global.fetch = previousFetch; });
+
+    const capabilityRequests = [];
+    const plan = {
+        goal: '读取指定线圈当前库存数量',
+        mode: 'query',
+        // This is the real-provider failure trace: the coarse domain can be
+        // catalog even though the structured Fact subject is a Coil.
+        domains: ['catalog'],
+        needsBusinessData: true,
+        contextMode: 'current_turn',
+        answerShape: 'direct',
+        entityScope: 'single',
+        requiresClarification: false,
+        ambiguities: [],
+        confidence: 'high',
+        targetMentions: ['COIL-0002'],
+        requiredFactIntents: [{
+            entityType: 'coil',
+            predicate: 'inventoryQuantity',
+            temporalScope: 'current',
+            scenario: 'current_inventory',
+        }],
+        // Deliberately wrong: the Broker must derive execution from the Fact.
+        steps: [{ capabilityName: 'search_parts', objective: '错误 hint' }],
+    };
+    const provider = async (_messages, options = {}) => {
+        const forced = options.toolChoice?.function?.name;
+        if (forced === 'submit_ai_domain_plan') {
+            const { steps: _steps, requiredFactIntents: _facts, targetMentions: _targets, ...domain } = plan;
+            return plannerCall('submit_ai_domain_plan', domain);
+        }
+        if (forced === 'submit_ai_intent_plan') {
+            return plannerCall('submit_ai_intent_plan', plan);
+        }
+        if (Array.isArray(options.tools) && options.tools.length > 0) {
+            const capabilityName = options.tools[0].function.name;
+            capabilityRequests.push(capabilityName);
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'coil-inventory-query',
+                type: 'function',
+                function: {
+                    name: capabilityName,
+                    arguments: JSON.stringify({ schemeCode: 'COIL-0002' }),
+                },
+            }] });
+        }
+        return providerResponse({ content: 'COIL-0002 当前库存为 7 套。' });
+    };
+
+    const result = await runAiAgentRuntimeV3({
+        messages: [{ role: 'user', content: 'COIL-0002当前库存是多少' }],
+        fetchAiProvider: provider,
+        agentVersion: 3,
+        env: { AI_READ_INVESTIGATION_V4_ENABLED: 'true' },
+    });
+
+    assert.deepEqual(capabilityRequests, ['search_coils']);
+    assert.equal(formalCalls.length, 1);
+    assert.match(formalCalls[0], /^\/api\/coils\?schemeCode=COIL-0002$/);
+    assert.equal(result.investigationState.status, 'completed');
+    assert.equal(result.investigationState.numericFacts[0].numericValue, 7);
+    assert.equal(result.fallbackReason, null);
+});
+
 test('V4 enabled：空观察后继续同 Fact 调查并以 FactState 完成', async t => {
     const previousFetch = global.fetch;
     let formalCalls = 0;

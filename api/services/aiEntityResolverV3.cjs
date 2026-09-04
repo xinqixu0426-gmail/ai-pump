@@ -7,6 +7,10 @@ const {
     ENTITY_DESCRIPTORS,
     TOOL_TARGETS,
 } = require('./aiCapabilityGraphV3.cjs');
+const {
+    normalizeStableEntityIdentity,
+    stableBusinessKeyValues,
+} = require('./aiStableEntityIdentityV4.cjs');
 
 const MAX_PROBES = 5;
 const MAX_CANDIDATES = 10;
@@ -109,7 +113,8 @@ function candidateId(candidate, keys) {
     return null;
 }
 
-function candidateView(candidate, descriptor, query) {
+function candidateView(candidate, descriptor, query, entityType) {
+    const stableIdentity = normalizeStableEntityIdentity({ entityType, record: candidate });
     const compositeNames = (descriptor.candidateCompositeKeys || [])
         .map(keys => keys.map(key => String(candidate?.[key] || '').trim()).filter(Boolean).join('-'))
         .filter(Boolean);
@@ -117,6 +122,7 @@ function candidateView(candidate, descriptor, query) {
         ...(descriptor.candidateNameKeys || [])
         .map(key => String(candidate?.[key] || '').trim())
         .filter(value => value && value !== '-'),
+        ...stableBusinessKeyValues(stableIdentity),
         ...compositeNames,
     ]
         .map(name => ({ name, score: candidateScore(query, name) }))
@@ -129,6 +135,7 @@ function candidateView(candidate, descriptor, query) {
         label: name,
         score: names[0]?.score || candidateScore(query, name),
         matchedText: names[0]?.name || name,
+        stableIdentity,
         raw: candidate,
     };
 }
@@ -157,9 +164,9 @@ function rowsMatchingTarget(rows, target, args) {
     )));
 }
 
-function mergeCandidates(target, rows, descriptor, query) {
+function mergeCandidates(target, rows, descriptor, query, entityType) {
     for (const row of rows) {
-        const view = candidateView(row, descriptor, query);
+        const view = candidateView(row, descriptor, query, entityType);
         if (!view.name && !view.id) continue;
         const key = `${view.id || ''}\u0000${view.name}`;
         const current = target.get(key);
@@ -173,6 +180,7 @@ function resolutionReceipt(input = {}) {
             id: input.selected.id || null,
             name: String(input.selected.name || ''),
             score: Math.round(Number(input.selected.score || 0) * 1000) / 1000,
+            stableIdentity: input.selected.stableIdentity || null,
         }
         : null;
     return {
@@ -187,6 +195,7 @@ function resolutionReceipt(input = {}) {
             id: candidate.id,
             name: candidate.name,
             score: Math.round(candidate.score * 1000) / 1000,
+            stableIdentity: candidate.stableIdentity || null,
         })),
         sourceCapability: input.sourceCapability,
         sourceEvidence: input.sourceEvidence || [],
@@ -198,7 +207,7 @@ function resolveFormalEntityResultV3(input = {}) {
     const mention = String(input.originalMention || '').trim();
     if (!descriptor || !mention) return null;
     const candidates = new Map();
-    mergeCandidates(candidates, resultRows(input.result), descriptor, mention);
+    mergeCandidates(candidates, resultRows(input.result), descriptor, mention, input.entityType);
     const ranked = [...candidates.values()]
         .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name, 'zh-CN'))
         .slice(0, MAX_CANDIDATES);
@@ -309,7 +318,8 @@ async function resolveAiToolTargetV3(input = {}) {
                 candidates,
                 rowsMatchingTarget(resultRows(result), target, input.args),
                 descriptor,
-                mention
+                mention,
+                target.entityType
             );
             if (candidates.size > 0) break;
         }

@@ -12,6 +12,11 @@ const {
     createReadInvestigationController,
 } = require('../api/services/aiReadInvestigationRuntimeV4.cjs');
 const {
+    profileSupportsRequirement,
+    selectNextCapability,
+} = require('../api/services/aiCapabilityBrokerV4.cjs');
+const { readInvestigationProfile } = require('../api/services/aiReadCapabilityProfilesV4.cjs');
+const {
     requiresV3Fallback,
     runReadInvestigationDriverV4,
 } = require('../api/services/aiReadInvestigationDriverV4.cjs');
@@ -34,6 +39,30 @@ function partGoal(options = {}) {
         entityScope: 'single',
         domains: ['catalog'],
         originalTarget: 'V750',
+        requirements: [requirement],
+    });
+}
+
+function coilInventoryGoal(options = {}) {
+    const requirement = createFactRequirement({
+        identity: {
+            entityType: 'coil',
+            entityId: null,
+            predicate: 'inventoryQuantity',
+            temporalScope: 'current',
+            scenario: 'current_inventory',
+            qualifiers: { targetMention: 'coil-0002' },
+        },
+        requiredSourceOfTruth: 'coilService',
+        requiredAuthority: 'live',
+    });
+    return createInvestigationGoal({
+        goalId: options.goalId || 'coil-inventory-driver-test',
+        goal: '读取指定线圈当前库存数量',
+        mode: 'query',
+        entityScope: 'single',
+        domains: options.domains || ['catalog'],
+        originalTarget: 'COIL-0002',
         requirements: [requirement],
     });
 }
@@ -159,6 +188,126 @@ test('错误 planner initial hint 不替代 open Fact 的 Broker 选择', async 
     assert.equal(result.status, 'completed');
     assert.equal(result.fallbackReason, null);
     assert.equal(result.behaviorEvents.some(item => item.type === 'plan_drift'), false);
+});
+
+test('wrong_initial_hint_does_not_block_open_fact', async () => {
+    const goal = coilInventoryGoal({ domains: ['catalog'] });
+    const controller = createReadInvestigationController({
+        goal,
+        planHints: ['calculate_coil_cost', 'unknown_capability'],
+    });
+    const decision = controller.next();
+    assert.equal(decision.status, 'selected');
+    assert.equal(decision.capabilityName, 'search_coils');
+});
+
+test('provider_does_not_need_to_name_exact_capability', async () => {
+    const selected = [];
+    const controller = createReadInvestigationController({
+        goal: coilInventoryGoal(),
+        planHints: ['search_parts'],
+    });
+    const result = await runReadInvestigationDriverV4({
+        controller,
+        executeDecision: async ({ decision }) => {
+            selected.push(decision.capabilityName);
+            return {
+                kind: 'resolution',
+                receipt: {
+                    entityType: 'coil',
+                    originalMention: 'COIL-0002',
+                    status: 'ambiguous',
+                    selected: null,
+                    candidates: [{ id: 2, name: 'COIL-0002' }, { id: 3, name: 'COIL-0003' }],
+                    sourceCapability: decision.capabilityName,
+                },
+            };
+        },
+    });
+    assert.deepEqual(selected, ['search_coils']);
+    assert.equal(result.status, 'needs_clarification');
+    assert.equal(result.fallbackReason, null);
+});
+
+test('discovery_does_not_require_resolved_target', () => {
+    const goal = coilInventoryGoal();
+    const state = createReadInvestigationController({ goal }).state();
+    assert.equal(state.entityBindings.length, 0);
+    assert.equal(state.requirements[0].identity.entityId, null);
+    assert.equal(selectNextCapability({ goal, state }).capabilityName, 'search_coils');
+});
+
+test('read_capability_filter_does_not_remove_authoritative_candidate', () => {
+    const goal = coilInventoryGoal({ domains: ['catalog'] });
+    const requirement = goal.requirements[0];
+    const profile = readInvestigationProfile('search_coils');
+    assert.equal(getAiCapability('search_coils').access, 'read');
+    assert.equal(profile.sourceOfTruth, requirement.requiredSourceOfTruth);
+    assert.equal(profileSupportsRequirement(profile, requirement, goal), true);
+});
+
+test('legitimate_no_candidate_is_distinct_from_provider_failure', async () => {
+    const unavailableRequirement = createFactRequirement({
+        identity: {
+            entityType: 'coil',
+            entityId: null,
+            predicate: 'unsupportedBusinessFact',
+            temporalScope: 'current',
+            scenario: 'unsupported_scenario',
+        },
+    });
+    const unavailableGoal = createInvestigationGoal({
+        goalId: 'legitimate-no-candidate',
+        goal: '读取尚未登记的事实',
+        mode: 'query',
+        entityScope: 'single',
+        domains: ['coil'],
+        originalTarget: 'COIL-0002',
+        requirements: [unavailableRequirement],
+    });
+    const noCandidate = await runReadInvestigationDriverV4({
+        controller: createReadInvestigationController({ goal: unavailableGoal }),
+        executeDecision: async () => { throw new Error('不得执行'); },
+    });
+    const providerFailure = await runReadInvestigationDriverV4({
+        controller: createReadInvestigationController({ goal: coilInventoryGoal() }),
+        executeDecision: async () => ({ kind: 'technical_failure', reason: 'provider_timeout' }),
+    });
+    assert.equal(noCandidate.status, 'failed_unverified');
+    assert.equal(noCandidate.state.requirements[0].reason, 'no_authoritative_capability');
+    assert.equal(providerFailure.status, 'failed_unverified');
+    assert.equal(providerFailure.state.requirements[0].reason, 'provider_timeout');
+    assert.notEqual(
+        noCandidate.state.requirements[0].reason,
+        providerFailure.state.requirements[0].reason
+    );
+});
+
+test('no_legacy_recovery', async () => {
+    const requirement = createFactRequirement({
+        identity: {
+            entityType: 'coil',
+            entityId: null,
+            predicate: 'unsupportedBusinessFact',
+            temporalScope: 'current',
+            scenario: 'unsupported_scenario',
+        },
+    });
+    const goal = createInvestigationGoal({
+        goalId: 'no-legacy-recovery',
+        goal: '读取尚未登记的事实',
+        mode: 'query',
+        entityScope: 'single',
+        domains: ['coil'],
+        originalTarget: 'COIL-0002',
+        requirements: [requirement],
+    });
+    const result = await runReadInvestigationDriverV4({
+        controller: createReadInvestigationController({ goal }),
+        executeDecision: async () => { throw new Error('不得执行'); },
+    });
+    assert.equal(result.status, 'failed_unverified');
+    assert.equal(result.fallbackReason, null);
 });
 
 test('completed_negative 是 driver 终态，不执行后续 capability', async () => {

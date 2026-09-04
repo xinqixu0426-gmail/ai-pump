@@ -1,5 +1,6 @@
 const { getAiCapability } = require('../capabilities/registry.cjs');
 const { hasVerifiedExecution, hasVerifiedWriteExecution } = require('./aiExecutionEvidence.cjs');
+const { normalizeStableEntityIdentity } = require('./aiStableEntityIdentityV4.cjs');
 
 const BEHAVIOR_EVENT_TYPES = new Set([
     'tool_proposed',
@@ -140,6 +141,9 @@ function createObservation(input = {}) {
         dataMode: input.dataMode || null,
         authorityVersion: input.authorityVersion ?? null,
         authorityTime: input.authorityTime || null,
+        subjectIdentity: input.subjectIdentity
+            ? normalizeStableEntityIdentity(input.subjectIdentity)
+            : null,
         result: input.result || null,
     });
     VALID_OBSERVATIONS.add(observation);
@@ -219,6 +223,7 @@ function createEvidenceRecord(input = {}) {
         sourceOfTruth: input.observation.sourceOfTruth,
         authorityVersion: input.observation.authorityVersion,
         authorityTime: input.observation.authorityTime,
+        subjectIdentity: input.observation.subjectIdentity || null,
         recordedAt: input.recordedAt || new Date().toISOString(),
         supersedesEvidenceId: input.supersedesEvidenceId || null,
         toolResult: input.toolResult || null,

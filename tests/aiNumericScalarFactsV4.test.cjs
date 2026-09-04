@@ -86,9 +86,14 @@ test('part_current_inventory_numeric_fact', () => {
     const fixture = materializedFixture('part', 11, 37);
     assert.equal(fixture.state.status, 'completed');
     assert.equal(fixture.requirement.status, 'satisfied');
-    assert.deepEqual(fixture.state.numericFacts[0].subject, {
+    assert.deepEqual({
+        entityType: fixture.state.numericFacts[0].subject.entityType,
+        entityId: fixture.state.numericFacts[0].subject.entityId,
+        canonicalName: fixture.state.numericFacts[0].subject.canonicalName,
+    }, {
         entityType: 'part', entityId: '11', canonicalName: 'P-11',
     });
+    assert.equal(fixture.state.numericFacts[0].subject.stableEntityIdentity.stableBusinessKeys.model, 'P-11');
     assert.equal(fixture.state.numericFacts[0].numericValue, 37);
     assert.equal(fixture.state.numericFacts[0].temporalScope, 'current');
     assert.deepEqual(fixture.state.numericFacts[0].evidenceRefs, [fixture.evidence.evidenceId]);
