@@ -4,6 +4,11 @@
  */
 
 require('dotenv').config();
+const {
+  initializeObservability,
+  safeShutdown: safeObservabilityShutdown,
+} = require('./api/services/observability.cjs');
+initializeObservability();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -329,6 +334,7 @@ function shutdown(signal, exitCode = 0) {
 
   server.close(async error => {
     await waitForBackupIdle();
+    await safeObservabilityShutdown();
     clearTimeout(forceTimer);
     closeDatabase();
     if (error) {
