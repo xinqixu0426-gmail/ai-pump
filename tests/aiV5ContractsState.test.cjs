@@ -21,6 +21,7 @@ const {
     canTransition,
     transitionTask,
 } = require('../api/services/ai-v5/taskState.cjs');
+const { createEvidenceLedger } = require('../api/services/ai-v5/evidenceLedger.cjs');
 
 const AT = '2026-09-04T00:00:00.000Z';
 const LATER = '2026-09-04T00:00:01.000Z';
@@ -65,6 +66,7 @@ const ALL_PRECONDITIONS = Object.freeze({
     executionCompleted: true,
     evidenceFree: true,
     verificationCompleted: true,
+    verificationDecision: 'VERIFIED',
     answerSupported: true,
     openEvidenceRequirement: true,
     remainingBudget: true,
@@ -315,13 +317,18 @@ test('EXECUTING requires matching resolved capability and validated ToolRequest'
     assert.equal(transitionTask(taskAt('ROUTING'), 'EXECUTING', ALL_PRECONDITIONS).state, 'EXECUTING');
 });
 
-test('VERIFYING requires completed execution or an explicit evidence-free path', () => {
+test('VERIFYING requires completed execution plus task-scoped ledger or an explicit evidence-free path', () => {
     const task = taskAt('COLLECTING_EVIDENCE');
     assert.throws(() => transitionTask(task, 'VERIFYING', { timestamp: LATER }), {
         code: 'V5_STATE_TRANSITION_REJECTED',
     });
-    assert.equal(transitionTask(task, 'VERIFYING', {
+    assert.throws(() => transitionTask(task, 'VERIFYING', {
         timestamp: LATER, executionCompleted: true,
+    }), { code: 'V5_STATE_TRANSITION_REJECTED' });
+    assert.equal(transitionTask(task, 'VERIFYING', {
+        timestamp: LATER,
+        executionCompleted: true,
+        evidenceLedger: createEvidenceLedger(task.taskId),
     }).state, 'VERIFYING');
     assert.equal(transitionTask(task, 'VERIFYING', {
         timestamp: LATER, evidenceFree: true,
@@ -342,8 +349,11 @@ test('COMPOSING and COMPLETED enforce skeleton completion prerequisites', () => 
         code: 'V5_STATE_TRANSITION_REJECTED',
     });
     assert.equal(transitionTask(taskAt('VERIFYING'), 'COMPOSING', {
-        timestamp: LATER, verificationCompleted: true,
+        timestamp: LATER, verificationCompleted: true, verificationDecision: 'VERIFIED',
     }).state, 'COMPOSING');
+    assert.throws(() => transitionTask(taskAt('VERIFYING'), 'COMPOSING', {
+        timestamp: LATER, verificationCompleted: true, verificationDecision: 'UNVERIFIED',
+    }), { code: 'V5_STATE_TRANSITION_REJECTED' });
     assert.throws(() => transitionTask(taskAt('COMPOSING'), 'COMPLETED', { timestamp: LATER }), {
         code: 'V5_STATE_TRANSITION_REJECTED',
     });

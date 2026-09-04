@@ -6,6 +6,7 @@ const {
     validateToolRequestForExecution,
     validateV5Task,
 } = require('./contracts.cjs');
+const { validateLedger } = require('./evidenceLedger.cjs');
 
 const V5_ALLOWED_TRANSITIONS = Object.freeze({
     RECEIVED: Object.freeze(['UNDERSTANDING', 'FAILED_INTERNAL']),
@@ -110,12 +111,28 @@ function assertTransitionPreconditions(task, to, context = {}) {
         }
     }
 
-    if (to === 'VERIFYING' && context.executionCompleted !== true && context.evidenceFree !== true) {
-        transitionFailure(task.state, to, 'EXECUTION_OR_EVIDENCE_FREE_PATH_REQUIRED');
+    if (to === 'VERIFYING') {
+        if (context.executionCompleted !== true && context.evidenceFree !== true) {
+            transitionFailure(task.state, to, 'EXECUTION_OR_EVIDENCE_FREE_PATH_REQUIRED');
+        }
+        if (context.evidenceFree !== true) {
+            let ledger;
+            try {
+                ledger = validateLedger(context.evidenceLedger);
+            } catch {
+                transitionFailure(task.state, to, 'VALID_TASK_EVIDENCE_LEDGER_REQUIRED');
+            }
+            if (ledger.taskId !== task.taskId) {
+                transitionFailure(task.state, to, 'TASK_EVIDENCE_LEDGER_REQUIRED');
+            }
+        }
     }
 
-    if (to === 'COMPOSING' && context.verificationCompleted !== true) {
-        transitionFailure(task.state, to, 'VERIFICATION_COMPLETION_REQUIRED');
+    if (to === 'COMPOSING' && (
+        context.verificationCompleted !== true
+        || context.verificationDecision !== 'VERIFIED'
+    )) {
+        transitionFailure(task.state, to, 'VERIFIED_DECISION_REQUIRED');
     }
 
     if (to === 'COMPLETED' && context.answerSupported !== true) {
