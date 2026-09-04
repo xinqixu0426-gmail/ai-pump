@@ -4,6 +4,7 @@ const { createHash } = require('node:crypto');
 const DEFAULT_PROJECT = 'pump-ai-v4-baseline';
 const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:6006';
 const DEFAULT_TRACE_CONTENT = 'metadata';
+const PUMP_AI_TRACE_SCHEMA_VERSION = 1;
 const TRACE_CONTENT_MODES = new Set(['off', 'metadata', 'diagnostic']);
 const MAX_TRACE_STRING_LENGTH = 256;
 const MAX_TRACE_ARRAY_ITEMS = 20;
@@ -307,6 +308,7 @@ function sanitizeTraceValue(value) {
 
 function isAllowedTraceAttribute(key, mode) {
   if (key === OPENINFERENCE_KIND_KEY) return true;
+  if (key === 'pump.ai.trace.schema_version') return true;
   if (mode === 'off') return false;
   if (STANDARD_TRACE_ATTRIBUTES.has(key)) return true;
   return SAFE_CUSTOM_ATTRIBUTE_PREFIXES.some(prefix => key.startsWith(prefix));
@@ -699,6 +701,7 @@ function withAgentSpan(metadata = {}, operation) {
     kind: 'AGENT',
     attributes: {
       'gen_ai.operation.name': 'invoke_agent',
+      'pump.ai.trace.schema_version': PUMP_AI_TRACE_SCHEMA_VERSION,
       'pump.ai.assistant.runtime': 'pump_factory_assistant',
       'pump.ai.assistant.streaming': Boolean(metadata.streaming),
       ...(metadata.route ? { 'pump.ai.assistant.route': safeLabel(metadata.route) } : {}),
@@ -817,6 +820,7 @@ module.exports = {
   MAX_TRACE_ARRAY_ITEMS,
   MAX_TRACE_OBJECT_KEYS,
   MAX_TRACE_STRING_LENGTH,
+  PUMP_AI_TRACE_SCHEMA_VERSION,
   PRIVACY_TRACE_CONFIG,
   emitSyntheticSmokeSpan,
   getObservabilityState,

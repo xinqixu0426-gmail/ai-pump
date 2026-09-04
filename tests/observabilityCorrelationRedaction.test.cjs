@@ -173,7 +173,10 @@ test('off mode keeps span structure but removes business metadata and correlatio
   const runtime = fakeRuntime();
   enable(runtime, 'off');
   await observability.withAgentSpan({ requestId: 'p04-request-001', route: 'test' }, async () => true);
-  assert.deepEqual(runtime.spans[0].attributes, { 'openinference.span.kind': 'AGENT' });
+  assert.deepEqual(runtime.spans[0].attributes, {
+    'openinference.span.kind': 'AGENT',
+    'pump.ai.trace.schema_version': 1,
+  });
 });
 
 test('disabled observability remains a no-op with unchanged results and errors', async () => {
