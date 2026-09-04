@@ -7,6 +7,10 @@ const { getV5ToolExposure } = require('./toolExposure.cjs');
 const { buildToolCapabilityReverseIndex, getV5Capability } = require('./capabilityRegistry.cjs');
 const { anchorInterpretationEntities } = require('./sourceAnchoredEntity.cjs');
 const { interpretV5Task } = require('./taskInterpreter.cjs');
+const {
+    createV5InterpreterInputEnvelope,
+    validateV5InterpreterInputEnvelope,
+} = require('./taskInterpreterInput.cjs');
 
 const V5_INDEPENDENT_SHADOW_VERSION = 1;
 
@@ -38,6 +42,7 @@ function baseOutcome(input, interpretationResult, overrides = {}) {
         modelCalls: interpretationResult.modelCalls,
         usage: interpretationResult.usage,
         completionLatencyMs: interpretationResult.durationMs,
+        inputFingerprint: input.interpreterEnvelope?.inputFingerprint || null,
         domain: null,
         operation: null,
         entityTypes: [],
@@ -98,7 +103,19 @@ function routeAllEntityTypes(task, interpretation) {
 }
 
 async function runV5IndependentShadow(input = {}, options = {}) {
-    const interpretationResult = await (options.interpret || interpretV5Task)(input.sourceRequest, {
+    let interpreterEnvelope = input.interpreterEnvelope;
+    try {
+        if (!validateV5InterpreterInputEnvelope(interpreterEnvelope)) {
+            interpreterEnvelope = createV5InterpreterInputEnvelope({
+                rawUserRequest: input.sourceRequest,
+                pageContext: input.pageContext ?? null,
+            });
+        }
+    } catch {
+        interpreterEnvelope = null;
+    }
+    const interpretedInput = { ...input, interpreterEnvelope };
+    const interpretationResult = await (options.interpret || interpretV5Task)(interpreterEnvelope, {
         env: options.env,
         modelRequest: options.modelRequest,
         observeModelCall: options.observeModelCall,
@@ -106,10 +123,10 @@ async function runV5IndependentShadow(input = {}, options = {}) {
         timeoutMs: options.timeoutMs,
         selected: options.selected,
     });
-    if (interpretationResult.status !== 'VALID') return baseOutcome(input, interpretationResult);
+    if (interpretationResult.status !== 'VALID') return baseOutcome(interpretedInput, interpretationResult);
     const interpretation = interpretationResult.interpretation;
     if (interpretation.needsClarification) {
-        return baseOutcome(input, interpretationResult, {
+        return baseOutcome(interpretedInput, interpretationResult, {
             domain: interpretation.domain,
             operation: interpretation.operation,
             entityTypes: interpretation.entityCandidates.map(item => item.entityType),
@@ -117,11 +134,11 @@ async function runV5IndependentShadow(input = {}, options = {}) {
             reasonCodes: ['INTERPRETATION_NEEDS_CLARIFICATION'],
         });
     }
-    const anchoring = anchorInterpretationEntities(input.sourceRequest, interpretation);
+    const anchoring = anchorInterpretationEntities(interpreterEnvelope.rawUserRequest, interpretation);
     const entityTypes = interpretation.entityCandidates.map(item => item.entityType);
     const anchorStatuses = anchoring.anchors.map(item => item.status);
     if (!anchoring.valid) {
-        return baseOutcome(input, interpretationResult, {
+        return baseOutcome(interpretedInput, interpretationResult, {
             interpreterStatus: 'INVALID',
             interpreterReasonCode: anchoring.status,
             domain: interpretation.domain,
@@ -141,7 +158,7 @@ async function runV5IndependentShadow(input = {}, options = {}) {
             options.now || new Date().toISOString()
         );
     } catch {
-        return baseOutcome(input, interpretationResult, {
+        return baseOutcome(interpretedInput, interpretationResult, {
             interpreterStatus: 'INVALID',
             interpreterReasonCode: 'INDEPENDENT_TASK_INVALID',
             domain: interpretation.domain,
@@ -156,7 +173,7 @@ async function runV5IndependentShadow(input = {}, options = {}) {
     const exposure = route.outcome === 'SELECTED'
         ? getV5ToolExposure(route)
         : { allowedToolNames: [], toolCount: 0, executionAllowed: false, reasonCode: route.reasonCode };
-    return baseOutcome(input, interpretationResult, {
+    return baseOutcome(interpretedInput, interpretationResult, {
         domain: interpretation.domain,
         operation: interpretation.operation,
         entityTypes,

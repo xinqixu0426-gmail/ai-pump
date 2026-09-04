@@ -9,6 +9,7 @@ const { captureSafeV4ShadowFacts } = require('./ai-v5/shadowProjection.cjs');
 const { scheduleV5ShadowMirror } = require('./ai-v5/shadowMirror.cjs');
 const { collectV5ShadowFacts } = require('./ai-v5/shadowFacts.cjs');
 const { extractSourceUserRequest } = require('./ai-v5/independentShadow.cjs');
+const { createV5InterpreterInputEnvelope } = require('./ai-v5/taskInterpreterInput.cjs');
 
 async function runAiDispatcherV3(input = {}, dependencies = {}) {
     const runtime = dependencies.runAiAgentRuntimeV3 || runAiAgentRuntimeV3;
@@ -27,6 +28,18 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
         const shadowRate = Number(shadowEnv.AI_V5_SHADOW_SAMPLE_RATE);
         const collectShadowFacts = shadowEnv.AI_V5_SHADOW_ENABLED === 'true'
             && Number.isFinite(shadowRate) && shadowRate > 0 && shadowRate <= 1;
+        let interpreterEnvelope = null;
+        if (collectShadowFacts) {
+            try {
+                interpreterEnvelope = (dependencies.createV5InterpreterInputEnvelope
+                    || createV5InterpreterInputEnvelope)({
+                    rawUserRequest: (dependencies.extractSourceUserRequest || extractSourceUserRequest)(input.messages),
+                    pageContext: input.pageContext ?? null,
+                });
+            } catch {
+                // Invalid or unavailable pre-routing context cannot affect V4.
+            }
+        }
         const execution = collectShadowFacts
             ? await (dependencies.collectV5ShadowFacts || collectV5ShadowFacts)(() => runtime(runtimeInput))
             : { result: await runtime(runtimeInput), shadowFacts: null };
@@ -42,7 +55,7 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
                 );
                 const scheduled = (dependencies.scheduleV5ShadowMirror || scheduleV5ShadowMirror)(facts, {
                     env: shadowEnv,
-                    sourceRequest: (dependencies.extractSourceUserRequest || extractSourceUserRequest)(input.messages),
+                    interpreterEnvelope,
                     interpreterModelRequest: dependencies.interpreterModelRequest,
                 });
                 scheduled?.completion?.catch?.(() => {});

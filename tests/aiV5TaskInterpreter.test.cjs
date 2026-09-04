@@ -13,8 +13,14 @@ const {
 } = require('../api/services/ai-v5/sourceAnchoredEntity.cjs');
 const {
     V5_INTERPRETER_RETRY_COUNT,
+    V5_INTERPRETER_MODEL_SETTINGS,
     interpretV5Task,
 } = require('../api/services/ai-v5/taskInterpreter.cjs');
+const { createV5InterpreterInputEnvelope } = require('../api/services/ai-v5/taskInterpreterInput.cjs');
+
+function envelope(rawUserRequest = 'fixture') {
+    return createV5InterpreterInputEnvelope({ rawUserRequest, pageContext: null });
+}
 
 function interpretation(overrides = {}) {
     return {
@@ -43,14 +49,17 @@ function fakeResponse(value, usage = null) {
     };
 }
 
-test('Task Interpreter and prompt contracts are version 1 with retry zero', () => {
+test('Task Interpreter contract remains version 1 while prompt is 1.1 with deterministic settings', () => {
     assert.equal(V5_TASK_INTERPRETER_VERSION, 1);
-    assert.equal(V5_TASK_INTERPRETER_PROMPT_VERSION, 1);
+    assert.equal(V5_TASK_INTERPRETER_PROMPT_VERSION, '1.1');
     assert.equal(V5_INTERPRETER_RETRY_COUNT, 0);
+    assert.deepEqual(V5_INTERPRETER_MODEL_SETTINGS, {
+        temperature: 0, topP: null, responseFormat: { type: 'json_object' }, maxOutputTokens: 512,
+    });
 });
 
 test('valid structural interpretation passes strict validation', async () => {
-    const result = await interpretV5Task('请查800平刀库存', {
+    const result = await interpretV5Task(envelope('请查800平刀库存'), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
         modelRequest: fakeResponse(interpretation()),
     });
@@ -60,7 +69,7 @@ test('valid structural interpretation passes strict validation', async () => {
 });
 
 test('invalid JSON fails closed', async () => {
-    const result = await interpretV5Task('fixture', {
+    const result = await interpretV5Task(envelope(), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
         modelRequest: fakeResponse('{not-json'),
     });
@@ -74,7 +83,7 @@ for (const [name, overrides, reason] of [
     ['unknown entity type', { entityCandidates: [{ entityType: 'unknown_type', candidateText: 'fixture' }] }, 'INTERPRETATION_ENTITY_TYPE_INVALID'],
 ]) {
     test(`${name} fails closed`, async () => {
-        const result = await interpretV5Task('fixture', {
+        const result = await interpretV5Task(envelope(), {
             selected: { provider: 'test-provider', model: 'test-interpreter' },
             modelRequest: fakeResponse(interpretation(overrides)),
         });
@@ -84,7 +93,7 @@ for (const [name, overrides, reason] of [
 }
 
 test('model Tool field is rejected by strict top-level schema', async () => {
-    const result = await interpretV5Task('fixture', {
+    const result = await interpretV5Task(envelope(), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
         modelRequest: fakeResponse({ ...interpretation(), toolName: 'search_parts' }),
     });
@@ -93,7 +102,7 @@ test('model Tool field is rejected by strict top-level schema', async () => {
 });
 
 test('model error is contained without leaking its message', async () => {
-    const result = await interpretV5Task('fixture', {
+    const result = await interpretV5Task(envelope(), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
         modelRequest: async () => { throw new Error('P15_SECRET_MODEL_ERROR_SENTINEL'); },
     });
@@ -102,7 +111,7 @@ test('model error is contained without leaking its message', async () => {
 });
 
 test('interpreter timeout is independent and returns a safe outcome', async () => {
-    const result = await interpretV5Task('fixture', {
+    const result = await interpretV5Task(envelope(), {
         selected: { provider: 'test-provider', model: 'test-interpreter' },
         modelRequest: () => new Promise(() => {}),
         timeoutMs: 10,

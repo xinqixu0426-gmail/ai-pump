@@ -1,0 +1,951 @@
+{
+  "schema_version": 1,
+  "interpreter_version": 1,
+  "prompt_version": "1.1",
+  "project": "pump-ai-v5e4r-v1-1-shadow",
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "runtime_variant": "LEGACY",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "b3aa8a0402dc561a56b9a7cf4a06343c",
+      "shadow_task_id": "v5-shadow-52375b4a-281e-41da-8856-cccb44443e33"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "runtime_variant": "V4I",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "408dc3830c97125af39da97ff17bbc1c",
+      "shadow_task_id": "v5-shadow-461488fc-75a9-4035-84b4-7f6983d7f356"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "runtime_variant": "V4R3",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "16065ab00901b01f89f0132d77dc5dee",
+      "shadow_task_id": "v5-shadow-55eb4282-9bcf-40c6-bc1d-8b5d1325853b"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "root_cause_class": "A01",
+      "interpreter_status": "INVALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entityTypes": [
+          "recipe"
+        ],
+        "entityAnchorStatuses": [
+          "INVALID_ENTITY_REFERENCE"
+        ],
+        "capabilityId": null,
+        "allowedToolNames": []
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INVALID_ENTITY_REFERENCE",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "6b99eae42cc03fd199c75fbd1a270f5e",
+      "shadow_task_id": "v5-shadow-d02bb4cc-ad9a-42f1-8ca8-8d31b3bd6013"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "root_cause_class": "A01",
+      "interpreter_status": "INVALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entityTypes": [
+          "recipe"
+        ],
+        "entityAnchorStatuses": [
+          "INVALID_ENTITY_REFERENCE"
+        ],
+        "capabilityId": null,
+        "allowedToolNames": []
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INVALID_ENTITY_REFERENCE",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "31f2a465e09b3978e887dc737beaeae7",
+      "shadow_task_id": "v5-shadow-5eb2a304-1462-4623-9d18-23ef939e0d46"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "runtime_variant": "V4R3",
+      "v4_result": "FAIL",
+      "root_cause_class": "C02",
+      "interpreter_status": "INVALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entityTypes": [
+          "recipe"
+        ],
+        "entityAnchorStatuses": [
+          "INVALID_ENTITY_REFERENCE"
+        ],
+        "capabilityId": null,
+        "allowedToolNames": []
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INVALID_ENTITY_REFERENCE",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "a0accc5e1613789151a9d5ce0fb03290",
+      "shadow_task_id": "v5-shadow-7e40cf77-2831-4734-825a-41a4e0dcad97"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "root_cause_class": "C02",
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entityTypes": [
+          "part"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "inventory.read",
+        "allowedToolNames": [
+          "search_parts"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "fb5339ca7d36f2dabb97927b33019beb",
+      "shadow_task_id": "v5-shadow-f45b5743-0aa7-41b1-a457-1ec0d8b7d9bb"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "root_cause_class": "C02",
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entityTypes": [
+          "part"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "inventory.read",
+        "allowedToolNames": [
+          "search_parts"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "8475b2d687734aa84173a284af40fad2",
+      "shadow_task_id": "v5-shadow-83cc919a-3418-4984-afaf-61030e3c25b3"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "runtime_variant": "V4R3",
+      "v4_result": "FAIL",
+      "root_cause_class": "R02",
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entityTypes": [
+          "part"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "inventory.read",
+        "allowedToolNames": [
+          "search_parts"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": true,
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "e3417f07d35fbf59a292872523633ea5",
+      "shadow_task_id": "v5-shadow-7d0b7143-f125-47f2-8fa3-dce5cfbd6dbc"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "LEGACY",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entityTypes": [
+          "part"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "inventory.read",
+        "allowedToolNames": [
+          "search_parts"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "039bc0ffc9adfe8565219f5e72da6dbc",
+      "shadow_task_id": "v5-shadow-f05c5d0c-4d78-41dc-a0bd-e58944472bd6"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "root_cause_class": "R02",
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": false
+      },
+      "wrong_tool_applicable": true,
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "c591eb1eb328b8edcb005f7b8616e7fc",
+      "shadow_task_id": "v5-shadow-bf5e0102-d158-4afc-9a84-7885cffb2bce"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "V4R3",
+      "v4_result": "FAIL",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": false
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "0f99b1e7057582a279d5a6e6d7b79756",
+      "shadow_task_id": "v5-shadow-b63bbee1-2651-4b41-9bde-d5d94a6e180c"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "root_cause_class": "R02",
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entityTypes": [
+          "part"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "inventory.read",
+        "allowedToolNames": [
+          "search_parts"
+        ]
+      },
+      "match": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": true,
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "0fc9bc1c1add222e1a599e1e43e6e686",
+      "shadow_task_id": "v5-shadow-c1385ce8-a751-4cb7-8c3d-f7b2e2ae6dc4"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "V4I",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_FALSE_BLOCK",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "af6017b797ec2b05a5dcef3a8c195b7c",
+      "shadow_task_id": "v5-shadow-e1547f0d-5824-42ea-81bf-1d416590d979"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "runtime_variant": "V4R3",
+      "v4_result": "PASS",
+      "root_cause_class": null,
+      "interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entityTypes": [
+          "coil"
+        ],
+        "entityAnchorStatuses": [
+          "ANCHORED"
+        ],
+        "capabilityId": "coil.read",
+        "allowedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "match": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "wrong_tool_applicable": false,
+      "overall_comparison": "V5_FALSE_BLOCK",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "2922af938b58d75d7986edb78c9cd0fc",
+      "shadow_task_id": "v5-shadow-3e6f8645-5697-4451-9de1-3896d6f6f9a8"
+    }
+  ],
+  "metrics": {
+    "real_paths": 15,
+    "source_groups": 5,
+    "input_fingerprints": 4,
+    "interpreter_model_calls": 15,
+    "valid_outputs": 12,
+    "invalid_outputs": 3,
+    "model_noncompliance_count": 3,
+    "path": {
+      "domain": {
+        "correct": 8,
+        "total": 15,
+        "rate": 0.5333333333333333
+      },
+      "operation": {
+        "correct": 8,
+        "total": 15,
+        "rate": 0.5333333333333333
+      },
+      "entity_type": {
+        "correct": 8,
+        "total": 15,
+        "rate": 0.5333333333333333
+      },
+      "anchor": {
+        "correct": 12,
+        "total": 15,
+        "rate": 0.8
+      },
+      "capability": {
+        "correct": 8,
+        "total": 15,
+        "rate": 0.5333333333333333
+      },
+      "expected_tool_exposed": {
+        "correct": 8,
+        "total": 15,
+        "rate": 0.5333333333333333
+      }
+    },
+    "source_group": {
+      "domain": {
+        "correct": 2,
+        "total": 5,
+        "rate": 0.4
+      },
+      "operation": {
+        "correct": 2,
+        "total": 5,
+        "rate": 0.4
+      },
+      "entity_type": {
+        "correct": 2,
+        "total": 5,
+        "rate": 0.4
+      },
+      "anchor": {
+        "correct": 4,
+        "total": 5,
+        "rate": 0.8
+      },
+      "capability": {
+        "correct": 2,
+        "total": 5,
+        "rate": 0.4
+      },
+      "expected_tool_exposed": {
+        "correct": 2,
+        "total": 5,
+        "rate": 0.4
+      }
+    },
+    "input_fingerprint": {
+      "domain": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "operation": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "entity_type": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "anchor": {
+        "correct": 3,
+        "total": 4,
+        "rate": 0.75
+      },
+      "capability": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "expected_tool_exposed": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      }
+    },
+    "identical_input_consistency": {
+      "correct": 3,
+      "total": 4,
+      "rate": 0.75
+    },
+    "exact_entity": {
+      "cases": 3,
+      "anchor": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      },
+      "identity_preservation": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      }
+    },
+    "flat_blade": {
+      "cases": 3,
+      "anchor": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "capability": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "expected_tool_exposure": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      }
+    },
+    "r02_wrong_tool_exclusion": {
+      "correct": 2,
+      "total": 3,
+      "rate": 0.6666666666666666
+    },
+    "false_blocks": 2,
+    "blocked_failures": 4,
+    "insufficient": 3,
+    "token_usage": {
+      "promptTokens": 30621,
+      "completionTokens": 889,
+      "totalTokens": 31510
+    },
+    "shadow_completion_median_ms": 570.251400000001,
+    "shadow_completion_p95_ms": 840.4318999999996,
+    "v5_tool_calls": 0,
+    "v5_business_api_calls": 0,
+    "v5_writes": 0
+  }
+}

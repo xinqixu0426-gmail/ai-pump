@@ -173,9 +173,13 @@ function createV5ShadowMirror(options = {}) {
             const execution = Promise.resolve().then(() => withV5ShadowSpan(facts, async () => {
                 const projection = await withV5ShadowProjectionSpan(facts, () => project(facts));
                 const comparison = await withV5ShadowComparisonSpan(facts, () => compare(projection));
-                const independentShadow = typeof runtimeOptions.sourceRequest === 'string'
+                const hasInterpreterInput = runtimeOptions.interpreterEnvelope
+                    || typeof runtimeOptions.sourceRequest === 'string';
+                const independentShadow = hasInterpreterInput
                     ? await runIndependent({
                         sourceRequest: runtimeOptions.sourceRequest,
+                        interpreterEnvelope: runtimeOptions.interpreterEnvelope,
+                        pageContext: runtimeOptions.pageContext,
                         shadowTaskId: facts.shadowTaskId,
                     }, {
                         env: runtimeOptions.env || options.env || process.env,
@@ -187,7 +191,7 @@ function createV5ShadowMirror(options = {}) {
                 counters.v5ModelCalls += Math.max(0, Number(independentShadow?.modelCalls) || 0);
                 return assembleOutcome(facts, projection, comparison, independentShadow);
             }));
-            const executionTimeoutMs = typeof runtimeOptions.sourceRequest === 'string'
+            const executionTimeoutMs = (runtimeOptions.interpreterEnvelope || typeof runtimeOptions.sourceRequest === 'string')
                 ? config.interpreterTimeoutMs + Math.max(config.timeoutMs, 100)
                 : config.timeoutMs;
             const timeoutResult = new Promise(resolve => {

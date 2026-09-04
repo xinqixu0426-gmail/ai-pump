@@ -4,7 +4,7 @@ const { listV5Capabilities } = require('./capabilityRegistry.cjs');
 const { getV5EntityType, listV5EntityTypes } = require('./businessOntology.cjs');
 
 const V5_TASK_INTERPRETER_VERSION = 1;
-const V5_TASK_INTERPRETER_PROMPT_VERSION = 1;
+const V5_TASK_INTERPRETER_PROMPT_VERSION = '1.1';
 const TOP_LEVEL_KEYS = Object.freeze([
     'version', 'domain', 'operation', 'entityCandidates', 'needsClarification', 'reasonCodes',
 ]);

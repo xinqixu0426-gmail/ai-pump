@@ -38,6 +38,7 @@ if (process.argv.includes('--worker')) {
     const { captureSafeV4ShadowFacts } = require('../api/services/ai-v5/shadowProjection.cjs');
     const { scheduleV5ShadowMirror } = require('../api/services/ai-v5/shadowMirror.cjs');
     const { extractSourceUserRequest } = require('../api/services/ai-v5/independentShadow.cjs');
+    const { createV5InterpreterInputEnvelope } = require('../api/services/ai-v5/taskInterpreterInput.cjs');
     observability.initializeObservability();
 
     const originalLoad = Module._load;
@@ -70,10 +71,17 @@ if (process.argv.includes('--worker')) {
                             { requestId, allowWrite: false }, collected.result, traceContext,
                             { shadowFacts: collected.shadowFacts }
                         );
+                        let interpreterEnvelope = null;
+                        try {
+                            interpreterEnvelope = createV5InterpreterInputEnvelope({
+                                rawUserRequest: extractSourceUserRequest(input.messages),
+                                pageContext: input.pageContext ?? null,
+                            });
+                        } catch { /* Shadow input cannot affect V4. */ }
                         let capturedOutcome = null;
                         const scheduled = scheduleV5ShadowMirror(facts, {
                             env: process.env,
-                            sourceRequest: extractSourceUserRequest(input.messages),
+                            interpreterEnvelope,
                             onOutcome: outcome => { capturedOutcome = outcome; },
                         });
                         if (scheduled?.completion) capturedOutcome = await scheduled.completion;
