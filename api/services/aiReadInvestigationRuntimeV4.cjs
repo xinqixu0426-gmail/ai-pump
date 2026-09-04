@@ -29,6 +29,7 @@ const {
     primaryFactForCapability,
     readInvestigationProfile,
 } = require('./aiReadCapabilityProfilesV4.cjs');
+const { withVerificationSpan } = require('./observability.cjs');
 
 const DEFAULT_READ_INVESTIGATION_BUDGET = Object.freeze({ maxCalls: 10 });
 const AMBIGUITY_PROBE_SCENARIOS = Object.freeze({
@@ -407,8 +408,22 @@ function createReadInvestigationController(input = {}) {
         return state;
     };
     const failUnverified = reason => {
-        state = markOpenRequirementsUnavailable(state, reason);
-        return state;
+        const requiredCount = state.requirements.filter(item => !item.optional).length;
+        const observedCount = state.requirements.filter(item => (
+            item.evidenceIds.length > 0 || item.observationIds.length > 0
+        )).length;
+        return withVerificationSpan({
+            decision: false,
+            status: 'failed_unverified',
+            requiredCount,
+            observedCount,
+            missingCount: Math.max(0, requiredCount - observedCount),
+            earlyExit: true,
+            toolExecutionCount: state.budget.usedCalls,
+        }, () => {
+            state = markOpenRequirementsUnavailable(state, reason);
+            return state;
+        });
     };
 
     return Object.freeze({

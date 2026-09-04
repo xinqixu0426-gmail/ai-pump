@@ -1,4 +1,5 @@
 const { createLogger } = require('../logger.cjs');
+const { createHash } = require('node:crypto');
 
 const DEFAULT_PROJECT = 'pump-ai-v4-baseline';
 const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:6006';
@@ -296,6 +297,193 @@ async function withObservedSpan(spec, operation) {
   }
 }
 
+function withObservedSpanSync(spec, operation) {
+  let tracer;
+  try {
+    tracer = activeTracer();
+  } catch {
+    tracer = null;
+  }
+  if (!tracer) return operation({ update() {} });
+
+  let operationStarted = false;
+  let operationCompleted = false;
+  let operationResult;
+  let operationError;
+  try {
+    return tracer.startActiveSpan(spec.name, {
+      attributes: {
+        [phoenix?.SemanticConventions?.OPENINFERENCE_SPAN_KIND || 'openinference.span.kind']:
+          openInferenceKind(spec.kind),
+        ...spec.attributes,
+      },
+    }, span => {
+      operationStarted = true;
+      const control = {
+        update(update = {}) {
+          if (update.name) safeSpanCall(() => span.updateName(safeLabel(update.name)));
+          if (update.attributes) safeSpanCall(() => span.setAttributes(update.attributes));
+        },
+      };
+      try {
+        operationResult = operation(control);
+        if (typeof spec.resultStatus === 'function') {
+          const resultStatus = spec.resultStatus(operationResult);
+          if (resultStatus?.attributes) safeSpanCall(() => span.setAttributes(resultStatus.attributes));
+          safeSpanCall(() => span.setStatus({
+            code: spanStatusCode(resultStatus?.error ? 'ERROR' : 'OK'),
+          }));
+        } else {
+          safeSpanCall(() => span.setStatus({ code: spanStatusCode('OK') }));
+        }
+        operationCompleted = true;
+        return operationResult;
+      } catch (error) {
+        operationError = error;
+        safeSpanCall(() => span.setAttribute('error.type', errorType(error)));
+        safeSpanCall(() => span.setStatus({ code: spanStatusCode('ERROR') }));
+        throw error;
+      } finally {
+        safeSpanCall(() => span.end());
+      }
+    });
+  } catch (error) {
+    if (operationError) throw operationError;
+    if (operationCompleted) return operationResult;
+    if (operationStarted) throw error;
+    return operation({ update() {} });
+  }
+}
+
+function textShape(value) {
+  const text = String(value || '');
+  const characters = [...text];
+  return Object.freeze({
+    length: characters.length,
+    punctuationCount: characters.filter(character => /\p{P}/u.test(character)).length,
+    digitCount: characters.filter(character => /\p{N}/u.test(character)).length,
+    alphaCount: characters.filter(character => /[A-Za-z]/u.test(character)).length,
+    cjkCount: characters.filter(character => /\p{Script=Han}/u.test(character)).length,
+  });
+}
+
+function stableIdHash(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return createHash('sha256').update(String(value)).digest('hex').slice(0, 24);
+}
+
+function withEntityNormalizationSpan(metadata = {}, operation) {
+  const inputShape = textShape(metadata.input);
+  return withObservedSpanSync({
+    name: 'pump.ai.entity.normalize',
+    kind: 'CHAIN',
+    attributes: {
+      'entity.type': safeLabel(metadata.entityType),
+      'entity.input_length': inputShape.length,
+      'entity.input_punctuation_count': inputShape.punctuationCount,
+    },
+    resultStatus(result) {
+      const output = typeof metadata.output === 'function' ? metadata.output(result) : metadata.output;
+      const outputShape = textShape(output);
+      return {
+        attributes: {
+          'entity.output_length': outputShape.length,
+          'entity.output_punctuation_count': outputShape.punctuationCount,
+          'entity.length_delta': outputShape.length - inputShape.length,
+          'entity.punctuation_delta': outputShape.punctuationCount - inputShape.punctuationCount,
+          'entity.changed': String(metadata.input || '') !== String(output || ''),
+        },
+      };
+    },
+  }, operation);
+}
+
+function withEntityResolutionSpan(metadata = {}, operation) {
+  return withObservedSpan({
+    name: 'pump.ai.entity.resolve',
+    kind: 'CHAIN',
+    attributes: {
+      'entity.type': safeLabel(metadata.entityType),
+    },
+    resultStatus(result) {
+      const receipt = result?.receipt || null;
+      const status = safeLabel(result?.status, 'unknown');
+      const selectedId = receipt?.selected?.stableIdentity?.primaryStableId
+        ?? receipt?.selected?.id
+        ?? null;
+      const selectedIdHash = stableIdHash(selectedId);
+      return {
+        error: status === 'system_error',
+        attributes: {
+          'entity.candidate_count': Array.isArray(receipt?.candidates) ? receipt.candidates.length : 0,
+          'entity.match_type': safeLabel(receipt?.selected?.matchKind || status),
+          'entity.exact_match': status === 'exact',
+          'entity.resolved': Boolean(receipt?.selected),
+          'entity.ambiguity': status === 'ambiguous',
+          'entity.resolver_path': 'ai_entity_resolver_v3',
+          'entity.fallback_used': status === 'unique_candidate',
+          ...(selectedIdHash ? { 'entity.resolved_id_hash': selectedIdHash } : {}),
+        },
+      };
+    },
+  }, operation);
+}
+
+function withRoutingSpan(metadata = {}, operation) {
+  return withObservedSpanSync({
+    name: 'pump.ai.route',
+    kind: 'CHAIN',
+    attributes: {
+      'route.available_tool_count': Number(metadata.availableToolCount) || 0,
+      'route.source': safeLabel(metadata.routeSource, 'v4_capability_broker'),
+    },
+    resultStatus(result) {
+      const selected = result?.status === 'selected';
+      return {
+        attributes: {
+          'route.selected_tool_name': selected ? safeLabel(result.capabilityName) : 'none',
+          'route.selected_executor': selected ? safeLabel(metadata.executor) : 'none',
+          ...(metadata.domain ? { 'route.selected_domain': safeLabel(metadata.domain) } : {}),
+          'route.read_write_classification': safeLabel(metadata.access, 'read'),
+          'route.success': selected,
+          'route.decision': safeLabel(result?.status),
+        },
+      };
+    },
+  }, operation);
+}
+
+function verificationAttributes(metadata = {}, decision) {
+  const toolExecutionCount = Math.max(0, Number(metadata.toolExecutionCount) || 0);
+  const effectiveDecision = metadata.decision === undefined
+    ? Boolean(decision)
+    : Boolean(metadata.decision);
+  return {
+    'verification.decision': effectiveDecision,
+    'verification.status': safeLabel(metadata.status || (effectiveDecision ? 'verified' : 'unverified')),
+    'verification.required_count': Math.max(0, Number(metadata.requiredCount) || 0),
+    'verification.observed_count': Math.max(0, Number(metadata.observedCount) || 0),
+    'verification.missing_count': Math.max(0, Number(metadata.missingCount) || 0),
+    'verification.early_exit': Boolean(metadata.earlyExit),
+    'verification.tool_execution_count_before_verify': toolExecutionCount,
+    'verification.before_any_tool_execution': toolExecutionCount === 0,
+    ...(metadata.llmCallCount === undefined ? {} : {
+      'verification.llm_call_count_before_verify': Math.max(0, Number(metadata.llmCallCount) || 0),
+    }),
+  };
+}
+
+function withVerificationSpan(metadata = {}, operation) {
+  return withObservedSpanSync({
+    name: 'pump.ai.verify',
+    kind: 'CHAIN',
+    attributes: {},
+    resultStatus(result) {
+      return { attributes: verificationAttributes(metadata, result) };
+    },
+  }, operation);
+}
+
 function withAgentSpan(metadata = {}, operation) {
   return withObservedSpan({
     name: 'invoke_agent pump_factory_assistant',
@@ -417,7 +605,12 @@ module.exports = {
   safeForceFlush,
   safeShutdown,
   traceModelProvider,
+  textShape,
   withAgentSpan,
+  withEntityNormalizationSpan,
+  withEntityResolutionSpan,
   withModelSpan,
+  withRoutingSpan,
   withToolSpan,
+  withVerificationSpan,
 };

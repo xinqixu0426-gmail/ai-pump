@@ -53,6 +53,7 @@ const {
     normalizeKnowledgeCompanionToolCalls,
 } = require('./aiKnowledgeCompanionsV2.cjs');
 const { resolveAiToolTargetV3 } = require('./aiEntityResolverV3.cjs');
+const { withVerificationSpan } = require('./observability.cjs');
 const {
     capabilityGraphNode,
     discoveryCapabilitiesForIntent,
@@ -636,9 +637,28 @@ async function runAiAgentRuntimeV3(input = {}) {
         return observation;
     };
     const synthesisEvidenceResults = () => evidenceLedger.toolResults();
-    const evidenceSatisfied = options => readInvestigationV4
-        ? ['completed', 'completed_negative'].includes(readInvestigationV4.state().status)
-        : requiredEvidenceSatisfied(intent, toolResults, options);
+    const evidenceSatisfied = options => {
+        const requiredCount = intent.needsBusinessData
+            ? plannedCapabilityNames(intent).length
+            : 0;
+        const observedCount = toolResults.length;
+        const metadata = {
+            requiredCount,
+            observedCount,
+            missingCount: Math.max(0, requiredCount - observedCount),
+            earlyExit: false,
+            toolExecutionCount: toolCallCount,
+        };
+        return withVerificationSpan(metadata, () => {
+            const decision = readInvestigationV4
+                ? ['completed', 'completed_negative'].includes(readInvestigationV4.state().status)
+                : requiredEvidenceSatisfied(intent, toolResults, options);
+            metadata.status = readInvestigationV4
+                ? readInvestigationV4.state().status
+                : decision ? 'verified' : 'failed_unverified';
+            return decision;
+        });
+    };
     const investigationFallbackReply = () => readInvestigationV4
         ? readInvestigationStateReply(readInvestigationV4.state())
         : safeMissingBusinessEvidenceReply(toolResults);

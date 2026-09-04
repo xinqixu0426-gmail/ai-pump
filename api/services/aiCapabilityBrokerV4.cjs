@@ -6,6 +6,7 @@ const {
     readInvestigationProfile,
 } = require('./aiReadCapabilityProfilesV4.cjs');
 const { stableBusinessKeyValues } = require('./aiStableEntityIdentityV4.cjs');
+const { withRoutingSpan } = require('./observability.cjs');
 
 const TRUSTED_PARAMETER_PROVENANCE = new Set([
     'original_user',
@@ -239,7 +240,7 @@ function openRequirements(state) {
     return state.requirements.filter(item => item.status === 'open');
 }
 
-function selectNextCapability(input = {}) {
+function selectNextCapabilityCore(input = {}) {
     const { goal, state } = input;
     if (!goal || !state || state.status !== 'running') {
         return Object.freeze({ status: 'unavailable', reason: 'investigation_not_running' });
@@ -268,6 +269,23 @@ function selectNextCapability(input = {}) {
         }
     }
     return Object.freeze({ status: 'unavailable', reason: 'no_authoritative_capability' });
+}
+
+function selectNextCapability(input = {}) {
+    const metadata = {
+        availableToolCount: listReadInvestigationProfiles().length,
+        routeSource: 'v4_capability_broker',
+        access: 'read',
+    };
+    return withRoutingSpan(metadata, () => {
+        const decision = selectNextCapabilityCore(input);
+        const selectedProfile = decision.status === 'selected'
+            ? readInvestigationProfile(decision.capabilityName)
+            : null;
+        metadata.executor = selectedProfile?.operation;
+        metadata.domain = selectedProfile?.domains?.[0];
+        return decision;
+    });
 }
 
 function authorizeCapabilityCall(input = {}) {

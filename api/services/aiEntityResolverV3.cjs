@@ -11,6 +11,10 @@ const {
     normalizeStableEntityIdentity,
     stableBusinessKeyValues,
 } = require('./aiStableEntityIdentityV4.cjs');
+const {
+    withEntityNormalizationSpan,
+    withEntityResolutionSpan,
+} = require('./observability.cjs');
 
 const MAX_PROBES = 5;
 const MAX_CANDIDATES = 10;
@@ -27,7 +31,7 @@ function isCjkText(value) {
     return /^[\p{Script=Han}]+$/u.test(value);
 }
 
-function buildSearchProbes(value) {
+function buildSearchProbesCore(value) {
     const original = String(value || '').trim();
     const normalized = normalizedIdentity(original);
     const probes = [];
@@ -52,6 +56,14 @@ function buildSearchProbes(value) {
         }
     }
     return probes.slice(0, MAX_PROBES);
+}
+
+function buildSearchProbes(value, options = {}) {
+    return withEntityNormalizationSpan({
+        entityType: options.entityType,
+        input: value,
+        output: () => normalizedIdentity(value),
+    }, () => buildSearchProbesCore(value));
 }
 
 function editDistance(left, right) {
@@ -275,7 +287,7 @@ function clarificationResource(candidate, entityType) {
     return { id: candidate.id, name: raw.name || candidate.name, spec: raw.spec || '' };
 }
 
-async function resolveAiToolTargetV3(input = {}) {
+async function resolveAiToolTargetV3Core(input = {}) {
     const target = TOOL_TARGETS[input.toolName];
     if (!target) return { status: 'not_applicable', args: input.args };
     const descriptor = ENTITY_DESCRIPTORS[target.entityType];
@@ -288,7 +300,7 @@ async function resolveAiToolTargetV3(input = {}) {
     if (!descriptor || !mention) return { status: 'not_applicable', args: input.args };
     const capability = getAiCapability(input.toolName);
     const discoveryCapability = descriptor.discoveryCapability;
-    const probes = buildSearchProbes(mention);
+    const probes = buildSearchProbes(mention, { entityType: target.entityType });
     const candidates = new Map();
     const sourceEvidence = [];
 
@@ -406,6 +418,13 @@ async function resolveAiToolTargetV3(input = {}) {
         args[target.outputField || target.inputField] = selected.name;
     }
     return { status: receipt.status, args, receipt };
+}
+
+function resolveAiToolTargetV3(input = {}) {
+    const target = TOOL_TARGETS[input.toolName];
+    return withEntityResolutionSpan({
+        entityType: target?.entityType,
+    }, () => resolveAiToolTargetV3Core(input));
 }
 
 module.exports = {
