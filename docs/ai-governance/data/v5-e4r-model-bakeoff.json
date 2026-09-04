@@ -1,0 +1,645 @@
+{
+  "schema_version": 1,
+  "evaluation": "Frozen Interpreter Model Bake-off",
+  "baseline": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "rerun": false,
+    "taskClassAccuracy": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "capabilityAccuracy": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "v5FalseBlockCount": 3
+  },
+  "inventory": {
+    "provider": "deepseek",
+    "configured": true,
+    "alternateModelsFound": [
+      "deepseek-v4-pro",
+      "deepseek-v4-flash-vision-exp"
+    ],
+    "eligibleCandidateModels": [
+      "deepseek-v4-pro",
+      "deepseek-v4-flash-vision-exp"
+    ],
+    "ineligibleCandidateModels": []
+  },
+  "canaries": [
+    {
+      "model": "deepseek-v4-pro",
+      "status": "PASS",
+      "protocolStatus": "VALID",
+      "reasonCode": "INTERPRETATION_VALID",
+      "modelCalls": 1,
+      "durationMs": 1390.9689,
+      "usage": {
+        "promptTokens": 4032,
+        "completionTokens": 64,
+        "totalTokens": 4096
+      }
+    },
+    {
+      "model": "deepseek-v4-flash-vision-exp",
+      "status": "PASS",
+      "protocolStatus": "VALID",
+      "reasonCode": "INTERPRETATION_VALID",
+      "modelCalls": 1,
+      "durationMs": 1125.0144999999998,
+      "usage": {
+        "promptTokens": 4032,
+        "completionTokens": 42,
+        "totalTokens": 4074
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "provider": "deepseek",
+      "model_id": "deepseek-v4-flash-vision-exp",
+      "dataset": "docs/ai-governance/data/v5-e4r-model-deepseek-v4-flash-vision-exp-evaluation.json",
+      "formal_evaluation_runs": 1,
+      "metrics": {
+        "realPathsAttempted": 15,
+        "realPathsRecorded": 15,
+        "interpreterModelCalls": 15,
+        "protocolValidOutputs": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "protocolInvalidOutputs": 0,
+        "modelNoncomplianceCount": 0,
+        "taskClassMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedDomainMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedOperationMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedEntityTypeMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "sourceSpanMatch": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "anchorMatch": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "capabilityMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "expectedToolExposed": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "sourceGroupMetrics": {
+          "taskClassMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedDomainMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedOperationMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedEntityTypeMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "sourceSpanMatch": {
+            "correct": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "anchorMatch": {
+            "correct": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "capabilityMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "expectedToolExposed": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          }
+        },
+        "inputFingerprintMetrics": {
+          "taskClassMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedDomainMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedOperationMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedEntityTypeMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "sourceSpanMatch": {
+            "correct": 4,
+            "total": 4,
+            "rate": 1
+          },
+          "anchorMatch": {
+            "correct": 4,
+            "total": 4,
+            "rate": 1
+          },
+          "capabilityMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "expectedToolExposed": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          }
+        },
+        "identicalInputConsistency": {
+          "correct": 4,
+          "total": 4,
+          "rate": 1
+        },
+        "coilRead": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "expectedToolExposure": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          }
+        },
+        "exactEntity": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "expectedToolExposure": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "v4ComparisonIncomparable": 0
+        },
+        "flatBlade": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "expectedToolExposure": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          }
+        },
+        "r02Cases": 3,
+        "r02WrongToolExclusion": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "v5FalseBlockCount": 3,
+        "v5BlocksV4FailureCount": 5,
+        "v5InsufficientDataCount": 3,
+        "notComparableV4ComparisonCount": 0,
+        "tokenUsage": {
+          "promptTokens": 65292,
+          "completionTokens": 630,
+          "totalTokens": 65922
+        },
+        "shadowCompletionMedianMs": 905.3616000000001,
+        "shadowCompletionP95Ms": 1199.7109,
+        "v5ToolCalls": 0,
+        "v5BusinessApiCalls": 0,
+        "v5Writes": 0,
+        "modelEligible": true,
+        "promotionGate": false
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model_id": "deepseek-v4-pro",
+      "dataset": "docs/ai-governance/data/v5-e4r-model-deepseek-v4-pro-evaluation.json",
+      "formal_evaluation_runs": 1,
+      "metrics": {
+        "realPathsAttempted": 15,
+        "realPathsRecorded": 15,
+        "interpreterModelCalls": 15,
+        "protocolValidOutputs": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "protocolInvalidOutputs": 0,
+        "modelNoncomplianceCount": 0,
+        "taskClassMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedDomainMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedOperationMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "projectedEntityTypeMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "sourceSpanMatch": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "anchorMatch": {
+          "correct": 15,
+          "total": 15,
+          "rate": 1
+        },
+        "capabilityMatch": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "expectedToolExposed": {
+          "correct": 9,
+          "total": 15,
+          "rate": 0.6
+        },
+        "sourceGroupMetrics": {
+          "taskClassMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedDomainMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedOperationMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "projectedEntityTypeMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "sourceSpanMatch": {
+            "correct": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "anchorMatch": {
+            "correct": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "capabilityMatch": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "expectedToolExposed": {
+            "correct": 3,
+            "total": 5,
+            "rate": 0.6
+          }
+        },
+        "inputFingerprintMetrics": {
+          "taskClassMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedDomainMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedOperationMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "projectedEntityTypeMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "sourceSpanMatch": {
+            "correct": 4,
+            "total": 4,
+            "rate": 1
+          },
+          "anchorMatch": {
+            "correct": 4,
+            "total": 4,
+            "rate": 1
+          },
+          "capabilityMatch": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          },
+          "expectedToolExposed": {
+            "correct": 2,
+            "total": 4,
+            "rate": 0.5
+          }
+        },
+        "identicalInputConsistency": {
+          "correct": 3,
+          "total": 4,
+          "rate": 0.75
+        },
+        "coilRead": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "expectedToolExposure": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          }
+        },
+        "exactEntity": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "expectedToolExposure": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "v4ComparisonIncomparable": 0
+        },
+        "flatBlade": {
+          "cases": 3,
+          "taskClass": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "sourceSpan": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "anchor": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "identityPreservation": {
+            "correct": 3,
+            "total": 3,
+            "rate": 1
+          },
+          "capability": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          },
+          "expectedToolExposure": {
+            "correct": 0,
+            "total": 3,
+            "rate": 0
+          }
+        },
+        "r02Cases": 3,
+        "r02WrongToolExclusion": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "v5FalseBlockCount": 3,
+        "v5BlocksV4FailureCount": 4,
+        "v5InsufficientDataCount": 3,
+        "notComparableV4ComparisonCount": 1,
+        "tokenUsage": {
+          "promptTokens": 65292,
+          "completionTokens": 960,
+          "totalTokens": 66252
+        },
+        "shadowCompletionMedianMs": 1404.3431999999993,
+        "shadowCompletionP95Ms": 1636.1058999999998,
+        "v5ToolCalls": 0,
+        "v5BusinessApiCalls": 0,
+        "v5Writes": 0,
+        "modelEligible": true,
+        "promotionGate": false
+      }
+    }
+  ],
+  "concurrency": {
+    "requests": 10,
+    "modelCalls": 10,
+    "valid": 9,
+    "protocolInvalidCount": 1,
+    "crossRequestContaminationCount": 0,
+    "durationMs": 1792.2068000000436
+  },
+  "freeze_hashes_pre": {
+    "prompt": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+    "taskClassSemantics": "c120fc465004c0424260cf04fdac4d58ef489439fc51264f49e50d53de5121f1",
+    "sourceSpan": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "protocolV2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "inputEnvelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "sourceAnchor": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "capabilityRegistry": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "capabilityRouter": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "toolExposure": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "classIdentity": "0149514aca7bbca5124ad069d6925e113209cb8c85f7f82cc7e9840d3b18ef02",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "6980ffb284a8d82543cb1337dbe4cc9ff70ee5ab3aec59438daf0f39f8ee5590"
+  },
+  "freeze_hashes_post": {
+    "prompt": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+    "taskClassSemantics": "c120fc465004c0424260cf04fdac4d58ef489439fc51264f49e50d53de5121f1",
+    "sourceSpan": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "protocolV2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "inputEnvelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "sourceAnchor": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "capabilityRegistry": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "capabilityRouter": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "toolExposure": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "classIdentity": "0149514aca7bbca5124ad069d6925e113209cb8c85f7f82cc7e9840d3b18ef02",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "6980ffb284a8d82543cb1337dbe4cc9ff70ee5ab3aec59438daf0f39f8ee5590"
+  },
+  "v5ToolCalls": 0,
+  "v5BusinessApiCalls": 0,
+  "v5Writes": 0,
+  "productionV5Routing": 0,
+  "interpreterModelRootCause": "REJECTED",
+  "recommendedInterpreterModel": "NONE"
+}
