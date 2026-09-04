@@ -403,6 +403,8 @@ async function executeToolCall(toolName, args, options = {}) {
         toolName,
         executorType: capability?.executorKey || 'unregistered',
         access: capability?.access || 'unknown',
+        capability: capability?.capabilityId || null,
+        operationId: options.operationId,
         args,
     }, () => executeToolCallImplementation(toolName, args, options));
 }

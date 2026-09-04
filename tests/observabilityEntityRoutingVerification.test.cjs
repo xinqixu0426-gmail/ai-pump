@@ -122,9 +122,9 @@ test('real normalization boundary records structural deltas without entity conte
   assert.equal(probes[0], secret);
   const span = runtime.spans[0];
   assert.equal(span.name, 'pump.ai.entity.normalize');
-  assert.equal(span.attributes['entity.type'], 'recipe');
-  assert.equal(span.attributes['entity.changed'], true);
-  assert.ok(span.attributes['entity.punctuation_delta'] < 0);
+  assert.equal(span.attributes['pump.ai.entity.type'], 'recipe');
+  assert.equal(span.attributes['pump.ai.entity.changed'], true);
+  assert.ok(span.attributes['pump.ai.entity.punctuation_delta'] < 0);
   assert.doesNotMatch(JSON.stringify(span), /P03B_SECRET_ENTITY_SENTINEL/);
 });
 
@@ -145,11 +145,11 @@ test('real resolver records candidate and match metadata without entity value or
   assert.equal(result.status, 'exact');
   assert.equal(result.args.recipeId, 918273);
   const resolution = runtime.spans.find(span => span.name === 'pump.ai.entity.resolve');
-  assert.equal(resolution.attributes['entity.candidate_count'], 1);
-  assert.equal(resolution.attributes['entity.match_type'], 'exact');
-  assert.equal(resolution.attributes['entity.resolved'], true);
-  assert.equal(resolution.attributes['entity.exact_match'], true);
-  assert.match(resolution.attributes['entity.resolved_id_hash'], /^[a-f0-9]{24}$/);
+  assert.equal(resolution.attributes['pump.ai.entity.candidate_count'], 1);
+  assert.equal(resolution.attributes['pump.ai.entity.match_type'], 'exact');
+  assert.equal(resolution.attributes['pump.ai.entity.resolved'], true);
+  assert.equal(resolution.attributes['pump.ai.entity.exact_match'], true);
+  assert.match(resolution.attributes['pump.ai.entity.resolved_id_hash'], /^[a-f0-9]{24}$/);
   assert.doesNotMatch(JSON.stringify(runtime.spans), /P03B_SECRET_ENTITY_SENTINEL|918273/);
 });
 
@@ -161,9 +161,9 @@ test('real V4 broker emits routing decision without tool argument values', () =>
   assert.equal(decision.status, 'selected');
   const span = runtime.spans[0];
   assert.equal(span.name, 'pump.ai.route');
-  assert.equal(span.attributes['route.selected_tool_name'], decision.capabilityName);
-  assert.equal(span.attributes['route.read_write_classification'], 'read');
-  assert.equal(span.attributes['route.success'], true);
+  assert.equal(span.attributes['pump.ai.route.selected_tool_name'], decision.capabilityName);
+  assert.equal(span.attributes['pump.ai.route.read_write_classification'], 'read');
+  assert.equal(span.attributes['pump.ai.route.success'], true);
   assert.doesNotMatch(JSON.stringify(span), /fixture/);
 });
 
@@ -179,10 +179,10 @@ test('verification records evidence counts and normal post-tool signal', () => {
   }, () => true);
   assert.equal(result, true);
   const span = runtime.spans[0];
-  assert.equal(span.attributes['verification.decision'], true);
-  assert.equal(span.attributes['verification.required_count'], 1);
-  assert.equal(span.attributes['verification.observed_count'], 1);
-  assert.equal(span.attributes['verification.before_any_tool_execution'], false);
+  assert.equal(span.attributes['pump.ai.verification.decision'], true);
+  assert.equal(span.attributes['pump.ai.verification.required_count'], 1);
+  assert.equal(span.attributes['pump.ai.verification.observed_count'], 1);
+  assert.equal(span.attributes['pump.ai.verification.before_any_tool_execution'], false);
 });
 
 test('premature verification is observable without changing its false decision', () => {
@@ -198,9 +198,9 @@ test('premature verification is observable without changing its false decision',
   }, () => false);
   assert.equal(result, false);
   const span = runtime.spans[0];
-  assert.equal(span.attributes['verification.before_any_tool_execution'], true);
-  assert.equal(span.attributes['verification.tool_execution_count_before_verify'], 0);
-  assert.equal(span.attributes['verification.missing_count'], 1);
+  assert.equal(span.attributes['pump.ai.verification.before_any_tool_execution'], true);
+  assert.equal(span.attributes['pump.ai.verification.tool_execution_count_before_verify'], 0);
+  assert.equal(span.attributes['pump.ai.verification.missing_count'], 1);
 });
 
 test('real V4 failed_unverified transition records the pre-execution signal', () => {
@@ -211,9 +211,9 @@ test('real V4 failed_unverified transition records the pre-execution signal', ()
   assert.equal(state.status, 'failed_unverified');
   const span = runtime.spans[0];
   assert.equal(span.name, 'pump.ai.verify');
-  assert.equal(span.attributes['verification.status'], 'failed_unverified');
-  assert.equal(span.attributes['verification.before_any_tool_execution'], true);
-  assert.equal(span.attributes['verification.tool_execution_count_before_verify'], 0);
+  assert.equal(span.attributes['pump.ai.verification.status'], 'failed_unverified');
+  assert.equal(span.attributes['pump.ai.verification.before_any_tool_execution'], true);
+  assert.equal(span.attributes['pump.ai.verification.tool_execution_count_before_verify'], 0);
 });
 
 test('entity resolution wrapper preserves thrown error identity', async () => {

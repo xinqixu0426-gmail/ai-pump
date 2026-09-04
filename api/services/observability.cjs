@@ -5,6 +5,36 @@ const DEFAULT_PROJECT = 'pump-ai-v4-baseline';
 const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:6006';
 const DEFAULT_TRACE_CONTENT = 'metadata';
 const TRACE_CONTENT_MODES = new Set(['off', 'metadata', 'diagnostic']);
+const MAX_TRACE_STRING_LENGTH = 256;
+const MAX_TRACE_ARRAY_ITEMS = 20;
+const MAX_TRACE_OBJECT_KEYS = 30;
+const SAFE_CORRELATION_ID_RE = /^[a-zA-Z0-9._-]{8,128}$/;
+const OPENINFERENCE_KIND_KEY = 'openinference.span.kind';
+const STANDARD_TRACE_ATTRIBUTES = new Set([
+  'gen_ai.operation.name',
+  'gen_ai.request.model',
+  'gen_ai.provider.name',
+  'gen_ai.request.stream',
+]);
+const SAFE_CUSTOM_ATTRIBUTE_PREFIXES = ['pump.', 'pump.ai.'];
+const SENSITIVE_KEY_PARTS = new Set([
+  'authorization', 'proxyauthorization', 'cookie', 'setcookie', 'password', 'passwd',
+  'secret', 'clientsecret', 'apikey', 'accesstoken', 'refreshtoken', 'idtoken',
+  'session', 'sessionid', 'databaseurl', 'dbpassword', 'privatekey', 'accesspassword',
+  'jwtsecret', 'internalsecret', 'mcptoken', 'mcpservicetokens', 'deepseekapikey',
+  'kimiapikey', 'moonshotapikey',
+]);
+const PII_KEY_PARTS = new Set([
+  'email', 'phone', 'mobile', 'whatsapp', 'address', 'contact', 'customername',
+  'customeremail', 'customerphone', 'consignee',
+]);
+const BUSINESS_VALUE_KEY_PARTS = new Set([
+  'cost', 'price', 'inventory', 'quantity', 'bom', 'recipe', 'ordercontent',
+  'suppliercontent', 'customercontent', 'toolarguments', 'toolargumentvalue',
+  'toolresultvalue', 'entityrawvalue', 'entitynormalizedvalue', 'documenttext',
+  'prompt', 'response', 'messages', 'inputvalue', 'outputvalue', 'rawvalue',
+  'normalizedvalue', 'businessvalue', 'payload',
+]);
 const logger = createLogger('observability');
 
 const PRIVACY_TRACE_CONFIG = Object.freeze({
@@ -216,17 +246,178 @@ function safeSpanCall(operation) {
   }
 }
 
+function normalizedTraceKey(key) {
+  return String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function keyMatchesParts(key, parts) {
+  const normalized = normalizedTraceKey(key);
+  if (!normalized) return false;
+  for (const part of parts) {
+    if (normalized === part || normalized.includes(part)) return true;
+  }
+  return false;
+}
+
+function isSensitiveTraceKey(key) {
+  return keyMatchesParts(key, SENSITIVE_KEY_PARTS);
+}
+
+function isPiiTraceKey(key) {
+  return keyMatchesParts(key, PII_KEY_PARTS);
+}
+
+function isBusinessValueTraceKey(key) {
+  return keyMatchesParts(key, BUSINESS_VALUE_KEY_PARTS);
+}
+
+function sanitizeTraceValue(value) {
+  try {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'string') return value.slice(0, MAX_TRACE_STRING_LENGTH);
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'bigint') return String(value).slice(0, MAX_TRACE_STRING_LENGTH);
+    if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+    if (value instanceof Error) return safeLabel(value.name, 'Error');
+    if (Buffer.isBuffer(value)) return `[Buffer length=${value.length}]`;
+    if (Array.isArray(value)) {
+      const safeItems = [];
+      for (const item of value.slice(0, MAX_TRACE_ARRAY_ITEMS)) {
+        if (item !== null && typeof item === 'object') continue;
+        const safeItem = sanitizeTraceValue(item);
+        if (safeItem !== undefined) safeItems.push(safeItem);
+      }
+      return safeItems;
+    }
+    if (typeof value === 'object') {
+      let keyCount = 0;
+      try {
+        keyCount = Math.min(Object.keys(value).length, MAX_TRACE_OBJECT_KEYS);
+      } catch {
+        return '[Object]';
+      }
+      return `[Object keys=${keyCount}]`;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function isAllowedTraceAttribute(key, mode) {
+  if (key === OPENINFERENCE_KIND_KEY) return true;
+  if (mode === 'off') return false;
+  if (STANDARD_TRACE_ATTRIBUTES.has(key)) return true;
+  return SAFE_CUSTOM_ATTRIBUTE_PREFIXES.some(prefix => key.startsWith(prefix));
+}
+
+function sanitizeTraceAttributes(attributes, options = {}) {
+  try {
+    if (!attributes || typeof attributes !== 'object' || Array.isArray(attributes)) return {};
+    const mode = TRACE_CONTENT_MODES.has(options.mode) ? options.mode : state.traceContent;
+    const output = {};
+    for (const key of Object.keys(attributes).slice(0, MAX_TRACE_OBJECT_KEYS)) {
+      if (!isAllowedTraceAttribute(key, mode)) continue;
+      if (isSensitiveTraceKey(key) || isPiiTraceKey(key) || isBusinessValueTraceKey(key)) continue;
+      const safeValue = sanitizeTraceValue(attributes[key]);
+      if (safeValue !== undefined) output[key] = safeValue;
+    }
+    return output;
+  } catch {
+    return {};
+  }
+}
+
+function correlationAttribute(baseKey, value) {
+  try {
+    if (value === undefined || value === null || value === '') return {};
+    const candidate = String(value);
+    if (SAFE_CORRELATION_ID_RE.test(candidate)) return { [baseKey]: candidate };
+    return { [`${baseKey}_hash`]: stableIdHash(candidate) };
+  } catch {
+    return {};
+  }
+}
+
+function collectKnownIds(result, keys) {
+  const ids = [];
+  const add = value => {
+    if (value === undefined || value === null || value === '') return;
+    const candidate = String(value);
+    if (!ids.includes(candidate) && ids.length < MAX_TRACE_ARRAY_ITEMS) ids.push(candidate);
+  };
+  const inspect = value => {
+    if (!value || typeof value !== 'object') return;
+    for (const key of keys) add(value[key]);
+    if (keys.includes('auditId') && Array.isArray(value.auditIds)) {
+      for (const auditId of value.auditIds.slice(0, MAX_TRACE_ARRAY_ITEMS)) add(auditId);
+    }
+  };
+  inspect(result);
+  inspect(result?.confirmation);
+  inspect(result?.receipt);
+  inspect(result?.operation);
+  inspect(result?.executionEvidence);
+  if (Array.isArray(result?.executionEvidence?.receipts)) {
+    for (const receipt of result.executionEvidence.receipts.slice(0, MAX_TRACE_ARRAY_ITEMS)) inspect(receipt);
+  }
+  if (Array.isArray(result?.executionEvidence?.calls)) {
+    for (const call of result.executionEvidence.calls.slice(0, MAX_TRACE_ARRAY_ITEMS)) inspect(call);
+  }
+  if (keys.includes('auditId')) {
+    const auditIds = Array.isArray(result?.auditIds)
+      ? result.auditIds
+      : result?.executionEvidence?.auditIds;
+    if (Array.isArray(auditIds)) {
+      for (const id of auditIds.slice(0, MAX_TRACE_ARRAY_ITEMS)) add(id);
+    }
+  }
+  return ids;
+}
+
+function correlationIdAttributes(baseKey, values) {
+  const rawAttributes = values.map(value => correlationAttribute(baseKey, value));
+  const directValues = rawAttributes.map(attributes => attributes[baseKey]).filter(Boolean);
+  const hashes = rawAttributes.map(attributes => attributes[`${baseKey}_hash`]).filter(Boolean);
+  if (directValues.length === 1 && hashes.length === 0) return { [baseKey]: directValues[0] };
+  if (directValues.length > 0 && hashes.length === 0) {
+    return { [`${baseKey}s`]: directValues, [`${baseKey}_count`]: directValues.length };
+  }
+  if (hashes.length === 1 && directValues.length === 0) return { [`${baseKey}_hash`]: hashes[0] };
+  if (hashes.length > 0 && directValues.length === 0) {
+    return { [`${baseKey}_hashes`]: hashes, [`${baseKey}_count`]: hashes.length };
+  }
+  return {};
+}
+
 function safeLabel(value, fallback = 'unknown') {
-  const normalized = String(value || '').trim();
-  return normalized ? normalized.slice(0, 160) : fallback;
+  try {
+    const normalized = String(value || '').trim();
+    return normalized ? normalized.slice(0, 160) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeObjectKeyCount(value) {
+  try {
+    return value && typeof value === 'object' ? Object.keys(value).length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 function safeArgumentKeys(args) {
-  if (!args || typeof args !== 'object' || Array.isArray(args)) return [];
-  return Object.keys(args)
-    .filter(key => !/password|secret|token|api.?key|authorization|cookie/i.test(key))
-    .slice(0, 50)
-    .map(key => safeLabel(key));
+  try {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) return [];
+    return Object.keys(args)
+      .filter(key => !isSensitiveTraceKey(key) && !isPiiTraceKey(key))
+      .slice(0, MAX_TRACE_ARRAY_ITEMS)
+      .map(key => safeLabel(key));
+  } catch {
+    return [];
+  }
 }
 
 function openInferenceKind(kind) {
@@ -255,22 +446,27 @@ async function withObservedSpan(spec, operation) {
       attributes: {
         [phoenix?.SemanticConventions?.OPENINFERENCE_SPAN_KIND || 'openinference.span.kind']:
           openInferenceKind(spec.kind),
-        ...spec.attributes,
+        ...sanitizeTraceAttributes(spec.attributes),
       },
     }, async span => {
       operationStarted = true;
       const control = {
         update(update = {}) {
           if (update.name) safeSpanCall(() => span.updateName(safeLabel(update.name)));
-          if (update.attributes) safeSpanCall(() => span.setAttributes(update.attributes));
+          if (update.attributes) safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes(update.attributes)));
         },
       };
       try {
         operationResult = await operation(control);
         if (typeof spec.resultStatus === 'function') {
-          const resultStatus = spec.resultStatus(operationResult);
+          let resultStatus = null;
+          try {
+            resultStatus = spec.resultStatus(operationResult);
+          } catch {
+            resultStatus = null;
+          }
           if (resultStatus?.attributes) {
-            safeSpanCall(() => span.setAttributes(resultStatus.attributes));
+            safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes(resultStatus.attributes)));
           }
           safeSpanCall(() => span.setStatus({
             code: spanStatusCode(resultStatus?.error ? 'ERROR' : 'OK'),
@@ -282,7 +478,9 @@ async function withObservedSpan(spec, operation) {
         return operationResult;
       } catch (error) {
         operationError = error;
-        safeSpanCall(() => span.setAttribute('error.type', errorType(error)));
+        safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes({
+          'pump.ai.error.type': errorType(error),
+        })));
         safeSpanCall(() => span.setStatus({ code: spanStatusCode('ERROR') }));
         throw error;
       } finally {
@@ -315,21 +513,26 @@ function withObservedSpanSync(spec, operation) {
       attributes: {
         [phoenix?.SemanticConventions?.OPENINFERENCE_SPAN_KIND || 'openinference.span.kind']:
           openInferenceKind(spec.kind),
-        ...spec.attributes,
+        ...sanitizeTraceAttributes(spec.attributes),
       },
     }, span => {
       operationStarted = true;
       const control = {
         update(update = {}) {
           if (update.name) safeSpanCall(() => span.updateName(safeLabel(update.name)));
-          if (update.attributes) safeSpanCall(() => span.setAttributes(update.attributes));
+          if (update.attributes) safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes(update.attributes)));
         },
       };
       try {
         operationResult = operation(control);
         if (typeof spec.resultStatus === 'function') {
-          const resultStatus = spec.resultStatus(operationResult);
-          if (resultStatus?.attributes) safeSpanCall(() => span.setAttributes(resultStatus.attributes));
+          let resultStatus = null;
+          try {
+            resultStatus = spec.resultStatus(operationResult);
+          } catch {
+            resultStatus = null;
+          }
+          if (resultStatus?.attributes) safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes(resultStatus.attributes)));
           safeSpanCall(() => span.setStatus({
             code: spanStatusCode(resultStatus?.error ? 'ERROR' : 'OK'),
           }));
@@ -340,7 +543,9 @@ function withObservedSpanSync(spec, operation) {
         return operationResult;
       } catch (error) {
         operationError = error;
-        safeSpanCall(() => span.setAttribute('error.type', errorType(error)));
+        safeSpanCall(() => span.setAttributes(sanitizeTraceAttributes({
+          'pump.ai.error.type': errorType(error),
+        })));
         safeSpanCall(() => span.setStatus({ code: spanStatusCode('ERROR') }));
         throw error;
       } finally {
@@ -368,8 +573,12 @@ function textShape(value) {
 }
 
 function stableIdHash(value) {
-  if (value === undefined || value === null || value === '') return null;
-  return createHash('sha256').update(String(value)).digest('hex').slice(0, 24);
+  try {
+    if (value === undefined || value === null || value === '') return null;
+    return createHash('sha256').update(String(value)).digest('hex').slice(0, 24);
+  } catch {
+    return null;
+  }
 }
 
 function withEntityNormalizationSpan(metadata = {}, operation) {
@@ -378,20 +587,20 @@ function withEntityNormalizationSpan(metadata = {}, operation) {
     name: 'pump.ai.entity.normalize',
     kind: 'CHAIN',
     attributes: {
-      'entity.type': safeLabel(metadata.entityType),
-      'entity.input_length': inputShape.length,
-      'entity.input_punctuation_count': inputShape.punctuationCount,
+      'pump.ai.entity.type': safeLabel(metadata.entityType),
+      'pump.ai.entity.input_length': inputShape.length,
+      'pump.ai.entity.input_punctuation_count': inputShape.punctuationCount,
     },
     resultStatus(result) {
       const output = typeof metadata.output === 'function' ? metadata.output(result) : metadata.output;
       const outputShape = textShape(output);
       return {
         attributes: {
-          'entity.output_length': outputShape.length,
-          'entity.output_punctuation_count': outputShape.punctuationCount,
-          'entity.length_delta': outputShape.length - inputShape.length,
-          'entity.punctuation_delta': outputShape.punctuationCount - inputShape.punctuationCount,
-          'entity.changed': String(metadata.input || '') !== String(output || ''),
+          'pump.ai.entity.output_length': outputShape.length,
+          'pump.ai.entity.output_punctuation_count': outputShape.punctuationCount,
+          'pump.ai.entity.length_delta': outputShape.length - inputShape.length,
+          'pump.ai.entity.punctuation_delta': outputShape.punctuationCount - inputShape.punctuationCount,
+          'pump.ai.entity.changed': String(metadata.input || '') !== String(output || ''),
         },
       };
     },
@@ -403,7 +612,7 @@ function withEntityResolutionSpan(metadata = {}, operation) {
     name: 'pump.ai.entity.resolve',
     kind: 'CHAIN',
     attributes: {
-      'entity.type': safeLabel(metadata.entityType),
+      'pump.ai.entity.type': safeLabel(metadata.entityType),
     },
     resultStatus(result) {
       const receipt = result?.receipt || null;
@@ -415,14 +624,14 @@ function withEntityResolutionSpan(metadata = {}, operation) {
       return {
         error: status === 'system_error',
         attributes: {
-          'entity.candidate_count': Array.isArray(receipt?.candidates) ? receipt.candidates.length : 0,
-          'entity.match_type': safeLabel(receipt?.selected?.matchKind || status),
-          'entity.exact_match': status === 'exact',
-          'entity.resolved': Boolean(receipt?.selected),
-          'entity.ambiguity': status === 'ambiguous',
-          'entity.resolver_path': 'ai_entity_resolver_v3',
-          'entity.fallback_used': status === 'unique_candidate',
-          ...(selectedIdHash ? { 'entity.resolved_id_hash': selectedIdHash } : {}),
+          'pump.ai.entity.candidate_count': Array.isArray(receipt?.candidates) ? receipt.candidates.length : 0,
+          'pump.ai.entity.match_type': safeLabel(receipt?.selected?.matchKind || status),
+          'pump.ai.entity.exact_match': status === 'exact',
+          'pump.ai.entity.resolved': Boolean(receipt?.selected),
+          'pump.ai.entity.ambiguity': status === 'ambiguous',
+          'pump.ai.entity.resolver_path': 'ai_entity_resolver_v3',
+          'pump.ai.entity.fallback_used': status === 'unique_candidate',
+          ...(selectedIdHash ? { 'pump.ai.entity.resolved_id_hash': selectedIdHash } : {}),
         },
       };
     },
@@ -434,19 +643,19 @@ function withRoutingSpan(metadata = {}, operation) {
     name: 'pump.ai.route',
     kind: 'CHAIN',
     attributes: {
-      'route.available_tool_count': Number(metadata.availableToolCount) || 0,
-      'route.source': safeLabel(metadata.routeSource, 'v4_capability_broker'),
+      'pump.ai.route.available_tool_count': Number(metadata.availableToolCount) || 0,
+      'pump.ai.route.source': safeLabel(metadata.routeSource, 'v4_capability_broker'),
     },
     resultStatus(result) {
       const selected = result?.status === 'selected';
       return {
         attributes: {
-          'route.selected_tool_name': selected ? safeLabel(result.capabilityName) : 'none',
-          'route.selected_executor': selected ? safeLabel(metadata.executor) : 'none',
-          ...(metadata.domain ? { 'route.selected_domain': safeLabel(metadata.domain) } : {}),
-          'route.read_write_classification': safeLabel(metadata.access, 'read'),
-          'route.success': selected,
-          'route.decision': safeLabel(result?.status),
+          'pump.ai.route.selected_tool_name': selected ? safeLabel(result.capabilityName) : 'none',
+          'pump.ai.route.selected_executor': selected ? safeLabel(metadata.executor) : 'none',
+          ...(metadata.domain ? { 'pump.ai.route.selected_domain': safeLabel(metadata.domain) } : {}),
+          'pump.ai.route.read_write_classification': safeLabel(metadata.access, 'read'),
+          'pump.ai.route.success': selected,
+          'pump.ai.route.decision': safeLabel(result?.status),
         },
       };
     },
@@ -459,16 +668,16 @@ function verificationAttributes(metadata = {}, decision) {
     ? Boolean(decision)
     : Boolean(metadata.decision);
   return {
-    'verification.decision': effectiveDecision,
-    'verification.status': safeLabel(metadata.status || (effectiveDecision ? 'verified' : 'unverified')),
-    'verification.required_count': Math.max(0, Number(metadata.requiredCount) || 0),
-    'verification.observed_count': Math.max(0, Number(metadata.observedCount) || 0),
-    'verification.missing_count': Math.max(0, Number(metadata.missingCount) || 0),
-    'verification.early_exit': Boolean(metadata.earlyExit),
-    'verification.tool_execution_count_before_verify': toolExecutionCount,
-    'verification.before_any_tool_execution': toolExecutionCount === 0,
+    'pump.ai.verification.decision': effectiveDecision,
+    'pump.ai.verification.status': safeLabel(metadata.status || (effectiveDecision ? 'verified' : 'unverified')),
+    'pump.ai.verification.required_count': Math.max(0, Number(metadata.requiredCount) || 0),
+    'pump.ai.verification.observed_count': Math.max(0, Number(metadata.observedCount) || 0),
+    'pump.ai.verification.missing_count': Math.max(0, Number(metadata.missingCount) || 0),
+    'pump.ai.verification.early_exit': Boolean(metadata.earlyExit),
+    'pump.ai.verification.tool_execution_count_before_verify': toolExecutionCount,
+    'pump.ai.verification.before_any_tool_execution': toolExecutionCount === 0,
     ...(metadata.llmCallCount === undefined ? {} : {
-      'verification.llm_call_count_before_verify': Math.max(0, Number(metadata.llmCallCount) || 0),
+      'pump.ai.verification.llm_call_count_before_verify': Math.max(0, Number(metadata.llmCallCount) || 0),
     }),
   };
 }
@@ -490,9 +699,10 @@ function withAgentSpan(metadata = {}, operation) {
     kind: 'AGENT',
     attributes: {
       'gen_ai.operation.name': 'invoke_agent',
-      'assistant.runtime': 'pump_factory_assistant',
-      'assistant.streaming': Boolean(metadata.streaming),
-      ...(metadata.route ? { 'assistant.route': safeLabel(metadata.route) } : {}),
+      'pump.ai.assistant.runtime': 'pump_factory_assistant',
+      'pump.ai.assistant.streaming': Boolean(metadata.streaming),
+      ...(metadata.route ? { 'pump.ai.assistant.route': safeLabel(metadata.route) } : {}),
+      ...correlationAttribute('pump.request.id', metadata.requestId),
     },
   }, operation);
 }
@@ -506,8 +716,8 @@ function withModelSpan(metadata = {}, operation) {
       'gen_ai.operation.name': 'chat',
       'gen_ai.request.model': model,
       'gen_ai.provider.name': safeLabel(metadata.provider),
-      'gen_ai.request.streaming': Boolean(metadata.streaming),
-      'gen_ai.tool.definitions.count': Number(metadata.toolDefinitionCount) || 0,
+      'gen_ai.request.stream': Boolean(metadata.streaming),
+      'pump.ai.llm.tool_definition_count': Number(metadata.toolDefinitionCount) || 0,
     },
   }, operation);
 }
@@ -540,25 +750,33 @@ function traceModelProvider(providerFunction) {
 function withToolSpan(metadata = {}, operation) {
   const toolName = safeLabel(metadata.toolName);
   const argumentKeys = safeArgumentKeys(metadata.args);
+  const initialOperationIds = metadata.operationId ? [metadata.operationId] : [];
   return withObservedSpan({
     name: `execute_tool ${toolName}`,
     kind: 'TOOL',
     attributes: {
-      'tool.name': toolName,
-      'tool.executor.type': safeLabel(metadata.executorType),
-      'tool.access': safeLabel(metadata.access),
-      'tool.argument.key_count': metadata.args && typeof metadata.args === 'object'
-        ? Object.keys(metadata.args).length
-        : 0,
-      ...(argumentKeys.length ? { 'tool.argument.keys': argumentKeys } : {}),
+      'pump.ai.tool.name': toolName,
+      'pump.ai.tool.executor.type': safeLabel(metadata.executorType),
+      'pump.ai.tool.access': safeLabel(metadata.access),
+      ...(metadata.capability ? { 'pump.capability': safeLabel(metadata.capability) } : {}),
+      'pump.ai.tool.argument.key_count': safeObjectKeyCount(metadata.args),
+      ...(argumentKeys.length ? { 'pump.ai.tool.argument.keys': argumentKeys } : {}),
+      ...correlationIdAttributes('pump.operation.id', initialOperationIds),
     },
     resultStatus(result) {
       const failed = result?.success === false;
+      const operationIds = collectKnownIds(result, ['operationId', 'formalOperationId']);
+      for (const id of initialOperationIds) {
+        if (!operationIds.includes(String(id))) operationIds.unshift(String(id));
+      }
+      const auditIds = collectKnownIds(result, ['auditId']);
       return {
         error: failed,
         attributes: {
-          'tool.execution.status': failed ? 'error' : 'success',
-          'tool.result.type': Array.isArray(result) ? 'array' : typeof result,
+          'pump.ai.tool.execution.status': failed ? 'error' : 'success',
+          'pump.ai.tool.result.type': Array.isArray(result) ? 'array' : typeof result,
+          ...correlationIdAttributes('pump.operation.id', operationIds),
+          ...correlationIdAttributes('pump.audit.id', auditIds),
         },
       };
     },
@@ -569,11 +787,11 @@ function emitSyntheticSmokeSpan() {
   if (!provider || state.status !== 'enabled') return null;
   const tracer = provider.getTracer('pump-ai-observability-p02');
   const span = tracer.startSpan('pump.observability.smoke', {
-    attributes: {
-      'test.synthetic': true,
-      phase: 'P02',
-      'project.identifier': state.project,
-    },
+    attributes: sanitizeTraceAttributes({
+      'pump.observability.synthetic': true,
+      'pump.observability.phase': 'P02',
+      'pump.observability.project': state.project,
+    }),
   });
   const context = span.spanContext();
   span.end();
@@ -596,14 +814,20 @@ module.exports = {
   DEFAULT_COLLECTOR_ENDPOINT,
   DEFAULT_PROJECT,
   DEFAULT_TRACE_CONTENT,
+  MAX_TRACE_ARRAY_ITEMS,
+  MAX_TRACE_OBJECT_KEYS,
+  MAX_TRACE_STRING_LENGTH,
   PRIVACY_TRACE_CONFIG,
   emitSyntheticSmokeSpan,
   getObservabilityState,
   initializeObservability,
+  isSensitiveTraceKey,
   readObservabilityConfig,
   resetObservabilityForTesting,
   safeForceFlush,
   safeShutdown,
+  sanitizeTraceAttributes,
+  sanitizeTraceValue,
   traceModelProvider,
   textShape,
   withAgentSpan,

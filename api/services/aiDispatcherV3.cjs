@@ -11,6 +11,7 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
     return withAgentSpan({
         streaming: Boolean(input.stream),
         route: 'ai_dispatcher_v3',
+        requestId: input.requestId,
     }, () => runtime({
         ...input,
         fetchAiProvider: provider,

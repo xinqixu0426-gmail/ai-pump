@@ -106,7 +106,7 @@ test('agent failure closes error span and preserves original error', async () =>
     error => error === original
   );
   assert.equal(runtime.spans[0].status.code, 2);
-  assert.equal(runtime.spans[0].attributes['error.type'], 'TypeError');
+  assert.equal(runtime.spans[0].attributes['pump.ai.error.type'], 'TypeError');
   assert.equal(runtime.spans[0].ended, true);
   assert.doesNotMatch(JSON.stringify(runtime.spans[0]), /private failure detail/);
 });
@@ -151,7 +151,7 @@ test('model failure closes error child and preserves original error', async () =
     error => error === original
   );
   assert.equal(runtime.spans[1].status.code, 2);
-  assert.equal(runtime.spans[1].attributes['error.type'], 'RangeError');
+  assert.equal(runtime.spans[1].attributes['pump.ai.error.type'], 'RangeError');
   assert.doesNotMatch(JSON.stringify(runtime.spans[1]), /model payload detail/);
 });
 
