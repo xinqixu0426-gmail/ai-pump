@@ -1,0 +1,926 @@
+{
+  "schema_version": 1,
+  "frozen_p15_commit": "009b50547a1c3d690b7b01f86545b49183959dcd",
+  "cases": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint_group": "INPUT_01",
+      "runtime_variant": "LEGACY",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint_group": "INPUT_01",
+      "runtime_variant": "V4I",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint_group": "INPUT_01",
+      "runtime_variant": "V4R3",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "capability": "coil.read",
+        "tool": "search_coils"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint_group": "INPUT_02",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "INVALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [
+          "cost_context"
+        ],
+        "anchor_statuses": [
+          "INVALID_ENTITY_REFERENCE"
+        ],
+        "capability": null,
+        "exposed_tools": []
+      },
+      "v4_actual_tools": [
+        "preview_recipe_cost",
+        "get_all_recipes"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "ALTERED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "PROMPT_FAILURE",
+      "secondary_root_causes": [
+        "MODEL_NONCOMPLIANCE",
+        "DOMAIN_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INVALID_ENTITY_REFERENCE",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint_group": "INPUT_02",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "INVALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [
+          "cost_context"
+        ],
+        "anchor_statuses": [
+          "INVALID_ENTITY_REFERENCE"
+        ],
+        "capability": null,
+        "exposed_tools": []
+      },
+      "v4_actual_tools": [
+        "preview_recipe_cost",
+        "get_all_recipes"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "ALTERED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "PROMPT_FAILURE",
+      "secondary_root_causes": [
+        "MODEL_NONCOMPLIANCE",
+        "DOMAIN_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INVALID_ENTITY_REFERENCE",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint_group": "INPUT_02",
+      "runtime_variant": "V4R3",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "recipe",
+        "operation": "preview_cost",
+        "entity_types": [
+          "recipe"
+        ],
+        "capability": "recipe.cost.preview",
+        "tool": "preview_recipe_cost"
+      },
+      "actual": {
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [],
+        "anchor_statuses": [],
+        "capability": null,
+        "exposed_tools": []
+      },
+      "v4_actual_tools": [
+        "preview_recipe_cost",
+        "search_parts",
+        "search_coils",
+        "search_templates",
+        "get_all_recipes"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "NOT_PROVIDED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "PROMPT_FAILURE",
+      "secondary_root_causes": [
+        "DOMAIN_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_NEEDS_CLARIFICATION",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint_group": "INPUT_03",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [
+          "cost_context"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "cost.calculate",
+        "exposed_tools": [
+          "full_calculate",
+          "dynamic_config_cost"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_parts"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "DOMAIN_TAXONOMY_FAILURE",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint_group": "INPUT_03",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "cost",
+        "operation": "calculate",
+        "entity_types": [
+          "cost_context"
+        ],
+        "anchor_statuses": [],
+        "capability": null,
+        "exposed_tools": []
+      },
+      "v4_actual_tools": [
+        "search_parts",
+        "search_coils",
+        "search_templates"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "NOT_EVALUATED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "DOMAIN_TAXONOMY_FAILURE",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_NEEDS_CLARIFICATION",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint_group": "INPUT_03",
+      "runtime_variant": "V4R3",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [],
+        "capability": null,
+        "exposed_tools": []
+      },
+      "v4_actual_tools": [
+        "search_parts"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": false,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "NOT_EVALUATED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "DOMAIN_TAXONOMY_FAILURE",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_NEEDS_CLARIFICATION",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "LEGACY",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "inventory.read",
+        "exposed_tools": [
+          "search_parts"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_parts"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": false
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "INSUFFICIENT_CONTEXT",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE",
+        "ENTITY_TYPE_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "V4R3",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_parts"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "INSUFFICIENT_CONTEXT",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE",
+        "ENTITY_TYPE_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "LEGACY",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "coil",
+        "operation": "read",
+        "entity_types": [
+          "coil"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "coil.read",
+        "exposed_tools": [
+          "get_coil_specs",
+          "search_coils"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": false,
+        "operation": false,
+        "entity_type": false,
+        "anchor": true,
+        "capability": false,
+        "expected_tool_exposed": false,
+        "wrong_tool_excluded": false
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "MODEL_OUTPUT_DOMAIN",
+      "primary_root_cause": "INSUFFICIENT_CONTEXT",
+      "secondary_root_causes": [
+        "PROMPT_FAILURE",
+        "ENTITY_TYPE_TAXONOMY_FAILURE"
+      ],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "V4I",
+      "v4_result": "FAIL",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "inventory.read",
+        "exposed_tools": [
+          "search_parts"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_coils"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint_group": "INPUT_04",
+      "runtime_variant": "V4R3",
+      "v4_result": "PASS",
+      "p15_interpreter_status": "VALID",
+      "expected": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "capability": "inventory.read",
+        "tool": "search_parts"
+      },
+      "actual": {
+        "domain": "catalog",
+        "operation": "read_inventory",
+        "entity_types": [
+          "part"
+        ],
+        "anchor_statuses": [
+          "ANCHORED"
+        ],
+        "capability": "inventory.read",
+        "exposed_tools": [
+          "search_parts"
+        ]
+      },
+      "v4_actual_tools": [
+        "search_parts"
+      ],
+      "match_statuses": {
+        "domain": true,
+        "operation": true,
+        "entity_type": true,
+        "anchor": true,
+        "capability": true,
+        "expected_tool_exposed": true,
+        "wrong_tool_excluded": true
+      },
+      "candidate_preservation": "PRESERVED",
+      "first_interpreter_divergence": "NONE",
+      "primary_root_cause": "NONE",
+      "secondary_root_causes": [],
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ]
+    }
+  ],
+  "metrics": {
+    "cases_audited": 15,
+    "source_case_groups": 5,
+    "distinct_input_fingerprint_groups": 4,
+    "path_accuracy": {
+      "domain": 0.4,
+      "operation": 0.4,
+      "entity_type": 0.4,
+      "anchor": 0.6666666666666666,
+      "capability": 0.4,
+      "expected_tool_exposure": 0.4
+    },
+    "strict_source_group_accuracy": {
+      "domain": {
+        "correct": 1,
+        "total": 5,
+        "rate": 0.2
+      },
+      "operation": {
+        "correct": 1,
+        "total": 5,
+        "rate": 0.2
+      },
+      "entity_type": {
+        "correct": 1,
+        "total": 5,
+        "rate": 0.2
+      },
+      "anchor": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "capability": {
+        "correct": 1,
+        "total": 5,
+        "rate": 0.2
+      },
+      "expected_tool_exposure": {
+        "correct": 1,
+        "total": 5,
+        "rate": 0.2
+      }
+    },
+    "valid_but_wrong_count": 7,
+    "invalid_output_count": 2,
+    "model_noncompliance_count": 2,
+    "primary_root_causes": {
+      "PROMPT_FAILURE": 3,
+      "DOMAIN_TAXONOMY_FAILURE": 3,
+      "INSUFFICIENT_CONTEXT": 3
+    },
+    "confusion_matrices": {
+      "domain": {
+        "recipe->cost": 3,
+        "catalog->cost": 2,
+        "catalog->coil": 4
+      },
+      "operation": {
+        "preview_cost->calculate": 3,
+        "read_inventory->calculate": 2,
+        "read_inventory->read": 4
+      },
+      "entity_type": {
+        "recipe->cost_context": 2,
+        "recipe->NOT_AVAILABLE": 1,
+        "part->cost_context": 2,
+        "part->coil": 4
+      }
+    },
+    "correct_tuple_router_failures": 0,
+    "correct_capability_exposure_failures": 0,
+    "observed_consistency": {
+      "COIL_INVENTORY": {
+        "consistent": true,
+        "distinct_structured_outputs": 1
+      },
+      "EXACT_RECIPE_COST": {
+        "consistent": false,
+        "distinct_structured_outputs": 2
+      },
+      "FLAT_BLADE_PRICE": {
+        "consistent": false,
+        "distinct_structured_outputs": 3
+      },
+      "PART_INVENTORY_PRIMARY": {
+        "consistent": false,
+        "distinct_structured_outputs": 2
+      },
+      "PART_INVENTORY_REPEAT": {
+        "consistent": false,
+        "distinct_structured_outputs": 2
+      }
+    }
+  }
+}
