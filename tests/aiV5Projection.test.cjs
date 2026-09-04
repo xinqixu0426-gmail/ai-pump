@@ -100,7 +100,7 @@ test('P06 R02 is explicitly out of scope and no routing decision is introduced',
     assert.equal(analyses.every(item => item.wouldBeBlocked === 'UNKNOWN'), true);
 });
 
-test('V5 production import is limited to the P13 dispatcher mirror hook with no execution dependency', () => {
+test('V5 production import remains limited to the shadow hook and the P15 interpreter model boundary', () => {
     const apiRoot = path.resolve(__dirname, '..', 'api');
     const v5Root = path.join(apiRoot, 'services', 'ai-v5');
     const sourceFiles = [];
@@ -134,7 +134,11 @@ test('V5 production import is limited to the P13 dispatcher mirror hook with no 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, []);
+    assert.deepEqual(forbiddenV5Imports, ['taskInterpreter.cjs']);
+    const interpreter = fs.readFileSync(path.join(v5Root, 'taskInterpreter.cjs'), 'utf8');
+    assert.match(interpreter, /fetchProviderWithRetry/);
+    assert.match(interpreter, /maxAttempts:\s*1/);
+    assert.doesNotMatch(interpreter, /(?:executor|internalApiClient|db\.cjs)/i);
     const observabilityImporters = fs.readdirSync(v5Root)
         .filter(name => name.endsWith('.cjs'))
         .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(

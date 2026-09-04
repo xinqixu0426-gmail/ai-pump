@@ -4,7 +4,10 @@ const { createLogger } = require('../../logger.cjs');
 const { getV5Capability, buildToolCapabilityReverseIndex } = require('./capabilityRegistry.cjs');
 const { projectSafeV4Facts } = require('./shadowProjection.cjs');
 const { compareV4ActualToV5Shadow } = require('./shadowComparison.cjs');
+const { runV5IndependentShadow } = require('./independentShadow.cjs');
+const { DEFAULT_V5_INTERPRETER_TIMEOUT_MS } = require('./taskInterpreter.cjs');
 const {
+    withModelSpan,
     withV5ShadowComparisonSpan,
     withV5ShadowProjectionSpan,
     withV5ShadowSpan,
@@ -14,7 +17,7 @@ const DEFAULT_V5_SHADOW_ENABLED = false;
 const DEFAULT_V5_SHADOW_SAMPLE_RATE = 0;
 const DEFAULT_V5_SHADOW_MAX_CONCURRENCY = 4;
 const DEFAULT_V5_SHADOW_TIMEOUT_MS = 100;
-const SHADOW_PROJECT = 'pump-ai-v5e3-shadow';
+const SHADOW_PROJECT = 'pump-ai-v5e4-independent-shadow';
 const logger = createLogger('ai-v5-shadow');
 
 function freeze(value) {
@@ -36,7 +39,17 @@ function readV5ShadowConfig(env = process.env, options = {}) {
     const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
         ? Math.trunc(options.timeoutMs)
         : DEFAULT_V5_SHADOW_TIMEOUT_MS;
-    return freeze({ enabled, sampleRate, maxConcurrency, timeoutMs, project: SHADOW_PROJECT });
+    const configuredInterpreterTimeout = Number(env.AI_V5_INTERPRETER_TIMEOUT_MS);
+    const interpreterTimeoutMs = Number.isFinite(options.interpreterTimeoutMs)
+        && options.interpreterTimeoutMs > 0
+        ? Math.trunc(options.interpreterTimeoutMs)
+        : Number.isFinite(configuredInterpreterTimeout)
+            && configuredInterpreterTimeout >= 1000 && configuredInterpreterTimeout <= 60_000
+            ? Math.trunc(configuredInterpreterTimeout)
+            : DEFAULT_V5_INTERPRETER_TIMEOUT_MS;
+    return freeze({
+        enabled, sampleRate, maxConcurrency, timeoutMs, interpreterTimeoutMs, project: SHADOW_PROJECT,
+    });
 }
 
 function classifyEligibility(facts) {
@@ -78,7 +91,7 @@ function safeErrorOutcome(facts, reasonCode) {
     });
 }
 
-function assembleOutcome(facts, projection, comparison) {
+function assembleOutcome(facts, projection, comparison, independentShadow = null) {
     return freeze({
         shadowTaskId: facts.shadowTaskId,
         sourceRequestId: facts.sourceRequestId,
@@ -102,6 +115,7 @@ function assembleOutcome(facts, projection, comparison) {
         policyComparison: comparison.policyComparison,
         verificationComparison: comparison.verificationComparison,
         comparisonStatus: comparison.comparisonStatus,
+        independentShadow,
         reasonCodes: [...new Set([...projection.reasonCodes, ...comparison.reasonCodes])],
     });
 }
@@ -112,6 +126,7 @@ function createV5ShadowMirror(options = {}) {
     const schedule = typeof options.schedule === 'function' ? options.schedule : setImmediate;
     const project = options.project || projectSafeV4Facts;
     const compare = options.compare || compareV4ActualToV5Shadow;
+    const runIndependent = options.runIndependent || runV5IndependentShadow;
     const onOutcome = typeof options.onOutcome === 'function' ? options.onOutcome : () => {};
     const active = new Set();
     const counters = {
@@ -132,7 +147,7 @@ function createV5ShadowMirror(options = {}) {
         return freeze({ ...counters, active: active.size });
     }
 
-    function mirror(facts) {
+    function mirror(facts, runtimeOptions = {}) {
         if (!config.enabled) return freeze({ shadowStatus: 'DISABLED', completion: null });
         const eligibility = classifyEligibility(facts);
         if (!eligibility.eligible) {
@@ -158,16 +173,32 @@ function createV5ShadowMirror(options = {}) {
             const execution = Promise.resolve().then(() => withV5ShadowSpan(facts, async () => {
                 const projection = await withV5ShadowProjectionSpan(facts, () => project(facts));
                 const comparison = await withV5ShadowComparisonSpan(facts, () => compare(projection));
-                return assembleOutcome(facts, projection, comparison);
+                const independentShadow = typeof runtimeOptions.sourceRequest === 'string'
+                    ? await runIndependent({
+                        sourceRequest: runtimeOptions.sourceRequest,
+                        shadowTaskId: facts.shadowTaskId,
+                    }, {
+                        env: runtimeOptions.env || options.env || process.env,
+                        modelRequest: runtimeOptions.interpreterModelRequest,
+                        timeoutMs: config.interpreterTimeoutMs,
+                        observeModelCall: (metadata, operation) => withModelSpan(metadata, operation),
+                    })
+                    : null;
+                counters.v5ModelCalls += Math.max(0, Number(independentShadow?.modelCalls) || 0);
+                return assembleOutcome(facts, projection, comparison, independentShadow);
             }));
+            const executionTimeoutMs = typeof runtimeOptions.sourceRequest === 'string'
+                ? config.interpreterTimeoutMs + Math.max(config.timeoutMs, 100)
+                : config.timeoutMs;
             const timeoutResult = new Promise(resolve => {
-                timeout = setTimeout(() => resolve(safeErrorOutcome(facts, 'SHADOW_TIMEOUT')), config.timeoutMs);
+                timeout = setTimeout(() => resolve(safeErrorOutcome(facts, 'SHADOW_TIMEOUT')), executionTimeoutMs);
                 timeout.unref?.();
             });
             Promise.race([execution, timeoutResult]).then(outcome => {
                 if (outcome.reasonCodes.includes('SHADOW_TIMEOUT')) counters.shadowTimeouts += 1;
                 if (outcome.comparisonStatus === 'SHADOW_ERROR') counters.shadowErrors += 1;
                 try { onOutcome(outcome); } catch { /* Observer cannot affect shadow. */ }
+                try { runtimeOptions.onOutcome?.(outcome); } catch { /* Observer cannot affect shadow. */ }
                 clearTimeout(timeout);
                 active.delete(completion);
                 resolveCompletion(outcome);
@@ -175,6 +206,7 @@ function createV5ShadowMirror(options = {}) {
                 counters.shadowErrors += 1;
                 const outcome = safeErrorOutcome(facts, 'SHADOW_INTERNAL_ERROR');
                 try { onOutcome(outcome); } catch { /* Observer cannot affect shadow. */ }
+                try { runtimeOptions.onOutcome?.(outcome); } catch { /* Observer cannot affect shadow. */ }
                 clearTimeout(timeout);
                 active.delete(completion);
                 resolveCompletion(outcome);
@@ -203,12 +235,12 @@ let productionConfigKey = null;
 function scheduleV5ShadowMirror(facts, options = {}) {
     try {
         const env = options.env || process.env;
-        const key = `${env.AI_V5_SHADOW_ENABLED || ''}:${env.AI_V5_SHADOW_SAMPLE_RATE || ''}`;
+        const key = `${env.AI_V5_SHADOW_ENABLED || ''}:${env.AI_V5_SHADOW_SAMPLE_RATE || ''}:${env.AI_V5_INTERPRETER_TIMEOUT_MS || ''}`;
         if (!productionMirror || key !== productionConfigKey) {
             productionMirror = createV5ShadowMirror({ env, logger: options.logger });
             productionConfigKey = key;
         }
-        return productionMirror.mirror(facts);
+        return productionMirror.mirror(facts, options);
     } catch (error) {
         try {
             (options.logger || logger).warn('V5 shadow 调度失败，V4 继续', {

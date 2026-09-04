@@ -851,6 +851,10 @@ function withModelSpan(metadata = {}, operation) {
       'gen_ai.provider.name': safeLabel(metadata.provider),
       'gen_ai.request.stream': Boolean(metadata.streaming),
       'pump.ai.llm.tool_definition_count': Number(metadata.toolDefinitionCount) || 0,
+      ...(metadata.shadowTaskId ? {
+        'pump.ai.v5.shadow_task_id': safeLabel(metadata.shadowTaskId),
+        'pump.ai.v5.interpreter.version': 1,
+      } : {}),
     },
   }, operation);
 }

@@ -99,7 +99,7 @@ function fakeRes() {
 test('shadow flags default disabled/rate zero and accept only exact true plus bounded rate', () => {
     assert.deepEqual(readV5ShadowConfig({}), {
         enabled: false, sampleRate: 0, maxConcurrency: 4, timeoutMs: 100,
-        project: 'pump-ai-v5e3-shadow',
+        interpreterTimeoutMs: 20000, project: 'pump-ai-v5e4-independent-shadow',
     });
     assert.equal(readV5ShadowConfig({ AI_V5_SHADOW_ENABLED: '1', AI_V5_SHADOW_SAMPLE_RATE: '1.1' }).enabled, false);
     assert.equal(readV5ShadowConfig({ AI_V5_SHADOW_ENABLED: 'true', AI_V5_SHADOW_SAMPLE_RATE: 'banana' }).sampleRate, 0);
