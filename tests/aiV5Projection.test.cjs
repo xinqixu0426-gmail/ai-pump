@@ -162,7 +162,7 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
     // P16-B2R admits metadata-only answer spans; no new data/Tool import.
-    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readAnswerComposer.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
+    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readAnswerComposer.cjs', 'readAuthorityMux.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
     const canary = fs.readFileSync(path.join(v5Root, 'readCanary.cjs'), 'utf8');
     assert.doesNotMatch(canary, /(?:db\.cjs|routes\/ai\/executor|routes\/ai\/internalApiClient|\ballowWrite:\s*true)/);
     const deliveryConsumers = fs.readdirSync(v5Root).filter(name => name !== 'readAnswerComposer.cjs')

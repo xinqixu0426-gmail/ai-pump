@@ -38,4 +38,4 @@ Performance uses the A3C external fixed-slot keep-alive client, warmup 24/measur
 
 ## Boundaries
 
-P16-B2A resolved the prior handoff blocker. No Evidence/Verification semantics are changed; historical datasets cannot supply runtime values. Production answer replacement remains absent. Only the explicitly authorized P16-C controlled preview can deliver validated body text; ordinary shadow callers remain metadata-only. Historical P16-B2R certification remains frozen and does not certify the new delivery surface; P16-C has its own report and tests.
+P16-B2A resolved the prior handoff blocker. No Evidence/Verification semantics are changed; historical datasets cannot supply runtime values. Ordinary shadow callers remain metadata-only. P16-C delivers supplementary preview only. P16-D reuses the same validated-body sink behind additional independent authority gates to select an explicit internal request's normal final response; see [authority contract](v5-read-authority-v1.md). Preview headers never grant authority. Historical P16-B2R certification remains frozen; each delivery stage has its own report and tests. No global production replacement is enabled.

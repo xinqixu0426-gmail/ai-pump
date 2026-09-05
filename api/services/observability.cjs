@@ -884,6 +884,20 @@ function recordReadCanaryGate(metadata = {}) {
     'pump.ai.v5.canary.validation_pass': false, 'pump.ai.v5.canary.exposed': false,
   } }, () => null));
 }
+function recordReadAuthority(metadata = {}) {
+  return withAgentSpan({ route: 'v5_authority_selection' }, () => withObservedSpanSync({
+    name: 'pump.ai.v5.authority-selection', kind: 'CHAIN', attributes: {
+      'pump.ai.v5.authority.requested': metadata.requested === true,
+      'pump.ai.v5.authority.preview_requested': metadata.previewRequested === true,
+      'pump.ai.v5.authority.attempted': metadata.attempted === true,
+      'pump.ai.v5.authority.eligible': metadata.eligible === true,
+      'pump.ai.v5.authority.validation_pass': metadata.validationPass === true,
+      'pump.ai.v5.authority.fallback': metadata.fallback === true,
+      'pump.ai.v5.authority.final_source': metadata.finalSource === 'v5-authoritative-canary' ? 'v5-authoritative-canary' : 'legacy/current',
+      'pump.ai.v5.authority.failure_class': safeLabel(metadata.failureClass, 'AUTHORITY_INTERNAL_ERROR'),
+    },
+  }, () => null));
+}
 function withReadCanarySpan(metadata, operation) {
   return withObservedSpan({ name: 'pump.ai.v5.read-canary', kind: 'CHAIN', attributes: {
     'pump.ai.v5.canary.global_enabled': metadata.globalEnabled === true,
@@ -1018,6 +1032,7 @@ async function resetObservabilityForTesting() {
 }
 
 module.exports = {
+  recordReadAuthority,
   recordReadCanaryGate,
   withReadCanarySpan,
   withReadAnswerSpan,
