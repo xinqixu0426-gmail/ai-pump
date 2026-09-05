@@ -5,12 +5,15 @@ const { test } = require('node:test');
 const {
     evaluateIndependentShadow,
     extractSourceUserRequest,
-    runV5IndependentShadow,
+    runV5IndependentShadow: runCurrentShadow,
 } = require('../api/services/ai-v5/independentShadow.cjs');
 const { createV5ShadowMirror } = require('../api/services/ai-v5/shadowMirror.cjs');
 const { captureSafeV4ShadowFacts } = require('../api/services/ai-v5/shadowProjection.cjs');
 const { V5_TASK_CLASS_CATALOG } = require('../api/services/ai-v5/taskClassCatalog.cjs');
 const { createV5SourceSpanCatalog } = require('../api/services/ai-v5/sourceSpanCatalog.cjs');
+const { interpretV5Task } = require('../api/services/ai-v5/taskInterpreter.cjs');
+// Historical Protocol V2 fixtures remain an explicit baseline, not the V3 default.
+const runV5IndependentShadow = (input, options) => runCurrentShadow(input, { ...options, interpret: interpretV5Task });
 
 function response(value) {
     return async () => ({
@@ -109,6 +112,7 @@ test('mirror uses the existing capacity boundary and records exactly one interpr
         env: { AI_V5_SHADOW_ENABLED: 'true', AI_V5_SHADOW_SAMPLE_RATE: '1' },
         random: () => 0,
         interpreterTimeoutMs: 1000,
+        runIndependent: runV5IndependentShadow,
     });
     const scheduled = mirror.mirror(mirrorFacts(), {
         sourceRequest: '请查询800平刀当前库存',
@@ -128,6 +132,7 @@ test('ten concurrent independent requests remain isolated with zero content pers
         env: { AI_V5_SHADOW_ENABLED: 'true', AI_V5_SHADOW_SAMPLE_RATE: '1' },
         random: () => 0,
         maxConcurrency: 10,
+        runIndependent: runV5IndependentShadow,
         interpreterTimeoutMs: 1000,
         onOutcome: item => outcomes.push(item),
     });

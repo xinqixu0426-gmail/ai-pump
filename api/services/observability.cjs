@@ -840,6 +840,27 @@ function withV5ShadowComparisonSpan(metadata = {}, operation) {
   }, operation);
 }
 
+function withV5InterpreterStage(stage, metadata = {}, operation) {
+  const stages = ['span-selection', 'governed-lookup', 'local-task-class-build', 'local-intent', 'entity-finalization', 'capability-route', 'shadow-comparison'];
+  if (!stages.includes(stage)) throw new TypeError('Unknown V5 interpreter stage');
+  return withObservedSpan({
+    name: `pump.ai.v5.${stage}`,
+    kind: stage === 'span-selection' || stage === 'local-intent' ? 'LLM' : 'CHAIN',
+    attributes: {
+      ...shadowCorrelationAttributes(metadata),
+      'pump.ai.v5.architecture_version': 3,
+    },
+    resultStatus(result) {
+      return { error: result?.status === 'ERROR' || result?.status === 'TIMEOUT', attributes: {
+        'pump.ai.v5.stage.status': safeLabel(result?.status),
+        'pump.ai.v5.stage.candidate_count': Number(result?.candidateCount || 0),
+        'pump.ai.v5.stage.candidate_type_count': Number(result?.candidateTypeCount || 0),
+        'pump.ai.v5.stage.local_class_count': Array.isArray(result) ? result.length : 0,
+      } };
+    },
+  }, operation);
+}
+
 function withModelSpan(metadata = {}, operation) {
   const model = safeLabel(metadata.model);
   return withObservedSpan({
@@ -982,6 +1003,7 @@ module.exports = {
   withEntityNormalizationSpan,
   withEntityResolutionSpan,
   withModelSpan,
+  withV5InterpreterStage,
   withRoutingSpan,
   withToolSpan,
   withV5ShadowComparisonSpan,

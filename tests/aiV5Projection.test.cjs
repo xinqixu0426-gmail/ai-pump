@@ -134,7 +134,7 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['taskInterpreter.cjs', 'typeIndependentEntityResolver.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['candidateSet.cjs', 'taskInterpreter.cjs', 'typeIndependentEntityResolver.cjs']);
     const interpreter = fs.readFileSync(path.join(v5Root, 'taskInterpreter.cjs'), 'utf8');
     assert.match(interpreter, /fetchProviderWithRetry/);
     assert.match(interpreter, /maxAttempts:\s*1/);
@@ -147,5 +147,5 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
         .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
-    assert.deepEqual(observabilityImporters, ['shadowMirror.cjs']);
+    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'shadowMirror.cjs']);
 });

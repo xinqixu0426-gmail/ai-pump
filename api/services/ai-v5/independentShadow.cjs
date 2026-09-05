@@ -6,7 +6,7 @@ const { routeV5Capability } = require('./capabilityRouter.cjs');
 const { getV5ToolExposure } = require('./toolExposure.cjs');
 const { buildToolCapabilityReverseIndex, getV5Capability } = require('./capabilityRegistry.cjs');
 const { anchorInterpretationEntities } = require('./sourceAnchoredEntity.cjs');
-const { interpretV5Task } = require('./taskInterpreter.cjs');
+const { interpretCandidateSetTask } = require('./candidateSetTwoStageInterpreter.cjs');
 const {
     createV5InterpreterInputEnvelope,
     validateV5InterpreterInputEnvelope,
@@ -56,14 +56,15 @@ function baseOutcome(input, interpretationResult, overrides = {}) {
         toolCount: 0,
         executionAllowed: false,
         v5ToolCalls: 0,
-        v5BusinessApiCalls: 0,
+        v5BusinessApiCalls: interpretationResult.architectureMetadata?.businessApiCalls || 0,
+        architectureMetadata: interpretationResult.architectureMetadata || null,
         v5Writes: 0,
         reasonCodes: [interpretationResult.reasonCode],
         ...overrides,
     });
 }
 
-function createRoutingTask(input, interpretation, anchors, now) {
+function createRoutingTask(input, interpretation, anchors, now, resolvedIdentity = null) {
     let task = createV5Task({
         taskId: input.shadowTaskId,
         createdAt: now,
@@ -73,7 +74,7 @@ function createRoutingTask(input, interpretation, anchors, now) {
             entityType: anchor.entityType,
             rawMention: anchor.rawMention,
             normalizedMention: null,
-            canonicalEntityId: null,
+            canonicalEntityId: resolvedIdentity?.entityType === anchor.entityType ? resolvedIdentity.canonicalId : null,
             resolutionReceiptRef: null,
             aliasSource: null,
         })),
@@ -118,13 +119,17 @@ async function runV5IndependentShadow(input = {}, options = {}) {
         interpreterEnvelope = null;
     }
     const interpretedInput = { ...input, interpreterEnvelope };
-    const interpretationResult = await (options.interpret || interpretV5Task)(interpreterEnvelope, {
+    const interpretationResult = await (options.interpret || interpretCandidateSetTask)(interpreterEnvelope, {
         env: options.env,
         modelRequest: options.modelRequest,
         observeModelCall: options.observeModelCall,
         shadowTaskId: input.shadowTaskId,
         timeoutMs: options.timeoutMs,
         selected: options.selected,
+        internalFetch: options.internalFetch,
+        lookupEntities: options.lookupEntities,
+        lookupTimeoutMs: options.lookupTimeoutMs,
+        onBusinessApiCall: options.onBusinessApiCall,
     });
     if (interpretationResult.status !== 'VALID') return baseOutcome(interpretedInput, interpretationResult);
     const interpretation = interpretationResult.interpretation;
@@ -158,7 +163,8 @@ async function runV5IndependentShadow(input = {}, options = {}) {
             input,
             interpretation,
             anchoring.anchors,
-            options.now || new Date().toISOString()
+            options.now || new Date().toISOString(),
+            interpretationResult.resolvedIdentity
         );
     } catch {
         return baseOutcome(interpretedInput, interpretationResult, {

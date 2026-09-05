@@ -184,6 +184,9 @@ function createV5ShadowMirror(options = {}) {
                     }, {
                         env: runtimeOptions.env || options.env || process.env,
                         modelRequest: runtimeOptions.interpreterModelRequest,
+                        internalFetch: runtimeOptions.internalFetch,
+                        lookupEntities: runtimeOptions.lookupEntities,
+                        onBusinessApiCall: () => { counters.v5BusinessApiCalls += 1; },
                         timeoutMs: config.interpreterTimeoutMs,
                         observeModelCall: (metadata, operation) => withModelSpan(metadata, operation),
                     })
@@ -192,7 +195,7 @@ function createV5ShadowMirror(options = {}) {
                 return assembleOutcome(facts, projection, comparison, independentShadow);
             }));
             const executionTimeoutMs = (runtimeOptions.interpreterEnvelope || typeof runtimeOptions.sourceRequest === 'string')
-                ? config.interpreterTimeoutMs + Math.max(config.timeoutMs, 100)
+                ? 2 * config.interpreterTimeoutMs + 5000 + Math.max(config.timeoutMs, 100)
                 : config.timeoutMs;
             const timeoutResult = new Promise(resolve => {
                 timeout = setTimeout(() => resolve(safeErrorOutcome(facts, 'SHADOW_TIMEOUT')), executionTimeoutMs);
