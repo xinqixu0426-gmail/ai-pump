@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "baselineCommit": "53f630e6d6da79ced4541c3791160c5566db3b4f",
+  "methodology": "ACTUAL_CHAT_HANDLER_RESPONSE_FINISH_EXTERNAL_A3C_FIXED_KEEP_ALIVE_CLIENT",
+  "legacyWorkload": "SYNTHETIC_20_PLUS_2MS_PER_SLOT",
+  "gate": "OFF",
+  "width": 4,
+  "warmup": 24,
+  "measured": 200,
+  "targetValidPairs": 3,
+  "maxAttempts": 6,
+  "pairs": [
+    {
+      "attempt": 0,
+      "base": {
+        "current": false,
+        "latency": {
+          "median": 30.957500000000437,
+          "p95": 32.04329999999936
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 8,
+            "p95": 14.47669999999971,
+            "max": 16.8137999999999
+          }
+        }
+      },
+      "current": {
+        "current": true,
+        "latency": {
+          "median": 31.202299999999923,
+          "p95": 32.07890000000043
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.764099999999985,
+            "p95": 15.117500000000064,
+            "max": 16.134399999999914
+          }
+        }
+      },
+      "foregroundTV": 0,
+      "valid": true,
+      "medianOverhead": 0.7907615278994751,
+      "p95Overhead": 0.11109966826472473,
+      "pass": true
+    },
+    {
+      "attempt": 1,
+      "base": {
+        "current": false,
+        "latency": {
+          "median": 30.80529999999999,
+          "p95": 32.1288999999997
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 8.116399999999999,
+            "p95": 15.34270000000015,
+            "max": 19.091000000000008
+          }
+        }
+      },
+      "current": {
+        "current": true,
+        "latency": {
+          "median": 30.7520999999997,
+          "p95": 32.34929999999986
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.494200000000092,
+            "p95": 14.574299999999994,
+            "max": 16.58699999999999
+          }
+        }
+      },
+      "foregroundTV": 0,
+      "valid": true,
+      "medianOverhead": -0.17269755529174535,
+      "p95Overhead": 0.6859867595845337,
+      "pass": true
+    },
+    {
+      "attempt": 2,
+      "base": {
+        "current": false,
+        "latency": {
+          "median": 30.97569999999905,
+          "p95": 32.08420000000115
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 8.73840000000007,
+            "p95": 14.792199999999866,
+            "max": 16.254599999999755
+          }
+        }
+      },
+      "current": {
+        "current": true,
+        "latency": {
+          "median": 30.818699999999808,
+          "p95": 32.025299999997515
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "errors": 0,
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.356099999999969,
+            "p95": 14.99940000000015,
+            "max": 16.614799999999832
+          }
+        }
+      },
+      "foregroundTV": 0,
+      "valid": true,
+      "medianOverhead": -0.5068489170519053,
+      "p95Overhead": -0.18357945656625185,
+      "pass": true
+    }
+  ],
+  "pass": true,
+  "medianOverhead": 0.7907615278994751,
+  "p95Overhead": 0.6859867595845337
+}

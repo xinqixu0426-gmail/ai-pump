@@ -631,6 +631,8 @@ V3 将“语言理解、正式发现、实体绑定、事实执行”分层。`a
 
 能力注册表为每个 AI capability 声明 `entityScopes`，能力目录、意图计划校验和执行期 allowlist 共同执行该作用域边界。`single` 单对象问题不得调用仅面向 `collection/global` 的全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总，避免把其他订单的异常混入具名订单回答；需要跨订单汇总时，意图必须明确为 `collection` 或 `global`。
 
+P16-C 内部只读预览：现有 POST /api/ai/chat 保持 legacy 回答权威。仅当 AI_V5_READ_CANARY_ENABLED=true（默认 OFF）、现有 x-internal-secret 身份认证及 x-pump-v5-preview: true 同时满足时，在正常 done 后可追加 v5_preview 事件，字段为 preview:true、authoritative:false、answerText。x-pump-v5-fact 必须显式指定一个已批准且与冻结路由兼容的 factKey；仅交付完整验证通过的正文，不交付 raw JSON、claims 或证据对象。受控预览响应使用 Cache-Control: no-store，失败只抑制预览，普通请求无新增字段或路由变化。能力属性、单轮生命周期、超时和 metadata-only 约束见 [V5 controlled preview contract](ai-governance/v5-read-canary-v1.md)。这属于现有 AI 对话的内部只读变体，不新增 Tool 或业务 capability，不提供写入、持久化、确认、事务或幂等写语义。
+
 `/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/turn_state/done/error`。`turn_state` 在 `done` 前返回下一轮可携带的结构化实体状态；完整成功流仍必须以 `done` 结束。`error` 表示服务端已明确失败，连接提前结束且未收到 `done` 则视为传输中断。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整的正文、工具结果和轮次状态；第二次仍失败时仅显示本地错误，不保存半截回复。自动重试只重新请求 `/api/ai/chat`；写工具只生成确认请求，实际写入仍必须通过 `/api/ai/confirm-tool`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
 
 AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：

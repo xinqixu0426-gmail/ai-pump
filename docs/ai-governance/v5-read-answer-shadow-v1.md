@@ -26,7 +26,9 @@ The numeric validator checks finite exact equality without coercion. The entity 
 
 ## Runtime privacy and observability
 
-Request, input/output, entity labels and values remain transient. The Composer returns verdict/counts/duration/safe digest only, never an answer string to a user channel. `pump.ai.v5.read-answer` and `pump.ai.v5.answer-validation` spans contain only correlation/count/model metadata under the active root. No prompt, answer or evidence values enter Phoenix/logs.
+Request, input/output, entity labels and values remain transient. The default `composeReadAnswer` return remains verdict/counts/duration/safe digest only. P16-C adds `composeReadAnswerForCanary` as an internal, synchronous post-validation body sink: the existing complete validator must accept before only `answerText` is delivered to the request-local controlled preview consumer. No raw draft, claims, evidence objects or reusable content handle are returned. Global canary enablement, explicit opt-in, internal authorization and an open request are required. Invalid/exceptional validation delivers nothing. The sink is not stored and no answer is retained after completion. This is delivery contract version 1; Composer/prompt versions and all answer semantics remain unchanged. See [controlled preview contract](v5-read-canary-v1.md).
+
+`pump.ai.v5.read-answer` and `pump.ai.v5.answer-validation` spans contain only correlation/count/model metadata under the active root. No prompt, answer or evidence values enter Phoenix/logs. The approved body sink is a transport operation, never an observability callback.
 
 ## Controlled evaluation and performance
 
@@ -36,4 +38,4 @@ Performance uses the A3C external fixed-slot keep-alive client, warmup 24/measur
 
 ## Boundaries
 
-P16-B2A resolved the prior handoff blocker. No Evidence/Verification semantics are changed; historical datasets cannot supply runtime values. Production routing and user-visible integration remain absent. Formal results, trace/privacy, concurrency and performance are independently reported; any failed gate keeps P16_C_READY=NO.
+P16-B2A resolved the prior handoff blocker. No Evidence/Verification semantics are changed; historical datasets cannot supply runtime values. Production answer replacement remains absent. Only the explicitly authorized P16-C controlled preview can deliver validated body text; ordinary shadow callers remain metadata-only. Historical P16-B2R certification remains frozen and does not certify the new delivery surface; P16-C has its own report and tests.

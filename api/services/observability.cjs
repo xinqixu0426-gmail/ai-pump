@@ -876,6 +876,26 @@ function withReadAnswerSpan(metadata = {}, operation) {
     'gen_ai.request.model': 'deepseek-v4-flash', 'pump.ai.llm.tool_definition_count': 0,
   } }, operation);
 }
+function recordReadCanaryGate(metadata = {}) {
+  return withAgentSpan({ route: 'v5_canary_gate' }, () => withObservedSpanSync({ name: 'pump.ai.v5.canary-gate', kind: 'CHAIN', attributes: {
+    'pump.ai.v5.canary.global_enabled': metadata.globalEnabled === true,
+    'pump.ai.v5.canary.request_opt_in': metadata.previewOptIn === true,
+    'pump.ai.v5.canary.attempted': false, 'pump.ai.v5.canary.eligible': false,
+    'pump.ai.v5.canary.validation_pass': false, 'pump.ai.v5.canary.exposed': false,
+  } }, () => null));
+}
+function withReadCanarySpan(metadata, operation) {
+  return withObservedSpan({ name: 'pump.ai.v5.read-canary', kind: 'CHAIN', attributes: {
+    'pump.ai.v5.canary.global_enabled': metadata.globalEnabled === true,
+    'pump.ai.v5.canary.request_opt_in': metadata.previewOptIn === true,
+  }, resultStatus(result) { return { attributes: {
+    'pump.ai.v5.canary.attempted': result?.attempted === true,
+    'pump.ai.v5.canary.eligible': result?.eligible === true,
+    'pump.ai.v5.canary.validation_pass': result?.validationPass === true,
+    'pump.ai.v5.canary.exposed': result?.exposed === true,
+    'pump.ai.v5.canary.failure_class': safeLabel(result?.failureClass, 'PREVIEW_INTERNAL_ERROR'),
+  } }; } }, operation);
+}
 function withReadAnswerValidationSpan(metadata = {}, operation) {
   return withObservedSpanSync({ name: 'pump.ai.v5.answer-validation', kind: 'CHAIN', attributes: {
     'pump.ai.v5.shadow_task_id': safeLabel(metadata.taskId), 'pump.ai.answer.fact_count': Number(metadata.factCount) || 0,
@@ -998,6 +1018,8 @@ async function resetObservabilityForTesting() {
 }
 
 module.exports = {
+  recordReadCanaryGate,
+  withReadCanarySpan,
   withReadAnswerSpan,
   withReadAnswerValidationSpan,
   DEFAULT_COLLECTOR_ENDPOINT,

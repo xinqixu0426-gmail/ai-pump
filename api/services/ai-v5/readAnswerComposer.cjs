@@ -33,7 +33,7 @@ function prepareView(input) {
     });
     return { taskId, entityRef, entityLabel, facts, forbiddenValues: entity.entityType === 'coil' ? [entity.rawMention] : [] };
 }
-async function composeReadAnswer(input, options = {}) {
+async function compose(input, options = {}, deliver = null) {
     const started = performance.now();
     if (!answerShadowEnabled(options.env)) return { status: 'ANSWER_NOT_GENERATED', modelCalls: 0, reasonCodes: ['ANSWER_SHADOW_DISABLED'] };
     let view; try { view = prepareView(input); } catch { return { status: 'ANSWER_NOT_GENERATED', modelCalls: 0, reasonCodes: ['VERIFIED_VALUE_UNAVAILABLE'] }; }
@@ -45,9 +45,30 @@ async function composeReadAnswer(input, options = {}) {
         callStage([{ role: 'system', content: PROMPT }, { role: 'user', content: JSON.stringify(modelView) }], options));
     if (result.status !== 'OK') return { status: 'ANSWER_SHADOW_REJECTED', modelCalls: 1, modelError: result.status === 'ERROR',
         modelTimeout: result.status === 'TIMEOUT', durationMs: performance.now() - started, reasonCodes: [result.reasonCode] };
-    const verdict = observation.withReadAnswerValidationSpan({ taskId: input.taskId, factCount: view.facts.length }, () => validateReadAnswer(result.content, view));
-    // Neither the draft nor values escape this module. No user-response channel exists.
+    let verdict;
+    try {
+        verdict = observation.withReadAnswerValidationSpan({ taskId: input.taskId, factCount: view.facts.length }, () => validateReadAnswer(result.content, view));
+    } catch {
+        return { status: 'ANSWER_SHADOW_REJECTED', modelCalls: 1, reasonCodes: ['ANSWER_VALIDATION_ERROR'] };
+    }
+    // P16-C: only the fully validated body crosses the synchronous request-local sink.
+    // Raw draft, claims and evidence remain private; the normal return stays metadata-only.
+    if (deliver && verdict.status === 'ANSWER_SHADOW_ACCEPTED'
+        && ['contractValid', 'evidenceRefsValid', 'groundingValid', 'requiredFactCoverage', 'numericValid', 'entityValid'].every(k => verdict[k] === true)
+        && verdict.internalLeakageCount === 0 && !options.signal?.aborted) {
+        try { deliver(JSON.parse(result.content).answerText); }
+        catch { return { ...verdict, status: 'ANSWER_SHADOW_REJECTED', modelCalls: 1, reasonCodes: ['PREVIEW_DELIVERY_FAILED'] }; }
+    }
     return { ...verdict, modelCalls: 1, modelError: false, modelTimeout: false, durationMs: performance.now() - started,
         answerDigest: crypto.createHash('sha256').update(result.content).digest('hex') };
 }
-module.exports = { V5_READ_ANSWER_COMPOSER_VERSION, V5_READ_ANSWER_PROMPT_VERSION, PROMPT, answerShadowEnabled, composeReadAnswer };
+function composeReadAnswer(input, options = {}) { return compose(input, options); }
+// Internal P16-C consumer only. No content field/handle survives completion.
+function composeReadAnswerForCanary(input, options, deliver) {
+    if (options?.env?.AI_V5_READ_CANARY_ENABLED !== 'true' || options.previewOptIn !== true
+        || options.internalAuthorized !== true || typeof deliver !== 'function' || options.signal?.aborted) {
+        return Promise.resolve({ status: 'ANSWER_NOT_GENERATED', modelCalls: 0, reasonCodes: ['CANARY_DELIVERY_DISABLED'] });
+    }
+    return compose(input, options, deliver);
+}
+module.exports = { V5_READ_ANSWER_COMPOSER_VERSION, V5_READ_ANSWER_PROMPT_VERSION, PROMPT, answerShadowEnabled, composeReadAnswer, composeReadAnswerForCanary };

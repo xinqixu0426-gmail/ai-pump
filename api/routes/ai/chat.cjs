@@ -79,7 +79,11 @@ router.get('/api/ai/health', confirmAuth, (req, res) => {
 
 async function handleAiChat(req, res, options = {}) {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache');
+    const previewEnv = options.env || process.env;
+    const internalPreview = previewEnv.AI_V5_READ_CANARY_ENABLED === 'true'
+        && req.headers?.['x-pump-v5-preview'] === 'true' && Boolean(previewEnv.INTERNAL_SECRET)
+        && req.headers?.['x-internal-secret'] === previewEnv.INTERNAL_SECRET;
+    res.setHeader('Cache-Control', internalPreview ? 'no-store' : 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
@@ -114,6 +118,7 @@ async function handleAiChat(req, res, options = {}) {
         if (type === 'content' && ttftMs == null) ttftMs = Date.now() - startedAt;
         res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
         if (typeof res.flush === 'function') res.flush();
+        return true;
     };
     let lastProviderKey = '';
     const onProvider = info => {
@@ -148,6 +153,11 @@ async function handleAiChat(req, res, options = {}) {
             stageLatencyMs: result?.telemetry?.stageLatencyMs || {},
             toolSteps: result?.telemetry?.toolSteps || [],
         });
+        // Legacy has already emitted its authoritative done event. Preview is a separate channel.
+        try {
+            await require('../../services/ai-v5/readCanary.cjs').previewAfterLegacy(req, result, send, controller.signal,
+                { ...options.canaryOptions, env: previewEnv });
+        } catch { /* Supplementary preview must not change legacy success or telemetry. */ }
     } catch (error) {
         const abortCode = controller.signal.aborted
             ? controller.signal.reason?.code || error.code
