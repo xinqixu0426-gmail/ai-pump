@@ -869,6 +869,18 @@ function withV5InterpreterStage(stage, metadata = {}, operation) {
   }, operation);
 }
 
+function withReadAnswerSpan(metadata = {}, operation) {
+  return withObservedSpan({ name: 'pump.ai.v5.read-answer', kind: 'LLM', attributes: {
+    'pump.ai.v5.shadow_task_id': safeLabel(metadata.taskId),
+    'pump.ai.answer.fact_count': Number(metadata.factCount) || 0,
+    'gen_ai.request.model': 'deepseek-v4-flash', 'pump.ai.llm.tool_definition_count': 0,
+  } }, operation);
+}
+function withReadAnswerValidationSpan(metadata = {}, operation) {
+  return withObservedSpanSync({ name: 'pump.ai.v5.answer-validation', kind: 'CHAIN', attributes: {
+    'pump.ai.v5.shadow_task_id': safeLabel(metadata.taskId), 'pump.ai.answer.fact_count': Number(metadata.factCount) || 0,
+  } }, operation);
+}
 function withModelSpan(metadata = {}, operation) {
   const model = safeLabel(metadata.model);
   return withObservedSpan({
@@ -986,6 +998,8 @@ async function resetObservabilityForTesting() {
 }
 
 module.exports = {
+  withReadAnswerSpan,
+  withReadAnswerValidationSpan,
   DEFAULT_COLLECTOR_ENDPOINT,
   DEFAULT_PROJECT,
   DEFAULT_TRACE_CONTENT,

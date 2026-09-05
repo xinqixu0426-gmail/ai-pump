@@ -160,5 +160,6 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
         .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
-    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
+    // P16-B2R admits metadata-only answer spans; no new data/Tool import.
+    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readAnswerComposer.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
 });

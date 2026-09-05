@@ -1,31 +1,39 @@
-# V5 Read Answer Shadow V1 — runtime handoff preflight blocked
+# V5 Read Answer Shadow V1
 
-## Current status
+## Scope and activation
 
-P16-B2 stopped at runtime-value handoff preflight on frozen B1 commit `62e89d2d076c7265747d39b6b555ac20eeb39041`. The Composer, Prompt V1, Answer Contract, validators and answer-shadow flag are **not implemented**. Version1 is the requested design target, not an available runtime version. Formal answer evaluation runs remain zero.
+Composer version 1, Prompt version 1. `readAnswerComposer.composeReadAnswer` is a controlled shadow-only entry point. All three environment flags must equal `true`: `AI_V5_SHADOW_ENABLED`, `AI_V5_EXECUTION_SHADOW_ENABLED`, `AI_V5_ANSWER_SHADOW_ENABLED`. Missing/false answer flag disables generation. No production default, dispatcher, user response, scheduler, Interpreter, execution or evidence semantics are changed.
 
-The frozen read-execution implementation remains authoritative and unchanged. Its15/15 execution/comparator result does not certify arbitrary claims in an answer.
+The caller supplies a completed task's execution result, final exact entity context, original request, and explicit required fact keys. The Composer requires successful execution, valid evidence, PASS verification and all requested runtime handles. It uses only `getVerifiedEvidenceValue`, never a raw Tool DTO or comparator value. Missing access produces ANSWER_NOT_GENERATED before any model call.
 
-## Required boundary
+## Approved facts and authority
 
-The intended answer layer is default-OFF and shadow-only, requiring all three shadow/execution/answer flags. It may consume only request-local verified facts after execution success and verification PASS; it has no Tools, API client, write authority or user-response channel. The requested draft contains answerText and evidence-linked claims; numeric/identity/text consistency must be deterministic, and unknown references or unsupported facts must reject the draft without retry.
+Only price.current, inventory.quantity, coil.inventory and recipe.cost.preview are available. Required scope is software-owned and frozen from the Oracle before evaluation, not inferred from V4 answers. Price is current catalog unit price in CNY per catalog quantity unit. Quantity retains catalog units, coil stock uses sets, and recipe currentTotalCost remains a current cost preview per recipe unit, never settlement/final cost. No derived computation, rounding, conversion or additional facts are allowed.
 
-These requirements are recorded here, not claimed implemented or tested.
+Runtime evidence aliases are newly generated opaque references, each backed by a successful same-task/entity/execution/fact handoff. They are not database IDs or persisted ledger credentials. Model-facing facts omit task ID, canonical IDs and binding values. Non-coil entity labels come from final exact source identity; coil uses “该线圈方案” and a task-local entity reference, avoiding repetition of its scheme binding identifier. The original request is transient data, not an instruction authority.
 
-## Verified scope gap
+## Model and contract
 
-P16-B1 resolved the price evidence gap: `price.current` is a DIRECT_FACT with independent formal readback verification and a certified runtime-only value handoff. All 3 price paths passed. This remains valid and unchanged.
+DeepSeek deepseek-v4-flash, temperature 0, JSON mode, 512 output tokens, one request, retry zero, Tools absent. The existing configured client is reused unchanged. Failures/timeouts become safe metadata. No agent loop, resolver, API read, write or second opinion is available.
 
-The remaining answer requirements are `inventory.quantity` (6 paths), `coil.inventory` (3) and `recipe.cost.preview` (3). They have verified status but no equivalent certified runtime-value handoff. The existing `getVerifiedEvidenceValue` accepts only `price.current`. Synthetic tests confirm that non-price read tasks verify successfully yet return no handle, and that a price handle rejects all three other fact keys.
+Draft keys: version, answerStatus, answerText, claims. FACT claims require claimId, claimType, factKey, evidenceRefs, entityRef, numericValue. Values must be JSON numbers. LIMITATION permits only a fixed non-business limitation with null fact/entity/value and empty refs; it cannot replace required facts. Unknown/extra fields, reasoning and write/tool requests reject the draft.
 
-The execution adapter keeps the Tool DTO and ledger local and constructs its public ToolResult with `data=null`. Non-price evidence records contain metadata, not recoverable business values. A new Composer cannot recover these values from a PASS status. Reading raw Tool results or comparator values would violate the answer boundary.
+## Grounding and deterministic realization
 
-## Supervisor decision required
+V1 uses bounded business sentences, not unrestricted prose. Input supplies approved fact realizations and requires newline concatenation. The validator independently reconstructs these from private verified values. Extra text, changed entity punctuation, semantic overstatement, missing facts and invented numbers reject the answer. This is a constrained expression test, not evidence that unrestricted language hallucinations can be reliably detected.
 
-Approve narrowly scoped runtime-only handoff coverage for the three existing non-price fact contracts before resuming all 15 answer paths. Preserve price certification, entity/task/execution ownership, existing business semantics, privacy and fail-closed behavior. Do not add unrelated deferred requirements. This prerequisite was not implemented under B2's frozen Evidence/Verification boundary.
+The numeric validator checks finite exact equality without coercion. The entity validator checks task-local entity and fact ownership. The main validator checks strict schema, authorized required fact keys, evidence ownership/validity, one claim per fact, full coverage, numeric/entity correctness and exact text realization. Internal refs/binding values in answerText reject the draft. Failure yields ANSWER_SHADOW_REJECTED without retry or user response.
 
-Do not change the corpus, drop the 12 affected paths, use V4 answers as authority, repurpose comparator values, or invoke models before certified values are available. An insufficient-information answer cannot count as full required-fact coverage.
+## Runtime privacy and observability
 
-## Evidence
+Request, input/output, entity labels and values remain transient. The Composer returns verdict/counts/duration/safe digest only, never an answer string to a user channel. `pump.ai.v5.read-answer` and `pump.ai.v5.answer-validation` spans contain only correlation/count/model metadata under the active root. No prompt, answer or evidence values enter Phoenix/logs.
 
-See [B1 price certification](reports/V5-F2A-P16B1-price-evidence-certification.md) and [B2 handoff preflight](reports/V5-F2B-P16B2-read-answer-shadow.md). Historical P16-B artifacts remain unchanged. Current availability is 3/15 required answer facts, not a completed answer implementation or model evaluation.
+## Controlled evaluation and performance
+
+Formal evaluation establishes 15 read tasks once in the existing isolated query-only snapshot, compares reads independently to formal APIs, consumes certified runtime handoff, then calls the answer model once per eligible path. Frozen task/Oracle preparation is not an Interpreter rerun. Historical datasets are not overwritten. No post-evaluation tuning/regeneration is permitted.
+
+Performance uses the A3C external fixed-slot keep-alive client, warmup 24/measured 200, response `finish` timestamps and 2/4/8 loads. Both sides run the real governed read chain under the unchanged mirror; only the answer flag differs. Performance uses a controlled fake model with the real Composer/Validator, not extra formal answer calls. Answer completion is separate. Transport validity is independent of overhead; bounded invalid-pair replacements do not discard valid slow pairs.
+
+## Boundaries
+
+P16-B2A resolved the prior handoff blocker. No Evidence/Verification semantics are changed; historical datasets cannot supply runtime values. Production routing and user-visible integration remain absent. Formal results, trace/privacy, concurrency and performance are independently reported; any failed gate keeps P16_C_READY=NO.
