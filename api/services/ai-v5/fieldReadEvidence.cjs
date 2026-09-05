@@ -9,6 +9,12 @@ const PRICE_FACT = Object.freeze({ factKey: 'price.current', field: 'price', cap
 const sameEntity = (a, b) => a?.entityType === b?.entityType && a?.canonicalEntityId === b?.canonicalEntityId
     && a?.resolutionReceiptRef === b?.resolutionReceiptRef;
 const finite = value => typeof value === 'number' && Number.isFinite(value);
+const APPROVED_RUNTIME_FACTS = Object.freeze({
+    'price.current': PRICE_FACT,
+    'inventory.quantity': Object.freeze({ factKey: 'inventory.quantity', capabilityId: 'inventory.read', sourceTool: 'search_parts', entityType: 'part', field: 'parts[].stock', unit: 'CATALOG_QUANTITY_UNIT', evidenceKind: 'DIRECT_FACT', snapshotKind: 'SAME_TOOL_EXECUTION' }),
+    'coil.inventory': Object.freeze({ factKey: 'coil.inventory', capabilityId: 'coil.read', sourceTool: 'search_coils', entityType: 'coil', field: 'data[].stock', unit: 'COIL_SET', evidenceKind: 'DIRECT_FACT', snapshotKind: 'SAME_TOOL_EXECUTION' }),
+    'recipe.cost.preview': Object.freeze({ factKey: 'recipe.cost.preview', capabilityId: 'recipe.cost.preview', sourceTool: 'preview_recipe_cost', entityType: 'recipe', field: 'data.currentTotalCost', unit: 'RECIPE_UNIT', currency: 'CNY', evidenceKind: 'DIRECT_FACT', snapshotKind: 'SAME_TOOL_EXECUTION_CURRENT_COST' }),
+});
 const version = row => typeof row?.updatedAt === 'string' && Number.isFinite(Date.parse(row.updatedAt)) ? row.updatedAt : null;
 
 // Values and row versions never enter serializable ledger metadata. The receipt is an
@@ -35,7 +41,7 @@ function extractPriceEvidence({ result, taskId, entity, sourceExecutionId, capab
         freshness: valid ? 'CURRENT' : 'UNKNOWN', createdAt: new Date().toISOString(),
         metadata: { factKey: PRICE_FACT.factKey, field: PRICE_FACT.field, fieldType: present ? typeof row.price : 'missing',
             present, currency: PRICE_FACT.currency, unit: PRICE_FACT.unit, snapshotKind: PRICE_FACT.snapshotKind } });
-    runtime.set(receipt, { item, taskId, entity: { ...entity }, sourceExecutionId,
+    runtime.set(receipt, { item, taskId, entity: { ...entity }, sourceExecutionId, factKey: PRICE_FACT.factKey,
         value: valid ? row.price : undefined, rowVersion: version(row), valid, checked: false });
     return Object.freeze({ item, receipt, present, valid });
 }
@@ -74,24 +80,61 @@ function hasVerifiedPriceReceipt(ledger, receipt) {
     const i = ledger.items.find(item => item.evidenceId === s.item.evidenceId);
     return !!i && JSON.stringify(i) === JSON.stringify(s.item);
 }
+// Capture only the field of an already-created ledger item in the same execution.
+// This does not create evidence, perform verification, read a comparator, or call I/O.
+function captureReadFactValue({ ledger, evidenceId, result, entity }) {
+    const item = ledger?.items?.find(i => i.evidenceId === evidenceId);
+    const spec = APPROVED_RUNTIME_FACTS[item?.claimType];
+    if (!spec || spec === PRICE_FACT || item.taskId !== ledger.taskId || !sameEntity(item.entityRef, entity)
+        || item.status !== 'VALID' || item.evidenceType !== spec.evidenceKind || item.sourceTrust !== 'FORMAL'
+        || item.sourceType !== 'TOOL' || item.freshness !== 'CURRENT' || !item.sourceRef
+        || item.toolName !== spec.sourceTool || item.capabilityId !== spec.capabilityId
+        || entity.entityType !== spec.entityType || result?.success !== true) return null;
+    let value;
+    if (spec.entityType === 'recipe') {
+        if (String(result.data?.recipeId) !== String(entity.canonicalEntityId)) return null;
+        value = result.data?.currentTotalCost;
+    } else {
+        const rows = spec.entityType === 'part' ? result.parts : result.data;
+        const matches = Array.isArray(rows) ? rows.filter(r => String(r.id ?? r.Id) === String(entity.canonicalEntityId)) : [];
+        if (matches.length !== 1) return null;
+        value = matches[0].stock;
+    }
+    if (!finite(value)) return null;
+    const receipt = Object.freeze({});
+    runtime.set(receipt, { item, taskId: ledger.taskId, entity: { ...item.entityRef },
+        sourceExecutionId: item.sourceRef, factKey: item.claimType, value, valid: true });
+    return receipt;
+}
 function createVerifiedValueHandoff(ledger, verification, receipt) {
     if (verification?.taskId !== ledger?.taskId || verification?.decision !== 'VERIFIED'
-        || !require('./verification.cjs').isVerifiedTaskResult(ledger, verification)
-        || !hasVerifiedPriceReceipt(ledger, receipt)) return null;
+        || !require('./verification.cjs').isVerifiedTaskResult(ledger, verification)) return null;
+    const records = new Map();
+    for (const ref of Array.isArray(receipt) ? receipt : [receipt]) {
+        const s = runtime.get(ref);
+        if (!s?.valid || s.taskId !== ledger.taskId || !finite(s.value)
+            || !ledger.items.some(i => JSON.stringify(i) === JSON.stringify(s.item))
+            || (s.factKey === PRICE_FACT.factKey && !hasVerifiedPriceReceipt(ledger, ref))
+            || records.has(s.factKey)) return null;
+        records.set(s.factKey, s);
+    }
+    if (!records.size) return null;
     const handle = Object.freeze({});
-    handoffs.set(handle, runtime.get(receipt));
+    handoffs.set(handle, records);
     return handle;
 }
 function getVerifiedEvidenceValue(handle, context = {}) {
-    const s = handoffs.get(handle);
-    if (!s?.checked || !s.valid || context.taskId !== s.taskId || context.factKey !== PRICE_FACT.factKey
+    const s = handoffs.get(handle)?.get(context.factKey);
+    if (!s?.valid || (s.factKey === PRICE_FACT.factKey && !s.checked)
+        || context.taskId !== s.taskId || context.factKey !== s.factKey
         || context.sourceExecutionId !== s.sourceExecutionId || !sameEntity(context.entity, s.entity)) {
         throw new Error('VERIFIED_EVIDENCE_ACCESS_DENIED');
     }
-    const output = { factKey: PRICE_FACT.factKey, currency: PRICE_FACT.currency, unit: PRICE_FACT.unit };
+    const spec = APPROVED_RUNTIME_FACTS[s.factKey];
+    const output = { factKey: s.factKey, ...(spec.currency ? { currency: spec.currency } : {}), unit: spec.unit };
     Object.defineProperty(output, 'runtimeValue', { value: s.value, enumerable: false });
     return Object.freeze(output);
 }
 
-module.exports = { PRICE_FACT, extractPriceEvidence, verifyPriceEvidence, hasVerifiedPriceReceipt,
+module.exports = { PRICE_FACT, APPROVED_RUNTIME_FACTS, captureReadFactValue, extractPriceEvidence, verifyPriceEvidence, hasVerifiedPriceReceipt,
     createVerifiedValueHandoff, getVerifiedEvidenceValue };

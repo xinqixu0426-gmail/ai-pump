@@ -1,6 +1,6 @@
 # V5 Field-Level Read Evidence V1
 
-Scope: `inventory.read` / `search_parts`, optional software-declared required fact `price.current`.
+Scope: optional software-declared required fact `price.current` for `inventory.read` / `search_parts`, plus runtime-only handoff of the three already-defined read facts below. Evidence applicability and verification rules are unchanged.
 No Answer Composer, model call, routing change, Tool argument change, write authority or additional deferred capability requirements.
 
 ## Authority and units
@@ -29,7 +29,24 @@ Snapshot semantics are **same row version across the Tool read and immediate for
 
 ## Verified runtime handoff
 
-`createVerifiedValueHandoff` requires formal task verification `VERIFIED` plus the private field receipt. `getVerifiedEvidenceValue(handle, {taskId, entity, sourceExecutionId, factKey})` rejects unknown/unverified handles and cross-task/entity/execution/field access. The handle is non-enumerable on the execution result. Returned `runtimeValue` is non-enumerable; ordinary JSON serialization omits it. Values are not recovered from serialized ledgers.
+`fieldReadEvidence.APPROVED_RUNTIME_FACTS` is a frozen allowlist, not an expansion of Evidence Requirements:
+
+| factKey | Capability / Tool | Exact runtime field | Type / unit | Snapshot / meaning |
+|---|---|---|---|---|
+| price.current | inventory.read / search_parts | parts[].price | finite number; CNY / catalog quantity unit | Existing same-row-version price verification, unchanged |
+| inventory.quantity | inventory.read / search_parts | parts[].stock | finite number; catalog stock quantity unit | Same successful Tool execution; current catalog stock, no physical-unit conversion |
+| coil.inventory | coil.read / search_coils | data[].stock | finite number; coil sets | Same successful Tool execution; selected formal coil scheme stock |
+| recipe.cost.preview | recipe.cost.preview / preview_recipe_cost | data.currentTotalCost | finite number; CNY per recipe unit | Same execution of current-cost read; currentFullCost, not a settlement or saved/final cost |
+
+The three existing requirements are `DIRECT_FACT` in `evidenceRequirements.cjs`. Recipe cost is calculated by the Business API but is a direct formal Tool fact in this existing V5 contract; no V5 derivation or formula is added. `businessExecutors`, `aiRecipeResolution.selectCurrentRecipeCost`, and `costQueries.getCurrentRecipeCosts` establish its current-cost basis. Part authority is `partQueries` / `partRow`; coil authority is `coilQueries` / `coilRow`, with stock measured in sets by the existing procurement inventory contract. Quantity has no new inferred physical unit.
+
+`captureReadFactValue` associates the exact approved scalar with an already-existing ledger item in a private WeakMap during collection, before verification. It neither adds a parallel evidence item nor replaces the existing verifier. It selects only the unique canonical row, never arbitrary numeric fields or comparator output. Null/missing/non-number/non-finite values cannot be captured; zero remains valid. The immutable scalar snapshot is independent of later mutation of the transient Tool DTO.
+
+`createVerifiedValueHandoff` requires the actual registered task verification result `VERIFIED`, unchanged matching ledger items and opaque runtime receipts. Price additionally retains its existing independent verified receipt requirement. It accepts a single receipt (backward compatible) or explicit receipts for the same task. `getVerifiedEvidenceValue(handle, {taskId, entity, sourceExecutionId, factKey})` performs exact task/entity/resolution-receipt/execution/fact checks and rejects unavailable scope with `VERIFIED_EVIDENCE_ACCESS_DENIED`. This is the existing safe error code for unavailable verified values.
+
+For existing read facts, `sourceExecutionId` is the existing ledger `sourceRef`, `${taskId}:tool`; for price it remains the execution output's existing `sourceExecutionId`. No reference or entity ID is given to a model. A task handle can contain several explicitly approved verified facts, but there is no bulk getter, enumeration of values, wildcard key, or automatic exposure of additional ledger fields. A fact absent from that handle cannot be read with another fact's authorization.
+
+The handle is non-enumerable on the execution result. Returned `runtimeValue` is non-enumerable; ordinary JSON serialization omits it. Values are not recovered from serialized ledgers, historical certification artifacts, or comparator results. Capture and access have no Tool/API/DB dependency.
 
 Future Answer Composer integration must explicitly retain the runtime handle and request the verified field in the same task. It is not implemented here. Raw Tool results and evaluation comparator values are not a fallback handoff.
 
@@ -39,4 +56,4 @@ Logs, traces, datasets and reports may contain field keys, presence/type, validi
 
 ## Validation
 
-Synthetic tests cover extraction, missing/null/type/non-finite values, wrong fact/entity/task/execution, reference mismatch, stale/wrong snapshot, invalid evidence, quantity non-regression, no unverified handoff, serialization privacy and ten concurrent task-isolation checks. The separate certification is one frozen 15-path **read/evidence** run, not an Interpreter or Answer model evaluation.
+Synthetic tests cover extraction, missing/null/type/non-finite values, wrong fact/entity/task/execution, reference mismatch, stale/wrong snapshot, invalid evidence, quantity non-regression, no unverified handoff, serialization privacy and ten concurrent task-isolation checks. Runtime handoff certification establishes each frozen task once in the existing isolated query-only fixture, then accesses each field without Tool/API re-execution. Answer-required applicability is price 3, quantity 6, coil 3, recipe 3. The price tasks also retain their underlying quantity requirement: total existing ledger facts remain 18, all of which are checked for access. This is not an Interpreter or Answer model evaluation.

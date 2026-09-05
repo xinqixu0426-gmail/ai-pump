@@ -10,7 +10,7 @@ const { runV5ControlledShadowRuntime } = require('./controlledRuntime.cjs');
 const { transitionTask } = require('./taskState.cjs');
 const { createEvidenceLedger, addEvidence, toolResultToCandidateEvidence } = require('./evidenceLedger.cjs');
 const { listEvidenceRequirements, listFieldEvidenceRequirements } = require('./evidenceRequirements.cjs');
-const { extractPriceEvidence, verifyPriceEvidence, createVerifiedValueHandoff } = require('./fieldReadEvidence.cjs');
+const { extractPriceEvidence, verifyPriceEvidence, createVerifiedValueHandoff, captureReadFactValue } = require('./fieldReadEvidence.cjs');
 const { verifyV5Task, verificationTransitionContext, composingTransitionContext } = require('./verification.cjs');
 
 const DEFAULT_READ_EXECUTION_TIMEOUT_MS = 10000;
@@ -134,6 +134,7 @@ async function runReadExecutionShadow(input, options = {}) {
             entityConsistent: valid, entityRef: entity, sourceRef: `${task.taskId}:tool`,
         }));
     }
+    const readFactReceipt = captureReadFactValue({ ledger, evidenceId: `${task.taskId}:read`, result, entity });
     let priceEvidenceReceipt;
     if (fieldRequirements.length) {
         const extracted = extractPriceEvidence({ result, taskId: task.taskId, entity,
@@ -172,8 +173,9 @@ async function runReadExecutionShadow(input, options = {}) {
     safe.verificationStatus = !requirements.length ? 'VERIFICATION_REQUIREMENT_DEFERRED'
         : valid && verification.decision === 'VERIFIED' ? 'PASS' : 'FAIL';
     if (safe.verificationStatus === 'PASS') {
+        verifiedEvidenceHandle = createVerifiedValueHandoff(ledger, verification,
+            [readFactReceipt, priceEvidenceReceipt].filter(Boolean));
         if (priceEvidenceReceipt) {
-            verifiedEvidenceHandle = createVerifiedValueHandoff(ledger, verification, priceEvidenceReceipt);
             safe.fieldEvidence.runtimeHandoffAvailable = verifiedEvidenceHandle !== null;
         }
         task = transitionTask(task, 'COMPOSING', { ...composingTransitionContext(verification), reasonCode: 'READ_VERIFIED_NO_ANSWER' });
