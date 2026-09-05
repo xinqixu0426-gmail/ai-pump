@@ -1,8 +1,8 @@
-# V5 Read Answer Shadow V1 — implementation blocked
+# V5 Read Answer Shadow V1 — runtime handoff preflight blocked
 
 ## Current status
 
-P16-B stopped at authority preflight. The Composer, Prompt V1, Answer Contract, validators and answer-shadow flag are **not implemented**. Version1 is the requested design target, not an available runtime version. No real answer/interpreter/model/API evaluation was started.
+P16-B2 stopped at runtime-value handoff preflight on frozen B1 commit `62e89d2d076c7265747d39b6b555ac20eeb39041`. The Composer, Prompt V1, Answer Contract, validators and answer-shadow flag are **not implemented**. Version1 is the requested design target, not an available runtime version. Formal answer evaluation runs remain zero.
 
 The frozen read-execution implementation remains authoritative and unchanged. Its15/15 execution/comparator result does not certify arbitrary claims in an answer.
 
@@ -14,18 +14,18 @@ These requirements are recorded here, not claimed implemented or tested.
 
 ## Verified scope gap
 
-Current inventory.read evidence has claimType inventory.quantity. The frozen read inspection verifies canonical row uniqueness, completeness and finite stock. It does not inspect price. The frozen formal-comparator harness compares price against an API reference, but that callback is evaluation-only and does not extend the ledger's claim type or verification decision.
+P16-B1 resolved the price evidence gap: `price.current` is a DIRECT_FACT with independent formal readback verification and a certified runtime-only value handoff. All 3 price paths passed. This remains valid and unchanged.
 
-Three frozen paths ask for price while routing to inventory.read. A normal price answer cannot currently be described as grounded in a verified price ledger entry. It would be incorrect to reinterpret inventory.quantity as a blanket certificate for every Tool-returned field.
+The remaining answer requirements are `inventory.quantity` (6 paths), `coil.inventory` (3) and `recipe.cost.preview` (3). They have verified status but no equivalent certified runtime-value handoff. The existing `getVerifiedEvidenceValue` accepts only `price.current`. Synthetic tests confirm that non-price read tasks verify successfully yet return no handle, and that a price handle rejects all three other fact keys.
 
-The execution adapter also keeps the Tool DTO, ledger and verification local, creates the public ToolResult with data=null, and returns safe counts/statuses only. A future minimal transient handoff is needed; it must never place raw values into safe shadow outcomes, logs, Phoenix or datasets.
+The execution adapter keeps the Tool DTO and ledger local and constructs its public ToolResult with `data=null`. Non-price evidence records contain metadata, not recoverable business values. A new Composer cannot recover these values from a PASS status. Reading raw Tool results or comparator values would violate the answer boundary.
 
 ## Supervisor decision required
 
-Approve a narrowly scoped field-level price evidence contract and its authoritative validation, together with a runtime-only verified-value handoff, before continuing the15-path answer implementation. Existing generic ledger/verifier algorithms need not necessarily change; however, the approved verified-claim scope must explicitly cover price rather than silently expanding the frozen inventory requirement.
+Approve narrowly scoped runtime-only handoff coverage for the three existing non-price fact contracts before resuming all 15 answer paths. Preserve price certification, entity/task/execution ownership, existing business semantics, privacy and fail-closed behavior. Do not add unrelated deferred requirements. This prerequisite was not implemented under B2's frozen Evidence/Verification boundary.
 
-Do not change the corpus, drop the price paths, use V4 answers as authority, repurpose the evaluation-only comparator as production verification, or use an LLM to certify the missing fact. An insufficient-information answer could be safe but cannot be counted as passing required price-fact coverage.
+Do not change the corpus, drop the 12 affected paths, use V4 answers as authority, repurpose comparator values, or invoke models before certified values are available. An insufficient-information answer cannot count as full required-fact coverage.
 
 ## Evidence
 
-See [P16-B preflight report](reports/V5-F2-P16B-read-answer-shadow.md) and the safe dataset. Three synthetic probes establish that absent, nonnumeric and numeric price fields all receive the same existing inventory verification. This is correct for the frozen inventory contract, not a newly introduced defect.
+See [B1 price certification](reports/V5-F2A-P16B1-price-evidence-certification.md) and [B2 handoff preflight](reports/V5-F2B-P16B2-read-answer-shadow.md). Historical P16-B artifacts remain unchanged. Current availability is 3/15 required answer facts, not a completed answer implementation or model evaluation.
