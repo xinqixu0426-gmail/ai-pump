@@ -1,0 +1,556 @@
+{
+  "status": "COMPLETE",
+  "gate": "FAIL",
+  "records": [
+    {
+      "set": 1,
+      "mode": "A",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.29690000000005,
+        "p95": 31.470399999999927
+      },
+      "clientMs": {
+        "median": 31.049999999999955,
+        "p95": 31.968200000000024
+      },
+      "shadowCompletionMs": null,
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 0,
+        "p95": 0
+      }
+    },
+    {
+      "set": 1,
+      "mode": "B",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.753600000000006,
+        "p95": 31.909599999999955
+      },
+      "clientMs": {
+        "median": 31.38869999999997,
+        "p95": 32.74170000000004
+      },
+      "shadowCompletionMs": {
+        "median": 46.165899999999965,
+        "p95": 47.58030000000008
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 1.5074149500442502,
+        "p95": 1.395597132543691
+      }
+    },
+    {
+      "set": 1,
+      "mode": "C",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 27.724999999999454,
+        "p95": 29.771999999999935
+      },
+      "clientMs": {
+        "median": 28.349099999999453,
+        "p95": 30.11200000000008
+      },
+      "shadowCompletionMs": {
+        "median": 46.45269999999982,
+        "p95": 53.6872000000003
+      },
+      "toolCalls": 55,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -8.48898732213722,
+        "p95": -5.39681732675783
+      }
+    },
+    {
+      "set": 1,
+      "mode": "D_CONTROL",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 29.729599999999664,
+        "p95": 31.661599999999453
+      },
+      "clientMs": {
+        "median": 32.003099999999904,
+        "p95": 33.20169999999962
+      },
+      "shadowCompletionMs": {
+        "median": 44.661299999999756,
+        "p95": 47.437299999999595
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -1.8724688004395973,
+        "p95": 0.6075550358416892
+      }
+    },
+    {
+      "set": 1,
+      "mode": "D",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 22.58179999999993,
+        "p95": 35.008200000000215
+      },
+      "clientMs": {
+        "median": 23.5637999999999,
+        "p95": 35.858799999999974
+      },
+      "shadowCompletionMs": {
+        "median": 45.95689999999922,
+        "p95": 59.00920000000042
+      },
+      "toolCalls": 220,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "D_CONTROL",
+      "overhead": {
+        "median": -24.042704913620817,
+        "p95": 10.569901710592067
+      }
+    },
+    {
+      "set": 2,
+      "mode": "B",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.61330000000089,
+        "p95": 31.368599999999788
+      },
+      "clientMs": {
+        "median": 31.306699999999182,
+        "p95": 32.172199999999066
+      },
+      "shadowCompletionMs": {
+        "median": 45.96279999999933,
+        "p95": 47.04659999999967
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 0.3876032542959207,
+        "p95": -0.2109120754333893
+      }
+    },
+    {
+      "set": 2,
+      "mode": "C",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 26.416399999998248,
+        "p95": 29.369399999999587
+      },
+      "clientMs": {
+        "median": 26.964099999997416,
+        "p95": 29.777200000000448
+      },
+      "shadowCompletionMs": {
+        "median": 46.40869999999995,
+        "p95": 50.78660000000309
+      },
+      "toolCalls": 55,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -13.374935645404785,
+        "p95": -6.570722350001423
+      }
+    },
+    {
+      "set": 2,
+      "mode": "D",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 22.68790000000081,
+        "p95": 34.20769999999902
+      },
+      "clientMs": {
+        "median": 23.44340000000011,
+        "p95": 35.64589999999953
+      },
+      "shadowCompletionMs": {
+        "median": 45.5640999999996,
+        "p95": 58.998999999999796
+      },
+      "toolCalls": 220,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "D_CONTROL",
+      "overhead": {
+        "median": -24.034862151862256,
+        "p95": 8.155696498693853
+      }
+    },
+    {
+      "set": 2,
+      "mode": "A",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.495100000000093,
+        "p95": 31.434900000000198
+      },
+      "clientMs": {
+        "median": 31.147000000000844,
+        "p95": 31.93000000000029
+      },
+      "shadowCompletionMs": null,
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 0,
+        "p95": 0
+      }
+    },
+    {
+      "set": 2,
+      "mode": "D_CONTROL",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 29.86620000000039,
+        "p95": 31.628199999999197
+      },
+      "clientMs": {
+        "median": 31.348500000000058,
+        "p95": 32.779999999998836
+      },
+      "shadowCompletionMs": {
+        "median": 45.20360000000073,
+        "p95": 47.7570999999989
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -2.0622985332059973,
+        "p95": 0.6149216316864381
+      }
+    },
+    {
+      "set": 3,
+      "mode": "D",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 23.32600000000093,
+        "p95": 34.89610000000175
+      },
+      "clientMs": {
+        "median": 24.034200000001874,
+        "p95": 35.873499999997875
+      },
+      "shadowCompletionMs": {
+        "median": 46.033400000000256,
+        "p95": 60.89969999999812
+      },
+      "toolCalls": 220,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "D_CONTROL",
+      "overhead": {
+        "median": -22.237335146881176,
+        "p95": 10.5794185217424
+      }
+    },
+    {
+      "set": 3,
+      "mode": "D_CONTROL",
+      "concurrentRequests": 4,
+      "warmupRequests": 20,
+      "measuredRequests": 200,
+      "commitMs": {
+        "median": 29.996399999999994,
+        "p95": 31.55750000000262
+      },
+      "clientMs": {
+        "median": 31.31590000000142,
+        "p95": 32.792600000000675
+      },
+      "shadowCompletionMs": {
+        "median": 45.37709999999788,
+        "p95": 47.243100000003324
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -0.5813375403525223,
+        "p95": 1.0460827132235728
+      }
+    },
+    {
+      "set": 3,
+      "mode": "A",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.171800000000076,
+        "p95": 31.23080000000118
+      },
+      "clientMs": {
+        "median": 30.9375,
+        "p95": 31.785899999998946
+      },
+      "shadowCompletionMs": null,
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 0,
+        "p95": 0
+      }
+    },
+    {
+      "set": 3,
+      "mode": "C",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 26.27060000000347,
+        "p95": 29.472999999998137
+      },
+      "clientMs": {
+        "median": 26.83749999999418,
+        "p95": 29.806700000001
+      },
+      "shadowCompletionMs": {
+        "median": 45.96980000000622,
+        "p95": 50.08260000000155
+      },
+      "toolCalls": 55,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": -12.929954460776605,
+        "p95": -5.628418100090227
+      }
+    },
+    {
+      "set": 3,
+      "mode": "B",
+      "concurrentRequests": 1,
+      "warmupRequests": 5,
+      "measuredRequests": 50,
+      "commitMs": {
+        "median": 30.82850000000326,
+        "p95": 31.828099999998813
+      },
+      "clientMs": {
+        "median": 31.330300000001444,
+        "p95": 32.324099999998
+      },
+      "shadowCompletionMs": {
+        "median": 46.20660000000498,
+        "p95": 47.571100000001024
+      },
+      "toolCalls": 0,
+      "beforeFinish": 0,
+      "contamination": 0,
+      "control": "A",
+      "overhead": {
+        "median": 2.1765357055369083,
+        "p95": 1.9125350615341485
+      }
+    }
+  ],
+  "totalExecutions": 825,
+  "realModelCalls": 0,
+  "writes": 0,
+  "fixtureSafety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "unchanged": true
+  },
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "preHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "bcc4cd86b9ddb4381dc66168715693fdedf6ef4fc02884327fffcb5c6c6538a9",
+    "api/services/ai-v5/shadowMirror.cjs": "9dc57e35ee35f46cb71bc23949d5cdd19d8aae674088e4fe4cc7521ec1451889",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/certify-v5-f1b-performance.cjs": "afde873fbd7296ecc73203694abf8cb846683db2e769c18602e2aad9a89ca7da",
+    "tests/aiV5CoilReadBinding.test.cjs": "dc56de3d6747597d41fd923759134e4d518289d72ff4990a084bfcc2d4581b97",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionShadow.cjs": "b1e241f4cff3eb29483145e37690b10cd5440649934f63d6655c57612a43bdb1",
+    "api/services/ai-v5/verification.cjs": "0090441bacf822fb880fc0fbd69588f523bffeee3e208e766d1c22e2d8d9427a",
+    "api/services/ai-v5/evidenceRequirements.cjs": "2616dda0c7d1f1a24a385bb642f3b989ec86c168ac9301bc30215114dbc34a54",
+    "api/routes/ai/executor.cjs": "f8e1f3be69d0caa80bfd75f126d46bb698d32b1daea22df7a8eec4373fb0fe3b",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/executors/businessExecutors.cjs": "2adf553bb6dec7f6958f70415a4330624bfc2ca27d5d1796136e7a54c2162ef8",
+    "scripts/run-ai-v5f1-read-execution.cjs": "0bc7877fb2b93c0ffc394988940dc9922452f07ebf34fe123f819a94fe13089a",
+    "tests/aiV5ReadExecutionShadow.test.cjs": "9d43c25c2bd838b11f4ad1059575f89f9fc63973d7d313aece70fc1d86db23ad"
+  },
+  "postHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "bcc4cd86b9ddb4381dc66168715693fdedf6ef4fc02884327fffcb5c6c6538a9",
+    "api/services/ai-v5/shadowMirror.cjs": "9dc57e35ee35f46cb71bc23949d5cdd19d8aae674088e4fe4cc7521ec1451889",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/certify-v5-f1b-performance.cjs": "afde873fbd7296ecc73203694abf8cb846683db2e769c18602e2aad9a89ca7da",
+    "tests/aiV5CoilReadBinding.test.cjs": "dc56de3d6747597d41fd923759134e4d518289d72ff4990a084bfcc2d4581b97",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionShadow.cjs": "b1e241f4cff3eb29483145e37690b10cd5440649934f63d6655c57612a43bdb1",
+    "api/services/ai-v5/verification.cjs": "0090441bacf822fb880fc0fbd69588f523bffeee3e208e766d1c22e2d8d9427a",
+    "api/services/ai-v5/evidenceRequirements.cjs": "2616dda0c7d1f1a24a385bb642f3b989ec86c168ac9301bc30215114dbc34a54",
+    "api/routes/ai/executor.cjs": "f8e1f3be69d0caa80bfd75f126d46bb698d32b1daea22df7a8eec4373fb0fe3b",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/executors/businessExecutors.cjs": "2adf553bb6dec7f6958f70415a4330624bfc2ca27d5d1796136e7a54c2162ef8",
+    "scripts/run-ai-v5f1-read-execution.cjs": "0bc7877fb2b93c0ffc394988940dc9922452f07ebf34fe123f819a94fe13089a",
+    "tests/aiV5ReadExecutionShadow.test.cjs": "9d43c25c2bd838b11f4ad1059575f89f9fc63973d7d313aece70fc1d86db23ad"
+  },
+  "hashesMatch": true,
+  "businessApiReadCalls": 825
+}

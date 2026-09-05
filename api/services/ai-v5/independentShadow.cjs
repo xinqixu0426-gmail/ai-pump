@@ -195,6 +195,7 @@ async function runV5IndependentShadow(input = {}, options = {}) {
             })) });
         try {
             readExecution = await runReadExecutionShadow({ task: receivedTask, capabilityId: route.capabilityId,
+                authoritativeCandidate: interpretationResult.resolvedIdentity,
                 routeInput: { domain: interpretation.domain, operation: interpretation.operation, entityType: entityTypes[0] } },
             { env: options.env, compare: options.compareReadResult });
         } catch { readExecution = { executionStatus: 'ERROR', toolCalls: 0, reasonCodes: ['READ_SHADOW_INTERNAL_ERROR'] }; }

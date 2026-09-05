@@ -69,7 +69,7 @@ test('valid batch and subset requests return exact minimal candidates', () => {
     assert.equal(batch.complete, true);
     assert.equal(batch.candidateCount, 2);
     assert.deepEqual(batch.candidates, [
-        { entityType: 'coil', canonicalId: '2', matchKind: 'EXACT' },
+        { entityType: 'coil', canonicalId: '2', matchKind: 'EXACT', bindingRefs: [{ kind: 'schemeCode', value: 'ENTITY-001' }] },
         { entityType: 'part', canonicalId: '1', matchKind: 'EXACT' },
     ]);
     const subset = service.lookupEntities(validRequest({ entityTypes: ['part'] }));

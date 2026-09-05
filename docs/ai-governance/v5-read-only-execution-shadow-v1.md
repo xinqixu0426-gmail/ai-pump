@@ -14,7 +14,7 @@ All frozen 15 paths are business reads and remain applicable, including blocked 
 |---|---|---|---|---|
 | inventory.read | L1 / READ | search_parts | source-exact part mention → keyword | GET /api/parts → partQueries.listParts; canonical parts source |
 | recipe.cost.preview | L1 / READ | preview_recipe_cost | canonical recipe ID → recipeId; no overrides | GET /api/recipes then GET /api/recipes/current-costs → costQueries.getCurrentRecipeCosts / costEngine |
-| coil.read | L1 / READ | search_coils | currently ARGUMENT_BINDING_UNSUPPORTED | GET /api/coils; canonical coils source |
+| coil.read | L1 / READ | search_coils | authoritative schemeCode binding reference | GET /api/coils; canonical coils source |
 
 The other exposed Tools have no approved P16-A adapter. In particular, spec-catalog retrieval is not an entity inventory lookup; BOM/parameter overrides/comparison are not inferred from a cost-preview intent. Registry intersection with the unchanged bounded exposure must contain exactly one entry. Zero is NOT_EXECUTABLE; multiple is TOOL_SELECTION_AMBIGUOUS. No model chooses Tools or generates arguments.
 
@@ -24,7 +24,7 @@ The input is the V3-finalized authoritative entity plus the independently anchor
 
 `recipeId` is a positive safe integer converted only from the authoritative canonical ID. No display-name fallback or overrides are added. `keyword` is an unchanged string from the exact source anchor, never a model-authored string. Existing schema validation must preserve the binder's argument object exactly. Optional fields are omitted, not invented. Zero/ambiguous entities, missing receipts, wrong types and unsupported identity fields fail closed.
 
-The coil Tool accepts spec/schemeCode and other discriminated business fields, but not canonical ID. The minimal lookup candidate contract does not attest the matched identity-field category. Binding the same mention to schemeCode or spec without that authority would be a guess. This is an explicit binding blocker, not a non-applicable case and not an invitation to modify the existing API in P16-A.
+The coil Tool accepts spec/schemeCode but not canonical ID. P16-A2 adds an optional software-owned binding reference from the formal coil row to the lookup candidate. The binder requires matching candidate/entity type and canonical ID, an approved match kind and exactly one valid schemeCode reference. Missing/invalid references remain unsupported: rawMention, names and canonical ID cannot substitute. The reference stays outside the unchanged Interpretation/Task V1 contract and both model inputs; it is supplied transiently to the execution adapter only.
 
 ## Read-only proof and policy
 
@@ -40,8 +40,12 @@ Existing EvidenceLedger and verification evaluate the claim; unsupported evidenc
 
 An optional evaluation-only in-memory comparator returns MATCH/MISMATCH/NOT_COMPARABLE. Part comparisons cover canonical identity/model/stock/price against formal query output; recipe comparisons cover canonical recipe identity/current total against the formal current-cost output. Comparison is separate from execution success. Not having a comparator never means MATCH.
 
+Coil evidence requires exactly one returned row matching canonical ID and bound schemeCode, with finite current stock including zero. The same-snapshot comparator checks ID, schemeCode and stock against the formal API; missing reference is NOT_COMPARABLE, different identity/facts is MISMATCH. This supports current inventory only, not cost or complete DTO equivalence.
+
 ## Privacy and evaluation
 
 Returned shadow metadata contains Tool name, argument keys/types, safe statuses, evidence count, state names, durations and call counts. Neither arguments, results, raw mentions, canonical IDs nor business DTOs are copied into shadow outcomes. Existing Executor TOOL spans retain metadata-only observability.
 
 Formal evaluation is one-shot after deterministic checks and freeze. It uses unchanged frozen requests/expectations and real existing Executor/internal HTTP/routes against an isolated test snapshot with SQLite query_only enabled after normal test initialization. Source business DB and test snapshot are checked separately. Synthetic fixture checks are not represented as frozen evaluation results. Temporary diagnostic fixtures are retained; no delete-to-pass is allowed.
+
+Performance certification measures synthetic V4 HTTP request arrival to server response finish, separately recording client receive and shadow completion. Interpreter output may be synthetic; execution must use the real independent shadow, controlled runtime, existing Executor, internal client and official routes on a query-only snapshot. Three rotated sets use five warmup batches and fifty measured batches per mode, with equal four-request overlap for D and its execution-OFF control. All valid sets count; scheduler timing/concurrency remain unchanged. This certifies the declared fixture workload, not arbitrary production saturation.

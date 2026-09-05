@@ -85,7 +85,7 @@ function validateEntityLookupRequest(input) {
 const EXACT_LOOKUPS = Object.freeze({
     coil: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, scheme_code
             FROM coils
             WHERE scheme_code = ? COLLATE NOCASE
                OR scheme_name = ? COLLATE NOCASE
@@ -172,6 +172,8 @@ function createEntityLookupService({ db } = {}) {
             entityType,
             canonicalId: String(row.id),
             matchKind: 'EXACT',
+            ...(entityType === 'coil' && typeof row.scheme_code === 'string' && row.scheme_code.length
+                ? { bindingRefs: [{ kind: 'schemeCode', value: row.scheme_code }] } : {}),
         }));
         return { complete, candidates };
     }

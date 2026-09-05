@@ -2,7 +2,7 @@
 
 const { validateAiToolArgs } = require('../aiToolInputValidatorV2.cjs');
 
-function bindReadArguments(entry, entity) {
+function bindReadArguments(entry, entity, authoritativeCandidate = null) {
     const unsupported = () => ({ status: 'ARGUMENT_BINDING_UNSUPPORTED', arguments: null });
     if (!entity || entity.entityType !== entry?.entityType || !entity.resolutionReceiptRef
         || entity.canonicalEntityId === null || entity.canonicalEntityId === undefined) return unsupported();
@@ -16,6 +16,15 @@ function bindReadArguments(entry, entity) {
         if (typeof entity.rawMention !== 'string' || !entity.rawMention.length
             || entity.rawMention.trim() !== entity.rawMention) return unsupported();
         args = { keyword: entity.rawMention };
+    } else if (entry.argumentContract === 'AUTHORITATIVE_SCHEME_CODE') {
+        const candidate = authoritativeCandidate;
+        if (candidate?.entityType !== entity.entityType || candidate?.canonicalId !== String(entity.canonicalEntityId)
+            || !['EXACT', 'APPROVED_ALIAS'].includes(candidate?.matchKind)
+            || !Array.isArray(candidate.bindingRefs) || candidate.bindingRefs.length !== 1) return unsupported();
+        const ref = candidate.bindingRefs[0];
+        if (!ref || Object.keys(ref).sort().join(',') !== 'kind,value' || ref.kind !== 'schemeCode'
+            || typeof ref.value !== 'string' || !ref.value.length || ref.value.trim() !== ref.value) return unsupported();
+        args = { schemeCode: ref.value };
     } else return unsupported();
     try {
         const validated = validateAiToolArgs(entry.toolName, args);

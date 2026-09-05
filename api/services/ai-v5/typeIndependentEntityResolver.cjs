@@ -44,7 +44,7 @@ function validateLookupResponse(value, requestedTypeCount) {
     const seen = new Set();
     for (const candidate of value.candidates) {
         if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
-            || JSON.stringify(Object.keys(candidate).sort()) !== JSON.stringify(['canonicalId', 'entityType', 'matchKind'])
+            || Object.keys(candidate).some(key => !['canonicalId', 'entityType', 'matchKind', 'bindingRefs'].includes(key))
             || !allowedTypes.has(candidate.entityType)
             || typeof candidate.canonicalId !== 'string' || candidate.canonicalId.length === 0
             || !['EXACT', 'APPROVED_ALIAS'].includes(candidate.matchKind)
@@ -52,6 +52,12 @@ function validateLookupResponse(value, requestedTypeCount) {
             throw Object.assign(new Error('实体查询候选契约无效'), {
                 code: 'ENTITY_LOOKUP_CANDIDATE_INVALID',
             });
+        }
+        if (candidate.bindingRefs !== undefined && (candidate.entityType !== 'coil'
+            || !Array.isArray(candidate.bindingRefs) || candidate.bindingRefs.length !== 1
+            || candidate.bindingRefs.some(ref => !ref || Object.keys(ref).sort().join(',') !== 'kind,value'
+                || ref.kind !== 'schemeCode' || typeof ref.value !== 'string' || !ref.value.length || ref.value.length > 500))) {
+            throw Object.assign(new Error('Invalid authoritative binding reference'), { code: 'ENTITY_LOOKUP_BINDING_INVALID' });
         }
         seen.add(candidateKey(candidate));
     }

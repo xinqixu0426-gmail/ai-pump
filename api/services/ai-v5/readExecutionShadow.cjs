@@ -17,7 +17,7 @@ function executionShadowEnabled(env = process.env) {
 }
 
 // Minimum existing-contract checks, not a claim that arbitrary business answers are verified.
-function inspectReadResult(entry, entity, result) {
+function inspectReadResult(entry, entity, result, boundArguments = null) {
     if (result?.success !== true || result.executionEvidence?.verified !== true
         || result.executionEvidence?.kind !== 'formal_api_query'
         || !result.executionEvidence.calls?.length
@@ -32,6 +32,12 @@ function inspectReadResult(entry, entity, result) {
         return String(result.data?.recipeId) === String(entity.canonicalEntityId)
             && typeof result.data?.currentTotalCost === 'number' && Number.isFinite(result.data.currentTotalCost)
             && result.data?.pricingComplete !== false;
+    }
+    if (entry.toolName === 'search_coils') {
+        return Array.isArray(result.data) && result.count === 1 && result.data.length === 1
+            && String(result.data[0].id) === String(entity.canonicalEntityId)
+            && result.data[0].schemeCode === boundArguments?.schemeCode
+            && typeof result.data[0].stock === 'number' && Number.isFinite(result.data[0].stock);
     }
     return false;
 }
@@ -53,7 +59,7 @@ async function runReadExecutionShadow(input, options = {}) {
     if (!readPolicyLock(capability, entry)) { safe.writeBlocked = true; return finish('WRITE_BLOCKED'); }
     safe.toolName = entry.toolName;
     const entity = input.task?.entityContext?.length === 1 ? input.task.entityContext[0] : null;
-    const bound = bindReadArguments(entry, entity);
+    const bound = bindReadArguments(entry, entity, input.authoritativeCandidate);
     safe.argumentValidation = bound.status;
     if (bound.status !== 'VALIDATED') return finish(bound.status);
     safe.argumentKeySignature = Object.keys(bound.arguments);
@@ -97,7 +103,7 @@ async function runReadExecutionShadow(input, options = {}) {
     const toolResult = createV5ToolResult({ taskId: task.taskId, toolName: entry.toolName, status: 'success', data: null });
     task = createV5Task({ ...task, execution: { toolRequest: request, toolResult } });
     task = transitionTask(task, 'COLLECTING_EVIDENCE', { reasonCode: 'READ_RESULT_RECEIVED' });
-    const valid = inspectReadResult(entry, entity, result);
+    const valid = inspectReadResult(entry, entity, result, bound.arguments);
     const requirements = listEvidenceRequirements(capability.capabilityId);
     let ledger = createEvidenceLedger(task.taskId);
     if (requirements.length) {

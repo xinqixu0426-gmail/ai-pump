@@ -62,7 +62,7 @@ Multiple identity fields matching the same record are deduplicated by `entityTyp
 }
 ```
 
-Candidates contain only `entityType`, `canonicalId`, and `matchKind`; full business DTOs are never returned. The endpoint preserves zero, one, or multiple candidates and never chooses the first result. Cross-type uniqueness is decided by the V5 resolver.
+Candidates contain `entityType`, `canonicalId`, and `matchKind`; coil candidates may additionally carry `bindingRefs: [{ kind: 'schemeCode', value: string }]`, sourced solely from the matched row's formal `coils.scheme_code`. Missing codes omit this optional field. Old three-field candidates remain valid but cannot enable coil binding. No other reference kind is approved. Full DTOs are never returned; zero/one/multiple candidate and cross-type ambiguity semantics remain unchanged. Binding values are software-only: never model input, logs, Phoenix attributes or evaluation records. Only kinds/counts/status may be observed.
 
 `complete` is authoritative. Per-type or aggregate overflow returns `status=INCOMPLETE` and `complete=false`; V5 must fail closed and cannot resolve a unique entity from that response. Stable error statuses distinguish `INVALID_REQUEST`, `UNSUPPORTED_TYPE`, and `INTERNAL_ERROR` from a complete zero-candidate result.
 

@@ -13,7 +13,7 @@ const READ_EXECUTION_REGISTRY = Object.freeze([
     Object.freeze({ toolName: 'preview_recipe_cost', capabilityId: 'recipe.cost.preview', riskLevel: 'L1', readOnly: true,
         argumentContract: 'CANONICAL_RECIPE_ID_NO_OVERRIDES', entityType: 'recipe' }),
     Object.freeze({ toolName: 'search_coils', capabilityId: 'coil.read', riskLevel: 'L1', readOnly: true,
-        argumentContract: 'UNSUPPORTED_IDENTITY_FIELD_AUTHORITY', entityType: 'coil' }),
+        argumentContract: 'AUTHORITATIVE_SCHEME_CODE', entityType: 'coil' }),
 ]);
 
 function readPolicyLock(capability, entry) {

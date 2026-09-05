@@ -34,5 +34,11 @@ for(const [name,record,hashMismatch,exit] of [
 });
 test('forbidden frozen components unchanged',()=>{
     const fs=require('node:fs');
-    for(const [file,hash] of Object.entries(frozen))if(/candidateSet\.cjs|localTaskClassCatalog|entityFinalization|entityLookup|typeIndependentEntityResolver|sourceSpanCatalog|sourceAnchoredEntity|taskClassCatalog|taskClassSemantics|capabilityRegistry|capabilityRouter|toolExposure|localIntentContract/.test(file))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),hash,file);
+    // P16-A2 explicitly approves the additive authority reference and its strict reader.
+    // Keep exact pins rather than removing either component from freeze protection.
+    const approved = {
+        'api/services/entityLookupService.cjs': '46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72',
+        'api/services/ai-v5/typeIndependentEntityResolver.cjs': '8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58',
+    };
+    for(const [file,hash] of Object.entries(frozen))if(/candidateSet\.cjs|localTaskClassCatalog|entityFinalization|entityLookup|typeIndependentEntityResolver|sourceSpanCatalog|sourceAnchoredEntity|taskClassCatalog|taskClassSemantics|capabilityRegistry|capabilityRouter|toolExposure|localIntentContract/.test(file))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),approved[file] || hash,file);
 });
