@@ -21,7 +21,7 @@ async function acquireCandidateUnion(spans, options = {}) {
     const status = !complete || !bounded ? 'ERROR' : values.length===0?'NOT_FOUND':values.length===1?'RESOLVED':'AMBIGUOUS';
     return Object.freeze({status,complete:complete&&bounded,eligible:complete&&bounded&&values.length>0,
         businessApiCalls:sets.reduce((n,s)=>n+s.businessApiCalls,0),resolverCalls:sets.length,
-        lookupStatuses:Object.freeze(sets.map(s=>s.status)),deduplications,
+        lookupStatuses:Object.freeze(sets.map(s=>s.status)),lookupCompleteness:Object.freeze(sets.map(s=>s.complete)),deduplications,
         candidateCount:values.length,candidateTypeCount:new Set(values.map(c=>c.entityType)).size,
         candidates:Object.freeze(values),reasonCodes:Object.freeze([status==='ERROR'?'CANDIDATE_UNION_INCOMPLETE':status==='NOT_FOUND'?'ENTITY_LOOKUP_NOT_FOUND':'CANDIDATE_UNION_COMPLETE'])});
 }

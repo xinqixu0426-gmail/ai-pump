@@ -1,7 +1,7 @@
 'use strict';
 const { createV5SourceSpanCatalog, getSourceSpan } = require('./sourceSpanCatalog.cjs');
 const { selectSourceSpan } = require('./sourceSpanSelector.cjs');
-const { acquireCandidateUnion } = require('./candidateUnion.cjs');
+const { acquireRefinedCandidateUnion } = require('./nestedSpanRefinement.cjs');
 const { buildLocalTaskClassCatalog } = require('./localTaskClassCatalog.cjs');
 const { selectLocalIntent } = require('./localIntentSelector.cjs');
 const { finalizeEntity } = require('./entityFinalization.cjs');
@@ -39,9 +39,13 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     meta.spanRefs = Object.freeze([...first.selection.spanRefs]);
     meta.selectedSpanCount = spans.length;
     const lookupStarted = performance.now();
-    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => acquireCandidateUnion(spans, options));
+    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => acquireRefinedCandidateUnion(spans, source, catalog, options));
     meta.lookupDurationMs = performance.now() - lookupStarted;
     Object.assign(meta, { businessApiCalls: candidateSet.businessApiCalls, resolverCalls:candidateSet.resolverCalls,
+        refinementTriggered:candidateSet.refinementTriggered,originalResolverCalls:candidateSet.originalResolverCalls,
+        originalLookupStatuses:candidateSet.originalLookupStatuses,nestedParentCount:candidateSet.nestedParentCount,
+        nestedSelectedCount:candidateSet.nestedSelectedCount,nestedSpanRefs:candidateSet.nestedSpanRefs,
+        nestedResolverCalls:candidateSet.nestedResolverCalls,nestedLookupStatuses:candidateSet.nestedLookupStatuses,
         lookupStatuses:candidateSet.lookupStatuses, candidateUnionDeduplications:candidateSet.deduplications, lookupStatus: candidateSet.status,
         complete: candidateSet.complete, candidateCount: candidateSet.candidateCount,
         candidateTypeCount: candidateSet.candidateTypeCount,
@@ -69,7 +73,7 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     if (!final.candidate) return finish('INVALID', final.status);
     // Entity was already finalized without rank. Pick a deterministic source witness,
     // independent of model order; preserve the original Top-2 separately for recall.
-    const witness = spans.filter(s=>final.candidate.matchedSpanRefs.includes(s.spanRef))
+    const witness = [...spans,...candidateSet.nestedSpanRefs.map(ref=>getSourceSpan(catalog,ref))].filter(s=>final.candidate.matchedSpanRefs.includes(s.spanRef))
         .sort((a,b)=>a.start-b.start || a.end-b.end)[0];
     const rawMention = source.slice(witness.start,witness.end);
     const interpretation = validateV5TaskInterpretation({ version: 1, domain: selected.domain,
