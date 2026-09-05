@@ -32,6 +32,7 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     const first = await withV5InterpreterStage('span-selection', options, () => selectSourceSpan(source, catalog, options));
     meta.stage1Status = first.status;
     meta.stage1DurationMs = first.durationMs;
+    if (first.errorMetadata) meta.stage1Error = first.errorMetadata;
     if (first.status !== 'VALID') return finish(first.status, first.reasonCode || 'SPAN_SELECTION_ERROR');
     if (first.selection.needsClarification) return finish('INVALID', 'MULTI_ENTITY_OR_PRIMARY_ENTITY_CLARIFICATION');
     const span = getSourceSpan(catalog, first.selection.spanRef);
@@ -56,6 +57,7 @@ async function interpretCandidateSetTask(envelope, options = {}) {
         const second = await withV5InterpreterStage('local-intent', options, () => selectLocalIntent(source, span.spanRef, meta.candidateTypes, local, options));
         meta.stage2Status = second.status;
         meta.stage2DurationMs = second.durationMs;
+        if (second.errorMetadata) meta.stage2Error = second.errorMetadata;
         meta.stage2InputFingerprint = second.inputFingerprint;
         if (second.status !== 'VALID') return finish(second.status, second.reasonCode || 'LOCAL_INTENT_ERROR');
         selected = local.find(item => item.classRef === second.selection.localTaskClassRef);

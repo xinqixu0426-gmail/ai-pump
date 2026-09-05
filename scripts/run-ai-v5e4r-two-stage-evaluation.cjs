@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
+const { isFatalRecord, verifyHashes, enforceFatalExit } = require('./lib/v5TwoStageEvaluationControl.cjs');
 const { interpretCandidateSetTask } = require('../api/services/ai-v5/candidateSetTwoStageInterpreter.cjs');
 const { runV5IndependentShadow, evaluateIndependentShadow } = require('../api/services/ai-v5/independentShadow.cjs');
 const { createV5InterpreterInputEnvelope } = require('../api/services/ai-v5/taskInterpreterInput.cjs');
@@ -12,13 +13,13 @@ const { LOCAL_INTENT_PROMPT } = require('../api/services/ai-v5/localIntentSelect
 const { V5_INTERPRETER_MODEL_SETTINGS } = require('../api/services/ai-v5/taskInterpreter.cjs');
 const { V5_TASK_CLASS_CATALOG } = require('../api/services/ai-v5/taskClassCatalog.cjs');
 const { withAgentSpan, withV5InterpreterStage, initializeObservability, safeForceFlush, safeShutdown, getActiveTraceContext } = require('../api/services/observability.cjs');
-const output = path.join(root,'docs/ai-governance/data/v5-e4r-candidate-set-two-stage-evaluation.json');
+const output = path.join(root,'docs/ai-governance/data/v5-e4r-candidate-set-two-stage-valid-evaluation.json');
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const read = file => JSON.parse(fs.readFileSync(path.join(root,file),'utf8'));
 const moduleFiles = ['twoStageModel','sourceSpanSelector','sourceSpanSelectionContract','candidateSet','localTaskClassCatalog','localIntentSelector','localIntentContract','entityFinalization','candidateSetTwoStageInterpreter', 'independentShadow','shadowMirror','typeIndependentEntityResolver','sourceSpanCatalog','sourceAnchoredEntity','taskClassCatalog','taskClassSemantics','capabilityRegistry','capabilityRouter','toolExposure','taskInterpreterInput','taskInterpretationContract','contracts','taskState','controlledRuntime','policy','evidenceLedger'];
 function freezeHashes() {
     const files = moduleFiles.map(name => `api/services/ai-v5/${name}.cjs`).filter(file => fs.existsSync(path.join(root,file)));
-    files.push('api/services/entityLookupService.cjs','api/routes/entityLookup.cjs','api/routes/ai/internalApiClient.cjs','api/services/observability.cjs','scripts/run-ai-v5e4r-two-stage-evaluation.cjs');
+    files.push('api/services/entityLookupService.cjs','api/routes/entityLookup.cjs','api/routes/ai/internalApiClient.cjs','api/services/observability.cjs','scripts/run-ai-v5e4r-two-stage-evaluation.cjs','scripts/lib/v5TwoStageEvaluationControl.cjs','scripts/run-ai-v5e4r-two-stage-json-preflight.cjs');
     return { spanSelectorPrompt:hash(SPAN_SELECTOR_PROMPT), localIntentPrompt:hash(LOCAL_INTENT_PROMPT), modelSettings:hash(JSON.stringify(V5_INTERPRETER_MODEL_SETTINGS)),
         ...Object.fromEntries(files.map(file => [file,hash(fs.readFileSync(path.join(root,file)))])),
         frozenCorpus:hash(JSON.stringify(read('docs/ai-observability/data/p06-failure-cases.json'))),
@@ -67,6 +68,9 @@ async function main() {
     if (!process.env.DEEPSEEK_API_KEY) throw new Error('PROVIDER_UNAVAILABLE');
     const { verifyFreezeHashes,computeFreezeHashes }=require('./run-ai-v5e4r-task-class-semantics-v1_1-evaluation.cjs');
     verifyFreezeHashes(computeFreezeHashes());
+    const preflight=read('docs/ai-governance/data/v5-e4r-two-stage-json-preflight.json');
+    if(preflight.stage1?.status!=='VALID'||preflight.stage2?.status!=='VALID') throw new Error('PREFLIGHT_CANARY_FAILED');
+    verifyHashes(freezeHashes(),preflight.freezeHashes);
     const before=dbSnapshot(), pre=freezeHashes();
     const Database=require('better-sqlite3');
     // Harness-only source fixture recovery. Runtime data authority remains HTTP API.
@@ -100,7 +104,7 @@ async function main() {
     process.env.PORT=String(server.address().port);process.env.INTERNAL_SECRET=secret;
     const {createInternalFetch}=require('../api/routes/ai/internalApiClient.cjs');
     initializeObservability({env:{...process.env,AI_OBSERVABILITY_ENABLED:'true',AI_TRACE_CONTENT:'metadata',AI_OBSERVABILITY_PROJECT:'pump-ai-v5-candidate-set-v3'}});
-    const dataset={version:1,architectureVersion:3,formalRealEvaluationRuns:1,v4TrajectorySource:'FROZEN_P06_ARTIFACT_NO_V4_MODEL_RERUN',preEvalHashes:pre,paths:[],metrics:null};
+    const dataset={version:1,architectureVersion:3,priorInfrastructureAbortedRuns:1,formalRealEvaluationRuns:1,v4TrajectorySource:'FROZEN_P06_ARTIFACT_NO_V4_MODEL_RERUN',preEvalHashes:pre,paths:[],metrics:null};
     fs.writeFileSync(output,JSON.stringify(dataset,null,2)+'\n',{flag:'wx'});
     try {
         for(const oracle of expected) {
@@ -132,13 +136,14 @@ async function main() {
             });
             dataset.paths.push(record);fs.writeFileSync(output,JSON.stringify(dataset,null,2)+'\n');
             console.log(JSON.stringify({case_id:record.case_id,stage1:record.stage1Status,classMatch:record.taskClassMatch,finalEntity:record.finalEntityCorrect}));
-            if(record.lookupStatus==='ERROR'||record.stage1Status==='ERROR'||record.stage1Status==='TIMEOUT'||record.stage2Status==='ERROR'||record.stage2Status==='TIMEOUT') throw new Error('FORMAL_EVALUATION_INFRASTRUCTURE_FATAL');
+            if(isFatalRecord(record)) throw new Error('FORMAL_EVALUATION_INFRASTRUCTURE_FATAL');
         }
         dataset.metrics=summarize(dataset.paths);
-    } catch(error) { dataset.fatalReason=error.message; }
+    } catch(error) { dataset.fatalReason='FORMAL_EVALUATION_INFRASTRUCTURE_FATAL'; }
     finally {
         dataset.postEvalHashes=freezeHashes();dataset.hashesMatch=JSON.stringify(pre)===JSON.stringify(dataset.postEvalHashes);
         dataset.databaseBefore=before;dataset.databaseAfter=dbSnapshot();dataset.databaseUnchanged=JSON.stringify(before)===JSON.stringify(dataset.databaseAfter);
+        if(!dataset.hashesMatch||!dataset.databaseUnchanged) dataset.fatalReason='FORMAL_EVALUATION_INVARIANT_FAILURE';
         dataset.metrics=summarize(dataset.paths);
         fs.writeFileSync(output,JSON.stringify(dataset,null,2)+'\n');
         await safeForceFlush();await safeShutdown(); await new Promise(resolve=>server.close(resolve));db.close();
@@ -146,6 +151,7 @@ async function main() {
         if(savedSecret===undefined)delete process.env.INTERNAL_SECRET;else process.env.INTERNAL_SECRET=savedSecret;
     }
     console.log(JSON.stringify({paths:dataset.paths.length,metrics:dataset.metrics,hashesMatch:dataset.hashesMatch,databaseUnchanged:dataset.databaseUnchanged}));
+    enforceFatalExit(dataset);
 }
 if(require.main===module)main().catch(()=>{console.error('V3_EVALUATION_FAILED');process.exitCode=1;});
 module.exports={freezeHashes,dbSnapshot,summarize};

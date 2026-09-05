@@ -856,6 +856,12 @@ function withV5InterpreterStage(stage, metadata = {}, operation) {
         'pump.ai.v5.stage.candidate_count': Number(result?.candidateCount || 0),
         'pump.ai.v5.stage.candidate_type_count': Number(result?.candidateTypeCount || 0),
         'pump.ai.v5.stage.local_class_count': Array.isArray(result) ? result.length : 0,
+        ...(result?.errorMetadata ? {
+          'pump.ai.v5.error.category': safeLabel(result.errorMetadata.category),
+          'pump.ai.v5.error.code': safeLabel(result.errorMetadata.internalCode),
+          'pump.ai.v5.error.http_status': Number(result.errorMetadata.httpStatus || 0),
+          'pump.ai.v5.error.timeout': result.errorMetadata.timeout === true,
+        } : {}),
       } };
     },
   }, operation);
