@@ -182,6 +182,23 @@ async function runV5IndependentShadow(input = {}, options = {}) {
     const exposure = route.outcome === 'SELECTED'
         ? getV5ToolExposure(route)
         : { allowedToolNames: [], toolCount: 0, executionAllowed: false, reasonCode: route.reasonCode };
+    let readExecution = null;
+    const { executionShadowEnabled, runReadExecutionShadow } = require('./readExecutionShadow.cjs');
+    if (route.outcome === 'SELECTED' && executionShadowEnabled(options.env)
+        && interpretationResult.architectureMetadata?.complete === true
+        && interpretationResult.architectureMetadata?.finalEntityStatus === 'FINAL_ENTITY_RESOLVED') {
+        // A request-local receipt for the completed authoritative V3 resolution;
+        // never a business ID and never synthesized for unresolved interpretations.
+        const receivedTask = createV5Task({ taskId: task.taskId, createdAt: task.createdAt,
+            intent: task.intent, entityContext: task.entityContext.map(ref => createV5EntityReference({
+                ...ref, resolutionReceiptRef: `${task.taskId}:v3-finalization`,
+            })) });
+        try {
+            readExecution = await runReadExecutionShadow({ task: receivedTask, capabilityId: route.capabilityId,
+                routeInput: { domain: interpretation.domain, operation: interpretation.operation, entityType: entityTypes[0] } },
+            { env: options.env, compare: options.compareReadResult });
+        } catch { readExecution = { executionStatus: 'ERROR', toolCalls: 0, reasonCodes: ['READ_SHADOW_INTERNAL_ERROR'] }; }
+    }
     return baseOutcome(interpretedInput, interpretationResult, {
         domain: interpretation.domain,
         operation: interpretation.operation,
@@ -192,12 +209,14 @@ async function runV5IndependentShadow(input = {}, options = {}) {
         allowedToolNames: [...exposure.allowedToolNames],
         toolCount: exposure.toolCount,
         executionAllowed: false,
+        ...(readExecution ? { readExecution, v5ToolCalls: readExecution.toolCalls,
+            v5BusinessApiCalls: (interpretationResult.architectureMetadata?.businessApiCalls || 0) + (readExecution.businessApiReadCalls || 0) } : {}),
         reasonCodes: [...new Set([
             'INTERPRETATION_VALID',
             'SOURCE_ANCHOR_VALID',
             route.reasonCode,
             exposure.reasonCode,
-            'V5_EXECUTION_DISABLED',
+            ...(readExecution ? readExecution.reasonCodes : ['V5_EXECUTION_DISABLED']),
         ])],
     });
 }

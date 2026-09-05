@@ -134,7 +134,13 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['candidateSet.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['candidateSet.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    // P16-A explicitly approves only the existing governed Executor behind both flags.
+    const readExecution = fs.readFileSync(path.join(v5Root, 'readExecutionShadow.cjs'), 'utf8');
+    assert.match(readExecution, /routes\/ai\/executor\.cjs/);
+    assert.match(readExecution, /allowWrite: false/);
+    assert.match(readExecution, /AI_V5_EXECUTION_SHADOW_ENABLED === 'true'/);
+    assert.doesNotMatch(readExecution, /(?:internalApiClient|db\.cjs|fetch\s*\()/i);
     // Error-class allowlists contain AiProvider names, not an additional data/client import.
     const stageWrapper = fs.readFileSync(path.join(v5Root, 'twoStageModel.cjs'), 'utf8');
     assert.doesNotMatch(stageWrapper, /(?:executor|internalApiClient|aiProvider\.cjs|db\.cjs|fetch\s*\()/i);

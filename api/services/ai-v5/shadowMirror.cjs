@@ -160,7 +160,8 @@ function createV5ShadowMirror(options = {}) {
         }
         if (active.size >= config.maxConcurrency) {
             counters.skippedCapacity += 1;
-            return freeze({ shadowStatus: 'SHADOW_SKIPPED_CAPACITY', completion: null });
+            const executionEnabled = (runtimeOptions.env || options.env || process.env).AI_V5_EXECUTION_SHADOW_ENABLED === 'true';
+            return freeze({ shadowStatus: executionEnabled ? 'SHADOW_EXECUTION_SKIPPED_CAPACITY' : 'SHADOW_SKIPPED_CAPACITY', completion: null });
         }
 
         counters.tasksCreated += 1;
@@ -192,6 +193,8 @@ function createV5ShadowMirror(options = {}) {
                     })
                     : null;
                 counters.v5ModelCalls += Math.max(0, Number(independentShadow?.modelCalls) || 0);
+                counters.v5ToolCalls += Math.max(0, Number(independentShadow?.v5ToolCalls) || 0);
+                counters.v5BusinessApiCalls += Math.max(0, Number(independentShadow?.readExecution?.businessApiReadCalls) || 0);
                 return assembleOutcome(facts, projection, comparison, independentShadow);
             }));
             const executionTimeoutMs = (runtimeOptions.interpreterEnvelope || typeof runtimeOptions.sourceRequest === 'string')
@@ -207,7 +210,8 @@ function createV5ShadowMirror(options = {}) {
                 try { onOutcome(outcome); } catch { /* Observer cannot affect shadow. */ }
                 try { runtimeOptions.onOutcome?.(outcome); } catch { /* Observer cannot affect shadow. */ }
                 clearTimeout(timeout);
-                active.delete(completion);
+                // Keep the capacity slot until actual work settles, even after a user-independent timeout.
+                execution.finally(() => active.delete(completion)).catch(() => {});
                 resolveCompletion(outcome);
             }).catch(() => {
                 counters.shadowErrors += 1;
