@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 230 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 231 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -397,6 +397,14 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 转子只读数据边界统一在 `rotorQueries` 与 `rotorHistory`：订单型号、关联目标、配方/模板草稿和历史状态只聚合正式 SQLite 数据，不调用 AI、不写库；参数标准化、数值范围校验和确认前安全警报统一在 `rotorParameters`。自然语言候选提取、DeepSeek 超时/重试、JSON 容错、正则纠偏和基础参数合并统一在 `rotorNaturalLanguage`，其兼容警报响应由共享检查器派生；模型输出不是正式图纸参数事实，必须经过确定性校验和 `/draw-preview` 确认。FreeCAD 与打印设备执行已抽入 `rotorExternalCommands`，通过 `businessConfirmation` 绑定 Preview 参数与警报快照，并用 `api_operations` 持久化 `accepted/processing/completed/failed` 回执。路由只保留鉴权主体、命令上下文、service 调用和响应适配。
 
 ## 16. AI
+
+### 内部实体解析查询（只读）
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `POST` | `/api/entity-lookup` | `{ version: 1, mention: string, entityTypes: ('coil'\|'customer'\|'order'\|'part'\|'recipe'\|'template')[], matchPolicy: 'EXACT'\|'APPROVED_ALIAS'\|'EXACT_OR_APPROVED_ALIAS' }` | 内部只读 Query 能力 `entities.lookup_batch`。严格拒绝额外字段、类型强制转换、重复/越界实体类型和超长 mention；返回显式 `complete`、候选数量以及仅含 `entityType/canonicalId/matchKind` 的最小候选。只做正式身份字段等值查询，无 contains/prefix/fuzzy/top-1；当前六类没有正式 alias 来源。V5 只能通过 `internalApiClient.lookupEntities` 调用，不能直连数据库或经 AI Tool 绕路。该 POST 不需要 `allowWrite`、确认、幂等键或 mutation/audit row，仍受统一 `/api` 鉴权保护。边界：mention 160 个 Unicode code point、每次 6 类、每类 10 候选、总计 30 候选；不完整结果不得解析成唯一实体 |
+
+能力登记：`capabilityId=entities.lookup_batch`，`domain=entities`，`access=query`，source of truth 为六类正式业务表经 `entityLookupService` 的有界等值读取；调用方仅限内部 V5 shadow resolver。风险为 low；无 preview/confirmation/idempotency/写事务/业务审计要求，错误必须区分 invalid/unsupported/incomplete/internal error，不得把技术失败当作未找到。完整契约见 `docs/ai-governance/entity-lookup-api-v1.md`。
 
 ### AI
 

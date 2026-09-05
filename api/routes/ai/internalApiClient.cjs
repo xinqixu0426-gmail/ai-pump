@@ -123,4 +123,55 @@ function deleteJson(internalFetch, url, fallbackError, body) {
     return requestJson(internalFetch, 'DELETE', url, body, fallbackError);
 }
 
-module.exports = { createInternalFetch, readApiJson, getJson, postJson, putJson, patchJson, deleteJson };
+async function lookupEntities(internalFetch, input) {
+    const method = 'POST';
+    const path = '/api/entity-lookup';
+    try {
+        const result = await readApiJson(await internalFetch(path, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(input),
+        }), '实体查询 API 调用失败');
+        if (typeof internalFetch.recordApiResult === 'function') {
+            internalFetch.recordApiResult({
+                method,
+                path,
+                ok: true,
+                result: {
+                    version: result?.version,
+                    status: result?.status,
+                    complete: result?.complete === true,
+                    attemptedEntityTypes: result?.attemptedEntityTypes,
+                    candidateCount: result?.candidateCount,
+                },
+            });
+        }
+        return result;
+    } catch (error) {
+        if (typeof internalFetch.recordApiResult === 'function') {
+            internalFetch.recordApiResult({
+                method,
+                path,
+                ok: false,
+                outcome: error.formalApiOutcome,
+                error: {
+                    code: error.code || 'internal_api_request_failed',
+                    statusCode: error.statusCode || null,
+                    message: error.message,
+                },
+            });
+        }
+        throw error;
+    }
+}
+
+module.exports = {
+    createInternalFetch,
+    readApiJson,
+    getJson,
+    postJson,
+    putJson,
+    patchJson,
+    deleteJson,
+    lookupEntities,
+};

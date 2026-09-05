@@ -1,0 +1,310 @@
+{
+  "schemaVersion": 1,
+  "evaluation": "V5-E4R-E-B1-B Governed Entity Resolution",
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "coil",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 2,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "78a1e90e680be0f19fb74d1ead1882b5"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "coil",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 2,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "98e23e8f30ced9480a57734400f13e74"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "coil",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 2,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "05dc68cbf170333bf9a5c41a974deb3f"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "recipe",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 4,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "69b7e75cd6904c741336b95886065687"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "recipe",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 4,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "c6f820d0cd76babedd318fadaadfbd75"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "recipe",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 4,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "abb4fe54022e161be13efa91a17e8484"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "resolutionStatus": "AMBIGUOUS",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": false,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 0,
+      "expectedClassSurvives": false,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_CROSS_TYPE_AMBIGUOUS"
+      ],
+      "traceId": "add153dbbbdbcf799916211eacc74d1c"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "resolutionStatus": "AMBIGUOUS",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": false,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 0,
+      "expectedClassSurvives": false,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_CROSS_TYPE_AMBIGUOUS"
+      ],
+      "traceId": "a108f4704ad9f90e2f2e498992c961ee"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "resolutionStatus": "AMBIGUOUS",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": false,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 0,
+      "expectedClassSurvives": false,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_CROSS_TYPE_AMBIGUOUS"
+      ],
+      "traceId": "20ec322f2e1b4a0e8f5bb9030b7f6954"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "0ed328a8f4a83bb08958c8e620d7e2ba"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "984239102e8b73c47cfdb394a5c55bef"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "ef1508db892cfa143689a8a1a6c52432"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "a3622670d85c875f5171e2547f92f1ed"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "0228d06ba7cda7eebd36943122fbca70"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "resolutionStatus": "RESOLVED",
+      "expectedEntityType": "part",
+      "resolvedEntityTypeMatch": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "complete": true,
+      "logicalApiCallCount": 1,
+      "localTaskClassCount": 1,
+      "expectedClassSurvives": true,
+      "safeReasonCodes": [
+        "ENTITY_LOOKUP_UNIQUE_AUTHORITATIVE"
+      ],
+      "traceId": "cbc32a54557a4b33286cdb6d7b8ff60d"
+    }
+  ],
+  "metrics": {
+    "frozenPaths": 15,
+    "applicablePaths": 15,
+    "correctResolvedEntityType": 12,
+    "wrongEntityType": 0,
+    "ambiguous": 3,
+    "notFound": 0,
+    "incomplete": 0,
+    "resolverError": 0,
+    "falseUniqueResolution": 0,
+    "sourceGroups": 5,
+    "correctlyResolvedSourceGroups": 4,
+    "expectedLocalClassSurvival": 12,
+    "logicalResolverCalls": 25,
+    "frozenLogicalResolverCalls": 15,
+    "concurrentLogicalResolverCalls": 10,
+    "businessApiCalls": 25,
+    "businessApiCallsPerLogicalResolver": 1,
+    "serverTypedLookupAttempts": 150,
+    "medianTypedAttempts": 6,
+    "maxTypedAttempts": 6,
+    "medianLocalTaskClassCount": 1,
+    "maxLocalTaskClassCount": 4,
+    "entityLookupApiMedianMs": 1.9635000000000673,
+    "entityLookupApiP95Ms": 15.949399999999969,
+    "resolverMedianMs": 2.026299999999992,
+    "resolverP95Ms": 17.324500000000057,
+    "timeoutCount": 0,
+    "concurrentIsolation": true,
+    "crossRequestContaminationCount": 0,
+    "entityLookupWriteCount": 0,
+    "allowWriteCalls": 0,
+    "mutationServiceCalls": 0,
+    "v5InterpreterModelCalls": 0,
+    "v5ToolCalls": 0,
+    "v5BusinessApiReadCalls": 25,
+    "v5Writes": 0,
+    "productionRequestsRoutedToV5": 0
+  },
+  "safety": {
+    "businessDbHashUnchanged": true,
+    "businessDbMTimeUnchanged": true,
+    "businessDbSizeUnchanged": true,
+    "backupCountUnchanged": true,
+    "unexpectedBackupCreated": false,
+    "lookupDbHashUnchanged": true,
+    "lookupDbMTimeUnchanged": true,
+    "lookupDbSizeUnchanged": true
+  }
+}

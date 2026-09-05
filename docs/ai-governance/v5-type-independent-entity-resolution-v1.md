@@ -1,85 +1,65 @@
-# V5 Type-Independent Entity Resolution V1 — Authority Gate
+# V5 Type-Independent Entity Resolution V1
 
-## Status
+## Status and scope
 
-`BLOCKED_FOR_SUPERVISOR`. No V1 resolver implementation exists yet.
+V1 is implemented as a read-only, bounded resolver over the governed Entity Lookup API V1. A caller supplies one exact, source-owned raw mention and no entity-type hint. The resolver returns `RESOLVED`, `AMBIGUOUS`, `NOT_FOUND`, `UNSUPPORTED`, or `ERROR`.
 
-The required logical boundary cannot be completed under the simultaneous constraints of authoritative resolution, no new V5 Business API dependency, and no new V5 direct SQLite read. This document records the frozen authority model and the decision required before implementation; it must not be treated as a shipped runtime contract.
+It does not select intent, route or execute a capability, call a model or Tool, write business data, or change V4 behavior.
 
-## Scope
-
-The intended future boundary accepts one exact source-owned entity mention without an entity-type hint and returns one of `RESOLVED`, `AMBIGUOUS`, `NOT_FOUND`, `UNSUPPORTED`, or `ERROR`. It must be deterministic, bounded, read-only, privacy-safe, and independent of Tool selection.
-
-It does not select intent, route a capability, expose or execute a Tool, call a model, write business data, or change V4 behavior.
-
-## Existing authority model
-
-The Business Ontology contains 19 entity types. Current authoritative typed resolution is available for six types: `customer`, `order`, `recipe`, `part`, `coil`, and `template`.
-
-`entityResolverAdapter.cjs` does not acquire candidates. It requires the caller to provide both an entity type and a `formalResult`, then delegates to the pure V3 formal-result reducer. The adapter itself is read-only, makes no Business API call, performs no direct DB read, and writes nothing.
-
-The existing production discovery path is not independent: it receives an already selected Tool, derives entity type from `TOOL_TARGETS`, and calls discovery capabilities through Tool execution. Those executors obtain authoritative records through `internalApiClient` and read-only Business APIs.
-
-## Resolver support inventory
-
-| Classification | Entity types | Reason |
-| --- | --- | --- |
-| Resolvable | customer, order, recipe, part, coil, template | Existing V3 formal-result reducers and canonical identity descriptors exist, but candidate data must be supplied externally. |
-| Structural-only | cost_context, factory, global | These are calculation/scope identities and do not represent independently resolved business records. |
-| Unsupported | quotation, purchase, workflow, file, business_record, knowledge, drawing, stator_variant, pump_variant, technical_file | Ontology entries exist, but no approved V3 formal-result resolver adapter exists. |
-
-## Required future registry
-
-A future `entityResolutionRegistry.cjs` may register only the six proven read-only typed reducers and their authoritative candidate providers. Registration must validate ontology IDs, unique types, stable resolver references, and read-only authority. A reducer without an authorized candidate provider is not an end-to-end resolver and must not be registered as operational.
-
-## Bounded fanout
-
-Future fanout begins only after one exact source span has been selected. It may attempt each registered type once and must inspect all attempted types before declaring a unique result. It must not short-circuit on the first match.
-
-The concrete values for `MAX_ENTITY_TYPE_ATTEMPTS`, `MAX_CANDIDATES_PER_TYPE`, and `MAX_TOTAL_CANDIDATES` remain undefined until the authority source and its response limits are approved. Defining limits before knowing the provider contract would create a misleading operational guarantee.
-
-## Cross-type uniqueness
-
-The future decision table remains mandatory:
-
-- one canonical candidate across all supported types: `RESOLVED`;
-- candidates across multiple types: `AMBIGUOUS`;
-- multiple candidates within one type: `AMBIGUOUS`;
-- zero candidates after all complete attempts: `NOT_FOUND`;
-- no meaningful registered attempt: `UNSUPPORTED`;
-- typed resolver error or incomplete authority: `ERROR`.
-
-Deduplication may use only canonical identity plus entity type. Display names, lexical similarity, ordering, and model output cannot establish uniqueness.
-
-## Identity and privacy
-
-The input identity must originate from an exact Source Span/Source Anchor and remain character-for-character unchanged. Normalized values must be separate fields. Runtime traces may include status, counts, resolved type, match kind, ambiguity, timeout/error, and duration only. They must omit the source mention, canonical identity, business IDs, candidate names, and business payloads.
-
-## Read-only guarantee
-
-No create, update, alias repair, normalization persistence, business audit write, cache mutation, or Tool execution is permitted. A future read provider must be explicitly classified and tested as read-only. Resolving a business record is not authorization to execute any capability against it.
-
-## Frozen evaluation status
-
-All 15 frozen paths require a concrete entity resolution for this evaluation. None was executed because only one frozen source group contains prior resolver evidence and the safe artifacts do not contain the complete authoritative candidate rows needed by the six typed reducers. Synthesizing rows from expected answers would be circular and non-authoritative.
-
-The local Task Class filter, coil set, 800平刀 reduction, latency, typed-attempt count, and concurrency gates therefore remain `NOT_RUN`. They cannot be promoted from the earlier expected-type simulation to real resolver evidence.
-
-## Supervisor decision required
-
-Before a new implementation phase, the Supervisor must authorize one bounded authoritative read source. The narrowest viable option is a dedicated V5 read-only provider built over already-approved business read APIs, with explicit call counters, timeout, capacity, privacy, and zero-write enforcement. This would make `V5 Business API Calls` greater than zero during resolution and therefore changes a frozen invariant.
-
-Direct SQLite reads, reuse of V4 Tool execution disguised as resolution, fixtures treated as production authority, and LLM entity-type guessing remain prohibited.
-
-## Future two-stage usage
-
-Only after the authority decision and a passing resolver evaluation may the boundary be connected as:
+## Authority boundary
 
 ```text
-exact selected source span
-→ bounded authoritative cross-type resolution
-→ unique entity type or fail-closed outcome
-→ entity-filtered local intent catalog
+exact Source Span / Source Anchor
+→ resolveEntityTypeIndependent(rawMention)
+→ internalApiClient.lookupEntities
+→ POST /api/entity-lookup
+→ official Business API service/data-access
+→ complete authoritative candidate set
 ```
 
-The second model call and Two-Stage Interpreter remain outside this phase.
+V5 has no direct SQLite dependency. It makes exactly one batch Business API read per logical resolution. The API evaluates the six registered entity types inside the formal Business API boundary.
+
+## Resolution registry
+
+`V5_ENTITY_RESOLUTION_REGISTRY_VERSION=1` registers only `coil`, `customer`, `order`, `part`, `recipe`, and `template`. Every entry references an existing Business Ontology ID, the same governed read provider, and a read-only authority class. Structural-only and unsupported ontology types remain outside this boundary.
+
+## Bounds and completeness
+
+The logical call sends all six registered types with `EXACT_OR_APPROVED_ALIAS`. The Business API bounds the request to six types, ten candidates per type, thirty candidates total, and a 160-code-point mention. The resolver validates the response shape, exact attempted-type count, allowed candidate types, minimal candidate fields, candidate uniqueness, and status/completeness consistency.
+
+It never short-circuits on the first typed match. `complete=false`, a malformed response, an API error, or `ENTITY_LOOKUP_TIMEOUT` produces `ERROR`; none can be reclassified as `NOT_FOUND` or `RESOLVED`.
+
+## Decision table
+
+| Complete candidate result | Resolver outcome |
+| --- | --- |
+| exactly one candidate | `RESOLVED` with its entity type and runtime canonical identity |
+| multiple candidates in one type | `AMBIGUOUS` |
+| candidates across multiple types | `AMBIGUOUS` |
+| zero candidates | `NOT_FOUND` |
+| no meaningful registered type set | `UNSUPPORTED` |
+| incomplete, invalid, failed, or timed out read | `ERROR` |
+
+Deduplication uses `entityType + canonicalId`, never display text. The resolver does not ask a model to arbitrate ambiguity.
+
+## Identity ownership
+
+`rawMention` must originate from the exact Source Span/Source Anchor and remains character-for-character unchanged in runtime memory. The resolver never trims, normalizes, translates, corrects punctuation, or coerces numeric-looking text. Canonical identity is a separate runtime field and is present only for a unique resolved candidate.
+
+## Read-only and privacy guarantees
+
+The resolver adds one Business API read dependency and no write authority. It invokes no Tool, performs no direct DB read, calls no model, creates no alias, and persists no resolution or audit business row.
+
+Traces and durable artifacts may store only status, counts, resolved type, completeness, match-kind categories, reason codes, and duration. They must omit the raw mention, canonical identity, business IDs, names, and business values.
+
+## Frozen evaluation result
+
+The governed real read evaluation exercised all 15 frozen paths. Twelve paths resolved to the authoritative entity type. Three `FLAT_BLADE_PRICE` paths returned a complete cross-type ambiguity because the same exact formal identity exists as both a `part` and a `template`. This is a valid fail-closed result, not a false unique resolution.
+
+Consequently, the frozen accuracy is `12/15 (80%)`, four of five source groups resolve fully, and local Task Class survival is `12/15`. Coil resolves to `coil` with two compatible local classes; the Exact Entity recipe group resolves to `recipe` with four; the two part inventory groups resolve to `part` with one. The 800平刀 group remains ambiguous and cannot proceed to local intent selection without an authoritative disambiguation source.
+
+The evaluation made one batch API call per logical resolution, produced no timeout, passed ten-request isolation, and left the business database and backup inventory unchanged.
+
+## Future two-stage use
+
+The resolver is ready as an isolated authority boundary, but P15R-E-B2 is not ready because the frozen gate requires all 15 paths to resolve uniquely. Future architecture work must preserve this ambiguity rather than add fuzzy, first-result, keyword, alias, or database repair shortcuts.

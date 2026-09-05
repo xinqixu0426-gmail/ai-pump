@@ -69,6 +69,7 @@ function collectHttpEndpoints() {
         'files.cjs': '/api/files',
         'knowledge.cjs': '/api/knowledge',
         'businessChanges.cjs': '/api/business-changes',
+        'entityLookup.cjs': '/api/entity-lookup',
         'mcp.cjs': '/mcp',
     };
     const endpoints = [];

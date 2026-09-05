@@ -100,7 +100,7 @@ test('P06 R02 is explicitly out of scope and no routing decision is introduced',
     assert.equal(analyses.every(item => item.wouldBeBlocked === 'UNKNOWN'), true);
 });
 
-test('V5 production import remains limited to the shadow hook and the P15 interpreter model boundary', () => {
+test('V5 production import remains limited to approved shadow, interpreter, and governed entity-read boundaries', () => {
     const apiRoot = path.resolve(__dirname, '..', 'api');
     const v5Root = path.join(apiRoot, 'services', 'ai-v5');
     const sourceFiles = [];
@@ -134,11 +134,14 @@ test('V5 production import remains limited to the shadow hook and the P15 interp
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['taskInterpreter.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['taskInterpreter.cjs', 'typeIndependentEntityResolver.cjs']);
     const interpreter = fs.readFileSync(path.join(v5Root, 'taskInterpreter.cjs'), 'utf8');
     assert.match(interpreter, /fetchProviderWithRetry/);
     assert.match(interpreter, /maxAttempts:\s*1/);
     assert.doesNotMatch(interpreter, /(?:executor|internalApiClient|db\.cjs)/i);
+    const entityResolver = fs.readFileSync(path.join(v5Root, 'typeIndependentEntityResolver.cjs'), 'utf8');
+    assert.match(entityResolver, /internalApiClient\.cjs/);
+    assert.doesNotMatch(entityResolver, /(?:executor|db\.cjs)/i);
     const observabilityImporters = fs.readdirSync(v5Root)
         .filter(name => name.endsWith('.cjs'))
         .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(
