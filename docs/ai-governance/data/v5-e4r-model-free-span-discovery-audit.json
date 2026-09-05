@@ -1,0 +1,2915 @@
+{
+  "schemaVersion": 1,
+  "audit": "P15R-E-B2-E",
+  "simulationOnly": true,
+  "groups": [
+    {
+      "source_group_id": "COIL_INVENTORY",
+      "sourceSpanCount": 19,
+      "identifierLikeCount": 1,
+      "wordLikeCount": 4,
+      "combinedCount": 19,
+      "quotedCount": 0,
+      "expectedCategories": [
+        "IDENTIFIER",
+        "COMBINED"
+      ],
+      "expectedSpanRef": "sp_005",
+      "neighborhood": {
+        "strictSubspans": 0,
+        "strictSuperspans": 4,
+        "overlapsExcludingContainment": 4,
+        "sameStartExcludingSelf": 4,
+        "sameEndExcludingSelf": 0
+      },
+      "uniqueSourceBoundaries": 19,
+      "uniqueSourceTexts": 19,
+      "eligibleSpanCount": 18,
+      "expectedSurvives": true,
+      "expectedLengthCategory": "WITHIN_EXISTING_API_BOUND",
+      "excludedWholeRequestRefs": [
+        "sp_001"
+      ],
+      "typedAttempts": 108
+    },
+    {
+      "source_group_id": "EXACT_RECIPE_COST",
+      "sourceSpanCount": 32,
+      "identifierLikeCount": 1,
+      "wordLikeCount": 6,
+      "combinedCount": 30,
+      "quotedCount": 0,
+      "expectedCategories": [
+        "IDENTIFIER"
+      ],
+      "expectedSpanRef": "sp_006",
+      "neighborhood": {
+        "strictSubspans": 0,
+        "strictSuperspans": 5,
+        "overlapsExcludingContainment": 5,
+        "sameStartExcludingSelf": 5,
+        "sameEndExcludingSelf": 0
+      },
+      "uniqueSourceBoundaries": 32,
+      "uniqueSourceTexts": 32,
+      "eligibleSpanCount": 31,
+      "expectedSurvives": true,
+      "expectedLengthCategory": "WITHIN_EXISTING_API_BOUND",
+      "excludedWholeRequestRefs": [
+        "sp_001"
+      ],
+      "typedAttempts": 186
+    },
+    {
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "sourceSpanCount": 34,
+      "identifierLikeCount": 1,
+      "wordLikeCount": 8,
+      "combinedCount": 33,
+      "quotedCount": 0,
+      "expectedCategories": [
+        "COMBINED"
+      ],
+      "expectedSpanRef": "sp_002",
+      "neighborhood": {
+        "strictSubspans": 20,
+        "strictSuperspans": 1,
+        "overlapsExcludingContainment": 9,
+        "sameStartExcludingSelf": 6,
+        "sameEndExcludingSelf": 5
+      },
+      "uniqueSourceBoundaries": 34,
+      "uniqueSourceTexts": 34,
+      "eligibleSpanCount": 33,
+      "expectedSurvives": true,
+      "expectedLengthCategory": "WITHIN_EXISTING_API_BOUND",
+      "excludedWholeRequestRefs": [
+        "sp_001"
+      ],
+      "typedAttempts": 198
+    },
+    {
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "sourceSpanCount": 28,
+      "identifierLikeCount": 3,
+      "wordLikeCount": 7,
+      "combinedCount": 27,
+      "quotedCount": 0,
+      "expectedCategories": [
+        "COMBINED"
+      ],
+      "expectedSpanRef": "sp_005",
+      "neighborhood": {
+        "strictSubspans": 5,
+        "strictSuperspans": 4,
+        "overlapsExcludingContainment": 8,
+        "sameStartExcludingSelf": 6,
+        "sameEndExcludingSelf": 2
+      },
+      "uniqueSourceBoundaries": 28,
+      "uniqueSourceTexts": 28,
+      "eligibleSpanCount": 27,
+      "expectedSurvives": true,
+      "expectedLengthCategory": "WITHIN_EXISTING_API_BOUND",
+      "excludedWholeRequestRefs": [
+        "sp_001"
+      ],
+      "typedAttempts": 162
+    },
+    {
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "sourceSpanCount": 28,
+      "identifierLikeCount": 3,
+      "wordLikeCount": 7,
+      "combinedCount": 27,
+      "quotedCount": 0,
+      "expectedCategories": [
+        "COMBINED"
+      ],
+      "expectedSpanRef": "sp_005",
+      "neighborhood": {
+        "strictSubspans": 5,
+        "strictSuperspans": 4,
+        "overlapsExcludingContainment": 8,
+        "sameStartExcludingSelf": 6,
+        "sameEndExcludingSelf": 2
+      },
+      "uniqueSourceBoundaries": 28,
+      "uniqueSourceTexts": 28,
+      "eligibleSpanCount": 27,
+      "expectedSurvives": true,
+      "expectedLengthCategory": "WITHIN_EXISTING_API_BOUND",
+      "excludedWholeRequestRefs": [
+        "sp_001"
+      ],
+      "typedAttempts": 162
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 18,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 17,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "coil"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 18,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 17,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "coil"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 18,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 17,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "coil"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "expectedSpanRef": "sp_006",
+      "eligibleSpanCount": 31,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "NOT_FOUND",
+          "candidateCount": 0,
+          "source": "B2D_SELECTED_SPAN"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 29,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "recipe"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "expectedSpanRef": "sp_006",
+      "eligibleSpanCount": 31,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "NOT_FOUND",
+          "candidateCount": 0,
+          "source": "B2D_SELECTED_SPAN"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 29,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "recipe"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "expectedSpanRef": "sp_006",
+      "eligibleSpanCount": 31,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "NOT_FOUND",
+          "candidateCount": 0,
+          "source": "B2D_SELECTED_SPAN"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 29,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "recipe"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "expectedSpanRef": "sp_002",
+      "eligibleSpanCount": 33,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "AMBIGUOUS",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 2
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_033",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_034",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 32,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 2,
+      "knownSubsetCandidateTypes": [
+        "part",
+        "template"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "expectedSpanRef": "sp_002",
+      "eligibleSpanCount": 33,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "AMBIGUOUS",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 2
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_033",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_034",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 32,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 2,
+      "knownSubsetCandidateTypes": [
+        "part",
+        "template"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "expectedSpanRef": "sp_002",
+      "eligibleSpanCount": 33,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "AMBIGUOUS",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 2
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_029",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_030",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_031",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_032",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_033",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_034",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 32,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 2,
+      "knownSubsetCandidateTypes": [
+        "part",
+        "template"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "expectedSpanRef": "sp_005",
+      "eligibleSpanCount": 27,
+      "expectedSpanSurvives": true,
+      "spanEvidence": [
+        {
+          "spanRef": "sp_002",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_003",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_004",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_005",
+          "status": "RESOLVED",
+          "source": "B1B_EXPECTED_SPAN",
+          "candidateCount": 1
+        },
+        {
+          "spanRef": "sp_006",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_007",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_008",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_009",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_010",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_011",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_012",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_013",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_014",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_015",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_016",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_017",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_018",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_019",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_020",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_021",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_022",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_023",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_024",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_025",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_026",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_027",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        },
+        {
+          "spanRef": "sp_028",
+          "status": "UNKNOWN",
+          "source": "NO_FROZEN_LOOKUP_EVIDENCE"
+        }
+      ],
+      "unknownSpanCount": 26,
+      "expectedAuthoritativeCandidateCovered": true,
+      "knownSubsetCandidateCount": 1,
+      "knownSubsetCandidateTypes": [
+        "part"
+      ],
+      "knownSubsetLocalClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvivesKnownSubset": true,
+      "expectedClassSurvivesUntruncatedUnion": true,
+      "knownSubsetFinalUniqueSimulation": true,
+      "fullCandidateUnionCount": "UNKNOWN",
+      "fullLocalClassCount": "UNKNOWN",
+      "fullFinalUniqueEntity": "UNKNOWN",
+      "safeReasonCodes": [
+        "SIMULATION_ONLY",
+        "MISSING_LOOKUP_EVIDENCE_NOT_NEGATIVE",
+        "UNIQUE_SUBSET_DOES_NOT_PROVE_UNIQUE_SUPERSET"
+      ]
+    }
+  ],
+  "summary": {
+    "paths": 15,
+    "groups": 5,
+    "inputFingerprints": 4,
+    "globalSpanMedian": 28,
+    "globalSpanMax": 34,
+    "eligibleMedian": 27,
+    "eligibleMax": 33,
+    "typedAttemptsMedian": 162,
+    "typedAttemptsMax": 198,
+    "eligiblePathSpanPairs": 408,
+    "unknownPathSpanPairs": 390,
+    "expectedSpanSurvival": "15/15",
+    "expectedCandidateEvidenceCoverage": "15/15",
+    "expectedClassSurvivalUntruncatedUnion": "15/15",
+    "knownSubsetCandidateMedian": 1,
+    "knownSubsetCandidateMax": 2,
+    "knownSubsetLocalClassMedian": 2,
+    "knownSubsetLocalClassMax": 4,
+    "knownSubsetFinalUnique": "15/15",
+    "fullUnionFinalUnique": "UNKNOWN",
+    "sameTypePrimaryAmbiguity": "UNKNOWN"
+  },
+  "proposedBounds": {
+    "mentions": 40,
+    "entityTypes": 6,
+    "candidatesPerType": 10,
+    "candidatesPerMention": 30,
+    "totalCandidates": 120,
+    "mentionCodePoints": 160,
+    "worstTypedAttempts": 240,
+    "onOverflow": "INCOMPLETE_FAIL_CLOSED"
+  },
+  "decision": {
+    "topKEscalation": "REJECTED",
+    "removeStage1": "INCONCLUSIVE",
+    "recommendedArchitecture": "BLOCKED",
+    "P15R_E_B2_F_READY": false
+  },
+  "safety": {
+    "modelCalls": 0,
+    "businessApiCalls": 0,
+    "toolCalls": 0,
+    "writes": 0,
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    },
+    "databaseUnchanged": true,
+    "frozenHashesUnchanged": true
+  }
+}
