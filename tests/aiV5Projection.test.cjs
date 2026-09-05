@@ -135,12 +135,16 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 : [];
         });
     assert.deepEqual(forbiddenV5Imports, ['candidateSet.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
-    // P16-A explicitly approves only the existing governed Executor behind both flags.
+    // P16-B1 adds one governed GET readback for explicitly required field evidence.
+    // No direct database, raw fetch, writes, or alternate executor is admitted.
     const readExecution = fs.readFileSync(path.join(v5Root, 'readExecutionShadow.cjs'), 'utf8');
     assert.match(readExecution, /routes\/ai\/executor\.cjs/);
     assert.match(readExecution, /allowWrite: false/);
     assert.match(readExecution, /AI_V5_EXECUTION_SHADOW_ENABLED === 'true'/);
-    assert.doesNotMatch(readExecution, /(?:internalApiClient|db\.cjs|fetch\s*\()/i);
+    assert.doesNotMatch(readExecution, /(?:db\.cjs|\bfetch\s*\(|postJson|putJson|patchJson|deleteJson)/i);
+    assert.match(readExecution, /\{ createInternalFetch, getJson \} = require\('\.\.\/\.\.\/routes\/ai\/internalApiClient\.cjs'\)/);
+    assert.match(readExecution, /if \(fieldRequirements\.length\)/);
+    assert.match(readExecution, /\/api\/parts\?keyword=/);
     // Error-class allowlists contain AiProvider names, not an additional data/client import.
     const stageWrapper = fs.readFileSync(path.join(v5Root, 'twoStageModel.cjs'), 'utf8');
     assert.doesNotMatch(stageWrapper, /(?:executor|internalApiClient|aiProvider\.cjs|db\.cjs|fetch\s*\()/i);
@@ -156,5 +160,5 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
         .filter(name => /require\(['"]\.\.\/observability\.cjs['"]\)/.test(
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
-    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'shadowMirror.cjs']);
+    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
 });

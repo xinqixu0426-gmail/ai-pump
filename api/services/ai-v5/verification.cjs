@@ -1,6 +1,8 @@
 'use strict';
 
 const { validateLedger } = require('./evidenceLedger.cjs');
+const { hasVerifiedPriceReceipt } = require('./fieldReadEvidence.cjs');
+const verifiedResults = new WeakMap();
 
 const EXECUTION_STATUSES = Object.freeze(['COMPLETE', 'INCOMPLETE', 'FAILED', 'NOT_APPLICABLE']);
 const COMPLETENESS_STATUSES = Object.freeze(['COMPLETE', 'INCOMPLETE', 'NOT_APPLICABLE']);
@@ -142,17 +144,22 @@ function verifyV5Task(input = {}) {
     const completeness = evaluateEvidenceCompleteness(input.ledger, input.requirements);
     const validity = evaluateEvidenceValidity(input.ledger, input.requirements);
     const supportability = evaluateSupportability(input.ledger, input.requirements);
-    const decision = decisionFromLayerResults(execution.status, completeness.status, validity.status, supportability.status);
+    const priceRequired = requiredRequirements(input.requirements).some(r => r.claimType === 'price.current');
+    const priceVerified = !priceRequired || hasVerifiedPriceReceipt(input.ledger, input.priceEvidenceReceipt);
+    const decision = priceVerified
+        ? decisionFromLayerResults(execution.status, completeness.status, validity.status, supportability.status)
+        : 'FAILED_EVIDENCE';
     const ledger = validateLedger(input.ledger);
     const reasonCodes = [...new Set([
         ...execution.reasonCodes,
+        ...(!priceVerified ? ['PRICE_FIELD_NOT_VERIFIED'] : []),
         ...(completeness.status === 'INCOMPLETE' ? ['REQUIRED_EVIDENCE_MISSING'] : []),
         ...(validity.status === 'INVALID' ? ['EVIDENCE_INVALID'] : []),
         ...(validity.status === 'STALE' ? ['EVIDENCE_STALE'] : []),
         ...(validity.status === 'UNKNOWN' ? ['EVIDENCE_UNKNOWN'] : []),
         ...(supportability.status !== 'SUPPORTED' ? ['CLAIM_UNSUPPORTED'] : []),
     ])];
-    return frozen({
+    const result = frozen({
         taskId: ledger.taskId,
         executionStatus: execution.status,
         evidenceCompleteness: completeness.status,
@@ -165,6 +172,12 @@ function verifyV5Task(input = {}) {
         decision,
         reasonCodes,
     });
+    if (decision === 'VERIFIED') verifiedResults.set(result, JSON.stringify(ledger));
+    return result;
+}
+
+function isVerifiedTaskResult(ledger, result) {
+    return result?.decision === 'VERIFIED' && verifiedResults.get(result) === JSON.stringify(ledger);
 }
 
 function verificationTransitionContext(ledger, executionCompleted, evidenceFree = false) {
@@ -190,4 +203,5 @@ module.exports = {
     evaluateSupportability,
     verificationTransitionContext,
     verifyV5Task,
+    isVerifiedTaskResult,
 };

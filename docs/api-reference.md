@@ -444,7 +444,7 @@ V3 第一阶段意图信封中 `requiresClarification=true` 时，`ambiguities` 
 
 | capabilityId | toolName | 类型 | sourceOfTruth | 风险 | 确认 | 预览 | 幂等/并发 | 事务与审计 | 超时 |
 |---|---|---|---|---|---|---|---|---|---|
-| `parts.list` | HTTP/Web/`search_parts` | query/read | `parts` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |
+| `parts.list` | HTTP/Web/`search_parts` | query/read | `parts`；V5 显式要求的 `price.current` 取 `parts[].price` 当前目录单价，CNY/目录数量单位，同实体与 `updatedAt` 版本回读验证后仅作运行时交接，详见[字段级证据契约](ai-governance/v5-field-level-read-evidence-v1.md)；HTTP/Tool schema 不变 | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP；V5 字段回读最多 10s、零重试 |
 | `coils.list` | HTTP/Web/`search_coils` | query/read；输出 `CoilProfile[]` 完整档案 | `coils + stator_variants` | low | 否 | 不适用 | 天然幂等/无并发 | 严格只读、无审计 | 15s |
 | `orders.list` | HTTP/Web/`get_recent_orders` | query/read | `orders` + 实时采购平衡 + `parts.price` + `coils.cost` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |
 | `orders.revisions.list` | HTTP/Web | query/read | `order_revisions` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |

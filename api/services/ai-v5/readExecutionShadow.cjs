@@ -1,6 +1,7 @@
 'use strict';
 
 const { performance } = require('node:perf_hooks');
+const { randomUUID } = require('node:crypto');
 const { createV5Task, createV5ToolRequest, createV5ToolResult } = require('./contracts.cjs');
 const { getV5Capability } = require('./capabilityRegistry.cjs');
 const { selectReadExecution, readPolicyLock } = require('./readExecutionRegistry.cjs');
@@ -8,10 +9,20 @@ const { bindReadArguments } = require('./readArgumentBinder.cjs');
 const { runV5ControlledShadowRuntime } = require('./controlledRuntime.cjs');
 const { transitionTask } = require('./taskState.cjs');
 const { createEvidenceLedger, addEvidence, toolResultToCandidateEvidence } = require('./evidenceLedger.cjs');
-const { listEvidenceRequirements } = require('./evidenceRequirements.cjs');
+const { listEvidenceRequirements, listFieldEvidenceRequirements } = require('./evidenceRequirements.cjs');
+const { extractPriceEvidence, verifyPriceEvidence, createVerifiedValueHandoff } = require('./fieldReadEvidence.cjs');
 const { verifyV5Task, verificationTransitionContext, composingTransitionContext } = require('./verification.cjs');
 
 const DEFAULT_READ_EXECUTION_TIMEOUT_MS = 10000;
+// Independent formal reference stays inside the already approved governed-read boundary.
+// This invocation-local API trace is not exported/logged. Comparator MATCH is never input.
+async function readPriceReference({ taskId, keyword, signal }) {
+    const { createInternalFetch, getJson } = require('../../routes/ai/internalApiClient.cjs');
+    try {
+        return await getJson(createInternalFetch({ operationId: taskId, signal }),
+            '/api/parts?keyword=' + encodeURIComponent(keyword));
+    } catch { throw new Error('PRICE_REFERENCE_READ_FAILED'); }
+}
 function executionShadowEnabled(env = process.env) {
     return env.AI_V5_SHADOW_ENABLED === 'true' && env.AI_V5_EXECUTION_SHADOW_ENABLED === 'true';
 }
@@ -48,8 +59,16 @@ async function runReadExecutionShadow(input, options = {}) {
         argumentTypeSignature: [], executionStatus: 'NOT_RUN', resultComparison: 'NOT_COMPARABLE',
         evidenceStatus: 'NOT_RUN', verificationStatus: 'NOT_RUN', evidenceCount: 0, toolCalls: 0,
         writes: 0, businessApiReadCalls: 0, writeBlocked: false, reasonCodes: [], stateHistory: [] };
-    const finish = reason => Object.freeze({ ...safe, reasonCodes: [reason], durationMs: performance.now() - started });
+    let verifiedEvidenceHandle = null;
+    const finish = reason => {
+        const output = { ...safe, reasonCodes: [reason], durationMs: performance.now() - started };
+        Object.defineProperty(output, 'verifiedEvidenceHandle', { value: verifiedEvidenceHandle, enumerable: false });
+        return Object.freeze(output);
+    };
     if (!executionShadowEnabled(options.env)) return finish('V5_EXECUTION_DISABLED');
+    let fieldRequirements;
+    try { fieldRequirements = listFieldEvidenceRequirements(input.capabilityId, input.requiredFactKeys); }
+    catch { return finish('FIELD_EVIDENCE_SCOPE_UNSUPPORTED'); }
     const selected = selectReadExecution(input.capabilityId);
     safe.toolSelectionStatus = selected.status;
     if (selected.status !== 'UNIQUE') return finish(selected.status);
@@ -81,6 +100,7 @@ async function runReadExecutionShadow(input, options = {}) {
     let timer;
     let result;
     safe.toolCalls = 1;
+    if (fieldRequirements.length) safe.sourceExecutionId = randomUUID();
     try {
         const execute = options.execute || require('../../routes/ai/executor.cjs').executeToolCall;
         result = await Promise.race([
@@ -104,7 +124,7 @@ async function runReadExecutionShadow(input, options = {}) {
     task = createV5Task({ ...task, execution: { toolRequest: request, toolResult } });
     task = transitionTask(task, 'COLLECTING_EVIDENCE', { reasonCode: 'READ_RESULT_RECEIVED' });
     const valid = inspectReadResult(entry, entity, result, bound.arguments);
-    const requirements = listEvidenceRequirements(capability.capabilityId);
+    const requirements = [...listEvidenceRequirements(capability.capabilityId), ...fieldRequirements];
     let ledger = createEvidenceLedger(task.taskId);
     if (requirements.length) {
         ledger = addEvidence(ledger, toolResultToCandidateEvidence(toolResult, {
@@ -114,14 +134,48 @@ async function runReadExecutionShadow(input, options = {}) {
             entityConsistent: valid, entityRef: entity, sourceRef: `${task.taskId}:tool`,
         }));
     }
+    let priceEvidenceReceipt;
+    if (fieldRequirements.length) {
+        const extracted = extractPriceEvidence({ result, taskId: task.taskId, entity,
+            sourceExecutionId: safe.sourceExecutionId, capabilityId: capability.capabilityId, sourceTool: entry.toolName });
+        ledger = addEvidence(ledger, extracted.item);
+        priceEvidenceReceipt = extracted.receipt;
+        let checked = { status: 'FAIL', reasonCode: 'PRICE_EVIDENCE_INVALID' };
+        if (extracted.valid) {
+            const readController = new AbortController();
+            let referenceTimer;
+            try {
+                safe.businessApiReadCalls++;
+                const referenceRows = await Promise.race([
+                    (options.readPriceReference || readPriceReference)({ taskId: task.taskId, keyword: bound.arguments.keyword, signal: readController.signal }),
+                    new Promise((_, reject) => { referenceTimer = setTimeout(() => {
+                        readController.abort(); reject(new Error('PRICE_REFERENCE_TIMEOUT'));
+                    }, timeoutMs); }),
+                ]);
+                checked = verifyPriceEvidence({ ledger, receipt: priceEvidenceReceipt, taskId: task.taskId,
+                    entity, sourceExecutionId: safe.sourceExecutionId, referenceRows });
+            } catch { checked = { status: 'FAIL', reasonCode: 'PRICE_REFERENCE_UNAVAILABLE' }; }
+            finally { clearTimeout(referenceTimer); }
+        }
+        safe.fieldEvidence = { factKey: 'price.current', present: extracted.present, valid: extracted.valid,
+            numericTypeMatch: extracted.valid, verificationStatus: checked.status, reasonCode: checked.reasonCode,
+            runtimeHandoffAvailable: false };
+        require('../observability.cjs').withVerificationSpan({ status: checked.status,
+            decision: checked.status === 'PASS', requiredCount: 1, observedCount: extracted.present ? 1 : 0,
+            missingCount: extracted.present ? 0 : 1, toolExecutionCount: 1, llmCallCount: 0 }, () => checked.status === 'PASS');
+    }
     safe.evidenceCount = ledger.items.length;
-    safe.evidenceStatus = valid && ledger.items.length ? 'VALID' : 'UNKNOWN';
+    safe.evidenceStatus = valid && ledger.items.length && ledger.items.every(item => item.status === 'VALID') ? 'VALID' : 'UNKNOWN';
     task = transitionTask(task, 'VERIFYING', { ...verificationTransitionContext(ledger, true), reasonCode: 'READ_VERIFY' });
-    const verification = verifyV5Task({ ledger, requirements,
+    const verification = verifyV5Task({ ledger, requirements, priceEvidenceReceipt,
         execution: { toolResults: [toolResult], executionRequired: true, orchestrationComplete: true } });
     safe.verificationStatus = !requirements.length ? 'VERIFICATION_REQUIREMENT_DEFERRED'
         : valid && verification.decision === 'VERIFIED' ? 'PASS' : 'FAIL';
     if (safe.verificationStatus === 'PASS') {
+        if (priceEvidenceReceipt) {
+            verifiedEvidenceHandle = createVerifiedValueHandoff(ledger, verification, priceEvidenceReceipt);
+            safe.fieldEvidence.runtimeHandoffAvailable = verifiedEvidenceHandle !== null;
+        }
         task = transitionTask(task, 'COMPOSING', { ...composingTransitionContext(verification), reasonCode: 'READ_VERIFIED_NO_ANSWER' });
         // No Answer Composer or user response; existing terminal transition only.
         task = transitionTask(task, 'COMPLETED', { answerSupported: true, reasonCode: 'READ_SHADOW_COMPLETE' });

@@ -61,6 +61,21 @@ function listEvidenceRequirements(capabilityId) {
     return BY_CAPABILITY[String(capabilityId || '')] || Object.freeze([]);
 }
 
+// Explicit software-owned field scope. No language/keyword inference and no expansion of
+// the deferred capability requirements. Existing quantity-only callers remain unchanged.
+const PRICE_REQUIREMENT = createEvidenceRequirement({ capabilityId: 'inventory.read',
+    requirementId: 'part-current-price-formal-fact', claimType: 'price.current',
+    requiredEvidenceType: 'DIRECT_FACT', minimumSourceTrust: 'FORMAL', freshnessRequirement: 'CURRENT',
+    minimumCount: 1, level: 'REQUIRED', entityType: 'part' });
+function listFieldEvidenceRequirements(capabilityId, factKeys = []) {
+    if (!Array.isArray(factKeys) || new Set(factKeys).size !== factKeys.length
+        || factKeys.some(key => key !== 'price.current')
+        || (factKeys.length && capabilityId !== 'inventory.read')) {
+        throw new TypeError('FIELD_EVIDENCE_SCOPE_UNSUPPORTED');
+    }
+    return Object.freeze(factKeys.length ? [PRICE_REQUIREMENT] : []);
+}
+
 function auditCapabilityRequirementCoverage(capabilities = listV5Capabilities()) {
     const rows = capabilities.map(capability => {
         const requirements = listEvidenceRequirements(capability.capabilityId);
@@ -89,4 +104,5 @@ module.exports = {
     auditCapabilityRequirementCoverage,
     createEvidenceRequirement,
     listEvidenceRequirements,
+    listFieldEvidenceRequirements,
 };
