@@ -1,7 +1,7 @@
 'use strict';
 const { createV5SourceSpanCatalog, getSourceSpan } = require('./sourceSpanCatalog.cjs');
 const { selectSourceSpan } = require('./sourceSpanSelector.cjs');
-const { acquireCandidateSet } = require('./candidateSet.cjs');
+const { acquireCandidateUnion } = require('./candidateUnion.cjs');
 const { buildLocalTaskClassCatalog } = require('./localTaskClassCatalog.cjs');
 const { selectLocalIntent } = require('./localIntentSelector.cjs');
 const { finalizeEntity } = require('./entityFinalization.cjs');
@@ -20,7 +20,7 @@ async function interpretCandidateSetTask(envelope, options = {}) {
         localClassCount: 0, localSelectionMode: 'NOT_RUN', finalEntityStatus: 'NOT_RUN',
         stage1DurationMs: null, lookupDurationMs: null, stage2DurationMs: null };
     const finish = (status, reasonCode, extra = {}) => ({ status, protocolStatus: status, reasonCode,
-        sourceSpanRefs: meta.spanRef ? [meta.spanRef] : [], taskClassRef: meta.selectedClassRef || null,
+        sourceSpanRefs: meta.spanRefs || [], taskClassRef: meta.selectedClassRef || null,
         interpretation: null, provider: 'deepseek', model: 'deepseek-v4-flash',
         modelCalls: meta.stage1Calls + meta.stage2Calls, durationMs: performance.now() - started,
         architectureMetadata: Object.freeze({ ...meta }), ...extra });
@@ -35,13 +35,14 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     if (first.errorMetadata) meta.stage1Error = first.errorMetadata;
     if (first.status !== 'VALID') return finish(first.status, first.reasonCode || 'SPAN_SELECTION_ERROR');
     if (first.selection.needsClarification) return finish('INVALID', 'MULTI_ENTITY_OR_PRIMARY_ENTITY_CLARIFICATION');
-    const span = getSourceSpan(catalog, first.selection.spanRef);
-    meta.spanRef = span.spanRef;
-    const rawMention = source.slice(span.start, span.end);
+    const spans = first.selection.spanRefs.map(ref=>getSourceSpan(catalog,ref));
+    meta.spanRefs = Object.freeze([...first.selection.spanRefs]);
+    meta.selectedSpanCount = spans.length;
     const lookupStarted = performance.now();
-    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => acquireCandidateSet(rawMention, options));
+    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => acquireCandidateUnion(spans, options));
     meta.lookupDurationMs = performance.now() - lookupStarted;
-    Object.assign(meta, { businessApiCalls: candidateSet.businessApiCalls, lookupStatus: candidateSet.status,
+    Object.assign(meta, { businessApiCalls: candidateSet.businessApiCalls, resolverCalls:candidateSet.resolverCalls,
+        lookupStatuses:candidateSet.lookupStatuses, candidateUnionDeduplications:candidateSet.deduplications, lookupStatus: candidateSet.status,
         complete: candidateSet.complete, candidateCount: candidateSet.candidateCount,
         candidateTypeCount: candidateSet.candidateTypeCount,
         candidateTypes: [...new Set(candidateSet.candidates.map(candidate => candidate.entityType))].sort() });
@@ -54,7 +55,7 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     if (local.length > 1) {
         meta.localSelectionMode = 'MODEL_SELECT';
         meta.stage2Calls = 1;
-        const second = await withV5InterpreterStage('local-intent', options, () => selectLocalIntent(source, span.spanRef, meta.candidateTypes, local, options));
+        const second = await withV5InterpreterStage('local-intent', options, () => selectLocalIntent(source, meta.spanRefs, meta.candidateTypes, local, options));
         meta.stage2Status = second.status;
         meta.stage2DurationMs = second.durationMs;
         if (second.errorMetadata) meta.stage2Error = second.errorMetadata;
@@ -66,13 +67,18 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     const final = await withV5InterpreterStage('entity-finalization', options, () => finalizeEntity(candidateSet, selected));
     meta.finalEntityStatus = final.status;
     if (!final.candidate) return finish('INVALID', final.status);
+    // Entity was already finalized without rank. Pick a deterministic source witness,
+    // independent of model order; preserve the original Top-2 separately for recall.
+    const witness = spans.filter(s=>final.candidate.matchedSpanRefs.includes(s.spanRef))
+        .sort((a,b)=>a.start-b.start || a.end-b.end)[0];
+    const rawMention = source.slice(witness.start,witness.end);
     const interpretation = validateV5TaskInterpretation({ version: 1, domain: selected.domain,
         operation: selected.operation, entityCandidates: [{ entityType: final.candidate.entityType, candidateText: rawMention }],
         needsClarification: false, reasonCodes: ['INTERPRETATION_COMPLETE'] });
     const anchoring = anchorInterpretationEntities(source, interpretation);
     if (!anchoring.valid) return finish('INVALID', anchoring.status);
     return finish('VALID', 'INTERPRETATION_VALID', { interpretation, taskClassRef: selected.classRef,
-        sourceSpanRefs: [span.spanRef],
+        sourceSpanRefs: meta.spanRefs,
         // Transient, software-owned identity; never copied into shadow outcomes.
         resolvedIdentity: final.candidate,
     });

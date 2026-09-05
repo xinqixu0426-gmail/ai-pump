@@ -855,6 +855,8 @@ function withV5InterpreterStage(stage, metadata = {}, operation) {
         'pump.ai.v5.stage.status': safeLabel(result?.status),
         'pump.ai.v5.stage.candidate_count': Number(result?.candidateCount || 0),
         'pump.ai.v5.stage.candidate_type_count': Number(result?.candidateTypeCount || 0),
+        'pump.ai.v5.stage.selected_span_count': Number(result?.selection?.spanRefs?.length || 0),
+        'pump.ai.v5.stage.lookup_count': Number(result?.resolverCalls || 0),
         'pump.ai.v5.stage.local_class_count': Array.isArray(result) ? result.length : 0,
         ...(result?.errorMetadata ? {
           'pump.ai.v5.error.category': safeLabel(result.errorMetadata.category),

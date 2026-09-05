@@ -17,11 +17,11 @@ const lookup = candidates => async () => response(candidates);
 function fixture(source, mention, candidates, ref = 'tc_002') {
     const span = createV5SourceSpanCatalog(source).spans.find(item => item.text === mention);
     let calls = 0;
-    return { lookupEntities: lookup(candidates), modelRequest: async messages => {
+    return { lookupEntities: async (fetcher,input)=>response(input.mention===mention?candidates:[]), modelRequest: async messages => {
         const text = JSON.stringify(messages);
         assert.ok(!text.includes('PRIVATE_ID'));
         calls++;
-        if (calls === 1) { assert.ok(!text.includes('tc_')); return { content: JSON.stringify({ version: 1, spanRef: span.spanRef, needsClarification: false }) }; }
+        if (calls === 1) { assert.ok(!text.includes('tc_')); return { content: JSON.stringify({ version: 2, spanRefs: [span.spanRef,createV5SourceSpanCatalog(source).spans.find(s=>s.spanRef!==span.spanRef).spanRef], needsClarification: false }) }; }
         const input = JSON.parse(messages[1].content);
         assert.ok(input.classes.length <= 4);
         return { content: JSON.stringify({ version: 1, localTaskClassRef: ref }) };
@@ -34,7 +34,7 @@ for (const mention of ['v750-tokoy-', 'V750-A', '800平刀', 'abc-', '-a-', 'a/b
         assert.equal(result.status, 'VALID');
         assert.equal(result.interpretation.entityCandidates[0].candidateText, mention);
         assert.equal(result.modelCalls, 1);
-        assert.equal(result.architectureMetadata.businessApiCalls, 1);
+        assert.equal(result.architectureMetadata.businessApiCalls, 2);
     });
 }
 test('quoted numeric source selects the source-backed string content', async () => {
@@ -45,7 +45,7 @@ test('quoted numeric source selects the source-backed string content', async () 
 test('strict stage 1 rejects invented refs, extra fields and invalid JSON', () => {
     const catalog = createV5SourceSpanCatalog('SYNTH-1');
     for (const bad of ['{', JSON.stringify({ version: 1, spanRef: 'sp_fake', needsClarification: false }), JSON.stringify({ version: 1, spanRef: 'sp_001', needsClarification: false, taskClassRef: 'tc_002' })]) assert.throws(() => parseSpanSelection(bad, catalog));
-    assert.equal(parseSpanSelection(JSON.stringify({ version: 1, spanRef: null, needsClarification: true }), catalog).needsClarification, true);
+    assert.equal(parseSpanSelection(JSON.stringify({ version: 2, spanRefs: [], needsClarification: true }), catalog).needsClarification, true);
 });
 test('candidate sets preserve both cross-type and same-type ambiguity', async () => {
     for (const candidates of [[candidate('part')], [candidate('part'), candidate('template')], [candidate('part','PRIVATE_ID_A'), candidate('part','PRIVATE_ID_B')]]) {
@@ -86,7 +86,7 @@ test('cross-type synthetic selection uses two calls and hides canonical identity
     const source = '查 SYNTH-A 库存';
     const outcome = await runV5IndependentShadow({sourceRequest:source,shadowTaskId:'v3-test'},fixture(source,'SYNTH-A',[candidate('part'),candidate('template')]));
     assert.equal(outcome.capabilityId,'inventory.read'); assert.equal(outcome.modelCalls,2);
-    assert.equal(outcome.v5BusinessApiCalls,1); assert.equal(outcome.v5ToolCalls,0);
+    assert.equal(outcome.v5BusinessApiCalls,2); assert.equal(outcome.v5ToolCalls,0);
     assert.ok(!JSON.stringify(outcome).includes('PRIVATE_ID')); assert.ok(!JSON.stringify(outcome).includes('SYNTH-A'));
 });
 test('wrong-but-valid class is never corrected', async () => {
