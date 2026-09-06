@@ -98,11 +98,12 @@ function createOwnerReadCanaryServer(options = {}) {
             const candidateShape = Object.keys(body).length === 1 && body.messages.length === 1
                 && body.messages[0]?.role === 'user' && typeof body.messages[0]?.content === 'string'
                 && Object.keys(body.messages[0]).every(k => ['role', 'content'].includes(k));
-            if (enabled && optedIn && candidateShape && APPROVED_FACT_KEYS.includes(factKey)) {
+            if (enabled && optedIn && candidateShape && (factKey === undefined || APPROVED_FACT_KEYS.includes(factKey))) {
                 meta.candidateAttempted = true;
                 try {
                     const response = await candidateTransport(candidateOrigin + '/api/ai/chat', {
-                        method: 'POST', headers: { ...headers, 'x-pump-v5-use': 'true', 'x-pump-v5-fact': factKey },
+                        method: 'POST', headers: { ...headers, 'x-pump-v5-use': 'true',
+                            ...(factKey === undefined ? {} : { 'x-pump-v5-fact': factKey }) },
                         body: text, signal: AbortSignal.any([client.signal, AbortSignal.timeout(candidateTimeoutMs)]),
                         redirect: 'error',
                     });

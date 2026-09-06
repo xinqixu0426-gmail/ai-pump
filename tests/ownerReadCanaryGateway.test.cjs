@@ -12,8 +12,10 @@ async function scenario(t, overrides = {}) {
     await new Promise(r=>server.listen(0,'127.0.0.1',r));
     t.after(()=>new Promise(r=>server.close(r)));
     const request=async(headers={},body={messages:[{role:'user',content:'synthetic read'}]})=>{
-        const r=await fetch('http://127.0.0.1:'+server.address().port+OWNER_CANARY_PATH,{method:'POST',headers:{'content-type':'application/json',
-            'x-internal-secret':'synthetic-test-only','x-pump-v5-use':'true','x-pump-v5-fact':'inventory.quantity',...headers},body:JSON.stringify(body)});
+        const requestHeaders = {'content-type':'application/json', 'x-internal-secret':'synthetic-test-only',
+            'x-pump-v5-use':'true','x-pump-v5-fact':'inventory.quantity',...headers};
+        for (const key of Object.keys(requestHeaders)) if (requestHeaders[key] === undefined) delete requestHeaders[key];
+        const r=await fetch('http://127.0.0.1:'+server.address().port+OWNER_CANARY_PATH,{method:'POST',headers:requestHeaders,body:JSON.stringify(body)});
         return {status:r.status,text:await r.text()};
     };
     return {calls,outcomes,request};
@@ -21,6 +23,10 @@ async function scenario(t, overrides = {}) {
 test('explicit authenticated request returns one buffered frozen Candidate final only',async t=>{
     const s=await scenario(t);const r=await s.request();assert.equal(r.text,sse('fixture candidate'));
     assert.equal(s.calls.length,1);assert.equal(s.outcomes[0].finalSource,'v5-candidate');
+});
+test('omitted assertion enters explicit Candidate with no manufactured fact header', async t => {
+    const s = await scenario(t); assert.equal((await s.request({'x-pump-v5-fact':undefined})).text, sse('fixture candidate'));
+    assert.equal(Object.hasOwn(s.calls[0].opts.headers, 'x-pump-v5-fact'), false);
 });
 for(const [name,headers] of [['missing',{'x-internal-secret':''}],['spoof',{'x-internal-secret':'wrong'}]])
 test(name+' authentication cannot enter either backend',async t=>{const s=await scenario(t);assert.equal((await s.request(headers)).status,401);assert.equal(s.calls.length,0);});

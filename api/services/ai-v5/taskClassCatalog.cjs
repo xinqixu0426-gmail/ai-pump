@@ -14,6 +14,7 @@ const {
 } = require('./taskClassSemantics.cjs');
 
 const V5_TASK_CLASS_CATALOG_VERSION = 1;
+const { splitPartReadIdentities } = require('./partReadSemantics.cjs');
 
 function deepFreeze(value) {
     if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
@@ -44,7 +45,7 @@ function buildTaskClassCatalog(capabilities = listV5Capabilities()) {
         || left.operation.localeCompare(right.operation)
         || left.entityTypes.join('\0').localeCompare(right.entityTypes.join('\0'))
     ));
-    const identities = sorted.map((item, index) => ({
+    const identities = splitPartReadIdentities(sorted.map((item, index) => ({
         classRef: `tc_${String(index + 1).padStart(3, '0')}`,
         domain: item.domain,
         operation: item.operation,
@@ -55,7 +56,7 @@ function buildTaskClassCatalog(capabilities = listV5Capabilities()) {
             entityType,
             semanticDescription: ENTITY_TYPE_SEMANTICS[entityType],
         })),
-    }));
+    })));
     const semanticByRef = new Map(buildTaskClassSemanticView(identities)
         .map(item => [item.classRef, item]));
     return deepFreeze(identities.map(item => ({

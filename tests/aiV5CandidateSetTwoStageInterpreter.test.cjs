@@ -33,7 +33,7 @@ for (const mention of ['v750-tokoy-', 'V750-A', '800平刀', 'abc-', '-a-', 'a/b
         const result = await interpretCandidateSetTask(createV5InterpreterInputEnvelope({ rawUserRequest: source, pageContext: null }), fixture(source, mention, [candidate('part')]));
         assert.equal(result.status, 'VALID');
         assert.equal(result.interpretation.entityCandidates[0].candidateText, mention);
-        assert.equal(result.modelCalls, 1);
+        assert.equal(result.modelCalls, 2); // existing local-intent slot now distinguishes part facts
         assert.equal(result.architectureMetadata.businessApiCalls, 2);
     });
 }
@@ -62,7 +62,7 @@ test('zero/incomplete/error/timeout cannot enter local selection', async () => {
     }
 });
 test('local union and contrasts contain only request-local refs', () => {
-    for (const [types, count] of [[['part'],1],[['coil'],2],[['recipe'],4],[['part','template'],2],[[],0]]) {
+    for (const [types, count] of [[['part'],2],[['coil'],2],[['recipe'],4],[['part','template'],3],[[],0]]) {
         const local = buildLocalTaskClassCatalog(types.map(type => candidate(type)));
         assert.equal(local.length, count);
         assert.equal(new Set(local.map(item => item.classRef)).size, count);

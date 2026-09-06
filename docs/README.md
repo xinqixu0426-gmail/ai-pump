@@ -29,6 +29,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 本地 V5 Candidate 按安全与可用性分离的契约完成本地认证；部署仍须 Supervisor 单独授权。它是显式启用、loopback 绑定的独立只读进程，运行方式及内部接口边界统一见 [API 接口总表](./api-reference.md)。风险分类不可用时安全拒绝，不进入 V5；这不代表生产切换或写操作授权。
 
+Candidate 的 part 价格与库存数量通过既有本地 Task Class 分开，服务端派生所需 fact；可选 fact header 仅作一致性断言。范围及兼容说明见 [只读语义拆分契约](ai-governance/v5-part-read-semantic-split-v1.md)，不代表启用 owner-default 路由。
+
 ## 1. 系统用途
 
 系统以水泵 BOM 为核心，统一管理：

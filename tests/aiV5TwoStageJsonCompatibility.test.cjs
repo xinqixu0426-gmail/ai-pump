@@ -37,6 +37,9 @@ test('forbidden frozen components unchanged',()=>{
     // P16-A2 explicitly approves the additive authority reference and its strict reader.
     // Keep exact pins rather than removing either component from freeze protection.
     const approved = {
+        // P16-I-R4 authorized only the part quantity/price semantic split.
+        'api/services/ai-v5/taskClassCatalog.cjs': 'ccf1649bbec0b0504eec01b661af4492b05d0e13c732cc70e207d85f7a644dc8',
+        'api/services/ai-v5/taskClassSemantics.cjs': '1f45f5d68222f6169b926150dadb9ebcc591f1f4373e97c453d418ebd4bb887f',
         'api/services/entityLookupService.cjs': '46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72',
         'api/services/ai-v5/typeIndependentEntityResolver.cjs': '8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58',
     };

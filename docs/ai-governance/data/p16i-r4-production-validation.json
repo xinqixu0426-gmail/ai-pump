@@ -1,0 +1,25 @@
+{
+  "stage": "P16-I-R4",
+  "mode": "TEMPORARY_LOOPBACK_CANDIDATE",
+  "factHeaderSent": false,
+  "preflightDependencyPathFailureBeforeModelCalls": true,
+  "existingDependencySearchPathReused": true,
+  "newDependencies": 0,
+  "formalRuns": 1,
+  "paths": [
+    {"fact":"price.current","selectedTaskClassRef":"tc_028","mappingMatch":true,"identityMatch":true,"exactIdentityMatch":true,"validationPass":true,"resultEquivalence":"MATCH","verification":"PASS","toolCalls":1,"interpreterCalls":2,"answerCalls":1,"headerAssertion":"ABSENT","durationMs":3482.473,"factDerivationMs":0.3168749999999818},
+    {"fact":"inventory.quantity","selectedTaskClassRef":"tc_002","mappingMatch":true,"identityMatch":true,"exactIdentityMatch":true,"validationPass":true,"resultEquivalence":"MATCH","verification":"PASS","toolCalls":1,"interpreterCalls":2,"answerCalls":1,"headerAssertion":"ABSENT","durationMs":4002.331333,"factDerivationMs":0.028667000000496046},
+    {"fact":"coil.inventory","mappingMatch":false,"identityMatch":false,"validationPass":false,"failureClass":"INTERPRETER_UNAVAILABLE","factDerivationCalls":0,"interpreterCalls":1,"toolCalls":0,"answerCalls":0,"durationMs":1902.6631249999991,"fineGrainedFailureAttribution":"NOT_RETAINED"},
+    {"fact":"recipe.cost.preview","selectedTaskClassRef":"tc_024","mappingMatch":true,"identityMatch":true,"exactIdentityMatch":true,"validationPass":true,"resultEquivalence":"MATCH","verification":"PASS","toolCalls":1,"interpreterCalls":2,"answerCalls":1,"headerAssertion":"ABSENT","durationMs":3360.1370420000003,"factDerivationMs":0.0244170000005397}
+  ],
+  "candidateReadyBeforeStop": true,
+  "portClosedAfterStop": true,
+  "dbHashMtimeSizeUnchanged": true,
+  "envUnchanged": true,
+  "backupCountUnchanged": true,
+  "privateTextLeaks": 0,
+  "credentialLeaks": 0,
+  "writes": 0,
+  "ownerDefaultEnabled": false,
+  "pass": false
+}

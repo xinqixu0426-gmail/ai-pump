@@ -87,9 +87,13 @@ function fixtureBase() {
     };
 }
 
-test('all non-semantic B2 frozen surfaces remain unchanged before evaluation', () => {
+test('non-semantic B2 surfaces remain frozen; R4 explicitly revises part class identities', () => {
     const hashes = computeFreezeHashes();
-    assert.equal(verifyFreezeHashes(hashes), true);
+    const { EXPECTED_FROZEN_HASHES } = require('../scripts/run-ai-v5e4r-task-class-semantics-v1_1-evaluation.cjs');
+    assert.equal(verifyFreezeHashes(hashes, { ...EXPECTED_FROZEN_HASHES,
+        classIdentity: 'a9c9f35c293968efe0ee1148311166ec83846672476dd2dabe011c543c86d9d6',
+        taskClassSemantics: '1d912a3aa72e56583397d8508cd0fcbb86cfb7063b223e76a4035d43045588bf',
+    }), true);
     assert.notEqual(hashes.taskClassSemantics, 'c298bcf127030602b5f82cdcc8aed61554a789aacc1b082ade70eed1ca5d0ef9');
 });
 
@@ -107,4 +111,3 @@ test('B2 dataset evaluates Interpreter correctness independently from V4 incompa
     assert.equal(unavailable.task_class_match, true);
     assert.equal(unavailable.v4_comparison_status, 'INCOMPARABLE');
 });
-

@@ -43,7 +43,7 @@ function entityMeaning(entityTypes) {
 }
 
 function primaryMeaningFor(taskClass) {
-    const operationMeaning = OPERATION_RESULT_SEMANTICS[taskClass.operation];
+    const operationMeaning = taskClass.meaning || OPERATION_RESULT_SEMANTICS[taskClass.operation];
     const domainMeaning = DOMAIN_SEMANTICS[taskClass.domain];
     if (!operationMeaning || !domainMeaning) {
         throw new TypeError(`Task Class semantic source missing: ${taskClass.classRef || 'unassigned'}`);
@@ -70,7 +70,7 @@ function buildTaskClassSemanticView(catalog) {
         primaryMeaning: meanings.get(item.classRef),
         localAlternatives: Object.freeze(discoverLocalAlternatives(item, catalog).map(alternative => Object.freeze({
             classRef: alternative.classRef,
-            useWhen: `Alternative expected result: ${OPERATION_RESULT_SEMANTICS[alternative.operation]}.`,
+            useWhen: `Alternative expected result: ${alternative.meaning || OPERATION_RESULT_SEMANTICS[alternative.operation]}.`,
         }))),
     }));
 }

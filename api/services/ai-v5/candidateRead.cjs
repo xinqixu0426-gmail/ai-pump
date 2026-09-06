@@ -8,14 +8,12 @@ const { transitionTask } = require('./taskState.cjs');
 const { selectReadExecution } = require('./readExecutionRegistry.cjs');
 const { runReadExecutionShadow } = require('./readExecutionShadow.cjs');
 const { composeReadAnswerForCanary } = require('./readAnswerComposer.cjs');
+const { REQUIRED_FACT_SCOPES, deriveRequiredFactKey, assertRequiredFactHeader } = require('./requiredFactScope.cjs');
 
 
 
 const obs = require('../observability.cjs');
 
-// Explicit preview scope, not an intent classifier or a second capability registry.
-const FACT_CAPABILITY = Object.freeze({ 'price.current': 'inventory.read', 'inventory.quantity': 'inventory.read',
-    'coil.inventory': 'coil.read', 'recipe.cost.preview': 'recipe.cost.preview' });
 function canaryGate(input, env = process.env) {
     return env.PUMP_V5_CANDIDATE_RUNTIME === 'true' && env.AI_V5_READ_CANARY_ENABLED === 'true'
         && env.AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED === 'true' && input.previewOptIn === true && input.internalAuthorized === true;
@@ -23,7 +21,7 @@ function canaryGate(input, env = process.env) {
 async function runCandidateRead(input, options = {}) {
     const env = options.env || process.env, started = performance.now();
     const state = { globalEnabled: env.AI_V5_READ_CANARY_ENABLED === 'true', previewOptIn: input.previewOptIn === true,
-        attempted: false, eligible: false, validationPass: false, delivered: false, exposed: false, failureClass: 'NONE' };
+        attempted: false, eligible: false, validationPass: false, delivered: false, exposed: false, failureClass: 'NONE', factDerivationCalls: 0 };
     const finish = () => ({ ...state, durationMs: performance.now() - started });
     // No Interpreter/Tool/Composer entry is reachable from either gate alone.
     if (!canaryGate(input, env)) return finish();
@@ -32,7 +30,7 @@ async function runCandidateRead(input, options = {}) {
     const runtimeEnv = { ...env, AI_V5_SHADOW_ENABLED: 'true', AI_V5_EXECUTION_SHADOW_ENABLED: 'true', AI_V5_ANSWER_SHADOW_ENABLED: 'true' };
     return obs.withAgentSpan({ requestId: taskId, route: 'v5_read_canary' }, () => obs.withReadCanarySpan(state, async () => {
         try {
-            if (!Object.hasOwn(FACT_CAPABILITY, input.factKey) || typeof input.deliver !== 'function' || input.signal?.aborted) {
+            if (typeof input.deliver !== 'function' || input.signal?.aborted) {
                 state.failureClass = 'PREVIEW_SCOPE_INVALID'; return finish();
             }
             const risk = await require('../candidateRiskEnvelope.cjs').classifyCandidateRisk(input.sourceRequest,
@@ -59,6 +57,18 @@ async function runCandidateRead(input, options = {}) {
                 || interpreted.architectureMetadata?.finalEntityStatus !== 'FINAL_ENTITY_RESOLVED') {
                 state.failureClass = 'INTERPRETER_UNAVAILABLE'; return finish();
             }
+            const derivationStart = performance.now();
+            const factKey = deriveRequiredFactKey(interpreted);
+            state.factDerivationCalls = 1;
+            state.factDerivationMs = performance.now() - derivationStart;
+            state.selectedTaskClassRef = interpreted.taskClassRef;
+            state.derivedFactKey = factKey;
+            state.headerAssertion = assertRequiredFactHeader(factKey, input.factKey);
+            if (!factKey || state.headerAssertion === 'MISMATCH') {
+                state.failureClass = !factKey ? 'REQUIRED_FACT_UNAVAILABLE' : 'FACT_ASSERTION_MISMATCH'; return finish();
+            }
+            state.finalEntityStatus = interpreted.architectureMetadata.finalEntityStatus;
+            state.finalEntityType = identity.entityType;
             const entity = createV5EntityReference({ entityType: identity.entityType, canonicalEntityId: identity.canonicalId,
                 rawMention: interpretation.entityCandidates[0].candidateText, resolutionReceiptRef: taskId + ':v3-finalization' });
             const routeInput = { domain: interpretation.domain, operation: interpretation.operation, entityType: identity.entityType };
@@ -68,19 +78,20 @@ async function runCandidateRead(input, options = {}) {
                 routingTask = transitionTask(routingTask, stateName, { reasonCode: 'CANARY_INTERPRETATION_VALID' });
             }
             const route = routeV5Capability(routingTask, routeInput);
-            if (route.outcome !== 'SELECTED' || route.capabilityId !== FACT_CAPABILITY[input.factKey]
+            if (route.outcome !== 'SELECTED' || route.capabilityId !== REQUIRED_FACT_SCOPES[interpreted.taskClassRef].capabilityId
                 || selectReadExecution(route.capabilityId).status !== 'UNIQUE') {
                 state.failureClass = 'READ_SCOPE_EXCLUDED'; return finish();
             }
             state.eligible = true;
+            state.capabilityId = route.capabilityId;
             const execution = await runReadExecutionShadow({ task, routeInput, capabilityId: route.capabilityId,
-                authoritativeCandidate: identity, requiredFactKeys: input.factKey === 'price.current' ? [input.factKey] : [] },
+                authoritativeCandidate: identity, requiredFactKeys: factKey === 'price.current' ? [factKey] : [] },
             { env: runtimeEnv, ...(options.executionOptions || {}) });
             state.readExecution = execution.executionStatus; state.resultEquivalence = execution.resultComparison;
             state.evidenceVerification = execution.verificationStatus; state.toolCalls = execution.toolCalls;
             if (input.signal?.aborted) { state.failureClass = 'REQUEST_CLOSED'; return finish(); }
             const answer = await composeReadAnswerForCanary({ execution, taskId, entity,
-                userRequest: input.sourceRequest, requiredFactKeys: [input.factKey] },
+                userRequest: input.sourceRequest, requiredFactKeys: [factKey] },
             { ...(options.answerOptions || {}), env: runtimeEnv, previewOptIn: true, internalAuthorized: true, signal: input.signal }, body => {
                 if (input.signal?.aborted) return;
                 // Only a validated body is sent, synchronously; never retained in state or result.

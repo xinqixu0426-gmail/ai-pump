@@ -33,11 +33,11 @@ function hash(value) {
     return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-test('Task Class Semantics 1.1 covers all 27 unchanged class identities', () => {
+test('part semantic split appends one class and preserves 27 routing identities', () => {
     assert.equal(V5_TASK_CLASS_CATALOG_VERSION, 1);
     assert.equal(V5_TASK_CLASS_SEMANTICS_VERSION, '1.1');
-    assert.equal(V5_TASK_CLASS_CATALOG.length, 27);
-    assert.equal(hash(identitySnapshot()), FROZEN_CLASS_IDENTITY_HASH);
+    assert.equal(V5_TASK_CLASS_CATALOG.length, 28);
+    assert.equal(hash(identitySnapshot(V5_TASK_CLASS_CATALOG.slice(0, 27))), FROZEN_CLASS_IDENTITY_HASH);
     assert.equal(validateTaskClassCatalog(), true);
     assert.deepEqual(buildTaskClassCatalog(), V5_TASK_CLASS_CATALOG);
 });
@@ -83,4 +83,3 @@ test('model-facing semantics expose neither Tool names nor frozen evaluation exa
         assert.equal(serialized.includes(forbidden), false, forbidden);
     }
 });
-
