@@ -33,16 +33,19 @@ async function runCandidateReadImpl(input, options = {}) {
             if (typeof input.deliver !== 'function' || input.signal?.aborted) {
                 state.failureClass = 'PREVIEW_SCOPE_INVALID'; return finish();
             }
-            const controlIntent = input.factKey === undefined ? require('./collectionControlPreRouter.cjs').continuationControl(
-                input.sourceRequest, require('../conversationContext.cjs').getConversationContext(),
-                options.continuationStore || require('./collectionContinuation.cjs').store) : null;
+            const controlContext = require('../conversationContext.cjs').getConversationContext();
+            const controlStore = options.continuationStore || require('./collectionContinuation.cjs').store;
+            const controls = require('./collectionControlPreRouter.cjs');
+            const controlIntent = input.factKey === undefined ? (controls.continuationControl(input.sourceRequest,controlContext,controlStore)
+                || controls.ordinalDetailControl(input.sourceRequest,controlContext,controlStore)) : null;
             const risk = controlIntent ? {riskClass:'READ_SAFE',contractValid:true,eligible:true,invoked:false,
-                contextual:true,failureClass:'NONE',authority:'VERIFIED_READ_CONTINUATION'}
+                contextual:true,failureClass:'NONE',authority:controlIntent.operation==='ordinal'?'VERIFIED_READ_PAGE':'VERIFIED_READ_CONTINUATION'}
                 : await require('../candidateRiskEnvelope.cjs').classifyCandidateRisk(input.sourceRequest,
                 { env, signal: input.signal, ...(options.riskOptions || {}), collectionContext: input.factKey === undefined
                     ? (options.continuationStore || require('./collectionContinuation.cjs').store).peek(require('../conversationContext.cjs').getConversationContext()) : null });
             state.risk = risk;
-            state.continuationControl = !!controlIntent;
+            state.continuationControl = controlIntent?.operation === 'continue';
+            state.ordinalControl = controlIntent?.operation === 'ordinal';
             const collectionSafetyEligible = input.factKey === undefined
                 && !!require('../conversationContext.cjs').getConversationContext() && risk.riskClass === 'READ_SAFE';
             if (!risk.eligible && !collectionSafetyEligible) {

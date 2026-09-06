@@ -12,4 +12,15 @@ function continuationControl(source,ctx,stateStore){
         return {...intent,durationMs:performance.now()-started};
     }catch{return null;}
 }
-module.exports={continuationControl};
+function ordinalDetailControl(source,ctx,stateStore){
+    const started=performance.now();
+    try{
+        const active=stateStore.peekCertified(ctx);
+        if(!active||active.query?.operation!=='list')return null;
+        const intent=contextCommand(source,active);
+        if(intent?.operation!=='ordinal'||!Array.isArray(active.rowIds)
+            ||!active.rowIds[intent.ordinal-1])return null;
+        return {...intent,durationMs:performance.now()-started};
+    }catch{return null;}
+}
+module.exports={continuationControl,ordinalDetailControl};

@@ -69,6 +69,8 @@ async function start(config, role) {
                 state.completedRequests++;
                 save({ time: new Date().toISOString(), eligible: o.risk?.eligible === true,
                     riskClass: ['READ_SAFE','WRITE_OR_MUTATION','UNAVAILABLE_OR_UNKNOWN'].includes(o.risk?.riskClass) ? o.risk.riskClass : 'UNAVAILABLE_OR_UNKNOWN',
+                    ordinalControl: o.ordinalControl === true, riskInvoked: o.risk?.invoked === true,
+                    collectionSemanticCalls: Number.isInteger(o.semanticModelCalls) ? o.semanticModelCalls : null,
                     attempted: o.attempted === true, validated: o.validationPass === true, delivered: o.delivered === true,
                     failureClass: /^[A-Z_]{1,80}$/.test(o.failureClass) ? o.failureClass : 'UNKNOWN',
                     durationMs: o.durationMs, toolCalls: o.toolCalls || 0,
