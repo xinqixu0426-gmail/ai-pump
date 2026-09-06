@@ -422,7 +422,7 @@ Candidate 接收单条 user message；上述认证纯文本多轮仅通过 colle
 |---|---|---|---|
 | `POST` | `/api/collections/read` | `{resourceType, operation, pageSize?, afterId?, targetId?, identity?, status?, customerName?}` | 能力 `collections.read` / AI Tool `read_collection`。五类资源 orders/customers/parts/recipes/coils；list/count/detail；严格 schema、未知字段拒绝。默认20、最多50条，SQL `id DESC` + keyset + LIMIT，在转移前有界。count 是同过滤条件的正式 COUNT，不取当前页长度 |
 
-这是 Query，沿用正式 JWT/内部访问认证；Candidate 仅内部认证。无需 allowWrite、确认或业务审计；只读事务同时读取计数和页。列表仅传资源已批准识别字段与 canonicalId；详情另外提供有限字段（订单最多50条明细、序列化源最多8192字符、备注最多512字符）。字段超长/身份多匹配/读取失败均拒绝，不裁剪冒充完整详情。详细 schema、投影和边界见 [有界集合契约](ai-governance/v5-bounded-collection-read-v1.md)。现有256KiB保护不变。
+这是 Query，沿用正式 JWT/内部访问认证；Candidate 仅内部认证。无需 allowWrite、确认或业务审计；只读事务同时读取计数和页。列表仅传资源已批准识别字段与 canonicalId；详情在 Business service 内先应用 `<resource>.detail.v1` 白名单投影，再检查8192字节的投影上限，之后才序列化传输。订单原始 items_json 仅在服务端解析，最多50条明细只保留 recipeName/qty/unitPrice，不开放配置或成本快照；备注最多512字符。批准投影超长、嵌套条数超限、身份多匹配或读取失败均拒绝，不截断原始字符串或按大小临时删字段。详细 schema、投影和边界见 [有界集合契约](ai-governance/v5-bounded-collection-read-v1.md)。现有256KiB保护不变。
 
 Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup；只有完整、唯一且资源类型匹配的 canonical identity 才转为 `targetId` 传给 read_collection，模型不能给出 ID 或自行计算字符偏移。序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。该集合实现已通过 R4 本地语义90/90与单次完整 UAT30/30；尚未部署，不是生产已认证能力。
 
