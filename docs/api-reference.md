@@ -424,7 +424,7 @@ Candidate 接收单条 user message；上述认证纯文本多轮仅通过 colle
 
 这是 Query，沿用正式 JWT/内部访问认证；Candidate 仅内部认证。无需 allowWrite、确认或业务审计；只读事务同时读取计数和页。列表仅传资源已批准识别字段与 canonicalId；详情在 Business service 内先应用 `<resource>.detail.v1` 白名单投影，再检查8192字节的投影上限，之后才序列化传输。订单原始 items_json 仅在服务端解析，最多50条明细只保留 recipeName/qty/unitPrice，不开放配置或成本快照；备注最多512字符。批准投影超长、嵌套条数超限、身份多匹配或读取失败均拒绝，不截断原始字符串或按大小临时删字段。详细 schema、投影和边界见 [有界集合契约](ai-governance/v5-bounded-collection-read-v1.md)。现有256KiB保护不变。
 
-Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup；只有完整、唯一且资源类型匹配的 canonical identity 才转为 `targetId` 传给 read_collection，模型不能给出 ID 或自行计算字符偏移。序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。该集合实现已通过 R4 本地语义90/90与单次完整 UAT30/30；尚未部署，不是生产已认证能力。
+Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup，保留完整跨域候选集。详情绑定器仅按 Collection Semantic Intent 已冻结的资源类型作确定性筛选：同类型0个为 NOT_FOUND，多于1个为 AMBIGUOUS，只有恰好1个才转为 `targetId` 传给 read_collection；不完整查询仍拒绝，不选首项、不做模糊排序。模型不能给出 ID 或自行计算字符偏移，客户端不能覆盖资源类型。序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。该集合实现已通过 R4 本地语义90/90与单次完整 UAT30/30；生产认证仍由阶段报告独立记录。
 
 集合语义 V1 在原模型调用位置使用15项资源×list/count/detail闭集目录；filterClass 与正式订单过滤枚举一致，topN 为1..50，详情只能提交源跨度引用。既有风险模型经独立 READ_SAFE/WRITE_OR_MUTATION/UNAVAILABLE_OR_UNKNOWN 适配后，READ_SAFE 才可进入集合选择；needsBusinessData 不充当写风险，原窄读门禁保持。R4 仅对已认证会话内、未过期且由 VERIFIED 集合证据登记的纯续页控制命令，在风险模型前绑定冻结查询；风险和集合模型调用均为0。无状态、过期、错主体/会话、混合修改语句不能绕过风险；序号详情仍须先通过风险。customerSpanRef 仅用于订单客户过滤；所有资源详情只用 detailSpanRef，严格拒绝字段角色冲突。语义失败属于覆盖不可用，不伪装成写风险；所有失败仍走现有 Legacy fallback。
 
