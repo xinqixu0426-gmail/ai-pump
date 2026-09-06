@@ -402,6 +402,12 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 ## 16. AI
 
+### Owner 默认只读网关
+
+`POST /api/ai/chat` 可由独立 loopback 网关承接，复用原 AI 请求与 SSE 契约，不新增业务能力或 Tool。`AI_V5_OWNER_READ_DEFAULT_ENABLED` 源默认 false；私有运维开关按请求读取，关闭无需重启 Legacy。仅 Cookie 经 `verifyAuthentication → isAuthenticatedOwner` 得到精确稳定 owner 主体才允许尝试 Candidate；admin 角色、客户端 marker 和内部服务身份不能取得 owner-default 资格。普通请求不需要 `x-pump-v5-use` 或 `x-pump-v5-fact`；可选 fact 断言仍不能覆盖服务端派生。
+
+Candidate 继续只接收单条 user message、无额外上下文的已支持形态；多轮/附加上下文等请求原样回 Legacy，不删除历史强行准入。Candidate 60 秒、单次、无重试，完整验证成功后才转发一次正文；拒绝、风险、超时、验证或传输失败均丢弃 Candidate 正文并一次转发 Legacy。普通 Legacy 转发保留调用者认证，绝不注入服务密钥提升权限。显式 `/api/ai/owner-read-canary` 的内部鉴权与诊断 header 兼容不变。网关没有 Tool/写执行权、业务事务或数据库访问；仅持久化 owner/gate/路由/耗时等固定元数据，不保留正文或凭据。独立 ingress 只覆盖 chat，其他路由及 Legacy 进程不变。
+
 ### 内部实体解析查询（只读）
 
 #### Stage1 前权威线圈源跨度供给

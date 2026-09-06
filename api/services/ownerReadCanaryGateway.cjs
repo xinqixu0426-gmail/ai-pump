@@ -2,6 +2,7 @@
 
 const { timingSafeEqual, randomUUID } = require('node:crypto');
 const http = require('node:http');
+const { verifyAuthentication, isAuthenticatedOwner } = require('./ownerAuthentication.cjs');
 
 const OWNER_CANARY_PATH = '/api/ai/owner-read-canary';
 const APPROVED_FACT_KEYS = Object.freeze(['price.current', 'inventory.quantity', 'coil.inventory', 'recipe.cost.preview']);
@@ -72,6 +73,7 @@ function createOwnerReadCanaryServer(options = {}) {
 
     return http.createServer(async (req, res) => {
         const requestId = randomUUID();
+        res.setHeader('X-Request-ID', requestId);
         const meta = { requestId, explicitOwnerCanaryRequested: false, candidateAttempted: false,
             candidateSuccess: false, safeLegacyFallback: false, finalSource: 'none', failureClass: 'NONE' };
         const started = performance.now(), client = new AbortController();
@@ -83,22 +85,36 @@ function createOwnerReadCanaryServer(options = {}) {
             res.end(JSON.stringify({ success: false, code, requestId }));
         };
         try {
-            if (req.method !== 'POST' || req.url !== OWNER_CANARY_PATH) { error(404, 'NOT_FOUND'); return; }
-            if (!authenticated(req.headers['x-internal-secret'], secret)) { error(401, 'UNAUTHORIZED'); return; }
+            const ordinary = req.url === '/api/ai/chat';
+            if (req.method !== 'POST' || (!ordinary && req.url !== OWNER_CANARY_PATH)) { error(404, 'NOT_FOUND'); return; }
+            if (!ordinary && !authenticated(req.headers['x-internal-secret'], secret)) { error(401, 'UNAUTHORIZED'); return; }
+            let currentEnv = env;
+            try { if (options.readConfig) currentEnv = options.readConfig(); } catch { currentEnv = {}; }
+            // Cookie identity is verified by the existing stable-principal primitive.
+            // Client markers, admin role, IP and internal credentials do not grant owner.
+            const cookies = require('cookie').parse(req.headers.cookie || '');
+            meta.ownerAuthenticated = ordinary && isAuthenticatedOwner(verifyAuthentication(cookies.token, currentEnv), currentEnv);
+            meta.ownerDefaultEnabled = currentEnv.AI_V5_OWNER_READ_DEFAULT_ENABLED === 'true';
             let text, body;
-            try { text = await boundedBody(req, MAX_REQUEST_BYTES); body = JSON.parse(text); }
+            try { text = await boundedBody(req, ordinary ? 102400 : MAX_REQUEST_BYTES); body = JSON.parse(text); }
             catch { error(400, 'INVALID_REQUEST'); return; }
             if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.messages)) {
                 error(400, 'INVALID_REQUEST'); return;
             }
             const headers = { 'Content-Type': 'application/json', 'x-internal-secret': secret };
+            // Ordinary Legacy requests retain their original auth, never our service identity.
+            const legacyHeaders = ordinary ? { 'Content-Type': 'application/json',
+                ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+                ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+                ...(req.headers['x-internal-secret'] ? { 'x-internal-secret': req.headers['x-internal-secret'] } : {}) } : headers;
             const optedIn = req.headers['x-pump-v5-use'] === 'true';
             const factKey = req.headers['x-pump-v5-fact'];
             meta.explicitOwnerCanaryRequested = optedIn;
             const candidateShape = Object.keys(body).length === 1 && body.messages.length === 1
                 && body.messages[0]?.role === 'user' && typeof body.messages[0]?.content === 'string'
                 && Object.keys(body.messages[0]).every(k => ['role', 'content'].includes(k));
-            if (enabled && optedIn && candidateShape && (factKey === undefined || APPROVED_FACT_KEYS.includes(factKey))) {
+            const admitted = ordinary ? meta.ownerDefaultEnabled && meta.ownerAuthenticated : enabled && optedIn;
+            if (admitted && candidateShape && (factKey === undefined || APPROVED_FACT_KEYS.includes(factKey))) {
                 meta.candidateAttempted = true;
                 try {
                     const response = await candidateTransport(candidateOrigin + '/api/ai/chat', {
@@ -126,7 +142,7 @@ function createOwnerReadCanaryServer(options = {}) {
             // Forward the original request to the real current implementation once.
             // No V5 flags or write-enabling headers/options are forwarded.
             const legacy = await transport(legacyOrigin + '/api/ai/chat', {
-                method: 'POST', headers, body: text, redirect: 'error',
+                method: 'POST', headers: legacyHeaders, body: text, redirect: 'error',
                 signal: AbortSignal.any([client.signal, AbortSignal.timeout(legacyTimeoutMs)]),
             });
             meta.finalSource = 'legacy';

@@ -108,7 +108,11 @@ function collectHttpEndpoints() {
 
     // Separate opt-in executable, deliberately not mounted in legacy Express.
     const gateway = require('../api/services/ownerReadCanaryGateway.cjs');
-    assert.match(readUtf8('api/services/ownerReadCanaryGateway.cjs'), /req\.method !== 'POST' \|\| req\.url !== OWNER_CANARY_PATH/);
+    const gatewaySource = readUtf8('api/services/ownerReadCanaryGateway.cjs');
+    assert.match(gatewaySource, /const ordinary = req\.url === '\/api\/ai\/chat'/);
+    assert.match(gatewaySource, /req\.method !== 'POST' \|\| \(!ordinary && req\.url !== OWNER_CANARY_PATH\)/);
+    assert.match(gatewaySource, /isAuthenticatedOwner\(verifyAuthentication\(cookies\.token, currentEnv\), currentEnv\)/);
+    assert.match(gatewaySource, /AI_V5_OWNER_READ_DEFAULT_ENABLED === 'true'/);
     endpoints.push({ method: 'POST', path: gateway.OWNER_CANARY_PATH, queryParams: [],
         source: 'api/services/ownerReadCanaryGateway.cjs' });
     return endpoints;

@@ -70,12 +70,23 @@ async function start(config, role) {
                 save({ time: new Date().toISOString(), eligible: o.risk?.eligible === true,
                     attempted: o.attempted === true, validated: o.validationPass === true, delivered: o.delivered === true,
                     failureClass: /^[A-Z_]{1,80}$/.test(o.failureClass) ? o.failureClass : 'UNKNOWN',
-                    durationMs: o.durationMs, toolCalls: o.toolCalls || 0 });
+                    durationMs: o.durationMs, toolCalls: o.toolCalls || 0,
+                    factKey: ['price.current','inventory.quantity','coil.inventory','recipe.cost.preview'].includes(o.derivedFactKey) ? o.derivedFactKey : null,
+                    factDerivationCalls: o.factDerivationCalls || 0, answerCalls: o.modelCalls || 0,
+                    numericValid: o.numericValid === true, entityValid: o.entityValid === true,
+                    evidenceVerified: o.evidenceVerification === 'PASS' });
             },
         });
     } else {
         const server = require(path.join(config.gatewayDirectory, 'ownerReadCanaryGateway.cjs')).createOwnerReadCanaryServer({
             env: { INTERNAL_SECRET: env.INTERNAL_SECRET, AI_V5_OWNER_CANARY_ENABLED: 'true' },
+            readConfig: () => {
+                const authority = require(path.join(config.legacyDirectory, 'node_modules/dotenv')).parse(
+                    fs.readFileSync(path.join(config.legacyDirectory, '.env')));
+                const gateFile = path.join(config.stateDirectory, 'owner-default.json');
+                const gate = fs.existsSync(gateFile) ? JSON.parse(fs.readFileSync(gateFile, 'utf8')) : {};
+                return { ...authority, AI_V5_OWNER_READ_DEFAULT_ENABLED: gate.AI_V5_OWNER_READ_DEFAULT_ENABLED === true ? 'true' : 'false' };
+            },
             onOutcome: o => { state.completedRequests++; save(o); },
         });
         await new Promise((resolve, reject) => { server.once('error', reject); server.listen(3103, '127.0.0.1', resolve); });

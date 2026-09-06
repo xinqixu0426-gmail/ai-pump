@@ -29,9 +29,11 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 本地 V5 Candidate 按安全与可用性分离的契约完成本地认证；部署仍须 Supervisor 单独授权。它是显式启用、loopback 绑定的独立只读进程，运行方式及内部接口边界统一见 [API 接口总表](./api-reference.md)。风险分类不可用时安全拒绝，不进入 V5；这不代表生产切换或写操作授权。
 
-Candidate 的 part 价格与库存数量通过既有本地 Task Class 分开，服务端派生所需 fact；可选 fact header 仅作一致性断言。范围及兼容说明见 [只读语义拆分契约](ai-governance/v5-part-read-semantic-split-v1.md)，不代表启用 owner-default 路由。
+Candidate 的 part 价格与库存数量通过既有本地 Task Class 分开，服务端派生所需 fact；可选 fact header 仅作一致性断言。范围及兼容说明见 [只读语义拆分契约](ai-governance/v5-part-read-semantic-split-v1.md)，路由开关与业务语义独立。
 
-Candidate 在风险准入后可通过正式只读 `/api/entity-span-candidates` 补充有界线圈完整身份跨度，最多扫描 512 条身份字段记录、返回 8 个位置；超限停止，不向 V5 暴露目录或 canonical ID。仅一个权威 exact coil 跨度时确定性选源、跳过 Stage1 模型；零候选沿用 Stage1，多跨度安全拒绝。实体 lookup 仍强制执行。接口及隐私边界统一见 [API 接口总表](./api-reference.md)，Stage1/Stage2 Prompt 与 owner-default OFF 不变。
+Candidate 在风险准入后可通过正式只读 `/api/entity-span-candidates` 补充有界线圈完整身份跨度，最多扫描 512 条身份字段记录、返回 8 个位置；超限停止，不向 V5 暴露目录或 canonical ID。仅一个权威 exact coil 跨度时确定性选源、跳过 Stage1 模型；零候选沿用 Stage1，多跨度安全拒绝。实体 lookup 仍强制执行。接口及隐私边界统一见 [API 接口总表](./api-reference.md)，Stage1/Stage2 Prompt 保持不变。
+
+Owner 默认只读路由使用独立可逆开关，源默认 OFF。精确认证的 dedicated owner 可优先获取已验证 Candidate 答案；shared admin 与其他用户、未支持请求及 Candidate 失败均沿用 Legacy。不会开启写执行或全局切换；边界见 [API 接口总表](./api-reference.md#owner-默认只读网关)。
 
 ## 1. 系统用途
 
