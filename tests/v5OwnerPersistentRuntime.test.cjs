@@ -1,0 +1,9 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {createMetadataProcessor,start}=require('../scripts/v5-owner-persistent-runtime.cjs');
+function fixture(){const state={spans:0,roots:0,orphans:0,crossRequest:0};return {state,p:createMetadataProcessor(state,()=>{})};}
+function span(trace,id,parent,attributes={}){return {spanContext:()=>({traceId:trace,spanId:id}),parentSpanContext:parent?{spanId:parent}:undefined,attributes};}
+test('disabled persistent adapter fails before loading business modules',async()=>{await assert.rejects(start({enabled:false},'candidate'),/OWNER_RUNTIME_DISABLED/);});
+test('completed root ownership avoids SDK onStart initialization false positives',()=>{const {state,p}=fixture(),root=span('a','r'),child=span('a','c','r',{'pump.ai.v5.shadow_task_id':'task-a'});p.onStart(root);p.onStart(child);p.onEnd(child);root.attributes['pump.request.id']='task-a';p.onEnd(root);assert.equal(state.crossRequest,0);assert.equal(state.orphans,0);});
+test('wrong task and orphan are detected',()=>{const {state,p}=fixture(),root=span('a','r',null,{'pump.request.id':'task-a'}),child=span('a','c','missing',{'pump.ai.v5.shadow_task_id':'task-b'});p.onStart(root);p.onStart(child);p.onEnd(child);p.onEnd(root);assert.equal(state.crossRequest,1);assert.equal(state.orphans,1);});
+test('ten overlapping traces keep ownership isolated and never persist values',()=>{const {state,p}=fixture();const roots=Array.from({length:10},(_,i)=>span('t'+i,'r'+i,null,{'pump.request.id':'task'+i}));roots.forEach(r=>p.onStart(r));roots.forEach((r,i)=>{const c=span('t'+i,'c'+i,'r'+i,{'pump.ai.v5.shadow_task_id':'task'+i,secret:'SYNTHETIC_PRIVATE'});p.onStart(c);p.onEnd(c);});roots.reverse().forEach(r=>p.onEnd(r));assert.equal(state.crossRequest,0);assert.equal(state.orphans,0);assert.equal(state.roots,10);assert.equal(JSON.stringify(state).includes('SYNTHETIC_PRIVATE'),false);});

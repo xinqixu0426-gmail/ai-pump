@@ -354,7 +354,7 @@ POST /api/rotor/save
 
 ## 7. AI 与移动端
 
-- P16-G 独立 owner/internal canary 默认 OFF、逐请求显式 opt-in；Candidate 验证成功才返回 V5，失败交还真实 Legacy。普通用户无新增路由，认证结束撤销附加入口并停止进程。见 [API reference](api-reference.md)。
+- P16-H owner/internal 只读入口已获准独立常驻；源代码默认 OFF，生产专用用户级 launchd 显式启用。每请求仍需内部认证与 V5 opt-in，Candidate 成功才交付 V5，失败交还 Legacy；普通请求始终 Legacy。见 [持久 owner 运行与回滚](ai-governance/v5-persistent-owner-read-v1.md) 和 [API reference](api-reference.md)。
 
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 目标规则是：写操作还必须位于写能力白名单并通过确认流程，查询工具不能借机写库。2026-08-02 审核确认转子生成/打印存在写能力漏标，且部分订单/报价 GET 有写副作用；修复前不能把现有 `WRITE_TOOLS` 或 HTTP Method 单独当作完整安全边界。
