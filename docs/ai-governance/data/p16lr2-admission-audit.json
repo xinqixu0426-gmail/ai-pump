@@ -1,0 +1,73 @@
+{
+  "stage": "P16-L-R2",
+  "kind": "PRE_IMPLEMENTATION_DIAGNOSTIC_NOT_HISTORICAL_RECONSTRUCTION",
+  "retries": 0,
+  "toolCalls": 0,
+  "businessApiCalls": 0,
+  "cases": [
+    {
+      "case_id": "L-07",
+      "resourceType": "orders",
+      "expectedOperation": "continue",
+      "riskFields": {
+        "mode": "query",
+        "contextMode": "previous_turn",
+        "confidence": "high",
+        "needsBusinessData": false,
+        "requiresClarification": false,
+        "ambiguityCount": 0
+      },
+      "admitted": false,
+      "contractValid": true,
+      "failureClass": "RISK_NOT_ELIGIBLE"
+    },
+    {
+      "case_id": "L-12",
+      "resourceType": "customers",
+      "expectedOperation": "continue",
+      "riskFields": {
+        "mode": "query",
+        "contextMode": "previous_turn",
+        "confidence": "high",
+        "needsBusinessData": true,
+        "requiresClarification": false,
+        "ambiguityCount": 0
+      },
+      "admitted": true,
+      "contractValid": true,
+      "failureClass": "NONE"
+    },
+    {
+      "case_id": "L-13",
+      "resourceType": "customers",
+      "expectedOperation": "count",
+      "riskFields": {
+        "mode": "query",
+        "contextMode": "current_turn",
+        "confidence": "high",
+        "needsBusinessData": true,
+        "requiresClarification": false,
+        "ambiguityCount": 0
+      },
+      "admitted": true,
+      "contractValid": true,
+      "failureClass": "NONE"
+    },
+    {
+      "case_id": "L-28",
+      "resourceType": "coils",
+      "expectedOperation": "count",
+      "riskFields": {
+        "mode": "query",
+        "contextMode": "current_turn",
+        "confidence": "high",
+        "needsBusinessData": true,
+        "requiresClarification": false,
+        "ambiguityCount": 0
+      },
+      "admitted": true,
+      "contractValid": true,
+      "failureClass": "NONE"
+    }
+  ]
+}

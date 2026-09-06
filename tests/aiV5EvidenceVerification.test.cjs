@@ -199,7 +199,7 @@ test('requirement contract distinguishes required and optional with minimum coun
 
 test('capability requirement coverage is conservative and explicit', () => {
     const audit = auditCapabilityRequirementCoverage();
-    assert.deepEqual({ count: audit.capabilityCount, defined: audit.defined, deferred: audit.deferred, na: audit.notApplicable }, { count: 41, defined: 3, deferred: 38, na: 0 });
+    assert.deepEqual({ count: audit.capabilityCount, defined: audit.defined, deferred: audit.deferred, na: audit.notApplicable }, { count: 42, defined: 4, deferred: 38, na: 0 });
     assert.equal(listEvidenceRequirements('inventory.read').length, 1);
     assert.equal(listEvidenceRequirements('order.read').length, 0);
 });

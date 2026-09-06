@@ -37,6 +37,8 @@ test('forbidden frozen components unchanged',()=>{
     // P16-A2 explicitly approves the additive authority reference and its strict reader.
     // Keep exact pins rather than removing either component from freeze protection.
     const approved = {
+        // P16-L: additive collection capability; all frozen entity capabilities remain identical.
+        'api/services/ai-v5/capabilityRegistry.cjs': 'ce7c6d593ba26129b3a2d47b70f3dfbdf0152ea1e7dadbab8178c5dc3d31fe00',
         // P16-I-R8: bounded authoritative span merge, original structural generation retained.
         'api/services/ai-v5/sourceSpanCatalog.cjs': 'd3407426ad4fdc77b2dab966ef8566db5b61212ecf82e4f1def020d75a13c85f',
         // P16-I-R4 authorized only the part quantity/price semantic split.

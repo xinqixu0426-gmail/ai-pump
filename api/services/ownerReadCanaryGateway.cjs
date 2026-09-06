@@ -119,9 +119,13 @@ function createOwnerReadCanaryServer(options = {}) {
             const optedIn = req.headers['x-pump-v5-use'] === 'true';
             const factKey = req.headers['x-pump-v5-fact'];
             meta.explicitOwnerCanaryRequested = optedIn;
-            const candidateShape = contextValid && Object.keys(legacyBody).length === 1 && body.messages.length === 1
-                && body.messages[0]?.role === 'user' && typeof body.messages[0]?.content === 'string'
-                && Object.keys(body.messages[0]).every(k => ['role', 'content'].includes(k));
+            const lastMessage = body.messages.at(-1);
+            const messagesValid = body.messages.length > 0 && body.messages.length <= 50
+                && body.messages.every(m => m && ['user','assistant'].includes(m.role) && typeof m.content === 'string'
+                    && Object.keys(m).every(k => ['role','content'].includes(k)));
+            const contextualCollection = body.messages.length > 1 && !!envelope;
+            const candidateShape = contextValid && Object.keys(legacyBody).length === 1 && messagesValid
+                && lastMessage?.role === 'user' && (body.messages.length === 1 || contextualCollection);
             const admitted = ordinary ? meta.ownerDefaultEnabled && meta.ownerAuthenticated : enabled && optedIn;
             if (admitted && candidateShape && (factKey === undefined || APPROVED_FACT_KEYS.includes(factKey))) {
                 meta.candidateAttempted = true;
@@ -130,7 +134,8 @@ function createOwnerReadCanaryServer(options = {}) {
                         method: 'POST', headers: { ...headers, 'x-pump-v5-use': 'true',
                             ...(envelope ? { [conversation.HEADER]: envelope } : {}),
                             ...(factKey === undefined ? {} : { 'x-pump-v5-fact': factKey }) },
-                        body: forwardText, signal: AbortSignal.any([client.signal, AbortSignal.timeout(candidateTimeoutMs)]),
+                        body: contextualCollection ? JSON.stringify({ messages: [lastMessage], collectionOnly: true }) : forwardText,
+                        signal: AbortSignal.any([client.signal, AbortSignal.timeout(candidateTimeoutMs)]),
                         redirect: 'error',
                     });
                     const type = response.headers.get('content-type') || '';

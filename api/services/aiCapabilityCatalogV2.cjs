@@ -112,7 +112,7 @@ function plannedCapabilityNames(intent = {}) {
 }
 
 function capabilityAllowedForIntent(capability, intent = {}) {
-    if (!capability || intent.mode === 'conversation') return false;
+    if (!capability || capability.candidateOnly || intent.mode === 'conversation') return false;
     if (intent.mode !== 'command' && capability.access === 'write') return false;
     if (
         intent.entityScope

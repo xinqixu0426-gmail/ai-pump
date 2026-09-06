@@ -24,6 +24,9 @@ const COST_OVERRIDE_SCHEMA = Object.freeze({
 });
 
 const AI_TOOLS = [
+    { type: 'function', function: { name: 'read_collection',
+        description: '只读业务集合、精确详情或正式计数。只接受登记的资源及过滤条件，默认20条、最多50条，不读取全量集合。',
+        parameters: require('../../services/collectionReadContract.cjs').TOOL_SCHEMA } },
     {
         type: 'function',
         function: {

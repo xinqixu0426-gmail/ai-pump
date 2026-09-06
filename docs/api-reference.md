@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 232 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 233 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -408,13 +408,29 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 现有 `POST /api/ai/chat` 增量接收可选 `conversationId: string`。Web 复用已经持久化的技术会话 ID，编码为 `chat-<正安全整数>`（6–21 字符，无前导零）；它是无业务含义、非保密的会话句柄，不是 UUID、认证、资源授权或分页游标。同一会话重载/跨标签打开保持同值，不同会话使用不同值；不新增存储或写接口。
 
-网关先执行既有 owner 鉴权，再以服务端 HMAC 对 `[version, authenticated sub, conversationId]` 建立确定性命名空间，并签名内部传输信封。客户端提交的内部上下文 header 不转发。Candidate 校验签名/结构后只在请求级 AsyncLocalStorage 保存 `{version, conversationId, contextKey}`，不传给 Interpreter、模型、Tool、Resolver、fact 选择或响应。原始 ID、签名与 namespace 不进入常规日志。不同主体/会话不共享 namespace；此标识不证明聊天记录所有权，不开放聊天历史读取。未来继续查询仍须独立签发并校验 query/token、有效期、主体与会话，当前没有 lastQuery、游标或集合状态。
+网关先执行既有 owner 鉴权，再以服务端 HMAC 对 `[version, authenticated sub, conversationId]` 建立确定性命名空间，并签名内部传输信封。客户端提交的内部上下文 header 不转发。Candidate 校验签名/结构后只在请求级 AsyncLocalStorage 保存 `{version, conversationId, contextKey}`，不传给 Interpreter、模型、Tool、Resolver、fact 选择或响应。原始 ID、签名与 namespace 不进入常规日志。不同主体/会话不共享 namespace；此标识不证明聊天记录所有权，不开放聊天历史读取。P16-L 集合状态仅使用该命名空间，独立校验服务器生成的 query/token 和10分钟有效期；无全局或 owner 级 lastQuery。风险模型可接收当前集合类型提示；集合模型不接收当前状态。两者均不接收会话身份、查询令牌或行 ID。
 
-缺省 ID 保持旧单轮读取。非法 ID 不进入 Candidate，网关剥离该字段并按原 Legacy 兼容路径处理；有效 ID 也会在转发 Legacy 和 Candidate 的业务 body 前剥离，仅已认证 owner 的 Candidate 内部 header 携带控制面信封。多轮 messages、pageContext、turnState 等现有不受支持形态仍回 Legacy，不删历史强行准入。显式内部 canary 无 owner Cookie 时不创建 owner namespace，但原诊断读取仍兼容。该变更是现有 AI Query 传输适配，无新增业务 capability/Tool，业务 sourceOfTruth、风险/确认、60 秒单次 Candidate 超时和 SSE content/done 不变；无事务、审计行、业务写入或重试。
+缺省 ID 保持旧单轮读取。非法 ID 不进入 Candidate，网关剥离该字段并按原 Legacy 兼容路径处理；有效 ID 也会在转发 Legacy 和 Candidate 的业务 body 前剥离，仅已认证 owner 的 Candidate 内部 header 携带控制面信封。带有效命名空间的纯文本多轮 messages（最多50条）可尝试集合专用通道：只把末条原始 user 文本传给 Candidate，并加内部 collectionOnly 标记；过去 assistant 文本不作为事实。非集合语义安全回退，原始完整历史仍转交 Legacy。pageContext、turnState 等其他形态仍回 Legacy。显式内部 canary 无 owner Cookie 时不创建 owner namespace，原诊断窄读取兼容。认证、风险/确认、60秒 Candidate 超时和 SSE content/done 不变；不引入业务写入或重试。
 
 `POST /api/ai/chat` 可由独立 loopback 网关承接，复用原 AI 请求与 SSE 契约，不新增业务能力或 Tool。`AI_V5_OWNER_READ_DEFAULT_ENABLED` 源默认 false；私有运维开关按请求读取，关闭无需重启 Legacy。仅 Cookie 经 `verifyAuthentication → isAuthenticatedOwner` 得到精确稳定 owner 主体才允许尝试 Candidate；admin 角色、客户端 marker 和内部服务身份不能取得 owner-default 资格。普通请求不需要 `x-pump-v5-use` 或 `x-pump-v5-fact`；可选 fact 断言仍不能覆盖服务端派生。
 
-Candidate 继续只接收单条 user message、无额外上下文的已支持形态；多轮/附加上下文等请求原样回 Legacy，不删除历史强行准入。Candidate 60 秒、单次、无重试，完整验证成功后才转发一次正文；拒绝、风险、超时、验证或传输失败均丢弃 Candidate 正文并一次转发 Legacy。普通 Legacy 转发保留调用者认证，绝不注入服务密钥提升权限。显式 `/api/ai/owner-read-canary` 的内部鉴权与诊断 header 兼容不变。网关没有 Tool/写执行权、业务事务或数据库访问；仅持久化 owner/gate/路由/耗时等固定元数据，不保留正文或凭据。独立 ingress 只覆盖 chat，其他路由及 Legacy 进程不变。
+Candidate 接收单条 user message；上述认证纯文本多轮仅通过 collectionOnly 通道尝试集合读取。其他不支持形态原样回 Legacy，不删除历史强行准入。Candidate 60 秒、单次、无重试，完整验证成功后才转发一次正文；拒绝、风险、超时、验证或传输失败均丢弃 Candidate 正文并一次转发 Legacy。普通 Legacy 转发保留调用者认证，绝不注入服务密钥提升权限。显式 `/api/ai/owner-read-canary` 的内部鉴权与诊断 header 兼容不变。网关没有 Tool/写执行权、业务事务或数据库访问；仅持久化 owner/gate/路由/耗时等固定元数据，不保留正文或凭据。独立 ingress 只覆盖 chat，其他路由及 Legacy 进程不变。
+
+### 有界业务集合查询（只读）
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `POST` | `/api/collections/read` | `{resourceType, operation, pageSize?, afterId?, targetId?, identity?, status?, customerName?}` | 能力 `collections.read` / AI Tool `read_collection`。五类资源 orders/customers/parts/recipes/coils；list/count/detail；严格 schema、未知字段拒绝。默认20、最多50条，SQL `id DESC` + keyset + LIMIT，在转移前有界。count 是同过滤条件的正式 COUNT，不取当前页长度 |
+
+这是 Query，沿用正式 JWT/内部访问认证；Candidate 仅内部认证。无需 allowWrite、确认或业务审计；只读事务同时读取计数和页。列表仅传资源已批准识别字段与 canonicalId；详情另外提供有限字段（订单最多50条明细、序列化源最多8192字符、备注最多512字符）。字段超长/身份多匹配/读取失败均拒绝，不裁剪冒充完整详情。详细 schema、投影和边界见 [有界集合契约](ai-governance/v5-bounded-collection-read-v1.md)。现有256KiB保护不变。
+
+Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup；只有完整、唯一且资源类型匹配的 canonical identity 才转为 `targetId` 传给 read_collection，模型不能给出 ID 或自行计算字符偏移。序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。该集合实现已通过 R4 本地语义90/90与单次完整 UAT30/30；尚未部署，不是生产已认证能力。
+
+集合语义 V1 在原模型调用位置使用15项资源×list/count/detail闭集目录；filterClass 与正式订单过滤枚举一致，topN 为1..50，详情只能提交源跨度引用。既有风险模型经独立 READ_SAFE/WRITE_OR_MUTATION/UNAVAILABLE_OR_UNKNOWN 适配后，READ_SAFE 才可进入集合选择；needsBusinessData 不充当写风险，原窄读门禁保持。R4 仅对已认证会话内、未过期且由 VERIFIED 集合证据登记的纯续页控制命令，在风险模型前绑定冻结查询；风险和集合模型调用均为0。无状态、过期、错主体/会话、混合修改语句不能绕过风险；序号详情仍须先通过风险。customerSpanRef 仅用于订单客户过滤；所有资源详情只用 detailSpanRef，严格拒绝字段角色冲突。语义失败属于覆盖不可用，不伪装成写风险；所有失败仍走现有 Legacy fallback。
+
+订单过滤只支持正式状态、`active`（排除已关闭/已取消）和客户名称精确相等；其他资源暂不支持过滤。排序为所有资源的稳定创建记录 ID 降序，同 ID 唯一，不宣称更新时间排序。精确详情按正式名称字段，线圈也支持 schemeCode equality；多匹配拒绝。新增 read Tool 只执行一次该 API，不开放任意 SQL 或无限工具循环。旧窄事实读取不经过此 API。
+
+集合继续/序号引用只由认证主体 + conversationId 命名空间内的服务器状态决定；10分钟 TTL，最多128个活跃会话，每会话并发执行拒绝，游标/令牌/行 ID 不传模型。每页是独立只读事务，跨页不保证可变生产数据的历史快照；稳定数据下 keyset 无重复/遗漏。集合响应验证查询、过滤、排序、边界、行身份、投影和正式执行证据后，由确定性 Answer Composer 展示，无答案模型、第二次调查或新业务计算。模型只选择有限集合语义及原文位置。
 
 ### 内部实体解析查询（只读）
 
@@ -474,7 +490,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V3 第一阶段意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空；服务端直接返回澄清问题，第二阶段不得生成能力步骤，也禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录总耗时、首字耗时、业务域规划/能力规划/工具/总结阶段耗时、工具数量、供应商路由、重试/降级/错误码和供应商真实 usage 覆盖率，不记录用户正文、附件正文、工具参数或回答内容。
 
-模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段让 query/analysis 从按首选域优先排列的全部 48 项已登记只读 Query/Preview 中选择，command 仍只下发信封内能力，模型只提交最多 5 个起始事实步骤。正常执行逐项开放当前能力，恢复执行只开放公共能力图中的有界只读 discovery 集合。77 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 109 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段让 query/analysis 从按首选域优先排列的全部 48 项已登记只读 Query/Preview 中选择，command 仍只下发信封内能力，模型只提交最多 5 个起始事实步骤。正常执行逐项开放当前能力，恢复执行只开放公共能力图中的有界只读 discovery 集合。新登记的 read_collection 仅 Candidate 可执行，不加入 Legacy/MCP 目录。78 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 110 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -679,7 +695,7 @@ P16-C 内部只读预览：现有 POST /api/ai/chat 保持 legacy 回答权威�
 
 P16-D 显式权威只读 canary：在上述基础开关之外，必须同时满足 AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED=true（默认 OFF）、x-pump-v5-use: true 及现有内部身份认证，才可为当前请求选择经过完整验证的 V5 正文作为正常 content/done 最终回答。x-pump-v5-fact 仍须属于原批准范围且与冻结路由兼容。P16-C 预览头不能授予权威；失败释放原 legacy 回答，且不再追加第二次预览调用。请求级 mux 只在内存暂存既有 legacy 事件与验证后的正文，完成后清除；无粘性分配、生产默认切换、新增存储或写执行。详见 [V5 authority contract](ai-governance/v5-read-authority-v1.md)。
 
-Local Candidate Runtime（隔离只读认证完成；P16-H 仅 owner 显式常驻读取）：独立入口 `node scripts/start-v5-candidate.cjs`，仅显式 `PUMP_V5_CANDIDATE_RUNTIME=true` 时启动（默认 OFF）；必须提供绝对路径 `PUMP_V5_CANDIDATE_DATABASE`、独立 `PUMP_V5_CANDIDATE_PORT` 和现有 `INTERNAL_SECRET`，固定绑定 127.0.0.1，拒绝 3000/3001/3002。仅复用本表既有 GET /api/parts、GET /api/coils、GET /api/recipes、GET /api/recipes/current-costs、POST /api/entity-lookup、POST /api/entity-span-candidates、GET /api/health/ready 和 POST /api/ai/chat，全部要求内部身份。Candidate chat 只接受单条 user messages，仍要求两项 V5 全局开关、x-pump-v5-use:true；先复用既有 V4 目标/风险模型阶段（Tools=NONE，仅分类、30 秒期限、不重试），以 query/analysis 明确白名单及无歧义/当前请求条件准入；未知、错误和写风险直接拒绝，不生成 legacy toolSteps。分类不可用返回 metadata-only SAFE_AVAILABILITY_FALLBACK，仍不进入 V5；不重试、不使用启发式准入。P16-G 附加 gateway 将所有非成功状态交还真实 legacy/current；Candidate 自身仍不运行 fallback 或默认生产路由。通过后复用现有两阶段 Interpreter；P16-I-R4 本地 Task Class 将 part 库存（tc_002）与目录单价（tc_028）分开，服务端由选中 class 确定性派生 inventory.quantity / price.current，coil tc_004 与 recipe tc_024 保持既有 fact 映射。可选 x-pump-v5-fact 只能断言相同范围；缺省正常执行、错配在 Tool/Answer 前拒绝。之后复用确定性 read router、真实只读 executor 和全部回答验证，成功返回 content/done，失败返回无正文的 CANDIDATE_ANSWER_UNAVAILABLE，不运行 legacy dispatcher。所有响应 no-store；正文与证据仅存在于本次请求内存。其他路径/方法在 handler 前返回 403，未认证 401、输入错误 400、读取失败 500。该入口为本表已登记 read Query 的隔离运行变体；新增 span 供给仅使用 entities.coil_span_candidates，不新增 AI Tool、写事务、确认或持久化；请求期限 180 秒。数据库以原生 readonly 打开并只读检查迁移版本/校验和，配套 guard 拒绝 DML、DDL、PRAGMA、backup 和扩展加载。模式关闭时独立入口拒绝启动；普通 api.cjs 拒绝 Candidate 标志，防止误启动普通生命周期。
+Local Candidate Runtime（隔离只读认证完成；P16-H 仅 owner 显式常驻读取）：独立入口 `node scripts/start-v5-candidate.cjs`，仅显式 `PUMP_V5_CANDIDATE_RUNTIME=true` 时启动（默认 OFF）；必须提供绝对路径 `PUMP_V5_CANDIDATE_DATABASE`、独立 `PUMP_V5_CANDIDATE_PORT` 和现有 `INTERNAL_SECRET`，固定绑定 127.0.0.1，拒绝 3000/3001/3002。仅复用本表既有 GET /api/parts、GET /api/coils、GET /api/recipes、GET /api/recipes/current-costs、POST /api/entity-lookup、POST /api/entity-span-candidates、POST /api/collections/read、GET /api/health/ready 和 POST /api/ai/chat，全部要求内部身份。Candidate chat 接受单条 user messages 和仅内部可用的 collectionOnly 标记，仍要求两项 V5 全局开关、x-pump-v5-use:true；除上述已认证纯续页控制外，先复用既有 V4 目标/风险模型阶段（Tools=NONE，仅分类、30 秒期限、不重试），以 query/analysis 明确白名单及无歧义/当前请求条件准入；未知、错误和写风险直接拒绝，不生成 legacy toolSteps。分类不可用返回 metadata-only SAFE_AVAILABILITY_FALLBACK，仍不进入 V5；不重试、不使用启发式准入。P16-G 附加 gateway 将所有非成功状态交还真实 legacy/current；Candidate 自身仍不运行 fallback 或默认生产路由。P16-L 本地新增集合分支：仅认证 conversation namespace 可选择有界 collection.read；previous_turn 准入必须由当前服务器集合支持且只能继续/序号读取。非集合的新单轮问题仍复用现有两阶段 Interpreter；P16-I-R4 本地 Task Class 将 part 库存（tc_002）与目录单价（tc_028）分开，服务端由选中 class 确定性派生 inventory.quantity / price.current，coil tc_004 与 recipe tc_024 保持既有 fact 映射。可选 x-pump-v5-fact 只能断言相同范围；缺省正常执行、错配在 Tool/Answer 前拒绝。之后复用确定性 read router、真实只读 executor 和全部回答验证，成功返回 content/done，失败返回无正文的 CANDIDATE_ANSWER_UNAVAILABLE，不运行 legacy dispatcher。所有响应 no-store；正文与证据仅存在于本次请求内存。其他路径/方法在 handler 前返回 403，未认证 401、输入错误 400、读取失败 500。该入口为本表已登记 read Query 的隔离运行变体；新增 span 供给仅使用 entities.coil_span_candidates，不新增写事务、确认或业务持久化；集合分支新增 Candidate-only read_collection，10分钟内存继续状态；请求期限 180 秒。数据库以原生 readonly 打开并只读检查迁移版本/校验和，配套 guard 拒绝 DML、DDL、PRAGMA、backup 和扩展加载。模式关闭时独立入口拒绝启动；普通 api.cjs 拒绝 Candidate 标志，防止误启动普通生命周期。
 
 `/api/ai/chat` SSE 事件包括 `status/content/tool_plan/tool_call/tool_result/detail/turn_state/done/error`。`turn_state` 在 `done` 前返回下一轮可携带的结构化实体状态；完整成功流仍必须以 `done` 结束。`error` 表示服务端已明确失败，连接提前结束且未收到 `done` 则视为传输中断。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整的正文、工具结果和轮次状态；第二次仍失败时仅显示本地错误，不保存半截回复。自动重试只重新请求 `/api/ai/chat`；写工具只生成确认请求，实际写入仍必须通过 `/api/ai/confirm-tool`。`tool_plan` 会在工具执行前说明步骤、只读/写入模式和参数摘要；写操作仍必须通过确认流程执行。
 

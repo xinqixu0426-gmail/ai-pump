@@ -109,6 +109,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'search_factory_knowledge',
     ]),
     catalog: Object.freeze([
+        'read_collection',
         'search_parts',
         'create_part',
         'batch_create_parts',
@@ -126,6 +127,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
 });
 
 const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
+    read_collection: '读取有界业务集合或详情',
     search_business_changes: '查询业务变更',
     get_management_action_center: '读取管理待办',
     plan_factory_workflow: '生成工厂工作流计划',
@@ -249,6 +251,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_rotor_drawing_history',
     ]),
     query: Object.freeze([
+        'read_collection',
         'search_business_changes',
         'get_coil_specs',
         'search_coils',
@@ -408,6 +411,7 @@ const WRITE_CAPABILITY_NAMES = new Set([
 ]);
 
 const LIVE_CAPABILITY_NAMES = new Set([
+    'read_collection',
     'search_business_changes',
     'full_calculate',
     'get_copper_price',
@@ -493,6 +497,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 ]);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
+    read_collection: Object.freeze(['collections.read']),
     search_business_changes: Object.freeze(['business_changes.list']),
     search_parts: Object.freeze(['parts.list']),
     search_coils: Object.freeze(['coils.list']),
@@ -631,6 +636,14 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'collections.read': defineQueryCapability({
+        capabilityId: 'collections.read', domain: 'catalog',
+        inputSchema: 'POST /api/collections/read CollectionReadRequest',
+        outputSchema: 'BoundedCollectionResultV1',
+        sourceOfTruth: 'orders+customers+parts+recipes+coils',
+        transactionality: 'read_transaction', riskLevel: 'low',
+        callers: Object.freeze(['ai', 'internal']),
+    }),
     'entities.coil_span_candidates': defineQueryCapability({
         capabilityId: 'entities.coil_span_candidates',
         domain: 'coil',
@@ -1976,6 +1989,7 @@ function buildRegistry() {
         registry[name] = Object.freeze({
             capabilityId: `ai.${name}`,
             toolName: name,
+            candidateOnly: name === 'read_collection',
             displayName: AI_CAPABILITY_DISPLAY_NAMES[name] || name,
             executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME[name] || null,
             domain: domains[0],

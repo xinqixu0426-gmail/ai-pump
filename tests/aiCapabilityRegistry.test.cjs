@@ -139,6 +139,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
     const expectedIds = [
         'entities.coil_span_candidates',
         'business_changes.list',
+        'collections.read',
         'inventory.parts.batch_adjust_stock',
         'inventory.coils.adjust_stock',
         'workflow.quotation.convert_to_order',
@@ -260,7 +261,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             assert.equal(capability.operation, 'query');
             assert.equal(capability.requiresConfirmation, false);
             assert.equal(capability.riskLevel, 'low');
-            assert.match(capability.inputSchema, capabilityId === 'entities.coil_span_candidates' ? /^POST \/api\/entity-span-candidates/ : /^GET \/api\//);
+            assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);
             continue;

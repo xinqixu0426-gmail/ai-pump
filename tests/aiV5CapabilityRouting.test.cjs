@@ -91,8 +91,8 @@ test('read/write metadata mismatch is rejected and write capabilities are never 
 
 test('inventory is complete with no stale or unknown references', () => {
     const audit = auditToolInventory();
-    assert.equal(audit.total, 77);
-    assert.equal(audit.assigned.length, 77);
+    assert.equal(audit.total, 78);
+    assert.equal(audit.assigned.length, 78);
     assert.deepEqual(audit.shared, []);
     assert.deepEqual(audit.unassigned, []);
     assert.deepEqual(audit.stale, []);

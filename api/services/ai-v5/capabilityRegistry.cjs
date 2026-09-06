@@ -31,6 +31,8 @@ function definition(capabilityId, domain, operation, readWriteClass, riskClass, 
 }
 
 const DECLARED_CAPABILITIES = [
+    // Collection tasks have their own bounded catalog; never renumber frozen entity Task Classes.
+    { ...definition('collection.read', 'catalog', 'read', 'READ', 'L1', [], ['read_collection']), exposableInV5B: false },
     definition('cost.calculate', 'cost', 'calculate', 'READ', 'L1', ['cost_context'], ['full_calculate', 'dynamic_config_cost']),
     definition('coil.cost', 'coil', 'cost', 'READ', 'L1', ['coil'], ['get_copper_price', 'calculate_coil_cost']),
     definition('coil.read', 'coil', 'read', 'READ', 'L1', ['coil'], ['get_coil_specs', 'search_coils']),

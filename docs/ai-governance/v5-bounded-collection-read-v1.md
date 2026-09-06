@@ -1,0 +1,49 @@
+# V5 Bounded Collection Read V1
+
+Stage status: **P16-L-R4 LOCAL CERTIFICATION PASS / NOT DEPLOYED**. After focused L-02/L-14 each3/3, the unchanged30-question semantic corpus passed30/30 in each of3 frozen runs (90/90); one subsequent full UAT passed30/30. Earlier L/R2/R3 failures remain historical evidence. Local acceptance does not authorize production deployment; Supervisor review is required. See the P16-L-R4 report.
+
+## Scope and admission
+
+P16-L adds list, count, exact detail and current-page continuation/ordinal detail for orders, customers, parts, recipes and coils. P17 stays paused. Owner authentication precedes execution. New business intents require risk preflight; only the certified pure continuation control described below bypasses the risk model. Shared admin is not owner. No writes, retries, unbounded Tool loops or payload-cap increase.
+
+The four certified narrow facts and their entity Task Class IDs remain unchanged. `collection.read` is a separate collection capability, excluded from the frozen entity Task Class generation; it maps only to `read_collection`. The collection semantic contract allows one action, typed filters, an optional bounded page size and references into the existing source-exact span catalog. The model cannot calculate identity offsets, supply canonical IDs or continuation boundaries. Direct detail uses the selected source substring through the unchanged governed entity resolver; only complete unique resolution of the correct resource family permits canonical-ID detail execution. Zero, ambiguous, wrong-family and unavailable resolution stop before the detail Tool. Unsupported semantics fall back.
+
+The explicit collection operation allowlist is list/count/detail/continue/ordinal (filtering is a typed list/count argument). Collection Semantic Contract V1 uses a closed15-choice resource×list/count/detail catalog, typed filter class, optional topN, source refs and confidence. customerSpanRef is exclusively an orders customer-filter parameter; it must be null outside ORDER_CUSTOMER/ORDER_STATUS_CUSTOMER. All resource detail targets use detailSpanRef only, with null customerSpanRef/status/topN. Unknown fields/resources/operations/filters and inconsistent field roles fail closed. The model sees no Tools, APIs, canonical IDs, current rows or cursor; it reuses the existing collection model slot, at most once without retry.
+
+R3 separates collection safety from narrow-read eligibility. The unchanged risk model's validated command mode maps to WRITE_OR_MUTATION; query/analysis with non-low confidence and no ambiguities maps to READ_SAFE; everything else maps to UNAVAILABLE_OR_UNKNOWN. needsBusinessData and contextMode are not mutation signals. READ_SAFE only authorizes collection interpretation, not execution: the closed semantic contract and resource/operation admission must also pass. Unknown risk or explicit mutation stops before collection routing. The original narrow-read eligibility remains unchanged and cannot be bypassed when collection selection returns NOT_APPLICABLE.
+
+## Business query and projection
+
+Formal API: `POST /api/collections/read`, Query, internal/JWT authentication. Schema is `collectionReadContract.cjs`; SQL/data access lives in `collectionReadService.cjs`, never V5. Default 20, maximum 50; request above 50 is invalid. List uses SQL LIMIT pageSize+1 before transfer to detect hasMore; the one sentinel is not a full-list fetch. Count is server COUNT with identical filters. All five resources sort by immutable creation ID descending (canonical identity is unique); continuation uses `id < afterId`. Each count/page pair uses one read transaction. No whole-corpus snapshot is promised between requests when production changes.
+
+| Resource | List display projection | Additional detail projection | Exact detail identity |
+|---|---|---|---|
+| orders | contract number, customer name, status, creation time | remark; up to50 lines containing recipeName, qty, unitPrice | contract_no |
+| customers | name, creation time | remark | name |
+| parts | model, category, supplier | remark | model |
+| recipes | name, spec | coil spec/material, update time | name |
+| coils | scheme name, spec, material, scheme status | slot type, update time | scheme_name or scheme_code |
+
+Soft-deleted records are excluded where the formal table supports soft deletion. Coil status is not silently filtered. Orders support exact formal status, active=not closed/not cancelled, and exact customerName. No other filters are accepted. List/detail fields are distinct and allowlisted. Ordinary text fields max160 UTF-16 units, remarks512; order source line JSON max8192 units, lines max50. Oversized or malformed detail fails closed, never pretends truncation is complete. Display names and currency/cost meanings are not invented. API response must remain under256KiB. Detail matching more than one canonical record is ambiguous, not first-result selection.
+
+## Continuation and natural references
+
+R1 authenticates and signs owner+conversationId namespace. A memory-only bounded store retains one current query per namespace: resource, filters, pageSize, keyset boundary, current-page canonical IDs, random queryId/token and expiry. TTL=600000ms (10min); max128 active namespaces; same-conversation concurrent requests fail closed. Expiry/eviction never touches business data. No bulk state access and no client/model cursor control. Token, query and namespace mismatch fail closed. Restart loses cursors safely. Continue with no state requires normal risk handling/fallback. The risk model may see the active resource label; the collection model sees neither active state nor IDs/tokens/namespace.
+
+Before risk classification, inside the authenticated Candidate gate and conversation lease, a pure continuation control can resume a privately certified read entry. The anchored grammar is optional 请 + (继续 | 下一页 | 再看后N条 | 剩下的呢), optional one terminal punctuation; N is1..99 and must equal the frozen page size. Leading/trailing whitespace is ignored. No substring/similarity matching or new domain/filter clause is accepted. The state must be in the same valid R1 namespace, unexpired, and privately promoted with setVerified from an unforgeable collection evidence handle; the promoted query must match the verified list's resource/filter/page size/boundary and id_desc ordering. Public snapshots are clones; ordinary set cannot grant the private verified marker. No client token or boolean can grant bypass. These controls invoke neither risk nor collection model. Only the next page boundary changes; filter reclassification is0.
+
+If grammar/state/authentication fails, no control bypass occurs: normal risk handling/fallback applies. Mutation-bearing continuation is not a control command. Ordinal detail still requires READ_SAFE and the existing current-page grammar; it bypasses only the collection model. Other utterances use the closed semantic catalog; it cannot return continuation or invent an ordinal. No state, missing row or end-of-list fails closed; no new business lookup is inferred.
+
+Ordinal detail resolves only against that conversation's current page; it never manufactures an ID. Direct and ordinal binding converge to the same resourceType/canonicalEntityRef/detailProjectionId contract. A new unrelated request invalidates the old collection. A count or fresh direct-detail query also replaces the current list context. Each request executes at most one Tool; direct detail additionally performs one governed identity lookup, not another detail Tool execution.
+
+## Evidence and answer
+
+`collectionEvidence.cjs` verifies formal API execution, exact query echo, schema, projection, deterministic IDs, counts, hasMore and boundary. It adds `collection.result` DIRECT_FACT to the existing Evidence Ledger and uses existing `verifyV5Task`, with a minimal new collection requirement. Runtime values are accessible only through an unforgeable task/context-scoped verified handle tied to that ledger and verification receipt. This is not a new numeric calculation or an evaluation-only comparator shortcut. It does not change the four narrow-fact Evidence Ledger semantics. Metadata contains no rows.
+
+`collectionAnswer.cjs` is a deterministic verified-projection renderer with FACT/evidence references. It has no model, Tools or investigation path. It supports totals, bounded first/subsequent pages, filter semantics, empty collections, finite approved detail fields and natural continuation text. It never shows canonical IDs, tokens, API/Tool names or raw JSON. Current scope does not promise full BOM/financial/customer-PII detail. Required projection data comes only from the verified handle; arbitrary extra API fields cannot enter the answer.
+
+## Transport, safety and release
+
+Normal R1 frontend supplies conversationId; no technical pagination or fact header is needed. Owner multi-turn plain-text history can attempt a collection-only path with the last original user text; the server retains authoritative continuation, not the client transcript. Legacy receives the original history on fallback. Source/authentication and all non-owner behavior are unchanged. Candidate is separate and read-only; Legacy must not restart. Production activation is conditional on the P16-L report's local and production gates, not on this contract document.
+
+Tests cover SQL boundedness/count/detail, source-exact identity, formal Executor/API chain, concurrency, isolation/tampering/expiry and nonmutating middleware. Natural-language UAT and deployment outcomes are recorded separately, without request/answer/business values.

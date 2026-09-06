@@ -18,7 +18,7 @@ function canaryGate(input, env = process.env) {
     return env.PUMP_V5_CANDIDATE_RUNTIME === 'true' && env.AI_V5_READ_CANARY_ENABLED === 'true'
         && env.AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED === 'true' && input.previewOptIn === true && input.internalAuthorized === true;
 }
-async function runCandidateRead(input, options = {}) {
+async function runCandidateReadImpl(input, options = {}) {
     const env = options.env || process.env, started = performance.now();
     const state = { globalEnabled: env.AI_V5_READ_CANARY_ENABLED === 'true', previewOptIn: input.previewOptIn === true,
         attempted: false, eligible: false, validationPass: false, delivered: false, exposed: false, failureClass: 'NONE', factDerivationCalls: 0 };
@@ -33,10 +33,20 @@ async function runCandidateRead(input, options = {}) {
             if (typeof input.deliver !== 'function' || input.signal?.aborted) {
                 state.failureClass = 'PREVIEW_SCOPE_INVALID'; return finish();
             }
-            const risk = await require('../candidateRiskEnvelope.cjs').classifyCandidateRisk(input.sourceRequest,
-                { env, signal: input.signal, ...(options.riskOptions || {}) });
+            const controlIntent = input.factKey === undefined ? require('./collectionControlPreRouter.cjs').continuationControl(
+                input.sourceRequest, require('../conversationContext.cjs').getConversationContext(),
+                options.continuationStore || require('./collectionContinuation.cjs').store) : null;
+            const risk = controlIntent ? {riskClass:'READ_SAFE',contractValid:true,eligible:true,invoked:false,
+                contextual:true,failureClass:'NONE',authority:'VERIFIED_READ_CONTINUATION'}
+                : await require('../candidateRiskEnvelope.cjs').classifyCandidateRisk(input.sourceRequest,
+                { env, signal: input.signal, ...(options.riskOptions || {}), collectionContext: input.factKey === undefined
+                    ? (options.continuationStore || require('./collectionContinuation.cjs').store).peek(require('../conversationContext.cjs').getConversationContext()) : null });
             state.risk = risk;
-            if (!risk.eligible) {
+            state.continuationControl = !!controlIntent;
+            const collectionSafetyEligible = input.factKey === undefined
+                && !!require('../conversationContext.cjs').getConversationContext() && risk.riskClass === 'READ_SAFE';
+            if (!risk.eligible && !collectionSafetyEligible) {
+                (options.continuationStore || require('./collectionContinuation.cjs').store).clear(require('../conversationContext.cjs').getConversationContext());
                 state.failureClass = risk.failureClass;
                 // Classification availability is not admission authority. Metadata only;
                 // the existing fail-closed return remains before all V5 investigation.
@@ -45,6 +55,9 @@ async function runCandidateRead(input, options = {}) {
                 return finish();
             }
             state.attempted = true;
+            const collection = await require('./collectionReadRuntime.cjs').tryCollectionRead(input, { taskId, risk, controlIntent, options: { ...options, env } });
+            if (collection) { Object.assign(state, collection); return finish(); }
+            if (input.collectionOnly || !risk.eligible) { state.failureClass = 'COLLECTION_NOT_APPLICABLE'; return finish(); }
             const envelope = createV5InterpreterInputEnvelope({ rawUserRequest: input.sourceRequest, pageContext: null });
             const interpreted = await (options.interpret || interpretCandidateSetTask)(envelope, {
                 env: runtimeEnv, shadowTaskId: taskId, modelRequest: options.interpreterModelRequest,
@@ -106,9 +119,17 @@ async function runCandidateRead(input, options = {}) {
                 : answer.status === 'ANSWER_NOT_GENERATED' ? 'EVIDENCE_UNAVAILABLE' : 'ANSWER_VALIDATION_FAILED';
             else if (!state.exposed) state.failureClass = 'REQUEST_CLOSED';
             return finish();
-        } catch { state.failureClass = 'PREVIEW_INTERNAL_ERROR'; return finish(); }
+        } catch (error) {
+            (options.continuationStore || require('./collectionContinuation.cjs').store).clear(require('../conversationContext.cjs').getConversationContext());
+            state.failureClass = /^COLLECTION_[A-Z_]{1,65}$/.test(error?.message || '') ? error.message : 'PREVIEW_INTERNAL_ERROR'; return finish();
+        }
     }));
 }
 
 
+async function runCandidateRead(input, options = {}) {
+    const {store,getConversationContext}=require('./collectionContinuation.cjs');
+    try { return await (options.continuationStore||store).lease(getConversationContext(),()=>runCandidateReadImpl(input,options)); }
+    catch { return {attempted:false,eligible:false,delivered:false,exposed:false,validationPass:false,failureClass:'COLLECTION_CONVERSATION_BUSY'}; }
+}
 module.exports = { runCandidateRead };

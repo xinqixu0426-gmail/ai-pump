@@ -50,6 +50,7 @@ function createEvidenceRequirement(input = {}) {
 }
 
 const DEFINED = Object.freeze([
+    createEvidenceRequirement({ capabilityId: 'collection.read', requirementId: 'collection-current-formal-page', claimType: 'collection.result', requiredEvidenceType: 'DIRECT_FACT', minimumSourceTrust: 'FORMAL', freshnessRequirement: 'CURRENT', minimumCount: 1, level: 'REQUIRED', entityType: null }),
     createEvidenceRequirement({ capabilityId: 'inventory.read', requirementId: 'inventory-current-formal-fact', claimType: 'inventory.quantity', requiredEvidenceType: 'DIRECT_FACT', minimumSourceTrust: 'FORMAL', freshnessRequirement: 'CURRENT', minimumCount: 1, level: 'REQUIRED', entityType: 'part' }),
     createEvidenceRequirement({ capabilityId: 'coil.read', requirementId: 'coil-current-formal-fact', claimType: 'coil.inventory', requiredEvidenceType: 'DIRECT_FACT', minimumSourceTrust: 'FORMAL', freshnessRequirement: 'CURRENT', minimumCount: 1, level: 'REQUIRED', entityType: 'coil' }),
     createEvidenceRequirement({ capabilityId: 'recipe.cost.preview', requirementId: 'recipe-current-cost-preview', claimType: 'recipe.cost.preview', requiredEvidenceType: 'DIRECT_FACT', minimumSourceTrust: 'FORMAL', freshnessRequirement: 'CURRENT', minimumCount: 1, level: 'REQUIRED', entityType: 'recipe' }),

@@ -23,14 +23,15 @@ async function startCandidate(options = {}) {
         }
         const allowed = (req.method === 'GET' && ['/api/health/ready', '/api/parts', '/api/coils',
             '/api/recipes', '/api/recipes/current-costs'].includes(req.path))
-            || (req.method === 'POST' && ['/api/ai/chat', '/api/entity-lookup', '/api/entity-span-candidates'].includes(req.path));
+            || (req.method === 'POST' && ['/api/ai/chat', '/api/entity-lookup', '/api/entity-span-candidates', '/api/collections/read'].includes(req.path));
         if (!allowed) return res.status(403).json({ success: false, code: 'CANDIDATE_ROUTE_BLOCKED', error: 'Read-only runtime' });
         next();
     });
     app.use(express.json({ limit: '32kb' }));
     app.get('/api/health/ready', (_req, res) => res.json({ success: true, data: { ready: true, runtime: 'v5-candidate' } }));
     app.post('/api/ai/chat', async (req, res) => {
-        if (Object.keys(req.body || {}).some(k => k !== 'messages') || !Array.isArray(req.body.messages)
+        if (Object.keys(req.body || {}).some(k => !['messages','collectionOnly'].includes(k))
+            || (req.body.collectionOnly !== undefined && req.body.collectionOnly !== true) || !Array.isArray(req.body.messages)
             || req.body.messages.length !== 1 || req.body.messages[0]?.role !== 'user'
             || typeof req.body.messages[0]?.content !== 'string') {
             return res.status(400).json({ success: false, code: 'CANDIDATE_REQUEST_INVALID', error: 'Invalid request' });
@@ -46,7 +47,7 @@ async function startCandidate(options = {}) {
             const { runCandidateRead } = require('../api/services/ai-v5/candidateRead.cjs');
             const readOptions = await options.readOptions?.(req) || {};
             const outcome = await context.withConversationContext(conversationContext, () => runCandidateRead({ previewOptIn: req.headers['x-pump-v5-use'] === 'true', internalAuthorized: true,
-                sourceRequest: req.body.messages[0].content, factKey: req.headers['x-pump-v5-fact'], signal: controller.signal,
+                sourceRequest: req.body.messages[0].content, collectionOnly: req.body.collectionOnly === true, factKey: req.headers['x-pump-v5-fact'], signal: controller.signal,
                 deliver: body => { if (controller.signal.aborted) return false; send('content', { content: body }); return true; } }, readOptions));
             options.onOutcome?.(outcome);
             if (!outcome.delivered) send('error', { code: 'CANDIDATE_ANSWER_UNAVAILABLE' });
@@ -59,6 +60,7 @@ async function startCandidate(options = {}) {
     app.use('/api/coils', require('../api/routes/coils.cjs'));
     app.use('/api/recipes', require('../api/routes/recipes.cjs'));
     app.use('/api/entity-lookup', require('../api/routes/entityLookup.cjs').createEntityLookupRouter({ db }));
+    app.use('/api/collections', require('../api/routes/collectionRead.cjs').createCollectionReadRouter({ db }));
     app.use('/api/entity-span-candidates', require('../api/routes/entitySpanCandidates.cjs').createEntitySpanCandidateRouter({ db }));
     app.use((_err, _req, res, _next) => res.status(500).json({ success: false, code: 'CANDIDATE_READ_FAILED', error: 'Read failed' }));
     const server = await new Promise((resolve, reject) => {

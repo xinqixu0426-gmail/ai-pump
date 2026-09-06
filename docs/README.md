@@ -17,6 +17,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 其他文档按用途归类：
 
+V5 当前集合读取契约见 [有界集合/分页/详情/计数](ai-governance/v5-bounded-collection-read-v1.md)；是否已通过生产验收以阶段报告为准。接口事实仍集中于 API 接口总表。
+
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
 | 业务 | [business-flow.md](./business-flow.md)、[coil-domain.md](./coil-domain.md) | 业务对象、流程、库存/成本/知识边界和线圈口径 |

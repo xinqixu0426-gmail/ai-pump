@@ -194,6 +194,7 @@ app.use('/api/files', require('./api/routes/files.cjs'));
 app.use('/api/knowledge', require('./api/routes/knowledge.cjs'));
 app.use('/api/business-changes', require('./api/routes/businessChanges.cjs'));
 app.use('/api/entity-lookup', require('./api/routes/entityLookup.cjs').createEntityLookupRouter({ db }));
+app.use('/api/collections', require('./api/routes/collectionRead.cjs').createCollectionReadRouter({ db }));
 app.use('/api/entity-span-candidates', require('./api/routes/entitySpanCandidates.cjs').createEntitySpanCandidateRouter({ db }));
 
 app.use('/api', (req, res) => {
