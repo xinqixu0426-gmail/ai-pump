@@ -162,10 +162,14 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
     // P16-B2R admits metadata-only answer spans; no new data/Tool import.
-    assert.deepEqual(observabilityImporters, ['candidateSetTwoStageInterpreter.cjs', 'readAnswerComposer.cjs', 'readAuthorityMux.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
+    assert.deepEqual(observabilityImporters, ['candidateRead.cjs', 'candidateSetTwoStageInterpreter.cjs', 'readAnswerComposer.cjs', 'readAuthorityMux.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
     const canary = fs.readFileSync(path.join(v5Root, 'readCanary.cjs'), 'utf8');
     assert.doesNotMatch(canary, /(?:db\.cjs|routes\/ai\/executor|routes\/ai\/internalApiClient|\ballowWrite:\s*true)/);
     const deliveryConsumers = fs.readdirSync(v5Root).filter(name => name !== 'readAnswerComposer.cjs')
         .filter(name => fs.readFileSync(path.join(v5Root, name), 'utf8').includes('composeReadAnswerForCanary'));
-    assert.deepEqual(deliveryConsumers, ['readCanary.cjs']);
+    assert.deepEqual(deliveryConsumers, ['candidateRead.cjs', 'readCanary.cjs']);
+    const candidate = fs.readFileSync(path.join(v5Root, 'candidateRead.cjs'), 'utf8');
+    assert.match(candidate, /PUMP_V5_CANDIDATE_RUNTIME === 'true'/);
+    assert.match(candidate, /AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED === 'true'/);
+    assert.doesNotMatch(candidate, /(?:db\.cjs|routes\/ai\/executor|routes\/ai\/internalApiClient|\ballowWrite:\s*true)/);
 });

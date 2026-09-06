@@ -256,7 +256,7 @@ function scheduleNextCopperUpdate() {
     if (typeof copperUpdateTimer.unref === 'function') copperUpdateTimer.unref();
 }
 let copperUpdateTimer = null;
-scheduleNextCopperUpdate();
+if (!require('../services/candidateDatabase.cjs').candidateEnabled()) scheduleNextCopperUpdate();
 
 function stopCopperPriceScheduler() {
     if (copperUpdateTimer) clearTimeout(copperUpdateTimer);

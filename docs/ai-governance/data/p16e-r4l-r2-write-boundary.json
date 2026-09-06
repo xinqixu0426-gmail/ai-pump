@@ -1,0 +1,311 @@
+{
+  "requests": 7,
+  "paths": [
+    {
+      "id": "delete",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 723.9563
+        },
+        "durationMs": 728.7959
+      }
+    },
+    {
+      "id": "create",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 520.7815
+        },
+        "durationMs": 521.3000999999999
+      }
+    },
+    {
+      "id": "update",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 599.5101999999999
+        },
+        "durationMs": 600.219
+      }
+    },
+    {
+      "id": "inventory",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 802.3512999999998
+        },
+        "durationMs": 803.3113000000003
+      }
+    },
+    {
+      "id": "price",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 630.7112999999999
+        },
+        "durationMs": 631.9606000000003
+      }
+    },
+    {
+      "id": "order",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 890.5099999999998
+        },
+        "durationMs": 890.9148999999998
+      }
+    },
+    {
+      "id": "mixed",
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 924.0492999999997
+        },
+        "durationMs": 924.6825999999992
+      }
+    }
+  ],
+  "stability": [
+    {
+      "id": "delete",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 607.9295999999995
+      },
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 847.3669
+      },
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 1151.6680000000006
+      },
+      "pass": true
+    },
+    {
+      "id": "delete",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 633.8064999999988
+      },
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 1420.4218999999994
+      },
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 710.4969999999994
+      },
+      "pass": true
+    },
+    {
+      "id": "delete",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 689.2887999999984
+      },
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 873.3724000000002
+      },
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 929.8498
+      },
+      "pass": true
+    }
+  ],
+  "trace": {
+    "spans": 14,
+    "orphans": 0,
+    "crossRequest": 0,
+    "sourceLeaks": 0,
+    "forbiddenFields": 0
+  },
+  "fixtureUnchanged": true,
+  "processExit": 0,
+  "pass": true
+}

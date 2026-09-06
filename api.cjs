@@ -4,6 +4,9 @@
  */
 
 require('dotenv').config();
+if (process.env.PUMP_V5_CANDIDATE_RUNTIME === 'true') {
+  throw new Error('CANDIDATE_REQUIRES_ISOLATED_ENTRYPOINT');
+}
 const {
   initializeObservability,
   safeShutdown: safeObservabilityShutdown,
