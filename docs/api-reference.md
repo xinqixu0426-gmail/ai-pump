@@ -50,10 +50,14 @@
 |---|---|---|---|
 | `POST` | `/api/auth/login` | `{ password }` | 签发 HttpOnly JWT Cookie；生产环境 `secure + sameSite=strict` |
 | `POST` | `/api/auth/logout` | 无 | 清除 `token` Cookie |
-| `GET` | `/api/auth/check` | 无 | `{ success, authenticated, role? }` |
+| `GET` | `/api/auth/check` | 无 | `{ success, authenticated, role?, owner? }`；已部署的独立认证 gateway 增加服务器验签后的 `owner` 布尔值，不返回 subject/token |
 | `GET` | `/api/health/live` | 无 | 仅判断 API 进程存活；`{ success: true, data: { status: "alive", timestamp } }` |
 | `GET` | `/api/health/ready` | 无 | 检查 SQLite、迁移版本、启动备份；未就绪返回 HTTP 503；`data.runtime` 提供代码/进程诊断，`data.background` 提供后台任务状态 |
 | `GET` | `/api/health` | 无 | 兼容监控入口，语义与 `/api/health/ready` 相同；保留顶层 `status/message/timestamp` |
+
+P16-I-R2 认证能力由独立 `127.0.0.1:3104` gateway 接管公网两个精确路径：登录与身份检查；不是新业务 API/AI Tool。现有登录表单不变。共享密码仍转交 Legacy 登录，JWT 仍无 owner `sub`，`role=admin` 不代表 owner。专用密码仅在 `PUMP_OWNER_ACCESS_PASSWORD`（默认 UNSET）、`PUMP_OWNER_SUBJECT`（默认 UNSET）、`AI_V5_OWNER_SUBJECTS`（默认空 JSON 数组）均有效时签发带稳定 `sub` 与 `authn=owner_credential_v1` 的 HS256 JWT；subject 仅服务器控制，初始 allowlist 必须恰含该 subject，精确匹配。密码碰撞、缺失或非法配置禁用 owner，不能使共享用户升级。JWT 使用现有签名配置与 15 天 Cookie 语义；签名/有效期先由正式 JWT 库验证，再校验服务器可信上下文。客户端字段/头不授予身份。登录维持每 IP 每分钟 5 次限制。
+
+gateway 不接管注销、业务和 AI 路径；注销仍清除原 `token` Cookie。普通 owner 请求依旧 Legacy，P16-H 显式内部认证/opt-in 契约不变。配置撤销实时生效于 owner 判断，但已签发 JWT 的普通 admin 有效期与既有认证相同，不承诺全局注销。此版本不含 owner-default V5 路由。权限、凭据交付与无 Legacy 重启回滚见 [owner 认证运行手册](ai-governance/owner-authentication-v1.md)。
 
 所有 HTTP 响应都返回 `X-Request-ID`。调用方可传入 8-128 位字母、数字、
 点、下划线或连字符组成的编号；格式无效或未传时服务端生成 UUID。API 访问
