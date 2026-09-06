@@ -354,6 +354,8 @@ POST /api/rotor/save
 
 ## 7. AI 与移动端
 
+- P16-G 独立 owner/internal canary 默认 OFF、逐请求显式 opt-in；Candidate 验证成功才返回 V5，失败交还真实 Legacy。普通用户无新增路由，认证结束撤销附加入口并停止进程。见 [API reference](api-reference.md)。
+
 - AI 只允许执行 `tools.cjs` 中已注册的工具。
 - 目标规则是：写操作还必须位于写能力白名单并通过确认流程，查询工具不能借机写库。2026-08-02 审核确认转子生成/打印存在写能力漏标，且部分订单/报价 GET 有写副作用；修复前不能把现有 `WRITE_TOOLS` 或 HTTP Method 单独当作完整安全边界。
 - AI Agent Runtime V3 使用两阶段强制结构化规划：第一阶段只看精简业务域目录并提交当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、对象范围和歧义；第二阶段提交最多 5 个起始事实步骤。对 `query/analysis`，业务域只决定 48 项已登记只读 Query/Preview 的目录排序，不再裁掉其他领域的读取能力；对 `command`，业务域仍是硬信封。正常轮只开放当前计划工具，正式零结果或已验证资源未找到后，最多 3 个恢复轮可开放对象范围兼容的跨域只读 discovery/query，例如模板未找到后继续核对零件、配方或线圈目录。系统、网络、协议错误不会进入恢复，任何只读轮都不开放 write。模型提供的机筒长度、线圈片数等关键业务数值还必须能追溯到用户明确输入或本轮正式结果。纯闲聊不发送业务工具。DeepSeek V4 Flash 调用显式关闭 Thinking 模式；provider 仍保留不支持 `tool_choice` 时的协议级自动降级。新增能力完成注册表、唯一 JSON schema、能力图目标语义和 executor/API 映射后即可接入，无需增加句式补丁。
