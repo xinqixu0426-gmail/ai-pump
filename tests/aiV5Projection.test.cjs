@@ -135,7 +135,7 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['candidateRead.cjs', 'candidateSet.cjs', 'collectionReadRuntime.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['candidateRead.cjs', 'candidateSet.cjs', 'collectionDetailTarget.cjs', 'collectionReadRuntime.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
     const collectionRuntime = fs.readFileSync(path.join(v5Root, 'collectionReadRuntime.cjs'), 'utf8');
     assert.match(collectionRuntime, /routes\/ai\/executor\.cjs/);
     assert.doesNotMatch(collectionRuntime, /(?:db\.cjs|\bfetch\s*\(|allowWrite:\s*true|putJson|patchJson|deleteJson)/);

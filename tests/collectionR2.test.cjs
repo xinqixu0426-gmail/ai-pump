@@ -29,8 +29,12 @@ test('governed detail rejects incomplete, zero, ambiguity, wrong family and erro
 });
 test('five direct details use source refs, real governed HTTP lookup, canonical Tool, same verified target; frozen filter replay',async()=>{
     const db=require('./helpers/collectionFixture.cjs').collectionFixture(),app=require('express')();
+    // Keep the exact existing question/target, but remove a distinct complete prefix identity
+    // from this isolated unique-target fixture. The authoritative multiple-span case is tested separately.
+    db.prepare('UPDATE coils SET scheme_name=? WHERE id=6').run('独立线圈六');
     app.use(require('express').json());app.use('/api/entity-lookup',require('../api/routes/entityLookup.cjs').createEntityLookupRouter({db}));
     app.use('/api/collections',require('../api/routes/collectionRead.cjs').createCollectionReadRouter({db}));
+    app.use('/api/entity-span-candidates',require('../api/routes/entitySpanCandidates.cjs').createEntitySpanCandidateRouter({db}));
     const server=await new Promise(r=>{const s=app.listen(0,'127.0.0.1',()=>r(s));});
     const old={PORT:process.env.PORT,PUMP_V5_CANDIDATE_RUNTIME:process.env.PUMP_V5_CANDIDATE_RUNTIME};
     process.env.PORT=String(server.address().port);process.env.PUMP_V5_CANDIDATE_RUNTIME='true';

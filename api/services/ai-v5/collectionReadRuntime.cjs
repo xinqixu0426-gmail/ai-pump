@@ -32,7 +32,8 @@ async function tryCollectionRead(input,{taskId,risk,controlIntent=null,options={
     }else {
         stateStore.clear(ctx);
         if(intent.operation==='detail'){
-            const target=await require('./collectionDetailTarget.cjs').bindCollectionDetail(intent,options.collectionLookupOptions);
+            const target=await require('./collectionDetailTarget.cjs').bindCollectionDetailFromSource(intent,input.sourceRequest,
+                {signal:input.signal,...options.collectionLookupOptions,...(options.supplySpanCandidates?{supplySpanCandidates:options.supplySpanCandidates}:{})});
             request={operation:'detail',resourceType:target.resourceType,targetId:Number(target.canonicalEntityRef)};
         }else request=require('./collectionSemanticContract.cjs').executionQuery(intent);
     }

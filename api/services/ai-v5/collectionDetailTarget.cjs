@@ -24,4 +24,16 @@ function finalizeCollectionDetailTarget(resourceType,governed){
     const [selected]=matches;
     return createDetailTarget(resourceType,selected.canonicalId,'governed_entity_lookup');
 }
-module.exports={bindCollectionDetail,createDetailTarget,finalizeCollectionDetailTarget,ENTITY_TYPES};
+async function bindCollectionDetailFromSource(intent,sourceRequest,options={}){
+    if(intent.resourceType!=='coils')return bindCollectionDetail(intent,options);
+    if(intent.operation!=='detail'||typeof sourceRequest!=='string'||!sourceRequest.length)throw Error('COLLECTION_TARGET_INVALID');
+    const {createV5SourceSpanCatalog}=require('./sourceSpanCatalog.cjs');
+    const {selectExactAuthoritativeSpan,acquireExactAuthoritativeCandidateSet}=require('./exactAuthoritativeSpan.cjs');
+    const supply=await (options.supplySpanCandidates||require('../../routes/ai/internalApiClient.cjs').supplyCoilSpanCandidates)(sourceRequest,options);
+    const selected=selectExactAuthoritativeSpan(sourceRequest,createV5SourceSpanCatalog(sourceRequest),supply);
+    if(selected.status==='NO_AUTHORITATIVE_SPAN')throw Error('COLLECTION_TARGET_NOT_FOUND');
+    if(selected.status!=='EXACT_AUTHORITATIVE_SPAN')throw Error(selected.status);
+    // The existing P16-I chain selects source text only; governed lookup remains mandatory.
+    return finalizeCollectionDetailTarget(intent.resourceType,await acquireExactAuthoritativeCandidateSet(selected.span,options));
+}
+module.exports={bindCollectionDetail,bindCollectionDetailFromSource,createDetailTarget,finalizeCollectionDetailTarget,ENTITY_TYPES};
