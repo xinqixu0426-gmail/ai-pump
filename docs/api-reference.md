@@ -404,6 +404,14 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 ### Owner 默认只读网关
 
+#### 会话控制面传输
+
+现有 `POST /api/ai/chat` 增量接收可选 `conversationId: string`。Web 复用已经持久化的技术会话 ID，编码为 `chat-<正安全整数>`（6–21 字符，无前导零）；它是无业务含义、非保密的会话句柄，不是 UUID、认证、资源授权或分页游标。同一会话重载/跨标签打开保持同值，不同会话使用不同值；不新增存储或写接口。
+
+网关先执行既有 owner 鉴权，再以服务端 HMAC 对 `[version, authenticated sub, conversationId]` 建立确定性命名空间，并签名内部传输信封。客户端提交的内部上下文 header 不转发。Candidate 校验签名/结构后只在请求级 AsyncLocalStorage 保存 `{version, conversationId, contextKey}`，不传给 Interpreter、模型、Tool、Resolver、fact 选择或响应。原始 ID、签名与 namespace 不进入常规日志。不同主体/会话不共享 namespace；此标识不证明聊天记录所有权，不开放聊天历史读取。未来继续查询仍须独立签发并校验 query/token、有效期、主体与会话，当前没有 lastQuery、游标或集合状态。
+
+缺省 ID 保持旧单轮读取。非法 ID 不进入 Candidate，网关剥离该字段并按原 Legacy 兼容路径处理；有效 ID 也会在转发 Legacy 和 Candidate 的业务 body 前剥离，仅已认证 owner 的 Candidate 内部 header 携带控制面信封。多轮 messages、pageContext、turnState 等现有不受支持形态仍回 Legacy，不删历史强行准入。显式内部 canary 无 owner Cookie 时不创建 owner namespace，但原诊断读取仍兼容。该变更是现有 AI Query 传输适配，无新增业务 capability/Tool，业务 sourceOfTruth、风险/确认、60 秒单次 Candidate 超时和 SSE content/done 不变；无事务、审计行、业务写入或重试。
+
 `POST /api/ai/chat` 可由独立 loopback 网关承接，复用原 AI 请求与 SSE 契约，不新增业务能力或 Tool。`AI_V5_OWNER_READ_DEFAULT_ENABLED` 源默认 false；私有运维开关按请求读取，关闭无需重启 Legacy。仅 Cookie 经 `verifyAuthentication → isAuthenticatedOwner` 得到精确稳定 owner 主体才允许尝试 Candidate；admin 角色、客户端 marker 和内部服务身份不能取得 owner-default 资格。普通请求不需要 `x-pump-v5-use` 或 `x-pump-v5-fact`；可选 fact 断言仍不能覆盖服务端派生。
 
 Candidate 继续只接收单条 user message、无额外上下文的已支持形态；多轮/附加上下文等请求原样回 Legacy，不删除历史强行准入。Candidate 60 秒、单次、无重试，完整验证成功后才转发一次正文；拒绝、风险、超时、验证或传输失败均丢弃 Candidate 正文并一次转发 Legacy。普通 Legacy 转发保留调用者认证，绝不注入服务密钥提升权限。显式 `/api/ai/owner-read-canary` 的内部鉴权与诊断 header 兼容不变。网关没有 Tool/写执行权、业务事务或数据库访问；仅持久化 owner/gate/路由/耗时等固定元数据，不保留正文或凭据。独立 ingress 只覆盖 chat，其他路由及 Legacy 进程不变。

@@ -540,7 +540,8 @@ export async function streamAiChat(
   signal?: AbortSignal,
   pageContext?: AiPageContext | null,
   resolutionContext?: AiResolutionContext | null,
-  turnState?: AiTurnStateV3 | null
+  turnState?: AiTurnStateV3 | null,
+  conversationId?: string
 ): Promise<void> {
   let response: Response;
   try {
@@ -548,6 +549,7 @@ export async function streamAiChat(
       method: 'POST',
       body: JSON.stringify({
         messages: messages.slice(-AI_CONTEXT_MESSAGE_LIMIT),
+        ...(conversationId === undefined ? {} : { conversationId }),
         ...(pageContext ? {
           pageContext: {
             resourceType: pageContext.resourceType,

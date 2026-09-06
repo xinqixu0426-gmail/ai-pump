@@ -3,6 +3,7 @@
 const { timingSafeEqual, randomUUID } = require('node:crypto');
 const http = require('node:http');
 const { verifyAuthentication, isAuthenticatedOwner } = require('./ownerAuthentication.cjs');
+const conversation = require('./conversationContext.cjs');
 
 const OWNER_CANARY_PATH = '/api/ai/owner-read-canary';
 const APPROVED_FACT_KEYS = Object.freeze(['price.current', 'inventory.quantity', 'coil.inventory', 'recipe.cost.preview']);
@@ -93,7 +94,8 @@ function createOwnerReadCanaryServer(options = {}) {
             // Cookie identity is verified by the existing stable-principal primitive.
             // Client markers, admin role, IP and internal credentials do not grant owner.
             const cookies = require('cookie').parse(req.headers.cookie || '');
-            meta.ownerAuthenticated = ordinary && isAuthenticatedOwner(verifyAuthentication(cookies.token, currentEnv), currentEnv);
+            const authContext = ordinary ? verifyAuthentication(cookies.token, currentEnv) : null;
+            meta.ownerAuthenticated = ordinary && isAuthenticatedOwner(authContext, currentEnv);
             meta.ownerDefaultEnabled = currentEnv.AI_V5_OWNER_READ_DEFAULT_ENABLED === 'true';
             let text, body;
             try { text = await boundedBody(req, ordinary ? 102400 : MAX_REQUEST_BYTES); body = JSON.parse(text); }
@@ -101,6 +103,13 @@ function createOwnerReadCanaryServer(options = {}) {
             if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray(body.messages)) {
                 error(400, 'INVALID_REQUEST'); return;
             }
+            const hasConversation = Object.hasOwn(body, 'conversationId');
+            const contextValid = !hasConversation || conversation.validConversationId(body.conversationId);
+            const envelope = hasConversation && contextValid
+                ? conversation.signConversationContext(authContext, body.conversationId, { ...currentEnv, INTERNAL_SECRET: secret }) : null;
+            // Neither Legacy nor the model receives control-plane fields. Preserve all other fields.
+            const { conversationId: _conversationId, ...legacyBody } = body;
+            const forwardText = hasConversation ? JSON.stringify(legacyBody) : text;
             const headers = { 'Content-Type': 'application/json', 'x-internal-secret': secret };
             // Ordinary Legacy requests retain their original auth, never our service identity.
             const legacyHeaders = ordinary ? { 'Content-Type': 'application/json',
@@ -110,7 +119,7 @@ function createOwnerReadCanaryServer(options = {}) {
             const optedIn = req.headers['x-pump-v5-use'] === 'true';
             const factKey = req.headers['x-pump-v5-fact'];
             meta.explicitOwnerCanaryRequested = optedIn;
-            const candidateShape = Object.keys(body).length === 1 && body.messages.length === 1
+            const candidateShape = contextValid && Object.keys(legacyBody).length === 1 && body.messages.length === 1
                 && body.messages[0]?.role === 'user' && typeof body.messages[0]?.content === 'string'
                 && Object.keys(body.messages[0]).every(k => ['role', 'content'].includes(k));
             const admitted = ordinary ? meta.ownerDefaultEnabled && meta.ownerAuthenticated : enabled && optedIn;
@@ -119,8 +128,9 @@ function createOwnerReadCanaryServer(options = {}) {
                 try {
                     const response = await candidateTransport(candidateOrigin + '/api/ai/chat', {
                         method: 'POST', headers: { ...headers, 'x-pump-v5-use': 'true',
+                            ...(envelope ? { [conversation.HEADER]: envelope } : {}),
                             ...(factKey === undefined ? {} : { 'x-pump-v5-fact': factKey }) },
-                        body: text, signal: AbortSignal.any([client.signal, AbortSignal.timeout(candidateTimeoutMs)]),
+                        body: forwardText, signal: AbortSignal.any([client.signal, AbortSignal.timeout(candidateTimeoutMs)]),
                         redirect: 'error',
                     });
                     const type = response.headers.get('content-type') || '';
@@ -142,7 +152,7 @@ function createOwnerReadCanaryServer(options = {}) {
             // Forward the original request to the real current implementation once.
             // No V5 flags or write-enabling headers/options are forwarded.
             const legacy = await transport(legacyOrigin + '/api/ai/chat', {
-                method: 'POST', headers: legacyHeaders, body: text, redirect: 'error',
+                method: 'POST', headers: legacyHeaders, body: forwardText, redirect: 'error',
                 signal: AbortSignal.any([client.signal, AbortSignal.timeout(legacyTimeoutMs)]),
             });
             meta.finalSource = 'legacy';

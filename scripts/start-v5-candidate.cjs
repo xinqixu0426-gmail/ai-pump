@@ -41,11 +41,13 @@ async function startCandidate(options = {}) {
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         const send = (type, payload) => { if (!controller.signal.aborted) res.write('data: ' + JSON.stringify({ type, ...payload }) + '\n\n'); };
         try {
+            const context = require('../api/services/conversationContext.cjs');
+            const conversationContext = context.verifyConversationContext(req.headers[context.HEADER], process.env.INTERNAL_SECRET);
             const { runCandidateRead } = require('../api/services/ai-v5/candidateRead.cjs');
             const readOptions = await options.readOptions?.(req) || {};
-            const outcome = await runCandidateRead({ previewOptIn: req.headers['x-pump-v5-use'] === 'true', internalAuthorized: true,
+            const outcome = await context.withConversationContext(conversationContext, () => runCandidateRead({ previewOptIn: req.headers['x-pump-v5-use'] === 'true', internalAuthorized: true,
                 sourceRequest: req.body.messages[0].content, factKey: req.headers['x-pump-v5-fact'], signal: controller.signal,
-                deliver: body => { if (controller.signal.aborted) return false; send('content', { content: body }); return true; } }, readOptions);
+                deliver: body => { if (controller.signal.aborted) return false; send('content', { content: body }); return true; } }, readOptions));
             options.onOutcome?.(outcome);
             if (!outcome.delivered) send('error', { code: 'CANDIDATE_ANSWER_UNAVAILABLE' });
             send('done', {});

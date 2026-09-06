@@ -1,5 +1,7 @@
 'use client';
 
+import { conversationTransportId } from '@/lib/conversation-context';
+
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -350,7 +352,7 @@ export function AiView({
           await streamAiChat(nextMessages, (event) => {
             finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
             updateAssistant(streamAssistantId, (item) => applyAiStreamEvent(item, event));
-          }, controller.signal, pageContext, resolutionContext, turnState);
+          }, controller.signal, pageContext, resolutionContext, turnState, conversationTransportId(conversationId!));
           streamCompleted = true;
           break;
         } catch (error) {
