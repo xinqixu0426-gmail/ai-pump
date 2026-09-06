@@ -1,7 +1,8 @@
 'use strict';
-const { createV5SourceSpanCatalog, getSourceSpan } = require('./sourceSpanCatalog.cjs');
+const { createV5SourceSpanCatalog, getSourceSpan, mergeAuthoritativeCoilSpans } = require('./sourceSpanCatalog.cjs');
 const { selectSourceSpan } = require('./sourceSpanSelector.cjs');
 const { acquireRefinedCandidateUnion } = require('./nestedSpanRefinement.cjs');
+const { selectExactAuthoritativeSpan, acquireExactAuthoritativeCandidateSet } = require('./exactAuthoritativeSpan.cjs');
 const { buildLocalTaskClassCatalog } = require('./localTaskClassCatalog.cjs');
 const { selectLocalIntent } = require('./localIntentSelector.cjs');
 const { finalizeEntity } = require('./entityFinalization.cjs');
@@ -26,8 +27,38 @@ async function interpretCandidateSetTask(envelope, options = {}) {
         architectureMetadata: Object.freeze({ ...meta }), ...extra });
     if (!validateV5InterpreterInputEnvelope(envelope)) return finish('INVALID', 'INTERPRETER_INPUT_ENVELOPE_INVALID');
     const source = envelope.rawUserRequest;
-    const catalog = createV5SourceSpanCatalog(source);
+    let catalog = createV5SourceSpanCatalog(source);
     if (catalog.status !== 'READY') return finish('INVALID', catalog.status);
+    let exactSelection = null;
+    meta.exactAuthoritativeFastPath = false;
+    if (options.supplySpanCandidates) {
+        const supplyStarted = performance.now();
+        meta.catalogCountBefore = catalog.spans.length;
+        try {
+            const supply = await options.supplySpanCandidates(source, options);
+            meta.spanSupplyCount = supply?.candidateCount;
+            meta.spanSupplyComplete = supply?.complete === true;
+            if (supply?.complete === false) return finish('INVALID', ['IDENTITY_SCAN_BUDGET_EXCEEDED', 'SPAN_CANDIDATE_BUDGET_EXCEEDED'].includes(supply.status) ? supply.status : 'SPAN_SUPPLY_UNAVAILABLE');
+            catalog = mergeAuthoritativeCoilSpans(source, catalog, supply);
+            meta.catalogCountAfter = catalog.spans.length;
+            meta.spanSupplyDurationMs = performance.now() - supplyStarted;
+            if (catalog.status !== 'READY') return finish('INVALID', catalog.status);
+            const selectionStarted = performance.now();
+            exactSelection = selectExactAuthoritativeSpan(source, catalog, supply);
+            meta.authoritativeSpanCount = exactSelection.candidateCount;
+            meta.exactSelectionStatus = exactSelection.status;
+            meta.exactSelectionDurationMs = performance.now() - selectionStarted;
+            if (!['EXACT_AUTHORITATIVE_SPAN', 'NO_AUTHORITATIVE_SPAN'].includes(exactSelection.status)) return finish('INVALID', exactSelection.status);
+        } catch { return finish('INVALID', 'SPAN_SUPPLY_UNAVAILABLE'); }
+    }
+    let spans;
+    if (exactSelection?.status === 'EXACT_AUTHORITATIVE_SPAN') {
+        spans = [exactSelection.span];
+        meta.exactAuthoritativeFastPath = true;
+        meta.sourceIdentityKinds = exactSelection.identityKinds;
+        meta.stage1Status = 'DETERMINISTIC_EXACT';
+        meta.stage1DurationMs = 0;
+    } else {
     meta.stage1Calls = 1;
     const first = await withV5InterpreterStage('span-selection', options, () => selectSourceSpan(source, catalog, options));
     meta.stage1Status = first.status;
@@ -35,11 +66,14 @@ async function interpretCandidateSetTask(envelope, options = {}) {
     if (first.errorMetadata) meta.stage1Error = first.errorMetadata;
     if (first.status !== 'VALID') return finish(first.status, first.reasonCode || 'SPAN_SELECTION_ERROR');
     if (first.selection.needsClarification) return finish('INVALID', 'MULTI_ENTITY_OR_PRIMARY_ENTITY_CLARIFICATION');
-    const spans = first.selection.spanRefs.map(ref=>getSourceSpan(catalog,ref));
-    meta.spanRefs = Object.freeze([...first.selection.spanRefs]);
+    spans = first.selection.spanRefs.map(ref=>getSourceSpan(catalog,ref));
+    }
+    meta.spanRefs = Object.freeze(spans.map(s=>s.spanRef));
     meta.selectedSpanCount = spans.length;
     const lookupStarted = performance.now();
-    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => acquireRefinedCandidateUnion(spans, source, catalog, options));
+    const candidateSet = await withV5InterpreterStage('governed-lookup', options, () => meta.exactAuthoritativeFastPath
+        ? acquireExactAuthoritativeCandidateSet(spans[0], options)
+        : acquireRefinedCandidateUnion(spans, source, catalog, options));
     meta.lookupDurationMs = performance.now() - lookupStarted;
     Object.assign(meta, { businessApiCalls: candidateSet.businessApiCalls, resolverCalls:candidateSet.resolverCalls,
         refinementTriggered:candidateSet.refinementTriggered,originalResolverCalls:candidateSet.originalResolverCalls,

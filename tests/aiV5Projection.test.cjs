@@ -135,7 +135,11 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['candidateSet.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['candidateRead.cjs', 'candidateSet.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    // R8 admits only the bounded governed span-supply wrapper after risk admission.
+    const candidateRead = fs.readFileSync(path.join(v5Root, 'candidateRead.cjs'), 'utf8');
+    assert.match(candidateRead, /internalApiClient\.cjs'\)\.supplyCoilSpanCandidates/);
+    assert.doesNotMatch(candidateRead, /(?:db\.cjs|\bfetch\s*\(|postJson|putJson|patchJson|deleteJson)/i);
     // P16-B1 adds one governed GET readback for explicitly required field evidence.
     // No direct database, raw fetch, writes, or alternate executor is admitted.
     const readExecution = fs.readFileSync(path.join(v5Root, 'readExecutionShadow.cjs'), 'utf8');
@@ -171,5 +175,5 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
     const candidate = fs.readFileSync(path.join(v5Root, 'candidateRead.cjs'), 'utf8');
     assert.match(candidate, /PUMP_V5_CANDIDATE_RUNTIME === 'true'/);
     assert.match(candidate, /AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED === 'true'/);
-    assert.doesNotMatch(candidate, /(?:db\.cjs|routes\/ai\/executor|routes\/ai\/internalApiClient|\ballowWrite:\s*true)/);
+    assert.doesNotMatch(candidate, /(?:db\.cjs|routes\/ai\/executor|\ballowWrite:\s*true)/);
 });

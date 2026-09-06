@@ -631,6 +631,15 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'entities.coil_span_candidates': defineQueryCapability({
+        capabilityId: 'entities.coil_span_candidates',
+        domain: 'coil',
+        inputSchema: 'POST /api/entity-span-candidates { version: 1, sourceText: string, entityScope: coil }',
+        outputSchema: 'BoundedCoilSourceSpans',
+        sourceOfTruth: 'coils.scheme_name+coils.scheme_code',
+        riskLevel: 'low',
+        callers: Object.freeze(['internal']),
+    }),
     'business_changes.list': defineQueryCapability({
         capabilityId: 'business_changes.list',
         domain: 'business_history',

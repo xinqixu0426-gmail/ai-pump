@@ -98,13 +98,36 @@ function sourceSpanModelView(catalog) {
     return freeze(catalog.spans.map(span => ({ spanRef: span.spanRef, text: span.text })));
 }
 
+function mergeAuthoritativeCoilSpans(source, catalog, supply) {
+    const invalid = () => freeze({ version: V5_SOURCE_SPAN_CATALOG_VERSION, status: 'SPAN_SUPPLY_INVALID', spans: [] });
+    if (catalog.status !== 'READY' || supply?.version !== 1 || supply.status !== 'OK' || supply.complete !== true
+        || !Number.isInteger(supply.identityScanCount) || supply.identityScanCount < 0 || supply.identityScanCount > 512
+        || !Array.isArray(supply.candidates) || supply.candidates.length > 8
+        || supply.candidateCount !== supply.candidates.length) return invalid();
+    const spans = catalog.spans.map(s => ({ ...s })), seen = new Set(spans.map(s => `${s.start}:${s.end}`));
+    for (const candidate of supply.candidates) {
+        if (!candidate || Object.keys(candidate).some(k => !['start', 'end', 'entityType', 'identityKind'].includes(k))
+            || candidate.entityType !== 'coil' || !['schemeName', 'schemeCode'].includes(candidate.identityKind)
+            || !Number.isInteger(candidate.start) || !Number.isInteger(candidate.end)
+            || candidate.start < 0 || candidate.end <= candidate.start || candidate.end > source.length) return invalid();
+        const key = `${candidate.start}:${candidate.end}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (spans.length >= MAX_SOURCE_SPANS) return freeze({ version: V5_SOURCE_SPAN_CATALOG_VERSION, status: 'SPAN_CATALOG_LIMIT', spans: [] });
+        // Append: preserve every original ref/offset. Do not expose authority or IDs to the model.
+        spans.push({ spanRef: `sp_${String(spans.length + 1).padStart(3, '0')}`,
+            start: candidate.start, end: candidate.end, text: source.slice(candidate.start, candidate.end) });
+    }
+    return freeze({ version: V5_SOURCE_SPAN_CATALOG_VERSION, status: 'READY', spans });
+}
+
 function getSourceSpan(catalog, spanRef) {
     return catalog?.status === 'READY'
         ? catalog.spans.find(span => span.spanRef === spanRef) || null
         : null;
 }
 
-function validateSourceSpanCatalog(source, catalog) {
+function validateSourceSpanCatalog(source, catalog, authoritativeSupply) {
     if (typeof source !== 'string' || !catalog || catalog.status !== 'READY') return false;
     const refs = new Set();
     for (const span of catalog.spans) {
@@ -112,7 +135,9 @@ function validateSourceSpanCatalog(source, catalog) {
         refs.add(span.spanRef);
         if (source.slice(span.start, span.end) !== span.text) return false;
     }
-    return JSON.stringify(catalog) === JSON.stringify(createV5SourceSpanCatalog(source));
+    const structural = createV5SourceSpanCatalog(source);
+    const expected = authoritativeSupply ? mergeAuthoritativeCoilSpans(source, structural, authoritativeSupply) : structural;
+    return JSON.stringify(catalog) === JSON.stringify(expected);
 }
 
 module.exports = {
@@ -120,6 +145,7 @@ module.exports = {
     MAX_SOURCE_SPANS,
     V5_SOURCE_SPAN_CATALOG_VERSION,
     createV5SourceSpanCatalog,
+    mergeAuthoritativeCoilSpans,
     getSourceSpan,
     sourceSpanModelView,
     validateSourceSpanCatalog,

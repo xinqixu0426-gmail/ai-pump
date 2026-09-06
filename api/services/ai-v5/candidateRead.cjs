@@ -49,6 +49,8 @@ async function runCandidateRead(input, options = {}) {
             const interpreted = await (options.interpret || interpretCandidateSetTask)(envelope, {
                 env: runtimeEnv, shadowTaskId: taskId, modelRequest: options.interpreterModelRequest,
                 internalFetch: options.internalFetch, lookupEntities: options.lookupEntities,
+                supplySpanCandidates: options.supplySpanCandidates || require('../../routes/ai/internalApiClient.cjs').supplyCoilSpanCandidates,
+                signal: input.signal,
             });
             const identity = interpreted.resolvedIdentity, interpretation = interpreted.interpretation;
             if (input.signal?.aborted) { state.failureClass = 'REQUEST_CLOSED'; return finish(); }

@@ -91,6 +91,8 @@ test('non-semantic B2 surfaces remain frozen; R4 explicitly revises part class i
     const hashes = computeFreezeHashes();
     const { EXPECTED_FROZEN_HASHES } = require('../scripts/run-ai-v5e4r-task-class-semantics-v1_1-evaluation.cjs');
     assert.equal(verifyFreezeHashes(hashes, { ...EXPECTED_FROZEN_HASHES,
+        // R8 authorized the bounded coil span merge, not changes to the historical evaluator.
+        sourceSpan: 'd3407426ad4fdc77b2dab966ef8566db5b61212ecf82e4f1def020d75a13c85f',
         classIdentity: 'a9c9f35c293968efe0ee1148311166ec83846672476dd2dabe011c543c86d9d6',
         taskClassSemantics: '1d912a3aa72e56583397d8508cd0fcbb86cfb7063b223e76a4035d43045588bf',
     }), true);

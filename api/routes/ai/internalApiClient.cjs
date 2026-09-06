@@ -165,7 +165,24 @@ async function lookupEntities(internalFetch, input) {
     }
 }
 
+async function supplyCoilSpanCandidates(sourceText, options = {}) {
+    const internalFetch = options.internalFetch || createInternalFetch({ signal: options.signal });
+    const path = '/api/entity-span-candidates';
+    try {
+        const result = await readApiJson(await internalFetch(path, { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version: 1, sourceText, entityScope: 'coil' }) }), 'Span candidate supply failed');
+        internalFetch.recordApiResult?.({ method: 'POST', path, ok: true,
+            result: { complete: result?.complete === true, candidateCount: result?.candidateCount } });
+        return result;
+    } catch {
+        // Never propagate arbitrary transport errors containing request or response data.
+        throw new Error('SPAN_SUPPLY_UNAVAILABLE');
+    }
+}
+
 module.exports = {
+    supplyCoilSpanCandidates,
     createInternalFetch,
     readApiJson,
     getJson,
