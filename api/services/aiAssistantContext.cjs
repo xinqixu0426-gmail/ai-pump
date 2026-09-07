@@ -18,6 +18,17 @@ function normalizeJsonFields(value) {
     }));
 }
 
+
+function summarizeListRow(row) {
+    const omittedFields = [];
+    const summary = Object.fromEntries(Object.entries(row).filter(([key, value]) => {
+        const omit = /Json$/.test(key) || (value !== null && typeof value === 'object') || (typeof value === 'string' && /^[\[{]/.test(value.trim()));
+        if (omit) omittedFields.push(key);
+        return !omit;
+    }));
+    return { ...summary, ...(omittedFields.length ? { omittedFields } : {}) };
+}
+
 function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) {
     if (name === 'search_factory_knowledge' && result?.success !== false && Array.isArray(result?.data)) {
         let summary = result.summary;
@@ -50,7 +61,7 @@ function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) 
         return { ...result, modelView: { kind: 'verified_empty_query', note: '正式查询成功，所列 appliedFilters 范围内没有匹配记录，不是接口失败。不要重复同一查询或不断尝试近似关键词；这不证明其他范围也为空。核实具体对象时可直接用用户原始完整名称调用详情以消歧或确认不存在，然后回答原问题。其他独立问题仍可继续查询。' } };
     }
     if (['search_templates', 'get_template_detail'].includes(name) && result?.success !== false) {
-        return { ...normalizeJsonFields(result), modelView: { kind: 'template_configuration', costTool: 'build_recipe_bom_draft', note: '这是泵壳模板配置，不是零件目录。bundleCost 是模板套件成本，assemblyWage/packingWage 是人工费用，均不能回答单个泵壳物料的当前单价。用户询问物料单价时，下一步用 search_parts 按原始型号查询 price；即使名称或金额相同也不能替代。用户给出模板与线圈、浮球、包装等配置询问整机成本时，直接用本次正式模板 ID 和用户已给配置调用 build_recipe_bom_draft，无需先寻找已有配方。未指定的可选参数不猜测、不因其缺省提前反问，由正式试算返回默认口径、缺项或歧义后再决定是否需要用户补充。多模板候选仍须消歧。' } };
+        return { ...normalizeJsonFields(result), ...(Array.isArray(result?.data) ? { data: result.data.map(summarizeListRow) } : {}), modelView: { kind: 'template_configuration', detailTool: 'get_template_detail', costTool: 'build_recipe_bom_draft', note: '模板列表只展示身份与基本配置，嵌套物料字段在 omittedFields 中标明，需要时按 ID 读取 get_template_detail；省略不代表为空。完整数据仍在原始回执。这是泵壳模板配置，不是零件目录。bundleCost 是模板套件成本，assemblyWage/packingWage 是人工费用，均不能回答单个泵壳物料的当前单价。用户询问物料单价时，下一步用 search_parts 按原始型号查询 price；即使名称或金额相同也不能替代。用户给出模板与线圈、浮球、包装等配置询问整机成本时，直接用本次正式模板 ID 和用户已给配置调用 build_recipe_bom_draft，无需先寻找已有配方。未指定的可选参数不猜测、不因其缺省提前反问，由正式试算返回默认口径、缺项或歧义后再决定是否需要用户补充。多模板候选仍须消歧。' } };
     }
     if (require('./aiAssistantAnswer.cjs').verifiedMissingTarget(result)) {
         return { ...result, modelView: { kind: 'verified_target_missing', note: '正式查询已确认此 query 目标不存在，不是接口故障。保留原始目标和这个结论，不需要换多个相似关键词反复证明不存在。若用户还有独立问题可继续查询；相近对象的资料不能代替此目标。' } };
@@ -59,15 +70,7 @@ function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) 
     if (!detailTool || result?.success === false || !Array.isArray(result?.data)) return normalizeJsonFields(result);
     return {
         ...result,
-        data: result.data.map(row => {
-            const omittedFields = [];
-            const summary = Object.fromEntries(Object.entries(row).filter(([key, value]) => {
-                const omit = /Json$/.test(key) || (value !== null && typeof value === 'object') || (typeof value === 'string' && /^[\[{]/.test(value.trim()));
-                if (omit) omittedFields.push(key);
-                return !omit;
-            }));
-            return { ...summary, ...(omittedFields.length ? { omittedFields } : {}) };
-        }),
+        data: result.data.map(summarizeListRow),
         modelView: { kind: 'list_summary', detailTool, note: '列表仅用于列举与选择。嵌套明细未在此展示，不代表为空；需要配置、物料、采购、成本明细时按本行 ID 调用详情工具。完整原始回执保留在页面明细。' },
     };
 }
@@ -76,6 +79,20 @@ function previousContext(previous, maxTokens = 4096) {
     if (!previous) return '';
     const view = { question: previous.question, toolResults: (previous.toolResults || []).map(item => ({ name: item.name, args: item.args, result: modelResultView(item.name, item.result) })) };
     if (estimateTextTokens(JSON.stringify(view)) > maxTokens) {
+        // Keep completed preview inputs as references even when bulky catalogs cannot fit.
+        // These are not current prices or an automatically selected candidate.
+        const { getAiCapability } = require('../capabilities/registry.cjs');
+        const { hasVerifiedExecution } = require('./aiExecutionEvidence.cjs');
+        const previews = (previous.toolResults || []).filter(item => item.args
+            && item.result?.success !== false && hasVerifiedExecution(item.result)
+            && !item.result?.data?.requiresVariantSelection
+            && getAiCapability(item.name)?.operation === 'preview')
+            .map(item => ({ name: item.name, args: item.args,
+                configurationBasis: item.result.data?.configurationBasis }));
+        const references = { question: previous.question, completedPreviewInputs: previews };
+        if (previews.length && estimateTextTokens(JSON.stringify(references)) <= maxTokens) {
+            return `本会话上一轮已完成试算的对象及参数（仅用于指代与保留配置，不是当前金额）：${JSON.stringify(references)}。用户要求其他不变时，使用这些明确标识和参数，仅覆盖新指定项，再调用正式工具。其余旧明细和候选未携带，需要时重新查询，不猜测缺失候选。`;
+        }
         // Never clip JSON or silently drop candidate IDs: explicitly require a fresh query.
         return '上一轮结果较大，本轮未携带旧明细。请结合对话重新查询目标与候选；不得猜测旧候选或复用旧金额。';
     }

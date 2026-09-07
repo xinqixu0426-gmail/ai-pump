@@ -191,13 +191,18 @@ function numberPattern(value) {
 }
 
 function containsUnavailableConclusion(answer, configuredTerms = [], subjectTerms = []) {
-    const normalized = normalizeAnswerForChecks(answer);
-    const normalizedTerms = configuredTerms.map(normalizeAnswerForChecks).filter(Boolean);
+    // Normalize only availability vocabulary for grading; never rewrite resolver identifiers.
+    const availabilityText = value => normalizeAnswerForChecks(value).replace(/[無沒檔資術閱詢認錄歸傳當個這該號並於據稱庫記讀現]/g, ch => ({
+        讀: '读', 現: '现', 無: '无', 沒: '没', 檔: '档', 資: '资', 術: '术', 閱: '阅', 詢: '询', 認: '认', 錄: '录', 歸: '归', 傳: '传',
+        當: '当', 個: '个', 這: '这', 該: '该', 號: '号', 並: '并', 於: '于', 據: '据', 稱: '称', 庫: '库', 記: '记',
+    })[ch]);
+    const normalized = availabilityText(answer);
+    const normalizedTerms = configuredTerms.map(availabilityText).filter(Boolean);
     const normalizedSubjects = subjectTerms
-        .map(normalizeTargetText)
+        .map(value => normalizeTargetText(availabilityText(value)))
         .filter(Boolean);
-    const unavailablePattern = /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)|(?:查|查询|检索|匹配)不到|不存在|无法(?:查询|查看|读取|提供|确认)|(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)|(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/;
-    const availabilityReversal = /不存在[^，。！？\n]{0,18}(?:问题|障碍)|(?:未找到|没有找到|查不到|查询不到|检索不到|匹配不到|不存在|无法(?:查询|查看|读取|提供|确认)).{0,96}(?:但|不过|然而|却|后来|后续|现(?:在)?|实际).{0,48}(?:已找到(?![^。！？]{0,12}(?:相近|候选))|已经找到(?![^。！？]{0,12}(?:相近|候选))|可以查看|可查看|已经提供|已提供|实际存在|确实存在|(?:目标|该|这个)?(?:配方|型号|报告|附件|资料|档案|方案).{0,8}(?:已|已经)?存在)/;
+    const unavailablePattern = /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)|(?:查|查询|检索|匹配)不到|不存在|无法(?:查询|查看|查阅|读取|提供|确认)|(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)|(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/;
+    const availabilityReversal = /不存在[^，。！？\n]{0,18}(?:问题|障碍)|(?:未找到|没有找到|查不到|查询不到|检索不到|匹配不到|不存在|无法(?:查询|查看|查阅|读取|提供|确认)).{0,96}(?:但|不过|然而|却|后来|后续|现(?:在)?|实际).{0,48}(?:已找到(?![^。！？]{0,12}(?:相近|候选))|已经找到(?![^。！？]{0,12}(?:相近|候选))|可以查看|可查看|已经提供|已提供|实际存在|确实存在|(?:目标|该|这个)?(?:配方|型号|报告|附件|资料|档案|方案).{0,8}(?:已|已经)?存在)/;
     if (availabilityReversal.test(normalized)) return false;
     return normalized
         .split(/[。！？\n]/)
@@ -459,7 +464,8 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
             if (!normalized.includes(normalizeTargetText(name))) return false;
             // Explicitly excluding listed candidates is not substituting them.
             const excluded = normalized.includes(normalizeTargetText(recipeName))
-                && /(?:均|都)(?:不含|不包含|不是|不匹配)/.test(sentence);
+                && /(?:均|都)(?:无|没有|不含|不包含|不是|不匹配)/.test(sentence)
+                && !/(?:但是|但|却|仍然|可以|改用|代替|替代)/.test(sentence);
             const rejectedSource = /(?:不能|不可|不得)(?:作为|代替|替代)[^。！？]{0,40}(?:目标|该型号|原型号)[^。！？]{0,30}(?:来源|数据|报告)/.exec(sentence);
             const reversal = rejectedSource && /(?:但是|但|却|实际|仍然可以)/.test(sentence.slice(rejectedSource.index));
             return !(excluded || (rejectedSource && !reversal));

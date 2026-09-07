@@ -1,3 +1,4 @@
+const { selectRecipeBaseline, applyRecipeBaseline } = require('./recipeConfigurationBaseline.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
 const { buildRecipeCostDraft, findUnpricedRecipeParts } = require('./costEngine.cjs');
@@ -210,6 +211,7 @@ function createRecipeQueries({
     }
 
     function getBomDraft(input = {}) {
+        const explicitBaseline = input.baseRecipeId !== undefined ? selectRecipeBaseline(listRecipes(), input, input.templateId) : null;
         const variantId = parsePositiveId(input?.modelVariantId);
         if (input?.modelVariantId != null && !variantId) {
             throw new RecipeQueryError('非法常用配置预设编号');
@@ -225,7 +227,7 @@ function createRecipeQueries({
             throw new RecipeQueryError('常用配置预设不存在', 404, 'MODEL_VARIANT_NOT_FOUND');
         }
         const shellModel = String(input?.shellModel || '').trim();
-        let templateId = input?.templateId ?? variant?.templateId;
+        let templateId = input?.templateId ?? variant?.templateId ?? explicitBaseline?.templateId;
         if (input?.templateId != null && !parsePositiveId(input.templateId)) {
             throw new RecipeQueryError('非法泵壳模板ID');
         }
@@ -279,6 +281,17 @@ function createRecipeQueries({
                 400,
                 'RECIPE_BOM_CONFIGURATION_REQUIRED'
             );
+        }
+        const useRecipeBaseline = normalizeOptionalBoolean(input.useRecipeBaseline, 'useRecipeBaseline') === true || input.baseRecipeId !== undefined;
+        let baselineRecipe = null, configurationBasis = null;
+        if (useRecipeBaseline && template) {
+            if (variant) throw new RecipeQueryError('基准配方与常用预设不能同时指定', 400, 'RECIPE_BASELINE_VARIANT_CONFLICT');
+            baselineRecipe = selectRecipeBaseline(listRecipes(), input, templateId);
+            if (baselineRecipe) {
+                const applied = applyRecipeBaseline(baselineRecipe, input);
+                input = applied.input;
+                configurationBasis = applied.basis;
+            } else configurationBasis = { source: 'template', configurationComplete: false, note: '没有匹配的在售配方，仅计算明确传入的配置；未指定配套项尚未确认，不能作为完整成品成本。' };
         }
         const partsCatalog = listParts();
         const normalizeConfiguredParts = (value, field, recipeField) => {
@@ -382,25 +395,26 @@ function createRecipeQueries({
             coils: listCoils(),
             getSetting,
         });
-        const surfaceTreatmentMode = template?.surfaceTreatmentMode
+        const surfaceTreatmentMode = (baselineRecipe ? input.surfaceTreatmentMode : undefined) || baselineRecipe?.surfaceTreatmentMode || template?.surfaceTreatmentMode
             || (template?.paintingWage != null ? 'painting' : 'none');
         const costDraft = buildRecipeCostDraft({
             parts: draft.parts || [],
             customBarrelLength: draft.customBarrelLength ?? normalizedInput.customBarrelLength,
             longScrewExtraLength: draft.longScrewExtraLength ?? normalizedInput.longScrewExtraLength,
-            assemblyWage: Number(template?.assemblyWage || 0),
-            packingWage: Number(template?.packingWage || 0),
+            assemblyWage: Number(baselineRecipe?.assemblyWage ?? template?.assemblyWage ?? 0),
+            packingWage: Number(baselineRecipe?.packingWage ?? template?.packingWage ?? 0),
             surfaceTreatmentMode,
             surfaceTreatmentCost: surfaceTreatmentMode === 'none'
                 ? 0
-                : Number(template?.surfaceTreatmentCost ?? template?.paintingWage ?? 0),
-            managementFee: Number(getSetting('management_fee') || 0),
+                : Number((baselineRecipe ? input.surfaceTreatmentCost : undefined) ?? baselineRecipe?.surfaceTreatmentCost ?? baselineRecipe?.paintingWage ?? template?.surfaceTreatmentCost ?? template?.paintingWage ?? 0),
+            managementFee: Number(baselineRecipe?.managementFee ?? getSetting('management_fee') ?? 0),
             coilMaterial: normalizedInput.coilMaterial || variant?.coilMaterial || '钢带',
         }, { partsCatalog });
         const unpricedParts = findUnpricedRecipeParts(costDraft.parts);
         return {
             ...draft,
             parts: costDraft.parts,
+            ...(configurationBasis ? { configurationBasis } : {}),
             costPreview: {
                 sourceOfTruth: 'costEngine',
                 costBasis: 'configuredBomDraft',

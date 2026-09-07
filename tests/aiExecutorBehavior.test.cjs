@@ -5631,3 +5631,23 @@ test('V10.3 AI executor：订单执行事实只能新建草稿且必须先确认
     assert.equal(saved.executionRecord.id, 9);
     assert.equal(calls.length, 1);
 });
+
+
+test('AI executor 当前配置覆盖使用完整基准重算，保持包装和显式 false', async () => {
+    const calls = installFetchStub(call => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') return jsonResponse({ success: true, data: [{ id: 2, name: '在售A' }] });
+        if (call.url.endsWith('/api/recipes/bom-draft') && call.method === 'POST') {
+            assert.equal(call.body.baseRecipeId, 2);
+            assert.equal(call.body.hasFloat, false);
+            assert.deepEqual(call.body.packingParts, [{ model: '纸箱', packingRole: 'container', qty: 1 }]);
+            assert.equal(call.body.useRecipeBaseline, true);
+            return jsonResponse({ success: true, data: { parts: [], configurationBasis: { recipeId: 2 }, costPreview: { currentTotalCost: 257.23, sourceOfTruth: 'costEngine', costBasis: 'configuredBomDraft' } } });
+        }
+        return jsonResponse({ success: false, error: 'unexpected' }, 500);
+    });
+    const result = await executeToolCall('preview_recipe_cost', { recipeId: 2, useRecipeBaseline: true, overrides: { hasFloat: false, boxType: '纸箱' } }, { allowWrite: false });
+    assert.equal(result.success, true);
+    assert.equal(result.data.currentTotalCost, 257.23);
+    assert.equal(result.data.costBasis, 'configuredBomDraft');
+    assert.equal(calls.length, 2);
+});

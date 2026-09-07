@@ -334,12 +334,21 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
         fixture.db
     );
     assert.equal(verifiedUnavailable.status, 'passed');
+    const traditionalEvidence = [{ name: 'get_recipe_technical_files', result: { success: false, code: 'AI_RESOURCE_NOT_FOUND', entityType: 'recipe', query: 'V1600-3英寸-12-180', executionEvidence: { verified: true, kind: 'formal_api_query_failure' } } }];
+    for (const answer of ['V1600-3”-12-180 並未在正式配方庫中登記，因此無法查閱它關聯的技術檔案或其 Excel 附件內容。', '無法讀取該配方的技術檔案。']) {
+        assert.equal(evaluateRuleCase(caseItem, answer, traditionalEvidence, fixture.db).status, 'passed');
+        assert.equal(evaluateRuleCase(caseItem, answer, [], fixture.db).status, 'failed');
+    }
+    assert.equal(evaluateRuleCase(caseItem, '無法讀取該配方的技術檔案，但現在可以查看。', traditionalEvidence, fixture.db).status, 'failed');
+
     const excludedAlternatives = [
         { name: 'get_recipe_technical_files', result: { success: false, code: 'AI_RESOURCE_NOT_FOUND', entityType: 'recipe', query: 'V1600-3英寸-12-180', executionEvidence: { verified: true } } },
         { name: 'search_factory_knowledge', result: { sources: [{ entryType: 'recipe', title: '成品：其他配方' }] } },
     ];
     for (const [answer, expected] of [
         ['其他配方均不含名称 V1600-3英寸-12-180，未找到目标配方，无法提供测试报告。', 'passed'],
+        ['未找到目标配方。当前目录（其他配方），其中均无 V1600-3英寸-12-180 这一型号。', 'passed'],
+        ['未找到目标配方。当前目录（其他配方），其中均无 V1600-3英寸-12-180，但可以替代目标报告。', 'failed'],
         ['未找到目标配方。系统有相近的其他配方，不能作为该目标型号的测试数据来源。', 'passed'],
         ['未找到目标配方。其他配方不能作为该目标型号的测试数据来源，但可以替代该报告。', 'failed'],
         ['其他配方均不含名称 V1600-3英寸-12-180。未找到目标配方，可以用其他配方的报告代替。', 'failed'],

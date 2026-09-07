@@ -81,3 +81,14 @@ test('suffix memory requests preserve the rule while quotes, negations and quest
     }
     for (const text of ['规则A，不要记入长期记忆', '他说：规则A，这点记入长期记忆', '“规则A。这点记入长期记忆”', '如果合适，记入长期记忆', '规则A，能否记入长期记忆？']) assert.equal(parseMemoryCommand(text), null);
 });
+
+
+test('conditional preference plus explicit trailing save is persisted without saving hypothetical or negated commands', () => {
+    const rule = '如果没有特别提示，直接用默认的线圈';
+    for (const suffix of ['，记到长期记忆里。', '。请保存到长期记忆中', '；记入长期记忆']) {
+        assert.deepEqual(parseMemoryCommand(rule + suffix), { action: 'save', content: rule });
+    }
+    for (const text of ['如果合适，记到长期记忆里。', '假如可以，记入长期记忆', '如果没有特别提示，直接用默认的线圈，不要记到长期记忆里。', '如果没有特别提示，直接用默认的线圈，能否记到长期记忆里？', '他说：如果没有特别提示，直接用默认的线圈，记到长期记忆里。']) {
+        assert.equal(parseMemoryCommand(text), null);
+    }
+});

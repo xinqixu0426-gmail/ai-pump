@@ -693,15 +693,18 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'build_recipe_bom_draft',
-            description: '按正式泵壳模板和临时配置生成完整 BOM 并由正式成本引擎计算总成本，不写库。用户给出泵壳型号/模板、线圈规格片数、机筒长度、浮球、电缆、木箱、珍珠棉等并询问成本时优先使用；不得把泵壳模板缩写成配方名交给 full_calculate。包装和可选零件应原样传入用户说出的名称（例如“木箱”“珍珠棉”），服务端会按模板历史选择和正式零件目录解析；禁止自行翻译、缩写或生成 unknown_* 占位型号。',
+            description: '优先沿用已有配方的完整配置，仅覆盖用户明确给定项，按当前价格生成 BOM 并由正式成本引擎计算总成本，不写库。用户给出泵壳型号/模板、线圈规格片数、机筒长度、浮球、电缆、木箱、珍珠棉等并询问成本时优先使用；不得把泵壳模板缩写成配方名交给 full_calculate。包装和可选零件应原样传入用户说出的名称（例如“木箱”“珍珠棉”），服务端会按模板历史选择和正式零件目录解析；禁止自行翻译、缩写或生成 unknown_* 占位型号。',
             parameters: {
                 type: 'object',
                 properties: {
+                    useRecipeBaseline: { type: 'boolean', description: '私人助理默认 true，HTTP/MCP 不传时不启用；沿用唯一匹配在售配方的完整配置，仅覆盖用户明确指定项。false 仅用于用户明确要求脱离已有配方的新配置' },
+                    baseRecipeId: { type: 'integer', minimum: 1, description: '已选基准配方 ID；多个基准必须先选择。未提供时由正式服务按模板和线圈参数匹配' },
                     templateId: { type: 'number', description: '泵壳模板ID，可选' },
                     shellModel: { type: 'string', description: '完整泵壳模板型号；系统会先解析为正式 templateId' },
                     modelVariantId: { type: 'number', description: '常用配置预设编号，可选；字段名为历史兼容标识' },
                     customBarrelLength: { type: 'number', description: '机筒长度 mm，可触发不锈钢泵壳整体价和长螺丝联动' },
                     longScrewExtraLength: { type: 'number', description: '长螺丝补偿长度 mm，可选' },
+                    coilId: { type: 'integer', minimum: 1, description: '本轮正式查询确认的线圈方案 ID；采用默认偏好时必须先核实唯一默认，并同时传该方案材质及槽眼' },
                     coilSpec: { type: 'string', description: '线圈规格，如12' },
                     coilSheets: { type: 'number', description: '线圈片数，如140' },
                     coilMaterial: { type: 'string', description: '线圈材质，可选' },
@@ -759,6 +762,7 @@ const AI_TOOLS = [
                 properties: {
                     recipeId: { type: 'integer', minimum: 1, description: '配方ID，优先使用' },
                     recipeName: { type: 'string', description: '成品型号或可唯一匹配的简称，名称匹配忽略大小写；多条命中时返回候选' },
+                    useRecipeBaseline: { type: 'boolean', description: '按已有配方完整配置和当前价格重算覆盖项；私人助理默认 true，API/MCP 省略保留报价快照覆盖兼容口径' },
                     overrides: { ...COST_OVERRIDE_SCHEMA, description: '标准成本覆盖项对象' },
                     customBarrelLength: { type: 'number' },
                     coilSheets: { type: 'number' },

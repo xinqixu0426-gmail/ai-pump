@@ -113,11 +113,14 @@ async function executeBusinessTool(toolName, args, internalFetch) {
     switch (toolName) {
         case 'build_recipe_bom_draft': {
             const data = await postJson(internalFetch, '/api/recipes/bom-draft', {
+                useRecipeBaseline: args.useRecipeBaseline,
+                baseRecipeId: args.baseRecipeId,
                 templateId: args.templateId,
                 shellModel: args.shellModel,
                 modelVariantId: args.modelVariantId,
                 customBarrelLength: args.customBarrelLength,
                 longScrewExtraLength: args.longScrewExtraLength,
+                coilId: args.coilId,
                 coilSpec: args.coilSpec,
                 coilSheets: args.coilSheets,
                 coilMaterial: args.coilMaterial,
@@ -130,8 +133,8 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                 cableLength: args.cableLength,
                 cableWire: args.cableWire,
                 cableAccessoryType: args.cableAccessoryType,
-                packingParts: args.packingParts || [],
-                optionalParts: args.optionalParts || [],
+                packingParts: args.packingParts,
+                optionalParts: args.optionalParts,
                 requireStablePartIdentity: true,
             }, '生成配方 BOM 草稿失败');
             return {
@@ -174,6 +177,14 @@ async function executeBusinessTool(toolName, args, internalFetch) {
                     '配方当前成本读取失败'
                 );
                 data = selectCurrentRecipeCost(currentCosts, recipeId);
+            } else if (args.useRecipeBaseline === true) {
+                const configuration = { ...normalizedOverrides, baseRecipeId: recipeId, useRecipeBaseline: true, requireStablePartIdentity: true };
+                if (configuration.packingPartsJson === undefined && configuration.boxType !== undefined) {
+                    configuration.packingParts = [{ model: configuration.boxType, packingRole: 'container', qty: configuration.boxType ? 1 : 0 }];
+                }
+                if (configuration.extraPartsJson !== undefined) configuration.optionalParts = JSON.parse(configuration.extraPartsJson);
+                const preview = await postJson(internalFetch, '/api/recipes/bom-draft', configuration, '配方当前配置成本试算失败');
+                data = { ...preview, ...preview.costPreview, unitCost: preview.costPreview.currentTotalCost };
             } else {
                 const preview = await postJson(internalFetch, `/api/recipes/${recipeId}/cost-preview`, {
                     overrides: normalizedOverrides,

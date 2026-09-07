@@ -463,3 +463,149 @@ test('unnecessary query permission gets one continuation while real candidate am
     ], { executeToolCall: async () => ({ ...verified([]), requiresClarification: true }) }));
     assert.match(ambiguous.finalContent, /两个候选/);
 });
+
+
+test('template-only answer is reviewed using missing preview evidence rather than wording', async () => {
+    const result = await runAiAssistant(input('壳A搭配12-120的成本'), fixture([
+        { tool_calls: [call('search_templates', { shellModel: '壳A' })] },
+        { content: '需先补充材质和线重才能计算。' },
+        { tool_calls: [call('build_recipe_bom_draft', { templateId: 1, coilSpec: '12', coilSheets: 120 })] },
+        { content: '当前成本25元。' },
+    ], { executeToolCall: async name => name === 'search_templates'
+        ? verified([{ id: 1, shellModel: '壳A' }])
+        : verified({ costPreview: { sourceOfTruth: 'costEngine', currentTotalCost: 25, pricingComplete: true } }) }));
+    assert.deepEqual(result.toolResults.map(r => r.name), ['search_templates', 'build_recipe_bom_draft']);
+    assert.equal(result.toolResults[1].args.useRecipeBaseline, true);
+    assert.match(result.finalContent, /25/);
+});
+
+test('memory receipt survives continuation, retains the original question, and does not cross sessions', async () => {
+    const session = 'memory-continue-bom';
+    await runAiAssistant(input('壳A搭配12-120片带浮球的成本', session), fixture([
+        { tool_calls: [call('search_templates', { shellModel: '壳A' })] },
+        { content: '需先补充线圈参数。' },
+        { content: '需先补充线圈参数。' },
+    ], { executeToolCall: async () => verified([{ id: 1, shellModel: '壳A' }]) }));
+    const events = [], saved = { status: 'completed', auditId: 1, memory: { id: 5, version: 1, content: '如果没有特别提示，直接用默认的线圈' } };
+    const result = await runAiAssistant({ ...input('如果没有特别提示，直接用默认的线圈，记到长期记忆里。', session), emit: (type, value) => events.push({ type, ...value }) }, fixture([
+        messages => {
+            assert.match(JSON.stringify(messages), /继续本会话尚未取得试算结果的问题：壳A搭配12-120片带浮球的成本/);
+            return { tool_calls: [call('search_coils', { spec: '12', sheets: 120, isDefault: true, schemeStatus: 'official' })] };
+        },
+        { tool_calls: [call('build_recipe_bom_draft', { shellModel: '壳A', coilId: 7, coilSpec: '12', coilSheets: 120, coilMaterial: '钢带', coilSlotType: '小眼', hasFloat: true })] },
+        { content: '按默认方案计算，成本25元。' },
+    ], { changeMemory: async () => saved, executeToolCall: async name => name === 'search_coils'
+        ? verified([{ id: 7, spec: '12', sheets: 120, isDefault: true, schemeStatus: 'official' }])
+        : verified({ costPreview: { sourceOfTruth: 'costEngine', currentTotalCost: 25, pricingComplete: true } }) }));
+    assert.match(result.finalContent, /^已记入长期记忆：[\s\S]*25/);
+    assert.equal(events.filter(e => e.type === 'done').length, 1);
+    const state = beginAssistantSession('test-owner', session);
+    assert.equal(state.previous.pendingQuestion, null); assert.equal(state.previous.memory.id, 5); state.cancel();
+    const other = await runAiAssistant(input('记入长期记忆：规则A', 'another-memory-session'), fixture([], { changeMemory: async () => saved }));
+    assert.equal(other.toolResults.length, 0);
+});
+
+test('failed continuation cannot lose a successfully persisted memory receipt or claim business success', async () => {
+    const session = 'memory-continue-failure';
+    const state = beginAssistantSession('test-owner', session);
+    state.finish({ pendingQuestion: '壳A的成本', question: '壳A的成本', toolResults: [] });
+    const events = [];
+    await assert.rejects(runAiAssistant({ ...input('记入长期记忆：默认方案优先', session), emit: (type, value) => events.push({ type, ...value }) }, fixture([], {
+        changeMemory: async () => ({ status: 'completed', auditId: 2, memory: { id: 6, version: 1, content: '默认方案优先' } }),
+        fetchAiProvider: async () => { throw new Error('provider unavailable'); },
+    })), /provider unavailable/);
+    assert.match(events.find(e => e.type === 'content').content, /已记入长期记忆/);
+    const restored = beginAssistantSession('test-owner', session);
+    assert.equal(restored.previous.memory.id, 6); assert.equal(restored.previous.pendingQuestion, '壳A的成本'); restored.cancel();
+});
+
+
+test('BOM tool forwards a grounded explicit scheme to the existing formal API', async () => {
+    const { executeBusinessTool } = require('../api/routes/ai/executors/businessExecutors.cjs');
+    let body;
+    await executeBusinessTool('build_recipe_bom_draft', { templateId: 1, coilId: 8, coilSpec: '12', coilSheets: 120, coilMaterial: '冷轧', coilSlotType: '国标眼' }, async (url, options) => {
+        assert.equal(url, '/api/recipes/bom-draft'); body = JSON.parse(options.body);
+        return new Response(JSON.stringify({ success: true, data: { costPreview: { currentTotalCost: 25 } } }));
+    });
+    assert.equal(body.useRecipeBaseline, undefined);
+    assert.equal(body.coilId, 8); assert.equal(body.coilMaterial, '冷轧'); assert.equal(body.coilSlotType, '国标眼');
+});
+
+
+test('expired pending preview does not resume when a new memory is saved', async () => {
+    const session = 'expired-memory-preview';
+    const old = beginAssistantSession('test-owner', session); old.finish({ pendingQuestion: '旧模板成本' });
+    const expired = beginAssistantSession('test-owner', session, Date.now() + TTL_MS + 1); expired.cancel();
+    const result = await runAiAssistant(input('记入长期记忆：默认方案优先', session), fixture([], {
+        changeMemory: async () => ({ status: 'completed', auditId: 3, memory: { id: 9, version: 1, content: '默认方案优先' } }),
+    }));
+    assert.equal(result.telemetry.outcome, 'memory_saved'); assert.equal(result.toolResults.length, 0);
+});
+
+
+test('template lists keep all identities and scalar settings without duplicating every nested BOM in model context', () => {
+    const rows = [{ id: 1, shellModel: '壳A', bundleCost: 95, partsJson: JSON.stringify(Array.from({ length: 200 }, () => ({ model: '螺丝', qty: 4 }))), parts: [{ model: '螺丝' }] }];
+    const full = verified(rows); const original = JSON.stringify(full);
+    const view = modelResultView('search_templates', full);
+    assert.equal(view.data[0].id, 1); assert.equal(view.data[0].bundleCost, 95);
+    assert.deepEqual(view.data[0].omittedFields, ['partsJson', 'parts']);
+    assert.equal(view.modelView.detailTool, 'get_template_detail');
+    assert.equal(view.modelView.costTool, 'build_recipe_bom_draft');
+    assert.ok(JSON.stringify(view).length < JSON.stringify(full).length / 2);
+    assert.equal(JSON.stringify(full), original);
+});
+
+
+test('formal BOM total cannot be displaced by a preceding broad catalog in fallback summaries', () => {
+    const { formatMoneySummary } = require('../api/services/aiAssistantAnswer.cjs');
+    const summary = formatMoneySummary([
+        { name: 'search_coils', result: verified(Array.from({ length: 20 }, (_, i) => ({ schemeCode: '方案' + i, cost: i + 1 }))) },
+        { name: 'build_recipe_bom_draft', result: verified({ costPreview: { currentTotalCost: 273.23, partsCost: 252.23, laborCost: 21, pricingComplete: true }, parts: [] }) },
+    ], { includeQueries: true });
+    assert.match(summary, /273.23/);
+    assert.ok(summary.indexOf('273.23') < summary.indexOf('方案0'));
+});
+
+
+test('currency table cells require current monetary evidence without treating model, quantity or percent as money', () => {
+    const { unsupportedMoneyInAnswer } = require('../api/services/aiAssistantAnswer.cjs');
+    const table = '| 型号 | 数量 | 金额（元） | 成本占比 |\n|---|---:|---:|---:|\n| 12-120 | 8 | **268.23** | 25% |';
+    assert.deepEqual(unsupportedMoneyInAnswer(table, []), [268.23]);
+    assert.deepEqual(unsupportedMoneyInAnswer(table, [{ result: verified({ cost: 268.23 }) }]), []);
+    assert.deepEqual(unsupportedMoneyInAnswer('| 项目 | 成本 |\n|---|---:|\n| 合计 | 1,268.23 |', []), [1268.23]);
+});
+
+test('history-only currency table triggers a current read before publishing a changed configuration cost', async () => {
+    const events = [];
+    const result = await runAiAssistant({ ...input('包装换纸箱，其他配置不变'), emit: (type, event) => { if (type === 'content') events.push(event.content); } }, fixture([
+        { content: '| 项目 | 金额（元） |\n|---|---:|\n| 总成本 | 268.23 |' },
+        { tool_calls: [call('compare_recipes', { recipe1: 'A', recipe2: 'B' })] },
+        { content: '当前成本257.23元。' },
+    ], { executeToolCall: async () => verified({ totalCost: 257.23 }) }));
+    assert.equal(result.toolResults.length, 1);
+    assert.match(result.finalContent, /257.23/);
+    assert.doesNotMatch(events.join(''), /268.23/);
+});
+
+
+test('oversized prior evidence preserves completed preview identity and overrides without carrying old prices', () => {
+    const args = { templateId: 1, coilId: 2, hasFloat: false, packingParts: [{ model: '木箱' }] };
+    const text = previousContext({ question: '不要浮球', toolResults: [
+        { name: 'get_template_detail', result: verified({ detail: '大'.repeat(20000) }) },
+        { name: 'build_recipe_bom_draft', args, result: verified({ costPreview: { currentTotalCost: 265.23 }, configurationBasis: { recipeId: 1, recipeName: '基准' } }) },
+    ] });
+    assert.match(text, /completedPreviewInputs/);
+    assert.match(text, /"templateId":1/); assert.match(text, /"hasFloat":false/);
+    assert.match(text, /木箱/); assert.doesNotMatch(text, /265.23/);
+    const unverified = previousContext({ toolResults: [{ name: 'build_recipe_bom_draft', args, result: { data: { detail: '大'.repeat(20000) } } }] });
+    assert.doesNotMatch(unverified, /completedPreviewInputs/);
+});
+
+
+test('private assistant requests current configuration pricing for existing recipe overrides', async () => {
+    const result = await runAiAssistant(input('在售A不要浮球的成本'), fixture([
+        { tool_calls: [call('preview_recipe_cost', { recipeName: '在售A', overrides: { hasFloat: false } })] },
+        { content: '当前成本265.23元。' },
+    ], { executeToolCall: async (name, args) => { assert.equal(args.useRecipeBaseline, true); return verified({ currentTotalCost: 265.23 }); } }));
+    assert.match(result.finalContent, /265.23/);
+});

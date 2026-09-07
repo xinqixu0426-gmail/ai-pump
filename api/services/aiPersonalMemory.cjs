@@ -61,12 +61,17 @@ function changePersonalMemory(dependencies, input = {}, context = {}) {
 function parseMemoryCommand(text, previous = null) {
     const value = String(text || '').trim();
     // Trailing requests authorize persistence too; reported/negated examples do not.
-    if (/^(?:他说|她说|原文|示例|引用|例如|比如|如果|假如|如何|是否|能否)/u.test(value)
+    if (/^(?:他说|她说|原文|示例|引用|例如|比如|如何|是否|能否)/u.test(value)
         || /(?:不要|不必|别|无需|暂不|不需要|不能)\s*(?:再|帮我)?\s*(?:记入|记到|保存到)长期记忆/u.test(value)) return null;
-    let match = value.match(/^(?:请)?(?:记入长期记忆|记到长期记忆|记住这个规则|以后按这个处理)[：:，,\s]*([\s\S]*)$/u);
+    let match = value.match(/^(?:请)?(?:记入长期记忆|记到长期记忆|保存到长期记忆|记住这个规则|以后按这个处理)(?:里|中)?[：:，,\s]*([\s\S]*)$/u);
     if (match) return match[1].trim() ? { action: 'save', content: match[1].trim() } : { clarification: '请在“记入长期记忆：”后写出要保留的习惯或规则。' };
-    match = value.match(/^([\s\S]+?)[。！!，,；;\n]\s*(?:请帮我|请|帮我)?(?:把)?(?:这点|这一点|这条规则|这条|这个规则|这件事)?(?:记入|记到|保存到)长期记忆[。！!\s]*$/u);
-    if (match) return { action: 'save', content: match[1].trim() };
+    match = value.match(/^([\s\S]+?)[。！!，,；;\n]\s*(?:请帮我|请|帮我)?(?:把)?(?:这点|这一点|这条规则|这条|这个规则|这件事)?(?:记入|记到|保存到)长期记忆(?:里|中)?[。！!\s]*$/u);
+    if (match) {
+        const content = match[1].trim();
+        // A condition governing the save itself is not a complete rule to persist.
+        if (/^(?:如果|假如)/u.test(content) && !/[，,。；;]/u.test(content)) return null;
+        return { action: 'save', content };
+    }
     match = value.match(/^(?:请)?把(?:刚才那条|上一条)(?:长期记忆|记忆)?改成[：:，,\s]*([\s\S]+)$/u);
     if (match) return previous?.memory ? { action: 'update', id: previous.memory.id, expectedVersion: previous.memory.version, content: match[1].trim() } : { clarification: '本会话没有可定位的上一条记忆，请先指定要修改的条目。' };
     if (/^(?:请)?(?:忘掉|删除)(?:刚才那条|上一条)(?:长期)?记忆[。！!]?$/u.test(value)) return previous?.memory ? { action: 'delete', id: previous.memory.id, expectedVersion: previous.memory.version } : { clarification: '本会话没有可定位的上一条记忆。' };

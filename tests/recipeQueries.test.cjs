@@ -408,3 +408,24 @@ test('配方 Query 对非法 ID 和不存在资源返回稳定 400/404', () => {
         fixture.db.close();
     }
 });
+
+
+test('BOM baseline is opt-in for API callers, inherits recipe wages and returns scope without writes', () => {
+    const f = createFixture();
+    try {
+        const before = f.db.prepare('SELECT total_changes() AS count').get().count;
+        const recipe = { id: 1, name: '在售A', templateId: 30, coilSpec: '12', coilSheets: 120, hasFloat: 1, hasCable: 1, cableLength: 8, packingPartsJson: '[{"model":"v550木箱","qty":1}]', assemblyWage: 9, packingWage: 4, surfaceTreatmentMode: 'none', surfaceTreatmentCost: 0, managementFee: 0 };
+        f.listedRecipes.splice(0, f.listedRecipes.length, recipe);
+        const result = f.queries.getBomDraft({ baseRecipeId: 1, hasFloat: false });
+        assert.equal(result.configurationBasis.recipeId, 1);
+        assert.equal(result.costPreview.laborCost, 13);
+        assert.equal(f.bomCalls.at(-1).input.hasFloat, false);
+        assert.equal(f.bomCalls.at(-1).input.cableLength, 8);
+        assert.equal(f.queries.getBomDraft({ templateId: 30 }).configurationBasis, undefined);
+        assert.equal(f.db.prepare('SELECT total_changes() AS count').get().count, before);
+        f.listedRecipes.length = 0;
+        const missing = f.queries.getBomDraft({ templateId: 30, useRecipeBaseline: true });
+        assert.equal(missing.configurationBasis.configurationComplete, false);
+        assert.throws(() => f.queries.getBomDraft({ baseRecipeId: 999 }), e => e.code === 'RECIPE_BASELINE_NOT_FOUND');
+    } finally { f.db.close(); }
+});

@@ -39,12 +39,16 @@ function formatMoneySummary(toolResults = [], { includeQueries = false } = {}) {
             else if (item && typeof item === 'object' && !['executionEvidence', 'provenance', 'comparison'].includes(key)) visit(item, name, depth + 1);
         }
     }
-    for (const item of toolResults) {
+    // A completed preview must remain visible even after a broad catalog query.
+    const orderedResults = [...toolResults].sort((a, b) =>
+        Number(getAiCapability(b.name)?.operation === 'preview') - Number(getAiCapability(a.name)?.operation === 'preview'));
+    for (const item of orderedResults) {
         const capability = getAiCapability(item.name);
         if (item.result?.success !== false && hasVerifiedExecution(item.result) && !item.result?.data?.requiresVariantSelection && capability?.access === 'read' && (capability.operation === 'preview' || (includeQueries && capability.operation === 'query'))) {
             visit(item.result, capability.displayName);
             const data = item.result.data;
             if (data?.costPreview && Array.isArray(data.parts)) {
+                if (data.configurationBasis) configurations.push(data.configurationBasis.source === 'recipe' ? `配置基准：${escape(data.configurationBasis.recipeName)}；${escape(data.configurationBasis.note)}` : escape(data.configurationBasis.note));
                 const names = data.parts.slice(0, 50).map(part => [part.model, part.name].filter(Boolean).join('（') + (part.model && part.name ? '）' : ''));
                 configurations.push(`正式配置：${names.map(escape).join('、')}${data.parts.length > 50 ? '；其余配置见明细' : ''}。`);
                 if (data.costPreview.pricingComplete === false) configurations.push('配置尚未全部定价，当前金额不是完整报价。');
@@ -102,6 +106,23 @@ function unsupportedMoneyInAnswer(answer, toolResults) {
     for (const match of String(answer || '').matchAll(pattern)) {
         const value = Number((match[1] || match[2]).replaceAll(',', ''));
         if (!values.has(String(value))) unsupported.add(value);
+    }
+    // Markdown commonly puts the currency unit in a header, not in each cell.
+    const lines = String(answer || '').split(/\r?\n/);
+    const cells = line => line.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(cell => cell.replace(/[*_`]/g, '').trim());
+    for (let i = 0; i < lines.length - 1; i++) {
+        if (!lines[i].includes('|') || !/^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) continue;
+        const columns = cells(lines[i]).map(header => /金额|成本|单价|价格|费用|工资|[（(]元[）)]|[¥￥]/.test(header)
+            && !/率|占比|比例|数量|编号/.test(header));
+        for (let row = i + 2; row < lines.length && lines[row].includes('|'); row++) {
+            cells(lines[row]).forEach((cell, column) => {
+                if (!columns[column]) return;
+                for (const match of cell.matchAll(/(?<![\w.-])-?\d[\d,]*(?:\.\d+)?(?![\w.-])/g)) {
+                    const value = Number(match[0].replaceAll(',', ''));
+                    if (!values.has(String(value))) unsupported.add(value);
+                }
+            });
+        }
     }
     return [...unsupported];
 }

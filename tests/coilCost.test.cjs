@@ -51,6 +51,8 @@ test('同组合多套正式方案按默认或明确 ID 选择，不允许无默�
     assert.equal(ambiguous.status, 409);
     assert.equal(ambiguous.code, 'COIL_SCHEME_AMBIGUOUS');
     assert.equal(ambiguous.details.candidates.length, 2);
+    const duplicateDefaults = calculateCoilCost(alternatives.map(coil => ({ ...coil, isDefault: true })), { spec: '750', sheets: 200, material: '钢带' });
+    assert.equal(duplicateDefaults.code, 'COIL_SCHEME_AMBIGUOUS');
 
     const defaulted = calculateCoilCost([{ ...alternatives[0], isDefault: true }, alternatives[1]], {
         spec: '750', sheets: 200, material: '钢带',
