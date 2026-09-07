@@ -926,6 +926,10 @@ test('AI 评测：唯一绕组方案允许身份在数据之后，但仍拒绝�
     assert.equal(evaluateRuleCase({ config }, `${data}\n此方案为钢带材质、小眼。`, toolResults, fixture.db).status, 'passed');
     assert.equal(evaluateRuleCase({ config }, `${data.replace('0.64', '0.65')}\n此方案为钢带材质、小眼。`, toolResults, fixture.db).status, 'failed');
     assert.equal(evaluateRuleCase({ config }, data, toolResults, fixture.db).status, 'failed');
+    const vertical = '| 项目 | 数据 |\n|---|---|\n| 材质 | 钢带 |\n| 槽眼 | 小眼 |\n| 主线线径 | 0.64 |\n| 主线绕组 | 44-44 |\n| 副线线径 | 0.49 |\n| 副线绕组 | 78-78 |';
+    assert.equal(evaluateRuleCase({ config }, vertical, toolResults, fixture.db).status, 'passed');
+    assert.equal(evaluateRuleCase({ config }, vertical.replace('小眼', '国标眼'), toolResults, fixture.db).status, 'failed');
+    assert.equal(evaluateRuleCase({ config }, vertical.replace('0.64', '0.65'), toolResults, fixture.db).status, 'failed');
     fixture.db.close();
 });
 

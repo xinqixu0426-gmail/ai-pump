@@ -246,6 +246,10 @@ function profileAnswerMarker(answer, profile, profiles) {
 
 function profileAnswerSegments(answer, profiles) {
     const text = String(answer || '');
+    // A single formally verified profile can use a vertical key/value table.
+    // Identity and every saved value are still checked below; multi-profile
+    // answers retain segment boundaries to prevent cross-profile value mixing.
+    if (profiles.length === 1) return new Map([[Number(profiles[0].id), text]]);
     const markers = profiles.map(profile => ({
         profile,
         start: profileAnswerMarker(text, profile, profiles),
