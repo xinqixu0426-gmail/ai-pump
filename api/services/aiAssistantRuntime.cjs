@@ -94,6 +94,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const current = [{ role: 'system', content: `${SYSTEM_PROMPT}\n个人记忆（仅偏好，不是实时数据）：${JSON.stringify(memory.items)}\n既有纠错：${corrections}\n${buildAiPageContextNote(pageContext)}\n${input.promptSuffix || ''}` }, ...messages];
         if (session.previous) current.push({ role: 'system', content: previousContext(session.previous) });
         const seen = new Map();
+        const knowledgeDocuments = new Map();
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
             let offered = calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
@@ -200,7 +201,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 toolResults.push({ name, args, result });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
-                current.push(buildAiToolResultMessage(call, modelResultView(name, result)));
+                current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments })));
             }
         }
         if (!finalContent) { outcome = 'budget_exhausted'; finalContent = unfinishedReply(toolResults); }

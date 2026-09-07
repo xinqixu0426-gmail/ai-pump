@@ -407,3 +407,31 @@ test('final model round explicitly closes querying and asks for evidence-based s
     assert.equal(rounds, 7);
     assert.match(result.finalContent, /尚未核实/);
 });
+
+test('knowledge views share identical documents only within the current turn, preserving evidence and changes', () => {
+    const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
+    const cache = { knowledgeDocuments: new Map() };
+    const row = { id: 1, content: '完整业务规则'.repeat(150), summary: '原摘要', metadata: { fact: '唯一值' }, metadataJson: '{"fact":"唯一值"}', searchText: '重复索引', evidenceLevel: 'semantic_candidate' };
+    const result = { success: true, data: [row], sources: [{ sourceId: 1 }] };
+    const first = modelResultView('search_factory_knowledge', result, cache);
+    const again = modelResultView('search_factory_knowledge', result, cache);
+    assert.equal(first.data[0].content, row.content);
+    assert.equal(first.data[0].searchText, undefined);
+    assert.equal(first.data[0].metadataJson, undefined);
+    assert.equal(again.data[0].documentRef, first.data[0].documentRef);
+    assert.equal(again.data[0].content, undefined);
+    assert.equal(again.data[0].evidenceLevel, 'semantic_candidate');
+    assert.deepEqual(again.sources, result.sources);
+    const changed = modelResultView('search_factory_knowledge', { ...result, data: [{ ...row, content: row.content + '修订' }] }, cache);
+    assert.notEqual(changed.data[0].documentRef, first.data[0].documentRef);
+    assert.match(changed.data[0].content, /修订$/);
+    assert.equal(modelResultView('search_factory_knowledge', result).data[0].content, row.content);
+    assert.equal(row.searchText, '重复索引');
+    const withGuidance = { ...result, summary: `1条结果：${row.content}`, answerGuidance: { requiredEvidencePolicy: '保留依据', businessRuleStatements: [row.content] } };
+    const compact = modelResultView('search_factory_knowledge', withGuidance);
+    assert.equal(compact.data[0].content, row.content);
+    assert.equal(compact.answerGuidance.requiredEvidencePolicy, '保留依据');
+    assert.ok(compact.summary.length < withGuidance.summary.length);
+    const uniqueGuidance = { ...withGuidance, answerGuidance: { businessRuleStatements: ['正文中没有的独立事实'] } };
+    assert.deepEqual(modelResultView('search_factory_knowledge', uniqueGuidance).answerGuidance, uniqueGuidance.answerGuidance);
+});

@@ -18,7 +18,34 @@ function normalizeJsonFields(value) {
     }));
 }
 
-function modelResultView(name, result) {
+function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) {
+    if (name === 'search_factory_knowledge' && result?.success !== false && Array.isArray(result?.data)) {
+        let summary = result.summary;
+        const statements = result.answerGuidance?.businessRuleStatements;
+        const repeatedStatements = Array.isArray(statements) && statements.length > 0
+            && statements.every(statement => result.data.some(row => row.content === statement || row.summary === statement));
+        if (repeatedStatements && typeof summary === 'string') {
+            for (const statement of statements) summary = summary.replaceAll(statement, '（正文见文档）');
+        }
+        const answerGuidance = repeatedStatements
+            ? { ...result.answerGuidance, businessRuleStatements: '见本轮文档的完整正文和摘要，重复文本已合并。' }
+            : result.answerGuidance;
+        return { ...result, summary, answerGuidance, data: result.data.map(row => {
+            const plain = Object.fromEntries(Object.entries(row).filter(([key]) =>
+                !(key === 'searchText' && (row.content || row.relevantChunks?.length)) && !(key === 'metadataJson' && row.metadata) && !(key === 'tagsJson' && row.tags)));
+            const documentKeys = ['content', 'summary', 'metadata', 'tags', 'relevantChunks'];
+            const document = Object.fromEntries(documentKeys.filter(key => Object.hasOwn(plain, key)).map(key => [key, plain[key]]));
+            const key = JSON.stringify(document);
+            if (key.length < 256) return plain;
+            if (knowledgeDocuments.has(key)) {
+                for (const field of documentKeys) delete plain[field];
+                return { ...plain, documentRef: knowledgeDocuments.get(key), documentAlreadyProvided: true };
+            }
+            const documentRef = `knowledge-document-${knowledgeDocuments.size + 1}`;
+            knowledgeDocuments.set(key, documentRef);
+            return { ...plain, documentRef };
+        }), modelView: { kind: 'knowledge_without_index_duplicates', note: '省略检索索引及已有解析值的 JSON 副本；完全相同的正文/片段/元数据以 documentRef 引用本轮首次完整展示的文档。不同内容分别保留，来源与匹配等级每次保留，不代表重复命中可升级为业务依据。' } };
+    }
     if (['search_templates', 'get_template_detail'].includes(name) && result?.success !== false) {
         return { ...normalizeJsonFields(result), modelView: { kind: 'template_configuration', note: '这是泵壳模板配置，不是零件目录。bundleCost 是模板套件成本，assemblyWage/packingWage 是人工费用，均不能回答单个泵壳物料的当前单价。用户询问物料单价时，下一步用 search_parts 按原始型号查询 price；即使名称或金额相同也不能替代。用户询问模板配置、套件成本或组装试算时可使用此结果继续。' } };
     }
