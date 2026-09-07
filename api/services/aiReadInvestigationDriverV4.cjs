@@ -1,3 +1,4 @@
+const { containsEmbeddedToolProtocol } = require('./aiToolProtocol.cjs');
 const TERMINAL_INVESTIGATION_STATUSES = new Set([
     'completed',
     'completed_negative',
@@ -140,11 +141,6 @@ function providerFailureReason(error) {
         return 'provider_protocol_failure';
     }
     return 'provider_transport_failure';
-}
-
-function containsEmbeddedToolProtocol(content) {
-    return /DSML[\s\S]{0,40}tool_calls|<\/?(?:tool_calls?|function_calls?|invoke)(?:\s|>)/i
-        .test(String(content || ''));
 }
 
 async function runReadInvestigationExecutionV4(input = {}) {

@@ -218,7 +218,12 @@ function prioritizeBusinessEvidence(messages, historyMessageCount) {
     return next;
 }
 
+function containsEmbeddedToolProtocol(content) {
+    return /DSML[\s\S]{0,40}tool_calls|<\/?(?:tool_calls?|function_calls?|invoke)(?:\s|>)/i.test(String(content || ''));
+}
+
 module.exports = {
+    containsEmbeddedToolProtocol,
     MAX_AI_READ_TOOL_RESULT_BYTES,
     buildAiSynthesisEvidence,
     buildAiToolPlan,

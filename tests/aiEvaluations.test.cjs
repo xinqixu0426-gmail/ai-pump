@@ -335,6 +335,56 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     );
     assert.equal(verifiedUnavailable.status, 'passed');
 
+    // An absent recipe is equivalent negative evidence for its attachments.
+    // Keep exact target, formal source and unavailable answer requirements.
+    const parentResult = { success: false, code: 'AI_RESOURCE_NOT_FOUND', entityType: 'recipe',
+        query: 'V1600-3英寸-12-180', executionEvidence: { verified: true, kind: 'formal_api_query_failure', calls: [{ method: 'GET', path: '/api/recipes' }] } };
+    const catalog = { success: true, data: [{ id: 1, name: '另一配方' }],
+        queryReceipt: { authoritative: true, appliedFilters: {}, totalCount: 1, returnedCount: 1, truncated: false, possiblyTruncated: false },
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes' }] } };
+    const emptySearch = keyword => ({ ...catalog, data: [],
+        queryReceipt: { ...catalog.queryReceipt, totalCount: 0, returnedCount: 0, appliedFilters: { keyword } },
+        executionEvidence: { ...catalog.executionEvidence, calls: [{ method: 'GET', path: `/api/recipes?${new URLSearchParams({ keyword })}` }] } });
+    for (const [answer, expected] of [
+        ['目标配方不存在对应的性能测试报告档案，无法提供其有效测试数据。', 'passed'],
+        ['目标配方不存在无法提供报告的问题。', 'failed'],
+        ['目标配方未找到，不过现在已经找到，可以查看。', 'failed'],
+    ]) assert.equal(evaluateRuleCase(caseItem, answer, [{ name: 'get_all_recipes', result: emptySearch('V1600') }], fixture.db).status, expected);
+    for (const [result, expected] of [
+        [catalog, 'passed'],
+        [emptySearch('V1600'), 'passed'],
+        [emptySearch('v1600-3'), 'passed'],
+        [emptySearch('V1500'), 'failed'],
+        [emptySearch('3英寸'), 'failed'],
+        [emptySearch(''), 'failed'],
+        [{ ...emptySearch('V1600'), data: [{ name: 'V1600-其他' }], queryReceipt: { ...emptySearch('V1600').queryReceipt, totalCount: 1, returnedCount: 1 } }, 'failed'],
+        [{ ...emptySearch('V1600'), queryReceipt: { ...emptySearch('V1600').queryReceipt, appliedFilters: { keyword: 'V1600', hasTechnicalFiles: false } } }, 'failed'],
+        [{ ...catalog, success: false }, 'failed'],
+        [{ ...catalog, data: [{ name: 'V1600-3英寸-12-180' }] }, 'failed'],
+        [{ ...catalog, data: [{}] }, 'failed'],
+        [{ ...catalog, queryReceipt: { ...catalog.queryReceipt, totalCount: 2 } }, 'failed'],
+        [{ ...catalog, queryReceipt: { ...catalog.queryReceipt, truncated: true } }, 'failed'],
+        [{ ...catalog, queryReceipt: { ...catalog.queryReceipt, authoritative: false } }, 'failed'],
+        [{ ...catalog, queryReceipt: { ...catalog.queryReceipt, appliedFilters: { hasTechnicalFiles: false } } }, 'failed'],
+        [{ ...catalog, executionEvidence: { verified: false } }, 'failed'],
+        [{ ...catalog, executionEvidence: { ...catalog.executionEvidence, calls: [{ method: 'GET', path: '/api/recipes?keyword=abc' }] } }, 'failed'],
+    ]) {
+        assert.equal(evaluateRuleCase(caseItem, '未找到目标配方，无法读取对应性能测试报告。',
+            [{ name: 'get_all_recipes', result }], fixture.db).status, expected);
+    }
+    for (const [result, expected] of [
+        [parentResult, 'passed'],
+        [{ ...parentResult, query: 'V1600' }, 'failed'],
+        [{ ...parentResult, entityType: 'template' }, 'failed'],
+        [{ ...parentResult, code: 'AI_PROVIDER_NETWORK_ERROR' }, 'failed'],
+        [{ ...parentResult, success: true, code: undefined }, 'failed'],
+        [{ ...parentResult, executionEvidence: { verified: false } }, 'failed'],
+        [{ ...parentResult, executionEvidence: { ...parentResult.executionEvidence, calls: [{ method: 'GET', path: '/api/knowledge' }] } }, 'failed'],
+    ]) {
+        assert.equal(evaluateRuleCase(caseItem, '未找到目标配方，无法读取对应性能测试报告。',
+            [{ name: 'get_recipe_detail', result }], fixture.db).status, expected);
+    }
+
     const substitutedRecipe = evaluateRuleCase(
         caseItem,
         '未找到 V1600-3"-12-180，不过相近配方 v1500-DY-ml 的附件是性能测试报告。',
@@ -840,6 +890,23 @@ test('AI 评测：线圈绕组档案必须来自正式查询并逐项匹配已�
     );
     assert.equal(unavailable.status, 'passed');
     emptyFixture.db.close();
+});
+
+test('AI 评测：唯一绕组方案允许身份在数据之后，但仍拒绝错值和缺失身份', () => {
+    const fixture = createFixture();
+    fixture.db.prepare('DELETE FROM coils').run();
+    fixture.db.prepare(`INSERT INTO coils (id, spec, sheets, scheme_status, material, slot_type, main_wire_gauge, main_wire_data, aux_wire_gauge, aux_wire_data)
+        VALUES (7, '18', 160, 'official', '钢带', '小眼', '0.64', '44-44', '0.49', '78-78')`).run();
+    const config = { fact: { type: 'coil_winding_profile', spec: '18', sheets: 160 } };
+    const toolResults = [{ name: 'search_coils', result: { success: true, count: 1,
+        filters: { spec: '18', sheets: 160 },
+        data: [{ id: 7, material: '钢带', slotType: '小眼', mainWireGauge: '0.64', mainWireData: '44-44', auxWireGauge: '0.49', auxWireData: '78-78' }],
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } } }];
+    const data = '主线线径0.64，主线绕组44-44，副线线径0.49，副线绕组78-78。';
+    assert.equal(evaluateRuleCase({ config }, `${data}\n此方案为钢带材质、小眼。`, toolResults, fixture.db).status, 'passed');
+    assert.equal(evaluateRuleCase({ config }, `${data.replace('0.64', '0.65')}\n此方案为钢带材质、小眼。`, toolResults, fixture.db).status, 'failed');
+    assert.equal(evaluateRuleCase({ config }, data, toolResults, fixture.db).status, 'failed');
+    fixture.db.close();
 });
 
 test('AI 评测：相同材质或槽眼的多方案绕组值不能跨方案串用', () => {

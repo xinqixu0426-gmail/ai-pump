@@ -7,7 +7,7 @@ const { trimAiContext } = require('./aiContext.cjs');
 const { validateAiToolArgs } = require('./aiToolInputValidatorV2.cjs');
 const { validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
 const { hasVerifiedExecution, safeMissingBusinessEvidenceReply } = require('./aiExecutionEvidence.cjs');
-const { enforceAiToolResultBudget, buildAiToolResultMessage } = require('./aiToolProtocol.cjs');
+const { enforceAiToolResultBudget, buildAiToolResultMessage, containsEmbeddedToolProtocol } = require('./aiToolProtocol.cjs');
 const { buildFactoryAiRulesPrompt } = require('./factoryAiRules.cjs');
 const { estimateTextTokens, estimateAiMessagesTokens, resolveAiTokenBudgets, normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 const { modelResultView, previousContext, compactToolDescriptions } = require('./aiAssistantContext.cjs');
@@ -16,7 +16,7 @@ const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
 const { createInternalFetch, getJson, postJson } = require('../routes/ai/internalApiClient.cjs');
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
-const { unsupportedMoneyInAnswer, formatMoneySummary } = require('./aiAssistantAnswer.cjs');
+const { unsupportedMoneyInAnswer, formatMoneySummary, verifiedMissingTarget, unfinishedReply, missingPreviewTotals } = require('./aiAssistantAnswer.cjs');
 
 const MAX_TOOL_CALLS = 10;
 const MAX_TOOL_ROUNDS = 7;
@@ -24,6 +24,8 @@ const SYSTEM_PROMPT = `你是工厂主人独自使用的私人业务助理。使
 所有提供的只读工具都可以自由组合，跨类型、跨业务、单对象、列表和全局没有分类权限限制。
 根据实际结果继续搜索、分页、读取明细、比较和调查，不需要事先固定计划，也不需要等待查询失败才换工具。
 名称、简称可能属于线圈、零件、模板或配方：结合用户记忆理解，没有明确类型时主动搜索相关正式目录。
+零件或泵壳物料的目录单价来自 search_parts；模板套件配置价不能替代零件目录价。查询技术档案必须使用 get_recipe_technical_files 按用户原始目标核实，目录没找到也不能只凭目录搜索结束。资料不存在时仅说明目标的缺失，不列举其他对象的报告或推测目标可能属于哪个相近对象；用户明确要找替代项时才提供替代候选。
+用途、适配和专用关系须由 search_factory_knowledge 中的正式 business_rules 支持，型号含相似字词不能证明用途。没有明确关系记录时直说“系统未明确记录，无法确认”。性能测试资料称为测试报告，模板中的规定点、实测点、偏差不作为有效技术结论；只使用可验证的测试曲线或明确结论。
 明确指定的类型和型号不能偷偷替换；零结果可调整参数或查别的类型，但必须说明差异。多候选展示真实候选，按用户选择继续原问题；“两个都看”分别查询。
 会话中旧查询结果只用于理解指代和候选，实时成本、价格、库存和订单状态必须在本轮重新查。页面与用户回传信息也不是正式事实。
 所有实时数据来自正式工具。成本和成本差额使用正式成本工具，配方比较优先 compare_recipes；不得自己重算成本。当前成本不能用保存快照替代。
@@ -60,6 +62,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     let calls = 0, finalContent = '', outcome = 'completed';
     let answerRepair = false;
     let evidenceReminder = false;
+    let protocolRepair = false;
     try {
         abortIfNeeded(input.signal);
         const internalFetch = createInternalFetch({ signal: input.signal });
@@ -123,6 +126,16 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             const proposed = answer.tool_calls || [];
             if (!proposed.length) {
                 finalContent = String(answer.content || '');
+                if (containsEmbeddedToolProtocol(finalContent)) {
+                    if (!protocolRepair && offered.length && round < MAX_TOOL_ROUNDS - 1) {
+                        protocolRepair = true;
+                        current.push({ role: 'system', content: '上一响应把内部工具协议写进正文，不能展示或作为实际调用。需要继续查询时请使用标准 tool_calls；已有结果足够或目标已核实不存在时，直接给出自然语言结论。' });
+                        continue;
+                    }
+                    outcome = 'failed_protocol';
+                    finalContent = unfinishedReply(toolResults, '模型未能返回有效的最终回答，本轮已停止。');
+                    break;
+                }
                 const userAmounts = new Set(unsupportedMoneyInAnswer(latest.content, []));
                 if (!toolResults.length && unsupportedMoneyInAnswer(finalContent, []).some(value => !userAmounts.has(value))) {
                     if (!evidenceReminder && round < MAX_TOOL_ROUNDS - 1) {
@@ -143,10 +156,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         continue;
                     }
                     outcome = 'failed_answer';
-                    finalContent = formatMoneySummary(toolResults) || '已取得下方正式查询明细，但本次文字回答包含无法核对的金额，已停止展示该结论。';
+                    finalContent = formatMoneySummary(toolResults, { includeQueries: true }) || '已取得下方正式查询明细，但本次文字回答包含无法核对的金额，已停止展示该结论。';
                 }
                 // Empty summaries and leaked formatting instructions must not replace the requested amounts.
-                if (!/[¥￥]|\d\s*元/.test(finalContent) || /仅修正文案|请再修正|未受正式金额字段|不要再调用工具/.test(finalContent)) {
+                if (missingPreviewTotals(finalContent, toolResults) || !/[¥￥]|\d\s*元/.test(finalContent) || /仅修正文案|请再修正|未受正式金额字段|不要再调用工具/.test(finalContent)) {
                     const summary = formatMoneySummary(toolResults);
                     if (summary) finalContent = summary;
                 }
@@ -154,7 +167,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             }
             if (calls + proposed.length > MAX_TOOL_CALLS || offered.length === 0) {
                 outcome = 'budget_exhausted';
-                finalContent = '已达到本次查询预算，尚未完成全部核实。请分批继续查询；已取得的结果保留在下方。';
+                finalContent = unfinishedReply(toolResults);
                 break;
             }
             current.push({ role: 'assistant', content: '', ...(answer.reasoning_content ? { reasoning_content: answer.reasoning_content } : {}), tool_calls: proposed });
@@ -176,7 +189,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         result = await execute(name, args, { allowWrite: false, confirmationSubject: input.confirmationSubject, signal: input.signal });
                         if (result?.success !== false && !hasVerifiedExecution(result)) result = { success: false, code: 'AI_MISSING_EXECUTION_EVIDENCE', error: '工具没有返回正式 API 执行证据，不能作为业务事实。' };
                         result = enforceAiToolResultBudget(name, result, toolResults, 96 * 1024);
-                        if (result?.success !== false) seen.set(key, result);
+                        if (result?.success !== false || verifiedMissingTarget(result)) seen.set(key, result);
                     }
                 } catch (error) {
                     abortIfNeeded(input.signal);
@@ -189,7 +202,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 current.push(buildAiToolResultMessage(call, modelResultView(name, result)));
             }
         }
-        if (!finalContent) { outcome = 'budget_exhausted'; finalContent = '本次调查达到轮次上限，尚未完成。已取得的查询结果保留在下方。'; }
+        if (!finalContent) { outcome = 'budget_exhausted'; finalContent = unfinishedReply(toolResults); }
         if (toolResults.length && !toolResults.some(item => hasVerifiedExecution(item.result))) {
             outcome = 'failed_evidence'; finalContent = safeMissingBusinessEvidenceReply(toolResults);
         }

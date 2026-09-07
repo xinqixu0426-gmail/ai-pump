@@ -24,6 +24,7 @@ const {
 } = require('./aiTokenBudget.cjs');
 const {
     MAX_AI_READ_TOOL_RESULT_BYTES,
+    containsEmbeddedToolProtocol,
     buildAiSynthesisEvidence,
     buildAiToolPlan,
     buildAiToolResultMessage,
@@ -235,11 +236,6 @@ function aggregateProviderUsage(items = []) {
         completionTokens: sum('completionTokens'),
         totalTokens: sum('totalTokens'),
     };
-}
-
-function containsEmbeddedToolProtocol(content) {
-    const text = String(content || '');
-    return /DSML[\s\S]{0,40}tool_calls|<\/?(?:tool_calls?|function_calls?|invoke)(?:\s|>)/i.test(text);
 }
 
 function buildClarificationReply(intent) {

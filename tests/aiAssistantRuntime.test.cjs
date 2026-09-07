@@ -271,3 +271,109 @@ test('candidate directory prices cannot be rendered as a completed cost preview'
     const { formatMoneySummary } = require('../api/services/aiAssistantAnswer.cjs');
     assert.equal(formatMoneySummary([{ name: 'calculate_coil_cost', result: verified({ requiresVariantSelection: true, variants: [{ schemeCode: 'A', cost: 100 }] }) }]), '');
 });
+
+test('cost fallback preserves current total and formal configuration, including incomplete pricing', () => {
+    const { formatMoneySummary } = require('../api/services/aiAssistantAnswer.cjs');
+    for (const pricingComplete of [true, false]) {
+        const result = formatMoneySummary([{ name: 'build_recipe_bom_draft', result: verified({
+            parts: [{ model: '壳体-A', name: '泵壳套件' }, { model: '18-160', name: '线圈转子' }, { model: '泡沫', name: '包装' }],
+            costPreview: { currentTotalCost: '253.23', partsCost: 232.23, laborCost: 21, pricingComplete },
+        }) }]);
+        assert.match(result, /当前总成本.*253.23/);
+        assert.match(result, /壳体-A.*18-160.*泡沫/);
+        assert.equal(result.includes('不是完整报价'), !pricingComplete);
+    }
+});
+
+test('formal monetary evidence includes copper price basis but excludes IDs, weights and unverified data', () => {
+    const { unsupportedMoneyInAnswer } = require('../api/services/aiAssistantAnswer.cjs');
+    const tools = [{ result: verified({ copperBase: 109.91, cost: 166.7136, id: 456, wireWeight: 0.96 }) },
+        { result: { success: true, data: { price: 999 } } }];
+    assert.deepEqual(unsupportedMoneyInAnswer('铜价109.91元，成本166.71元', tools), []);
+    assert.deepEqual(unsupportedMoneyInAnswer('456元，0.96元，999元', tools), [456, 0.96, 999]);
+});
+
+test('invalid answer falls back to query receipt amounts with complete candidate identities', async () => {
+    const result = await runAiAssistant(input('列出线圈方案和档案成本'), fixture([
+        { tool_calls: [call('search_coils', { spec: '18' })] },
+        { content: '999元' }, { content: '998元' },
+    ], { executeToolCall: async () => verified([
+        { schemeCode: 'COIL-A', spec: '18', sheets: 160, material: '钢带', slotType: '小眼', cost: 166.7136 },
+        { schemeCode: 'COIL-B', spec: '18', sheets: 160, material: '冷轧', slotType: '国标眼', cost: 195.84155 },
+    ]) }));
+    assert.match(result.finalContent, /COIL-A.*18-160.*钢带.*小眼.*166.7136/);
+    assert.match(result.finalContent, /COIL-B.*冷轧.*国标眼.*195.84155/);
+    assert.doesNotMatch(result.finalContent, /999|998/);
+});
+
+test('missing target feedback and budget answers preserve formal negatives, never network failures', () => {
+    const { unfinishedReply } = require('../api/services/aiAssistantAnswer.cjs');
+    for (const entityType of ['recipe', 'part', 'customer']) {
+        const missing = { success: false, code: 'AI_RESOURCE_NOT_FOUND', query: '精确目标-A', entityType,
+            error: '未找到精确目标-A', executionEvidence: { verified: true, kind: 'formal_api_query_failure' } };
+        assert.equal(modelResultView('get_recipe_detail', missing).modelView.kind, 'verified_target_missing');
+        assert.match(unfinishedReply([{ result: missing }]), /已核实[\s\S]*未找到精确目标-A/);
+        for (const result of [{ ...missing, executionEvidence: { verified: false } }, { ...missing, code: 'AI_PROVIDER_NETWORK_ERROR' }]) {
+            assert.equal(modelResultView('get_recipe_detail', result).modelView, undefined);
+            assert.doesNotMatch(unfinishedReply([{ result }]), /已核实/);
+        }
+    }
+});
+
+test('query cost fields do not overwrite a valid nonfinancial answer', async () => {
+    const result = await runAiAssistant(input('线圈库存有多少'), fixture([
+        { tool_calls: [call('search_coils', { spec: '18' })] }, { content: '当前库存5套。' },
+    ], { executeToolCall: async () => verified([{ stock: 5, cost: 123 }]) }));
+    assert.equal(result.finalContent, '当前库存5套。');
+});
+
+test('a raw provider tool protocol is never published or executed and preserves verified negative facts', async () => {
+    const protocol = '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="create_part">x</｜｜DSML｜｜invoke>';
+    let executions = 0;
+    const events = [];
+    const result = await runAiAssistant({ ...input('查不存在的配方'), emit: (type, payload) => { if (type === 'content') events.push(payload.content); } }, fixture([
+        { tool_calls: [call('get_recipe_detail', { recipeName: '不存在-A' })] },
+        { content: protocol }, { content: protocol },
+    ], { executeToolCall: async () => { executions++; return { success: false, code: 'AI_RESOURCE_NOT_FOUND', query: '不存在-A', entityType: 'recipe', error: '未找到配方：不存在-A', executionEvidence: { verified: true, kind: 'formal_api_query_failure' } }; } }));
+    assert.equal(executions, 1);
+    assert.equal(result.telemetry.outcome, 'failed_protocol');
+    assert.match(result.finalContent, /未找到配方：不存在-A/);
+    assert.doesNotMatch(events.join(''), /DSML|create_part|invoke/);
+});
+
+test('a raw material price cannot stand in for an obtained total cost', async () => {
+    const result = await runAiAssistant(input('配方A成本'), fixture([
+        { tool_calls: [call('preview_recipe_cost', { recipeName: 'A' })] },
+        { content: '以上金额按铜价109.91元核算。' },
+    ], { executeToolCall: async () => verified({ copperBase: 109.91, currentTotalCost: 253.23 }) }));
+    assert.match(result.finalContent, /当前总成本.*253.23/);
+});
+
+test('verified missing targets are not re-executed and remain visible when tool budget is exhausted', async () => {
+    let calls = 0;
+    const missing = { success: false, code: 'AI_RESOURCE_NOT_FOUND', query: '不存在-A', entityType: 'recipe',
+        error: '未找到配方：不存在-A', executionEvidence: { verified: true, kind: 'formal_api_query_failure' } };
+    const result = await runAiAssistant(input('查看不存在-A的资料'), fixture([
+        { tool_calls: [call('get_recipe_detail', { recipeName: '不存在-A' }, 'a')] },
+        { tool_calls: [call('get_recipe_detail', { recipeName: '不存在-A' }, 'b')] },
+        { tool_calls: Array.from({ length: 9 }, (_, i) => call('get_all_recipes', { keyword: String(i) }, `c${i}`)) },
+    ], { executeToolCall: async () => { calls++; return missing; } }));
+    assert.equal(calls, 1);
+    assert.match(result.finalContent, /未找到配方：不存在-A/);
+    assert.equal(result.telemetry.outcome, 'budget_exhausted');
+});
+
+test('empty formal query feedback preserves scope and rejects incomplete or failed evidence', () => {
+    const { verifiedEmptyQuery, unfinishedReply } = require('../api/services/aiAssistantAnswer.cjs');
+    const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
+    const result = { success: true, data: [], queryReceipt: { authoritative: true, appliedFilters: { keyword: '范围A' }, totalCount: 0, returnedCount: 0, truncated: false, possiblyTruncated: false }, executionEvidence: { verified: true, kind: 'formal_api_query' } };
+    assert.equal(verifiedEmptyQuery(result), true);
+    assert.equal(modelResultView('get_all_recipes', result).modelView.kind, 'verified_empty_query');
+    assert.match(unfinishedReply([{ name: 'get_all_recipes', result }]), /范围A/);
+    for (const invalid of [
+        { ...result, success: false },
+        { ...result, executionEvidence: { verified: false } },
+        { ...result, data: [{ id: 1 }] },
+        ...['authoritative', 'truncated', 'possiblyTruncated', 'totalCount', 'returnedCount'].map(key => ({ ...result, queryReceipt: { ...result.queryReceipt, [key]: key === 'authoritative' ? false : 1 } })),
+    ]) assert.equal(verifiedEmptyQuery(invalid), false);
+});

@@ -19,6 +19,12 @@ function normalizeJsonFields(value) {
 }
 
 function modelResultView(name, result) {
+    if (require('./aiAssistantAnswer.cjs').verifiedEmptyQuery(result)) {
+        return { ...result, modelView: { kind: 'verified_empty_query', note: '正式查询成功，所列 appliedFilters 范围内没有匹配记录，不是接口失败。不要重复同一查询或不断尝试近似关键词；这不证明其他范围也为空。核实具体对象时可直接用用户原始完整名称调用详情以消歧或确认不存在，然后回答原问题。其他独立问题仍可继续查询。' } };
+    }
+    if (require('./aiAssistantAnswer.cjs').verifiedMissingTarget(result)) {
+        return { ...result, modelView: { kind: 'verified_target_missing', note: '正式查询已确认此 query 目标不存在，不是接口故障。保留原始目标和这个结论，不需要换多个相似关键词反复证明不存在。若用户还有独立问题可继续查询；相近对象的资料不能代替此目标。' } };
+    }
     const detailTool = LIST_DETAILS[name];
     if (!detailTool || result?.success === false || !Array.isArray(result?.data)) return normalizeJsonFields(result);
     return {

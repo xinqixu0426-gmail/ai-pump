@@ -196,7 +196,7 @@ function containsUnavailableConclusion(answer, configuredTerms = [], subjectTerm
         .map(normalizeTargetText)
         .filter(Boolean);
     const unavailablePattern = /(?:未|没有|无|暂无).{0,48}(?:找到|查询到|查到|登记|记录|建立|建档|正式方案|匹配)|(?:查|查询|检索|匹配)不到|不存在|无法(?:查询|查看|读取|提供|确认)|(?:尚未|还未|没有|暂无).{0,24}(?:归档|上传|建立档案)|(?:返回(?:数量)?|记录数|结果|命中数|方案数).{0,12}(?:为|是|共)?0(?:条|个|份|项|套|种)?/;
-    const availabilityReversal = /不存在.{0,18}(?:无法(?:查询|查看|读取|提供)|问题|障碍)|(?:未找到|没有找到|查不到|查询不到|检索不到|匹配不到|不存在|无法(?:查询|查看|读取|提供|确认)).{0,96}(?:但|不过|然而|却|后来|后续|现(?:在)?|实际).{0,48}(?:已找到(?![^。！？]{0,12}(?:相近|候选))|已经找到(?![^。！？]{0,12}(?:相近|候选))|可以查看|可查看|已经提供|已提供|实际存在|确实存在|(?:目标|该|这个)?(?:配方|型号|报告|附件|资料|档案|方案).{0,8}(?:已|已经)?存在)/;
+    const availabilityReversal = /不存在[^，。！？\n]{0,18}(?:问题|障碍)|(?:未找到|没有找到|查不到|查询不到|检索不到|匹配不到|不存在|无法(?:查询|查看|读取|提供|确认)).{0,96}(?:但|不过|然而|却|后来|后续|现(?:在)?|实际).{0,48}(?:已找到(?![^。！？]{0,12}(?:相近|候选))|已经找到(?![^。！？]{0,12}(?:相近|候选))|可以查看|可查看|已经提供|已提供|实际存在|确实存在|(?:目标|该|这个)?(?:配方|型号|报告|附件|资料|档案|方案).{0,8}(?:已|已经)?存在)/;
     if (availabilityReversal.test(normalized)) return false;
     return normalized
         .split(/[。！？\n]/)
@@ -253,7 +253,7 @@ function profileAnswerSegments(answer, profiles) {
             .sort((left, right) => left - right)[0];
         return [
             Number(profile.id),
-            !startIsUnique ? '' : text.slice(start, nextStart ?? text.length),
+            !startIsUnique ? '' : profiles.length === 1 ? text : text.slice(start, nextStart ?? text.length),
         ];
     }));
 }
@@ -267,8 +267,35 @@ function verifiedRecipeReportObservation(config, prerequisite, toolResults = [])
     );
     const targetName = normalizeTargetText(prerequisite?.recipeName);
     for (const tool of toolResults) {
-        if (!requiredTools.has(String(tool?.name || ''))) continue;
         const result = tool?.result && typeof tool.result === 'object' ? tool.result : {};
+        // The recipes API uses case-insensitive substring search, not fuzzy search.
+        // Empty results for a literal ASCII fragment of the original name prove
+        // absence too, without assuming punctuation/alias normalization by the API.
+        const receipt = result.queryReceipt;
+        const filters = receipt?.appliedFilters;
+        const keyword = String(filters?.keyword || '');
+        const emptyNameScope = Array.isArray(result.data) && result.data.length === 0
+            && filters && Object.keys(filters).length === 1 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(keyword)
+            && String(prerequisite?.recipeName || '').toLowerCase().includes(keyword.toLowerCase());
+        const wholeCatalog = filters && Object.keys(filters).length === 0;
+        const expectedPath = emptyNameScope ? `/api/recipes?${new URLSearchParams({ keyword })}` : '/api/recipes';
+        if (targetName && tool?.name === 'get_all_recipes' && result.success === true
+            && result.executionEvidence?.verified === true && result.executionEvidence.kind === 'formal_api_query'
+            && result.executionEvidence.calls?.some(call => call.method === 'GET' && call.path === expectedPath)
+            && receipt?.authoritative === true && receipt.truncated === false && receipt.possiblyTruncated === false
+            && (wholeCatalog || emptyNameScope)
+            && Array.isArray(result.data) && receipt.totalCount === result.data.length && receipt.returnedCount === result.data.length
+            && result.data.every(row => typeof row?.name === 'string' && normalizeTargetText(row.name) !== targetName)) {
+            return { kind: 'verified_unavailable', toolName: tool.name };
+        }
+        // A formally absent parent recipe proves its report is unavailable too.
+        // A positive detail, a shortened name or a transport failure does not.
+        const missingParent = tool?.name === 'get_recipe_detail'
+            && result.success === false && result.code === 'AI_RESOURCE_NOT_FOUND'
+            && result.entityType === 'recipe'
+            && result.executionEvidence?.kind === 'formal_api_query_failure'
+            && result.executionEvidence.calls?.some(call => call.method === 'GET' && call.path === '/api/recipes');
+        if (!requiredTools.has(String(tool?.name || '')) && !missingParent) continue;
         if (result.executionEvidence?.verified !== true) continue;
         const entityType = String(
             result.entityType
