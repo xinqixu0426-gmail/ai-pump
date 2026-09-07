@@ -1,6 +1,6 @@
 # V5 Bounded Collection Read V1
 
-Current contract includes the local P16-M customer candidate discovery and explicit coil choice extension. Earlier P16-L-R4 90/90 semantic and30/30 UAT results certify that historical artifact only. Current local/production status and owner decisions are recorded in the P16-M report; this contract does not claim deployment.
+Current contract includes P16-M customer candidate discovery and explicit coil choice. Isolated owner Candidate revision c98dd7e enables this extension; Legacy is unchanged. Local evidence covers bounded customer pages and two-coil choices. Production customer selection and coil one/both choices passed actual owner conversations. Production currently has one customer, so customer multi-page selection remains locally certified and production-inapplicable rather than production-passed. Earlier P16-L-R4 90/90 semantic and30/30 UAT results certify that historical artifact only. Current deployment, acceptance limits and rollback evidence are recorded in the P16-M report.
 
 ## Scope and admission
 
@@ -48,6 +48,6 @@ Coil detail preserves the existing single-span bridge when multi-read is off. Wh
 
 ## Transport, safety and release
 
-Normal R1 frontend supplies conversationId; no technical pagination or fact header is needed. Owner multi-turn plain-text history can attempt a collection-only path with the last original user text; the server retains authoritative continuation, not the client transcript. Legacy receives the original history on fallback. Source/authentication and all non-owner behavior are unchanged. Candidate is separate and read-only; Legacy must not restart. Production activation is conditional on the P16-L report's local and production gates, not on this contract document.
+Normal R1 frontend supplies conversationId; no technical pagination or fact header is needed. Owner multi-turn plain-text history can attempt a collection-only path with the last original user text; the server retains authoritative continuation, not the client transcript. Legacy receives the original history on fallback. Source/authentication and all non-owner behavior are unchanged. Candidate is separate and read-only; Legacy must not restart. Current activation and actual rollback/reapply evidence are in the P16-M report. An invalid signed context is rejected by the Candidate SSE error protocol before execution; HTTP200 alone is not evidence of admission. Without certified current state, ordinal text receives no risk bypass and cannot reuse a different conversation's candidates.
 
 Tests cover SQL boundedness/count/detail, source-exact identity, formal Executor/API chain, concurrency, isolation/tampering/expiry and nonmutating middleware. Natural-language UAT and deployment outcomes are recorded separately, without request/answer/business values.

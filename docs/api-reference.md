@@ -436,7 +436,7 @@ Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 ent
 
 集合继续/序号引用只由认证主体 + conversationId 命名空间内的服务器状态决定；10分钟 TTL，最多128个活跃会话，每会话并发执行拒绝，游标/令牌/行 ID 不传模型。待选择状态复用同一存储/租约，额外冻结原始目的（客户详情、该客户订单或线圈详情）、候选查询与页；分页/细化不延长初始10分钟期限。只有 task/context 作用域内的已验证正式页/精确身份读取能签发不透明候选证明；快照修改、假证明、错令牌、错主体/会话均不能执行。序号选择保留原始目的：客户订单选择后走正式 customer.orders 调查并重新读取客户根对象，不降级为客户详情。新无关问题清除待选目的；夹带修改的选择不匹配闭集控制语法，必须过风险门，绝无写授权。每页是独立只读事务，跨页不保证历史快照。待选择回复只声明候选，不表示原调查已完成；显示业务字段仅来自验证后的批准投影，无答案模型、业务重算或行/值遥测。
 
-### 有界关系调查读取（Candidate-only，P16-M 本地认证中）
+### 有界关系调查读取（Candidate-only，P16-M）
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
@@ -450,7 +450,7 @@ recipe.parts 必须返回 `referenceResolution:{version:1,allResolved,sourceRefe
 
 parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/attention(stock≤5)/ok(stock>5)，SQL在传输前过滤、计数和分页，NULL库存沿用正式查询的0口径。part.facts 是当前目录库存及目录单价（元/目录数量单位），不是制造成本或成品库存。结果字段由每类投影白名单验证，包含 canonical identities、queryId、语义、过滤、排序、总数、页边界、asOf、provenance及单位；不透传未知DTO字段。
 
-`AI_V5_MULTI_READ_ENABLED` 源码默认 OFF，当前生产不启用。当前本地语义 V6 使用29项闭集：10项调查选择映射7类正式关系计划，另复用15项集合目录及4项窄事实委托选项。各调查选择保留正式关系 semantics 与通用描述，双事实选择明确要求 inventory.quantity 和 price.current；这些是目录元数据，不授予模型执行权限。委托仅返回既有读取流程，不执行调查、不解析调查根、不改变原执行权限；模型不能生成步骤/Tool/API/自由参数。明确引用的源文本经语法提取；其他根消费既有选择器的两个源跨度，通过原 governed candidate union 查询并保留歧义，再按冻结根类型确认唯一目标，不能取第一个结果。所有根均必须 governed lookup；不适用调查的请求不要求调查源跨度。调查最多4步；当前根详情→关系为2步，集合库存为1步，identity lookup另计。前一步 VERIFIED canonical ID 才能绑定后一步；计划篡改、错误根或任一步证据失败禁止回答。Answer Composer为确定性模板，无工具/模型调查循环。关系页沿用P16-L主体+conversationId状态、10分钟TTL、128会话上限、同会话lease、冻结query和token校验；继续不重规划/重分类过滤，订单行快照不允许作为订单ordinal目标。入口语义测试不能替代完整执行及生产认证。
+`AI_V5_MULTI_READ_ENABLED` 源码默认 OFF；隔离 owner Candidate c98dd7e 已单独启用，Legacy 未变。客户多页的生产数据适用性限制和线圈单选/双选生产证据见 P16-M 报告，不将本地结果冒充生产通过。语义 V6 使用29项闭集：10项调查选择映射7类正式关系计划，另复用15项集合目录及4项窄事实委托选项。各调查选择保留正式关系 semantics 与通用描述，双事实选择明确要求 inventory.quantity 和 price.current；这些是目录元数据，不授予模型执行权限。委托仅返回既有读取流程，不执行调查、不解析调查根、不改变原执行权限；模型不能生成步骤/Tool/API/自由参数。明确引用的源文本经语法提取；其他根消费既有选择器的两个源跨度，通过原 governed candidate union 查询并保留歧义，再按冻结根类型确认唯一目标，不能取第一个结果。所有根均必须 governed lookup；不适用调查的请求不要求调查源跨度。调查最多4步；当前根详情→关系为2步，集合库存为1步，identity lookup另计。前一步 VERIFIED canonical ID 才能绑定后一步；计划篡改、错误根或任一步证据失败禁止回答。Answer Composer为确定性模板，无工具/模型调查循环。关系页沿用P16-L主体+conversationId状态、10分钟TTL、128会话上限、同会话lease、冻结query和token校验；继续不重规划/重分类过滤，订单行快照不允许作为订单ordinal目标。入口语义测试不能替代完整执行及生产认证。
 
 持久化 Candidate 的独立监督配置 `multiReadEnabled` 仅布尔 `true` 映射到 `AI_V5_MULTI_READ_ENABLED=true`；缺省、字符串或其他值均为 OFF，不从 Legacy `.env` 隐式继承开启。不改变 owner 默认路由或鉴权，不启用写权限；更换 Candidate 配置/工件可以独立回滚，Legacy 不重启。监督输出仅新增闭集 investigationType、最多4步的 plannedSteps 元数据，不记录业务内容。
 
