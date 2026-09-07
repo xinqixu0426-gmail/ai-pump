@@ -420,17 +420,21 @@ Candidate 接收单条 user message；上述认证纯文本多轮仅通过 colle
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/collections/read` | `{resourceType, operation, pageSize?, afterId?, targetId?, identity?, status?, customerName?}` | 能力 `collections.read` / AI Tool `read_collection`。五类资源 orders/customers/parts/recipes/coils；list/count/detail；严格 schema、未知字段拒绝。默认20、最多50条，SQL `id DESC` + keyset + LIMIT，在转移前有界。count 是同过滤条件的正式 COUNT，不取当前页长度 |
+| `POST` | `/api/collections/read` | `{resourceType, operation, pageSize?, afterId?, targetId?, identity?, status?, customerName?, customerKeyword?}` | 能力 `collections.read` / AI Tool `read_collection`。五类资源 orders/customers/parts/recipes/coils；list/count/detail；严格 schema、未知字段拒绝。默认20、最多50条，SQL `id DESC` + keyset + LIMIT，在转移前有界。count 是同过滤条件的正式 COUNT，不取当前页长度；customerKeyword 仅 customers/list，响应同时返回正式 totalCount |
 
 这是 Query，沿用正式 JWT/内部访问认证；Candidate 仅内部认证。无需 allowWrite、确认或业务审计；只读事务同时读取计数和页。列表仅传资源已批准识别字段与 canonicalId；详情在 Business service 内先应用 `<resource>.detail.v1` 白名单投影，再检查8192字节的投影上限，之后才序列化传输。订单原始 items_json 仅在服务端解析，最多50条明细只保留 recipeName/qty/unitPrice，不开放配置或成本快照；备注最多512字符。批准投影超长、嵌套条数超限、身份多匹配或读取失败均拒绝，不截断原始字符串或按大小临时删字段。详细 schema、投影和边界见 [有界集合契约](ai-governance/v5-bounded-collection-read-v1.md)。现有256KiB保护不变。
 
-Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup，保留完整跨域候选集。详情绑定器仅按 Collection Semantic Intent 已冻结的资源类型作确定性筛选：同类型0个为 NOT_FOUND，多于1个为 AMBIGUOUS，只有恰好1个才转为 `targetId` 传给 read_collection；不完整查询仍拒绝，不选首项、不做模糊排序。模型不能给出 ID 或自行计算字符偏移，客户端不能覆盖资源类型。序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。该集合实现已通过 R4 本地语义90/90与单次完整 UAT30/30；生产认证仍由阶段报告独立记录。
+Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 entity lookup，保留完整跨域候选集。详情绑定器仅按 Collection Semantic Intent 已冻结的资源类型作确定性筛选：同类型0个为 NOT_FOUND，多于1个为 AMBIGUOUS，只有恰好1个才自动转为 `targetId`；不完整查询仍拒绝，不选首项、不做模糊排序。启用 Candidate 的 multi-read 分支时，客户精确未找到/歧义可以进入候选搜索，线圈精确歧义可以进入下述显式选择；其他目标继续 fail-closed。模型不能给出 ID 或自行计算字符偏移，客户端不能覆盖资源类型。普通序号详情仍只使用当前认证会话页中的 canonical identity。继续请求复用服务器冻结的 resource/filter/sort/pageSize/queryId，仅改变页边界；拒绝替换过滤字段或页大小。历史 R4 认证与当前候选交互验收分开记录，不沿用旧制品哈希声明当前认证。
 
 集合语义 V1 在原模型调用位置使用15项资源×list/count/detail闭集目录；filterClass 与正式订单过滤枚举一致，topN 为1..50，详情只能提交源跨度引用。既有风险模型经独立 READ_SAFE/WRITE_OR_MUTATION/UNAVAILABLE_OR_UNKNOWN 适配后，READ_SAFE 才可进入集合选择；needsBusinessData 不充当写风险，原窄读门禁保持。R4 仅对已认证会话内、未过期且由 VERIFIED 集合证据登记的纯续页控制命令，在风险模型前绑定冻结查询；风险和集合模型调用均为0。无状态、过期、错主体/会话、混合修改语句不能绕过风险；序号详情仅在完整闭集语法匹配、已认证主体/会话下存在未过期 VERIFIED 列表页且 N=1..50 对应行实际存在时，风险前确定性绑定当前页 canonical 行引用，风险/集合模型调用为0；无状态、越界、错主体/会话或夹带修改指令均无绕过。customerSpanRef 仅用于订单客户过滤；所有资源详情只用 detailSpanRef，严格拒绝字段角色冲突。语义失败属于覆盖不可用，不伪装成写风险；所有失败仍走现有 Legacy fallback。
 
-订单过滤只支持正式状态、`active`（排除已关闭/已取消）和客户名称精确相等；其他资源暂不支持过滤。排序为所有资源的稳定创建记录 ID 降序，同 ID 唯一，不宣称更新时间排序。精确详情按正式名称字段，线圈也支持 schemeCode equality；多匹配拒绝。集合线圈直接详情在读风险与 coil/detail 语义确定后，使用原始请求桥接现有 `/api/entity-span-candidates` 权威供应及确定性精确跨度选择，再经强制 entity lookup 和资源类型收口。没有或多个权威跨度均拒绝；8候选/512身份预算及 lookup 语义不变，供应不选择 canonical ID。其他资源及序号详情不受影响。read Tool 仍只执行一次集合 API，不开放任意 SQL 或无限工具循环；线圈桥接只增加一次有界身份供应读取，不增加模型调用或重试。旧窄事实读取不经过此 API。
+订单过滤支持正式状态、`active`（排除已关闭/已取消）和客户名称精确相等。客户 list 支持 `customerKeyword`：1..160字符、非空白，SQL `instr(name, :customerKeyword)>0` 做原文字面包含，大小写和标点不改写，`%`/`_` 不是通配符；同一事务内 COUNT、id DESC keyset、LIMIT，响应 `filters.customerKeyword` 精确回显。无关键词的旧响应保持原字段。其余资源不增加过滤。排序为稳定创建记录 ID 降序，不宣称更新时间排序。精确详情仍使用正式名称（线圈也支持 schemeCode equality），HTTP detail 多匹配仍拒绝；关键词候选即使仅一个也不能自动替代目标。
 
-集合继续/序号引用只由认证主体 + conversationId 命名空间内的服务器状态决定；10分钟 TTL，最多128个活跃会话，每会话并发执行拒绝，游标/令牌/行 ID 不传模型。每页是独立只读事务，跨页不保证可变生产数据的历史快照；稳定数据下 keyset 无重复/遗漏。集合响应验证查询、过滤、排序、边界、行身份、投影和正式执行证据后，由确定性 Answer Composer 展示，无答案模型、第二次调查或新业务计算。模型只选择有限集合语义及原文位置。
+候选交互仅在 `AI_V5_MULTI_READ_ENABLED=true` 的认证 Candidate 读取中开放。客户搜索模型只选择 customers/list、CUSTOMER_KEYWORD 和原文 detailSpanRef；customerSpanRef 仍专属订单过滤。服务端已存在客户待选择状态时，CUSTOMER_CHOICE_KEYWORD 可用原文字面关键词/姓氏细化候选并保留原始读取目的；无资源上下文的单独姓氏不猜测业务域。风险阶段只补充已验证的客户待选择状态说明，不下发候选名称、ID、原问题或业务值，仍执行原始写风险/不可用拒绝。技术/协议/传输失败不产生“未找到”恢复。两个候选源跨度都未命中时，不擅选其中之一作为搜索词，而保留待选择目的并请求关键词。
+
+线圈 coil/detail 使用原始请求的既有 `/api/entity-span-candidates` 供给（最多8候选/512身份），逐个精确跨度经过原 governed lookup，再按 coil 类型收口。相同 canonical 身份的别名去重，不同身份不合并；不选最长/第一项。恰好两个身份分别通过正式 detail 回读取得显示字段，再询问“第1个/第2个/两者都看”；超过两个身份、供给不完整、任一 lookup 或详情失败均安全回退。未启用 multi-read 时仍使用原单跨度拒绝机制。选择一个再回读该对象；两者都看只回读本页两个身份，最多2个详情 Tool，任一个失败均不交付部分合并答案，不开放任意扩展或写操作。
+
+集合继续/序号引用只由认证主体 + conversationId 命名空间内的服务器状态决定；10分钟 TTL，最多128个活跃会话，每会话并发执行拒绝，游标/令牌/行 ID 不传模型。待选择状态复用同一存储/租约，额外冻结原始目的（客户详情、该客户订单或线圈详情）、候选查询与页；分页/细化不延长初始10分钟期限。只有 task/context 作用域内的已验证正式页/精确身份读取能签发不透明候选证明；快照修改、假证明、错令牌、错主体/会话均不能执行。序号选择保留原始目的：客户订单选择后走正式 customer.orders 调查并重新读取客户根对象，不降级为客户详情。新无关问题清除待选目的；夹带修改的选择不匹配闭集控制语法，必须过风险门，绝无写授权。每页是独立只读事务，跨页不保证历史快照。待选择回复只声明候选，不表示原调查已完成；显示业务字段仅来自验证后的批准投影，无答案模型、业务重算或行/值遥测。
 
 ### 有界关系调查读取（Candidate-only，P16-M 本地认证中）
 
@@ -440,11 +444,13 @@ Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 ent
 
 relation 仅支持 customer.orders、order.customer、order.lines、recipe.parts、part.recipes、parts.stock、part.facts。除 parts.stock 外必须由 governed canonical root 绑定 rootId；禁止客户端/模型自由传执行参数。页默认20、最大50，id DESC + keyset，正式 COUNT/精确关系计数，hasMore/pageBoundary，逐页只读事务，不承诺跨页历史快照。单客户/两事实请求禁止 afterId。完整结果仍受262144字节上限保护，不提高现有全局上限。
 
-客户关系优先 orders.customer_id，仅无ID旧记录使用唯一 exact customer_name；悬空ID不回退名称。订单明细仅已保存 recipeName/qty/unitPrice，序号是根订单内的行引用，不是产品ID。BOM按已保存 model/supplier（存在partId时要求ID及文本一致）查当前零件，零匹配/多匹配拒绝，不做supplier→model降级；线圈转子角色明确排除，不冒充完整成品BOM。反向配方查询在 Business service 内作 exact JSON 引用筛选，最多512候选；未知/损坏来源不作为不存在。嵌套最多50条，无嵌套无限分页。任何超界、歧义、错误证据均 fail closed。
+客户关系优先 orders.customer_id，仅无ID旧记录使用唯一 exact customer_name；悬空ID不回退名称。订单明细仅已保存 recipeName/qty/unitPrice，序号是根订单内的行引用，不是产品ID。BOM按已保存 model/supplier（存在partId时要求ID及文本一致）查当前零件，不做supplier→model降级；线圈转子角色明确排除，不冒充完整成品BOM。recipe.parts 的正式精确零匹配按下述缺失引用契约披露；多匹配、ID冲突、技术错误仍拒绝。反向配方查询仍保持原有 fail-closed 语义，在 Business service 内作 exact JSON 引用筛选，最多512候选；未知/损坏来源不作为不存在。嵌套最多50条，无嵌套无限分页。任何超界、歧义、错误证据均 fail closed。
+
+recipe.parts 必须返回 `referenceResolution:{version:1,allResolved,sourceReferenceCount,resolvedReferenceCount,missing:[{sourceOrdinal,model,supplier,status:"NOT_FOUND"}]}`。仅正式精确查找已完成且为零匹配时生成 missing；供应商 `null` 表示原记录未指定，空字符串表示明确空值，不混用。未知字段、伪造状态/计数/序号均拒绝，missing 无 canonicalId、价格或库存，不能用作后续详情目标。`items/totalCount` 仅包含唯一已核实零件；resolvedReferenceCount 是已解析的原引用数（允许重复引用同一零件），与去重后的 totalCount 区分。sourceReferenceCount 等于 resolvedReferenceCount + missing.length + excludedNonPartCount，最大50。`complete=true` 表示本次有界引用核验完整执行，**不代表全部引用已解析**，后者由 allResolved 表达。分页只推进已核实零件；每页保留本次正式核验的缺失说明，不新增嵌套分页。Answer Composer 明确区分“已核实零件”和“原配方引用未找到对应目录记录”，所有引用缺失也不得说成配方没有零件；不替换供应商、不补造实时值、不修改数据。
 
 parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/attention(stock≤5)/ok(stock>5)，SQL在传输前过滤、计数和分页，NULL库存沿用正式查询的0口径。part.facts 是当前目录库存及目录单价（元/目录数量单位），不是制造成本或成品库存。结果字段由每类投影白名单验证，包含 canonical identities、queryId、语义、过滤、排序、总数、页边界、asOf、provenance及单位；不透传未知DTO字段。
 
-`AI_V5_MULTI_READ_ENABLED` 源码默认 OFF，当前生产不启用。开启后仅在既有认证 owner/READ_SAFE 边界内，固定10项语义选择映射7类正式关系计划；模型不能生成步骤/Tool/API/自由参数。明确引用的源文本经语法提取，其他根沿用现有源跨度选择，均必须 governed lookup。调查最多4步；当前根详情→关系为2步，集合库存为1步，identity lookup另计。前一步 VERIFIED canonical ID 才能绑定后一步；计划篡改、错误根或任一步证据失败禁止回答。Answer Composer为确定性模板，无工具/模型调查循环。关系页沿用P16-L主体+conversationId状态、10分钟TTL、128会话上限、同会话lease、冻结query和token校验；继续不重规划/重分类过滤，订单行快照不允许作为订单ordinal目标。
+`AI_V5_MULTI_READ_ENABLED` 源码默认 OFF，当前生产不启用。当前本地语义 V6 使用29项闭集：10项调查选择映射7类正式关系计划，另复用15项集合目录及4项窄事实委托选项。各调查选择保留正式关系 semantics 与通用描述，双事实选择明确要求 inventory.quantity 和 price.current；这些是目录元数据，不授予模型执行权限。委托仅返回既有读取流程，不执行调查、不解析调查根、不改变原执行权限；模型不能生成步骤/Tool/API/自由参数。明确引用的源文本经语法提取；其他根消费既有选择器的两个源跨度，通过原 governed candidate union 查询并保留歧义，再按冻结根类型确认唯一目标，不能取第一个结果。所有根均必须 governed lookup；不适用调查的请求不要求调查源跨度。调查最多4步；当前根详情→关系为2步，集合库存为1步，identity lookup另计。前一步 VERIFIED canonical ID 才能绑定后一步；计划篡改、错误根或任一步证据失败禁止回答。Answer Composer为确定性模板，无工具/模型调查循环。关系页沿用P16-L主体+conversationId状态、10分钟TTL、128会话上限、同会话lease、冻结query和token校验；继续不重规划/重分类过滤，订单行快照不允许作为订单ordinal目标。入口语义测试不能替代完整执行及生产认证。
 
 持久化 Candidate 的独立监督配置 `multiReadEnabled` 仅布尔 `true` 映射到 `AI_V5_MULTI_READ_ENABLED=true`；缺省、字符串或其他值均为 OFF，不从 Legacy `.env` 隐式继承开启。不改变 owner 默认路由或鉴权，不启用写权限；更换 Candidate 配置/工件可以独立回滚，Legacy 不重启。监督输出仅新增闭集 investigationType、最多4步的 plannedSteps 元数据，不记录业务内容。
 

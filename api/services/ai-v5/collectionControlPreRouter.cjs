@@ -6,7 +6,7 @@ function continuationControl(source,ctx,stateStore){
     const started=performance.now();
     try{
         const active=stateStore.peekCertified(ctx);
-        if(!active)return null;
+        if(!active||active.query?.kind==='choice')return null;
         const intent=contextCommand(source,active);
         if(intent?.operation!=='continue')return null;
         return {...intent,durationMs:performance.now()-started};
@@ -16,7 +16,7 @@ function ordinalDetailControl(source,ctx,stateStore){
     const started=performance.now();
     try{
         const active=stateStore.peekCertified(ctx);
-        if(!active||active.query?.operation!=='list'||active.query?.relationRequest?.relation==='order.lines')return null;
+        if(!active||active.query?.kind==='choice'||active.query?.operation!=='list'||active.query?.relationRequest?.relation==='order.lines')return null;
         const intent=contextCommand(source,active);
         if(intent?.operation!=='ordinal'||!Array.isArray(active.rowIds)
             ||!active.rowIds[intent.ordinal-1])return null;

@@ -57,8 +57,11 @@ async function classifyCandidateRisk(source, options = {}) {
             { role: 'system', content: 'Transport: return only a JSON object matching this existing output schema; do not call a function.\n' + JSON.stringify(schema) },
             { role: 'user', content: source }];
         if (options.collectionContext && ['orders','customers','parts','recipes','coils'].includes(options.collectionContext.resourceType)) {
+            const customerChoice = options.collectionContext.resourceType === 'customers'
+                && options.collectionContext.query?.kind === 'choice';
             messages.splice(2, 0, { role: 'system', content: 'Server control context: the current verified bounded collection is '
                 + options.collectionContext.resourceType + '. A continuation or ordinal detail request may refer to this collection using previous_turn. '
+                + (customerChoice ? 'The server is awaiting an explicit customer selection or a literal customer-name keyword/surname to refine candidates for the pending read-only request. Such a keyword reply has an explicit customer resource context; it does not select a canonical customer or authorize any mutation. ' : '')
                 + 'No business facts, cursor, identities or past assistant claims are provided. All original command/risk rules remain unchanged.' });
         }
         const deadline = new Promise((_, reject) => {

@@ -16,6 +16,7 @@ function verifyCollectionExecution({taskId,contextKey,request,result}){
         ||p.provenance?.capabilityId!=='collections.read'||p.provenance?.sourceApi!=='/api/collections/read'||p.provenance?.access!=='query'
         ||typeof p.queryId!=='string'||!Number.isFinite(Date.parse(p.asOf))
         ||p.filters?.status!==(q.status??null)||p.filters?.customerName!==(q.customerName??null)
+        ||p.filters?.customerKeyword!==q.customerKeyword
         ||p.pageBoundary?.afterId!==(q.afterId??null)||typeof p.hasMore!=='boolean'||!Array.isArray(p.items)
         ||p.items.length!==p.returnedCount||p.returnedCount>q.pageSize)fail();
     if(q.operation==='detail'){

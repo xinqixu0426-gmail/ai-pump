@@ -33,6 +33,7 @@ let child = null;
 let cookie = '';
 let baseUrl = '';
 let mcpExpectedCoilProfile = null;
+let startupCopperFinished = false;
 const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
 const MCP_WRITE_TEST_TOKEN = 'deep-write-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
@@ -307,6 +308,13 @@ async function request(label, method, pathname, body, expectedStatuses = [200]) 
 }
 
 async function waitForMcpCoilProfileStable() {
+    // Equal reads before the asynchronous startup fetch finishes do not prove
+    // stability. Wait for its terminal event before freezing the formal oracle.
+    const deadline = Date.now() + 60000;
+    while (!startupCopperFinished && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    assert(startupCopperFinished, '启动铜价同步未结束，不能冻结 MCP 对照档案');
     const pathname = `/api/coils?spec=${encodeURIComponent(MCP_COIL_PROFILE_FIXTURE.spec)}&sheets=${MCP_COIL_PROFILE_FIXTURE.sheets}`;
     let previousFingerprint = '';
     let stableReads = 0;
@@ -3685,9 +3693,21 @@ async function run() {
         });
         // 隔离 API 会输出请求和 MCP 工具日志；必须持续排空 stdout，避免管道写满后
         // 子进程被反压阻塞，进而把后续业务请求误报为超时。
-        child.stdout.resume();
+        const { StringDecoder } = require('node:string_decoder');
+        const stdoutDecoder = new StringDecoder('utf8'), stderrDecoder = new StringDecoder('utf8');
+        let stdoutTail = '', stderrTail = '';
+        const observeStartup = text => {
+            if (/\[copper\].*铜价同步(?:完成|失败).*"trigger":"startup"/.test(text)) startupCopperFinished = true;
+        };
+        child.stdout.on('data', chunk => {
+            stdoutTail = (stdoutTail + stdoutDecoder.write(chunk)).slice(-16000);
+            observeStartup(stdoutTail);
+        });
         child.stderr.on('data', chunk => {
-            childErrors += chunk.toString();
+            const text = stderrDecoder.write(chunk);
+            stderrTail = (stderrTail + text).slice(-16000);
+            observeStartup(stderrTail);
+            childErrors += text;
         });
         try {
             await waitForHealth();

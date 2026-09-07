@@ -7,10 +7,10 @@ const OPERATIONS=Object.freeze({list:'有界记录清单；全部表示分页，
     count:'记录总数量，不是库存数量',detail:'指定业务对象的档案详情，不是单项价格、库存或成本事实'});
 const CATALOG=Object.freeze(Object.entries(RESOURCES).flatMap(([resourceType,label])=>
     Object.entries(OPERATIONS).map(([operation,description])=>Object.freeze({ref:resourceType+'.'+operation,resourceType,operation,label,description}))));
-const FILTERS=Object.freeze(['NONE','ORDER_STATUS','ORDER_CUSTOMER','ORDER_STATUS_CUSTOMER']);
+const FILTERS=Object.freeze(['NONE','ORDER_STATUS','ORDER_CUSTOMER','ORDER_STATUS_CUSTOMER','CUSTOMER_KEYWORD','CUSTOMER_CHOICE_KEYWORD']);
 const KEYS=Object.freeze(['version','routeRef','filterClass','status','customerSpanRef','detailSpanRef','topN','confidence']);
 const fail=()=>{throw Error('COLLECTION_SEMANTIC_INVALID');};
-function parseCollectionSemantic(content,source,catalog){
+function parseCollectionSemantic(content,source,catalog,active=null){
     let p;try{p=JSON.parse(content);}catch{fail();}
     if(!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).sort().join()!==[...KEYS].sort().join()
         ||p.version!==VERSION||!FILTERS.includes(p.filterClass)||!['high','medium','low'].includes(p.confidence))fail();
@@ -24,6 +24,14 @@ function parseCollectionSemantic(content,source,catalog){
         if(!span||span.text.length>160||span.text!==source.slice(span.start,span.end))fail();return span.text;};
     const hasStatus=['ORDER_STATUS','ORDER_STATUS_CUSTOMER'].includes(p.filterClass);
     const hasCustomer=['ORDER_CUSTOMER','ORDER_STATUS_CUSTOMER'].includes(p.filterClass);
+    const keyword=['CUSTOMER_KEYWORD','CUSTOMER_CHOICE_KEYWORD'].includes(p.filterClass);
+    if(keyword){
+        if(choice.resourceType!=='customers'||choice.operation!=='list'||p.status!==null||p.customerSpanRef!==null||p.detailSpanRef===null
+            ||(p.filterClass==='CUSTOMER_CHOICE_KEYWORD'&&active?.query?.kind!=='choice'))fail();
+        return Object.freeze({version:VERSION,contractValid:true,confidence:p.confidence,resourceType:'customers',operation:'list',
+            filterClass:p.filterClass,customerKeyword:sourceValue(p.detailSpanRef),pageSize:p.topN??20,
+            refineChoice:p.filterClass==='CUSTOMER_CHOICE_KEYWORD',detailReferenceMode:'NONE',continuationMode:'NONE'});
+    }
     if((p.filterClass!=='NONE'&&(choice.resourceType!=='orders'||choice.operation==='detail'))
         ||(hasStatus?!STATUSES.includes(p.status):p.status!==null)
         ||(hasCustomer?p.customerSpanRef===null:p.customerSpanRef!==null))fail();
@@ -35,7 +43,7 @@ function parseCollectionSemantic(content,source,catalog){
 }
 function executionQuery(intent){
     const q={resourceType:intent.resourceType,operation:intent.operation};
-    for(const k of ['pageSize','status','customerName'])if(Object.hasOwn(intent,k))q[k]=intent[k];
+    for(const k of ['pageSize','status','customerName','customerKeyword'])if(Object.hasOwn(intent,k))q[k]=intent[k];
     return q;
 }
 module.exports={VERSION,RESOURCES,OPERATIONS,CATALOG,FILTERS,KEYS,parseCollectionSemantic,executionQuery};

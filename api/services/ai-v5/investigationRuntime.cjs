@@ -28,12 +28,26 @@ async function tryInvestigation(input,{taskId,risk,controlIntent,options={}}){
   if(intent.operation==='NONE')return null;
   query={version:1,relation:intent.relation,pageSize:intent.pageSize};
   if(intent.rootType){
-   const root=await require('./collectionDetailTarget.cjs').bindCollectionDetail({operation:'detail',resourceType:RESOURCES[intent.rootType],identity:intent.identity},
-    {signal:input.signal,...options.collectionLookupOptions});
+   const binding=require('./collectionDetailTarget.cjs'),lookupOptions={signal:input.signal,...options.collectionLookupOptions};
+   const governed=intent.sourceSpans
+    ?await require('./candidateUnion.cjs').acquireCandidateUnion(intent.sourceSpans,lookupOptions)
+    :await require('./candidateSet.cjs').acquireCandidateSet(intent.identity,lookupOptions);
+   let root;
+   try{root=binding.finalizeCollectionDetailTarget(RESOURCES[intent.rootType],governed);}
+   catch(error){
+    if(intent.relation==='customer.orders'&&['COLLECTION_TARGET_NOT_FOUND','COLLECTION_TARGET_AMBIGUOUS'].includes(error.message))
+     return require('./candidateChoice.cjs').recoverCustomer(input,{taskId,options,intent,governed,
+      originalPurpose:{kind:'customer.orders',resourceType:'customers',pageSize:intent.pageSize}});
+    throw error;
+   }
    query.rootId=Number(root.canonicalEntityRef);
   }else query.stockStatus=intent.stockStatus;
   stateStore.clear(ctx);
  }
+ return deliverInvestigation(input,{taskId,options,query,queryId,intent,controlIntent});
+}
+async function deliverInvestigation(input,{taskId,options,query,queryId,intent={modelCalls:0,durationMs:0},controlIntent}){
+ const ctx=getConversationContext(),stateStore=options.continuationStore||store;
  const started=performance.now(),plan=createPlan(query);
  const execution=await executeInvestigation(plan,{taskId,contextKey:ctx.contextKey,signal:input.signal,
   execute:options.investigationExecute||require('../../routes/ai/executor.cjs').executeToolCall});
@@ -50,4 +64,4 @@ async function tryInvestigation(input,{taskId,risk,controlIntent,options={}}){
   continuation:controlIntent?.operation==='continue',filterReclassificationCalls:0,returnedCount:page.returnedCount,
   totalKnown:true,hasMore:page.hasMore,resultBytes:Buffer.byteLength(JSON.stringify(page))};
 }
-module.exports={tryInvestigation};
+module.exports={tryInvestigation,deliverInvestigation};

@@ -36,13 +36,15 @@ async function runCandidateReadImpl(input, options = {}) {
             const controlContext = require('../conversationContext.cjs').getConversationContext();
             const controlStore = options.continuationStore || require('./collectionContinuation.cjs').store;
             const controls = require('./collectionControlPreRouter.cjs');
-            const controlIntent = input.factKey === undefined ? (controls.continuationControl(input.sourceRequest,controlContext,controlStore)
+            const controlIntent = input.factKey === undefined ? ((env.AI_V5_MULTI_READ_ENABLED==='true'
+                ? require('./candidateChoice.cjs').choiceControl(input.sourceRequest,controlContext,controlStore):null)
+                || controls.continuationControl(input.sourceRequest,controlContext,controlStore)
                 || controls.ordinalDetailControl(input.sourceRequest,controlContext,controlStore)) : null;
             const risk = controlIntent ? {riskClass:'READ_SAFE',contractValid:true,eligible:true,invoked:false,
                 contextual:true,failureClass:'NONE',authority:controlIntent.operation==='ordinal'?'VERIFIED_READ_PAGE':'VERIFIED_READ_CONTINUATION'}
                 : await require('../candidateRiskEnvelope.cjs').classifyCandidateRisk(input.sourceRequest,
                 { env, signal: input.signal, ...(options.riskOptions || {}), collectionContext: input.factKey === undefined
-                    ? (options.continuationStore || require('./collectionContinuation.cjs').store).peek(require('../conversationContext.cjs').getConversationContext()) : null });
+                    ? controlStore.peekCertified(controlContext) : null });
             state.risk = risk;
             state.continuationControl = controlIntent?.operation === 'continue';
             state.ordinalControl = controlIntent?.operation === 'ordinal';
@@ -58,6 +60,10 @@ async function runCandidateReadImpl(input, options = {}) {
                 return finish();
             }
             state.attempted = true;
+            if(env.AI_V5_MULTI_READ_ENABLED==='true'&&input.factKey===undefined){
+                const choice=await require('./candidateChoice.cjs').tryPendingChoice(input,{taskId,controlIntent,options:{...options,env}});
+                if(choice){Object.assign(state,choice);return finish();}
+            }
             const investigation = await require('./investigationRuntime.cjs').tryInvestigation(input, {taskId,risk,controlIntent,options:{...options,env}});
             if (investigation) { Object.assign(state,investigation); return finish(); }
             const collection = await require('./collectionReadRuntime.cjs').tryCollectionRead(input, { taskId, risk, controlIntent, options: { ...options, env } });

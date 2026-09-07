@@ -10,8 +10,8 @@ const SQL={
         detail: "SELECT id, contract_no AS name, customer_name AS customerName, status, created_at AS createdAt, COALESCE(remark,'') AS remark, COALESCE(items_json,'[]') AS lines FROM orders WHERE deleted_at IS NULL AND ((:targetId IS NOT NULL AND id=:targetId) OR (:identity IS NOT NULL AND contract_no=:identity)) ORDER BY id DESC LIMIT 2"
     },
     customers: {
-        list: "SELECT id, name, created_at AS createdAt FROM customers WHERE deleted_at IS NULL AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit",
-        count: "SELECT COUNT(*) AS total FROM customers WHERE deleted_at IS NULL",
+        list: "SELECT id, name, created_at AS createdAt FROM customers WHERE deleted_at IS NULL AND (:customerKeyword IS NULL OR instr(name,:customerKeyword)>0) AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit",
+        count: "SELECT COUNT(*) AS total FROM customers WHERE deleted_at IS NULL AND (:customerKeyword IS NULL OR instr(name,:customerKeyword)>0)",
         detail: "SELECT id, name, created_at AS createdAt, remark FROM customers WHERE deleted_at IS NULL AND ((:targetId IS NOT NULL AND id=:targetId) OR (:identity IS NOT NULL AND name=:identity)) ORDER BY id DESC LIMIT 2"
     },
     parts: {
@@ -33,7 +33,7 @@ const SQL={
 function createCollectionReadService({db}){
     function read(input){
         const q=validateRequest(input),sql=SQL[q.resourceType];
-        const params={status:q.status??null,customerName:q.customerName??null,afterId:q.afterId??null,
+        const params={status:q.status??null,customerName:q.customerName??null,customerKeyword:q.customerKeyword??null,afterId:q.afterId??null,
             targetId:q.targetId??null,identity:q.identity??null,limit:q.pageSize+1};
         const result=db.transaction(()=>{
             const total=q.operation==='detail'?null:db.prepare(sql.count).get(params).total;
@@ -48,7 +48,7 @@ function createCollectionReadService({db}){
                 return {canonicalId:String(id),display};
             });
             return {version:1,resourceType:q.resourceType,operation:q.operation,queryId:randomUUID(),
-                filters:{status:q.status??null,customerName:q.customerName??null},sort:'id_desc',pageSize:q.pageSize,
+                filters:{status:q.status??null,customerName:q.customerName??null,...(q.customerKeyword===undefined?{}:{customerKeyword:q.customerKeyword})},sort:'id_desc',pageSize:q.pageSize,
                 returnedCount:items.length,totalCount:total,totalCountKnown:total!==null,hasMore,items,
                 pageBoundary:{afterId:q.afterId??null,nextAfterId:hasMore?Number(items.at(-1).canonicalId):null},
                 complete:true,consistency:'READ_TRANSACTION_PER_PAGE',asOf:new Date().toISOString(),

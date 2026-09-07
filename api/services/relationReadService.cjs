@@ -38,7 +38,7 @@ function createRelationReadService({db}){
   return db.transaction(()=>{
    const root=contract.root?db.prepare(ROOT_SQL[contract.root]).get(q.rootId):null;
    if(contract.root&&!root)C.fail('RELATION_NOT_FOUND');
-   let rows=[],total=0,excludedNonPartCount=0;
+   let rows=[],total=0,excludedNonPartCount=0,referenceResolution;
    const params={rootId:q.rootId,afterId:q.afterId??null,limit:q.pageSize+1};
    if(q.relation==='customer.orders'){
     const duplicates=db.prepare('SELECT id FROM customers WHERE name=? AND deleted_at IS NULL LIMIT 2').all(root.name);
@@ -57,8 +57,17 @@ function createRelationReadService({db}){
     rows=lines.map((line,i)=>({canonicalId:String(i+1),resourceType:'orderLine',display:{name:C.text(line.recipeName),qty:C.scalar(line.qty),unitPrice:C.scalar(line.unitPrice)}})).reverse()
      .filter(r=>q.afterId===undefined||Number(r.canonicalId)<q.afterId).slice(0,q.pageSize+1);
    }else if(q.relation==='recipe.parts'){
-    const parts=new Map();
-    for(const line of parsed(root.partsJson)){const p=partFor(line);if(p)parts.set(p.id,p);else excludedNonPartCount++;}
+    const parts=new Map(),lines=parsed(root.partsJson),missing=[];let resolvedReferences=0;
+    for(const [index,line] of lines.entries()){
+     try{const p=partFor(line);if(p){parts.set(p.id,p);resolvedReferences++;}else excludedNonPartCount++;}
+     catch(error){
+      // Only an authoritative exact absence is a reportable missing reference.
+      // Ambiguity, conflicting IDs, invalid snapshots and technical errors still stop the read.
+      if(error.code!=='RELATION_NOT_FOUND')throw error;
+      missing.push({sourceOrdinal:index+1,model:C.text(line.model),supplier:line.supplier===undefined?null:C.text(line.supplier,true),status:'NOT_FOUND'});
+     }
+    }
+    referenceResolution={version:1,allResolved:missing.length===0,sourceReferenceCount:lines.length,resolvedReferenceCount:resolvedReferences,missing};
     total=parts.size;rows=[...parts.values()].sort((a,b)=>b.id-a.id).filter(r=>q.afterId===undefined||r.id<q.afterId).slice(0,q.pageSize+1).map(r=>item('part',r,{supplier:C.text(r.supplier,true)}));
    }else if(q.relation==='part.recipes'){
     // Candidate SQL filters exact saved references before bounded authority validation.
@@ -92,7 +101,7 @@ function createRelationReadService({db}){
    const result={version:1,relation:q.relation,root:root?ref(contract.root,root):null,semantics:contract.semantics,
     queryId:randomUUID(),resourceType:contract.result,sort:'id_desc',pageSize:q.pageSize,returnedCount:items.length,totalCount:total,totalCountKnown:true,hasMore,items,
     pageBoundary:{afterId:q.afterId??null,nextAfterId:hasMore?Number(items.at(-1).canonicalId):null},
-    filters:{stockStatus:q.stockStatus??null},excludedNonPartCount,complete:true,consistency:'READ_TRANSACTION_PER_PAGE',asOf:new Date().toISOString(),
+    filters:{stockStatus:q.stockStatus??null},excludedNonPartCount,...(referenceResolution?{referenceResolution}:{}),complete:true,consistency:'READ_TRANSACTION_PER_PAGE',asOf:new Date().toISOString(),
     provenance:{sourceApi:'/api/relations/read',capabilityId:'relations.read',access:'query'},
     units:q.relation==='part.facts'?{stock:'CATALOG_QUANTITY_UNIT',price:'CNY_PER_CATALOG_QUANTITY_UNIT'}:q.relation==='parts.stock'?{stock:'CATALOG_QUANTITY_UNIT'}:{}};
    if(Buffer.byteLength(JSON.stringify(result))>=C.MAX_RESULT_BYTES)C.fail('RELATION_PAYLOAD_BOUND');

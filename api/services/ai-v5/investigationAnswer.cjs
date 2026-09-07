@@ -17,8 +17,11 @@ function composeInvestigationAnswer(handle,scope){
   return s;
  });
  const filter=p.relation==='parts.stock'?{low:'库存大于0且不超过5',out:'库存不大于0',attention:'库存不超过5',ok:'库存大于5'}[p.filters.stockStatus]:null;
- return {answerText:[title,filter?`条件：${filter}。`:null,`共${p.totalCount}条，本页${p.returnedCount}条。`,...lines,
-  p.returnedCount===0?'没有符合条件的记录。':null,
+ const missing=p.referenceResolution?.missing||[];
+ const warnings=missing.map(m=>`- ${safe(m.model)}（${m.supplier===null?'原记录未指定供应商':m.supplier===''?'原记录供应商为空':'供应商：'+safe(m.supplier)}）：当前零件目录未找到对应记录，需要核对；未自动替换。`);
+ return {answerText:[title,filter?`条件：${filter}。`:null,p.referenceResolution?`已核实${p.totalCount}种零件，本页${p.returnedCount}种。`:`共${p.totalCount}条，本页${p.returnedCount}条。`,...lines,
+  p.returnedCount===0?(missing.length?'当前没有可展示的已核实零件。':'没有符合条件的记录。'):null,
+  missing.length?`另有${missing.length}项原配方引用未找到对应目录记录（不计入已核实零件）：`:null,...warnings,
   p.excludedNonPartCount?`BOM中的${p.excludedNonPartCount}项线圈转子不属于零件引用。`:null,
   p.hasMore?'还有后续记录，可以说“继续”。':null].filter(Boolean).join('\n')};
 }

@@ -12,14 +12,16 @@ const TOOL_SCHEMA = Object.freeze({type:'object',additionalProperties:false,requ
     resourceType:{type:'string',enum:RESOURCES},operation:{type:'string',enum:['list','count','detail']},
     pageSize:{type:'integer',minimum:1,maximum:50},afterId:{type:'integer',minimum:1},
     targetId:{type:'integer',minimum:1},identity:{type:'string',minLength:1,maxLength:160},
-    status:{type:'string',enum:STATUSES},customerName:{type:'string',minLength:1,maxLength:160}
+    status:{type:'string',enum:STATUSES},customerName:{type:'string',minLength:1,maxLength:160},
+    customerKeyword:{type:'string',minLength:1,maxLength:160}
 }});
 function invalid(code='COLLECTION_REQUEST_INVALID'){const e=Error(code);e.code=code;e.statusCode=400;throw e;}
 function validateRequest(input){
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!Object.hasOwn(TOOL_SCHEMA.properties,k)))invalid();
     if(!RESOURCES.includes(input.resourceType)||!['list','count','detail'].includes(input.operation))invalid();
     for(const k of ['pageSize','afterId','targetId'])if(input[k]!==undefined&&(!Number.isSafeInteger(input[k])||input[k]<1||(k==='pageSize'&&input[k]>50)))invalid();
-    for(const k of ['identity','customerName'])if(input[k]!==undefined&&(typeof input[k]!=='string'||!input[k].length||input[k].length>160))invalid();
+    for(const k of ['identity','customerName','customerKeyword'])if(input[k]!==undefined&&(typeof input[k]!=='string'||!input[k].length||input[k].length>160))invalid();
+    if(input.customerKeyword!==undefined&&(input.resourceType!=='customers'||input.operation!=='list'||!input.customerKeyword.trim()))invalid('COLLECTION_FILTER_UNSUPPORTED');
     if(input.status!==undefined&&!STATUSES.includes(input.status))invalid();
     if(input.resourceType!=='orders'&&(input.status!==undefined||input.customerName!==undefined))invalid('COLLECTION_FILTER_UNSUPPORTED');
     if(input.operation==='detail'){

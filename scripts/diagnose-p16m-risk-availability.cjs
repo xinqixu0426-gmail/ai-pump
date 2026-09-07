@@ -1,9 +1,9 @@
 'use strict';
 // Fixed five diagnostic requests, unchanged fixture question; not runtime retries.
 const fs=require('node:fs');
-async function main(){
- const output='docs/ai-governance/data/p16m-risk-availability.json';if(fs.existsSync(output))throw Error('ALREADY_RUN');
- const env=require('dotenv').parse(fs.readFileSync('.env')),source=require('../tests/helpers/investigationCorpus.cjs').cases().find(c=>c.id==='M-18').question;
+async function main({entryV6=false}={}){
+ const output=entryV6?'docs/ai-governance/data/p16m-entry-v6-risk-availability.json':'docs/ai-governance/data/p16m-risk-availability.json';if(fs.existsSync(output))throw Error('ALREADY_RUN');
+ const env=require('dotenv').parse(fs.readFileSync('.env')),source=require('../tests/helpers/investigationCorpus.cjs').cases().find(c=>c.id===(entryV6?'M-24':'M-18')).question;
  const {resolveAiProviderRoute,fetchProviderWithRetry}=require('../api/services/aiProvider.cjs');
  const {classifyCandidateRisk,normalizeCandidateRisk}=require('../api/services/candidateRiskEnvelope.cjs');
  const emit=console.log.bind(console);for(const k of ['log','warn','error','info','debug'])console[k]=()=>{};
@@ -24,3 +24,4 @@ async function main(){
  }
 }
 if(require.main===module)main().catch(()=>{process.stdout.write('RISK_DIAGNOSTIC_FAILED\n');process.exitCode=1;});
+module.exports={main};

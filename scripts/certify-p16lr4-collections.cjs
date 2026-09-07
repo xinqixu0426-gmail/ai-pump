@@ -1,8 +1,7 @@
 'use strict';
 // Fixed, one-shot natural-language UAT against migrated in-memory fixture data.
 // Real configured models + real Executor/internal HTTP/API; never the business DB.
-const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const OUTPUT=path.resolve('docs/ai-governance/data/p16lr4-collection-certification.json');
+const fs=require('node:fs'),crypto=require('node:crypto');
 const FREEZE=['api/services/collectionReadContract.cjs','api/services/collectionReadService.cjs','api/routes/collectionRead.cjs',
     'api/services/ai-v5/collectionContinuation.cjs','api/services/ai-v5/collectionIntent.cjs','api/services/ai-v5/collectionEvidence.cjs',
     'api/services/ai-v5/collectionAnswer.cjs','api/services/ai-v5/collectionReadRuntime.cjs','api/services/ai-v5/candidateRead.cjs',
@@ -14,6 +13,7 @@ const {cases}=require('./certify-v5-collections.cjs');
 FREEZE.push(...require('./certify-p16lr4-semantics.cjs').FILES,'scripts/certify-p16lr4-collections.cjs');
 const median=a=>{const s=[...a].sort((x,y)=>x-y);return s.length?(s[(s.length-1)>>1]+s[s.length>>1])/2:null;};
 async function main(settings={}){
+    if(settings.multiRead===true)FREEZE.push('api/services/ai-v5/investigationIntent.cjs','api/services/ai-v5/investigationRuntime.cjs');
     const semantic=JSON.parse(fs.readFileSync('docs/ai-governance/data/p16lr4-semantic-certification.json'));
     // R4 requires mutation denial, not that every denied request receive WRITE
     // rather than UNKNOWN. Preserve the stricter semantic audit result unchanged.
@@ -25,6 +25,7 @@ async function main(settings={}){
     if(fs.existsSync(OUTPUT))throw Error('CERTIFICATION_ALREADY_EXISTS');
     const env={...require('dotenv').parse(fs.readFileSync('.env')),AI_PROVIDER:'deepseek',DEEPSEEK_MODEL:'deepseek-v4-flash',
         PUMP_V5_CANDIDATE_RUNTIME:'true',AI_V5_READ_CANARY_ENABLED:'true',AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED:'true'};
+    if(settings.multiRead===true)env.AI_V5_MULTI_READ_ENABLED='true';
     if(!env.DEEPSEEK_API_KEY)throw Error('CERTIFICATION_PROVIDER_UNAVAILABLE');
     const data={stage:settings.stage||'P16-L-R4',mode:'REAL_MODEL_ISOLATED_FIXTURE',status:'RUNNING',freezeBefore:hashes(),cases:[],
         expectedQuestions:30,productionCalls:0,writes:0,retries:0};
@@ -35,6 +36,7 @@ async function main(settings={}){
     const db=require('../tests/helpers/collectionFixture.cjs').collectionFixture(),app=require('express')();
     app.use(require('express').json());app.use('/api/collections',require('../api/routes/collectionRead.cjs').createCollectionReadRouter({db}));
     app.use('/api/entity-lookup',require('../api/routes/entityLookup.cjs').createEntityLookupRouter({db}));
+    app.use('/api/entity-span-candidates',require('../api/routes/entitySpanCandidates.cjs').createEntitySpanCandidateRouter({db}));
     const server=await new Promise(r=>{const s=app.listen(0,'127.0.0.1',()=>r(s));});
     const old={PORT:process.env.PORT,PUMP_V5_CANDIDATE_RUNTIME:process.env.PUMP_V5_CANDIDATE_RUNTIME};
     process.env.PORT=String(server.address().port);process.env.PUMP_V5_CANDIDATE_RUNTIME='true';

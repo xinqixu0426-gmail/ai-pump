@@ -20,7 +20,6 @@ test('业务命名契约：产品身份统一为水泵工厂管理系统', () =>
     const identitySurfaces = [
         'README.md',
         'AGENTS.md',
-        '.guardian/config.yaml',
         'docs/README.md',
         'docs/api-contract.md',
         'docs/modularization-design.md',

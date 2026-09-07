@@ -42,6 +42,20 @@ function validateResult(input,p){
   ||!Number.isSafeInteger(p.excludedNonPartCount)||p.excludedNonPartCount<0||p.excludedNonPartCount>NESTED_LIMIT)bad();
  const keys={order:['name','status'],customer:['name'],orderLine:['name','qty','unitPrice'],recipe:['name'],
   part:q.relation==='part.facts'?['name','stock','price']:q.relation==='parts.stock'?['name','stock']:['name','supplier']}[c.result];
+ if(q.relation==='recipe.parts'){
+  const a=p.referenceResolution;
+  if(!a||Object.keys(a).sort().join(',')!=='allResolved,missing,resolvedReferenceCount,sourceReferenceCount,version'
+   ||a.version!==1||!Array.isArray(a.missing)||a.missing.length>NESTED_LIMIT||a.allResolved!==(a.missing.length===0)
+   ||!Number.isSafeInteger(a.sourceReferenceCount)||a.sourceReferenceCount<0||a.sourceReferenceCount>NESTED_LIMIT
+   ||!Number.isSafeInteger(a.resolvedReferenceCount)||a.resolvedReferenceCount<p.totalCount
+   ||a.resolvedReferenceCount+a.missing.length+p.excludedNonPartCount!==a.sourceReferenceCount)bad();
+  let ordinal=0;
+  for(const m of a.missing){
+   if(!m||Object.keys(m).sort().join(',')!=='model,sourceOrdinal,status,supplier'||m.status!=='NOT_FOUND'
+    ||!Number.isSafeInteger(m.sourceOrdinal)||m.sourceOrdinal<=ordinal||m.sourceOrdinal>a.sourceReferenceCount)bad();
+   text(m.model);if(m.supplier!==null)text(m.supplier,true);ordinal=m.sourceOrdinal;
+  }
+ }else if(Object.hasOwn(p,'referenceResolution'))bad();
  let prior=q.afterId??Infinity;
  for(const r of p.items){
   if(!r||Object.keys(r).sort().join(',')!=='canonicalId,display,resourceType'||r.resourceType!==c.result

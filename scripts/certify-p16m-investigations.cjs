@@ -1,10 +1,10 @@
 'use strict';
 const fs=require('node:fs'),crypto=require('node:crypto');
-const OUTPUT='docs/ai-governance/data/p16m-investigation-certification.json';
-async function main(){
- const semantic=JSON.parse(fs.readFileSync('docs/ai-governance/data/p16m-semantic-v3-certification.json','utf8'));
- if(semantic.status!=='PASS'||semantic.correct!==90)throw Error('SEMANTIC_GATE_FAILED');
- for(const [p,h]of Object.entries(semantic.freezeAfter))if(crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')!==h)throw Error('SEMANTIC_CODE_CHANGED');
+async function main({entryV6=false}={}){
+ const OUTPUT=entryV6?'docs/ai-governance/data/p16m-entry-v6-uat.json':'docs/ai-governance/data/p16m-investigation-certification.json';
+ const semantic=JSON.parse(fs.readFileSync(entryV6?'docs/ai-governance/data/p16m-entry-v6-certification.json':'docs/ai-governance/data/p16m-semantic-v3-certification.json','utf8'));
+ if(semantic.status!=='PASS'||semantic.correct!==(entryV6?132:90))throw Error('SEMANTIC_GATE_FAILED');
+ for(const [p,h]of Object.entries(entryV6?semantic.after:semantic.freezeAfter))if(crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')!==h)throw Error('SEMANTIC_CODE_CHANGED');
  if(fs.existsSync(OUTPUT))throw Error('CERTIFICATION_ALREADY_EXISTS');
  const env={...require('dotenv').parse(fs.readFileSync('.env')),PUMP_V5_CANDIDATE_RUNTIME:'true',AI_V5_READ_CANARY_ENABLED:'true',
   AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED:'true',AI_V5_MULTI_READ_ENABLED:'true'};

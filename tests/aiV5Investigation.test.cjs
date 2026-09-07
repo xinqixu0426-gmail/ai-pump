@@ -16,17 +16,38 @@ function fixture(){
  return {db,execute,calls};
 }
 const scope={taskId:'fixture-investigation',contextKey:'a'.repeat(64)};
+
+test('verified BOM answer discloses missing supplier references without substituting a canonical entity',async()=>{
+ const f=fixture();try{
+  f.db.prepare('UPDATE parts SET supplier=? WHERE id=1').run('B厂');
+  f.db.prepare('UPDATE recipes SET parts_json=? WHERE id=1').run(JSON.stringify([{model:'零件-1',supplier:'A厂'},{model:'零件-2'}]));
+  const result=await executeInvestigation(createPlan({version:1,relation:'recipe.parts',rootId:1}),{...scope,execute:f.execute});
+  const p=getVerifiedRelation(result.handle,scope).page,answer=composeInvestigationAnswer(result.handle,scope).answerText;
+  assert.deepEqual(p.items.map(i=>i.canonicalId),['2']);assert.equal(p.referenceResolution.missing[0].supplier,'A厂');
+  assert.match(answer,/已核实1种零件/);assert.match(answer,/零件-1（供应商：A厂）：当前零件目录未找到对应记录/);
+  assert.match(answer,/未自动替换/);assert.doesNotMatch(answer,/B厂|目录单价|库存：/);
+  const store=require('../api/services/ai-v5/collectionContinuation.cjs').createContinuationStore();
+  const context={version:1,contextKey:scope.contextKey,conversationId:'chat-871'};
+  store.setVerifiedRelation(context,{version:1,relation:'recipe.parts',rootId:1},result.handle,scope);
+  assert.deepEqual(store.peek(context).rowIds,['2']);
+  f.db.prepare('UPDATE recipes SET parts_json=? WHERE id=1').run(JSON.stringify([{model:'零件-1',supplier:'A厂'}]));
+  const allMissing=await executeInvestigation(createPlan({version:1,relation:'recipe.parts',rootId:1}),{...scope,execute:f.execute});
+  const missingAnswer=composeInvestigationAnswer(allMissing.handle,scope).answerText;
+  assert.match(missingAnswer,/已核实0种零件/);assert.match(missingAnswer,/另有1项原配方引用未找到/);
+  assert.doesNotMatch(missingAnswer,/没有符合条件的记录|没有零件|B厂/);
+ }finally{f.db.close();}
+});
 test('semantic choices bind filter and source fields; unsupported combinations and executable args cannot be emitted',()=>{
  const {semanticChoices,parseIntent}=require('../api/services/ai-v5/investigationIntent.cjs');
  const s='客户「客户-1」有哪些订单？',catalog=semanticChoices(s);
  const choice=catalog.choices.find(c=>c.relation==='customer.orders');
- const payload={version:3,choiceRef:choice.choiceRef,topN:null,confidence:'high'};
+ const payload={version:6,choiceRef:choice.choiceRef,topN:null,confidence:'high'};
  assert.equal(parseIntent(JSON.stringify(payload),s,catalog).identity,'客户-1');
  assert.throws(()=>parseIntent(JSON.stringify({...payload,rootId:1}),s,catalog),/SEMANTIC_INVALID/);
  assert.throws(()=>parseIntent(JSON.stringify({...payload,topN:51}),s,catalog),/SEMANTIC_INVALID/);
- assert.throws(()=>semanticChoices('客户「甲」和客户「乙」的订单'),/ROOT_AMBIGUOUS/);
+ assert.throws(()=>parseIntent(JSON.stringify(payload),'客户「甲」和客户「乙」的订单'),/ROOT_AMBIGUOUS/);
  for(const c of catalog.choices.filter(c=>c.relation==='parts.stock'))assert.equal(c.rootType,null);
- assert.equal(semanticChoices('哪些零件的库存大于0但不超过5？').choices.length,10);
+ assert.equal(semanticChoices('哪些零件的库存大于0但不超过5？').choices.length,29);
 });
 test('closed plans: all relation types execute within two reads and verified dependency scope',async()=>{
  const f=fixture();try{

@@ -19,7 +19,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 V5 当前集合读取契约见 [有界集合/分页/详情/计数](ai-governance/v5-bounded-collection-read-v1.md)；是否已通过生产验收以阶段报告为准。接口事实仍集中于 API 接口总表。
 
-P16-M 新增闭集、有界关系调查的本地实现，正式关系 API、身份/证据依赖及开关边界见 [API 接口总表](api-reference.md#有界关系调查读取candidate-onlyp16-m-本地认证中)。多读开关默认关闭；本地语义已认证90/90，首次完整验收29/30（1次风险分类不可用、安全拒绝），尚未生产发布。阶段事实见 [P16-M 报告](ai-governance/reports/P16-M-relation-surface-audit.md)。P17 写迁移继续暂停。
+Candidate 本地支持闭集有界关系读取、客户字面关键词分页搜索和显式候选选择；选择客户后保留原始订单查询目的，线圈可明确选择已展示的一个或两个对象。正式 API、身份/证据依赖及开关边界见 [API 接口总表](api-reference.md#有界业务集合查询只读)。多读开关默认关闭，生产状态和各制品验收分别以 [P16-M 报告](ai-governance/reports/P16-M-relation-surface-audit.md) 为准，不用历史通过率代表当前制品。P17 写迁移继续暂停。
 
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
@@ -35,7 +35,7 @@ P16-M 新增闭集、有界关系调查的本地实现，正式关系 API、身�
 
 Candidate 的 part 价格与库存数量通过既有本地 Task Class 分开，服务端派生所需 fact；可选 fact header 仅作一致性断言。范围及兼容说明见 [只读语义拆分契约](ai-governance/v5-part-read-semantic-split-v1.md)，路由开关与业务语义独立。
 
-Candidate 在风险准入后可通过正式只读 `/api/entity-span-candidates` 补充有界线圈完整身份跨度，最多扫描 512 条身份字段记录、返回 8 个位置；超限停止，不向 V5 暴露目录或 canonical ID。仅一个权威 exact coil 跨度时确定性选源、跳过 Stage1 模型；零候选沿用 Stage1，多跨度安全拒绝。实体 lookup 仍强制执行。接口及隐私边界统一见 [API 接口总表](./api-reference.md)，Stage1/Stage2 Prompt 保持不变。
+Candidate 在风险准入后可通过正式只读 `/api/entity-span-candidates` 补充有界线圈完整身份跨度，最多扫描 512 条身份字段记录、返回 8 个位置；超限停止，不向 V5 暴露目录或由供给返回 canonical ID。原窄事实路径保持单跨度规则；启用 multi-read 的 coil/detail 可逐跨度强制 entity lookup，去重后对两个正式身份请求显式选择，不自动选最长或首项。接口及隐私边界统一见 [API 接口总表](./api-reference.md)，Stage1/Stage2 Prompt 保持不变。
 
 Owner 默认只读路由使用独立可逆开关，源默认 OFF。精确认证的 dedicated owner 可优先获取已验证 Candidate 答案；shared admin 与其他用户、未支持请求及 Candidate 失败均沿用 Legacy。不会开启写执行或全局切换；边界见 [API 接口总表](./api-reference.md#owner-默认只读网关)。
 

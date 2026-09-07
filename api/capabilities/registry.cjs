@@ -651,7 +651,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'collections.read': defineQueryCapability({
         capabilityId: 'collections.read', domain: 'catalog',
-        inputSchema: 'POST /api/collections/read CollectionReadRequest',
+        inputSchema: 'POST /api/collections/read CollectionReadRequest (customers list: optional literal customerKeyword, bounded keyset discovery)',
         outputSchema: 'BoundedCollectionResultV1',
         sourceOfTruth: 'orders+customers+parts+recipes+coils',
         transactionality: 'read_transaction', riskLevel: 'low',

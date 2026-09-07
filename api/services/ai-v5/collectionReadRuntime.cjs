@@ -32,9 +32,27 @@ async function tryCollectionRead(input,{taskId,risk,controlIntent=null,options={
         }
     }else {
         stateStore.clear(ctx);
+        if(intent.customerKeyword!==undefined){
+            if(options.env?.AI_V5_MULTI_READ_ENABLED!=='true')throw Error('COLLECTION_NOT_APPLICABLE');
+            return require('./candidateChoice.cjs').searchCustomers(input,{taskId,options,
+                purpose:{kind:'detail',resourceType:'customers',pageSize:20},keyword:intent.customerKeyword,pageSize:intent.pageSize,intent});
+        }
         if(intent.operation==='detail'){
-            const target=await require('./collectionDetailTarget.cjs').bindCollectionDetailFromSource(intent,input.sourceRequest,
-                {signal:input.signal,...options.collectionLookupOptions,...(options.supplySpanCandidates?{supplySpanCandidates:options.supplySpanCandidates}:{})});
+            const lookupOptions={signal:input.signal,...options.collectionLookupOptions,...(options.supplySpanCandidates?{supplySpanCandidates:options.supplySpanCandidates}:{})};
+            let target;
+            if(options.env?.AI_V5_MULTI_READ_ENABLED==='true'&&intent.resourceType==='coils'){
+                const choice=require('./candidateChoice.cjs'),ids=await choice.discoverCoils(input.sourceRequest,lookupOptions);
+                if(ids.length===2)return choice.openCoilChoice(ids,input,{taskId,options});
+                target=require('./collectionDetailTarget.cjs').createDetailTarget('coils',ids[0],'governed_entity_lookup');
+            }else if(options.env?.AI_V5_MULTI_READ_ENABLED==='true'&&intent.resourceType==='customers'){
+                const governed=await require('./candidateSet.cjs').acquireCandidateSet(intent.identity,lookupOptions);
+                try{target=require('./collectionDetailTarget.cjs').finalizeCollectionDetailTarget('customers',governed);}
+                catch(error){
+                    if(!['COLLECTION_TARGET_NOT_FOUND','COLLECTION_TARGET_AMBIGUOUS'].includes(error.message))throw error;
+                    return require('./candidateChoice.cjs').recoverCustomer(input,{taskId,options,intent,governed,
+                        originalPurpose:{kind:'detail',resourceType:'customers',pageSize:20}});
+                }
+            }else target=await require('./collectionDetailTarget.cjs').bindCollectionDetailFromSource(intent,input.sourceRequest,lookupOptions);
             request={operation:'detail',resourceType:target.resourceType,targetId:Number(target.canonicalEntityRef)};
         }else request=require('./collectionSemanticContract.cjs').executionQuery(intent);
     }

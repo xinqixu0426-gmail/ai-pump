@@ -28,12 +28,25 @@ function createContinuationStore({now=Date.now}={}){
         if(q.operation!=='list'||page.operation!=='list'||q.resourceType!==page.resourceType
             ||q.pageSize!==page.pageSize||page.sort!=='id_desc'
             ||(q.status??null)!==page.filters.status||(q.customerName??null)!==page.filters.customerName
-            ||(q.afterId??null)!==page.pageBoundary.afterId)fail();
+            ||q.customerKeyword!==page.filters.customerKeyword||(q.afterId??null)!==page.pageBoundary.afterId)fail();
         return put(ctx,q,page,queryId,true);
     }
     function peekCertified(ctx){
         if(!require('../conversationContext.cjs').validConversationId(ctx?.conversationId))return null;
         const e=peek(ctx);return e&&certified.has(e)?structuredClone(e):null;
+    }
+    function setVerifiedChoice(ctx,handle,scope,previous){
+        if(scope?.contextKey!==ctx?.contextKey)fail();
+        const data=require('./candidateChoice.cjs').readChoiceProof(handle,scope);
+        // A continuation/refinement must still own the same private entry and expiry.
+        if(previous){const current=read(ctx,previous.token,previous.queryId);
+            if(current.query.kind!=='choice'||current.expiresAt!==previous.expiresAt
+                ||JSON.stringify(current.query.purpose)!==JSON.stringify(data.purpose))fail();}
+        const entry=put(ctx,{kind:'choice',operation:'list',pageSize:data.discoveryQuery?.pageSize||20,
+            purpose:data.purpose,discoveryQuery:data.discoveryQuery,notice:data.notice},data.page,previous?.queryId,true);
+        if(previous){const stored=entries.get(key(ctx));const replacement=Object.freeze({...stored,expiresAt:previous.expiresAt});
+            entries.set(key(ctx),replacement);certified.add(replacement);return structuredClone(replacement);}
+        return entry;
     }
     function setVerifiedRelation(ctx,query,handle,scope,queryId){
         if(scope?.contextKey!==ctx?.contextKey)fail();
@@ -48,7 +61,7 @@ function createContinuationStore({now=Date.now}={}){
     }
     async function lease(ctx,fn){const k=key(ctx);if(!k)return fn();if(busy.has(k))throw Error('COLLECTION_CONVERSATION_BUSY');busy.add(k);try{return await fn();}finally{busy.delete(k);}}
     return {peek:ctx=>{const e=peek(ctx);return e?structuredClone(e):null;},read,
-        set:(ctx,query,page,queryId)=>put(ctx,query,page,queryId),setVerified,setVerifiedRelation,peekCertified,
+        set:(ctx,query,page,queryId)=>put(ctx,query,page,queryId),setVerified,setVerifiedRelation,setVerifiedChoice,peekCertified,
         clear:ctx=>entries.delete(key(ctx)),lease};
 }
 const store=createContinuationStore();
