@@ -25,8 +25,9 @@
 - 记录文件大小和 SHA-256；
 - 记录 Git commit、`user_version` 和最高迁移版本。
 
-旧版 `backups/pump_*.db` 不会被新保留策略删除，可在确认新体系稳定后
-再人工归档。
+旧版散落数据库已于 2026-09-08 移至 `backups/legacy/`，内容不变；该目录不参与新保留策略。配置旧副本保存在 `backups/config/legacy/`，不得当作运行配置加载。
+
+生产额外保留 `/Users/dan/pump-rollback-v1/v1.0.1` 与 `v1.0.2` 两套数据库、提交标识和 Web 构建；恢复仍须执行本页的备份核验、停服与联合回滚流程，不能直接覆盖正在运行的库。2026-09-08 当前数据库备份另有 Windows 副本，位于 `C:\Users\Dan\Documents\pump-v1-release-archive\2026-09-08/current-database-backup.tar.gz`；这是本次人工副本，不等于已配置持续异机镜像。
 
 ## 2. 异机副本
 
