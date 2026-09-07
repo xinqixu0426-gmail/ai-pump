@@ -77,7 +77,7 @@ ls -lh logs/*launchd*
 
 公网登录和身份检查仍经过 `/Users/dan/pump-owner-auth-p16ir2` 的 3104 兼容服务，其他 API/Web 路由不经过它。该目录及生产 `node_modules` 是运行依赖，不属于旧 Candidate 清理范围。
 
-原用户 LaunchAgent 依赖 GUI 登录。新的独立安装入口已准备并通过 zsh 语法、plist 结构和非管理员拒绝检查，但截至 2026-09-08 的本次收尾记录，尚待操作者提供 sudo 执行权限；不得因此宣称系统自启动已生效。
+原用户 LaunchAgent 已迁移为系统 LaunchDaemon。2026-09-08 操作者完成管理员安装，已确认 system 域服务 running、以 dan 身份运行，RunAtLoad 和 KeepAlive 生效。安装入口：
 
 ```bash
 sudo /bin/zsh /Users/dan/pump-cost-accounting-system/scripts/install-owner-auth-daemon.sh
@@ -85,11 +85,11 @@ sudo /bin/zsh /Users/dan/pump-cost-accounting-system/scripts/install-owner-auth-
 
 安装只注册 `system/org.pump.owner-authentication`，进程仍以 dan 身份使用原配置和原依赖运行。它归档原 GUI LaunchAgent，避免重复启动；不修改生产 `.env`、公网路由、凭据、写权限，也不重启 API/Web。安装失败恢复原登录进程，原服务文件保存在 `pump-owner-auth-p16ir2/daemon-migration-backup/`。需要恢复原方式时，用同一命令追加 `--rollback`。
 
-安装后须检查系统服务的 running 状态与 UID，主动结束一次该服务进程并确认 KeepAlive 自动启动新 PID，再核对本机与公网登录。当前后台手动进程可用不代表完成这些检查。
+2026-09-08 验证：主动结束登录进程 4984 后，KeepAlive 自动拉起进程 5003；本机 3104 与公网登录均返回 200，携带登录 Cookie 的身份检查均返回 200 / authenticated=true。API/Web PID 3046/3056 未变，生产 .env 校验一致。本次未重启整机，已验证系统服务配置与进程退出自动恢复；未进行整机重启验收。
 
 ## 2026-09-08 服务器目录收尾
 
 - 17 个旧 P16/V5/发布暂存目录已完整归档后清除；压缩归档保留在 `/Users/dan/pump-maintenance-20260908/retired-environments.tar.gz`，同目录 `archive-manifest.json`、`archive-verified.json`、`cleanup-result.json` 保存清单、SHA-256 和删除范围。不能按历史文档中的旧运行路径直接执行；需要追溯时先查此归档。
-- 两个旧 V5 用户自启动项已移至同目录 `retired-launchagents/`，避免今后 GUI 登录重新拉起旧框架。当前登录兼容项单独保留，待上述系统服务安装时替换。
+- 两个旧 V5 用户自启动项已移至同目录 `retired-launchagents/`，避免今后 GUI 登录重新拉起旧框架。登录兼容服务已完成上述系统级迁移，原用户服务文件由安装器归档。
 - 当前/上一稳定版回滚包在 `/Users/dan/pump-rollback-v1/`。日常 30、启动 5、发布 20 的备份保留策略不变，旧备份归位至 `backups/legacy/`；根目录旧日志移至 `logs/legacy/`。
 - 业务代码、数据库、上传文件和当前运行依赖保留；清理期间 API/Web PID 未变，未改变业务写权限。
