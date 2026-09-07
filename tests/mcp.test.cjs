@@ -104,7 +104,6 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         .map(tool => getAiCapability(tool.function.name))
         .filter(capability => (
             capability
-            && capability.candidateOnly !== true
             && capability.access === 'read'
             && capability.requiresConfirmation === false
             && ['query', 'preview'].includes(capability.operation)

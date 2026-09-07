@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
-const { processAiChat } = require('../api/routes/ai/chat.cjs');
+const { processAiChat } = require('./helpers/legacyAiRuntime.cjs');
 const {
     consumeAiToolConfirmation,
     resetAiToolConfirmationsForTests,

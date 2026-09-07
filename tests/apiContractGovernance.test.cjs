@@ -108,16 +108,6 @@ function collectHttpEndpoints() {
         }
     }
 
-    // Separate opt-in executable, deliberately not mounted in legacy Express.
-    const gateway = require('../api/services/ownerReadCanaryGateway.cjs');
-    const gatewaySource = readUtf8('api/services/ownerReadCanaryGateway.cjs');
-    assert.match(gatewaySource, /const ordinary = req\.url === '\/api\/ai\/chat'/);
-    assert.match(gatewaySource, /req\.method !== 'POST' \|\| \(!ordinary && req\.url !== OWNER_CANARY_PATH\)/);
-    assert.match(gatewaySource, /const authContext = ordinary \? verifyAuthentication\(cookies\.token, currentEnv\) : null/);
-    assert.match(gatewaySource, /ordinary && isAuthenticatedOwner\(authContext, currentEnv\)/);
-    assert.match(gatewaySource, /AI_V5_OWNER_READ_DEFAULT_ENABLED === 'true'/);
-    endpoints.push({ method: 'POST', path: gateway.OWNER_CANARY_PATH, queryParams: [],
-        source: 'api/services/ownerReadCanaryGateway.cjs' });
     return endpoints;
 }
 
@@ -242,7 +232,7 @@ test('API 当前契约：Express 路由与 api-reference 必须双向唯一对�
 
     assert.match(
         reference,
-        new RegExp(`当前源码共有 ${endpoints.filter(e => e.source !== 'api/services/ownerReadCanaryGateway.cjs').length} 个 Express 路由声明`),
+        new RegExp(`当前源码共有 ${endpoints.length} 个 Express 路由声明`),
         'documented Express route count must match source'
     );
 

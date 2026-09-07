@@ -335,6 +335,32 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     );
     assert.equal(verifiedUnavailable.status, 'passed');
 
+    const substitutedRecipe = evaluateRuleCase(
+        caseItem,
+        '未找到 V1600-3"-12-180，不过相近配方 v1500-DY-ml 的附件是性能测试报告。',
+        [{
+            name: 'search_factory_knowledge',
+            result: {
+                sources: [{ entryType: 'recipe', title: '成品：v1500-DY-ml' }],
+            },
+        }, {
+            name: 'get_recipe_technical_files',
+            result: {
+                success: false,
+                code: 'AI_RESOURCE_NOT_FOUND',
+                entityType: 'recipe',
+                query: 'V1600-3"-12-180',
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_query_failure',
+                    calls: [{ method: 'GET', path: '/api/recipes' }],
+                },
+            },
+        }],
+        fixture.db
+    );
+    assert.equal(substitutedRecipe.status, 'failed');
+
     const colloquialUnavailable = evaluateRuleCase(
         caseItem,
         '没有叫 V1600-3"-12-180 的配方，系统里查不到这个型号，因此不能查看对应 Excel 附件。',
@@ -1044,6 +1070,8 @@ test('AI 评测：模板配置成本必须完整保留型号、配置和正式�
                     costBasis: 'configuredBomDraft',
                     pricingComplete: true,
                     currentTotalCost: 253.54,
+                    partsCost: 232.54,
+                    laborCost: 21,
                 },
             },
         },
@@ -1051,6 +1079,28 @@ test('AI 评测：模板配置成本必须完整保留型号、配置和正式�
 
     const completeAnswer = 'V750-大脚板-2寸，12-120线圈，带浮球、木箱和珍珠棉，当前正式成本约 253.54 元。';
     assert.equal(evaluateRuleCase(caseItem, completeAnswer, toolResults, fixture.db).status, 'passed');
+    const inventedSubtotal = evaluateRuleCase(
+        caseItem,
+        'V750-大脚板-2寸，12-120线圈，带浮球、木箱和珍珠棉，总成本 253.54 元。\n\n| 项目 | 金额（元） |\n|---|---:|\n| 其他配件 | 21.69 |',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(inventedSubtotal.status, 'failed');
+    assert.equal(
+        inventedSubtotal.checks.find(check => check.key === 'fact:configured_bom_answer_amounts').passed,
+        false
+    );
+    const falseConfirmation = evaluateRuleCase(
+        caseItem,
+        'V750-大脚板-2寸，12-120线圈，带浮球、木箱和珍珠棉，当前正式成本 253.54 元，正式确认卡片已生成。',
+        toolResults,
+        fixture.db
+    );
+    assert.equal(falseConfirmation.status, 'failed');
+    assert.equal(
+        falseConfirmation.checks.find(check => check.key === 'fact:configured_bom_no_false_confirmation').passed,
+        false
+    );
     assert.equal(evaluateRuleCase(caseItem, '当前正式成本约 253.54 元。', toolResults, fixture.db).status, 'failed');
     const duplicated = structuredClone(toolResults);
     duplicated[0].result.data.parts.push({ model: '珍珠棉', costRole: 'packing' });

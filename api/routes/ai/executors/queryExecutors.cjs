@@ -233,19 +233,6 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             };
         }
 
-        case 'read_relation': {
-            const request = require('../../../services/relationReadContract.cjs').request(args);
-            const relation = await postJson(internalFetch, '/api/relations/read', request, '关联读取失败');
-            return { success: true, relation };
-        }
-        case 'read_collection': {
-            const query = require('../../../services/collectionReadContract.cjs').validateRequest(args);
-            // Detail has no pagination input. Defaults belong to the business service.
-            const request = { ...query };
-            if (request.operation === 'detail') delete request.pageSize;
-            const collection = await postJson(internalFetch, '/api/collections/read', request, '集合读取失败');
-            return { success: true, collection };
-        }
         case 'get_recent_orders': {
             const query = new URLSearchParams();
             for (const field of ['limit', 'status', 'customerName', 'contractNo']) {

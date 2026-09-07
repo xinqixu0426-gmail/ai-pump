@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const {
-    BUSINESS_CHANGE_INDEXES_SQL,
+    PERSONAL_MEMORY_SCHEMA_SQL,    BUSINESS_CHANGE_INDEXES_SQL,
     BUSINESS_CHANGE_SCHEMA_SQL,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
@@ -3708,6 +3708,14 @@ const MIGRATIONS = Object.freeze([
                 WHERE case_key = 'configured-template-cost'
                   AND source_type = 'system'
             `).run(JSON.stringify({ ...config, requiredTerms }), new Date().toISOString());
+        },
+    },
+    {
+        version: 80,
+        name: 'add_personal_assistant_memories',
+        signature: 'personal-memories-versioned-soft-delete-revisions-v1',
+        up(db) {
+            db.exec(PERSONAL_MEMORY_SCHEMA_SQL);
         },
     },
 ]);

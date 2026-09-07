@@ -4,8 +4,6 @@
 const path = require('path');
 const os = require('os');
 const Database = require('better-sqlite3');
-const { candidateEnabled, openCandidateDatabase } = require('./services/candidateDatabase.cjs');
-const candidateMode = candidateEnabled();
 const { createLogger } = require('./logger.cjs');
 const { calculateRecipeCost: calculateRecipeCostFromEngine } = require('./services/costEngine.cjs');
 const { collapseLegacyCableParts } = require('./services/cableAccessory.cjs');
@@ -28,11 +26,10 @@ const testDatabaseTemplate = String(
 const testDatabasePath = testDatabaseTemplate.includes('{pid}')
     ? testDatabaseTemplate.replaceAll('{pid}', String(process.pid))
     : `${testDatabaseTemplate}.${process.pid}`;
-const DB_PATH = candidateMode ? process.env.PUMP_V5_CANDIDATE_DATABASE : process.env.NODE_ENV === 'test'
+const DB_PATH = process.env.NODE_ENV === 'test'
     ? path.resolve(testDatabasePath)
     : path.join(__dirname, '..', 'pump.db');
-const db = candidateMode ? openCandidateDatabase(DB_PATH) : new Database(DB_PATH);
-if (!candidateMode) {
+const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('wal_checkpoint(TRUNCATE)'); // 启动时清理 WAL，避免 WAL 文件无限增长
@@ -86,8 +83,6 @@ if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('aluminum_w
 }
 if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('usd_cny_rate')) {
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('usd_cny_rate', '0', new Date().toISOString());
-}
-
 }
 
 // ── Row Adapters ──
@@ -684,7 +679,7 @@ function setConfig(key, value, options = {}) {
  * @param {number} id - 记录 ID
  * @param {Record<string, any>} updates - { column_name: value }，undefined 值自动跳过
  */
-const SAFE_TABLES = new Set(['parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'quotation_attachment_summaries', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
+const SAFE_TABLES = new Set(['ai_personal_memories', 'ai_personal_memory_revisions', 'parts', 'recipes', 'orders', 'order_requirement_summaries', 'order_execution_records', 'coils', 'coil_stock_movements', 'stator_variants', 'pump_shell_templates', 'pump_model_variants', 'system_settings', 'runtime_settings', 'rotor_drawings', 'customers', 'quotations', 'quotation_attachment_summaries', 'factory_files', 'factory_file_links', 'knowledge_entries', 'knowledge_embeddings', 'knowledge_documents', 'knowledge_sync_runs', 'knowledge_vector_sync_runs', 'management_action_lifecycles', 'management_action_events', 'factory_workflow_runs', 'factory_ai_rules', 'ai_conversations', 'ai_conversation_messages', 'ai_answer_feedback', 'ai_evaluation_cases', 'ai_evaluation_runs', 'ai_evaluation_results', 'recipe_technical_files', 'recipe_analysis_feedback', 'factory_rule_candidates', 'factory_rule_events']);
 const SAFE_INSERT_TABLES = new Set([...SAFE_TABLES, 'order_revisions']);
 const SAFE_COL_RE = /^[a-z][a-z0-9_]*$/;
 
@@ -987,7 +982,7 @@ function waitForBackupIdle() {
     return new Promise(resolve => backupIdleResolvers.push(resolve));
 }
 // 测试进程不触碰工作区数据库备份；正式 API 启动时立即备份并开始定时。
-if (!candidateMode && !process.env.NODE_TEST_CONTEXT) {
+if (!process.env.NODE_TEST_CONTEXT) {
     void runBackup('startup');
     scheduleBackup();
 }

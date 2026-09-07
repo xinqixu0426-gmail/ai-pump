@@ -3,7 +3,6 @@ const { getAiCapability } = require('../capabilities/registry.cjs');
 const {
     validateAiToolArgs,
 } = require('./aiToolInputValidatorV2.cjs');
-const { recordArgumentValidationFact } = require('./ai-v5/shadowFacts.cjs');
 
 const VIEW_TYPE_MAP = {
     search_business_changes: 'business_change_history',
@@ -125,14 +124,6 @@ function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
             };
         }
     });
-    for (const item of prepared) {
-        recordArgumentValidationFact({
-            toolName: item.toolCall?.function?.name,
-            status: item.validationStatus,
-            validationCode: item.validationCode,
-            args: parseAiToolArguments(item.toolCall?.function?.arguments),
-        });
-    }
     return prepared;
 }
 

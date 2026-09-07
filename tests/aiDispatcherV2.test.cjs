@@ -2,10 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     answerInstruction,
+    groundSingleEntitySearchArgs,
     runAiDispatcherV2: runAiDispatcherV2Base,
     synthesizeVerifiedAnswer,
 } = require('../api/services/aiDispatcherV2.cjs');
-const { runAiDispatcherV3: runAiDispatcherV3Base } = require('../api/services/aiDispatcherV3.cjs');
+const { runAiDispatcherV3: runAiDispatcherV3Base } = require('./helpers/legacyAiRuntime.cjs');
 
 const originalFetch = global.fetch;
 
@@ -179,6 +180,135 @@ test('V3 证据合成：系统提示、当前问题和证据共享总窗口，�
     });
     assert.equal(providerCalled, false);
     assert.match(content, /当前问题或系统提示.*超过模型输入窗口/);
+});
+
+test('V3 证据合成：配置成本错误小计与虚假确认二次出现时回退正式摘要', async () => {
+    let calls = 0;
+    const toolResults = [{
+        name: 'build_recipe_bom_draft',
+        result: {
+            executionEvidence: { verified: true },
+            data: {
+                parts: [
+                    { model: 'V750-大脚板-2寸', source: 'pump_shell_template', costRole: 'stainlessShellBundle', qty: 1, snapshotPrice: 95 },
+                    { model: '12-120', costRole: 'coil', qty: 1, snapshotPrice: 99.01 },
+                    { model: '浮球-线径0.55', costRole: 'float', qty: 1, snapshotPrice: 7.4 },
+                    { model: 'v550木箱', costRole: 'packing', qty: 1, snapshotPrice: 13 },
+                    { model: '珍珠棉', costRole: 'packing', qty: 1, snapshotPrice: 2 },
+                ],
+                costPreview: {
+                    currentTotalCost: 252.6,
+                    partsCost: 231.6,
+                    laborCost: 21,
+                },
+            },
+        },
+    }];
+    const result = await synthesizeVerifiedAnswer({
+        provider: async () => {
+            calls += 1;
+            return providerResponse({
+                content: '总成本 252.60 元，其他配件 23.19 元，正式确认卡片已生成。',
+            });
+        },
+        systemPrompt: '只回答正式结果。',
+        userText: '成本多少',
+        intent: { mode: 'query' },
+        toolResults,
+        env: {},
+    });
+
+    assert.equal(calls, 2);
+    assert.match(result, /V750-大脚板-2寸/);
+    assert.match(result, /252\.60 元/);
+    assert.match(result, /配件和材料 231\.60 元/);
+    assert.doesNotMatch(result, /23\.19|确认卡片/);
+});
+
+test('V3 证据合成：第一次金额越界后采用第二次有据可查的回答', async () => {
+    let calls = 0;
+    const toolResults = [{
+        name: 'build_recipe_bom_draft',
+        result: {
+            executionEvidence: { verified: true },
+            data: {
+                parts: [{ model: '珍珠棉', costRole: 'packing', qty: 1, snapshotPrice: 2 }],
+                costPreview: { currentTotalCost: 252.6, partsCost: 231.6, laborCost: 21 },
+            },
+        },
+    }];
+    const result = await synthesizeVerifiedAnswer({
+        provider: async () => {
+            calls += 1;
+            return providerResponse({
+                content: calls === 1
+                    ? '总成本 252.60 元，其他配件 23.19 元。'
+                    : '总成本 252.60 元，配件和材料 231.60 元，人工及管理 21.00 元。',
+            });
+        },
+        systemPrompt: '只回答正式结果。',
+        userText: '成本多少',
+        intent: { mode: 'query' },
+        toolResults,
+        env: {},
+    });
+
+    assert.equal(calls, 2);
+    assert.match(result, /配件和材料 231\.60 元/);
+    assert.doesNotMatch(result, /23\.19/);
+});
+
+test('V3 证据合成：普通只读查询连续虚构确认卡片时返回安全说明', async () => {
+    let calls = 0;
+    const result = await synthesizeVerifiedAnswer({
+        provider: async () => {
+            calls += 1;
+            return providerResponse({ content: '零件查询已完成，正式确认卡片已生成。' });
+        },
+        systemPrompt: '只回答正式结果。',
+        userText: '查询零件价格',
+        intent: { mode: 'query' },
+        toolResults: [{
+            name: 'search_parts',
+            result: { executionEvidence: { verified: true }, success: true, parts: [{ model: 'A', price: 95 }] },
+        }],
+        env: {},
+    });
+
+    assert.equal(calls, 2);
+    assert.match(result, /只读查询/);
+    assert.match(result, /没有生成确认卡片/);
+    assert.doesNotMatch(result, /已生成/);
+});
+
+test('V3 单对象零件关键词：只接受本轮已验证成功结果中的完整型号', () => {
+    const intent = { entityScope: 'single' };
+    const userText = '800平刀切割泵壳现在多少钱';
+    const unverified = groundSingleEntitySearchArgs(
+        'search_parts',
+        { limit: 100 },
+        intent,
+        userText,
+        [{ result: { success: true, data: [{ model: '800平刀切割泵壳' }] } }]
+    );
+    const failed = groundSingleEntitySearchArgs(
+        'search_parts',
+        { limit: 100 },
+        intent,
+        userText,
+        [{ result: { success: false, executionEvidence: { verified: true, kind: 'formal_api_query_failure' }, data: [{ model: '800平刀切割泵壳' }] } }]
+    );
+    const verified = groundSingleEntitySearchArgs(
+        'search_parts',
+        { limit: 100 },
+        intent,
+        userText,
+        [{ result: { success: true, executionEvidence: { verified: true, kind: 'formal_api_query' }, data: [{ model: '800平刀切割泵壳' }] } }]
+    );
+
+    assert.equal(unverified.keyword, undefined);
+    assert.equal(failed.keyword, undefined);
+    assert.equal(verified.keyword, '800平刀切割泵壳');
 });
 
 test('V2 调度器：模型理解口语后只调用计划内正式能力并以证据回答', async () => {
@@ -2005,12 +2135,22 @@ test('AI V3 Agent：指定配方技术档案不存在时不得换成其他配方
                 ambiguities: [],
                 confidence: 'high',
                 steps: [
-                    { capabilityName: 'get_recipe_technical_files', objective: '查询指定配方附件' },
                     { capabilityName: 'search_factory_knowledge', objective: '查询附件分类规则' },
+                    { capabilityName: 'get_recipe_technical_files', objective: '查询指定配方附件' },
                 ],
             });
         }
         if (providerCalls === 2) {
+            return providerResponse({ content: '', tool_calls: [{
+                id: 'related-recipe-knowledge',
+                type: 'function',
+                function: {
+                    name: 'search_factory_knowledge',
+                    arguments: JSON.stringify({ query: 'V1600 12-180 性能测试报告' }),
+                },
+            }] });
+        }
+        if (providerCalls === 3) {
             return providerResponse({ content: '', tool_calls: [{
                 id: 'missing-recipe-files',
                 type: 'function',
@@ -2020,10 +2160,30 @@ test('AI V3 Agent：指定配方技术档案不存在时不得换成其他配方
                 },
             }] });
         }
+        const synthesisEvidence = _messages.findLast(message => (
+            message.role === 'user' && /不可信业务数据载荷/.test(message.content)
+        ))?.content || '';
+        assert.doesNotMatch(synthesisEvidence, /v1500-DY-ml/);
         assert.deepEqual(options.tools, []);
         return providerResponse({ content: '未找到配方 V1600-3”-12-180，因此当前无法提供该配方的性能测试报告。' });
     };
     global.fetch = async url => {
+        if (String(url).includes('/api/knowledge')) {
+            return new Response(JSON.stringify({
+                success: true,
+                data: [{
+                    id: 6,
+                    entryType: 'recipe',
+                    sourceTable: 'recipes',
+                    sourceId: '6',
+                    title: '成品：v1500-DY-ml',
+                    summary: '相近配方带性能测试报告',
+                    content: '测试报告：related.xls',
+                    evidenceLevel: 'semantic_candidate',
+                    matchMode: 'vector',
+                }],
+            }), { headers: { 'Content-Type': 'application/json' } });
+        }
         assert.match(String(url), /\/api\/recipes/);
         return new Response(JSON.stringify({ success: true, data: [] }), {
             headers: { 'Content-Type': 'application/json' },
@@ -2035,9 +2195,9 @@ test('AI V3 Agent：指定配方技术档案不存在时不得换成其他配方
         fetchAiProvider: provider,
     });
 
-    assert.equal(providerCalls, 3);
-    assert.equal(result.toolResults.length, 1);
-    assert.equal(result.toolResults[0].result.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.equal(providerCalls, 4);
+    assert.equal(result.toolResults.length, 2);
+    assert.equal(result.toolResults[1].result.code, 'AI_RESOURCE_NOT_FOUND');
     assert.match(result.finalContent, /未找到配方 V1600/);
 });
 

@@ -12,7 +12,6 @@ const { normalizeResolutionContext } = require('../../services/aiResourceResolut
 const { normalizeAiTurnStateV3 } = require('../../services/aiTurnStateV3.cjs');
 const { aiRuntimeTelemetry } = require('../../services/aiRuntimeTelemetry.cjs');
 const { getAiHealth } = require('../../services/aiHealth.cjs');
-const { authorityEnabled, createReadAuthorityMux } = require('../../services/ai-v5/readAuthorityMux.cjs');
 
 const router = express.Router();
 const aiChatLogger = createLogger('ai-chat');
@@ -80,11 +79,7 @@ router.get('/api/ai/health', confirmAuth, (req, res) => {
 
 async function handleAiChat(req, res, options = {}) {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    const previewEnv = options.env || process.env;
-    const internalPreview = previewEnv.AI_V5_READ_CANARY_ENABLED === 'true'
-        && req.headers?.['x-pump-v5-preview'] === 'true' && Boolean(previewEnv.INTERNAL_SECRET)
-        && req.headers?.['x-internal-secret'] === previewEnv.INTERNAL_SECRET;
-    res.setHeader('Cache-Control', internalPreview || authorityEnabled(req, previewEnv) ? 'no-store' : 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
@@ -121,8 +116,7 @@ async function handleAiChat(req, res, options = {}) {
         if (typeof res.flush === 'function') res.flush();
         return true;
     };
-    const authorityMux = createReadAuthorityMux(req, sendFinal, controller.signal, { ...options.authorityOptions, env: previewEnv });
-    const send = (type, payload = {}) => authorityMux.emit(type, payload);
+    const send = sendFinal;
     let lastProviderKey = '';
     const onProvider = info => {
         providerEvents.push({ ...info });
@@ -135,6 +129,7 @@ async function handleAiChat(req, res, options = {}) {
     try {
         const result = await (options.runAiDispatcherV3 || runAiDispatcherV3)({
             messages: req.body?.messages,
+            conversationId: req.body?.conversationId,
             pageContext: req.body?.pageContext,
             resolutionContext: normalizeResolutionContext(req.body?.resolutionContext),
             turnState: normalizeAiTurnStateV3(req.body?.turnState),
@@ -145,7 +140,6 @@ async function handleAiChat(req, res, options = {}) {
             signal: controller.signal,
             requestId: req.requestId || null,
         });
-        await authorityMux.finalize(result);
         telemetry.record({
             requestId: req.requestId,
             status: 'completed',
@@ -157,13 +151,7 @@ async function handleAiChat(req, res, options = {}) {
             stageLatencyMs: result?.telemetry?.stageLatencyMs || {},
             toolSteps: result?.telemetry?.toolSteps || [],
         });
-        // Legacy has already emitted its authoritative done event. Preview is a separate channel.
-        try {
-            if (!authorityMux.enabled) await require('../../services/ai-v5/readCanary.cjs').previewAfterLegacy(req, result, send, controller.signal,
-                { ...options.canaryOptions, env: previewEnv });
-        } catch { /* Supplementary preview must not change legacy success or telemetry. */ }
     } catch (error) {
-        authorityMux.flushLegacy();
         const abortCode = controller.signal.aborted
             ? controller.signal.reason?.code || error.code
             : '';
@@ -199,7 +187,6 @@ async function handleAiChat(req, res, options = {}) {
         });
         sendFinal('error', { message: error.message, code: errorCode });
     } finally {
-        authorityMux.close();
         settled = true;
         clearTimeout(timeout);
         clearInterval(heartbeat);
@@ -252,6 +239,7 @@ async function processAiChat(text, options = {}) {
             { role: 'user', content: text },
         ],
         promptSuffix: options.promptSuffix,
+        conversationId: options.conversationId,
         allowWrite: Boolean(options.allowWrite),
         pageContext: options.pageContext,
         resolutionContext: options.resolutionContext,

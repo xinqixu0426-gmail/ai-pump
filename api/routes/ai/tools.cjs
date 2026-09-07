@@ -24,12 +24,6 @@ const COST_OVERRIDE_SCHEMA = Object.freeze({
 });
 
 const AI_TOOLS = [
-    { type: 'function', function: { name: 'read_relation',
-        description: 'Candidate限定只读关系目录，正式关系类型、 canonical 根和有界页；不接受任意查询。',
-        parameters: require('../../services/relationReadContract.cjs').TOOL_SCHEMA } },
-    { type: 'function', function: { name: 'read_collection',
-        description: '只读业务集合、精确详情或正式计数。只接受登记的资源及过滤条件，默认20条、最多50条，不读取全量集合。',
-        parameters: require('../../services/collectionReadContract.cjs').TOOL_SCHEMA } },
     {
         type: 'function',
         function: {
@@ -195,7 +189,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_all_recipes',
-            description: '从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。只有用户明确询问配方、产品配方或成品型号时使用；电缆、电容、油封、机筒、轴承等具体物料名称或物料类别属于零件库，应使用 search_parts。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。',
+            description: '从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。名称类型尚不确定时，可以与线圈、零件、模板目录组合查证；明确物料查询优先 search_parts，不能把相似配方自动替代用户目标。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。',
             parameters: {
                 type: 'object',
                 properties: {
@@ -1424,7 +1418,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'search_parts',
-            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称、类别、用途相关零件或专用配件（如电缆、电容、油封、机筒、轴承、密封件、切割泵壳/切割配件），即使没有说“零件”，也属于本能力；用途或专用关系结论还必须同时调用 search_factory_knowledge 检索 sourceTable=business_rules 的明确业务规则。只有明确询问配方或成品型号才使用 get_all_recipes。低库存按正式口径为库存大于0且不超过5。查询最贵/最便宜/库存最多/最少/最近更新等最值或排名问题时，必须设置 sortBy 与 sortOrder 并配合 limit（如 limit=1 或 5）取排序后的前 N 项，不得在未排序的列表中自行挑选最值。',
+            description: '按关键词、物料类别或库存状态查询正式零件库。用户直接询问具体物料名称、类别、用途相关零件或专用配件（如电缆、电容、油封、机筒、轴承、密封件、切割泵壳/切割配件），即使没有说“零件”，也属于本能力；用途或专用关系结论还必须同时调用 search_factory_knowledge 检索 sourceTable=business_rules 的明确业务规则。名称类型不确定时可与 get_all_recipes、search_coils、search_templates 组合查证，保留各类型的正式身份。低库存按正式口径为库存大于0且不超过5。查询最贵/最便宜/库存最多/最少/最近更新等最值或排名问题时，必须设置 sortBy 与 sortOrder 并配合 limit（如 limit=1 或 5）取排序后的前 N 项，不得在未排序的列表中自行挑选最值。',
             parameters: {
                 type: 'object',
                 properties: {

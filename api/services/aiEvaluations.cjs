@@ -6,6 +6,11 @@ const {
     AI_RELEASE_RUN_OWNER_KEY,
     assertCoreAiReleaseCases,
 } = require('./aiEvaluationReleasePolicy.cjs');
+const {
+    containsFalseReadConfirmationClaim,
+    numericCostValuesFromPreview,
+    claimedCostValues,
+} = require('./aiAnswerGrounding.cjs');
 
 function normalizeOwnerKey(value) {
     return String(value || 'admin').trim().slice(0, 80) || 'admin';
@@ -415,10 +420,20 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
     ]);
     const needsConfirmation = observation?.kind === 'needs_confirmation';
     const verifiedUnavailable = observation?.kind === 'verified_unavailable';
+    const alternativeRecipeNames = toolResults
+        .flatMap(tool => Array.isArray(tool?.result?.sources) ? tool.result.sources : [])
+        .filter(source => source?.entryType === 'recipe' && source?.title)
+        .map(source => String(source.title).replace(/^成品[：:]\s*/, '').trim())
+        .filter(name => name && normalizeTargetText(name) !== normalizeTargetText(recipeName));
+    const mentionedAlternatives = alternativeRecipeNames.filter(name => (
+        normalizeTargetText(answer).includes(normalizeTargetText(name))
+    ));
     return {
         type: prerequisite.type,
         available,
-        passed: available || needsConfirmation || (verifiedUnavailable && unavailableConclusion),
+        passed: available || needsConfirmation || (
+            verifiedUnavailable && unavailableConclusion && mentionedAlternatives.length === 0
+        ),
         reviewRequired: needsConfirmation,
         observation,
         label: available ? `存在 ${recipeName} 性能测试报告` : `明确说明 ${recipeName} 性能测试报告不可用`,
@@ -427,7 +442,9 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
             : needsConfirmation
                 ? '正式技术档案查询无法唯一定位目标配方，需要人工确认后复测'
                 : verifiedUnavailable
-                    ? unavailableConclusion
+                    ? mentionedAlternatives.length > 0
+                        ? `目标配方不可用时不得改用相近配方：${mentionedAlternatives.join('、')}`
+                        : unavailableConclusion
                         ? '正式技术档案查询已验证目标资料不可用，回答已明确说明'
                         : '正式技术档案查询已验证目标资料不可用，但回答没有明确说明'
                     : '没有取得针对目标配方的正式技术档案查询证据',
@@ -775,6 +792,28 @@ function evaluateRuleCase(caseItem, answerText, toolResults, db) {
             Number.isFinite(total)
                 ? `回答必须包含正式总成本 ${total}`
                 : '没有可核对的正式总成本'
+        );
+        const allowedCostValues = numericCostValuesFromPreview(data);
+        const ungroundedCostValues = claimedCostValues(answer).filter(value => (
+            ![...allowedCostValues].some(allowed => Math.abs(allowed - value) < 0.005)
+        ));
+        addCheck(
+            checks,
+            'fact:configured_bom_answer_amounts',
+            '回答中的金额全部来自正式成本结果',
+            verified && ungroundedCostValues.length === 0,
+            ungroundedCostValues.length === 0
+                ? '未发现模型自行重组的金额或小计'
+                : `发现正式成本结果中不存在的金额：${ungroundedCostValues.join('、')}`
+        );
+        addCheck(
+            checks,
+            'fact:configured_bom_no_false_confirmation',
+            '只读成本试算不得声称已生成确认卡片',
+            !containsFalseReadConfirmationClaim(answer),
+            containsFalseReadConfirmationClaim(answer)
+                ? '回答把只读试算错误描述为待确认写操作'
+                : '未伪造确认卡片或执行状态'
         );
     }
 

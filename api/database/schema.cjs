@@ -1,3 +1,22 @@
+const PERSONAL_MEMORY_SCHEMA_SQL = `
+    CREATE TABLE ai_personal_memories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        deleted INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE ai_personal_memory_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        memory_id INTEGER NOT NULL REFERENCES ai_personal_memories(id),
+        version INTEGER NOT NULL,
+        before_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(memory_id, version)
+    );
+`;
+
 const BUSINESS_CHANGE_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS business_change_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1144,6 +1163,8 @@ const COIL_INVENTORY_SCHEMA_SQL = `
 `;
 
 const APPLICATION_TABLES = Object.freeze([
+    'ai_personal_memories',
+    'ai_personal_memory_revisions',
     'ai_answer_feedback',
     'ai_conversation_messages',
     'ai_conversations',
@@ -1238,6 +1259,7 @@ function createKnowledgeFts(db) {
 }
 
 module.exports = {
+    PERSONAL_MEMORY_SCHEMA_SQL,
     APPLICATION_TABLES,
     BUSINESS_CHANGE_INDEXES_SQL,
     BUSINESS_CHANGE_SCHEMA_SQL,

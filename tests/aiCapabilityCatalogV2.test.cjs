@@ -136,7 +136,7 @@ test('V2 能力目录：重叠查询能力必须声明互斥的权威职责', ()
     assert.match(directory.get('calculate_coil_cost').description, /必须使用 search_coils/);
     assert.match(directory.get('search_factory_knowledge').description, /禁止用知识快照代替当前价格/);
     assert.match(directory.get('search_parts').description, /电缆、电容、油封、机筒、轴承/);
-    assert.match(directory.get('get_all_recipes').description, /具体物料名称.*应使用 search_parts/);
+    assert.match(directory.get('get_all_recipes').description, /明确物料查询优先 search_parts/);
 });
 
 test('V2 能力目录：单对象查询不暴露全局经营和管理能力', () => {

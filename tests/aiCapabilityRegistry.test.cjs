@@ -137,6 +137,8 @@ test('AI 能力注册表：当日成本对比工具统一登记实时业务证�
 
 test('正式业务能力注册表：已迁移 query 和 command 统一登记完整契约', () => {
     const expectedIds = [
+        'ai.personal_memory.list',
+        'ai.personal_memory.change',
         'entities.coil_span_candidates',
         'business_changes.list',
         'collections.read',
@@ -313,6 +315,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             'expectedUpdatedAt+run_case_unique',
             'expectedUpdatedAt_if_feedback_exists',
             'expectedVersion_content_sha256',
+            'expectedVersion_for_mutation',
         ].includes(capability.concurrencyControl));
         assert.match(capability.transactionality, /operation|external/);
         assert.match(capability.audit, /strong_audit/);

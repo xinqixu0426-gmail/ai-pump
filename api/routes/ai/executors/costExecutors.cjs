@@ -62,23 +62,23 @@ async function executeCostTool(toolName, args, internalFetch) {
         case 'calculate_coil_cost': {
             let material = args.material || '';
             let slotType = args.slotType || '';
-            if (!args.coilId && !args.schemeCode && (!material || !slotType)) {
+            let selectedCoilId = args.coilId || null;
+            if (!args.coilId && !args.schemeCode) {
                 const targetDiameter = coilDiameter(args.spec);
                 const targetSheets = Number(args.sheets || 0);
                 const coils = await getJson(internalFetch, '/api/coils', '线圈记录读取失败');
                 const candidates = (Array.isArray(coils) ? coils : []).filter(coil => (
-                    (coil.schemeStatus || 'official') === 'official'
-                    && coilDiameter(coil.spec, coil.diameterMm) === targetDiameter
+                    coilDiameter(coil.spec, coil.diameterMm) === targetDiameter
                     && Number(coil.sheets || 0) === targetSheets
                     && (!material || (coil.material || '钢带') === material)
                     && (!slotType || (coil.slotType || '小眼') === slotType)
                 ));
-                if (candidates.length !== 1) {
+                if (candidates.length > 1 || (candidates.length === 0 && (!material || !slotType))) {
                     return {
                         success: candidates.length > 0,
                         intent: 'coil_variant_choices',
                         summary: candidates.length > 0
-                            ? `${args.spec}-${args.sheets} 找到 ${candidates.length} 套正式方案，必须按材质和槽眼分别标注。`
+                            ? `${args.spec}-${args.sheets} 找到 ${candidates.length} 套已登记方案，必须保留方案编码、电气参数和状态，不默认选择。`
                             : `未找到 ${args.spec}-${args.sheets} 的正式线圈方案。`,
                         data: {
                             spec: String(args.spec || ''),
@@ -89,18 +89,23 @@ async function executeCostTool(toolName, args, internalFetch) {
                         ...(candidates.length > 0 ? {} : { error: `未找到 ${args.spec}-${args.sheets} 的正式线圈方案` }),
                     };
                 }
-                material = candidates[0].material || '钢带';
-                slotType = candidates[0].slotType || '小眼';
+                if (candidates.length === 1) {
+                    material = candidates[0].material || '钢带';
+                    slotType = candidates[0].slotType || '小眼';
+                    selectedCoilId = candidates[0].id;
+                }
             }
             const data = await postJson(internalFetch, '/api/coils/calculate', {
                 spec: args.spec,
-                coilId: args.coilId || null,
+                coilId: selectedCoilId,
                 schemeCode: args.schemeCode || '',
                 schemeFamilyCode: args.schemeFamilyCode || '',
                 sheets: args.sheets,
                 material,
                 slotType,
                 wireWeight: args.wireWeight || null,
+                // Read-only preview may inspect a testing scheme without changing its status.
+                includeTesting: true,
             }, '线圈成本计算失败');
             return { success: true, data };
         }

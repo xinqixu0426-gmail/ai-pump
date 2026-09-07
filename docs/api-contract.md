@@ -76,7 +76,7 @@
 - 自然语言中的名称、型号、编号和简称只能作为待解析候选，不能直接成为 high/critical 写操作确认卡中的正式目标。签发 AI confirmation token 前必须通过正式 Query/Preview 唯一解析为标准资源标识和标准名称，并以正式 Preview 返回的当前值、预计值、资源版本和业务确认凭证生成确认内容；零匹配、多匹配或 Preview 不完整时不得签发确认。正式 Preview 的服务端上下文必须与 AI confirmation token 绑定且不得下发客户端，确认执行时只能消费该已绑定上下文，不能重新信任模型参数。
 - AI 确认卡只能来自 executor 的结构化 `requiresConfirmation + confirmationToken + argsHash + rows` 回执，模型 Markdown、标题、表格或“请确认”文字永远不能作为确认卡或可执行状态。写意图轮次没有结构化确认、正式失败或缺参追问时，服务端必须丢弃模型正文并返回安全说明；“是/确认/执行”等自然语言只能延续待确认语义，不能替代服务端 token。
 - 库存等可回读写操作取得正式 operation/audit 回执后，还必须核对回执中的资源、数量和前后值与 Preview 一致，并通过正式 Query 回读最终状态。回执数量、增量或回读任一不一致时不得声明成功；应明确操作可能已提交但验收失败，交由幂等重查处理，不能盲目重写。
-- 强制业务 Query 调用失败时必须停止回答并返回 API 错误，不得继续调用模型用历史消息、知识快照或推测数字代替本轮正式结果。
+- 业务 Query 调用失败必须保留明确错误，不得用历史消息、知识快照或推测数字代替该项结果；允许继续读取其他独立事实，回答必须说明缺失项。
 - 正式 Query API 已成功返回零匹配，或以结构化 JSON 明确返回 `404` 资源不存在时，只能作为一次“已验证的负观察”；查询/分析模式必须在限定预算内完成与原目标相关的跨域只读调查，并确认相关正式对象均未找到后，才能如实回答“未找到”。其他 HTTP 错误、协议失败、超时或未完成全部正式 API 调用属于“未验证失败”，不得与零结果混淆；命令模式的前置查询未找到时必须安全停止，不能进入恢复链或开放后续写能力。
 - 有业务工具参与的流式回复必须先缓冲模型正文，完成全部执行证据校验后才能向客户端发送最终结论；工具调用前的模型草稿不得进入正式回复。
 - `deprecated=true` 必须同时声明替代能力、兼容截止条件和已知调用方。
@@ -352,24 +352,17 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 8. AI 调查接口只能聚合正式 service 输出；AI 可以解释，不能重算成本、库存或状态机。
 9. 内部调用必须遵守同一幂等、版本、确认和回执协议，不能另开低安全入口。
 10. AI 工具的 executor 归属和结果 provenance 必须从能力注册表读取；禁止在 dispatcher、领域 executor 或 UI 中维护重复名单。
-11. 自然语言理解由模型负责。规划必须分为两个受控阶段：第一阶段只能看到精简业务域目录并提交结构化目标/风险信封，至少包含当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、歧义和所需事实；第二阶段提交初始调查步骤。对于 `query/analysis`，第一阶段业务域是只读能力排序提示，不是读取权限边界，第二阶段可以看到按首选域优先排列的全部已登记且对象范围兼容的 read Query/Preview 紧凑目录；对于 `command`，业务域仍是硬风险信封。不得在第一阶段暴露完整工具目录，不得用业务关键词正则、停用词删除或型号模式替代语义理解。正则只允许用于 ID、数值、单位、token 和传输协议等确定性语法校验。
-12. 模型只选择第二阶段实际下发的能力注册表稳定 capability/tool 名称，不得选择或生成原始 URL。第二阶段只允许提交能力步骤，目标、模式、业务域、回答形态、对象范围和上下文来源由服务端固定继承第一阶段信封，不要求模型重复抄写。服务端能力目录根据意图信封、对象范围和注册表生成本轮 allowlist：非 `command` 必须排除全部 write；`command` 还必须拒绝越过第一阶段业务域。新增能力完成登记和 tool schema 后应自动进入对应读写目录，不得再修改分支式关键词路由。
-13. 执行轮正常情况下按所需事实逐项开放当前能力。正式 Query 返回零结果或已验证的资源未找到时，可以进入受预算约束的 Agent 调查模式，开放能力图登记且对象范围兼容的跨域只读 discovery/query；同一名称可依次核对零件、模板、配方、线圈等正式对象。未验证错误必须立即停止，歧义必须结构化澄清；任何恢复轮都不得开放 write、未登记能力或改变用户原始目标。command 不进入跨域恢复。
-14. 能力目录中职责相近的工具必须声明唯一权威边界。已有正式记录的列表、数量、状态和实时库存使用领域 Query；指定组合的计算、插值和草稿使用 Preview；业务规则与独立资料使用 Knowledge。不得用 Preview 代替 List，或用知识快照代替当前正式事实。
-15. 模型生成的每个工具参数都必须直接通过该 tool 的唯一 JSON schema。未知字段、错误类型、非法枚举、缺失必填和越界数值必须在调用正式 API 前拒绝；用于选择对象或决定计算口径的关键 ID/业务数值还必须来自用户明确输入、可信页面/上一轮结构化绑定或本轮已验证正式结果，不能由模型补造。服务端不得维护按业务句式删改参数的手写语义校验器；关键参数来源规则必须登记并在统一 grounding 入口执行。统一实体解析器可以用正式 Query 候选把自然语言 mention 替换为规范 ID/名称，但必须生成可审计的 `resolutionReceipt`，且写能力只有精确命中或人工确认后才能绑定。
-16. 同一问题要求“明细和当前成本”等多个事实时，目标信封必须列出所需事实和初始能力假设，并在限定轮次和调用数量内编排对应正式 Query/Preview API；调查路径可以根据正式观察调整，但保存快照、知识快照和模型常识不得代替当前事实。
-17. 正式 Query API 持有每次查询的筛选语义；当一个聚合 Query 覆盖多个独立事实范围时，API 应提供类型化范围参数并只读取所选范围，而不是先返回全部再由 executor 裁剪。AI executor 只负责传递已校验参数、清理明确废弃的兼容别名并保留正式资源的全部 camelCase 业务字段，不得在 API 返回后用手工字段白名单裁剪、另行筛选或重算。回答简洁由提示词和最终结果提取负责，不能靠删除事实字段实现。数据量通过正式筛选、类型化事实范围、用户显式 limit、分页、单资源详情或明确的结果过大错误控制，不得静默删除属性或嵌套字段。Agent 可以把零结果作为观察，改用另一组明确参数再次调用正式 Query。
-18. AI 的历史消息窗口不能作为可执行状态。已验证实体和待澄清候选必须存入限长、可校验的服务端 `turnState`；它只用于紧邻追问的对象引用，不提供写授权。上下文继承仍由结构化 `contextMode` 控制：新的明确问题只保留当前轮；页面上下文只在明确指代时使用；跨业务切换不得继承更早的写意图、参数、确认或成功结论。
-19. 模型返回的每个 tool call 必须同时属于服务端本轮实际下发的工具 allowlist，并符合当前轮次的读写意图。唯一允许的校验前规范化，是把注册表明确声明为当前计划能力 `order_target` 知识伴随的别名收口回该计划能力；上一轮实体只可作为本轮正式 Query 的待解析名称，不得直接信任客户端回传 ID。正常轮首次出现纯粹的单步工具选择漂移时，可以不执行该调用、不保存失败证据并强制模型重试当前计划能力一次；只有进入已验证空结果/未找到恢复后，allowlist 才能扩大到公共能力图给出的只读 discovery 集合。历史写入指令、模型自行重放和并发旧请求均不能扩大写权限。
-20. 查询结果必须返回已应用的结构化条件；零结果、业务歧义和读取失败必须是可区分的观察。零结果可以驱动有限的后续只读调查，未验证失败必须停止；目标所需事实未全部取得正式证据时，不得输出业务结论。
-21. 最终回答形式由意图信封的 `answerShape` 控制，例如直接回答、数量加简报、清单、对比或解释；不得为单个工具维护第二份终止规则或专用回答补丁。模型只负责从正式结果中提取用户需要的信息，不得扩大到未询问的相邻统计或自行计算分组数量，不得默认展示内部 ID/sourceId/数据库序号，也不得追加未询问的风险、猜测和建议。
-22. “何时、是否、多少、为什么发生过业务修改”由统一业务变更 Query 回答。结构化事件负责时间、数量和过滤；知识/FTS/向量仅为同一事件提供可重建的语义候选和排序。AI 只登记一个跨域变更工具，不按订单、报价、配方等实体复制工具。
-23. 模型上下文必须同时受 token 预算和字节硬上限控制。附件与长知识正文应先按当前问题检索带位置的相关片段；正式 API 结果不得为适配预算而静默删除字段，预算不足时使用正式筛选、分页、详情能力或明确超限错误。运行遥测中的 token 用量只能来自供应商明确返回的 usage；本地估算只用于预算，不能冒充计费或真实使用量。遥测可记录 TTFT、阶段/工具耗时和脱敏回退原因，但不得保存用户正文、附件内容、工具参数或完整业务结果。
-24. `query/analysis + single` 的 R2 试验路径必须按 `InvestigationGoal -> FactRequirement -> InvestigationState -> Capability Broker -> 正式 capability -> Observation/Evidence -> Fact Reducer` 工作。Broker 只能开放注册表中匹配业务域、对象范围、Fact、权威来源和可信参数来源的 read Query 或无副作用 Preview，并确定性执行去重和调用预算；Planner 的 capability steps 仅为初始排序提示。完成、负完成、澄清、未验证失败和预算耗尽只由 Fact 状态决定，兼容 `toolResults` 不得作为 V4 状态真相。同一 `InvestigationState` 内，本轮正式唯一解析产生的 entity binding 仅可供相同 logical target/entityType 的兼容 Fact 复用身份参数；每个 Fact 仍须独立调用权威 capability 并生成独立 Observation/Evidence，跨 run、不同目标、不同实体类型、歧义或 stale binding 均不得复用。
-25. R2 通过 `AI_READ_INVESTIGATION_V4_ENABLED` 显式启用，默认关闭；`AI_READ_INVESTIGATION_V4_SHADOW_ENABLED` 默认关闭且只允许重放本轮已经发生的正式 Observation/Evidence，不得额外调用 capability、申请 confirmation token、写业务数据或改变 V3 回答、SSE 与 `turnState`。Command 始终沿用 V3 安全协议。
-26. R3 Claim Grounding 是独立、默认关闭的回答边界，只在 `AI_CLAIM_GROUNDING_V4_ENABLED=true` 且请求已经进入 R2 支持的 `query/analysis + single + part/coil/template/recipe/cost` 调查路径时启用。服务端必须按 `InvestigationResult -> FactRequirement/Evidence -> Claim -> Claim Validator -> AnswerPlan -> deterministic formatter/structured renderer -> final validator` 生成回答；Claim identity 由业务实体、predicate、时态、场景和 qualifiers 构成，不得包含 tool、capability 或 planner step。进入该路径后，任何构造、renderer 或 final validation 失败都只能返回基于原 Claim 的确定性安全答案，禁止回退 legacy free-form composer。
-27. 正式业务 Claim 必须引用同一 Fact scope 的 EvidenceRecord，并确定性保持 entity、predicate、temporalScope、scenario、unit 和 value；`verified_not_found` 只由匹配目标的 verified-negative Evidence 支持，`ambiguous` 只由结构化正式候选支持，`unavailable` 只表达未完成核验且不得改写为未找到。每个 required FactRequirement 都必须有 Claim coverage，每个 required Claim 都必须被 AnswerPlan factual block 引用。成本 Claim 只能复述正式成本 Query/Preview Evidence 已返回的值，不得在 AI 层重算、合并 BOM 小计或交换 current 与 saved snapshot。
-28. 进入 Formal Numeric Business Scalar contract 的事实必须由匹配 Fact scope 的正式 Evidence 确定性物化，至少保留 subject、predicate、原始 numeric value、unit、temporalScope、scenario、qualifiers、authority/sourceOfTruth 和 evidenceRefs。第一批正式物化范围为 Part/Coil 当前库存数量：使用独立的 `inventoryQuantity/current/current_inventory` Fact 语义并映射为 `inventory.quantity` scalar Claim；已有价格和成本 scalar 继续使用各自既有 scenario mapping，不得与库存混用。`0` 是有效业务数值，不得按 truthiness 转换成 missing、not-found 或 unavailable。库存状态是不同 Fact，不得由数量推导或反向替代；`schemeStatus` 是线圈方案状态，不是库存状态。库存单位只来自正式 API 或服务端确定性领域契约，LLM、tool label、答案文本和知识快照不得生成当前库存数值或单位。
+11. 私人助理的默认执行链为 `aiAssistantRuntime`：当前会话和个人记忆 → 同一个模型选择工具 → schema 与参数来源校验 → 正式 API → 结果 → 继续查询或回答。不再强制两个规划阶段，不按预先计划逐项限制工具。
+12. 所有已登记、未废弃的 read Query 和无副作用 Preview 默认可用。业务域、实体类型及 single/collection/global 仅表达相关性和查询方式，不是读取权限。跨类型、跨业务、多目标比较使用同一个循环；不以零结果作为扩大只读目录的前提。
+13. 模型只能调用实际提供的已登记工具，参数必须通过唯一 schema。正式 API 仍负责过滤、分页、计算和业务规则。AI 不生成 SQL，不复制成本或库存公式，不以知识快照替代实时数据。
+14. 查询失败、零结果、歧义和成功结果必须可区分。失败不抹去同轮独立的成功结果；需要多个输入的比较不得在数据缺失时编造结论。成功结果必须具有统一 executor 的正式执行证据。
+15. 已明确的用户目标不得被相近名称或别的实体类型自动替换。歧义候选来自正式查询；用户可选一项或多项，选择后继续原问题并重新查实时事实。
+16. 会话引用保存在服务端，绑定现有登录主体和 conversationId，15 分钟过期，最多 200 个会话；并发同会话请求拒绝覆盖。客户端 turnState、resolutionContext 和历史回答不能提供写授权或替代正式结果。
+17. 个人记忆只存用户表达习惯、别名和处理方法。明确的记忆保存指令即授权该条低风险个人记忆变更，不再要求按钮二次提交；普通纠正不自动持久化。通过正式 memory API 和 service 保存，修改需要 expectedVersion，具备审计、幂等回执和撤销版本。记忆不是业务事实，也不能开放写权限。
+18. 本地首批默认不提供业务写工具。后续业务写能力沿用正式预览、本人确认及执行回执链；普通助理循环永远不能设置 allowWrite=true。网站登录继续使用现有机制，不增加 AI 专用身份框架。
+19. 模型正文先缓冲，工具错误不得伪装为成功；已取得的有效结果随 detail 返回。金额文案与本轮返回的金额字段核对，内部 ID 不是金额；最多一次金额依据修正提示，保留只读工具以补齐数据，仍不符则展示明确失败或正式成本预览摘要。候选目录不冒充已经完成的成本预览。未取证时不得直接复述历史金额；复述用户本轮输入的拟定价格不要求为此查询业务数据。单轮最多 10 次工具提议、7 次模型轮次，重复成功调用复用结果；允许改变参数继续读取。token 与字节预算不足时明确停止，不静默删除正式结果字段。
+20. 旧 V3 两阶段规划和 V4 Fact/Broker/Claim 实验文件保留为历史实现与用户未提交工作，新入口不调用、不 shadow、不自动回退。生产仍运行原已部署版本，只有独立发布验收后才能更新生产状态说明。
+21. 模型上下文与正式回执分离：订单、报价、配方列表向模型提供基本字段、省略字段声明及既有详情工具；原始 tool_result/detail 和参数身份依据保持完整。嵌套 JSON 在模型视图中无损解码，token 预算按消息内容估算而非二次转义后的传输 JSON。上轮摘要最多估算 4096 token，超出时明确要求重查，不截断候选 JSON。预算紧张先缩短工具说明，保留所有工具及参数校验结构；若已取得的大明细只容得下正文，则保留结果并结束工具循环，回答已核实部分，明确未完成部分。仍无法容纳时才返回容量不足。
 
 ## 11. 鉴权与权限
 

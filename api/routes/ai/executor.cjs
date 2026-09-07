@@ -288,9 +288,6 @@ async function executeToolCallImplementation(toolName, args, options = {}) {
     if (!capability) {
         return { success: false, error: `工具未登记到能力注册表，已拒绝执行: ${toolName}` };
     }
-    if (capability.candidateOnly && process.env.PUMP_V5_CANDIDATE_RUNTIME !== 'true') {
-        return { success: false, code: 'CANDIDATE_TOOL_SCOPE_REQUIRED', error: '查询未获准执行' };
-    }
     try {
         args = validateAiToolArgs(toolName, args);
     } catch (error) {

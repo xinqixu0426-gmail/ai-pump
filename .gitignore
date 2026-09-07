@@ -33,6 +33,7 @@ scripts/db-backup/
 backups/
 
 # 临时与本地构建文件夹
+output/
 tmp/
 temp/
 preview/

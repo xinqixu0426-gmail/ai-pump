@@ -109,8 +109,6 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'search_factory_knowledge',
     ]),
     catalog: Object.freeze([
-        'read_relation',
-        'read_collection',
         'search_parts',
         'create_part',
         'batch_create_parts',
@@ -128,8 +126,6 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
 });
 
 const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
-    read_relation: '读取有界正式业务关系',
-    read_collection: '读取有界业务集合或详情',
     search_business_changes: '查询业务变更',
     get_management_action_center: '读取管理待办',
     plan_factory_workflow: '生成工厂工作流计划',
@@ -253,8 +249,6 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_rotor_drawing_history',
     ]),
     query: Object.freeze([
-        'read_relation',
-        'read_collection',
         'search_business_changes',
         'get_coil_specs',
         'search_coils',
@@ -414,8 +408,6 @@ const WRITE_CAPABILITY_NAMES = new Set([
 ]);
 
 const LIVE_CAPABILITY_NAMES = new Set([
-    'read_relation',
-    'read_collection',
     'search_business_changes',
     'full_calculate',
     'get_copper_price',
@@ -501,8 +493,6 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 ]);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
-    read_relation: Object.freeze(['relations.read']),
-    read_collection: Object.freeze(['collections.read']),
     search_business_changes: Object.freeze(['business_changes.list']),
     search_parts: Object.freeze(['parts.list']),
     search_coils: Object.freeze(['coils.list']),
@@ -1688,6 +1678,22 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         transactionality:
             'system_evaluation_case_configuration_audit_and_operation_receipt_atomic',
     }),
+    'ai.personal_memory.list': defineQueryCapability({
+        capabilityId: 'ai.personal_memory.list', domain: 'ai',
+        inputSchema: 'GET /api/ai/personal-memories?afterId?&limit?',
+        outputSchema: 'PersonalMemoryPage { items, hasMore, nextAfterId }',
+        sourceOfTruth: 'ai_personal_memories', riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
+    'ai.personal_memory.change': defineBusinessCapability({
+        capabilityId: 'ai.personal_memory.change', recordsBusinessChange: false, domain: 'ai',
+        operation: 'command',
+        inputSchema: 'POST /api/ai/personal-memories/change { action, id?, content?, expectedVersion?, idempotencyKey? }',
+        outputSchema: 'CommandReceipt<PersonalMemory>', sourceOfTruth: 'ai_personal_memories+ai_personal_memory_revisions',
+        riskLevel: 'medium', requiresConfirmation: false, supportsPreview: false,
+        concurrencyControl: 'expectedVersion_for_mutation',
+        transactionality: 'memory_revision_audits_and_operation_atomic',
+    }),
     'ai.feedback.list': defineQueryCapability({
         capabilityId: 'ai.feedback.list',
         domain: 'ai',
@@ -2002,7 +2008,6 @@ function buildRegistry() {
         registry[name] = Object.freeze({
             capabilityId: `ai.${name}`,
             toolName: name,
-            candidateOnly: ['read_collection','read_relation'].includes(name),
             displayName: AI_CAPABILITY_DISPLAY_NAMES[name] || name,
             executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME[name] || null,
             domain: domains[0],

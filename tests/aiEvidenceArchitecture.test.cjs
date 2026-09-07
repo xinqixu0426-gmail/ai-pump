@@ -14,7 +14,7 @@ const {
     createObservation,
     observationFromToolResult,
 } = require('../api/services/aiObservationV3.cjs');
-const { runAiDispatcherV3 } = require('../api/services/aiDispatcherV3.cjs');
+const { runAiDispatcherV3 } = require('./helpers/legacyAiRuntime.cjs');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
 const partsRouter = require('../api/routes/parts.cjs');
 const { db, stopBackupScheduler } = require('../api/db.cjs');

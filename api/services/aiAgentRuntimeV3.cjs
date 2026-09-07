@@ -41,6 +41,11 @@ const {
 } = require('./aiExecutionEvidence.cjs');
 const { safeUnverifiedWriteReply } = require('./aiSafetyReplies.cjs');
 const {
+    buildGroundedConfiguredBomReply,
+    containsFalseReadConfirmationClaim,
+    ungroundedConfiguredBomAmounts,
+} = require('./aiAnswerGrounding.cjs');
+const {
     buildAiPageContextNote,
     normalizeAiPageContext,
 } = require('./aiPageContext.cjs');
@@ -244,6 +249,41 @@ function buildClarificationReply(intent) {
     return `还需要您确认以下信息后我才能安全处理：\n\n${questions}`;
 }
 
+function terminalTargetEvidence(toolResults = []) {
+    const terminalMisses = toolResults.filter(item => (
+        isRecoverableReadMiss(item) && !canAdjustReadStrategy(item)
+    ));
+    return terminalMisses.length > 0 ? terminalMisses : toolResults;
+}
+
+function normalizeEntityText(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase('zh-CN')
+        .replace(/[\s“”"'`_-]+/g, '');
+}
+
+function groundSingleEntitySearchArgs(toolName, args, intent, userText, toolResults = []) {
+    if (toolName !== 'search_parts' || intent?.entityScope !== 'single' || String(args?.keyword || '').trim()) {
+        return args;
+    }
+    const normalizedUser = normalizeEntityText(userText);
+    const candidates = toolResults.filter(tool => (
+        hasVerifiedExecution(tool?.result) && tool?.result?.success !== false
+    )).flatMap(tool => {
+        const result = tool?.result || {};
+        const rows = [
+            ...(Array.isArray(result.data) ? result.data : []),
+            ...(Array.isArray(result.parts) ? result.parts : []),
+            ...(result.data && !Array.isArray(result.data) ? [result.data] : []),
+        ];
+        return rows.flatMap(row => [row?.model, row?.shellModel, row?.name]);
+    }).map(value => String(value || '').trim()).filter(value => (
+        value && normalizedUser.includes(normalizeEntityText(value))
+    )).sort((left, right) => right.length - left.length);
+    return candidates[0] ? { ...args, keyword: candidates[0] } : args;
+}
+
 async function synthesizeVerifiedAnswer(input = {}) {
     const evidence = buildAiSynthesisEvidence(input.toolResults);
     const evidenceJson = JSON.stringify(evidence);
@@ -294,6 +334,30 @@ async function synthesizeVerifiedAnswer(input = {}) {
         const message = readProviderMessage(data);
         const content = String(message.content || '').trim();
         if (!message.tool_calls?.length && content && !containsEmbeddedToolProtocol(content)) {
+            const ungroundedAmounts = ungroundedConfiguredBomAmounts(content, input.toolResults);
+            const falseConfirmation = input.intent?.mode !== 'command'
+                && containsFalseReadConfirmationClaim(content);
+            if (ungroundedAmounts.length > 0 || falseConfirmation) {
+                if (attempt === 0) {
+                    messages.push({
+                        role: 'system',
+                        content: [
+                            ungroundedAmounts.length > 0
+                                ? `上一次回答包含正式成本结果中不存在的金额：${ungroundedAmounts.join('、')}。请只引用 costPreview.currentTotalCost、partsCost、laborCost 或 details/BOM 中直接返回的原项金额；不要自行合并小计。`
+                                : '',
+                            falseConfirmation
+                                ? '这是只读查询，没有生成确认卡片，也不需要确认后执行。请直接陈述查询结果。'
+                                : '',
+                        ].join('\n'),
+                    });
+                    continue;
+                }
+                const groundedReply = buildGroundedConfiguredBomReply(input.toolResults);
+                if (groundedReply) return groundedReply;
+                if (falseConfirmation) {
+                    return '本轮只完成了只读查询，没有执行任何写入，也没有生成确认卡片。模型未能可靠整理查询结果，请重试。';
+                }
+            }
             return content;
         }
         messages.push({
@@ -974,13 +1038,20 @@ async function runAiAgentRuntimeV3(input = {}) {
                 parseAiToolArguments(prepared.toolCall.function.arguments),
                 scopedMessages
             );
+            const groundedArgs = groundSingleEntitySearchArgs(
+                prepared.toolCall.function.name,
+                normalizedArgs,
+                intent,
+                latestUserText(scopedMessages),
+                toolResults
+            );
             return {
                 ...prepared,
                 toolCall: {
                     ...prepared.toolCall,
                     function: {
                         ...prepared.toolCall.function,
-                        arguments: JSON.stringify(normalizedArgs),
+                        arguments: JSON.stringify(groundedArgs),
                     },
                 },
             };
@@ -1341,7 +1412,7 @@ async function runAiAgentRuntimeV3(input = {}) {
                     systemPrompt,
                     userText: latestUserText(messages),
                     intent,
-                    toolResults: synthesisEvidenceResults(),
+                    toolResults: terminalTargetEvidence(synthesisEvidenceResults()),
                     onProvider: announceProvider,
                     onUsage: collectUsage,
                     env: input.env,
@@ -1584,6 +1655,7 @@ module.exports = {
     buildClarificationReply,
     buildPendingWriteReply,
     containsEmbeddedToolProtocol,
+    groundSingleEntitySearchArgs,
     requiredEvidenceSatisfied,
     runAiAgentRuntimeV3,
     runAiDispatcherV2,

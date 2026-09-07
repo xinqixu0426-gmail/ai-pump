@@ -17,9 +17,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 其他文档按用途归类：
 
-V5 当前集合读取契约见 [有界集合/分页/详情/计数](ai-governance/v5-bounded-collection-read-v1.md)；是否已通过生产验收以阶段报告为准。接口事实仍集中于 API 接口总表。
-
-隔离 owner Candidate 支持闭集有界关系读取、客户字面关键词分页搜索和显式候选选择；选择客户后保留原始订单查询目的，线圈可明确选择已展示的一个或两个对象。正式 API、身份/证据依赖及开关边界见 [API 接口总表](api-reference.md#有界业务集合查询只读)。多读开关默认关闭，生产状态和各制品验收分别以 [P16-M 报告](ai-governance/reports/P16-M-relation-surface-audit.md) 为准，不用历史通过率代表当前制品。P17 写迁移继续暂停。
+V5 Candidate 框架已从当前源码撤除，撤除时的验证结果与限制见 [撤除结果](ai-framework-retirement-result.md)，旧报告见 [历史档案](ai-governance/README.md)。新版私人助理已实现跨业务只读工具循环、上下文压缩及自然语言长期记忆，2026-09-07 用户确认本地人工验收通过，纳入“水泵ai管理系统V1”。业务写入尚未启用；实现范围见 [实施计划](ai-assistant-implementation-plan.md)，冻结和生产发布状态见 [发布检查清单](deployment-checklist.md)。
 
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
@@ -30,14 +28,6 @@ V5 当前集合读取契约见 [有界集合/分页/详情/计数](ai-governance
 | AI 验收 | [AI 学习发布门禁](./ai-learning-release-gate-guide.md) | 真实 AI 回归与失败处理 |
 
 不再维护按版本命名的临时说明或与现行流程重复的脑图。阶段实现过程以 Git 历史为准，稳定规则必须归入上表对应文档。
-
-本地 V5 Candidate 按安全与可用性分离的契约完成本地认证；部署仍须 Supervisor 单独授权。它是显式启用、loopback 绑定的独立只读进程，运行方式及内部接口边界统一见 [API 接口总表](./api-reference.md)。风险分类不可用时安全拒绝，不进入 V5；这不代表生产切换或写操作授权。
-
-Candidate 的 part 价格与库存数量通过既有本地 Task Class 分开，服务端派生所需 fact；可选 fact header 仅作一致性断言。范围及兼容说明见 [只读语义拆分契约](ai-governance/v5-part-read-semantic-split-v1.md)，路由开关与业务语义独立。
-
-Candidate 在风险准入后可通过正式只读 `/api/entity-span-candidates` 补充有界线圈完整身份跨度，最多扫描 512 条身份字段记录、返回 8 个位置；超限停止，不向 V5 暴露目录或由供给返回 canonical ID。原窄事实路径保持单跨度规则；启用 multi-read 的 coil/detail 可逐跨度强制 entity lookup，去重后对两个正式身份请求显式选择，不自动选最长或首项。接口及隐私边界统一见 [API 接口总表](./api-reference.md)，Stage1/Stage2 Prompt 保持不变。
-
-Owner 默认只读路由使用独立可逆开关，源默认 OFF。精确认证的 dedicated owner 可优先获取已验证 Candidate 答案；shared admin 与其他用户、未支持请求及 Candidate 失败均沿用 Legacy。不会开启写执行或全局切换；边界见 [API 接口总表](./api-reference.md#owner-默认只读网关)。
 
 ## 1. 系统用途
 
@@ -372,7 +362,7 @@ POST /api/rotor/save
 - AI 系统上下文按“不可编辑核心规则 + 当前领域规则 + 可编辑工厂配置 + 相关纠错规则”组装。AI 工作台的“工厂配置”只维护术语、偏好和操作习惯，不能覆盖标准 API、来源真实性和写操作确认；旧整份提示词会先备份再迁移。纠正规则按当前问题筛选，避免无关历史习惯占用上下文或互相干扰。
 - AI Agent Runtime V3 将普通工具结果作为模型继续调查和提取结论的证据；证据以“不可信业务数据”角色进入最终合成，字段中的提示词或命令不会取得系统权限。`aiEntityResolverV3` 对客户、订单、配方、零件、线圈方案和泵壳模板复用同一套原词/前缀探针、候选评分和绑定协议：只读唯一高置信候选可透明绑定并告知规范名称，多候选结构化追问，写能力仅接受精确目标或人工确认。每个绑定都生成不含原始业务对象的 `resolutionReceipt`。Web 会持久化服务端生成的限长 `turnState`，紧邻追问可复用正式实体引用；新目标不会继承旧实体或写意图。V2 文件只保留兼容导出。
 - V3 最终提取按 `answerShape` 只返回当前问题的结果：内部 ID/sourceId/数据库序号默认不展示，列表不由模型自行计算分组数量，也不附加未询问的库存风险、相似项判断和后续建议。
-- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；两阶段能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema、关键参数 grounding 和 `aiExecutionEvidence`；runtime 再把模型行为记录为独立的单轮 BehaviorEvent 列表，把实际正式调用结果记录为 Observation，并只将有业务证明力的结果追加到单轮内存 Evidence Ledger。计划外工具和后续 plan drift 不会成为业务失败证据，也不会使此前正式证据失效；只有同一 Fact、同一正式来源的更新版本或权威时态可 supersede 旧证据。Query/Preview 必须有本轮正式 API 证据；零结果及已验证的资源未找到可进入有限跨域只读调查；HTTP/超时/协议失败立即停止结论且不能转换成“未找到”。写工具在 query/recovery 中不可见，并必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。既有 SSE 事件协议保持不变。系统提示、历史、工具 schema、附件、图片预留和正式证据在每次 provider 请求中共享一个总输入预算；超限明确停止，不删除正式字段。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
+- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；两阶段能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema、关键参数 grounding 和 `aiExecutionEvidence`；runtime 再把模型行为记录为独立的单轮 BehaviorEvent 列表，把实际正式调用结果记录为 Observation，并只将有业务证明力的结果追加到单轮内存 Evidence Ledger。计划外工具和后续 plan drift 不会成为业务失败证据，也不会使此前正式证据失效；只有同一 Fact、同一正式来源的更新版本或权威时态可 supersede 旧证据。Query/Preview 必须有本轮正式 API 证据；零结果及已验证的资源未找到可进入有限跨域只读调查，最终指定目标仍不存在时只使用该目标的终止负证据回答，相近名称、相似配方和语义候选不得代替；HTTP/超时/协议失败立即停止结论且不能转换成“未找到”。写工具在 query/recovery 中不可见，并必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。既有 SSE 事件协议保持不变。系统提示、历史、工具 schema、附件、图片预留和正式证据在每次 provider 请求中共享一个总输入预算；超限明确停止，不删除正式字段。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
 - 新建报价的询价助手使用报价域专用只读接口，直接读取统一文件库原始附件并强制调用已配置的 Kimi 开放平台：图片传原图，文档使用 Kimi 文件抽取；不再经过通用 AI 对话规划、本地 OCR 或 DeepSeek 静默降级。Kimi 失败时页面明确提示，人工核对后的摘要仍通过报价保存预览绑定，不影响成本和价格。
 - 能力注册表同时声明每项 AI capability 允许的 `entityScopes`。具名订单等 `single` 查询只开放单对象能力，不允许调用全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总；跨订单汇总必须使用 `collection/global`，防止无关订单信息混入回答。
 - 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。泵壳模板 + 线圈/浮球/电缆/包装的临时成品成本统一使用 `build_recipe_bom_draft`：服务端先绑定完整模板和正式配置零件，再形成 BOM 并调用 `costEngine` 返回总成本。已有配方的临时变化使用 `preview_recipe_cost`；兼容 `full_calculate` 也走同一角色覆盖口径，不重复计算原配方已有动态项。
@@ -451,3 +441,5 @@ POST /api/rotor/save
 - 数据库字段保持 snake_case，API 与前端只使用 camelCase。历史大小写字段和旧入参只能停留在 route adapter 或 Web API client normalize 层。
 - 兼容路径必须登记替代能力和删除条件；未取得调用遥测前不删除。新增功能不得扩大旧字段或旧成本入口。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口；报价和订单覆盖试算必须使用 `cost-preview`。
+
+新版私人助理已通过用户本地人工验收：默认只读工具可跨类型、跨业务组合，明确记忆指令经正式 API 保存。V1 冻结不代表生产已更新；当前范围与后续能力见 [实施计划](./ai-assistant-implementation-plan.md)。

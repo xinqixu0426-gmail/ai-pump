@@ -161,7 +161,7 @@ function verifiedResolvedOrderIds(toolResults = []) {
     const ids = new Set();
     for (const item of toolResults || []) {
         if (
-            !ORDER_QUERY_TOOLS.has(item?.name)
+            !(ORDER_QUERY_TOOLS.has(item?.name) || item?.name === 'get_recent_orders')
             || item?.result?.success === false
             || !hasVerifiedExecution(item?.result)
         ) continue;

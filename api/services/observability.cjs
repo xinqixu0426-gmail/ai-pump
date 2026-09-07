@@ -1,12 +1,5 @@
 const { createLogger } = require('../logger.cjs');
 const { createHash } = require('node:crypto');
-const {
-  recordEntityNormalizationFact,
-  recordEntityResolutionFact,
-  recordRoutingFact,
-  recordToolExecutionFact,
-  recordVerificationFact,
-} = require('./ai-v5/shadowFacts.cjs');
 
 const DEFAULT_PROJECT = 'pump-ai-v4-baseline';
 const DEFAULT_COLLECTOR_ENDPOINT = 'http://127.0.0.1:6006';
@@ -615,8 +608,6 @@ function withEntityNormalizationSpan(metadata = {}, operation) {
     },
   }, control => {
     const result = operation(control);
-    const output = typeof metadata.output === 'function' ? metadata.output(result) : metadata.output;
-    recordEntityNormalizationFact(metadata, output);
     return result;
   });
 }
@@ -651,7 +642,6 @@ function withEntityResolutionSpan(metadata = {}, operation) {
     },
   }, async control => {
     const result = await operation(control);
-    recordEntityResolutionFact(metadata, result);
     return result;
   });
 }
@@ -679,7 +669,6 @@ function withRoutingSpan(metadata = {}, operation) {
     },
   }, control => {
     const result = operation(control);
-    recordRoutingFact(metadata, result);
     return result;
   });
 }
@@ -714,7 +703,6 @@ function withVerificationSpan(metadata = {}, operation) {
     },
   }, control => {
     const result = operation(control);
-    recordVerificationFact(metadata, result);
     return result;
   });
 }
@@ -745,176 +733,6 @@ function getActiveTraceContext() {
   }
 }
 
-function withDetachedTrace(operation) {
-  try {
-    if (phoenix?.context?.active && phoenix?.context?.with && phoenix?.trace?.deleteSpan) {
-      const detached = phoenix.trace.deleteSpan(phoenix.context.active());
-      return phoenix.context.with(detached, operation);
-    }
-  } catch {
-    // Shadow tracing must remain detached and fail-open.
-  }
-  return operation();
-}
-
-function shadowCorrelationAttributes(metadata = {}) {
-  return {
-    ...correlationAttribute('pump.request.id', metadata.sourceRequestId),
-    ...(metadata.sourceRequestIdHash ? { 'pump.request.id_hash': metadata.sourceRequestIdHash } : {}),
-    ...(metadata.sourceTraceId ? { 'pump.ai.v5.source_trace_id': safeLabel(metadata.sourceTraceId) } : {}),
-    'pump.ai.v5.shadow_task_id': safeLabel(metadata.shadowTaskId),
-  };
-}
-
-function withV5ShadowSpan(metadata = {}, operation) {
-  return withDetachedTrace(() => withObservedSpan({
-    name: 'pump.ai.v5.shadow',
-    kind: 'CHAIN',
-    attributes: shadowCorrelationAttributes(metadata),
-    resultStatus(result) {
-      return {
-        error: result?.comparisonStatus === 'SHADOW_ERROR',
-        attributes: {
-          'pump.ai.v5.comparison.status': safeLabel(result?.comparisonStatus),
-          'pump.ai.v5.projection.status': safeLabel(result?.projectionStatus),
-        },
-      };
-    },
-  }, operation));
-}
-
-function withV5ShadowProjectionSpan(metadata = {}, operation) {
-  return withObservedSpan({
-    name: 'pump.ai.v5.shadow.project',
-    kind: 'CHAIN',
-    attributes: shadowCorrelationAttributes(metadata),
-    resultStatus(result) {
-      const tools = Array.isArray(result?.toolExposureAssessment?.tools)
-        ? result.toolExposureAssessment.tools.map(item => safeLabel(item.toolName))
-        : [];
-      return {
-        error: result?.status === 'INVALID',
-        attributes: {
-          'pump.ai.v5.projection.status': safeLabel(result?.projectionStatus || result?.status),
-          'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
-          'pump.ai.v5.tool_names': tools,
-          'pump.ai.v5.facts.entity_available': result?.availability?.entityFactsAvailable === true,
-          'pump.ai.v5.facts.capability_available': result?.availability?.capabilityFactsAvailable === true,
-          'pump.ai.v5.facts.argument_available': result?.availability?.argumentFactsAvailable === true,
-          'pump.ai.v5.facts.state_available': result?.availability?.stateFactsAvailable === true,
-          'pump.ai.v5.facts.verification_available': result?.availability?.verificationFactsAvailable === true,
-          'pump.ai.v5.argument.validation_status': safeLabel(result?.argumentAssessment?.status),
-          'pump.ai.v5.entity.status': safeLabel(result?.entityAssessment?.status),
-          'pump.ai.v5.state.valid': result?.stateAssessment?.valid === true,
-          'pump.ai.v5.verification.status': safeLabel(result?.verificationAssessment?.status),
-          ...(result?.capabilityAssessment?.intendedCapabilityId ? {
-            'pump.ai.v5.capability_id': safeLabel(result.capabilityAssessment.intendedCapabilityId),
-          } : {}),
-        },
-      };
-    },
-  }, operation);
-}
-
-function withV5ShadowComparisonSpan(metadata = {}, operation) {
-  return withObservedSpan({
-    name: 'pump.ai.v5.shadow.compare',
-    kind: 'CHAIN',
-    attributes: shadowCorrelationAttributes(metadata),
-    resultStatus(result) {
-      return {
-        error: result?.comparisonStatus === 'SHADOW_ERROR',
-        attributes: {
-          'pump.ai.v5.comparison.status': safeLabel(result?.comparisonStatus),
-          'pump.ai.v5.comparison.entity': safeLabel(result?.entityComparison?.status),
-          'pump.ai.v5.comparison.capability': safeLabel(result?.capabilityComparison?.status),
-          'pump.ai.v5.comparison.tool_exposure': safeLabel(result?.toolExposureComparison?.status),
-          'pump.ai.v5.comparison.argument': safeLabel(result?.argumentComparison?.status),
-          'pump.ai.v5.comparison.state': safeLabel(result?.stateComparison?.status),
-          'pump.ai.v5.comparison.policy': safeLabel(result?.policyComparison?.status),
-          'pump.ai.v5.comparison.verification': safeLabel(result?.verificationComparison?.status),
-          'pump.ai.v5.reason_codes': Array.isArray(result?.reasonCodes) ? result.reasonCodes : [],
-        },
-      };
-    },
-  }, operation);
-}
-
-function withV5InterpreterStage(stage, metadata = {}, operation) {
-  const stages = ['span-selection', 'governed-lookup', 'local-task-class-build', 'local-intent', 'entity-finalization', 'capability-route', 'shadow-comparison'];
-  if (!stages.includes(stage)) throw new TypeError('Unknown V5 interpreter stage');
-  return withObservedSpan({
-    name: `pump.ai.v5.${stage}`,
-    kind: stage === 'span-selection' || stage === 'local-intent' ? 'LLM' : 'CHAIN',
-    attributes: {
-      ...shadowCorrelationAttributes(metadata),
-      'pump.ai.v5.architecture_version': 3,
-    },
-    resultStatus(result) {
-      return { error: result?.status === 'ERROR' || result?.status === 'TIMEOUT', attributes: {
-        'pump.ai.v5.stage.status': safeLabel(result?.status),
-        'pump.ai.v5.stage.candidate_count': Number(result?.candidateCount || 0),
-        'pump.ai.v5.stage.candidate_type_count': Number(result?.candidateTypeCount || 0),
-        'pump.ai.v5.stage.selected_span_count': Number(result?.selection?.spanRefs?.length || 0),
-        'pump.ai.v5.stage.lookup_count': Number(result?.resolverCalls || 0),
-        'pump.ai.v5.stage.local_class_count': Array.isArray(result) ? result.length : 0,
-        ...(result?.errorMetadata ? {
-          'pump.ai.v5.error.category': safeLabel(result.errorMetadata.category),
-          'pump.ai.v5.error.code': safeLabel(result.errorMetadata.internalCode),
-          'pump.ai.v5.error.http_status': Number(result.errorMetadata.httpStatus || 0),
-          'pump.ai.v5.error.timeout': result.errorMetadata.timeout === true,
-        } : {}),
-      } };
-    },
-  }, operation);
-}
-
-function withReadAnswerSpan(metadata = {}, operation) {
-  return withObservedSpan({ name: 'pump.ai.v5.read-answer', kind: 'LLM', attributes: {
-    'pump.ai.v5.shadow_task_id': safeLabel(metadata.taskId),
-    'pump.ai.answer.fact_count': Number(metadata.factCount) || 0,
-    'gen_ai.request.model': 'deepseek-v4-flash', 'pump.ai.llm.tool_definition_count': 0,
-  } }, operation);
-}
-function recordReadCanaryGate(metadata = {}) {
-  return withAgentSpan({ route: 'v5_canary_gate' }, () => withObservedSpanSync({ name: 'pump.ai.v5.canary-gate', kind: 'CHAIN', attributes: {
-    'pump.ai.v5.canary.global_enabled': metadata.globalEnabled === true,
-    'pump.ai.v5.canary.request_opt_in': metadata.previewOptIn === true,
-    'pump.ai.v5.canary.attempted': false, 'pump.ai.v5.canary.eligible': false,
-    'pump.ai.v5.canary.validation_pass': false, 'pump.ai.v5.canary.exposed': false,
-  } }, () => null));
-}
-function recordReadAuthority(metadata = {}) {
-  return withAgentSpan({ route: 'v5_authority_selection' }, () => withObservedSpanSync({
-    name: 'pump.ai.v5.authority-selection', kind: 'CHAIN', attributes: {
-      'pump.ai.v5.authority.requested': metadata.requested === true,
-      'pump.ai.v5.authority.preview_requested': metadata.previewRequested === true,
-      'pump.ai.v5.authority.attempted': metadata.attempted === true,
-      'pump.ai.v5.authority.eligible': metadata.eligible === true,
-      'pump.ai.v5.authority.validation_pass': metadata.validationPass === true,
-      'pump.ai.v5.authority.fallback': metadata.fallback === true,
-      'pump.ai.v5.authority.final_source': metadata.finalSource === 'v5-authoritative-canary' ? 'v5-authoritative-canary' : 'legacy/current',
-      'pump.ai.v5.authority.failure_class': safeLabel(metadata.failureClass, 'AUTHORITY_INTERNAL_ERROR'),
-    },
-  }, () => null));
-}
-function withReadCanarySpan(metadata, operation) {
-  return withObservedSpan({ name: 'pump.ai.v5.read-canary', kind: 'CHAIN', attributes: {
-    'pump.ai.v5.canary.global_enabled': metadata.globalEnabled === true,
-    'pump.ai.v5.canary.request_opt_in': metadata.previewOptIn === true,
-  }, resultStatus(result) { return { attributes: {
-    'pump.ai.v5.canary.attempted': result?.attempted === true,
-    'pump.ai.v5.canary.eligible': result?.eligible === true,
-    'pump.ai.v5.canary.validation_pass': result?.validationPass === true,
-    'pump.ai.v5.canary.exposed': result?.exposed === true,
-    'pump.ai.v5.canary.failure_class': safeLabel(result?.failureClass, 'PREVIEW_INTERNAL_ERROR'),
-  } }; } }, operation);
-}
-function withReadAnswerValidationSpan(metadata = {}, operation) {
-  return withObservedSpanSync({ name: 'pump.ai.v5.answer-validation', kind: 'CHAIN', attributes: {
-    'pump.ai.v5.shadow_task_id': safeLabel(metadata.taskId), 'pump.ai.answer.fact_count': Number(metadata.factCount) || 0,
-  } }, operation);
-}
 function withModelSpan(metadata = {}, operation) {
   const model = safeLabel(metadata.model);
   return withObservedSpan({
@@ -926,10 +744,6 @@ function withModelSpan(metadata = {}, operation) {
       'gen_ai.provider.name': safeLabel(metadata.provider),
       'gen_ai.request.stream': Boolean(metadata.streaming),
       'pump.ai.llm.tool_definition_count': Number(metadata.toolDefinitionCount) || 0,
-      ...(metadata.shadowTaskId ? {
-        'pump.ai.v5.shadow_task_id': safeLabel(metadata.shadowTaskId),
-        'pump.ai.v5.interpreter.version': 1,
-      } : {}),
     },
   }, operation);
 }
@@ -995,10 +809,8 @@ function withToolSpan(metadata = {}, operation) {
   }, async control => {
     try {
       const result = await operation(control);
-      recordToolExecutionFact(metadata, result, false);
       return result;
     } catch (error) {
-      recordToolExecutionFact(metadata, null, true);
       throw error;
     }
   });
@@ -1032,11 +844,6 @@ async function resetObservabilityForTesting() {
 }
 
 module.exports = {
-  recordReadAuthority,
-  recordReadCanaryGate,
-  withReadCanarySpan,
-  withReadAnswerSpan,
-  withReadAnswerValidationSpan,
   DEFAULT_COLLECTOR_ENDPOINT,
   DEFAULT_PROJECT,
   DEFAULT_TRACE_CONTENT,
@@ -1062,11 +869,7 @@ module.exports = {
   withEntityNormalizationSpan,
   withEntityResolutionSpan,
   withModelSpan,
-  withV5InterpreterStage,
   withRoutingSpan,
   withToolSpan,
-  withV5ShadowComparisonSpan,
-  withV5ShadowProjectionSpan,
-  withV5ShadowSpan,
   withVerificationSpan,
 };

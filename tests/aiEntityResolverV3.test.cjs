@@ -4,6 +4,9 @@ const assert = require('node:assert/strict');
 const {
     buildSearchProbes,
     candidateScore,
+    normalizeExactIdentity,
+    normalizeFuzzyIdentity,
+    resolveFormalEntityResultV3,
     resolveAiToolTargetV3,
 } = require('../api/services/aiEntityResolverV3.cjs');
 
@@ -117,10 +120,128 @@ test('AI V3 实体解析：模型省略型号分隔符时仍绑定正式模板 I
                 : []);
         },
     });
-    assert.equal(result.status, 'exact');
+    assert.equal(result.status, 'unique_candidate');
+    assert.equal(result.receipt.selected.matchKind, 'fuzzy');
     assert.equal(result.args.templateId, 1);
     assert.equal(Object.hasOwn(result.args, 'shellModel'), false);
     assert.deepEqual(calls, ['V750大脚板2寸', 'V750']);
+});
+
+test('trailing_hyphen_preserved_in_exact_identity', () => {
+    assert.notEqual(normalizeExactIdentity('v750-tokoy'), normalizeExactIdentity('v750-tokoy-'));
+    assert.equal(normalizeFuzzyIdentity('v750-tokoy'), normalizeFuzzyIdentity('v750-tokoy-'));
+    assert.notEqual(candidateScore('v750-tokoy', 'v750-tokoy-'), 1);
+});
+
+test('internal_hyphen_preserved', () => {
+    assert.notEqual(normalizeExactIdentity('V750-A'), normalizeExactIdentity('V750A'));
+    assert.equal(normalizeFuzzyIdentity('V750-A'), normalizeFuzzyIdentity('V750A'));
+});
+
+test('underscore_preserved_for_exact_identity', () => {
+    assert.notEqual(normalizeExactIdentity('ABC_1'), normalizeExactIdentity('ABC1'));
+    assert.equal(normalizeFuzzyIdentity('ABC_1'), normalizeFuzzyIdentity('ABC1'));
+});
+
+test('slash_preserved_for_exact_identity', () => {
+    assert.notEqual(normalizeExactIdentity('ABC/1'), normalizeExactIdentity('ABC1'));
+    assert.equal(normalizeFuzzyIdentity('ABC/1'), normalizeFuzzyIdentity('ABC1'));
+});
+
+test('case_policy_preserved', () => {
+    assert.equal(normalizeExactIdentity('V750-TOKOY'), normalizeExactIdentity('v750-tokoy'));
+    assert.equal(candidateScore('V750-TOKOY', 'v750-tokoy'), 1);
+});
+
+test('whitespace_safe_normalization', () => {
+    assert.equal(normalizeExactIdentity('  V750-A  '), normalizeExactIdentity('v750-a'));
+    assert.notEqual(normalizeExactIdentity('V750 A'), normalizeExactIdentity('V750A'));
+});
+
+test('fuzzy_collision_returns_ambiguity', () => {
+    const receipt = resolveFormalEntityResultV3({
+        entityType: 'recipe',
+        originalMention: 'V750_A',
+        sourceCapability: 'get_all_recipes',
+        result: verified([
+            { id: 1, name: 'V750-A' },
+            { id: 2, name: 'V750A' },
+        ]),
+    });
+    assert.equal(receipt.status, 'ambiguous');
+    assert.equal(receipt.selected, null);
+    assert.deepEqual(receipt.candidates.map(item => item.id), [1, 2]);
+    assert.ok(receipt.candidates.every(item => item.matchKind === 'fuzzy'));
+});
+
+test('probe_hit_is_not_exact_identity', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'preview_recipe_cost',
+        args: { recipeName: 'V750-EXTRA' },
+        executeToolCall: async (_name, args) => verified(args.keyword === 'V750'
+            ? [{ id: 7, name: 'V750' }]
+            : []),
+    });
+    assert.equal(result.status, 'unique_candidate');
+    assert.equal(result.receipt.selected.matchKind, 'fuzzy');
+    assert.equal(result.receipt.selected.probeUsed, 'V750');
+    assert.equal(result.receipt.originalMention, 'V750-EXTRA');
+});
+
+test('candidate_dedup_uses_stable_id', () => {
+    const receipt = resolveFormalEntityResultV3({
+        entityType: 'recipe',
+        originalMention: 'V750',
+        sourceCapability: 'get_all_recipes',
+        result: verified([
+            { id: 2, name: 'V750' },
+            { id: 3, name: 'V750' },
+        ]),
+    });
+    assert.equal(receipt.status, 'ambiguous');
+    assert.deepEqual(receipt.candidates.map(item => item.id), [2, 3]);
+});
+
+test('recipe_exact_resolution_regression', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'preview_recipe_cost',
+        args: { recipeName: 'v750-tokoy' },
+        executeToolCall: async () => verified([
+            { id: 2, name: 'v750-tokoy' },
+            { id: 8, name: 'v750-tokoy-' },
+        ]),
+    });
+    assert.equal(result.status, 'exact');
+    assert.deepEqual(result.args, { recipeId: 2 });
+    assert.equal(result.receipt.selected.id, 2);
+    assert.equal(result.receipt.selected.matchKind, 'exact');
+    assert.equal(result.receipt.candidates.find(item => item.id === 8).matchKind, 'fuzzy');
+});
+
+test('part_template_coil_regression', async () => {
+    for (const fixture of [
+        { toolName: 'delete_part', args: { model: 'P-100' }, row: { id: 1, model: 'P-100' } },
+        { toolName: 'preview_pump_shell_cost', args: { shellModel: 'T-100', customBarrelLength: 180 }, row: { id: 2, shellModel: 'T-100' } },
+        { toolName: 'calculate_coil_cost', args: { spec: '12', sheets: 140 }, row: { id: 3, spec: '12', sheets: 140, material: '钢带', slotType: '小眼' } },
+    ]) {
+        const result = await resolveAiToolTargetV3({
+            toolName: fixture.toolName,
+            args: fixture.args,
+            executeToolCall: async () => verified([fixture.row]),
+        });
+        assert.equal(result.status, 'exact', fixture.toolName);
+    }
+});
+
+test('write_fuzzy_still_requires_confirmation', async () => {
+    const result = await resolveAiToolTargetV3({
+        toolName: 'delete_recipe',
+        args: { recipeName: 'V750A' },
+        executeToolCall: async () => verified([{ id: 2, name: 'V750-A' }]),
+    });
+    assert.equal(result.status, 'ambiguous');
+    assert.equal(result.receipt.selected, null);
+    assert.equal(result.receipt.candidates[0].matchKind, 'fuzzy');
 });
 
 test('AI V3 实体解析：full_calculate 兼容入口也使用统一配方候选澄清', async () => {

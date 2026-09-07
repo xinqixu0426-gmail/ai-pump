@@ -10,6 +10,7 @@ const evaluationsRouter = require('./ai/evaluations.cjs');
 
 router.use('/', conversationsRouter);
 router.use('/', feedbackRouter);
+router.use('/', require('./ai/personalMemory.cjs'));
 router.use('/', evaluationsRouter);
 router.use('/', chatModule.router);
 router.use('/', promptModule.router);

@@ -1,7 +1,6 @@
 const { getAiCapability } = require('../capabilities/registry.cjs');
 const {
     ambiguousResourceResolution,
-    normalizeResourceText,
 } = require('./aiResourceResolutionV3.cjs');
 const {
     ENTITY_DESCRIPTORS,
@@ -21,9 +20,15 @@ const MAX_CANDIDATES = 10;
 const AUTO_BIND_SCORE = 0.6;
 const AUTO_BIND_MARGIN = 0.12;
 
-function normalizedIdentity(value) {
-    return normalizeResourceText(value)
+function normalizeExactIdentity(value) {
+    return String(value || '')
+        .trim()
         .normalize('NFKC')
+        .toLocaleLowerCase('zh-CN');
+}
+
+function normalizeFuzzyIdentity(value) {
+    return normalizeExactIdentity(value)
         .replace(/[\s._+#/()（）\-－]/gu, '');
 }
 
@@ -33,7 +38,7 @@ function isCjkText(value) {
 
 function buildSearchProbesCore(value) {
     const original = String(value || '').trim();
-    const normalized = normalizedIdentity(original);
+    const normalized = normalizeFuzzyIdentity(original);
     const probes = [];
     const append = probe => {
         const text = String(probe || '').trim();
@@ -62,7 +67,7 @@ function buildSearchProbes(value, options = {}) {
     return withEntityNormalizationSpan({
         entityType: options.entityType,
         input: value,
-        output: () => normalizedIdentity(value),
+        output: () => normalizeFuzzyIdentity(value),
     }, () => buildSearchProbesCore(value));
 }
 
@@ -94,10 +99,16 @@ function commonPrefixLength(left, right) {
 }
 
 function candidateScore(query, candidateText) {
-    const needle = normalizedIdentity(query);
-    const value = normalizedIdentity(candidateText);
+    const exactNeedle = normalizeExactIdentity(query);
+    const exactValue = normalizeExactIdentity(candidateText);
+    if (!exactNeedle || !exactValue) return 0;
+    if (exactNeedle === exactValue) return 1;
+    const needle = normalizeFuzzyIdentity(query);
+    const value = normalizeFuzzyIdentity(candidateText);
     if (!needle || !value) return 0;
-    if (needle === value) return 1;
+    // Fuzzy equality is useful for discovery, but punctuation loss must never
+    // be promoted to business exact identity.
+    if (needle === value) return 0.9;
     if (value.includes(needle)) return 0.9;
     if (needle.includes(value)) return 0.82;
     const maxLength = Math.max(needle.length, value.length);
@@ -125,7 +136,7 @@ function candidateId(candidate, keys) {
     return null;
 }
 
-function candidateView(candidate, descriptor, query, entityType) {
+function candidateView(candidate, descriptor, query, entityType, probeUsed) {
     const stableIdentity = normalizeStableEntityIdentity({ entityType, record: candidate });
     const compositeNames = (descriptor.candidateCompositeKeys || [])
         .map(keys => keys.map(key => String(candidate?.[key] || '').trim()).filter(Boolean).join('-'))
@@ -137,7 +148,13 @@ function candidateView(candidate, descriptor, query, entityType) {
         ...stableBusinessKeyValues(stableIdentity),
         ...compositeNames,
     ]
-        .map(name => ({ name, score: candidateScore(query, name) }))
+        .map(name => ({
+            name,
+            score: candidateScore(query, name),
+            matchKind: normalizeExactIdentity(query) === normalizeExactIdentity(name)
+                ? 'exact'
+                : 'fuzzy',
+        }))
         .sort((left, right) => right.score - left.score);
     const name = names[0]?.name || firstCandidateText(candidate, descriptor.candidateNameKeys) || '';
     const id = candidateId(candidate, descriptor.candidateIdKeys);
@@ -147,6 +164,8 @@ function candidateView(candidate, descriptor, query, entityType) {
         label: name,
         score: names[0]?.score || candidateScore(query, name),
         matchedText: names[0]?.name || name,
+        matchKind: names[0]?.matchKind || 'fuzzy',
+        probeUsed: String(probeUsed || query || '').trim() || null,
         stableIdentity,
         raw: candidate,
     };
@@ -172,15 +191,24 @@ function rowsMatchingTarget(rows, target, args) {
     ));
     if (filters.length === 0) return rows;
     return rows.filter(row => filters.every(([argumentField, candidateField]) => (
-        normalizedIdentity(row?.[candidateField]) === normalizedIdentity(args[argumentField])
+        normalizeFuzzyIdentity(row?.[candidateField]) === normalizeFuzzyIdentity(args[argumentField])
     )));
 }
 
-function mergeCandidates(target, rows, descriptor, query, entityType) {
+function candidateDedupeKey(candidate, entityType) {
+    const stableId = candidate.stableIdentity?.primaryStableId;
+    if (stableId !== null && stableId !== undefined) return `${entityType}:id:${stableId}`;
+    const businessKeys = Object.entries(candidate.stableIdentity?.stableBusinessKeys || {})
+        .sort(([left], [right]) => left.localeCompare(right));
+    if (businessKeys.length > 0) return `${entityType}:key:${JSON.stringify(businessKeys)}`;
+    return `${entityType}:name:${normalizeExactIdentity(candidate.name)}`;
+}
+
+function mergeCandidates(target, rows, descriptor, query, entityType, probeUsed) {
     for (const row of rows) {
-        const view = candidateView(row, descriptor, query, entityType);
+        const view = candidateView(row, descriptor, query, entityType, probeUsed);
         if (!view.name && !view.id) continue;
-        const key = `${view.id || ''}\u0000${view.name}`;
+        const key = candidateDedupeKey(view, entityType);
         const current = target.get(key);
         if (!current || view.score > current.score) target.set(key, view);
     }
@@ -192,6 +220,8 @@ function resolutionReceipt(input = {}) {
             id: input.selected.id || null,
             name: String(input.selected.name || ''),
             score: Math.round(Number(input.selected.score || 0) * 1000) / 1000,
+            matchKind: input.selected.matchKind || 'fuzzy',
+            probeUsed: input.selected.probeUsed || null,
             stableIdentity: input.selected.stableIdentity || null,
         }
         : null;
@@ -207,6 +237,8 @@ function resolutionReceipt(input = {}) {
             id: candidate.id,
             name: candidate.name,
             score: Math.round(candidate.score * 1000) / 1000,
+            matchKind: candidate.matchKind || 'fuzzy',
+            probeUsed: candidate.probeUsed || null,
             stableIdentity: candidate.stableIdentity || null,
         })),
         sourceCapability: input.sourceCapability,
@@ -219,7 +251,7 @@ function resolveFormalEntityResultV3(input = {}) {
     const mention = String(input.originalMention || '').trim();
     if (!descriptor || !mention) return null;
     const candidates = new Map();
-    mergeCandidates(candidates, resultRows(input.result), descriptor, mention, input.entityType);
+    mergeCandidates(candidates, resultRows(input.result), descriptor, mention, input.entityType, mention);
     const ranked = [...candidates.values()]
         .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name, 'zh-CN'))
         .slice(0, MAX_CANDIDATES);
@@ -234,13 +266,13 @@ function resolveFormalEntityResultV3(input = {}) {
             sourceEvidence: input.sourceEvidence || [],
         });
     }
-    const selected = ranked[0];
-    const exact = selected.score === 1;
-    const uniqueExact = exact && ranked.filter(candidate => candidate.score === 1).length === 1;
+    const exactCandidates = ranked.filter(candidate => candidate.matchKind === 'exact');
+    const selected = exactCandidates.length === 1 ? exactCandidates[0] : ranked[0];
+    const uniqueExact = exactCandidates.length === 1;
     const margin = selected.score - Number(ranked[1]?.score || 0);
-    const uniqueEnough = ranked.length === 1
+    const uniqueEnough = exactCandidates.length === 0 && (ranked.length === 1
         ? selected.score >= AUTO_BIND_SCORE
-        : selected.score >= AUTO_BIND_SCORE && margin >= AUTO_BIND_MARGIN;
+        : selected.score >= AUTO_BIND_SCORE && margin >= AUTO_BIND_MARGIN);
     const canAutoBind = uniqueExact || uniqueEnough;
     return resolutionReceipt({
         entityType: input.entityType,
@@ -331,7 +363,8 @@ async function resolveAiToolTargetV3Core(input = {}) {
                 rowsMatchingTarget(resultRows(result), target, input.args),
                 descriptor,
                 mention,
-                target.entityType
+                target.entityType,
+                probe
             );
             if (candidates.size > 0) break;
         }
@@ -357,7 +390,8 @@ async function resolveAiToolTargetV3Core(input = {}) {
         };
     }
 
-    const selected = ranked[0];
+    const exactCandidates = ranked.filter(candidate => candidate.matchKind === 'exact');
+    const selected = exactCandidates.length === 1 ? exactCandidates[0] : ranked[0];
     if (selected.score < AUTO_BIND_SCORE) {
         return {
             status: 'not_found',
@@ -373,12 +407,11 @@ async function resolveAiToolTargetV3Core(input = {}) {
             }),
         };
     }
-    const exact = selected.score === 1;
-    const uniqueExact = exact && ranked.filter(candidate => candidate.score === 1).length === 1;
+    const uniqueExact = exactCandidates.length === 1;
     const margin = selected.score - Number(ranked[1]?.score || 0);
-    const uniqueEnough = ranked.length === 1
+    const uniqueEnough = exactCandidates.length === 0 && (ranked.length === 1
         ? selected.score >= AUTO_BIND_SCORE
-        : selected.score >= AUTO_BIND_SCORE && margin >= AUTO_BIND_MARGIN;
+        : selected.score >= AUTO_BIND_SCORE && margin >= AUTO_BIND_MARGIN);
     const canAutoBind = uniqueExact || (capability?.access === 'read' && uniqueEnough);
     const receipt = resolutionReceipt({
         entityType: target.entityType,
@@ -433,6 +466,8 @@ module.exports = {
     buildSearchProbes,
     candidateScore,
     editDistance,
+    normalizeExactIdentity,
+    normalizeFuzzyIdentity,
     resolveFormalEntityResultV3,
     resolveAiToolTargetV3,
 };
