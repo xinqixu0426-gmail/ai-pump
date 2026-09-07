@@ -453,7 +453,13 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
         .map(source => String(source.title).replace(/^成品[：:]\s*/, '').trim())
         .filter(name => name && normalizeTargetText(name) !== normalizeTargetText(recipeName));
     const mentionedAlternatives = alternativeRecipeNames.filter(name => (
-        normalizeTargetText(answer).includes(normalizeTargetText(name))
+        String(answer).split(/[。！？\n]/).some(sentence => {
+            const normalized = normalizeTargetText(sentence);
+            if (!normalized.includes(normalizeTargetText(name))) return false;
+            // Explicitly excluding listed candidates is not substituting them.
+            return !(normalized.includes(normalizeTargetText(recipeName))
+                && /(?:均|都)(?:不含|不包含|不是|不匹配)/.test(sentence));
+        })
     ));
     return {
         type: prerequisite.type,

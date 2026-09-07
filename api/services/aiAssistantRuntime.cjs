@@ -10,7 +10,7 @@ const { hasVerifiedExecution, safeMissingBusinessEvidenceReply } = require('./ai
 const { enforceAiToolResultBudget, buildAiToolResultMessage, containsEmbeddedToolProtocol } = require('./aiToolProtocol.cjs');
 const { buildFactoryAiRulesPrompt } = require('./factoryAiRules.cjs');
 const { estimateTextTokens, estimateAiMessagesTokens, resolveAiTokenBudgets, normalizeProviderUsage } = require('./aiTokenBudget.cjs');
-const { modelResultView, previousContext, compactToolDescriptions } = require('./aiAssistantContext.cjs');
+const { modelResultView, previousContext, compactToolDescriptions, answerOnlyMessages } = require('./aiAssistantContext.cjs');
 const { normalizeAiPageContext, buildAiPageContextNote } = require('./aiPageContext.cjs');
 const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
@@ -97,6 +97,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
             let offered = calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
+            if (!offered.length) current.push({ role: 'system', content: '本轮查询阶段已结束，没有可调用工具。现在只用已取得的正式结果回答用户原问题；已核实不存在或查询范围为空的部分明确说明，尚未核实的部分说明缺失。不要继续规划查询，不输出工具协议，也不要把下一步查询写成已经完成。' });
             if (estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) offered = compactToolDescriptions(offered);
             if (toolResults.length && estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) {
                 // A large successful detail can still be answered without resending the directory.
@@ -110,7 +111,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 finalContent = '本次查询结果超过上下文容量，已停止。请缩小范围或分批查询；已取得的明细保留在下方。';
                 break;
             }
-            const response = await provider(current, { tools: offered, stream: Boolean(input.stream), onProvider: input.onProvider, env: input.env, dbAccessors: input.dbAccessors, signal: input.signal });
+            const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, stream: Boolean(input.stream), onProvider: input.onProvider, env: input.env, dbAccessors: input.dbAccessors, signal: input.signal });
             let answer;
             if (input.stream) {
                 const streamed = await readAiProviderStream(response, { signal: input.signal });

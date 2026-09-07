@@ -377,3 +377,33 @@ test('empty formal query feedback preserves scope and rejects incomplete or fail
         ...['authoritative', 'truncated', 'possiblyTruncated', 'totalCount', 'returnedCount'].map(key => ({ ...result, queryReceipt: { ...result.queryReceipt, [key]: key === 'authoritative' ? false : 1 } })),
     ]) assert.equal(verifiedEmptyQuery(invalid), false);
 });
+
+test('template model view distinguishes bundle costs from catalog unit prices without changing receipts', () => {
+    const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
+    for (const name of ['search_templates', 'get_template_detail']) {
+        const result = { success: true, data: { id: 4, bundleCost: 95, assemblyWage: 6 }, executionEvidence: { verified: true, kind: 'formal_api_query' } };
+        const view = modelResultView(name, result);
+        assert.equal(view.modelView.kind, 'template_configuration');
+        assert.match(view.modelView.note, /search_parts/);
+        assert.deepEqual(view.data, result.data);
+        assert.equal(result.modelView, undefined);
+        assert.equal(modelResultView(name, { success: false, error: '接口失败' }).modelView, undefined);
+    }
+});
+
+test('final model round explicitly closes querying and asks for evidence-based synthesis', async () => {
+    let rounds = 0;
+    const deps = fixture([], { fetchAiProvider: async (messages, options) => {
+        rounds++;
+        if (!options.tools.length) {
+            assert.match(messages.at(-1).content, /查询阶段已结束/);
+            assert.ok(messages.every(message => message.role !== 'tool' && !message.tool_calls && !message.reasoning_content));
+            assert.ok(messages.some(message => message.role === 'user' && /已执行查询返回的数据/.test(message.content)));
+            return { json: async () => ({ choices: [{ message: { content: '已查询库存，其他问题尚未核实。' } }] }) };
+        }
+        return { json: async () => ({ choices: [{ message: { tool_calls: [call('get_all_recipes', {}, `round${rounds}`)] } }] }) };
+    } });
+    const result = await runAiAssistant(input('查询库存', 'final-synthesis'), deps);
+    assert.equal(rounds, 7);
+    assert.match(result.finalContent, /尚未核实/);
+});

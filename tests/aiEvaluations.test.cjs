@@ -334,6 +334,15 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
         fixture.db
     );
     assert.equal(verifiedUnavailable.status, 'passed');
+    const excludedAlternatives = [
+        { name: 'get_recipe_technical_files', result: { success: false, code: 'AI_RESOURCE_NOT_FOUND', entityType: 'recipe', query: 'V1600-3英寸-12-180', executionEvidence: { verified: true } } },
+        { name: 'search_factory_knowledge', result: { sources: [{ entryType: 'recipe', title: '成品：其他配方' }] } },
+    ];
+    for (const [answer, expected] of [
+        ['其他配方均不含名称 V1600-3英寸-12-180，未找到目标配方，无法提供测试报告。', 'passed'],
+        ['其他配方均不含名称 V1600-3英寸-12-180。未找到目标配方，可以用其他配方的报告代替。', 'failed'],
+        ['未找到目标配方。其他配方有测试报告。', 'failed'],
+    ]) assert.equal(evaluateRuleCase(caseItem, answer, excludedAlternatives, fixture.db).status, expected);
 
     // An absent recipe is equivalent negative evidence for its attachments.
     // Keep exact target, formal source and unavailable answer requirements.
