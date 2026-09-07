@@ -131,7 +131,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 finalContent = '本次查询结果超过上下文容量，已停止。请缩小范围或分批查询；已取得的明细保留在下方。';
                 break;
             }
-            const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, stream: Boolean(input.stream), onProvider: input.onProvider, env: input.env, dbAccessors: input.dbAccessors, signal: input.signal });
+            const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && evidenceReminder && !toolResults.length ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: input.env, dbAccessors: input.dbAccessors, signal: input.signal });
             let answer;
             if (input.stream) {
                 const streamed = await readAiProviderStream(response, { signal: input.signal });

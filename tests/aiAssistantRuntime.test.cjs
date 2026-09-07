@@ -236,7 +236,7 @@ test('history-only monetary answer must obtain current evidence while all read t
     const events = [];
     const result = await runAiAssistant({ ...input('两个都看'), emit: (type, event) => { if (type === 'content') events.push(event.content); } }, fixture([
         { content: '上一轮结果是99元。' },
-        (messages, options) => { assert.ok(options.tools.some(t => t.function.name === 'search_coils')); return { tool_calls: [call('search_coils', { spec: '12-200' })] }; },
+        (messages, options) => { assert.equal(options.toolChoice, 'required'); assert.ok(options.tools.some(t => t.function.name === 'search_coils')); return { tool_calls: [call('search_coils', { spec: '12-200' })] }; },
         { content: '本轮查询成本100元。' },
     ], { executeToolCall: async () => verified({ cost: 100 }) }));
     assert.match(result.finalContent, /100元/); assert.doesNotMatch(events.join(''), /99元/);
