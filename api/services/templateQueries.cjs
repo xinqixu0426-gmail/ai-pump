@@ -163,12 +163,12 @@ function createTemplateQueries({
     }
 
     function getAllTemplates(options = {}) {
-        const shellModel = normalizeQueryText(options.shellModel, 'shellModel').toLocaleLowerCase();
-        const description = normalizeQueryText(options.description, 'description').toLocaleLowerCase();
+        const shellModel = normalizeQueryText(options.shellModel, 'shellModel').toLocaleLowerCase().split(/\s+/).filter(Boolean);
+        const description = normalizeQueryText(options.description, 'description').toLocaleLowerCase().split(/\s+/).filter(Boolean);
         const limit = normalizeOptionalLimit(options.limit);
         const templates = listTemplates().filter(template => (
-            (!shellModel || String(template.shellModel || '').toLocaleLowerCase().includes(shellModel))
-            && (!description || String(template.description || '').toLocaleLowerCase().includes(description))
+            shellModel.every(term => String(template.shellModel || '').toLocaleLowerCase().includes(term))
+            && description.every(term => String(template.description || '').toLocaleLowerCase().includes(term))
         ));
         return limit ? templates.slice(0, limit) : templates;
     }

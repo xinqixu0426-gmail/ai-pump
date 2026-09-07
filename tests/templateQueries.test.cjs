@@ -200,6 +200,29 @@ test('泵壳模板列表 Query 按型号、描述和数量字段筛选', () => {
     }
 });
 
+test('模板多关键词全部匹配且保留完整候选、标点与筛选后 limit', () => {
+    const fixture = createFixture();
+    try {
+        fixture.listedTemplates.push(
+            { id: 3, shellModel: 'V750-大脚板-2寸', description: '不锈钢 常用泵壳' },
+            { id: 4, shellModel: 'V750-大脚板-3寸', description: '常用不锈钢泵壳' },
+            { id: 5, shellModel: 'V750-小脚板-2寸', description: '常用泵壳' }
+        );
+        const before = JSON.stringify(fixture.listedTemplates);
+        const ids = options => fixture.queries.getAllTemplates(options).map(row => row.id);
+        assert.deepEqual(ids({ shellModel: ' v750  大脚板 ' }), [3, 4]);
+        assert.deepEqual(ids({ shellModel: '大脚板\t2寸', description: '常用 不锈钢' }), [3]);
+        assert.deepEqual(ids({ shellModel: '大脚板', limit: 1 }), [3]);
+        assert.deepEqual(ids({ shellModel: 'V750-大脚板-2寸' }), [3]);
+        assert.deepEqual(ids({ shellModel: 'V750-大脚板-2-寸' }), []);
+        assert.deepEqual(ids({ shellModel: 'V750 不存在' }), []);
+        assert.deepEqual(ids({ shellModel: '大脚板', description: '不存在' }), []);
+        assert.deepEqual(ids({ shellModel: '  ', limit: 1 }), [1]);
+        assert.equal(JSON.stringify(fixture.listedTemplates), before);
+        assert.equal(fixture.costCalls.length, 0);
+    } finally { fixture.db.close(); }
+});
+
 test('泵壳模板成本 Query 保持目录价优先和手工价回退', () => {
     const fixture = createFixture();
     try {

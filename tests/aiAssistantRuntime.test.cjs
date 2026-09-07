@@ -374,7 +374,10 @@ test('empty formal query feedback preserves scope and rejects incomplete or fail
     const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
     const result = { success: true, data: [], queryReceipt: { authoritative: true, appliedFilters: { keyword: '范围A' }, totalCount: 0, returnedCount: 0, truncated: false, possiblyTruncated: false }, executionEvidence: { verified: true, kind: 'formal_api_query' } };
     assert.equal(verifiedEmptyQuery(result), true);
-    assert.equal(modelResultView('get_all_recipes', result).modelView.kind, 'verified_empty_query');
+    for (const name of ['get_all_recipes', 'search_templates', 'get_template_detail']) {
+        assert.equal(modelResultView(name, result).modelView.kind, 'verified_empty_query');
+        assert.deepEqual(modelResultView(name, result).queryReceipt, result.queryReceipt);
+    }
     assert.match(unfinishedReply([{ name: 'get_all_recipes', result }]), /范围A/);
     for (const invalid of [
         { ...result, success: false },
@@ -390,6 +393,8 @@ test('template model view distinguishes bundle costs from catalog unit prices wi
         const result = { success: true, data: { id: 4, bundleCost: 95, assemblyWage: 6 }, executionEvidence: { verified: true, kind: 'formal_api_query' } };
         const view = modelResultView(name, result);
         assert.equal(view.modelView.kind, 'template_configuration');
+        assert.equal(view.modelView.costTool, 'build_recipe_bom_draft');
+        assert.match(view.modelView.note, /未指定的可选参数不猜测/);
         assert.match(view.modelView.note, /search_parts/);
         assert.deepEqual(view.data, result.data);
         assert.equal(result.modelView, undefined);

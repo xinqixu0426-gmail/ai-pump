@@ -131,7 +131,7 @@ AI 的 Part/Coil 当前库存数量共用 `inventoryQuantity/current/current_inv
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/templates` | 查询参数 `shellModel?`, `description?`, `limit?`（1–100） | 正式能力 `templates.list`；型号和描述模糊筛选，无 `limit` 时返回全部泵壳模板，标准字段含 `id/createdAt/updatedAt/configurationPolicyJson` |
+| `GET` | `/api/templates` | 查询参数 `shellModel?`, `description?`, `limit?`（1–100） | 正式能力 `templates.list`；型号和描述按空白分词、各词全部匹配且忽略大小写（保留词内标点），筛选后限制数量，无 `limit` 时返回全部泵壳模板，标准字段含 `id/createdAt/updatedAt/configurationPolicyJson` |
 | `GET` | `/api/templates/:id` | 无 | 正式能力 `templates.detail`；经 `templateQueries` 返回单个完整模板，包含 BOM、泵壳组件、转子参数、工资、表面处理、成本模式、套件成本和备注；非法 ID 返回 400，不存在返回 404。Query 严格只读，事实来源 `pump_shell_templates`，风险 low，天然幂等、无并发/事务/审计要求，默认超时 15 秒；Web、AI 和内部调用共用 |
 | `GET` | `/api/templates/:id/cost` | 无 | 经 `templateQueries` 聚合模板固定配件、壳体组件和正式零件目录，再委托 `costEngine` 兼容入口计算成本；不写库 |
 | `GET` | `/api/templates/:id/default-recipe` | 无 | 经 `templateQueries` 基于模板生成配方草稿、配件、转子参数、`configurationPolicyJson` 和正式成本结果；`recipeDraft.templateId` 使用标准 `id`，不写库 |

@@ -389,7 +389,7 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    shellModel: { type: 'string', description: '泵壳型号模糊筛选（可选）' },
+                    shellModel: { type: 'string', description: '泵壳型号关键词筛选（可选，空白分隔多个词且全部匹配，不区分大小写）' },
                     description: { type: 'string', description: '模板描述模糊筛选（可选）' },
                     limit: { type: 'integer', minimum: 1, maximum: 100, description: '最多返回数量（可选）' }
                 }

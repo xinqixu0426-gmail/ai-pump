@@ -46,11 +46,11 @@ function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) 
             return { ...plain, documentRef };
         }), modelView: { kind: 'knowledge_without_index_duplicates', note: '省略检索索引及已有解析值的 JSON 副本；完全相同的正文/片段/元数据以 documentRef 引用本轮首次完整展示的文档。不同内容分别保留，来源与匹配等级每次保留，不代表重复命中可升级为业务依据。' } };
     }
-    if (['search_templates', 'get_template_detail'].includes(name) && result?.success !== false) {
-        return { ...normalizeJsonFields(result), modelView: { kind: 'template_configuration', note: '这是泵壳模板配置，不是零件目录。bundleCost 是模板套件成本，assemblyWage/packingWage 是人工费用，均不能回答单个泵壳物料的当前单价。用户询问物料单价时，下一步用 search_parts 按原始型号查询 price；即使名称或金额相同也不能替代。用户询问模板配置、套件成本或组装试算时可使用此结果继续。' } };
-    }
     if (require('./aiAssistantAnswer.cjs').verifiedEmptyQuery(result)) {
         return { ...result, modelView: { kind: 'verified_empty_query', note: '正式查询成功，所列 appliedFilters 范围内没有匹配记录，不是接口失败。不要重复同一查询或不断尝试近似关键词；这不证明其他范围也为空。核实具体对象时可直接用用户原始完整名称调用详情以消歧或确认不存在，然后回答原问题。其他独立问题仍可继续查询。' } };
+    }
+    if (['search_templates', 'get_template_detail'].includes(name) && result?.success !== false) {
+        return { ...normalizeJsonFields(result), modelView: { kind: 'template_configuration', costTool: 'build_recipe_bom_draft', note: '这是泵壳模板配置，不是零件目录。bundleCost 是模板套件成本，assemblyWage/packingWage 是人工费用，均不能回答单个泵壳物料的当前单价。用户询问物料单价时，下一步用 search_parts 按原始型号查询 price；即使名称或金额相同也不能替代。用户给出模板与线圈、浮球、包装等配置询问整机成本时，直接用本次正式模板 ID 和用户已给配置调用 build_recipe_bom_draft，无需先寻找已有配方。未指定的可选参数不猜测、不因其缺省提前反问，由正式试算返回默认口径、缺项或歧义后再决定是否需要用户补充。多模板候选仍须消歧。' } };
     }
     if (require('./aiAssistantAnswer.cjs').verifiedMissingTarget(result)) {
         return { ...result, modelView: { kind: 'verified_target_missing', note: '正式查询已确认此 query 目标不存在，不是接口故障。保留原始目标和这个结论，不需要换多个相似关键词反复证明不存在。若用户还有独立问题可继续查询；相近对象的资料不能代替此目标。' } };
