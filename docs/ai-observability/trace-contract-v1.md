@@ -1,5 +1,7 @@
 # Pump AI Trace Contract V1
 
+> 历史观测基线：本文的 V1 指 P05 阶段 Trace Schema，不是“水泵ai管理系统V1”发布版本。旧实体路由/验证链已退出默认助理，以下阶段顺序不能作为当前运行要求。保留原始定义用于追溯；当前链路见 [私人 AI 助理](../ai-assistant.md)，实际观测字段以 `api/services/observability.cjs` 为准。本目录 reports 为历史证据，不据此恢复已撤除框架。
+
 Status: locked by P05 after integrity verification
 Schema version: `1`
 Root attribute: `pump.ai.trace.schema_version=1`

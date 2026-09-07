@@ -1,5 +1,7 @@
 # AI 纠错学习与发布回归使用报告
 
+> 核对日期：2026-09-07。本文维护反馈按钮、纠错审核和回归流程；自然语言个人记忆是独立入口，见 [私人 AI 助理](ai-assistant.md)，不需要先提交反馈候选。
+
 ## 1. 解决的问题
 
 AI 偶尔会误解工厂俗称、业务分类或操作习惯。用户指出错误后，如果只修正当前回答，
@@ -36,56 +38,9 @@ AI 偶尔会误解工厂俗称、业务分类或操作习惯。用户指出错�
 
 - 只有用户明确选择“内容错误”、填写正确做法并勾选长期学习，系统才会创建候选；候选仍需在 AI 治理页人工批准。
 - 规则按结构化业务域、对象范围和当前问题选择，不把所有历史纠错无差别塞进每次对话。
-- 用户明确要求查知识库或询问用途、工况、兼容性和专用关系时，即使模型规划遗漏，服务端也会补齐只读知识查询。一般查询若首个正式能力返回零结果或已验证资源未找到，可在公共预算内跨业务目录继续只读调查；所有写能力仍被拒绝，关键计算参数也不能由模型补造。
-- 纠错规则不进入通用派生知识索引；审批、有效期、对象范围和冲突解析是唯一生效通道，避免过期规则从 RAG 旁路返回。
-- 自动生成的回归候选负责防止模型升级后重新犯错；所有候选先待确认，人工批准后才执行。
-- 正式资料不存在时，单个工具的零结果只能作为调查观察；检查必须在限定预算内完成与目标相关的跨域只读调查，并取得所有相关正式对象均未找到的 API 负结果后才能判定不存在。目标范围最终被正式 Query 证实不存在后，回答合成只接收该目标的终止负证据，不再把调查途中命中的相近对象或语义候选交给模型替代回答。无关工具的正结果或其他工具的歧义不能冒充证据；需要选择目标对象时标记为“需要确认”，不会错误记成已通过或知识损坏。模型后来提出的计划外工具、schema 错误或 plan drift 只记录为 BehaviorEvent，不进入 Evidence Ledger，也不能撤销已经取得的正式业务证据。
-
-R2 Fact-driven Read Investigation Runtime 目前是默认关闭的内部灰度路径，仅覆盖
-`query/analysis + single` 的 part、coil、template、recipe、cost 首批只读能力。
-`AI_READ_INVESTIGATION_V4_ENABLED=true` 才会让 FactRequirement 状态参与正式调查；
-`AI_READ_INVESTIGATION_V4_SHADOW_ENABLED=true` 只重放本轮已有 Observation/Evidence 生成脱敏状态日志，
-不额外调用 API、不写业务、不申请确认凭证，也不改变 V3 回答、SSE 或 `turnState`。
-Command 和当前发布门禁协议不受这两个开关影响。启用前必须运行 R2 focused、R1 evidence invariants、
-AI 相关测试、全量测试、API 契约和 lint；真实 AI gate 仍只在既有隔离/生产发布流程中运行。
-
-R2.1 起，正式启用的 V4 请求由独立 read investigation driver 控制到 Fact 终态；V3 的
-`toolResults`、recovery/correction 状态和 planner-step 完成状态不参与 V4 的下一能力、失败、澄清或
-完成判断。`completed_negative`、`needs_clarification`、`failed_unverified` 和 `budget_exhausted`
-均直接结束 V4 调查，不触发 V3 扩搜；只有 `fallbackReason=v4_internal_failure` 表示实现层内部失败并允许回退。
-
-R3 Claim Grounding 使用独立默认关闭的 `AI_CLAIM_GROUNDING_V4_ENABLED`。只打开 R2 开关时仍保持
-R2-only 的兼容回答链路；同时打开 R2 与 R3 时，首批单实体只读范围按 Fact/Evidence 构造 Claim，
-验证 required Fact、Claim 和 AnswerPlan coverage，并优先确定性输出。复杂 renderer 不开放工具，
-结构化结果最多修复一次；失败后继续用原 Claims 确定性回答，不回退 legacy free-form composer。
-R3 不改变当前 9 条 legacy release cases，也不替代真实 AI 发布门禁；在 R4 完成 shadow/evaluation
-校准前，该开关不得作为生产默认值。
-
-R2.3/R3.1 的第一批 Formal Numeric Business Scalar contract 覆盖 Part/Coil 当前库存数量。R4-B 必须从正式 API 动态构造 ExpectedClaimSet，并覆盖正数、合法 `0`、Part“件”/Coil“套”、quantity/status 分离、wrong entity、current/snapshot 隔离；运行时不得把线圈 `totalCost` 或 `schemeStatus` 当成库存数量/库存状态，也不得由 renderer 改写正式数值。
-
-### 2.2 R4-A Dynamic Oracle 架构验收
-
-R4-A 是独立、确定性的架构验收层，运行命令为：
-
-```bash
-npm run test:ai-architecture
-```
-
-它不修改运行时，也不作为 LLM judge。每个 case 先声明 required Facts，再由隔离测试中的正式
-API 或正式 service 构造 oracle；ExpectedClaimSet 的业务值只能从该 oracle 读取。验收器随后按
-entity、predicate、temporal scope、scenario、qualifiers、value、unit 和 evidence class 结构化比较
-实际 Claims，并核对 InvestigationState、AnswerPlan、renderer grounding、技术失败语义与只读能力边界。
-成本 oracle 只引用正式成本 API/service 已返回的值，验收器不重复计算成本。
-
-R4-A 报告按 case 输出有界的错误码、能力名、Behavior 类型和 Observation outcome，并聚合：
-Evidence Preservation Rate、Unsupported Business Claim Rate、Required Claim Coverage Rate、
-False Not-Found Rate、Ambiguity Auto-Resolution Rate、Read Write-Exposure Rate、
-Dynamic Oracle Agreement Rate、Renderer Grounding Pass Rate、Technical Failure Semantic Accuracy。
-
-这套架构验收与现有 9 条 release cases 的职责不同：9 条 legacy cases 继续原样服务真实 AI 发布门禁，
-R4-A 负责验证 R1-R3 的结构化不变量，不读取固定答案文本、固定价格或问题级正则，也不会启动
-生产数据库、修改生产配置或打开 R2/R3 feature flag。R4-A 通过不等于真实 AI 发布通过；
-`npm run verify:ai-release` 仍只在已有安全隔离或正式发布流程中执行。
+- 已批准纠错规则仍由现有规则服务加载；默认私人助理按当前问题组合只读工具，不使用旧 V3/V4 的规划、恢复图或 Evidence Ledger。
+- 工具与回归规则检查正式来源、数值和错误语义；接口失败不等于资料不存在，技术失败和未完成调查不得标为通过。
+- `test:ai-architecture` 与 `test:ai-shadow` 保留为旧实现诊断入口，不能证明 V1 默认助理或生产已通过验收。当前助理入口及隔离验收见 [私人 AI 助理](ai-assistant.md)。
 
 ## 3. 日常使用
 
@@ -192,5 +147,5 @@ logs/ai-release-gate-latest.json
 - 这不是让 AI 自由改写业务规则；只有用户明确提交的正确做法才能进入长期学习。
 - 回归测试不会修改订单、配方、成本、库存或知识内容，只记录检查运行和结果。
 - 回归通过只能证明已定义的检查条件满足，不能证明 AI 在所有未知问题上绝对正确。
-- 所有用户纠错都不会自动升级为运行规则或发布门禁，避免错误经验被固化；内置系统检查是代码维护的核心基线，默认参与发布门禁。
+- 本页反馈流程中的用户纠错不会自动升级为运行规则或发布门禁，避免错误经验被固化；内置系统检查是代码维护的核心基线，默认参与发布门禁。
 - 外部 AI 服务不可用时门禁会失败，因为本阶段验证的是“真实 AI 当前可用且回答正确”。

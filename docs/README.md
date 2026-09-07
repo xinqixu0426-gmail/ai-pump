@@ -1,6 +1,6 @@
-# 水泵工厂管理系统
+# 水泵ai管理系统V1 文档导航
 
-> 当前版本说明，更新于 2026-08-31。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
+> 当前版本说明，核对于 2026-09-07。本文只描述现行功能与稳定规则；安装、启动和部署命令见项目根目录 [README.md](../README.md)。
 
 开发协作边界见根目录 [AGENTS.md](../AGENTS.md)。业务规则、API、数据库和成本事实只维护在本页下列权威文档与正式代码中；开发任务按实际影响运行对应测试、API 契约、deep API、build、真实 AI 与生产验收。
 
@@ -17,15 +17,18 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 其他文档按用途归类：
 
-V5 Candidate 框架已从当前源码撤除，撤除时的验证结果与限制见 [撤除结果](ai-framework-retirement-result.md)，旧报告见 [历史档案](ai-governance/README.md)。新版私人助理已实现跨业务只读工具循环、上下文压缩及自然语言长期记忆，2026-09-07 用户确认本地人工验收通过，纳入“水泵ai管理系统V1”。业务写入尚未启用；实现范围见 [实施计划](ai-assistant-implementation-plan.md)，冻结和生产发布状态见 [发布检查清单](deployment-checklist.md)。
+当前私人 AI 助理的使用与处理链统一见 [AI 助理说明](ai-assistant.md)。V1 已获本地人工验收通过，源码冻结不代表生产已部署；发布状态见 [发布清单](deployment-checklist.md)。阶段计划、撤除报告与历史失败见 [档案索引](archive/README.md)。
 
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
 | 业务 | [business-flow.md](./business-flow.md)、[coil-domain.md](./coil-domain.md) | 业务对象、流程、库存/成本/知识边界和线圈口径 |
 | 架构 | [模块化设计](./modularization-design.md)、[数据库结构](./database-schema.md)、[当前技术债](./technical-debt.md) | 未来产品化提案、SQLite Schema/迁移规则和当前优化优先级 |
-| 前端 | [frontend-state-boundary.md](./frontend-state-boundary.md)、[ui-refactor-guidelines.md](./ui-refactor-guidelines.md) | 页面状态、刷新、组件和交互约束 |
+| 前端 | [frontend-state-boundary.md](./frontend-state-boundary.md)、[ui-refactor-guidelines.md](./ui-refactor-guidelines.md)、[组件指南](./ui-component-guide.md) | 页面状态、刷新、组件和交互约束 |
 | 运维 | [运行手册](./operations-runbook.md)、[发布清单](./deployment-checklist.md)、[备份恢复](./database-backup-recovery.md) | 运行、发布、备份和故障恢复 |
+| 集成 | [MCP 开发指南](mcp-development-guide.md) | 外部 Agent 接入与身份配置 |
+| AI 运行 | [私人 AI 助理](ai-assistant.md) | 当前链路、使用方法、记忆与能力边界 |
 | AI 验收 | [AI 学习发布门禁](./ai-learning-release-gate-guide.md) | 真实 AI 回归与失败处理 |
+| 历史 | [阶段档案](archive/README.md)、[观测基线](ai-observability/trace-contract-v1.md) | 已退役方案、阶段结论和原始验证证据 |
 
 不再维护按版本命名的临时说明或与现行流程重复的脑图。阶段实现过程以 Git 历史为准，稳定规则必须归入上表对应文档。
 
@@ -354,45 +357,11 @@ POST /api/rotor/save
 
 ## 7. AI 与移动端
 
-- P16-H owner/internal 只读入口已获准独立常驻；源代码默认 OFF，生产专用用户级 launchd 显式启用。每请求仍需内部认证与 V5 opt-in，Candidate 成功才交付 V5，失败交还 Legacy；普通请求始终 Legacy。P16-I-R2 已通过独立认证 gateway 增加专用 owner 密码及服务器稳定 JWT subject；共享 admin 不升级为 owner，尚未启用 owner-default V5。见 [持久 owner 运行与回滚](ai-governance/v5-persistent-owner-read-v1.md)、[owner 认证](ai-governance/owner-authentication-v1.md) 和 [API reference](api-reference.md)。
+当前链路、工具使用、会话和自然语言记忆统一见 [私人 AI 助理](ai-assistant.md)，不再在本页重复实现细节。AI 反馈按钮和知识库治理保留独立的纠错审核流程，见 [学习与发布回归](ai-learning-release-gate-guide.md)。
 
-- AI 只允许执行 `tools.cjs` 中已注册的工具。
-- 目标规则是：写操作还必须位于写能力白名单并通过确认流程，查询工具不能借机写库。2026-08-02 审核确认转子生成/打印存在写能力漏标，且部分订单/报价 GET 有写副作用；修复前不能把现有 `WRITE_TOOLS` 或 HTTP Method 单独当作完整安全边界。
-- AI Agent Runtime V3 使用两阶段强制结构化规划：第一阶段只看精简业务域目录并提交当前目标、`conversation/query/analysis/command` 模式、业务域、上下文依赖、回答形式、对象范围和歧义；第二阶段提交最多 5 个起始事实步骤。对 `query/analysis`，业务域只决定 48 项已登记只读 Query/Preview 的目录排序，不再裁掉其他领域的读取能力；对 `command`，业务域仍是硬信封。正常轮只开放当前计划工具，正式零结果或已验证资源未找到后，最多 3 个恢复轮可开放对象范围兼容的跨域只读 discovery/query，例如模板未找到后继续核对零件、配方或线圈目录。系统、网络、协议错误不会进入恢复，任何只读轮都不开放 write。模型提供的机筒长度、线圈片数等关键业务数值还必须能追溯到用户明确输入或本轮正式结果。纯闲聊不发送业务工具。DeepSeek V4 Flash 调用显式关闭 Thinking 模式；provider 仍保留不支持 `tool_choice` 时的协议级自动降级。新增能力完成注册表、唯一 JSON schema、能力图目标语义和 executor/API 映射后即可接入，无需增加句式补丁。
-- AI 系统上下文按“不可编辑核心规则 + 当前领域规则 + 可编辑工厂配置 + 相关纠错规则”组装。AI 工作台的“工厂配置”只维护术语、偏好和操作习惯，不能覆盖标准 API、来源真实性和写操作确认；旧整份提示词会先备份再迁移。纠正规则按当前问题筛选，避免无关历史习惯占用上下文或互相干扰。
-- AI Agent Runtime V3 将普通工具结果作为模型继续调查和提取结论的证据；证据以“不可信业务数据”角色进入最终合成，字段中的提示词或命令不会取得系统权限。`aiEntityResolverV3` 对客户、订单、配方、零件、线圈方案和泵壳模板复用同一套原词/前缀探针、候选评分和绑定协议：只读唯一高置信候选可透明绑定并告知规范名称，多候选结构化追问，写能力仅接受精确目标或人工确认。每个绑定都生成不含原始业务对象的 `resolutionReceipt`。Web 会持久化服务端生成的限长 `turnState`，紧邻追问可复用正式实体引用；新目标不会继承旧实体或写意图。V2 文件只保留兼容导出。
-- V3 最终提取按 `answerShape` 只返回当前问题的结果：内部 ID/sourceId/数据库序号默认不展示，列表不由模型自行计算分组数量，也不附加未询问的库存风险、相似项判断和后续建议。
-- Web AI 对话使用 SSE 流式返回内容，并在工具执行前发送执行计划，标明每一步是只读/试算还是需要确认的写操作；`turn_state` 事件携带服务端清洗后的结构化实体状态并随会话消息保存。全部 77 个工具的中文 `displayName`、读写、风险、来源、唯一 `executorKey` 和结果 `resultProvenance` 统一由能力注册表提供；两阶段能力目录、计划与确认卡片不再维护重复名称，总 executor 也不再按多个领域依次试探。所有工具统一经过 `AI_TOOLS` JSON schema、关键参数 grounding 和 `aiExecutionEvidence`；runtime 再把模型行为记录为独立的单轮 BehaviorEvent 列表，把实际正式调用结果记录为 Observation，并只将有业务证明力的结果追加到单轮内存 Evidence Ledger。计划外工具和后续 plan drift 不会成为业务失败证据，也不会使此前正式证据失效；只有同一 Fact、同一正式来源的更新版本或权威时态可 supersede 旧证据。Query/Preview 必须有本轮正式 API 证据；零结果及已验证的资源未找到可进入有限跨域只读调查，最终指定目标仍不存在时只使用该目标的终止负证据回答，相近名称、相似配方和语义候选不得代替；HTTP/超时/协议失败立即停止结论且不能转换成“未找到”。写工具在 query/recovery 中不可见，并必须有匹配 capability 的 operation、完成状态和审计 ID，缺一项就按失败处理。有业务工具时先缓冲模型正文，必要事实通过证据门后才向前端发送结论。既有 SSE 事件协议保持不变。系统提示、历史、工具 schema、附件、图片预留和正式证据在每次 provider 请求中共享一个总输入预算；超限明确停止，不删除正式字段。`answerShape` 统一控制结果形态，不为单个客户名、配方名或句式增加终止补丁。
-- 新建报价的询价助手使用报价域专用只读接口，直接读取统一文件库原始附件并强制调用已配置的 Kimi 开放平台：图片传原图，文档使用 Kimi 文件抽取；不再经过通用 AI 对话规划、本地 OCR 或 DeepSeek 静默降级。Kimi 失败时页面明确提示，人工核对后的摘要仍通过报价保存预览绑定，不影响成本和价格。
-- 能力注册表同时声明每项 AI capability 允许的 `entityScopes`。具名订单等 `single` 查询只开放单对象能力，不允许调用全局业务告警、管理行动中心、全部订单准备总览或仪表盘汇总；跨订单汇总必须使用 `collection/global`，防止无关订单信息混入回答。
-- 报价、订单和配方自动化优先使用草稿/预览工具：`build_recipe_bom_draft`、`preview_recipe_cost`、`preview_pump_shell_cost`、`build_quotation_draft`、`build_order_draft`、`search_customer_history`。这些工具只调用标准业务 API 生成草稿或查询历史，不直接写库；客户历史的筛选、排序和聚合由 `/api/customers/:id/context` 负责。泵壳模板 + 线圈/浮球/电缆/包装的临时成品成本统一使用 `build_recipe_bom_draft`：服务端先绑定完整模板和正式配置零件，再形成 BOM 并调用 `costEngine` 返回总成本。已有配方的临时变化使用 `preview_recipe_cost`；兼容 `full_calculate` 也走同一角色覆盖口径，不重复计算原配方已有动态项。
-- AI 的零件、线圈、订单、采购、配方等事实查询统一由模型理解口语并选择正式 capability，再由 `aiToolInputValidatorV2` 直接按工具唯一 schema 校验类型化参数。线圈查询支持 `spec/sheets/material/slotType/schemeCode/schemeStatus/isDefault/ratedVoltageV/ratedFrequencyHz/market/schemeFamilyCode`；成本试算可用 `coilId/schemeCode/schemeFamilyCode`，库存调整在同组合仍有多套正式方案时必须明确方案编码。零结果与 API 失败明确区分，低库存正式口径仍为库存 1–5。
-- AI 询问泵壳本体成本且带有机筒长度/高度时，必须调用 `preview_pump_shell_cost`；该工具会复用 `/api/recipes/bom-draft`，让不锈钢机筒长度加价直接反映到泵壳套件成本。
-- AI 可调用 `explain_cost_change` 解释两个配方的成本差异，也可调用 `get_data_quality_summary`、`analyze_recipe_configuration` 和 `get_business_alerts` 读取基础资料健康度、配方配置风险、报价和订单经营异常；这些工具均为只读工具。对配方检查结果可通过 `set_recipe_analysis_feedback` 保存“确认问题、忽略、特殊情况、恢复复核”判断，该写操作必须经用户确认。
-- AI 可调用 `check_order_readiness` 检查某个订单当前能否生产。工具返回六步检查过程、实时缺料、采购阶段、阻塞原因和建议入口；它只读标准订单 API，不会自动确认订单、补采购或调整库存。
-- AI 可调用 `get_order_readiness_overview` 回答哪些订单不能生产、多少订单缺料或全部订单准备情况。该工具读取实时总览，先返回分类数量，再列出重点订单、主要问题和下一步，不属于写工具。
-- AI 可调用 `plan_order_readiness_actions` 把检查问题整理成处理方案。每一步包含顺序、负责人、完成标准、前置步骤和执行方式；`confirmable` 仅表示后续可以由 AI 发起确认，本轮不会自动执行。
-- AI 可在用户明确要求执行方案步骤时调用 `execute_order_readiness_action`。该工具属于 `WRITE_TOOLS`，先显示确认卡片；确认后的计划重验、正式预览、动作调用和执行历史集中由 `aiOrderReadinessExecution` 编排，订单 executor 只委托。业务写入仍唯一调用订单标准 Command API，并由服务端再次重验步骤；人工、等待、需补充输入或已阻塞步骤不能执行。
-- AI 可调用 `search_factory_knowledge` 和 `get_factory_knowledge_detail` 检索本地工厂知识库；每个线圈 source ID 独立生成派生条目，标题、正文、标签和 metadata 保留方案名称、方案编码、方案族、默认标记、电压、频率、市场与状态，因此查询 `12-220` 或具体方案身份会返回全部匹配方案。`sync_factory_knowledge` 会增量更新 `knowledge_entries` 并刷新 FTS，属于需确认的写工具；实时档案、库存和成本仍必须调用 `search_coils`。
-- AI 在库存语境中将 `12-120`、`12-140` 识别为“线圈/定子规格俗称-片数”，通过 `adjust_coil_stock` 调整独立线圈成品库存，不再到零件库查找。俗称解析、正式方案唯一匹配和材质/槽眼歧义拒绝集中由 `aiCoilStockExecution` 编排，executor 只委托；确认卡生成前即调用正式批量 Preview，确认凭证只保存在服务端上下文，用户确认后直接消费该凭证执行一次原子 Command。AI 层不计算库存结果，歧义时整批停止并要求明确。
-- AI 修改零件时，模型负责把 `+30/-20/加30/入库30` 等口语归纳为 `adjust_part_stock.items[{ model, changeQty }]`；`aiPartExecution` 只负责正式型号唯一解析、预览和 API 调用，executor 只委托。元数据必须走版本化 `/api/parts/:id`；零件库存增减统一使用 `adjust_part_stock`，不得把线圈“规格-片数”写入零件库。零匹配返回相似候选、多匹配返回真实候选，必须由用户明确型号。只有唯一匹配且 `/api/parts/batch-stock-preview` 完整时才生成结构化确认卡，模型 Markdown 永远不能充当卡片。预览凭证只绑定在服务端 AI confirmation token 中，确认后直接调用一次 `/batch-stock`，不重新信任模型参数。正式 Command 后继续核对逐项数量和前后值，并通过 `/api/parts` 回读最终库存；只有回读、`operationId/status/auditIds` 全部一致才能声明成功。AI 不直接写库或把库存塞回普通 PATCH。`update_part` 只修改资料，旧版 `stock/stockDelta` 输入和双模式代码已删除。
-- AI 批量调价既可保留按类别模式，也可用 `targets` 明确指定零件；灰度阶段明确目标限 1–8 项。明确目标只接受本轮正式 Query 回读的 `partId`，或完整 `model+supplier`；`aiPartExecution` 会重新唯一绑定，零匹配、多匹配、重复目标、缺价，或正式 Preview 跳过、warning、价格漂移时停止且不生成确认。两种模式都只生成逐项候选价，再强制调用 `/api/parts/prices-preview` → `/prices`；明确目标确认卡完整展示正式 Preview 的标准零件身份和当前/预计价格，执行后核对 operation/audit、无重复的精确逐项 changes 集合并回读正式价格。服务端预览负责价格校验、资源版本和预览哈希，执行端负责整批事务、持久化幂等和逐项强审计。百分比/固定金额换算尚未成为通用业务 API，其他调用方不得复制该规则。
-- AI/MCP 修改配方时，`update_recipe` 会在确认前通过正式配方 Query 唯一绑定目标，并调用 `/api/recipes/save-payload-draft` 重建完整 BOM/成本保存草稿；确认卡展示规范配方、实际字段变化、BOM 条数和保存成本。清空规格使用 `clearSpec:true`（同时兼容显式 `newSpec:""`），不依赖 MCP 客户端是否保留空字符串；它与非空 `newSpec` 冲突时会在确认前停止。确认 token 绑定 `recipeId/expectedUpdatedAt/previewHash` 与整份 draft，确认后不再按模糊名称重新选目标；正式 `recipes.update` 回执和 `/api/recipes/:id` 完整回读一致后才报成功。单次零件增删改合计最多 15 项，歧义、重复、历史可选零件无法解释、旧喷漆工资未迁移或 Preview warning 均在确认前停止。该工具不是只写 `spec` 的轻量 PATCH，灰度恢复必须核对包含包装箱型和旧喷漆工资迁移状态的完整业务快照。AI 配方删除同样在确认前唯一绑定正式 `recipeId/expectedUpdatedAt`，确认后不再按名称重选目标。
-- AI 询问价格、成本、库存、订单状态、采购进度、配方、报价金额和铜价等易变数据时，首轮必须重新调用对应模块的正式只读工具，不能直接复述同一会话中的旧数字或先做宽泛知识搜索；明确查询知识库时才读取同步后的知识条目，实时业务值冲突时以业务系统当前值为准并提示重新同步。
-- AI 知识回答在正文上方提供“已处理 · 查看处理过程”的折叠区，并用分隔线与最终结果区分。普通回答默认收起，需要时可展开查看工具计划、调用结果和知识来源；待确认写操作或执行失败会自动展开，避免遗漏必须处理的事项。来源随会话消息一同保存，历史会话也能回看。知识来源可以打开知识详情或原业务页面；待同步条目会显示警告。普通价格、库存、订单和成本查询标记为“实时业务数据”，与“知识库快照”明确区分。
-- AI 工作台会把会话和消息保存到 SQLite，支持查看、继续和删除历史会话；上下文仍只发送最近 10 条消息，历史存档数量不受上下文窗口影响。
-- 已保存的 AI 回复支持标记“准确”或报告“内容错误、来源过期、资料不足”。反馈会保存当时的问答和知识来源快照，问题进入管理看板“知识库”的待处理队列。报告内容错误时可填写可复用的正确做法并选择“让 AI 长期记住”，系统会创建带全局/领域/对象范围、类型、优先级和有效期的纠正规则候选；候选必须人工批准且通过冲突判定后，才在后续相关问题中通过纠正规则运行时加载，不进入通用知识索引。原问题仅作为适用示例和来源追溯，规则不依赖原对话继续存在。来源过期、资料不足和未明确勾选的反馈不会创建规则。规则只约束 AI，不会改写订单、库存、配方、成本等业务数据。
-- 待处理反馈支持只读诊断和重新验证。诊断会检查原回答引用的知识是否待同步，无引用时搜索可能遗漏的知识，并区分“知识待同步、缺少引用、知识缺口、需业务复核”；重新验证会使用原问题重新查询当前数据，保存新回答和新来源供并排对比，最终仍由人工确认归档。
-- 知识库管理中心提供一键回归检查。系统内置项目关键问题，依次重新调用标准 AI 工具链，再用确定性规则核对当前数据库值、调用工具、来源、必需词和禁用词；结果简化为“通过、需要修复、需要确认/重试”，详细回答和失败原因默认折叠。正式查询确认目标不存在或不唯一并安全要求用户确认时不再误报；连接中断显示为需要重试。异常结果必须修复业务事实、工具调用或检查规则后重新验证，9 条核心门禁不能通过页面停用绕过，历史结果继续保留审计。AI 不负责给自己打分。
-- Web/PWA 普通工具结果默认弱展示，详细 JSON 折叠；AI 回复必须消化工具结果后给出关键结论、差异原因和下一步建议。
-- 订单采购中的成品电缆按“根”汇总，一根由指定长度的线材和对应插头/规格组成；例如 30 台水泵使用 8m 新界式电缆时，采购计划显示 `30 根`，底层线材库存入库时再折算为 `240m`，不得把米数显示成成品电缆数量。
-- iPhone PWA 与桌面统一使用 `/ai`；手机端隐藏全局业务导航，使用全屏对话、会话历史抽屉和安全区输入框。
-- Web/PWA 在移动端以 AI 主消息区作为唯一纵向滚动容器；流式 Markdown 或展开内容继续增高时，仅在用户仍位于底部时自动跟随。用户主动离开底部后保留阅读位置并显示“回到最新”，手机端工具明细不再创建会截获滑动手势的内层纵向滚动区；桌面端仍允许原始数据和数据表使用限高的内部纵向查看区。
-- PWA 状态流使用单一状态枚举：`idle`、`thinking`、`calling`、`answering`、`confirming`、`done`、`error`、`cancelled`，顶部状态和消息状态都由该状态驱动。
-- PWA 当前优先接入成熟 AI 工具：经营概况、最近订单、订单详情、配方成本、零件搜索、线圈成本、铜价、配方对比和出图历史；新建订单、修改订单状态、改零件、生成采购清单、配方/零件写操作必须确认后执行。
-- PWA 与桌面共享 SQLite AI 会话历史，可跨设备回看和继续；正式写操作审计仍由后端 `safeInsert` / `safeUpdate` / delete helper 处理。
-- AI 最近 10 条消息只作为语言记忆，不作为操作队列；新的明确业务问题从当前轮次重新判定领域和权限，跨库存、模板、配方、订单、采购等话题不会重放旧写入。只有紧邻的指代追问或缺参补充继承上一轮，模型工具调用还要经过本轮 allowlist 与读写意图双重校验。Web/PWA 同一工作台只允许一个流式请求在途。
-- Web/PWA AI 对话使用统一 SSE 模型适配层，DeepSeek/Kimi 的配置与能力由统一 Provider Registry 管理。`/setup` 默认启用智能路由：普通对话以及本地已成功解析的文字型 PDF、Word、Excel/CSV 和文本附件由 DeepSeek 直接总结；图片原图、扫描/OCR PDF、含技术图候选或未解析页的 PDF、解析截断/失败/无可用正文的文件使用 Kimi 开放平台 `kimi-k3`。混合附件逐个决定，只有需要外部识别的非图片文件通过临时上传和 `file-extract` 抽取，已解析文件以内联内容提供，不重复上传。关闭 `AI_VISION_ENABLED` 只停用图片原图输入，不影响确需 Kimi 的文件抽取。K3 成功看原图时不重复附加整段 OCR。单次提供商请求和整轮对话分别有可配置超时，浏览器停止或断开会取消规划、模型流和内部 API；SSE 定时发送心跳。仅网络、超时、429 和 5xx 等临时故障允许 Kimi 回退 DeepSeek 与本地解析/OCR，认证、参数和调用方取消不会被错误掩盖。运行进程以有界内存统计请求、耗时、重试、降级和错误码，不保存问题正文或密钥；AI 治理页可查看运行健康。每条 AI 回复显示实际使用的提供商。工作台附件统一保存到 `factory_files` 并随会话历史恢复；本地解析继续作为持久化检索与故障兜底。OCR 技术参数只生成带页码/坐标和置信度的候选，不自动写业务数据。Kimi Coding Plan 凭证与开放平台 API Key 不互通，不能用于业务助手。助手最终回复只呈现面向用户的结果，不展示内部思考、逐步推理、工具选择或处理过程；简单问题使用短段落，一般问题可使用一个简短标题和 2-5 个短要点，保留结论、关键数字或异常、必要下一步和风险。型号或规格中的 Markdown 特殊字符使用行内代码保护，处理过程与依据由正文上方的折叠区承载。
+- Web 使用 SSE 显示回答及正式工具明细，聊天和消息保存于 SQLite；模型上下文预算与历史存档独立。
+- 当前助理支持跨业务只读调查和正式成本比较，业务写工具未启用；已有 HTTP/MCP 写能力不等于聊天自动取得写权限。
+- 文件、OCR、提供商选择和超时等正式协议见 [API 总表](api-reference.md)，实时业务数据以正式 API 为准，知识库是资料和派生快照。
 
 ### PWA 调试与限制
 
@@ -442,4 +411,11 @@ POST /api/rotor/save
 - 兼容路径必须登记替代能力和删除条件；未取得调用遥测前不删除。新增功能不得扩大旧字段或旧成本入口。
 - `GET /api/recipes/:id/cost` 不是完整配方总成本接口；报价和订单覆盖试算必须使用 `cost-preview`。
 
-新版私人助理已通过用户本地人工验收：默认只读工具可跨类型、跨业务组合，明确记忆指令经正式 API 保存。V1 冻结不代表生产已更新；当前范围与后续能力见 [实施计划](./ai-assistant-implementation-plan.md)。
+
+## 9. 文档维护周期
+
+- 每次功能、接口或运行方式变化：先修改对应权威章节，清除同主题的旧说明，再检查文档入口和链接。
+- 每次版本冻结前：核对当前事实、验证证据、部署状态和未完成事项；不得移动已冻结标签来覆盖后续文档整理。
+- 每月例行维护：检查重复章节、失效命令、断链、无引用草稿和过时状态；这是维护约定，不表示已创建自动任务。
+- 阶段计划和实现记录在稳定结论归入当前文档后进入 archive；原始失败记录保留。尚未批准的未来提案明确标注，不作为当前架构要求。
+- 未完成问题只维护在 technical-debt；测试数量与生产状态只维护在 deployment-checklist。根 README 保留安装启动入口，本页负责功能导航与业务概览。
