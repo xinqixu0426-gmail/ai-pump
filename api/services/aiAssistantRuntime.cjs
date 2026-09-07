@@ -63,6 +63,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     let answerRepair = false;
     let evidenceReminder = false;
     let protocolRepair = false;
+    let completionReview = false;
+    let finishQueries = false;
     try {
         abortIfNeeded(input.signal);
         const internalFetch = createInternalFetch({ signal: input.signal });
@@ -97,7 +99,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const knowledgeDocuments = new Map();
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
-            let offered = calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
+            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
             if (!offered.length) current.push({ role: 'system', content: '本轮查询阶段已结束，没有可调用工具。现在只用已取得的正式结果回答用户原问题；已核实不存在或查询范围为空的部分明确说明，尚未核实的部分说明缺失。不要继续规划查询，不输出工具协议，也不要把下一步查询写成已经完成。' });
             if (estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) offered = compactToolDescriptions(offered);
             if (toolResults.length && estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) {
@@ -128,6 +130,14 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             const proposed = answer.tool_calls || [];
             if (!proposed.length) {
                 finalContent = String(answer.content || '');
+                const pendingClarification = toolResults.some(item => item.result?.requiresClarification || item.result?.data?.requiresVariantSelection);
+                if (!completionReview && offered.length && round < MAX_TOOL_ROUNDS - 1 && !pendingClarification
+                    && /请(?:问|确认|提供)|是否需要|需要我|要我|我可以.{0,30}(?:查询|核实)|再.{0,10}(?:查询|查正式)/s.test(finalContent)) {
+                    completionReview = true;
+                    current.push({ role: 'system', content: '刚才的回答草稿没有发送给用户。先核对这次反问是否必要：用户已经授权完成原问题的只读查询。若原问题或正式结果已有名称/关键词，不要让用户重复提供，也不要询问是否继续查询；直接使用已开放的正式工具补齐所需事实。跨类型查询可用已有名称检索其他正式目录。确实存在多个候选、缺少必要条件或新的业务选择时保留澄清，不能自行选对象；业务写入仍不执行。最后返回可独立阅读的完整回答，包含原问题所需条件和结果，不能只写补充说明或引用未发送的上文。' });
+                    finalContent = '';
+                    continue;
+                }
                 if (containsEmbeddedToolProtocol(finalContent)) {
                     if (!protocolRepair && offered.length && round < MAX_TOOL_ROUNDS - 1) {
                         protocolRepair = true;
@@ -153,8 +163,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 if (unsupported.length) {
                     if (!answerRepair && round < MAX_TOOL_ROUNDS - 1) {
                         answerRepair = true;
-                        current.push({ role: 'assistant', content: finalContent });
-                        current.push({ role: 'system', content: `回复中的这些金额尚无本轮正式金额字段支持：${unsupported.join('、')}。如果用户的问题仍需要这些数据，继续使用只读工具补齐，再回答。候选已由本会话确定时，直接使用候选的 ID 或方案编码逐个读取成本预览；规格目录和原材料单价不能代替方案成本。若无法取得则说明缺失，不把 ID 或自行计算结果当作正式金额。` });
+                        current.push({ role: 'system', content: `尚未发送的回答草稿中，这些金额没有本轮正式金额字段支持：${unsupported.join('、')}。返回独立完整的新回答，不引用未发送的上一条。正式成本预览已经取得的部分直接引用预览明细，不用目录价或原材料价替换成本项，不自行汇总分类小计；只有原问题还缺必要事实时才继续只读查询。候选已确定时用其 ID 或方案编码读取正式成本；无法取得则说明缺失，不能把 ID 或自行计算结果当金额。` });
+                        finalContent = '';
                         continue;
                     }
                     outcome = 'failed_answer';
@@ -168,6 +178,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 break;
             }
             if (calls + proposed.length > MAX_TOOL_CALLS || offered.length === 0) {
+                if (offered.length && round < MAX_TOOL_ROUNDS - 1) {
+                    finishQueries = true;
+                    outcome = 'partial';
+                    current.push({ role: 'system', content: '这一组追加查询超出本轮剩余次数，整组未执行。查询阶段结束；请用已取得的正式结果回答原问题，保留已核实的肯定与否定事实，明确指出未核实部分。' });
+                    finalContent = '';
+                    continue;
+                }
                 outcome = 'budget_exhausted';
                 finalContent = unfinishedReply(toolResults);
                 break;

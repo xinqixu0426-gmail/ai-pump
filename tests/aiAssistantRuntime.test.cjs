@@ -204,8 +204,13 @@ test('explicit testing scheme preview uses existing includeTesting contract with
 test('tool proposals are bounded across rounds including failures', async () => {
     let count = 0;
     const turn = { tool_calls: Array.from({ length: 6 }, (_, i) => call('search_parts', { keyword: String(i) }, `id-${i}`)) };
-    const result = await runAiAssistant(input('调查'), fixture([turn, turn], { executeToolCall: async () => { count++; return verified([]); } }));
-    assert.equal(count, 6); assert.equal(result.telemetry.outcome, 'budget_exhausted');
+    const result = await runAiAssistant(input('调查'), fixture([turn, turn, (messages, options) => {
+        assert.equal(options.tools.length, 0);
+        assert.ok(messages.every(message => !message.tool_calls));
+        return { content: '已完成部分查询，追加范围尚未核实。' };
+    }], { executeToolCall: async () => { count++; return verified([]); } }));
+    assert.equal(count, 6); assert.equal(result.telemetry.outcome, 'partial');
+    assert.match(result.finalContent, /追加范围尚未核实/);
 });
 
 test('resource IDs cannot become monetary facts; repair retains read tools to obtain missing evidence', async () => {
@@ -357,10 +362,11 @@ test('verified missing targets are not re-executed and remain visible when tool 
         { tool_calls: [call('get_recipe_detail', { recipeName: '不存在-A' }, 'a')] },
         { tool_calls: [call('get_recipe_detail', { recipeName: '不存在-A' }, 'b')] },
         { tool_calls: Array.from({ length: 9 }, (_, i) => call('get_all_recipes', { keyword: String(i) }, `c${i}`)) },
+        { content: '未找到配方：不存在-A，无法读取它的资料。' },
     ], { executeToolCall: async () => { calls++; return missing; } }));
     assert.equal(calls, 1);
     assert.match(result.finalContent, /未找到配方：不存在-A/);
-    assert.equal(result.telemetry.outcome, 'budget_exhausted');
+    assert.equal(result.telemetry.outcome, 'partial');
 });
 
 test('empty formal query feedback preserves scope and rejects incomplete or failed evidence', () => {
@@ -434,4 +440,21 @@ test('knowledge views share identical documents only within the current turn, pr
     assert.ok(compact.summary.length < withGuidance.summary.length);
     const uniqueGuidance = { ...withGuidance, answerGuidance: { businessRuleStatements: ['正文中没有的独立事实'] } };
     assert.deepEqual(modelResultView('search_factory_knowledge', uniqueGuidance).answerGuidance, uniqueGuidance.answerGuidance);
+});
+
+test('unnecessary query permission gets one continuation while real candidate ambiguity remains explicit', async () => {
+    const names = [];
+    const result = await runAiAssistant(input('800平刀切割泵壳的零件单价是多少', 'completion-review'), fixture([
+        { tool_calls: [call('search_templates', { shellModel: '800平刀切割' })] },
+        { content: '模板套件95元不是零件价，请提供该泵壳的型号关键词，我再查询。' },
+        (messages, options) => { assert.ok(options.tools.length); assert.match(messages.at(-1).content, /不要让用户重复提供/); assert.ok(!messages.some(message => message.content?.includes('模板套件95元不是零件价'))); assert.match(messages.at(-1).content, /完整回答/); return { tool_calls: [call('search_parts', { keyword: '800平刀切割泵壳' })] }; },
+        { content: '零件当前单价95元。' },
+    ], { executeToolCall: async name => { names.push(name); return verified({ price: 95 }); } }));
+    assert.deepEqual(names, ['search_templates', 'search_parts']);
+    assert.equal(result.finalContent, '零件当前单价95元。');
+    const ambiguous = await runAiAssistant(input('A的成本', 'true-ambiguity'), fixture([
+        { tool_calls: [call('get_all_recipes', { keyword: 'A' })] },
+        { content: '有两个候选，请确认要哪一个。' },
+    ], { executeToolCall: async () => ({ ...verified([]), requiresClarification: true }) }));
+    assert.match(ambiguous.finalContent, /两个候选/);
 });

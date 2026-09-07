@@ -99,7 +99,7 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 历史配方中已标记 `dynamicRule=longScrewByBarrelLength` 但零件库缺少目标长度型号时，运行 `npm run maintenance:backfill-long-screws` 进行受控回填。该命令复用 `parts.batch_create` 的 Preview/Command、持久化幂等、operation 回执和强审计，不直接绕过零件建档契约。
 
-`POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为语言上下文；实时事实重新调用正式 API。服务端会话引用绑定现有登录主体和 conversationId，15 分钟过期，不信任客户端传入的 turnState 或 resolutionContext。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；新入口暂不提供业务写工具。Web/PWA 保留流式请求互斥锁。 正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。HTTP/SSE 字段不变，处理细节见 [私人 AI 助理](ai-assistant.md)。
+`POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为语言上下文；实时事实重新调用正式 API。服务端会话引用绑定现有登录主体和 conversationId，15 分钟过期，不信任客户端传入的 turnState 或 resolutionContext。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；新入口暂不提供业务写工具。Web/PWA 保留流式请求互斥锁。 正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。工具提议超出剩余次数时整组不执行，转入最终回答；不必要的重复询问进行至多一次完成性复核，真实候选歧义仍保留选择。HTTP/SSE 字段不变，处理细节见 [私人 AI 助理](ai-assistant.md)。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 

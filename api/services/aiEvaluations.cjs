@@ -146,7 +146,8 @@ function containsZeroQuotationConclusion(answer) {
     return normalizeAnswerForChecks(answer)
         .split(/[。！？\n]/)
         .some(sentence => !/(?:可能|也许|或许|是否|不确定|无法确认|如果|假如|并非|并不是|不是没有)/.test(sentence) && (
-            /(?:(?:没有|未)(?:查询到|查到|找到|检索到|匹配到)?|无|暂无)(?:(?:任何|历史|相关|可用)的?)*报价(?:记录)?/.test(sentence)
+            /(?:(?:没有|未)(?:查询到|查到|找到|检索到|匹配到|记录到|记录)?|无|暂无)(?:(?:任何|历史|相关|可用)的?)*报价(?:记录)?/.test(sentence)
+            || /不存在(?:该客户的|其名下的|任何|历史)*报价记录/.test(sentence)
             || /报价(?:记录)?(?:为)?空/.test(sentence)
         ));
 }
@@ -457,8 +458,11 @@ function evaluatePrerequisite(config, answer, db, toolResults = []) {
             const normalized = normalizeTargetText(sentence);
             if (!normalized.includes(normalizeTargetText(name))) return false;
             // Explicitly excluding listed candidates is not substituting them.
-            return !(normalized.includes(normalizeTargetText(recipeName))
-                && /(?:均|都)(?:不含|不包含|不是|不匹配)/.test(sentence));
+            const excluded = normalized.includes(normalizeTargetText(recipeName))
+                && /(?:均|都)(?:不含|不包含|不是|不匹配)/.test(sentence);
+            const rejectedSource = /(?:不能|不可|不得)(?:作为|代替|替代)[^。！？]{0,40}(?:目标|该型号|原型号)[^。！？]{0,30}(?:来源|数据|报告)/.exec(sentence);
+            const reversal = rejectedSource && /(?:但是|但|却|实际|仍然可以)/.test(sentence.slice(rejectedSource.index));
+            return !(excluded || (rejectedSource && !reversal));
         })
     ));
     return {

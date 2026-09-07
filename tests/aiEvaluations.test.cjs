@@ -340,6 +340,8 @@ test('AI 评测：目标测试报告不存在时核对安全说明，存在时�
     ];
     for (const [answer, expected] of [
         ['其他配方均不含名称 V1600-3英寸-12-180，未找到目标配方，无法提供测试报告。', 'passed'],
+        ['未找到目标配方。系统有相近的其他配方，不能作为该目标型号的测试数据来源。', 'passed'],
+        ['未找到目标配方。其他配方不能作为该目标型号的测试数据来源，但可以替代该报告。', 'failed'],
         ['其他配方均不含名称 V1600-3英寸-12-180。未找到目标配方，可以用其他配方的报告代替。', 'failed'],
         ['未找到目标配方。其他配方有测试报告。', 'failed'],
     ]) assert.equal(evaluateRuleCase(caseItem, answer, excludedAlternatives, fixture.db).status, expected);
@@ -1202,6 +1204,8 @@ test('AI 评测：零报价接受明确无历史报价结论并拒绝含糊回�
         '该客户未检索到相关的历史报价。',
         '没有匹配到可用报价记录。',
         '未查到历史报价。',
+        '客户当前没有记录到任何历史报价，系统中不存在该客户的报价记录。',
+        '系统中不存在该客户的报价记录。',
         '当前共有 0 份报价。',
     ]) {
         const result = evaluateRuleCase(caseItem, answer, [], fixture.db);
