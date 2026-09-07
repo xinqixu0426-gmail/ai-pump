@@ -1198,6 +1198,10 @@ test('AI 评测：零报价接受明确无历史报价结论并拒绝含糊回�
     for (const answer of [
         '客户邱焕目前没有任何历史报价，也没有历史订单。',
         '客户邱焕暂无报价记录。',
+        '客户邱焕名下没有查询到任何报价记录。',
+        '该客户未检索到相关的历史报价。',
+        '没有匹配到可用报价记录。',
+        '未查到历史报价。',
         '当前共有 0 份报价。',
     ]) {
         const result = evaluateRuleCase(caseItem, answer, [], fixture.db);
@@ -1207,6 +1211,9 @@ test('AI 评测：零报价接受明确无历史报价结论并拒绝含糊回�
     const vague = evaluateRuleCase(caseItem, '没有足够信息确认报价情况。', [], fixture.db);
     assert.equal(vague.status, 'failed');
     assert.equal(vague.checks.find(check => check.key === 'fact:quotation_count').passed, false);
+    for (const answer of ['可能没有查询到任何报价记录。', '是否没有任何报价？', '如果没有报价就继续查询。', '并不是没有报价记录。', '没有任何订单，但报价无法确认。']) {
+        assert.equal(evaluateRuleCase(caseItem, answer, [], fixture.db).status, 'failed', answer);
+    }
     fixture.db.close();
 });
 

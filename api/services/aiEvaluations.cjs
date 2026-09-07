@@ -145,8 +145,8 @@ function containsMissingCustomerConclusion(answer, configuredTerms) {
 function containsZeroQuotationConclusion(answer) {
     return normalizeAnswerForChecks(answer)
         .split(/[。！？\n]/)
-        .some(sentence => (
-            /(?:没有|无|暂无|未找到|未查询到)(?:任何)?(?:历史)?报价(?:记录)?/.test(sentence)
+        .some(sentence => !/(?:可能|也许|或许|是否|不确定|无法确认|如果|假如|并非|并不是|不是没有)/.test(sentence) && (
+            /(?:(?:没有|未)(?:查询到|查到|找到|检索到|匹配到)?|无|暂无)(?:(?:任何|历史|相关|可用)的?)*报价(?:记录)?/.test(sentence)
             || /报价(?:记录)?(?:为)?空/.test(sentence)
         ));
 }
