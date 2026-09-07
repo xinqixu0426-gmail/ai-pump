@@ -19,6 +19,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 V5 当前集合读取契约见 [有界集合/分页/详情/计数](ai-governance/v5-bounded-collection-read-v1.md)；是否已通过生产验收以阶段报告为准。接口事实仍集中于 API 接口总表。
 
+P16-M 新增闭集、有界关系调查的本地实现，正式关系 API、身份/证据依赖及开关边界见 [API 接口总表](api-reference.md#有界关系调查读取candidate-onlyp16-m-本地认证中)。多读开关默认关闭；本地语义已认证90/90，首次完整验收29/30（1次风险分类不可用、安全拒绝），尚未生产发布。阶段事实见 [P16-M 报告](ai-governance/reports/P16-M-relation-surface-audit.md)。P17 写迁移继续暂停。
+
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
 | 业务 | [business-flow.md](./business-flow.md)、[coil-domain.md](./coil-domain.md) | 业务对象、流程、库存/成本/知识边界和线圈口径 |

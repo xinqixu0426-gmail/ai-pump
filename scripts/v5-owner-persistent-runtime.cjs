@@ -5,6 +5,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+function multiReadEnvironment(config) {
+    return { AI_V5_MULTI_READ_ENABLED: config.multiReadEnabled === true ? 'true' : 'false' };
+}
+
 function createMetadataProcessor(state, save) {
     const traces = new Map();
     return {
@@ -55,6 +59,7 @@ async function start(config, role) {
     let runtime;
     if (role === 'candidate') {
         Object.assign(process.env, env, {
+            ...multiReadEnvironment(config),
             PUMP_V5_CANDIDATE_RUNTIME: 'true', PUMP_V5_CANDIDATE_PORT: '3102',
             PUMP_V5_CANDIDATE_DATABASE: path.join(config.legacyDirectory, 'pump.db'),
             AI_V5_READ_CANARY_ENABLED: 'true', AI_V5_READ_CANARY_AUTHORITATIVE_ENABLED: 'true',
@@ -71,6 +76,8 @@ async function start(config, role) {
                     riskClass: ['READ_SAFE','WRITE_OR_MUTATION','UNAVAILABLE_OR_UNKNOWN'].includes(o.risk?.riskClass) ? o.risk.riskClass : 'UNAVAILABLE_OR_UNKNOWN',
                     ordinalControl: o.ordinalControl === true, riskInvoked: o.risk?.invoked === true,
                     collectionSemanticCalls: Number.isInteger(o.semanticModelCalls) ? o.semanticModelCalls : null,
+                    investigationType: ['customer.orders','order.customer','order.lines','recipe.parts','part.recipes','parts.stock','part.facts'].includes(o.investigationType) ? o.investigationType : null,
+                    plannedSteps: Number.isInteger(o.plannedSteps) && o.plannedSteps <= 4 ? o.plannedSteps : null,
                     attempted: o.attempted === true, validated: o.validationPass === true, delivered: o.delivered === true,
                     failureClass: /^[A-Z_]{1,80}$/.test(o.failureClass) ? o.failureClass : 'UNKNOWN',
                     durationMs: o.durationMs, toolCalls: o.toolCalls || 0,
@@ -109,4 +116,4 @@ async function start(config, role) {
 if (require.main === module) {
     start(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')), process.argv[3]).catch(() => { process.exitCode = 1; });
 }
-module.exports = { start, createMetadataProcessor };
+module.exports = { start, createMetadataProcessor, multiReadEnvironment };

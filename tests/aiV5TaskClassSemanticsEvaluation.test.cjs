@@ -91,8 +91,8 @@ test('non-semantic B2 surfaces remain frozen; R4 explicitly revises part class i
     const hashes = computeFreezeHashes();
     const { EXPECTED_FROZEN_HASHES } = require('../scripts/run-ai-v5e4r-task-class-semantics-v1_1-evaluation.cjs');
     assert.equal(verifyFreezeHashes(hashes, { ...EXPECTED_FROZEN_HASHES,
-        // P16-L adds one non-entity collection capability, excluded from entity Task Class generation.
-        capabilityRegistry: 'ce7c6d593ba26129b3a2d47b70f3dfbdf0152ea1e7dadbab8178c5dc3d31fe00',
+        // P16-M adds a closed non-entity READ investigation capability; entity Task Classes stay frozen.
+        capabilityRegistry: 'c7ddcf34f048c4166848914dd0426402c637638298ac7c14f223bc308dfa84fa',
         // R8 authorized the bounded coil span merge, not changes to the historical evaluator.
         sourceSpan: 'd3407426ad4fdc77b2dab966ef8566db5b61212ecf82e4f1def020d75a13c85f',
         classIdentity: 'a9c9f35c293968efe0ee1148311166ec83846672476dd2dabe011c543c86d9d6',

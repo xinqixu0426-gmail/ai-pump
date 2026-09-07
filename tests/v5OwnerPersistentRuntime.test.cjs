@@ -1,6 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {createMetadataProcessor,start}=require('../scripts/v5-owner-persistent-runtime.cjs');
+test('multi-read requires exact supervisor opt-in and defaults off independently',()=>{
+ const {multiReadEnvironment}=require('../scripts/v5-owner-persistent-runtime.cjs');
+ for(const v of [undefined,null,false,'true',1])assert.equal(multiReadEnvironment({multiReadEnabled:v}).AI_V5_MULTI_READ_ENABLED,'false');
+ assert.equal(multiReadEnvironment({multiReadEnabled:true}).AI_V5_MULTI_READ_ENABLED,'true');
+});
 function fixture(){const state={spans:0,roots:0,orphans:0,crossRequest:0};return {state,p:createMetadataProcessor(state,()=>{})};}
 function span(trace,id,parent,attributes={}){return {spanContext:()=>({traceId:trace,spanId:id}),parentSpanContext:parent?{spanId:parent}:undefined,attributes};}
 test('disabled persistent adapter fails before loading business modules',async()=>{await assert.rejects(start({enabled:false},'candidate'),/OWNER_RUNTIME_DISABLED/);});

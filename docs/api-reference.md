@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 233 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 234 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -432,6 +432,22 @@ Candidate 直接详情先选择现有 source-exact spanRef，再调用正式 ent
 
 集合继续/序号引用只由认证主体 + conversationId 命名空间内的服务器状态决定；10分钟 TTL，最多128个活跃会话，每会话并发执行拒绝，游标/令牌/行 ID 不传模型。每页是独立只读事务，跨页不保证可变生产数据的历史快照；稳定数据下 keyset 无重复/遗漏。集合响应验证查询、过滤、排序、边界、行身份、投影和正式执行证据后，由确定性 Answer Composer 展示，无答案模型、第二次调查或新业务计算。模型只选择有限集合语义及原文位置。
 
+### 有界关系调查读取（Candidate-only，P16-M 本地认证中）
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `POST` | `/api/relations/read` | `{version:1, relation, rootId?, pageSize?, afterId?, stockStatus?}` | 能力 `relations.read` / Candidate-only Tool `read_relation`；严格闭集字段。只在隔离 Candidate 内部认证边界挂载，不修改 Legacy API。返回 BoundedRelationResultV1，不返回原始订单/BOM JSON |
+
+relation 仅支持 customer.orders、order.customer、order.lines、recipe.parts、part.recipes、parts.stock、part.facts。除 parts.stock 外必须由 governed canonical root 绑定 rootId；禁止客户端/模型自由传执行参数。页默认20、最大50，id DESC + keyset，正式 COUNT/精确关系计数，hasMore/pageBoundary，逐页只读事务，不承诺跨页历史快照。单客户/两事实请求禁止 afterId。完整结果仍受262144字节上限保护，不提高现有全局上限。
+
+客户关系优先 orders.customer_id，仅无ID旧记录使用唯一 exact customer_name；悬空ID不回退名称。订单明细仅已保存 recipeName/qty/unitPrice，序号是根订单内的行引用，不是产品ID。BOM按已保存 model/supplier（存在partId时要求ID及文本一致）查当前零件，零匹配/多匹配拒绝，不做supplier→model降级；线圈转子角色明确排除，不冒充完整成品BOM。反向配方查询在 Business service 内作 exact JSON 引用筛选，最多512候选；未知/损坏来源不作为不存在。嵌套最多50条，无嵌套无限分页。任何超界、歧义、错误证据均 fail closed。
+
+parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/attention(stock≤5)/ok(stock>5)，SQL在传输前过滤、计数和分页，NULL库存沿用正式查询的0口径。part.facts 是当前目录库存及目录单价（元/目录数量单位），不是制造成本或成品库存。结果字段由每类投影白名单验证，包含 canonical identities、queryId、语义、过滤、排序、总数、页边界、asOf、provenance及单位；不透传未知DTO字段。
+
+`AI_V5_MULTI_READ_ENABLED` 源码默认 OFF，当前生产不启用。开启后仅在既有认证 owner/READ_SAFE 边界内，固定10项语义选择映射7类正式关系计划；模型不能生成步骤/Tool/API/自由参数。明确引用的源文本经语法提取，其他根沿用现有源跨度选择，均必须 governed lookup。调查最多4步；当前根详情→关系为2步，集合库存为1步，identity lookup另计。前一步 VERIFIED canonical ID 才能绑定后一步；计划篡改、错误根或任一步证据失败禁止回答。Answer Composer为确定性模板，无工具/模型调查循环。关系页沿用P16-L主体+conversationId状态、10分钟TTL、128会话上限、同会话lease、冻结query和token校验；继续不重规划/重分类过滤，订单行快照不允许作为订单ordinal目标。
+
+持久化 Candidate 的独立监督配置 `multiReadEnabled` 仅布尔 `true` 映射到 `AI_V5_MULTI_READ_ENABLED=true`；缺省、字符串或其他值均为 OFF，不从 Legacy `.env` 隐式继承开启。不改变 owner 默认路由或鉴权，不启用写权限；更换 Candidate 配置/工件可以独立回滚，Legacy 不重启。监督输出仅新增闭集 investigationType、最多4步的 plannedSteps 元数据，不记录业务内容。
+
 ### 内部实体解析查询（只读）
 
 #### Stage1 前权威线圈源跨度供给
@@ -490,7 +506,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 V3 第一阶段意图信封中 `requiresClarification=true` 时，`ambiguities` 必须非空；服务端直接返回澄清问题，第二阶段不得生成能力步骤，也禁止在用户明确目标前读取或写入业务数据。正式工具结果进入最终合成模型时使用不可信业务数据角色，结果文本中的提示词、角色声明和命令不得覆盖系统规则。每轮仅记录总耗时、首字耗时、业务域规划/能力规划/工具/总结阶段耗时、工具数量、供应商路由、重试/降级/错误码和供应商真实 usage 覆盖率，不记录用户正文、附件正文、工具参数或回答内容。
 
-模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段让 query/analysis 从按首选域优先排列的全部 48 项已登记只读 Query/Preview 中选择，command 仍只下发信封内能力，模型只提交最多 5 个起始事实步骤。正常执行逐项开放当前能力，恢复执行只开放公共能力图中的有界只读 discovery 集合。新登记的 read_collection 仅 Candidate 可执行，不加入 Legacy/MCP 目录。78 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 110 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
+模型第一阶段只提交结构化目标/风险/业务域信封；服务端在第二阶段让 query/analysis 从按首选域优先排列的全部 48 项已登记只读 Query/Preview 中选择，command 仍只下发信封内能力，模型只提交最多 5 个起始事实步骤。正常执行逐项开放当前能力，恢复执行只开放公共能力图中的有界只读 discovery 集合。新登记的 read_collection 与 read_relation 仅 Candidate 可执行，不加入 Legacy/MCP 目录。79 个 AI 工具的 `displayName`、领域、`read/write`、`live/derived/stable`、风险、确认要求、事实来源、超时、唯一 `executorKey` 和 `resultProvenance` 统一登记在 `api/capabilities/registry.cjs`；输入字段唯一 schema 位于 `api/routes/ai/tools.cjs`，`assertAiToolRegistryComplete` 保证两者一一对应。总 executor 按 `executorKey` 直接分发到 `cost/query/order/recipe/business` 中唯一一个领域 executor；领域 executor 不维护第二份工具集合。执行计划与确认卡片读取同一个 `displayName`，正式 API 回执只按注册表的 provenance 标记，不由 AI 文字推测。`WRITE_TOOLS` 只是注册表生成的兼容投影。注册表同时登记当前 111 个已迁移正式业务 query/command/maintenance 的完整契约。非 `command` 意图排除全部写工具；上下文是否引用上一轮或订单页面由第一阶段信封的 `contextMode` 决定，不再扫描历史关键词。普通闲聊不发送业务工具。未登记、schema 不匹配、超出本轮 allowlist、读写模式不符、缺少有效 executorKey 或实现不匹配的工具调用均在正式 API 前拒绝。写意图没有结构化确认或正式 operation/audit 回执时统一返回“未写入”，模型文字不能生成确认卡片或成功事实。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 

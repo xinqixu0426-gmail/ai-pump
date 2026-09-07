@@ -8,6 +8,7 @@ async function tryCollectionRead(input,{taskId,risk,controlIntent=null,options={
     const ctx=getConversationContext(),stateStore=options.continuationStore||store;
     if(!ctx||input.factKey!==undefined)return null;
     const active=stateStore.peek(ctx);
+    if(active?.query?.kind==='relation'&&controlIntent?.operation==='continue')throw Error('COLLECTION_CONTINUATION_UNAVAILABLE');
     const intent=controlIntent||await selectCollectionIntent(input.sourceRequest,active,{env:options.env,
         modelRequest:options.collectionModelRequest,shadowTaskId:taskId,
         observeModelCall:(m,fn)=>obs.withModelSpan({...m,stage:'collection_intent'},fn)});

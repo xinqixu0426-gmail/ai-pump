@@ -72,6 +72,7 @@ function collectHttpEndpoints() {
         'entityLookup.cjs': '/api/entity-lookup',
         'entitySpanCandidates.cjs': '/api/entity-span-candidates',
         'collectionRead.cjs': '/api/collections',
+        'relationRead.cjs': '/api/relations',
         'mcp.cjs': '/mcp',
     };
     const endpoints = [];

@@ -35,9 +35,20 @@ function createContinuationStore({now=Date.now}={}){
         if(!require('../conversationContext.cjs').validConversationId(ctx?.conversationId))return null;
         const e=peek(ctx);return e&&certified.has(e)?structuredClone(e):null;
     }
+    function setVerifiedRelation(ctx,query,handle,scope,queryId){
+        if(scope?.contextKey!==ctx?.contextKey)fail();
+        const {page}=require('./investigationEvidence.cjs').getVerifiedRelation(handle,scope);
+        const q=require('../relationReadContract.cjs').request(query);
+        require('../relationReadContract.cjs').validateResult(q,page);
+        if(['order.customer','part.facts'].includes(q.relation))fail();
+        const resourceType={order:'orders',customer:'customers',part:'parts',recipe:'recipes',orderLine:'orders'}[page.resourceType];
+        if(!resourceType)fail();
+        return put(ctx,{kind:'relation',operation:'list',pageSize:q.pageSize,relationRequest:q},
+            {...page,resourceType},queryId,true);
+    }
     async function lease(ctx,fn){const k=key(ctx);if(!k)return fn();if(busy.has(k))throw Error('COLLECTION_CONVERSATION_BUSY');busy.add(k);try{return await fn();}finally{busy.delete(k);}}
     return {peek:ctx=>{const e=peek(ctx);return e?structuredClone(e):null;},read,
-        set:(ctx,query,page,queryId)=>put(ctx,query,page,queryId),setVerified,peekCertified,
+        set:(ctx,query,page,queryId)=>put(ctx,query,page,queryId),setVerified,setVerifiedRelation,peekCertified,
         clear:ctx=>entries.delete(key(ctx)),lease};
 }
 const store=createContinuationStore();

@@ -109,6 +109,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'search_factory_knowledge',
     ]),
     catalog: Object.freeze([
+        'read_relation',
         'read_collection',
         'search_parts',
         'create_part',
@@ -127,6 +128,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
 });
 
 const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
+    read_relation: '读取有界正式业务关系',
     read_collection: '读取有界业务集合或详情',
     search_business_changes: '查询业务变更',
     get_management_action_center: '读取管理待办',
@@ -251,6 +253,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_rotor_drawing_history',
     ]),
     query: Object.freeze([
+        'read_relation',
         'read_collection',
         'search_business_changes',
         'get_coil_specs',
@@ -411,6 +414,7 @@ const WRITE_CAPABILITY_NAMES = new Set([
 ]);
 
 const LIVE_CAPABILITY_NAMES = new Set([
+    'read_relation',
     'read_collection',
     'search_business_changes',
     'full_calculate',
@@ -497,6 +501,7 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 ]);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
+    read_relation: Object.freeze(['relations.read']),
     read_collection: Object.freeze(['collections.read']),
     search_business_changes: Object.freeze(['business_changes.list']),
     search_parts: Object.freeze(['parts.list']),
@@ -636,6 +641,14 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'relations.read': defineQueryCapability({
+        capabilityId: 'relations.read', domain: 'catalog',
+        inputSchema: 'POST /api/relations/read RelationReadRequestV1',
+        outputSchema: 'BoundedRelationResultV1',
+        sourceOfTruth: 'orders+customers+parts+recipes saved canonical/exact references',
+        transactionality: 'read_transaction', riskLevel: 'low',
+        callers: Object.freeze(['internal']),
+    }),
     'collections.read': defineQueryCapability({
         capabilityId: 'collections.read', domain: 'catalog',
         inputSchema: 'POST /api/collections/read CollectionReadRequest',
@@ -1989,7 +2002,7 @@ function buildRegistry() {
         registry[name] = Object.freeze({
             capabilityId: `ai.${name}`,
             toolName: name,
-            candidateOnly: name === 'read_collection',
+            candidateOnly: ['read_collection','read_relation'].includes(name),
             displayName: AI_CAPABILITY_DISPLAY_NAMES[name] || name,
             executorKey: AI_EXECUTOR_BY_CAPABILITY_NAME[name] || null,
             domain: domains[0],

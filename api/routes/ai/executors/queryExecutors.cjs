@@ -233,6 +233,11 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             };
         }
 
+        case 'read_relation': {
+            const request = require('../../../services/relationReadContract.cjs').request(args);
+            const relation = await postJson(internalFetch, '/api/relations/read', request, '关联读取失败');
+            return { success: true, relation };
+        }
         case 'read_collection': {
             const query = require('../../../services/collectionReadContract.cjs').validateRequest(args);
             // Detail has no pagination input. Defaults belong to the business service.

@@ -23,7 +23,7 @@ async function startCandidate(options = {}) {
         }
         const allowed = (req.method === 'GET' && ['/api/health/ready', '/api/parts', '/api/coils',
             '/api/recipes', '/api/recipes/current-costs'].includes(req.path))
-            || (req.method === 'POST' && ['/api/ai/chat', '/api/entity-lookup', '/api/entity-span-candidates', '/api/collections/read'].includes(req.path));
+            || (req.method === 'POST' && ['/api/ai/chat', '/api/entity-lookup', '/api/entity-span-candidates', '/api/collections/read', '/api/relations/read'].includes(req.path));
         if (!allowed) return res.status(403).json({ success: false, code: 'CANDIDATE_ROUTE_BLOCKED', error: 'Read-only runtime' });
         next();
     });
@@ -61,6 +61,7 @@ async function startCandidate(options = {}) {
     app.use('/api/recipes', require('../api/routes/recipes.cjs'));
     app.use('/api/entity-lookup', require('../api/routes/entityLookup.cjs').createEntityLookupRouter({ db }));
     app.use('/api/collections', require('../api/routes/collectionRead.cjs').createCollectionReadRouter({ db }));
+    app.use('/api/relations', require('../api/routes/relationRead.cjs').createRelationReadRouter({ db }));
     app.use('/api/entity-span-candidates', require('../api/routes/entitySpanCandidates.cjs').createEntitySpanCandidateRouter({ db }));
     app.use((_err, _req, res, _next) => res.status(500).json({ success: false, code: 'CANDIDATE_READ_FAILED', error: 'Read failed' }));
     const server = await new Promise((resolve, reject) => {

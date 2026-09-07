@@ -58,6 +58,8 @@ async function runCandidateReadImpl(input, options = {}) {
                 return finish();
             }
             state.attempted = true;
+            const investigation = await require('./investigationRuntime.cjs').tryInvestigation(input, {taskId,risk,controlIntent,options:{...options,env}});
+            if (investigation) { Object.assign(state,investigation); return finish(); }
             const collection = await require('./collectionReadRuntime.cjs').tryCollectionRead(input, { taskId, risk, controlIntent, options: { ...options, env } });
             if (collection) { Object.assign(state, collection); return finish(); }
             if (input.collectionOnly || !risk.eligible) { state.failureClass = 'COLLECTION_NOT_APPLICABLE'; return finish(); }
@@ -124,7 +126,7 @@ async function runCandidateReadImpl(input, options = {}) {
             return finish();
         } catch (error) {
             (options.continuationStore || require('./collectionContinuation.cjs').store).clear(require('../conversationContext.cjs').getConversationContext());
-            state.failureClass = /^COLLECTION_[A-Z_]{1,65}$/.test(error?.message || '') ? error.message : 'PREVIEW_INTERNAL_ERROR'; return finish();
+            state.failureClass = /^(?:COLLECTION|INVESTIGATION|RELATION)_[A-Z_]{1,65}$/.test(error?.message || '') ? error.message : 'PREVIEW_INTERNAL_ERROR'; return finish();
         }
     }));
 }

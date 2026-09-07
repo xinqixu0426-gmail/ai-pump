@@ -135,7 +135,10 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
                 ? [name]
                 : [];
         });
-    assert.deepEqual(forbiddenV5Imports, ['candidateRead.cjs', 'candidateSet.cjs', 'collectionDetailTarget.cjs', 'collectionReadRuntime.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    assert.deepEqual(forbiddenV5Imports, ['candidateRead.cjs', 'candidateSet.cjs', 'collectionDetailTarget.cjs', 'collectionReadRuntime.cjs', 'investigationRuntime.cjs', 'readExecutionShadow.cjs', 'taskInterpreter.cjs', 'twoStageModel.cjs', 'typeIndependentEntityResolver.cjs']);
+    const investigationRuntime = fs.readFileSync(path.join(v5Root, 'investigationRuntime.cjs'), 'utf8');
+    assert.match(investigationRuntime, /AI_V5_MULTI_READ_ENABLED/);
+    assert.doesNotMatch(investigationRuntime, /(?:db\.cjs|\bfetch\s*\(|allowWrite:\s*true|putJson|patchJson|deleteJson)/);
     const collectionRuntime = fs.readFileSync(path.join(v5Root, 'collectionReadRuntime.cjs'), 'utf8');
     assert.match(collectionRuntime, /routes\/ai\/executor\.cjs/);
     assert.doesNotMatch(collectionRuntime, /(?:db\.cjs|\bfetch\s*\(|allowWrite:\s*true|putJson|patchJson|deleteJson)/);
@@ -169,7 +172,7 @@ test('V5 production import remains limited to approved shadow, interpreter, and 
             fs.readFileSync(path.join(v5Root, name), 'utf8')
         ));
     // P16-B2R admits metadata-only answer spans; no new data/Tool import.
-    assert.deepEqual(observabilityImporters, ['candidateRead.cjs', 'candidateSetTwoStageInterpreter.cjs', 'collectionReadRuntime.cjs', 'readAnswerComposer.cjs', 'readAuthorityMux.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
+    assert.deepEqual(observabilityImporters, ['candidateRead.cjs', 'candidateSetTwoStageInterpreter.cjs', 'collectionReadRuntime.cjs', 'investigationRuntime.cjs', 'readAnswerComposer.cjs', 'readAuthorityMux.cjs', 'readCanary.cjs', 'readExecutionShadow.cjs', 'shadowMirror.cjs']);
     const canary = fs.readFileSync(path.join(v5Root, 'readCanary.cjs'), 'utf8');
     assert.doesNotMatch(canary, /(?:db\.cjs|routes\/ai\/executor|routes\/ai\/internalApiClient|\ballowWrite:\s*true)/);
     const deliveryConsumers = fs.readdirSync(v5Root).filter(name => name !== 'readAnswerComposer.cjs')
