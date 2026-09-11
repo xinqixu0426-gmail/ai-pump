@@ -68,7 +68,7 @@
     "@napi-rs/canvas": "0.1.100",
     "@tesseract.js-data/chi_sim": "1.0.0",
     "@tesseract.js-data/eng": "1.0.0",
-    "adm-zip": "0.6.0",
+    "adm-zip": "0.6.1",
     "better-sqlite3": "^12.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -76,7 +76,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.1.1",
+    "multer": "^2.3.0",
     "pdfjs-dist": "5.4.296",
     "sqlite-vec": "0.1.9",
     "tesseract.js": "7.0.0",
@@ -92,7 +92,7 @@
   },
   "overrides": {
     "brace-expansion": "^5.0.8",
-    "adm-zip": "0.6.0",
-    "sharp": "0.35.3"
+    "adm-zip": "0.6.1",
+    "sharp": "0.35.4"
   }
 }
