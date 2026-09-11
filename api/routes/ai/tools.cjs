@@ -525,12 +525,12 @@ const AI_TOOLS = [
                     reason: { type: 'string', description: '取消订单时必填原因' },
                     inventoryDisposition: {
                         type: 'string',
-                        enum: ['manual_outbound_confirmed', 'reservation_released'],
-                        description: '关闭订单时必填：仓库已线下领用出库，或明确释放库存预留'
+                        enum: ['order_outbound_deducted', 'reservation_released'],
+                        description: '关闭订单时必填：按订单冻结 BOM 自动领用扣库，或明确释放库存预留'
                     },
                     inventoryDispositionNote: {
                         type: 'string',
-                        description: '释放库存预留时必填原因；人工领用出库时可补充凭据说明'
+                        description: '释放库存预留时必填原因；自动领用扣库时可补充说明'
                     }
                 },
                 required: ['orderId', 'status']

@@ -670,6 +670,11 @@ test('关键 API 集成契约：直接建单和状态变更由订单 command ser
         "router.post('/:id/status'",
         "router.post('/:id/purchase-items/progress'"
     );
+    const statusDraftRoute = sliceBetween(
+        route,
+        "router.post('/:id/status-draft'",
+        "router.post('/:id/status'"
+    );
 
     assert.match(createRoute, /executeOrderCreate/);
     assert.match(createRoute, /commandContextFromRequest\(req, ORDER_CREATE_CAPABILITY_ID\)/);
@@ -677,10 +682,14 @@ test('关键 API 集成契约：直接建单和状态变更由订单 command ser
     assert.match(statusRoute, /executeOrderStatus/);
     assert.match(statusRoute, /commandContextFromRequest\(req, ORDER_STATUS_CAPABILITY_ID\)/);
     assert.doesNotMatch(statusRoute, /safeInsert\s*\(|safeUpdate\s*\(|db\.transaction/);
+    assert.match(statusDraftRoute, /buildOrderStatusDraft/);
+    assert.doesNotMatch(statusDraftRoute, /safeInsert\s*\(|safeUpdate\s*\(|db\.transaction/);
     assert.match(service, /executePersistentCommand/);
     assert.match(service, /assertPreviewHash/);
     assert.match(service, /assertExpectedUpdatedAt/);
     assert.match(service, /buildCurrentBalancedPurchasePlans/);
+    assert.match(service, /buildOrderCloseDeductions/);
+    assert.match(service, /movementType: 'order_outbound'/);
     assert.match(route, /function legacyOrderCommandResponse/);
     assert.match(route, /operationStatus:\s*result\.status/);
     assert.match(route, /\.\.\.result\.order/);

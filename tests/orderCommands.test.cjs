@@ -7,6 +7,7 @@ const {
     DELETE_CAPABILITY_ID,
     STATUS_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
+    buildOrderStatusDraft,
     buildOrderSavePayloadDraft,
     executeOrderCreate,
     executeOrderDelete,
@@ -67,6 +68,17 @@ function createFixture() {
             scheme_status TEXT,
             stock INTEGER,
             updated_at TEXT
+        );
+        CREATE TABLE coil_stock_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coil_id INTEGER NOT NULL,
+            change_qty INTEGER NOT NULL,
+            balance_after INTEGER NOT NULL,
+            movement_type TEXT NOT NULL,
+            reference_type TEXT,
+            reference_id TEXT,
+            note TEXT,
+            created_at TEXT NOT NULL
         );
         CREATE TABLE customers (
             id INTEGER PRIMARY KEY,
@@ -143,6 +155,9 @@ function createFixture() {
         ) VALUES
             (1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'),
             (2, 'BOX-1', '测试纸箱', '包装供应商', 12, 0, '${FIXED_UPDATED_AT}');
+        INSERT INTO coils (
+            id, spec, sheets, material, slot_type, scheme_status, stock, updated_at
+        ) VALUES (10, 'Y90', 10, '钢带', '小眼', 'official', 0, '${FIXED_UPDATED_AT}');
         INSERT INTO customers (id, name) VALUES
             (1, '测试客户'),
             (2, '待确认客户'),
@@ -184,7 +199,7 @@ function createFixture() {
     }
 
     function safeInsert(table, values, context) {
-        assert.ok(['orders', 'order_revisions'].includes(table));
+        assert.ok(['orders', 'order_revisions', 'coil_stock_movements'].includes(table));
         const columns = Object.keys(values).filter(column => values[column] !== undefined);
         const info = db.prepare(`
             INSERT INTO ${table} (${columns.join(', ')})
@@ -197,10 +212,10 @@ function createFixture() {
     }
 
     function safeUpdate(table, id, updates, context) {
-        assert.equal(table, 'orders');
+        assert.ok(['orders', 'parts', 'coils'].includes(table));
         const columns = Object.keys(updates).filter(column => updates[column] !== undefined);
         db.prepare(`
-            UPDATE orders
+            UPDATE ${table}
             SET ${columns.map(column => `${column} = ?`).join(', ')}, updated_at = ?
             WHERE id = ?
         `).run(...columns.map(column => updates[column]), NEXT_UPDATED_AT, id);
@@ -253,6 +268,7 @@ function createFixture() {
         orderRow,
         safeInsert,
         safeUpdate,
+        invalidatePartsCache() {},
     };
     return { db, dependencies };
 }
@@ -894,6 +910,165 @@ test('关闭订单必须明确库存去向，释放预留必须填写原因', ()
         assert.equal(result.order.status, '已关闭');
         assert.equal(result.order.inventoryDisposition, 'reservation_released');
         assert.equal(result.order.inventoryDispositionNote, '客户取消后续生产安排');
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单领用关闭预览按冻结 BOM 汇总零件和线圈并原子扣库', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        const purchaseList = [{
+            model: 'P-1',
+            name: '测试零件',
+            partId: 1,
+            inventoryType: 'part',
+            totalQty: 2,
+            stockQtyPerUnit: 1,
+        }, {
+            model: 'Y90-10',
+            name: '线圈转子',
+            coilId: 10,
+            inventoryType: 'coil',
+            totalQty: 1,
+            stockQtyPerUnit: 1,
+        }];
+        fixture.db.prepare('UPDATE parts SET stock = 5 WHERE id = 1').run();
+        fixture.db.prepare('UPDATE coils SET stock = 3 WHERE id = 10').run();
+        fixture.db.prepare(`
+            UPDATE orders
+            SET status = '采购完成', purchase_list_json = ?
+            WHERE id = ?
+        `).run(JSON.stringify(purchaseList), orderId);
+
+        const draft = buildOrderStatusDraft(fixture.dependencies, orderId, {
+            status: '已关闭',
+            inventoryDisposition: 'order_outbound_deducted',
+        });
+        assert.equal(draft.deductions.length, 2);
+        assert.deepEqual(
+            draft.deductions.map(item => [item.inventoryType, item.deductQty, item.currentStock, item.stockAfter]),
+            [['part', 2, 5, 3], ['coil', 1, 3, 2]]
+        );
+        assert.equal(fixture.db.prepare('SELECT stock FROM parts WHERE id = 1').get().stock, 5);
+        assert.equal(fixture.db.prepare('SELECT stock FROM coils WHERE id = 10').get().stock, 3);
+
+        const context = commandContext(STATUS_CAPABILITY_ID, 'close-with-deduction');
+        const result = executeOrderStatus(
+            fixture.dependencies,
+            orderId,
+            {
+                status: '已关闭',
+                inventoryDisposition: 'order_outbound_deducted',
+                expectedUpdatedAt: draft.expectedUpdatedAt,
+                previewHash: draft.previewHash,
+            },
+            context
+        );
+        const replay = executeOrderStatus(
+            fixture.dependencies,
+            orderId,
+            {
+                status: '已关闭',
+                inventoryDisposition: 'order_outbound_deducted',
+                expectedUpdatedAt: draft.expectedUpdatedAt,
+                previewHash: draft.previewHash,
+            },
+            context
+        );
+
+        assert.equal(result.order.status, '已关闭');
+        assert.equal(result.order.inventoryDisposition, 'order_outbound_deducted');
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(fixture.db.prepare('SELECT stock FROM parts WHERE id = 1').get().stock, 3);
+        assert.equal(fixture.db.prepare('SELECT stock FROM coils WHERE id = 10').get().stock, 2);
+        const movement = fixture.db.prepare('SELECT * FROM coil_stock_movements').get();
+        assert.equal(movement.change_qty, -1);
+        assert.equal(movement.movement_type, 'order_outbound');
+        assert.equal(movement.reference_type, 'order');
+        assert.equal(movement.reference_id, String(orderId));
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM coil_stock_movements').get().count, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单领用关闭遇到任一库存不足时不扣库存也不关闭订单', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare('UPDATE parts SET stock = 1 WHERE id = 1').run();
+        fixture.db.prepare(`
+            UPDATE orders
+            SET status = '采购完成', purchase_list_json = ?
+            WHERE id = ?
+        `).run(JSON.stringify([{
+            model: 'P-1',
+            name: '测试零件',
+            partId: 1,
+            inventoryType: 'part',
+            totalQty: 2,
+            stockQtyPerUnit: 1,
+        }]), orderId);
+
+        assert.throws(
+            () => buildOrderStatusDraft(fixture.dependencies, orderId, {
+                status: '已关闭',
+                inventoryDisposition: 'order_outbound_deducted',
+            }),
+            error => error.code === 'order_close_stock_insufficient'
+                && error.statusCode === 409
+        );
+        assert.equal(fixture.db.prepare('SELECT stock FROM parts WHERE id = 1').get().stock, 1);
+        assert.equal(fixture.db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId).status, '采购完成');
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('订单领用关闭预览后库存变化时拒绝执行且不产生部分扣减', () => {
+    const fixture = createFixture();
+    try {
+        const orderId = insertPendingOrder(fixture);
+        fixture.db.prepare('UPDATE parts SET stock = 5 WHERE id = 1').run();
+        fixture.db.prepare(`
+            UPDATE orders
+            SET status = '采购完成', purchase_list_json = ?
+            WHERE id = ?
+        `).run(JSON.stringify([{
+            model: 'P-1',
+            name: '测试零件',
+            partId: 1,
+            inventoryType: 'part',
+            totalQty: 2,
+            stockQtyPerUnit: 1,
+        }]), orderId);
+
+        const draft = buildOrderStatusDraft(fixture.dependencies, orderId, {
+            status: '已关闭',
+            inventoryDisposition: 'order_outbound_deducted',
+        });
+        fixture.db.prepare('UPDATE parts SET stock = 4 WHERE id = 1').run();
+
+        assert.throws(
+            () => executeOrderStatus(
+                fixture.dependencies,
+                orderId,
+                {
+                    status: '已关闭',
+                    inventoryDisposition: 'order_outbound_deducted',
+                    expectedUpdatedAt: draft.expectedUpdatedAt,
+                    previewHash: draft.previewHash,
+                },
+                commandContext(STATUS_CAPABILITY_ID, 'close-after-stock-drift')
+            ),
+            error => error.code === 'preview_changed' && error.statusCode === 409
+        );
+        assert.equal(fixture.db.prepare('SELECT stock FROM parts WHERE id = 1').get().stock, 4);
+        assert.equal(fixture.db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId).status, '采购完成');
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, 0);
     } finally {
         fixture.db.close();
     }

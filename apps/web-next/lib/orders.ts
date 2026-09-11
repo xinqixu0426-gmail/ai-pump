@@ -10,7 +10,10 @@ import {
 } from './recipe-configurations';
 
 export type OrderStatus = '待确认' | '待采购' | '采购中' | '采购完成' | '已关闭' | '已取消';
-export type OrderInventoryDisposition = 'manual_outbound_confirmed' | 'reservation_released';
+export type OrderInventoryDisposition =
+  | 'order_outbound_deducted'
+  | 'reservation_released'
+  | 'manual_outbound_confirmed';
 
 export type OrderItem = {
   id: string;
@@ -372,23 +375,71 @@ export async function setOrderStatus(
   status: OrderStatus,
   reason?: string,
   inventoryDisposition?: OrderInventoryDisposition,
-  inventoryDispositionNote?: string
+  inventoryDispositionNote?: string,
+  preparedDraft?: OrderStatusDraft
 ): Promise<Order> {
+  const draft = preparedDraft;
   const result = await proxyRequest<ApiResponse<OrderRow>>(`/api/orders/${orderId(order)}/status`, {
     method: 'POST',
     headers: {
-      'Idempotency-Key': createIdempotencyKey(`order-status:${orderId(order)}`),
+      'Idempotency-Key': draft?.suggestedIdempotencyKey
+        || createIdempotencyKey(`order-status:${orderId(order)}`),
     },
     body: JSON.stringify({
       status,
       reason,
       inventoryDisposition,
       inventoryDispositionNote,
-      expectedUpdatedAt: order.updatedAt,
+      expectedUpdatedAt: draft?.expectedUpdatedAt || order.updatedAt,
+      ...(draft?.previewHash ? { previewHash: draft.previewHash } : {}),
     }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '订单状态更新失败');
   return rowToOrder(result.data);
+}
+
+export type OrderStatusDeduction = {
+  inventoryType: 'part' | 'coil';
+  resourceId: number;
+  partId: number | null;
+  coilId: number | null;
+  model: string;
+  name: string;
+  deductQty: number;
+  currentStock: number;
+  stockAfter: number;
+};
+
+export type OrderStatusDraft = {
+  preview: true;
+  capabilityId: 'orders.change_status';
+  orderId: number;
+  expectedUpdatedAt: string;
+  suggestedIdempotencyKey: string;
+  requiresConfirmation: true;
+  previewHash: string;
+  status: OrderStatus;
+  inventoryDisposition: OrderInventoryDisposition | null;
+  deductions: OrderStatusDeduction[];
+  warnings: Array<{ code: string; message: string }>;
+};
+
+export async function buildOrderStatusDraft(
+  order: Order,
+  status: OrderStatus,
+  reason?: string,
+  inventoryDisposition?: OrderInventoryDisposition,
+  inventoryDispositionNote?: string
+): Promise<OrderStatusDraft> {
+  const result = await proxyRequest<ApiResponse<OrderStatusDraft>>(
+    `/api/orders/${orderId(order)}/status-draft`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ status, reason, inventoryDisposition, inventoryDispositionNote }),
+    }
+  );
+  if (!result.success || !result.data) throw new Error(result.error || '订单状态预览生成失败');
+  return result.data;
 }
 
 export function orderPurchaseProgress(order: Order) {

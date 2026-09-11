@@ -468,6 +468,7 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     const detailDrawer = readUtf8(path.join(repoRoot, 'apps/web-next/components/order-detail-drawer.tsx'));
 
     assert.match(route, /router\.post\('\/:id\/status'/);
+    assert.match(route, /router\.post\('\/:id\/status-draft'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/progress-draft'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/progress'/);
     assert.match(route, /router\.post\('\/:id\/purchase-items\/toggle'/);
@@ -494,6 +495,7 @@ test('API 静态契约：订单详情动作必须由后端执行', () => {
     assert.match(inboundService, /executePersistentCommand/);
     assert.match(inboundService, /requiredAuditCount/);
     assert.match(nextClient, /setOrderStatus/);
+    assert.match(nextClient, /buildOrderStatusDraft/);
     assert.match(nextClient, /updateOrderPurchaseItem/);
     assert.match(nextClient, /buildOrderPurchaseItemProgressDraft/);
     assert.match(nextClient, /purchase-items\/progress-draft/);
@@ -690,7 +692,9 @@ test('API 静态契约：AI 订单写操作必须复用订单草稿和动作接�
 
     assert.match(orderExecutor, /\/api\/orders\/save-payload-draft/);
     assert.match(orderExecutor, /postJson\(internalFetch,\s*'\/api\/orders'/);
+    assert.match(orderExecutor, /`\/api\/orders\/\$\{row\.id \?\? row\.Id\}\/status-draft`/);
     assert.match(orderExecutor, /postJson\(internalFetch,\s*`\/api\/orders\/\$\{row\.id \?\? row\.Id\}\/status`/);
+    assert.match(orderExecutor, /previewHash: draft\.previewHash/);
     assert.doesNotMatch(orderExecutor, /db\.prepare|safeInsert\('orders'|safeUpdate\('orders'|buildOrderPlan/);
 });
 

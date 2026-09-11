@@ -82,7 +82,7 @@
 | 59 | `separate_manual_ai_checks_from_release_gate` | 恢复 7 条内置系统知识库检查供页面手动运行，并用独立开关将其排除在生产发布门禁之外 |
 | 60 | `calibrate_ai_governance_cutting_accessory_check` | 切割泵壳检查接受“没有明确专用配件”的安全结论，不再要求复述被排除的螺丝名称 |
 | 61 | `orders_stable_customer_identity` | 为订单增加稳定客户 ID、按历史名称回填并建立客户关系索引 |
-| 62 | `order_inventory_disposition_on_close` | 保存订单关闭时“已人工领用出库”或“释放库存预留”的明确去向、时间和说明 |
+| 62 | `order_inventory_disposition_on_close` | 保存订单关闭时“按冻结 BOM 领用扣库”或“释放库存预留”的明确去向、时间和说明；历史 `manual_outbound_confirmed` 输入只作兼容别名，新记录保存 `order_outbound_deducted` |
 | 63 | `coil_winding_profile_ai_evaluation` | 增加数据感知的线圈绕组档案 AI 检查，要求使用实时线圈 Query 并核对主副线线径及绕组值；继续排除在自动发布门禁之外 |
 | 64 | `recipe_configuration_policy` | 为泵壳模板和配方增加客户可选配置范围；历史空值继续按开放模式读取，不改写既有报价和订单快照 |
 | 65 | `order_revision_history` | 增加订单修订历史，并修复旧库订单表重建可能造成的修订外键临时表指向 |

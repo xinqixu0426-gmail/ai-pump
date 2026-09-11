@@ -456,12 +456,24 @@ async function executeOrderTool(toolName, args, internalFetch) {
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             const oldStatus = row.status || '待确认';
             try {
+                const draft = await postJson(
+                    internalFetch,
+                    `/api/orders/${row.id ?? row.Id}/status-draft`,
+                    {
+                        status,
+                        reason,
+                        inventoryDisposition,
+                        inventoryDispositionNote,
+                    },
+                    '订单状态预览生成失败'
+                );
                 await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, {
                     status,
                     reason,
                     inventoryDisposition,
                     inventoryDispositionNote,
-                    expectedUpdatedAt: row.updatedAt || row.UpdatedAt,
+                    expectedUpdatedAt: draft.expectedUpdatedAt,
+                    previewHash: draft.previewHash,
                 }, '订单状态更新失败');
                 return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };
             } catch (error) {

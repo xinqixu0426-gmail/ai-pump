@@ -1282,9 +1282,11 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         domain: 'order',
         inputSchema: 'POST /api/orders/:id/status',
         outputSchema: 'CommandReceipt<OrderStatusResult>',
-        sourceOfTruth: 'orderWorkflow+activeOrderPurchasePlans+orderInventoryDisposition',
+        sourceOfTruth: 'orderWorkflow+activeOrderPurchasePlans+orderInventoryDisposition+parts.stock+coils.stock',
         riskLevel: 'critical',
-        supportsPreview: false,
+        supportsPreview: true,
+        previewPath: '/api/orders/:id/status-draft',
+        concurrencyControl: 'expectedUpdatedAt+previewHash_bound_inventory',
     }),
     'orders.execute_readiness_action': defineBusinessCapability({
         capabilityId: 'orders.execute_readiness_action',

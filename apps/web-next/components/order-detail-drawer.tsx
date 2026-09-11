@@ -5,6 +5,7 @@ import { ArrowUpRight, ClipboardList, History, PackageCheck, Pencil, RefreshCw, 
 import {
   buildCompleteOrderPurchaseDraft,
   buildOrderPurchaseItemProgressDraft,
+  buildOrderStatusDraft,
   canEditOrderCore,
   completeOrderPurchase,
   getOrderRevisions,
@@ -17,6 +18,7 @@ import {
   type OrderRevision,
   type OrderInventoryDisposition,
   type OrderStatus,
+  type OrderStatusDraft,
   type PurchaseItemProgressDraft,
   type PurchaseItemProgressInput,
 } from '@/lib/orders';
@@ -336,7 +338,9 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
   const [closeDispositionTarget, setCloseDispositionTarget] = useState<{
     disposition: OrderInventoryDisposition;
     note: string;
+    draft: OrderStatusDraft;
   } | null>(null);
+  const [closeDraftLoading, setCloseDraftLoading] = useState(false);
   const previousOrderIdRef = useRef<string | null>(null);
   const readinessRequestRef = useRef(0);
   const procurementVariance = useMemo(() => (localOrder?.purchaseList || []).reduce((sum, item) => {
@@ -453,13 +457,37 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     status: OrderStatus,
     reason?: string,
     inventoryDisposition?: OrderInventoryDisposition,
-    inventoryDispositionNote?: string
+    inventoryDispositionNote?: string,
+    preparedDraft?: OrderStatusDraft
   ) {
     if (!localOrder) return;
     await runAction(
-      () => setOrderStatus(localOrder, status, reason, inventoryDisposition, inventoryDispositionNote),
+      () => setOrderStatus(localOrder, status, reason, inventoryDisposition, inventoryDispositionNote, preparedDraft),
       `订单状态已更新为 ${status}`
     );
+  }
+
+  async function openCloseConfirmation(
+    disposition: OrderInventoryDisposition,
+    note = ''
+  ) {
+    if (!localOrder) return;
+    setCloseDraftLoading(true);
+    setError('');
+    try {
+      const draft = await buildOrderStatusDraft(
+        localOrder,
+        '已关闭',
+        undefined,
+        disposition,
+        note
+      );
+      setCloseDispositionTarget({ disposition, note, draft });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '关闭订单预览生成失败');
+    } finally {
+      setCloseDraftLoading(false);
+    }
   }
 
   async function commitPurchaseProgress(
@@ -954,24 +982,18 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
               <>
                 <Button
                   variant="primary"
-                  disabled={saving}
-                  onClick={() => setCloseDispositionTarget({
-                    disposition: 'manual_outbound_confirmed',
-                    note: '',
-                  })}
+                  disabled={saving || closeDraftLoading}
+                  onClick={() => void openCloseConfirmation('order_outbound_deducted')}
                 >
-                  已领用出库并关闭
+                  {closeDraftLoading ? '核对领用库存...' : '领用出库并关闭'}
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={saving}
+                  disabled={saving || closeDraftLoading}
                   onClick={() => {
                     const note = window.prompt('请输入释放库存预留的原因');
                     if (note?.trim()) {
-                      setCloseDispositionTarget({
-                        disposition: 'reservation_released',
-                        note: note.trim(),
-                      });
+                      void openCloseConfirmation('reservation_released', note.trim());
                     }
                   }}
                 >
@@ -1014,7 +1036,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
 
             <main className="flex-1 space-y-4 p-5">
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  这是采购入库操作。请确认物料已实际到货；生产领用不会自动扣减库存，实际领料仍需在库存页面登记出库。
+                  这是采购入库操作。请确认物料已实际到货；入库不会立即扣料，订单生产结束后通过“领用出库并关闭”按冻结 BOM 统一扣减。
                 </div>
 
               {purchaseAdditions.length === 0 ? (
@@ -1127,14 +1149,20 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
     />
     <ConfirmDialog
       open={Boolean(closeDispositionTarget)}
-      title={closeDispositionTarget?.disposition === 'manual_outbound_confirmed'
-        ? '确认已完成领用出库？'
+      title={closeDispositionTarget?.disposition === 'order_outbound_deducted'
+        ? '确认领用出库并关闭？'
         : '确认释放库存预留？'}
-      description={closeDispositionTarget?.disposition === 'manual_outbound_confirmed'
-        ? '系统只记录仓库已经在线下完成领用出库，不会再次自动扣减库存。确认后订单关闭并释放其计划占用。'
+      description={closeDispositionTarget?.disposition === 'order_outbound_deducted'
+        ? (() => {
+            const deductions = closeDispositionTarget.draft.deductions;
+            const detail = deductions.length > 0
+              ? deductions.map(item => `${item.model || item.name} -${item.deductQty}（${item.currentStock} → ${item.stockAfter}）`).join('；')
+              : '没有需要扣减的库存物料';
+            return `系统将按订单冻结 BOM 扣减实际生产领用量，并在同一事务内关闭订单：${detail}。`;
+          })()
         : `系统不会扣减库存，订单关闭后释放其计划占用。原因：${closeDispositionTarget?.note || '-'}`}
       confirmLabel="确认并关闭"
-      confirmVariant={closeDispositionTarget?.disposition === 'manual_outbound_confirmed' ? 'primary' : 'danger'}
+      confirmVariant={closeDispositionTarget?.disposition === 'order_outbound_deducted' ? 'primary' : 'danger'}
       busy={saving}
       layer="top"
       onClose={() => setCloseDispositionTarget(null)}
@@ -1142,7 +1170,7 @@ export function OrderDetailDrawer({ order, open, initialTab = 'items', onClose, 
         const target = closeDispositionTarget;
         if (!target) return;
         setCloseDispositionTarget(null);
-        void handleStatus('已关闭', undefined, target.disposition, target.note);
+        void handleStatus('已关闭', undefined, target.disposition, target.note, target.draft);
       }}
     />
     </>

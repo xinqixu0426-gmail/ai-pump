@@ -299,6 +299,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             'not_applicable',
             'expectedUpdatedAt',
             'expectedUpdatedAt+previewHash_bound_live_readiness',
+            'expectedUpdatedAt+previewHash_bound_inventory',
             'expectedVersions',
             'confirmationToken_bound_input',
             'confirmationToken_bound_resource',
@@ -492,9 +493,10 @@ test('AI 能力注册表：建单和订单状态写入已委托持久化正式�
     assert.equal(createOrder.concurrencyControl, 'not_applicable');
     assert.equal(createOrder.contractStatus, 'current');
 
-    assert.equal(updateStatus.supportsPreview, false);
+    assert.equal(updateStatus.supportsPreview, true);
+    assert.deepEqual(updateStatus.formalPreviewPaths, ['/api/orders/:id/status-draft']);
     assert.match(updateStatus.idempotency, /persistent/);
-    assert.equal(updateStatus.concurrencyControl, 'expectedUpdatedAt');
+    assert.equal(updateStatus.concurrencyControl, 'expectedUpdatedAt+previewHash_bound_inventory');
     assert.equal(updateStatus.contractStatus, 'current');
 
     assert.equal(executeReadiness.supportsPreview, true);

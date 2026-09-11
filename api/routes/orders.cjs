@@ -23,6 +23,7 @@ const {
     DELETE_CAPABILITY_ID: ORDER_DELETE_CAPABILITY_ID,
     STATUS_CAPABILITY_ID: ORDER_STATUS_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID: ORDER_UPDATE_CAPABILITY_ID,
+    buildOrderStatusDraft,
     buildOrderSavePayloadDraft,
     executeOrderCreate,
     executeOrderDelete,
@@ -509,6 +510,23 @@ router.post('/purchase-items/batch-draft', (req, res) => {
     }
 });
 
+router.post('/:id/status-draft', (req, res) => {
+    try {
+        const id = parsePositiveId(req.params.id);
+        if (!id) return res.status(400).json({ success: false, error: '非法订单ID' });
+        res.json({
+            success: true,
+            data: buildOrderStatusDraft(
+                { db },
+                id,
+                req.body || {}
+            ),
+        });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
 router.post('/:id/status', (req, res) => {
     try {
         const id = parsePositiveId(req.params.id);
@@ -520,8 +538,10 @@ router.post('/:id/status', (req, res) => {
                 dbGetAllParts,
                 calculateRecipeCost,
                 getSetting,
+                invalidatePartsCache,
                 loadPartsData,
                 orderRow,
+                safeInsert,
                 safeUpdate,
             },
             id,

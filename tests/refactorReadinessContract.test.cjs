@@ -1598,6 +1598,8 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
     assert.match(detailDrawer, /updateOrderPurchaseItem/);
     assert.match(detailDrawer, /toggleOrderTodoItem/);
     assert.match(detailDrawer, /setOrderStatus/);
+    assert.match(detailDrawer, /buildOrderStatusDraft/);
+    assert.match(detailDrawer, /按订单冻结 BOM 扣减实际生产领用量/);
     assert.match(detailDrawer, /completeOrderPurchase/);
     assert.match(detailDrawer, /全部到货并入库/);
     assert.match(detailDrawer, /purchaseAdditions/);
@@ -1605,10 +1607,11 @@ test('Next UI 契约：订单详情必须保留后端动作和入库确认', () 
     assert.match(detailDrawer, /非库存项/);
     assert.match(detailDrawer, /种物料库存/);
     assert.doesNotMatch(detailDrawer, /种零件库存/);
-    assert.match(detailDrawer, /生产领用不会自动扣减库存/);
+    assert.match(detailDrawer, /领用出库并关闭/);
     assert.match(ordersLib, /coilId\?: number/);
     assert.match(ordersLib, /inventoryType\?: 'part' \| 'coil' \| 'none'/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/status/);
+    assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/status-draft/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/progress/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/purchase-items\/toggle/);
     assert.match(ordersLib, /\/api\/orders\/\$\{orderId\(order\)\}\/todos\/toggle/);

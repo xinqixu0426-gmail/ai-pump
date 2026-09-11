@@ -7,6 +7,7 @@ const {
     requestHash,
 } = require('./commandExecution.cjs');
 const { standardBusinessChange } = require('./businessChanges.cjs');
+const { adjustCoilStock } = require('./coilInventory.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -45,7 +46,11 @@ const CREATE_CAPABILITY_ID = requireBusinessCapability('orders.create').capabili
 const STATUS_CAPABILITY_ID = requireBusinessCapability('orders.change_status').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('orders.update_draft').capabilityId;
 const DELETE_CAPABILITY_ID = requireBusinessCapability('orders.delete').capabilityId;
-const CLOSE_INVENTORY_DISPOSITIONS = new Set(['manual_outbound_confirmed', 'reservation_released']);
+const CLOSE_INVENTORY_DISPOSITIONS = new Set([
+    'order_outbound_deducted',
+    'manual_outbound_confirmed',
+    'reservation_released',
+]);
 
 function orderCommandError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
@@ -680,12 +685,15 @@ function normalizeStatusInput(input = {}) {
     if (!ORDER_STATUSES.has(status)) {
         throw orderCommandError('order_status_invalid', '非法订单状态', 400);
     }
-    const inventoryDisposition = String(input.inventoryDisposition || '').trim();
+    const requestedInventoryDisposition = String(input.inventoryDisposition || '').trim();
+    const inventoryDisposition = requestedInventoryDisposition === 'manual_outbound_confirmed'
+        ? 'order_outbound_deducted'
+        : requestedInventoryDisposition;
     const inventoryDispositionNote = String(input.inventoryDispositionNote || '').trim();
     if (status === '已关闭' && !CLOSE_INVENTORY_DISPOSITIONS.has(inventoryDisposition)) {
         throw orderCommandError(
             'order_close_inventory_disposition_required',
-            '关闭订单前必须明确选择“已人工领用出库”或“释放库存预留”',
+            '关闭订单前必须明确选择“按订单领用扣库”或“释放库存预留”',
             422
         );
     }
@@ -701,6 +709,146 @@ function normalizeStatusInput(input = {}) {
         reason: String(input.reason || '').trim(),
         inventoryDisposition,
         inventoryDispositionNote,
+    };
+}
+
+function buildOrderCloseDeductions(dependencies, record, statusInput) {
+    if (
+        statusInput.status !== '已关闭'
+        || statusInput.inventoryDisposition !== 'order_outbound_deducted'
+    ) return [];
+
+    const { db } = dependencies;
+    const merged = new Map();
+    for (const item of parseJsonArray(record.purchase_list_json).map(normalizePurchaseItem)) {
+        const inventoryType = item.inventoryType === 'coil' || parsePositiveId(item.coilId)
+            ? 'coil'
+            : item.inventoryType === 'none' ? 'none' : 'part';
+        if (inventoryType === 'none') continue;
+        const resourceId = inventoryType === 'coil'
+            ? parsePositiveId(item.coilId)
+            : parsePositiveId(item.partId);
+        if (!resourceId) {
+            throw orderCommandError(
+                'order_close_inventory_identity_missing',
+                `订单物料“${item.model || item.name || '未命名物料'}”缺少正式库存身份，无法自动领用出库`,
+                422
+            );
+        }
+        const totalQty = Number(item.totalQty || 0);
+        const stockQtyPerUnit = Math.max(1, Number(item.stockQtyPerUnit || 1));
+        const deductQty = totalQty * stockQtyPerUnit;
+        if (!Number.isFinite(deductQty) || deductQty <= 0) continue;
+        const key = `${inventoryType}:${resourceId}`;
+        const previous = merged.get(key);
+        if (previous) {
+            previous.deductQty += deductQty;
+        } else {
+            merged.set(key, {
+                inventoryType,
+                resourceId,
+                partId: inventoryType === 'part' ? resourceId : null,
+                coilId: inventoryType === 'coil' ? resourceId : null,
+                model: String(item.model || item.name || ''),
+                name: String(item.name || item.model || ''),
+                deductQty,
+            });
+        }
+    }
+
+    return [...merged.values()].map(item => {
+        const row = item.inventoryType === 'coil'
+            ? db.prepare('SELECT id, stock FROM coils WHERE id = ?').get(item.resourceId)
+            : db.prepare('SELECT id, model, stock FROM parts WHERE id = ? AND deleted_at IS NULL').get(item.resourceId);
+        if (!row) {
+            throw orderCommandError(
+                'order_close_inventory_resource_changed',
+                `订单物料“${item.model || item.name}”对应库存记录不存在或已停用`,
+                409
+            );
+        }
+        if (item.inventoryType === 'coil' && !Number.isInteger(item.deductQty)) {
+            throw orderCommandError(
+                'order_close_coil_quantity_invalid',
+                `线圈“${item.model || item.name}”的领用数量必须是整数套`,
+                422
+            );
+        }
+        const currentStock = Number(row.stock || 0);
+        if (currentStock < item.deductQty) {
+            throw orderCommandError(
+                'order_close_stock_insufficient',
+                `物料“${item.model || item.name}”库存不足：需要领用 ${item.deductQty}，当前库存 ${currentStock}`,
+                409
+            );
+        }
+        return {
+            ...item,
+            currentStock,
+            stockAfter: currentStock - item.deductQty,
+        };
+    });
+}
+
+function orderStatusPreviewHash(orderId, expectedUpdatedAt, statusInput, deductions) {
+    return requestHash({
+        capabilityId: STATUS_CAPABILITY_ID,
+        orderId,
+        expectedUpdatedAt,
+        statusInput,
+        deductions,
+    });
+}
+
+function buildOrderStatusDraft(dependencies, orderIdValue, input = {}) {
+    const orderId = parsePositiveId(orderIdValue);
+    if (!orderId) throw orderCommandError('order_id_invalid', '非法订单ID', 400);
+    const record = getOrderRecord(dependencies.db, orderId);
+    const statusInput = normalizeStatusInput(input);
+    try {
+        assertOrderTransition(record.status, statusInput.status, { reason: statusInput.reason });
+    } catch (error) {
+        throw orderCommandError('order_status_transition_conflict', error.message, 409);
+    }
+    if (record.status === '已关闭') {
+        throw orderCommandError('order_already_closed', '订单已经关闭，不能重复执行库存领用', 409);
+    }
+    const deductions = buildOrderCloseDeductions(dependencies, record, statusInput);
+    const previewHash = orderStatusPreviewHash(
+        orderId,
+        record.updated_at,
+        statusInput,
+        deductions
+    );
+    return {
+        preview: true,
+        capabilityId: STATUS_CAPABILITY_ID,
+        orderId,
+        expectedUpdatedAt: record.updated_at,
+        suggestedIdempotencyKey: `order-status:${orderId}:${crypto.randomUUID()}`,
+        requiresConfirmation: true,
+        previewHash,
+        status: statusInput.status,
+        inventoryDisposition: statusInput.inventoryDisposition || null,
+        deductions,
+        changes: [
+            ...deductions.map(item => ({
+                resourceType: item.inventoryType,
+                resourceId: item.resourceId,
+                field: 'stock',
+                from: item.currentStock,
+                to: item.stockAfter,
+                delta: -item.deductQty,
+            })),
+            {
+                resourceType: 'order',
+                resourceId: orderId,
+                field: 'status',
+                from: record.status,
+                to: statusInput.status,
+            },
+        ],
+        warnings: [],
     };
 }
 
@@ -765,7 +913,9 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
         db,
         dbGetAllCoils,
         dbGetAllParts,
+        invalidatePartsCache,
         orderRow,
+        safeInsert,
         safeUpdate,
     } = dependencies;
     const orderId = parsePositiveId(orderIdValue);
@@ -775,6 +925,7 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
         input.expectedUpdatedAt,
         'expectedUpdatedAt'
     );
+    const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const compatibilityWarnings = [];
     if (!expectedUpdatedAt) {
         compatibilityWarnings.push({
@@ -783,8 +934,15 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
             resourceId: orderId,
         });
     }
+    if (!expectedPreviewHash) {
+        compatibilityWarnings.push({
+            code: 'preview_hash_missing_compatibility',
+            message: `订单 #${orderId} 未提供 previewHash，状态动作与确认预览未绑定`,
+            resourceId: orderId,
+        });
+    }
 
-    return executePersistentCommand({
+    const result = executePersistentCommand({
         db,
         ...commandContext,
         businessChange: standardBusinessChange({
@@ -796,15 +954,31 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
             orderId,
             ...statusInput,
             expectedUpdatedAt,
+            previewHash: expectedPreviewHash,
         },
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {
             const record = getOrderRecord(db, orderId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `订单 #${orderId}`);
+            if (record.status === '已关闭') {
+                throw orderCommandError('order_already_closed', '订单已经关闭，不能重复执行库存领用', 409);
+            }
             const auditIds = [];
             const changes = [];
             let requiredAuditCount = 0;
             let targetPurchaseList;
+            const deductions = buildOrderCloseDeductions(dependencies, record, statusInput);
+            const currentPreviewHash = orderStatusPreviewHash(
+                orderId,
+                record.updated_at,
+                statusInput,
+                deductions
+            );
+            assertPreviewHash(
+                expectedPreviewHash,
+                currentPreviewHash,
+                '订单状态或库存已经变化，请重新预览并确认'
+            );
 
             if (statusInput.status === '待采购') {
                 const { records, plans } = buildCurrentBalancedPurchasePlans({
@@ -837,6 +1011,43 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
                 }
             }
 
+            for (const deduction of deductions) {
+                if (deduction.inventoryType === 'coil') {
+                    const adjustment = adjustCoilStock(
+                        { db, safeInsert, safeUpdate },
+                        {
+                            coilId: deduction.coilId,
+                            changeQty: -deduction.deductQty,
+                            movementType: 'order_outbound',
+                            referenceType: 'order',
+                            referenceId: String(orderId),
+                            note: `订单领用出库：${deduction.model || deduction.name}`,
+                            auditContext,
+                        }
+                    );
+                    requiredAuditCount += 2;
+                    auditIds.push(...(adjustment.auditIds || []));
+                } else {
+                    const write = safeUpdate(
+                        'parts',
+                        deduction.partId,
+                        { stock: deduction.stockAfter },
+                        auditContext
+                    );
+                    requiredAuditCount += 1;
+                    if (write?.auditId) auditIds.push(write.auditId);
+                }
+                changes.push({
+                    resourceType: deduction.inventoryType,
+                    resourceId: deduction.resourceId,
+                    field: 'stock',
+                    from: deduction.currentStock,
+                    to: deduction.stockAfter,
+                    delta: -deduction.deductQty,
+                    reason: 'order_outbound',
+                });
+            }
+
             const statusResult = applyOrderStatusChange(
                 { db, orderRow, safeUpdate },
                 orderId,
@@ -860,7 +1071,7 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
             });
 
             return {
-                data: { order: statusResult.order },
+                data: { order: statusResult.order, deductions },
                 resource: {
                     type: 'order',
                     ids: [orderId],
@@ -871,6 +1082,10 @@ function executeOrderStatus(dependencies, orderIdValue, input = {}, commandConte
             };
         },
     });
+    if (result.deductions?.some(item => item.inventoryType === 'part')) {
+        invalidatePartsCache?.();
+    }
+    return result;
 }
 
 module.exports = {
@@ -879,6 +1094,7 @@ module.exports = {
     STATUS_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
     applyOrderStatusChange,
+    buildOrderStatusDraft,
     buildOrderSavePayloadDraft,
     executeOrderCreate,
     executeOrderDelete,
