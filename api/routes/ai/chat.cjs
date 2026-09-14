@@ -2,16 +2,22 @@ const express = require('express');
 const { createLogger } = require('../../logger.cjs');
 const authMiddleware = require('../../authMiddleware.cjs');
 const { aiProviderCapabilities } = require('../../services/aiProvider.cjs');
+const { normalizeProviderPreference, resolveProviderPreference } = require('../../services/aiProviderRegistry.cjs');
 const { runAiDispatcherV3 } = require('../../services/aiDispatcherV3.cjs');
 const {
     AiToolConfirmationError,
     confirmationSubjectForRequest,
 } = require('../../services/aiToolConfirmation.cjs');
 const { executeConfirmedAiTool } = require('../../services/aiConfirmedToolExecution.cjs');
+const { reviseAiToolConfirmation } = require('../../services/aiToolConfirmationRevision.cjs');
 const { normalizeResolutionContext } = require('../../services/aiResourceResolutionV3.cjs');
 const { normalizeAiTurnStateV3 } = require('../../services/aiTurnStateV3.cjs');
 const { aiRuntimeTelemetry } = require('../../services/aiRuntimeTelemetry.cjs');
 const { getAiHealth } = require('../../services/aiHealth.cjs');
+const {
+    loadAiConversationContinuation,
+    loadAiRecentPartWrite,
+} = require('../../services/aiConversations.cjs');
 
 const router = express.Router();
 const aiChatLogger = createLogger('ai-chat');
@@ -49,6 +55,46 @@ function requestAbortError(code, message) {
     return error;
 }
 
+function buildAiTurnMetrics(runtimeTelemetry = {}, routeMetrics = {}) {
+    const durationMs = Math.max(0, Math.trunc(Number(routeMetrics.durationMs) || 0));
+    const firstContentMs = routeMetrics.firstContentMs != null && Number.isFinite(Number(routeMetrics.firstContentMs))
+        ? Math.max(0, Math.trunc(Number(routeMetrics.firstContentMs)))
+        : null;
+    const modelDurationMs = runtimeTelemetry.providerDurationMs != null && Number.isFinite(Number(runtimeTelemetry.providerDurationMs))
+        ? Math.max(0, Math.trunc(Number(runtimeTelemetry.providerDurationMs)))
+        : null;
+    const toolDurationMs = (Array.isArray(runtimeTelemetry.toolSteps) ? runtimeTelemetry.toolSteps : [])
+        .reduce((sum, step) => sum + (Number.isFinite(Number(step?.durationMs)) ? Math.max(0, Number(step.durationMs)) : 0), 0);
+    const usage = runtimeTelemetry.usage && Number.isFinite(Number(runtimeTelemetry.usage.totalTokens))
+        ? {
+            promptTokens: Math.max(0, Math.trunc(Number(runtimeTelemetry.usage.promptTokens) || 0)),
+            completionTokens: Math.max(0, Math.trunc(Number(runtimeTelemetry.usage.completionTokens) || 0)),
+            totalTokens: Math.max(0, Math.trunc(Number(runtimeTelemetry.usage.totalTokens) || 0)),
+        }
+        : null;
+    const generationTokensPerSecond = Number(runtimeTelemetry.generationTiming?.tokensPerSecond);
+    const hasGenerationTiming = Number.isFinite(generationTokensPerSecond) && generationTokensPerSecond >= 0;
+    const generationTimingSource = ['provider_timings', 'stream_observed']
+        .includes(runtimeTelemetry.generationTiming?.source)
+        ? runtimeTelemetry.generationTiming.source
+        : hasGenerationTiming
+            ? 'provider_timings'
+            : null;
+    return {
+        durationMs,
+        firstContentMs,
+        modelDurationMs,
+        toolDurationMs: Math.trunc(toolDurationMs),
+        modelRequestCount: Math.max(0, Math.trunc(Number(runtimeTelemetry.modelRequestCount) || 0)),
+        toolCallCount: Math.max(0, Math.trunc(Number(runtimeTelemetry.executedTools) || 0)),
+        tokensPerSecond: hasGenerationTiming && generationTimingSource
+            ? generationTokensPerSecond
+            : null,
+        tokensPerSecondSource: hasGenerationTiming ? generationTimingSource : null,
+        usage,
+    };
+}
+
 function confirmAuth(req, res, next) {
     if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
         return next();
@@ -78,6 +124,18 @@ router.get('/api/ai/health', confirmAuth, (req, res) => {
 });
 
 async function handleAiChat(req, res, options = {}) {
+    let providerPreference = null;
+    try {
+        providerPreference = normalizeProviderPreference(req.body?.providerPreference);
+        if (providerPreference) resolveProviderPreference(providerPreference, options.env || process.env);
+    } catch (error) {
+        return res.status(error.statusCode || 400).json({
+            success: false,
+            code: error.code || 'AI_PROVIDER_SELECTION_INVALID',
+            error: error.message,
+            requestId: req.requestId || null,
+        });
+    }
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -116,7 +174,14 @@ async function handleAiChat(req, res, options = {}) {
         if (typeof res.flush === 'function') res.flush();
         return true;
     };
-    const send = sendFinal;
+    let pendingDone = false;
+    const send = (type, payload = {}) => {
+        if (type === 'done') {
+            pendingDone = true;
+            return true;
+        }
+        return sendFinal(type, payload);
+    };
     let lastProviderKey = '';
     const onProvider = info => {
         providerEvents.push({ ...info });
@@ -127,12 +192,25 @@ async function handleAiChat(req, res, options = {}) {
     };
 
     try {
+        const ownerKey = req.user?.role
+            || (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET ? 'internal' : 'admin');
+        const persistedConversationContext = (options.loadAiConversationContinuation || loadAiConversationContinuation)(
+            ownerKey,
+            req.body?.conversationId
+        );
+        const recentPartWrite = (options.loadAiRecentPartWrite || loadAiRecentPartWrite)(
+            ownerKey,
+            req.body?.conversationId
+        );
         const result = await (options.runAiDispatcherV3 || runAiDispatcherV3)({
             messages: req.body?.messages,
             conversationId: req.body?.conversationId,
+            persistedConversationContext,
+            recentPartWrite,
             pageContext: req.body?.pageContext,
             resolutionContext: normalizeResolutionContext(req.body?.resolutionContext),
             turnState: normalizeAiTurnStateV3(req.body?.turnState),
+            providerPreference,
             confirmationSubject: confirmationSubjectForRequest(req),
             stream: true,
             emit: send,
@@ -140,6 +218,12 @@ async function handleAiChat(req, res, options = {}) {
             signal: controller.signal,
             requestId: req.requestId || null,
         });
+        const durationMs = Date.now() - startedAt;
+        sendFinal('metrics', buildAiTurnMetrics(result?.telemetry, {
+            durationMs,
+            firstContentMs: ttftMs,
+        }));
+        if (pendingDone) sendFinal('done');
         telemetry.record({
             requestId: req.requestId,
             status: 'completed',
@@ -198,6 +282,35 @@ async function handleAiChat(req, res, options = {}) {
 
 router.post('/api/ai/chat', confirmAuth, handleAiChat);
 
+router.post('/api/ai/confirm-tool/preview', confirmAuth, async (req, res) => {
+    const confirmationSubject = confirmationSubjectForRequest(req);
+    const { confirmationToken, toolName, args } = req.body || {};
+    if (!confirmationToken || !toolName || !args || typeof args !== 'object' || Array.isArray(args)) {
+        return res.status(400).json({
+            success: false,
+            code: 'confirmation_revision_payload_required',
+            error: '缺少确认凭证、能力名称或修改后的参数',
+            requestId: req.requestId || null,
+        });
+    }
+    try {
+        const data = await reviseAiToolConfirmation({
+            confirmationToken,
+            subject: confirmationSubject,
+            toolName,
+            args,
+        });
+        return res.json({ success: true, data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            code: error.code || 'confirmation_revision_error',
+            error: error.message,
+            requestId: req.requestId || null,
+        });
+    }
+});
+
 router.post('/api/ai/confirm-tool', confirmAuth, async (req, res) => {
     const confirmationSubject = confirmationSubjectForRequest(req);
     const { confirmationToken, toolName, args } = req.body || {};
@@ -244,6 +357,7 @@ async function processAiChat(text, options = {}) {
         pageContext: options.pageContext,
         resolutionContext: options.resolutionContext,
         turnState: options.turnState,
+        providerPreference: normalizeProviderPreference(options.providerPreference),
         confirmationSubject: options.confirmationSubject || 'internal:process-ai-chat',
         fetchAiProvider: options.fetchAiProvider,
         env: options.env,
@@ -258,6 +372,7 @@ module.exports = {
     DEFAULT_AI_CHAT_TIMEOUT_MS,
     DEFAULT_SSE_HEARTBEAT_MS,
     aiChatTimeoutMs,
+    buildAiTurnMetrics,
     handleAiChat,
     processAiChat,
     router,

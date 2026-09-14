@@ -489,6 +489,40 @@ function normalizeDomainPlan(raw, options = {}) {
     return normalized;
 }
 
+function enforceProtectedCommandRoute(domainPlan, commandRoute) {
+    if (commandRoute?.mode !== 'command') return domainPlan;
+    const domains = [...new Set([
+        ...(commandRoute.domains || []),
+        ...domainPlan.domains,
+    ])].filter(domain => DOMAIN_NAMES.includes(domain)).slice(0, 4);
+    return Object.freeze({
+        ...domainPlan,
+        mode: 'command',
+        domains: Object.freeze(domains),
+        needsBusinessData: true,
+        answerShape: 'confirmation',
+        entityScope: domainPlan.entityScope === 'none' ? 'single' : domainPlan.entityScope,
+    });
+}
+
+function enforcePreferredCommandCapability(intent, commandRoute) {
+    const capabilityName = String(commandRoute?.preferredCapability || '').trim();
+    if (!capabilityName || intent.requiresClarification) return intent;
+    const capability = getAiCapability(capabilityName);
+    if (!capability || capability.access !== 'write') return intent;
+    if (!capability.domains.some(domain => intent.domains.includes(domain))) return intent;
+    if (!capability.entityScopes.includes(intent.entityScope)) return intent;
+    return Object.freeze({
+        ...intent,
+        steps: Object.freeze([
+            Object.freeze({
+                capabilityName,
+                objective: intent.goal,
+            }),
+        ]),
+    });
+}
+
 async function requestStructuredPlan(provider, messages, tool, options = {}) {
     const response = await provider(messages, {
         stream: false,
@@ -532,6 +566,7 @@ async function planAiGoalV3(messages, options = {}) {
                 options
             );
             domainPlan = normalizeDomainPlan(rawDomainPlan, { pageContext: options.pageContext });
+            domainPlan = enforceProtectedCommandRoute(domainPlan, options.commandRoute);
             break;
         } catch (error) {
             if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
@@ -592,7 +627,7 @@ async function planAiGoalV3(messages, options = {}) {
             if (typeof options.onPlanningPhase === 'function') {
                 options.onPlanningPhase({ phase: 'capability', durationMs: Date.now() - capabilityStartedAt });
             }
-            return enforceExplicitReadRequirements(
+            return enforcePreferredCommandCapability(enforceExplicitReadRequirements(
                 enforceBusinessChangeAuthority(
                     enforceCatalogPartPriceAuthority(
                         collapseOverlappingCostSteps(normalized),
@@ -601,7 +636,7 @@ async function planAiGoalV3(messages, options = {}) {
                     userText
                 ),
                 userText
-            );
+            ), options.commandRoute);
         } catch (error) {
             if (!(error instanceof AiIntentPlanError) || attempt > 0) throw error;
             lastError = error;
@@ -631,6 +666,8 @@ module.exports = {
     enforceBusinessChangeAuthority,
     enforceCatalogPartPriceAuthority,
     enforceExplicitReadRequirements,
+    enforcePreferredCommandCapability,
+    enforceProtectedCommandRoute,
     explicitKnowledgeSearchRequested,
     normalizeDomainPlan,
     normalizeIntentPlan,

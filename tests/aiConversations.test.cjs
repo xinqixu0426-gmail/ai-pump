@@ -5,6 +5,8 @@ const {
     listAiConversations,
     createAiConversation,
     getAiConversation,
+    loadAiConversationContinuation,
+    loadAiRecentPartWrite,
     appendAiConversationMessage,
     updateAiConversationMessage,
     deleteAiConversation,
@@ -99,6 +101,81 @@ test('AI 会话：创建、追加、读取和更新工具结果', () => {
         toolResults: [{ name: 'query_recipe_cost_by_name', result: { cost: 101 } }],
     }, { dbAccessors });
     assert.equal(updated.metadata.toolResults[0].result.cost, 101);
+});
+
+test('AI 会话：从持久化消息恢复最近的可信候选，忽略后续失败消息', () => {
+    const dbAccessors = createMemoryAccessors();
+    const conversation = createAiConversation('admin', '查询 V750 成本', { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, { role: 'user', content: 'V750 的成本是多少' }, { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, {
+        role: 'assistant',
+        content: '请选择配方',
+        metadata: { toolResults: [{
+            name: 'preview_recipe_cost',
+            result: {
+                success: false,
+                requiresClarification: true,
+                candidates: [{ id: 4, name: 'v750-普通' }, { id: 5, name: 'v750-tokoy' }],
+                executionEvidence: { verified: true, kind: 'formal_api_query_failure' },
+            },
+        }] },
+    }, { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, { role: 'user', content: '普通的' }, { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, {
+        role: 'assistant',
+        content: '参数错误',
+        metadata: { toolResults: [{ name: 'preview_recipe_cost', result: { success: false } }] },
+    }, { dbAccessors });
+
+    const restored = loadAiConversationContinuation('admin', `chat-${conversation.id}`, { dbAccessors });
+    assert.equal(restored.question, 'V750 的成本是多少');
+    assert.equal(restored.toolResults[0].result.candidates[0].id, 4);
+    assert.equal(loadAiConversationContinuation('internal', `chat-${conversation.id}`, { dbAccessors }), null);
+    assert.equal(loadAiConversationContinuation('admin', String(conversation.id), { dbAccessors }), null);
+});
+
+test('AI 会话：从已验证写回执恢复最近零件目标，忽略失败和只读结果', () => {
+    const dbAccessors = createMemoryAccessors();
+    const conversation = createAiConversation('admin', '零件录入', { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, {
+        role: 'assistant',
+        content: '已录入',
+        metadata: { toolResults: [{
+            name: 'create_part',
+            result: {
+                success: true,
+                id: 142,
+                part: { model: '确认卡编辑验收-0914', supplier: '测试供应商' },
+                executionEvidence: {
+                    verified: true,
+                    kind: 'formal_api_command',
+                    receipts: [{ operationId: 'op-1' }],
+                },
+            },
+        }] },
+    }, { dbAccessors });
+    appendAiConversationMessage('admin', conversation.id, {
+        role: 'assistant',
+        content: '后续查询',
+        metadata: { toolResults: [{
+            name: 'search_parts',
+            result: {
+                success: true,
+                parts: [{ id: 999, model: '不应采用' }],
+                executionEvidence: { verified: true, kind: 'formal_api_query' },
+            },
+        }] },
+    }, { dbAccessors });
+
+    assert.deepEqual(
+        loadAiRecentPartWrite('admin', `chat-${conversation.id}`, { dbAccessors }),
+        {
+            messageId: 1,
+            toolName: 'create_part',
+            part: { id: 142, model: '确认卡编辑验收-0914', supplier: '测试供应商' },
+        }
+    );
+    assert.equal(loadAiRecentPartWrite('internal', `chat-${conversation.id}`, { dbAccessors }), null);
 });
 
 test('AI 会话：按所有者隔离并支持软删除', () => {

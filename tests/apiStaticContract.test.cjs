@@ -1882,7 +1882,7 @@ test('API 静态契约：AI Provider 统一登记且附件按本地解析结果�
     assert.match(provider, /selectedConfig\.routeReason === 'file'/);
     assert.match(provider, /'file_fallback'/);
     assert.match(provider, /'vision_fallback'/);
-    assert.match(providerRegistry, /values: Object\.freeze\(\['auto', DEFAULT_PROVIDER_ID, MULTIMODAL_PROVIDER_ID\]\)/);
+    assert.match(providerRegistry, /values: Object\.freeze\(\['auto', LOCAL_PROVIDER_ID, LOCAL_FIRST_MODE, DEFAULT_PROVIDER_ID, MULTIMODAL_PROVIDER_ID\]\)/);
     assert.match(runtimeConfig, /\.\.\.PROVIDER_RUNTIME_DEFINITIONS/);
     assert.match(runtimeConfig, /for \(const field of AI_RUNTIME_FIELD_NAMES\)/);
     assert.match(attachmentRouting, /content\?\.parserStatus === 'parsed'/);

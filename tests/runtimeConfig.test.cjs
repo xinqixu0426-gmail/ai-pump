@@ -95,11 +95,15 @@ test('系统初始化：运行设置直接复用 Provider Registry 的字段和�
     try {
         const snapshot = initializeRuntimeSettings({ env, dbAccessors: accessors });
         assert.equal(snapshot.values.aiProvider, 'auto');
+        assert.equal(snapshot.values.localBaseUrl, 'http://192.168.31.111:8080/v1');
+        assert.equal(snapshot.values.localModel, '/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf');
+        assert.equal(snapshot.values.localVisionEnabled, false);
         assert.equal(snapshot.values.kimiModel, 'kimi-k3');
         assert.equal(snapshot.values.kimiReasoningEffort, 'low');
         assert.equal(env.AI_PROVIDER, 'auto');
         assert.equal(normalizeValue('aiProvider', 'auto'), 'auto');
         assert.equal(DEFINITIONS.aiProvider, PROVIDER_RUNTIME_DEFINITIONS.aiProvider);
+        assert.equal(DEFINITIONS.localModel, PROVIDER_RUNTIME_DEFINITIONS.localModel);
         assert.equal(DEFINITIONS.deepseekModel, PROVIDER_RUNTIME_DEFINITIONS.deepseekModel);
         assert.equal(DEFINITIONS.kimiBaseUrl, PROVIDER_RUNTIME_DEFINITIONS.kimiBaseUrl);
 
@@ -109,6 +113,34 @@ test('系统初始化：运行设置直接复用 Provider Registry 的字段和�
         }, { env, dbAccessors: accessors });
         assert.equal(result.config.values.aiProvider, 'auto');
         assert.equal(result.config.secrets.kimiApiKey.configured, true);
+    } finally {
+        accessors.db.close();
+    }
+});
+
+test('系统初始化：本地优先允许无密钥私网地址但拒绝公网 HTTP', () => {
+    const accessors = createAccessors();
+    const env = {
+        NODE_ENV: 'test',
+        JWT_SECRET: 'runtime-config-test-secret',
+    };
+    try {
+        const result = updateRuntimeSettings({
+            aiProvider: 'local-first',
+            localBaseUrl: 'http://192.168.31.111:8080/v1/',
+            localModel: 'local-apex',
+        }, { env, dbAccessors: accessors });
+        assert.equal(result.config.values.aiProvider, 'local-first');
+        assert.equal(result.config.values.localBaseUrl, 'http://192.168.31.111:8080/v1');
+        assert.equal(env.AI_PROVIDER, 'local-first');
+        assert.throws(
+            () => normalizeValue('localBaseUrl', 'http://example.com/v1'),
+            /localhost 或私网 IP/
+        );
+        assert.throws(
+            () => normalizeValue('deepseekBaseUrl', 'http://192.168.31.111:8080/v1'),
+            /HTTPS/
+        );
     } finally {
         accessors.db.close();
     }

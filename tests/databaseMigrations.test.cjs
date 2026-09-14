@@ -341,6 +341,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         const directCableNoSplitMigration = MIGRATIONS.find(migration => migration.version === 77);
         const explicitSingleCuttingItemMigration = MIGRATIONS.find(migration => migration.version === 78);
         const configuredCostAnswerSummaryMigration = MIGRATIONS.find(migration => migration.version === 79);
+        const completeCableSameItemMigration = MIGRATIONS.find(migration => migration.version === 81);
+        const completeCableThisItemMigration = MIGRATIONS.find(migration => migration.version === 82);
         assert.ok(restoreMigration);
         assert.ok(dataAwareMigration);
         assert.ok(formalTechnicalFileMigration);
@@ -361,6 +363,8 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         assert.ok(directCableNoSplitMigration);
         assert.ok(explicitSingleCuttingItemMigration);
         assert.ok(configuredCostAnswerSummaryMigration);
+        assert.ok(completeCableSameItemMigration);
+        assert.ok(completeCableThisItemMigration);
         db.prepare(`
             INSERT INTO ai_evaluation_cases (
                 case_key, title, category, question, evaluator_type, config_json,
@@ -418,6 +422,10 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         explicitSingleCuttingItemMigration.up(db);
         configuredCostAnswerSummaryMigration.up(db);
         configuredCostAnswerSummaryMigration.up(db);
+        completeCableSameItemMigration.up(db);
+        completeCableSameItemMigration.up(db);
+        completeCableThisItemMigration.up(db);
+        completeCableThisItemMigration.up(db);
 
         const systemCases = db.prepare(`
             SELECT case_key, enabled, release_gate_enabled, review_status, source_type
@@ -491,6 +499,9 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
         `).get();
         const cableRequiredTerms = JSON.parse(cableCase.config_json).requiredTerms[3];
         assert.ok(cableRequiredTerms.includes('共同组成一条'));
+        assert.ok(cableRequiredTerms.includes('共同组成同一根'));
+        assert.ok(cableRequiredTerms.includes('共同组成同一条'));
+        assert.ok(cableRequiredTerms.includes('共同组成这一项'));
         assert.ok(cableRequiredTerms.includes('单一整体业务项'));
         assert.ok(cableRequiredTerms.includes('作为一条成品电缆'));
         assert.ok(JSON.parse(cableCase.config_json).requiredTerms[2].includes('不拆'));
@@ -613,6 +624,65 @@ test('数据库迁移：订单文件关联升级保留已有归档记录', () =>
                 title, note, source, created_at, updated_at
             ) VALUES (?, 'order', 12, 'customer_requirement', '', '', 'business_page', ?, ?)
         `).run(1, FIXED_NOW, FIXED_NOW));
+        assert.deepEqual(db.pragma('foreign_key_check'), []);
+    } finally {
+        db.close();
+    }
+});
+
+test('数据库迁移：v60 旧库无需预先存在订单修订表即可升级订单', () => {
+    const db = openMemoryDatabase();
+    try {
+        db.exec(`
+            CREATE TABLE customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                deleted_at TEXT
+            );
+            CREATE TABLE orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_name TEXT NOT NULL,
+                contract_no TEXT DEFAULT '',
+                remark TEXT DEFAULT '',
+                status TEXT DEFAULT '待采购',
+                items_json TEXT DEFAULT '[]',
+                purchase_list_json TEXT DEFAULT '[]',
+                todos_json TEXT DEFAULT '[]',
+                purchase_completed_at TEXT,
+                purchase_receipt_id TEXT,
+                status_reason TEXT DEFAULT '',
+                status_changed_at TEXT,
+                closed_at TEXT,
+                cancelled_at TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                deleted_at TEXT
+            );
+            INSERT INTO customers (name) VALUES ('旧客户');
+            INSERT INTO orders (customer_name, created_at, updated_at)
+            VALUES ('旧客户', '${FIXED_NOW}', '${FIXED_NOW}');
+        `);
+
+        const migration = MIGRATIONS.find((item) => item.version === 61);
+        assert.ok(migration);
+        migration.up(db);
+
+        assert.equal(
+            db.prepare(`SELECT customer_id AS customerId FROM orders`).get().customerId,
+            1
+        );
+        assert.equal(
+            db.prepare(`SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'order_revisions'`).get(),
+            undefined
+        );
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema
+            WHERE type = 'index' AND name = 'idx_orders_active_status_created'
+        `).get());
+        assert.ok(db.prepare(`
+            SELECT 1 FROM sqlite_schema
+            WHERE type = 'index' AND name = 'idx_orders_customer'
+        `).get());
         assert.deepEqual(db.pragma('foreign_key_check'), []);
     } finally {
         db.close();

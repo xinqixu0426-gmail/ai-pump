@@ -2268,13 +2268,21 @@ test('Next UI 契约：AI 回答依据、确认卡片和业务结果按职责拆
     const primitives = readUtf8('apps/web-next/components/ai/AiResultPrimitives.tsx');
 
     assert.match(aiView, /<AiMessageList/);
+    assert.match(aiView, /const revisedArgs = confirmation\?\.args/);
+    assert.match(aiView, /argsSummary: Object\.entries\(revisedArgs\)/);
     assert.match(messageList, /from '@\/components\/ai\/AiAnswerProcess'/);
     assert.match(messageList, /<AnswerProcess/);
+    assert.match(messageList, /function confirmedWriteContent\(item: ChatItem\)/);
+    assert.match(messageList, /step\.mode === 'write' && step\.requiresConfirmation/);
+    assert.match(messageList, /return `## 已执行\\n\\n\$\{summary\}`/);
     assert.match(aiView, /useAiMessageStream/);
     assert.doesNotMatch(aiView, /function ToolResultCard|function BusinessResult|function AnswerEvidence/);
     assert.match(answerProcess, /export function AnswerProcess/);
     assert.match(answerProcess, /function ToolResultCard/);
     assert.match(answerProcess, /confirmAiTool\(confirmation\.confirmationToken\)/);
+    assert.match(answerProcess, /reviseAiToolConfirmation\(/);
+    assert.match(answerProcess, />\s*编辑参数\s*</);
+    assert.match(answerProcess, />\s*更新预览\s*</);
     assert.match(answerProcess, /isConfirmationResult\(result\)/);
     assert.match(answerProcess, /readOnly \? undefined : onSendPrompt/);
     assert.match(businessResult, /export function BusinessResult/);

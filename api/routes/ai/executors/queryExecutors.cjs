@@ -46,6 +46,32 @@ function completeTemplateResource(template) {
     };
 }
 
+function normalizedTechnicalModel(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .trim()
+        .toLocaleLowerCase('zh-CN')
+        .replace(/[\s._+#/()（）\-－]/gu, '');
+}
+
+function technicalFileAssociationWarnings(recipe, files = []) {
+    const recipeModel = String(recipe?.name || '').trim();
+    const recipeKey = normalizedTechnicalModel(recipeModel);
+    if (!recipeKey) return [];
+    return files.flatMap(file => {
+        const reportModel = String(file?.summary?.model || '').trim();
+        if (!reportModel || normalizedTechnicalModel(reportModel) === recipeKey) return [];
+        return [{
+            code: 'technical_report_model_mismatch',
+            message: `测试报告内部型号「${reportModel}」与关联配方「${recipeModel}」不一致，请核实报告归属。`,
+            recipeName: recipeModel,
+            reportModel,
+            fileId: file?.id ?? null,
+            originalName: String(file?.originalName || ''),
+        }];
+    });
+}
+
 function buildQueryReceipt(filters, totalCount, returnedCount = totalCount) {
     const normalizedReturnedCount = Number(returnedCount ?? 0);
     const normalizedTotalCount = totalCount === null || totalCount === undefined
@@ -221,10 +247,12 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/recipes/${id}/technical-files`,
                 '配方技术档案读取失败'
             );
+            const associationWarnings = technicalFileAssociationWarnings(recipe, files);
             return {
                 success: true,
                 recipe: { id, name: recipe.name, spec: recipe.spec },
                 files,
+                associationWarnings,
                 sources: [{
                     sourceTable: 'recipes',
                     sourceId: id,

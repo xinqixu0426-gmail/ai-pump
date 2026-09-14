@@ -11,6 +11,7 @@ const {
 } = require('../api/services/aiToolConfirmation.cjs');
 const { buildWriteConfirmation, executeToolCall } = require('../api/routes/ai/executor.cjs');
 const { executeConfirmedAiTool } = require('../api/services/aiConfirmedToolExecution.cjs');
+const { reviseAiToolConfirmation } = require('../api/services/aiToolConfirmationRevision.cjs');
 
 test.beforeEach(() => {
     resetAiToolConfirmationsForTests();
@@ -250,6 +251,54 @@ test('AI 确认协议：executor 返回短时 token，未确认仍不执行写�
     assert.ok(Date.parse(result.confirmation.expiresAt) > Date.now());
 });
 
+test('AI 确认协议：编辑参数重新签发确认卡并废弃旧 token', async () => {
+    const original = issue({ now: Date.now() });
+    const revised = await reviseAiToolConfirmation({
+        confirmationToken: original.confirmationToken,
+        subject: 'session-a',
+        toolName: 'update_part',
+        args: { model: 'A-1', price: 13.5 },
+    });
+
+    assert.equal(revised.name, 'update_part');
+    assert.equal(revised.result.requiresConfirmation, true);
+    assert.equal(revised.result.confirmation.args.price, 13.5);
+    assert.notEqual(revised.result.confirmation.confirmationToken, original.confirmationToken);
+    assert.ok(revised.result.confirmation.editableFields.some(field => (
+        field.key === 'price' && field.type === 'number' && field.locked === false
+    )));
+    assert.throws(
+        () => consumeAiToolConfirmation({
+            confirmationToken: original.confirmationToken,
+            subject: 'session-a',
+        }),
+        error => error.code === 'confirmation_superseded'
+    );
+    const consumed = consumeAiToolConfirmation({
+        confirmationToken: revised.result.confirmation.confirmationToken,
+        subject: 'session-a',
+    });
+    assert.deepEqual(consumed.args, { model: 'A-1', price: 13.5 });
+});
+
+test('AI 确认协议：修改参数校验失败时恢复原确认卡', async () => {
+    const original = issue({ now: Date.now() });
+    await assert.rejects(
+        reviseAiToolConfirmation({
+            confirmationToken: original.confirmationToken,
+            subject: 'session-a',
+            toolName: 'update_part',
+            args: { model: 'A-1', price: '不是数字' },
+        }),
+        error => error.code === 'INVALID_AI_TOOL_INPUT' && error.statusCode === 422
+    );
+    const consumed = consumeAiToolConfirmation({
+        confirmationToken: original.confirmationToken,
+        subject: 'session-a',
+    });
+    assert.deepEqual(consumed.args, { model: 'A-1', price: 12.5 });
+});
+
 test('AI 确认协议：订单明细修改和删除展示稳定明细 ID', () => {
     for (const toolName of ['update_order_item', 'remove_recipe_from_order']) {
         const result = buildWriteConfirmation(toolName, {
@@ -291,4 +340,19 @@ test('AI 确认协议：正式确认路由只执行 token 中的服务端参数'
     assert.match(route, /confirmation_token_required/);
     assert.match(route, /executeConfirmedAiTool/);
     assert.doesNotMatch(route, /executeToolCall/);
+});
+
+test('AI 确认协议：编辑卡片通过独立 Preview 路由重新校验', () => {
+    const source = fs.readFileSync(
+        path.join(__dirname, '..', 'api/routes/ai/chat.cjs'),
+        'utf8'
+    );
+    const start = source.indexOf("router.post('/api/ai/confirm-tool/preview'");
+    const route = source.slice(
+        start,
+        source.indexOf("router.post('/api/ai/confirm-tool'", start + 1)
+    );
+    assert.match(route, /reviseAiToolConfirmation/);
+    assert.match(route, /confirmation_revision_payload_required/);
+    assert.doesNotMatch(route, /executeConfirmedAiTool/);
 });

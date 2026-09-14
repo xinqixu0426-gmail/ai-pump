@@ -2,12 +2,21 @@ const { AI_TOOLS } = require('../routes/ai/tools.cjs');
 const { getAiCapability } = require('../capabilities/registry.cjs');
 const { executeToolCall } = require('../routes/ai/executor.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
-const { readAiProviderStream } = require('./aiProviderStream.cjs');
+const { normalizeProviderTimings, readAiProviderStream } = require('./aiProviderStream.cjs');
 const { trimAiContext } = require('./aiContext.cjs');
 const { validateAiToolArgs } = require('./aiToolInputValidatorV2.cjs');
-const { validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
+const { normalizeExplicitCoilShorthandArgs, validateAiToolIdentifierGrounding } = require('./aiToolIdentifierGrounding.cjs');
 const { hasVerifiedExecution, safeMissingBusinessEvidenceReply } = require('./aiExecutionEvidence.cjs');
-const { enforceAiToolResultBudget, buildAiToolResultMessage, containsEmbeddedToolProtocol } = require('./aiToolProtocol.cjs');
+const {
+    buildAiToolResultMessage,
+    containsEmbeddedToolProtocol,
+    enforceAiToolResultBudget,
+    explicitIdentifierFromUserText,
+    groundCandidateSelectionArgument,
+    groundMissingTargetArgument,
+    sanitizeModelInferredFilters,
+    validationErrorForModel,
+} = require('./aiToolProtocol.cjs');
 const { buildFactoryAiRulesPrompt } = require('./factoryAiRules.cjs');
 const { estimateTextTokens, estimateAiMessagesTokens, resolveAiTokenBudgets, normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 const { modelResultView, previousContext, compactToolDescriptions, answerOnlyMessages } = require('./aiAssistantContext.cjs');
@@ -16,16 +25,75 @@ const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
 const { createInternalFetch, getJson, postJson } = require('../routes/ai/internalApiClient.cjs');
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
-const { unsupportedMoneyInAnswer, formatMoneySummary, verifiedMissingTarget, unfinishedReply, missingPreviewTotals } = require('./aiAssistantAnswer.cjs');
+const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
+const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
+const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
+const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
+const { ensureTaskAnswer } = require('./aiResponsePresenter.cjs');
 
 const { normalizeUserConfigurationOverrides } = require('./recipeConfigurationBaseline.cjs');
 
 const MAX_TOOL_CALLS = 10;
 const MAX_TOOL_ROUNDS = 7;
+const LOCAL_RESPONSE_PROMPT = '当前使用本地模型。默认最终回答不超过 300 个中文字符或 12 个短要点，只保留用户所问的结论、关键数字和必要分类；不要主动追加风险分析、建议、下一步或重复解释。用户明确要求完整明细时才展开。';
 
 function pendingPreview(toolResults) {
     return toolResults.some(item => modelResultView(item.name, item.result)?.modelView?.costTool)
         && !toolResults.some(item => getAiCapability(item.name)?.operation === 'preview' && item.result?.success !== false && hasVerifiedExecution(item.result));
+}
+
+function requiredCoilRecipeToolCall(name, userText) {
+    const id = `required-${name}-${crypto.randomUUID()}`;
+    if (name === 'get_all_recipes') {
+        return { id, type: 'function', function: { name, arguments: '{}' } };
+    }
+    if (name === 'search_coils') {
+        const shorthand = String(userText || '').match(/(\d+)\s*[-—~]\s*(\d+)/u);
+        if (!shorthand) return null;
+        return {
+            id,
+            type: 'function',
+            function: {
+                name,
+                arguments: JSON.stringify({ spec: shorthand[1], sheets: Number(shorthand[2]) }),
+            },
+        };
+    }
+    return null;
+}
+
+function uniqueContinuationToolResults(items = []) {
+    const seen = new Set();
+    return items.filter(item => {
+        const key = JSON.stringify([
+            item?.name,
+            item?.result?.query,
+            item?.result?.candidates?.map(candidate => candidate?.id),
+        ]);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function restoredCandidateSelectionCall(reply, toolResults = []) {
+    const names = [...new Set(toolResults.map(item => item?.name).filter(Boolean))];
+    const calls = names.map((name, index) => groundCandidateSelectionArgument({
+        id: `persisted-candidate-${index + 1}`,
+        type: 'function',
+        function: { name, arguments: '{}' },
+    }, name, reply, toolResults)).filter(call => {
+        try { return Object.keys(JSON.parse(call.function.arguments)).length > 0; }
+        catch { return false; }
+    });
+    return calls.length === 1 ? calls[0] : null;
+}
+
+function includeRestoredCandidateTool(tools, allTools, restoredCall) {
+    const restoredName = restoredCall?.function?.name;
+    if (!restoredName || tools.some(tool => tool.function.name === restoredName)) return tools;
+    const restoredTool = allTools.find(tool => tool.function.name === restoredName);
+    return restoredTool ? [restoredTool, ...tools] : tools;
 }
 
 const SYSTEM_PROMPT = `你是工厂主人独自使用的私人业务助理。使用中文，直接完成用户的问题。
@@ -56,25 +124,56 @@ function abortIfNeeded(signal) {
     if (signal?.aborted) throw signal.reason || Object.assign(new Error('请求已停止'), { name: 'AbortError' });
 }
 
+function aggregateGenerationTimings(items = []) {
+    if (!items.length) return null;
+    const predictedTokens = items.reduce((sum, item) => sum + Number(item.predictedTokens || 0), 0);
+    const predictedMs = items.reduce((sum, item) => sum + Number(item.predictedMs || 0), 0);
+    if (predictedMs <= 0) return null;
+    return {
+        predictedTokens,
+        predictedMs: Number(predictedMs.toFixed(1)),
+        tokensPerSecond: Number((predictedTokens * 1000 / predictedMs).toFixed(1)),
+        source: items.every(item => item.source === 'provider_timings')
+            ? 'provider_timings'
+            : 'stream_observed',
+    };
+}
+
 async function runAiAssistant(input = {}, dependencies = {}) {
-    const messages = trimAiContext(input.messages, { env: input.env });
+    const runtimeEnv = input.providerPreference && input.providerPreference !== 'default'
+        ? { ...(input.env || process.env), AI_PROVIDER: input.providerPreference }
+        : input.env;
+    const messages = trimAiContext(input.messages, { env: runtimeEnv });
     const latest = messages.findLast(message => message.role === 'user');
     if (!latest?.content.trim()) throw Object.assign(new Error('请输入问题'), { code: 'AI_MESSAGE_REQUIRED' });
     const emit = typeof input.emit === 'function' ? input.emit : () => {};
     const session = beginAssistantSession(input.confirmationSubject, input.conversationId);
+    const persistedConversationContext = input.persistedConversationContext || null;
+    const continuationToolResults = uniqueContinuationToolResults([
+        ...(session.previous?.toolResults || []),
+        ...(persistedConversationContext?.toolResults || []),
+    ]);
+    const restoredCandidateCall = restoredCandidateSelectionCall(latest.content, continuationToolResults);
     const provider = input.fetchAiProvider || dependencies.fetchAiProvider || fetchAiProvider;
     const execute = dependencies.executeToolCall || executeToolCall;
     const started = Date.now();
     const toolResults = [], toolSteps = [];
     const usages = [];
+    const providerDurations = [];
+    const generationTimings = [];
     const pageContext = normalizeAiPageContext(input.pageContext);
     let calls = 0, finalContent = '', outcome = 'completed';
+    let finalContentStreamed = false;
     let answerRepair = false;
     let evidenceReminder = false;
     let protocolRepair = false;
     let completionReview = false;
+    let businessQueryRepair = false;
+    let relationQueryRepair = false;
+    let requiredRelationCalls = [];
     let finishQueries = false;
     let memoryPrefix = '', savedMemoryState = null;
+    let taskEnvelope = createTaskEnvelope(latest.content);
     try {
         abortIfNeeded(input.signal);
         const internalFetch = createInternalFetch({ signal: input.signal });
@@ -106,14 +205,38 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         try { memory = await (dependencies.loadMemory || (() => getJson(internalFetch, '/api/ai/personal-memories?limit=100')))(); }
         catch (error) { abortIfNeeded(input.signal); emit('status', { status: 'analyzing', message: '长期记忆暂时不可用，本轮将按当前问题查询。' }); }
         const corrections = (dependencies.loadCorrections || buildFactoryAiRulesPrompt)({ query: latest.content, domains: [], maxChars: 4000, maxRules: 8, dbAccessors: input.dbAccessors });
-        const tools = assistantReadTools();
+        const allTools = assistantReadTools();
+        const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
+        const coilComparisonPairs = coilCostComparisonPairs(latest.content);
+        const coilRecipeRelationQuery = useLocalToolShortlist
+            && isCoilRecipeRelationQuery(latest.content);
+        const shortlistedTools = useLocalToolShortlist
+            ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv })
+            : allTools;
+        const tools = includeRestoredCandidateTool(
+            shortlistedTools,
+            allTools,
+            restoredCandidateCall
+        );
         const allowed = new Set(tools.map(tool => tool.function.name));
-        const budgets = resolveAiTokenBudgets(input.env);
-        const current = [{ role: 'system', content: `${SYSTEM_PROMPT}\n个人记忆（仅偏好，不是实时数据）：${JSON.stringify(memory.items)}\n既有纠错：${corrections}\n${buildAiPageContextNote(pageContext)}\n${input.promptSuffix || ''}` }, ...messages];
+        const budgets = resolveAiTokenBudgets(runtimeEnv);
+        const providerConversation = useLocalToolShortlist && tools.length > 0
+            ? [messages.at(-1)]
+            : messages;
+        const current = [{ role: 'system', content: `${SYSTEM_PROMPT}\n${isLocalAssistantMode(runtimeEnv) ? `${LOCAL_RESPONSE_PROMPT}\n` : ''}个人记忆（仅偏好，不是实时数据）：${JSON.stringify(memory.items)}\n既有纠错：${corrections}\n${buildAiPageContextNote(pageContext)}\n${input.promptSuffix || ''}` }, ...providerConversation];
         if (savedMemoryState) current.push({ role: 'system', content: `本轮正式记忆回执已发送：${JSON.stringify(savedMemoryState.memory)}。继续本会话尚未取得试算结果的问题：${session.previous.pendingQuestion}。重新读取当前事实；记忆不能代替方案查询或开放业务写权限。只回答继续查询结果，不重复或否认已发送回执。` });
         if (session.previous) current.push({ role: 'system', content: previousContext(session.previous) });
+        if (persistedConversationContext) current.push({ role: 'system', content: previousContext(persistedConversationContext) });
         const seen = new Map();
         const knowledgeDocuments = new Map();
+        let requiredCoilComparisonCalls = coilComparisonPairs.map(pair => ({
+            id: `required-calculate_coil_cost-${crypto.randomUUID()}`,
+            type: 'function',
+            function: {
+                name: 'calculate_coil_cost',
+                arguments: JSON.stringify(pair),
+            },
+        }));
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
             let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
@@ -131,22 +254,88 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 finalContent = '本次查询结果超过上下文容量，已停止。请缩小范围或分批查询；已取得的明细保留在下方。';
                 break;
             }
-            const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && evidenceReminder && !toolResults.length ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: input.env, dbAccessors: input.dbAccessors, signal: input.signal });
             let answer;
-            if (input.stream) {
-                const streamed = await readAiProviderStream(response, { signal: input.signal });
-                if (streamed.usage) usages.push(normalizeProviderUsage(streamed.usage));
-                answer = { content: streamed.content, tool_calls: streamed.toolCalls, reasoning_content: streamed.reasoningContent };
+            if (requiredCoilComparisonCalls.length) {
+                answer = { content: '', tool_calls: requiredCoilComparisonCalls };
+                requiredCoilComparisonCalls = [];
+            } else if (requiredRelationCalls.length) {
+                answer = { content: '', tool_calls: requiredRelationCalls };
+                requiredRelationCalls = [];
+            } else if (round === 0 && restoredCandidateCall) {
+                answer = { content: '', tool_calls: [restoredCandidateCall] };
             } else {
-                const payload = await response.json();
-                if (payload.usage) usages.push(normalizeProviderUsage(payload.usage));
-                answer = payload.choices?.[0]?.message;
+                const requireLocalTool = offered.length && isLocalAssistantMode(runtimeEnv) && !toolResults.length;
+                emit('status', {
+                    status: 'generating',
+                    message: toolResults.length ? '正在整理查询结果...' : '模型生成中...',
+                });
+                const providerStartedAt = Date.now();
+                const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && ((evidenceReminder && !toolResults.length) || requireLocalTool) ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: runtimeEnv, providerPreference: input.providerPreference, dbAccessors: input.dbAccessors, signal: input.signal });
+                if (input.stream) {
+                    const streamDirectReply = tools.length === 0 && offered.length === 0 && toolResults.length === 0;
+                    const streamed = await readAiProviderStream(response, {
+                        signal: input.signal,
+                        ...(streamDirectReply ? {
+                            onContent: content => {
+                                finalContentStreamed = true;
+                                emit('content', { content });
+                            },
+                        } : {}),
+                    });
+                    providerDurations.push(Date.now() - providerStartedAt);
+                    if (streamed.usage) usages.push(normalizeProviderUsage(streamed.usage));
+                    if (streamed.timings) generationTimings.push(streamed.timings);
+                    answer = { content: streamed.content, tool_calls: streamed.toolCalls, reasoning_content: streamed.reasoningContent };
+                } else {
+                    const payload = await response.json();
+                    providerDurations.push(Date.now() - providerStartedAt);
+                    if (payload.usage) usages.push(normalizeProviderUsage(payload.usage));
+                    const timings = normalizeProviderTimings(payload.timings);
+                    if (timings) generationTimings.push(timings);
+                    answer = payload.choices?.[0]?.message;
+                }
             }
             abortIfNeeded(input.signal);
             if (!answer || (!answer.content && !answer.tool_calls?.length)) throw Object.assign(new Error('AI 返回了空响应'), { code: 'AI_RESPONSE_EMPTY' });
             const proposed = answer.tool_calls || [];
             if (!proposed.length) {
                 finalContent = String(answer.content || '');
+                if (useLocalToolShortlist && tools.length > 0 && toolResults.length === 0) {
+                    if (!businessQueryRepair && round < MAX_TOOL_ROUNDS - 1) {
+                        businessQueryRepair = true;
+                        finalContent = '';
+                        emit('status', { status: 'analyzing', message: '正在要求模型执行正式查询...' });
+                        current.push({ role: 'system', content: '上一响应没有发送给用户。当前问题涉及实时业务事实，必须先调用已开放的正式工具；不得根据历史回答说“无需查询”，不得直接给出数量、状态、型号关联或其他业务结论。' });
+                        continue;
+                    }
+                    outcome = 'failed_evidence';
+                    finalContent = '模型未执行必要的正式业务查询，本轮没有可验证的结论。请重试。';
+                    break;
+                }
+                const missingRelationTools = coilRecipeRelationQuery
+                    ? ['search_coils', 'get_all_recipes'].filter(name => (
+                        !toolResults.some(item => item.name === name)
+                    ))
+                    : [];
+                if (missingRelationTools.length) {
+                    if (!relationQueryRepair && offered.length && round < MAX_TOOL_ROUNDS - 1) {
+                        relationQueryRepair = true;
+                        finalContent = '';
+                        emit('status', { status: 'analyzing', message: '正在补齐线圈与配方关联查询...' });
+                        const deterministicCalls = missingRelationTools
+                            .map(name => requiredCoilRecipeToolCall(name, latest.content))
+                            .filter(Boolean);
+                        if (deterministicCalls.length === missingRelationTools.length) {
+                            requiredRelationCalls = deterministicCalls;
+                        } else {
+                            current.push({ role: 'system', content: `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
+                        }
+                        continue;
+                    }
+                    outcome = 'failed_evidence';
+                    finalContent = `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
+                    break;
+                }
                 const pendingClarification = toolResults.some(item => item.result?.requiresClarification || item.result?.data?.requiresVariantSelection);
                 if (!completionReview && offered.length && round < MAX_TOOL_ROUNDS - 1 && !pendingClarification
                     && (pendingPreview(toolResults) || /请(?:问|确认|提供)|是否需要|需要我|要我|我可以.{0,30}(?:查询|核实)|再.{0,10}(?:查询|查正式)/s.test(finalContent))) {
@@ -215,14 +404,36 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 const toolStarted = Date.now();
                 try {
                     if (!allowed.has(name)) throw Object.assign(new Error('本轮只开放已登记的只读业务工具；业务修改需要本人确认，当前未启用。'), { code: 'AI_TOOL_NOT_ALLOWED' });
-                    const proposedArgs = JSON.parse(call.function.arguments || '{}');
+                    const candidateGroundedCall = groundCandidateSelectionArgument(
+                        call,
+                        name,
+                        latest.content,
+                        continuationToolResults
+                    );
+                    const groundedCall = groundMissingTargetArgument(
+                        sanitizeModelInferredFilters(candidateGroundedCall, name, latest.content),
+                        name,
+                        explicitIdentifierFromUserText(latest.content),
+                        latest.content
+                    );
+                    const proposedArgs = normalizeExplicitCoilShorthandArgs(
+                        JSON.parse(groundedCall.function.arguments || '{}'),
+                        savedMemoryState
+                            ? [...messages, { role: 'user', content: session.previous.pendingQuestion }]
+                            : messages
+                    );
+                    if (coilRecipeRelationQuery && name === 'get_all_recipes') {
+                        delete proposedArgs.keyword;
+                    }
+                    if (name === 'search_coils' && proposedArgs.schemeStatus === undefined && /(?:正式|档案|已设置)/u.test(latest.content)) proposedArgs.schemeStatus = 'official';
                     // Private-assistant default; shared API/MCP callers retain opt-in semantics.
                     if (['build_recipe_bom_draft', 'preview_recipe_cost'].includes(name) && proposedArgs.useRecipeBaseline === undefined && proposedArgs.modelVariantId == null) proposedArgs.useRecipeBaseline = true;
                     const costMessages = savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages;
                     args = validateAiToolArgs(name, proposedArgs.useRecipeBaseline === true
                         && ['build_recipe_bom_draft', 'preview_recipe_cost'].includes(name)
                         ? normalizeUserConfigurationOverrides(proposedArgs, costMessages) : proposedArgs);
-                    const issue = validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...(session.previous?.toolResults || []), ...toolResults] });
+                    taskEnvelope = addTaskStep(taskEnvelope, name, args, getAiCapability(name));
+                    const issue = validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...continuationToolResults, ...toolResults] });
                     if (issue) throw Object.assign(new Error(issue.error), { code: issue.code });
                     const key = `${name}:${JSON.stringify(args)}`;
                     if (seen.has(key)) result = seen.get(key);
@@ -235,27 +446,58 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     }
                 } catch (error) {
                     abortIfNeeded(input.signal);
-                    result = { success: false, code: error.code || 'AI_TOOL_INPUT_INVALID', error: error.message };
+                    result = {
+                        success: false,
+                        code: error.code || 'AI_TOOL_INPUT_INVALID',
+                        error: validationErrorForModel(error),
+                    };
                 }
                 abortIfNeeded(input.signal);
                 toolResults.push({ name, args, result });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
-                current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments })));
+                current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments, userText: latest.content })));
+            }
+            const dashboardOverview = formatDashboardOverview(latest.content, toolResults);
+            if (dashboardOverview) {
+                finalContent = dashboardOverview;
+                break;
+            }
+            const coilCostComparison = formatCoilCostComparison(latest.content, toolResults);
+            if (coilCostComparison) {
+                finalContent = coilCostComparison;
+                break;
             }
         }
         if (!finalContent) { outcome = 'budget_exhausted'; finalContent = unfinishedReply(toolResults); }
         if (toolResults.length && !toolResults.some(item => hasVerifiedExecution(item.result))) {
             outcome = 'failed_evidence'; finalContent = safeMissingBusinessEvidenceReply(toolResults);
         }
+        const safeKnowledgeReply = guardedKnowledgeRelationReply(latest.content, toolResults);
+        if (safeKnowledgeReply) {
+            outcome = 'partial';
+            finalContent = safeKnowledgeReply;
+        }
+        finalContent = appendMissingCoilIdentities(finalContent, latest.content, toolResults);
+        finalContent = appendMissingTechnicalFileConclusion(finalContent, latest.content, toolResults);
+        if (isLocalAssistantMode(runtimeEnv) && !finalContentStreamed) {
+            finalContent = stabilizeLocalAnswer(finalContent, latest.content);
+        }
+        if (!finalContentStreamed) {
+            finalContent = ensureTaskAnswer(
+                taskEnvelope,
+                buildEvidenceBundle(taskEnvelope, toolResults),
+                finalContent
+            );
+        }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);
-        emit('content', { content: finalContent });
+        if (!finalContentStreamed) emit('content', { content: finalContent });
         if (toolResults.length) emit('detail', { detailType: toolResults.length === 1 ? toolResults[0].name : 'multi_tool', toolResults });
         emit('done', {});
         session.finish({ memory: session.previous?.memory, ...savedMemoryState, pendingQuestion: completionReview && pendingPreview(toolResults) ? (savedMemoryState ? session.previous.pendingQuestion : latest.content) : null, question: savedMemoryState ? session.previous.pendingQuestion : latest.content, toolResults: toolResults.filter(item => hasVerifiedExecution(item.result)), answer: finalContent });
         const usage = usages.filter(Boolean).length ? Object.fromEntries(['promptTokens', 'completionTokens', 'totalTokens'].map(key => [key, usages.some(item => item?.[key] != null) ? usages.reduce((sum, item) => sum + (item?.[key] || 0), 0) : null])) : null;
-        return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, toolSteps, executedTools: calls, usage, stageLatencyMs: {} } };
+        return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {} } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
         else session.cancel();
@@ -263,4 +505,4 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     }
 }
 
-module.exports = { runAiAssistant, assistantReadTools, MAX_TOOL_CALLS, MAX_TOOL_ROUNDS };
+module.exports = { runAiAssistant, assistantReadTools, requiredCoilRecipeToolCall, MAX_TOOL_CALLS, MAX_TOOL_ROUNDS };

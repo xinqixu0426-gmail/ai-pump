@@ -1,3 +1,8 @@
+const {
+    hasVerifiedExecution,
+    hasVerifiedWriteExecution,
+} = require('./aiExecutionEvidence.cjs');
+
 function loadDbAccessors() {
     return require('../db.cjs');
 }
@@ -67,6 +72,84 @@ function conversationForOwner(db, id, ownerKey) {
         SELECT * FROM ai_conversations
         WHERE id = ? AND owner_key = ? AND deleted_at IS NULL
     `).get(id, normalizeOwnerKey(ownerKey));
+}
+
+function conversationIdFromTransport(value) {
+    const match = String(value || '').trim().match(/^chat-([1-9]\d*)$/);
+    if (!match) return null;
+    const id = Number(match[1]);
+    return Number.isSafeInteger(id) ? id : null;
+}
+
+function loadAiConversationContinuation(ownerKey, transportId, options = {}) {
+    const id = conversationIdFromTransport(transportId);
+    if (!id) return null;
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const { db } = accessors;
+    if (!conversationForOwner(db, id, ownerKey)) return null;
+    const rows = db.prepare(`
+        SELECT id, content, metadata_json
+        FROM ai_conversation_messages
+        WHERE conversation_id = ? AND role = 'assistant'
+        ORDER BY id DESC
+        LIMIT 20
+    `).all(id);
+    for (const row of rows) {
+        const metadata = parseMetadata(row.metadata_json);
+        const toolResults = (Array.isArray(metadata.toolResults) ? metadata.toolResults : [])
+            .filter(item => (
+                hasVerifiedExecution(item?.result)
+                && item?.result?.requiresClarification === true
+                && Array.isArray(item.result.candidates)
+                && item.result.candidates.length > 0
+            ));
+        if (toolResults.length === 0) continue;
+        const question = db.prepare(`
+            SELECT content
+            FROM ai_conversation_messages
+            WHERE conversation_id = ? AND role = 'user' AND id < ?
+            ORDER BY id DESC
+            LIMIT 1
+        `).get(id, row.id)?.content || '';
+        return { question, answer: row.content, toolResults };
+    }
+    return null;
+}
+
+function loadAiRecentPartWrite(ownerKey, transportId, options = {}) {
+    const id = conversationIdFromTransport(transportId);
+    if (!id) return null;
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const { db } = accessors;
+    if (!conversationForOwner(db, id, ownerKey)) return null;
+    const rows = db.prepare(`
+        SELECT id, metadata_json
+        FROM ai_conversation_messages
+        WHERE conversation_id = ? AND role = 'assistant'
+        ORDER BY id DESC
+        LIMIT 20
+    `).all(id);
+    for (const row of rows) {
+        const metadata = parseMetadata(row.metadata_json);
+        const resultItem = (Array.isArray(metadata.toolResults) ? metadata.toolResults : [])
+            .find(item => (
+                item?.name === 'create_part'
+                && hasVerifiedWriteExecution(item?.result)
+                && typeof item.result?.part?.model === 'string'
+                && item.result.part.model.trim()
+            ));
+        if (!resultItem) continue;
+        return {
+            messageId: Number(row.id),
+            toolName: resultItem.name,
+            part: {
+                id: Number(resultItem.result.part.id ?? resultItem.result.id) || null,
+                model: resultItem.result.part.model.trim(),
+                supplier: String(resultItem.result.part.supplier || '').trim(),
+            },
+        };
+    }
+    return null;
 }
 
 function listAiConversations(ownerKey, options = {}) {
@@ -198,6 +281,8 @@ module.exports = {
     listAiConversations,
     createAiConversation,
     getAiConversation,
+    loadAiConversationContinuation,
+    loadAiRecentPartWrite,
     appendAiConversationMessage,
     updateAiConversationMessage,
     deleteAiConversation,

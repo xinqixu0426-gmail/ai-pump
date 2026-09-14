@@ -198,8 +198,13 @@ function isRegisteredAiTool(toolName) {
     return TOOL_SCHEMAS.has(String(toolName || ''));
 }
 
+function getAiToolInputSchema(toolName) {
+    return TOOL_SCHEMAS.get(String(toolName || '')) || null;
+}
+
 module.exports = {
     AiToolInputValidationError,
+    getAiToolInputSchema,
     isRegisteredAiTool,
     validateAiToolArgs,
 };

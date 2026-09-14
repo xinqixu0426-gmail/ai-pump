@@ -1,5 +1,42 @@
 const { normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 
+function normalizeProviderTimings(value) {
+    if (!value || typeof value !== 'object') return null;
+    const predictedTokens = Number(value.predicted_n);
+    const predictedMs = Number(value.predicted_ms);
+    const promptTokens = Number(value.prompt_n);
+    const promptMs = Number(value.prompt_ms);
+    if (!Number.isFinite(predictedTokens) || predictedTokens < 0
+        || !Number.isFinite(predictedMs) || predictedMs < 0) return null;
+    return {
+        predictedTokens,
+        predictedMs,
+        tokensPerSecond: predictedMs > 0
+            ? Number((predictedTokens * 1000 / predictedMs).toFixed(1))
+            : null,
+        promptTokens: Number.isFinite(promptTokens) && promptTokens >= 0 ? promptTokens : null,
+        promptMs: Number.isFinite(promptMs) && promptMs >= 0 ? promptMs : null,
+        source: 'provider_timings',
+    };
+}
+
+function observedStreamTiming(state) {
+    const completionTokens = Number(state.usage?.completionTokens);
+    const chunkCount = Number(state.contentChunkCount || 0);
+    const observedMs = Number(state.lastContentAt || 0) - Number(state.firstContentAt || 0);
+    if (!Number.isFinite(completionTokens) || completionTokens < 12
+        || chunkCount < 2 || observedMs < 50) return null;
+    const estimatedMs = observedMs * chunkCount / (chunkCount - 1);
+    return {
+        predictedTokens: completionTokens,
+        predictedMs: Number(estimatedMs.toFixed(1)),
+        tokensPerSecond: Number((completionTokens * 1000 / estimatedMs).toFixed(1)),
+        promptTokens: null,
+        promptMs: null,
+        source: 'stream_observed',
+    };
+}
+
 function appendToolCallDelta(toolCallsByIndex, delta) {
     const index = Number.isSafeInteger(delta?.index) ? delta.index : 0;
     const existing = toolCallsByIndex.get(index) || {
@@ -32,10 +69,16 @@ function consumeProviderEvent(line, state, onContent, options = {}) {
             state.usage = usage;
             if (typeof options.onUsage === 'function') options.onUsage(usage);
         }
+        const timings = normalizeProviderTimings(data?.timings);
+        if (timings) state.timings = timings;
         const delta = data?.choices?.[0]?.delta;
         if (!delta) return;
 
         if (typeof delta.content === 'string' && delta.content) {
+            const receivedAt = Date.now();
+            if (state.firstContentAt == null) state.firstContentAt = receivedAt;
+            state.lastContentAt = receivedAt;
+            state.contentChunkCount += 1;
             if (state.ttftMs == null) {
                 state.ttftMs = Date.now() - state.startedAt;
                 if (typeof options.onFirstContent === 'function') {
@@ -101,6 +144,10 @@ async function readAiProviderStream(response, options = {}) {
         toolCallsByIndex: new Map(),
         ttftMs: null,
         usage: null,
+        timings: null,
+        firstContentAt: null,
+        lastContentAt: null,
+        contentChunkCount: 0,
     };
     let buffer = '';
 
@@ -142,6 +189,7 @@ async function readAiProviderStream(response, options = {}) {
         reasoningContent: state.reasoningContent,
         ttftMs: state.ttftMs,
         usage: state.usage,
+        timings: state.timings || observedStreamTiming(state),
         toolCalls: [...state.toolCallsByIndex.entries()]
             .sort(([left], [right]) => left - right)
             .map(([, toolCall]) => toolCall),
@@ -149,6 +197,8 @@ async function readAiProviderStream(response, options = {}) {
 }
 
 module.exports = {
+    normalizeProviderTimings,
+    observedStreamTiming,
     providerStreamNetworkError,
     readAiProviderStream,
 };

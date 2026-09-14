@@ -5,6 +5,7 @@ const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
 const { beginAssistantSession, TTL_MS } = require('../api/services/aiAssistantSession.cjs');
 const { modelResultView, previousContext } = require('../api/services/aiAssistantContext.cjs');
+const { stabilizeLocalAnswer } = require('../api/services/aiAssistantAnswer.cjs');
 const verified = data => ({ success: true, data, executionEvidence: { verified: true, kind: 'formal_api_query' } });
 const call = (name, args, id = name) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
 function fixture(turns, extra = {}) {
@@ -18,6 +19,78 @@ function fixture(turns, extra = {}) {
     };
 }
 function input(text, session = '') { return { messages: [{ role: 'user', content: text }], confirmationSubject: 'test-owner', conversationId: session || undefined }; }
+
+test('local answer stabilization removes exact paragraph loops and bounds default replies', () => {
+    const repeated = `查询完成。\n\n${'补充说明。\n\n'.repeat(100)}查询完成。`;
+    const stabilized = stabilizeLocalAnswer(repeated, '查一下库存');
+    assert.equal(stabilized.match(/查询完成/g).length, 1);
+    assert.ok([...stabilized].length <= 600);
+    assert.ok([...stabilizeLocalAnswer('明细。'.repeat(700), '给我全部详细明细')].length > 600);
+});
+
+function streamResponse(events) {
+    const body = `${events.map(event => `data: ${JSON.stringify(event)}\n`).join('')}data: [DONE]\n`;
+    return new Response(new ReadableStream({
+        start(controller) {
+            const encoder = new TextEncoder();
+            for (const line of body.split(/(?<=\n)/)) controller.enqueue(encoder.encode(line));
+            controller.close();
+        },
+    }));
+}
+
+test('direct assistant reply streams provider content chunks without a duplicate final event', async () => {
+    const events = [];
+    const result = await runAiAssistant({
+        ...input('你好，只回答你好'),
+        env: { AI_PROVIDER: 'local' },
+        stream: true,
+        emit: (type, payload) => events.push({ type, payload }),
+    }, fixture([], {
+        fetchAiProvider: async (_messages, options) => {
+            assert.deepEqual(options.tools, []);
+            return streamResponse([
+                { choices: [{ delta: { content: '你' } }] },
+                { choices: [{ delta: { content: '好' } }] },
+                { choices: [], usage: { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 } },
+            ]);
+        },
+    }));
+    assert.equal(result.finalContent, '你好');
+    assert.deepEqual(events.filter(event => event.type === 'content').map(event => event.payload.content), ['你', '好']);
+    assert.equal(events.at(-1).type, 'done');
+});
+
+test('tool-assisted reply stays buffered until execution evidence and final answer are complete', async () => {
+    const events = [];
+    let round = 0;
+    const result = await runAiAssistant({
+        ...input('V750 配方成本是多少'),
+        env: { AI_PROVIDER: 'local' },
+        stream: true,
+        emit: (type, payload) => events.push({ type, payload }),
+    }, fixture([], {
+        fetchAiProvider: async () => {
+            round++;
+            if (round === 1) return streamResponse([{
+                choices: [{ delta: { tool_calls: [{
+                    index: 0,
+                    id: 'cost-call',
+                    type: 'function',
+                    function: { name: 'preview_recipe_cost', arguments: '{"recipeName":"V750"}' },
+                }] } }],
+            }]);
+            return streamResponse([
+                { choices: [{ delta: { content: 'V750 当前成本为' } }] },
+                { choices: [{ delta: { content: '100元。' } }] },
+            ]);
+        },
+        executeToolCall: async () => verified({ totalCost: 100 }),
+    }));
+    assert.equal(result.finalContent, 'V750 当前成本为100元。');
+    assert.deepEqual(events.filter(event => event.type === 'content').map(event => event.payload.content), ['V750 当前成本为100元。']);
+    assert.ok(events.findIndex(event => event.type === 'tool_result') < events.findIndex(event => event.type === 'content'));
+});
 
 test('large order list uses a model summary and keeps full evidence; next question remains usable', async () => {
     const full = verified([{ id: 1, customerName: '客户A', status: '待确认', itemsJson: JSON.stringify([{ partsJson: JSON.stringify(Array.from({ length: 300 }, () => ({ model: '配件', price: 20 }))) }]) }]);
@@ -43,6 +116,135 @@ test('list views preserve filters, identities and errors across order recipe quo
         assert.equal(receipt.data[0].itemsJson, '[]');
         assert.deepEqual(modelResultView(name, { success: false, error: 'failure' }), { success: false, error: 'failure' });
     }
+});
+
+test('part list model view removes duplicate aliases and timestamps without dropping rows', () => {
+    const rows = Array.from({ length: 108 }, (_, index) => ({
+        id: index + 1,
+        Id: index + 1,
+        model: `P-${index + 1}`,
+        category: '零件',
+        subcategory: '',
+        price: 1.2,
+        supplier: '供应商',
+        stock: 0,
+        remark: '',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        CreatedAt: '2026-01-01T00:00:00.000Z',
+    }));
+    const receipt = { ...verified(rows), count: rows.length };
+    const view = modelResultView('search_parts', receipt, { userText: '列出全部缺货零件明细' });
+    assert.equal(view.groupedParts.reduce((total, group) => total + group.items.length, 0), rows.length);
+    assert.deepEqual(view.groupedParts[0].columns, ['id', 'model', 'price', 'stock', 'supplier']);
+    assert.equal(view.groupedParts[0].items[0][1], 'P-1');
+    assert.equal(receipt.data[0].Id, 1);
+    assert.equal(view.modelView.kind, 'grouped_part_list');
+
+    const summary = modelResultView('search_parts', receipt, { userText: '有哪些缺货零件' });
+    assert.equal(summary.samplePartsByCategory[0].items.length, 3);
+    assert.equal(summary.samplePartsByCategory[0].omittedCount, 105);
+    assert.equal(summary.modelView.kind, 'summarized_part_list');
+});
+
+test('customer history model view keeps display order and counts without embedding full BOM snapshots', () => {
+    const receipt = verified({
+        customer: { id: 1, name: '邱焕' },
+        quotations: [{ id: 9, status: '已转订单', totalCost: 100, totalPrice: 120, items: [{ partsJson: '大'.repeat(20000) }] }],
+        orders: [{ id: 7, itemsJson: '大'.repeat(20000) }],
+    });
+    const view = modelResultView('search_customer_history', receipt);
+    assert.equal(view.data.quotationCount, 1);
+    assert.equal(view.data.orderCount, 1);
+    assert.equal(view.data.quotations[0].displayOrder, 1);
+    assert.equal(view.data.quotations[0].itemCount, 1);
+    assert.equal(JSON.stringify(view).includes('大'), false);
+    assert.equal(receipt.data.quotations[0].id, 9);
+});
+
+test('order detail model view omits raw snapshots and expands purchase or todo summaries only when requested', () => {
+    const order = {
+        id: 7,
+        customerName: '客户A',
+        contractNo: 'HT-7',
+        status: '采购中',
+        itemsJson: JSON.stringify([{
+            recipeName: 'V750', spec: '12-120', qty: 5, unitCost: 100,
+            partsJson: JSON.stringify([{ model: '轴承', snapshotPrice: 2 }]),
+        }]),
+        purchaseListJson: JSON.stringify([{
+            model: '轴承', name: '上轴承', supplier: '供应商A', totalQty: 5,
+            currentStock: 0, needToBuy: 5, orderedQty: 2, stockedQty: 0, purchased: false,
+            stockInHistory: [{ qty: 1 }],
+        }, {
+            model: '油封', name: '油封', supplier: '供应商B', totalQty: 2,
+            currentStock: 10, needToBuy: 0, orderedQty: 0, stockedQty: 0, purchased: false,
+        }]),
+        todosJson: JSON.stringify([{ description: '联系供应商A', done: false }]),
+    };
+    const receipt = {
+        success: true,
+        order,
+        executionEvidence: { verified: true, kind: 'formal_api_query' },
+    };
+    const plain = modelResultView('get_order_detail', receipt, { userText: '列一下订单详情' });
+    assert.equal(plain.order.items[0].recipeName, 'V750');
+    assert.equal(plain.order.purchaseItemCount, 2);
+    assert.equal(plain.order.pendingPurchaseCount, 1);
+    assert.equal(plain.order.pendingTodoCount, 1);
+    assert.equal(plain.order.purchases, undefined);
+    assert.equal(plain.order.todos, undefined);
+    assert.doesNotMatch(JSON.stringify(plain), /partsJson|stockInHistory/);
+    assert.ok(receipt.order.itemsJson.includes('partsJson'));
+
+    const purchase = modelResultView('get_order_detail', receipt, { userText: '这张订单缺什么料，采购和库存怎么样' });
+    assert.equal(purchase.order.purchases[0].model, '轴承');
+    assert.equal(purchase.order.todos, undefined);
+
+    const todo = modelResultView('get_order_detail', receipt, { userText: '这张订单还有哪些未完成待办' });
+    assert.deepEqual(todo.order.todos, [{ description: '联系供应商A', done: false }]);
+});
+
+function dashboardReceipt() {
+    return {
+        success: true,
+        summary: {
+            generatedAt: '2026-09-14T10:52:39.883Z',
+            kpis: { totalCost: 69367, totalRevenue: 76303, totalProfit: 6936 },
+            orders: {
+                total: 2, active: 2, pendingPurchase: 0, purchasing: 1, completed: 0, today: 0, '采购完成': 1,
+                latest: [{ id: 2, customerName: '台州叶总', contractNo: '20260100', status: '采购完成', totalPrice: 14929 }],
+            },
+            parts: { total: 133, lowStock: 0, outOfStock: 111 },
+            financials: {
+                totalCost: 69367, totalRevenue: 76303, totalProfit: 6936, profitRate: 9.09,
+                orderBook: { totalCost: 69367, totalRevenue: 76303, totalProfit: 6936 },
+                completed: { totalCost: 0, totalRevenue: 0, totalProfit: 0, profitRate: 0 },
+            },
+            workbench: {
+                items: [
+                    { key: 'pending_purchase', label: '待采购', count: 1, desc: '订单中仍有未采购零件', severity: 'warning' },
+                    { key: 'ready_to_receive', label: '待入库', count: 0, desc: '等待入库', severity: 'success' },
+                ],
+                pendingPurchaseItems: Array.from({ length: 30 }, (_, index) => ({ model: `采购明细-${index}`, needToBuy: 200 })),
+                outOfStockParts: Array.from({ length: 111 }, (_, index) => ({ model: `缺货明细-${index}`, price: 1 })),
+            },
+        },
+        executionEvidence: { verified: true, kind: 'formal_api_query' },
+    };
+}
+
+test('dashboard model view keeps one semantic financial summary and omits bulky detail collections', () => {
+    const receipt = dashboardReceipt();
+    const original = JSON.stringify(receipt);
+    const view = modelResultView('get_dashboard_summary', receipt, { userText: '今天的经营情况是什么' });
+    assert.equal(view.modelView.kind, 'dashboard_summary');
+    assert.equal(view.summary.financials.totalCost, 69367);
+    assert.equal(view.summary.orders.purchaseCompleted, 1);
+    assert.equal(view.summary.completedFinancials.totalCost, 0);
+    assert.equal(view.summary.parts.outOfStock, 111);
+    assert.doesNotMatch(JSON.stringify(view.summary), /采购明细|缺货明细|orderBook|kpis/);
+    assert.ok(JSON.stringify(view).length < original.length / 4);
+    assert.equal(JSON.stringify(receipt), original);
 });
 
 test('detail JSON is losslessly decoded and oversized historical context explicitly requires requery', () => {
@@ -92,6 +294,202 @@ test('verified order list supports detail selection in the same session but neve
 test('all registered Query and Preview tools are available without domain or entity-scope gates', () => {
     assert.deepEqual(assistantReadTools().map(t => t.function.name), AI_TOOLS.filter(t => getAiCapability(t.function.name).access === 'read').map(t => t.function.name));
     for (const name of ['search_coils', 'get_all_recipes', 'get_dashboard_summary', 'get_order_detail', 'compare_recipes']) assert.ok(assistantReadTools().some(t => t.function.name === name));
+});
+test('local runtime offers a short relevant tool list while cloud runtime keeps the full directory', async () => {
+    const offered = [];
+    await runAiAssistant({ ...input('V750 配方成本是多少'), env: { AI_PROVIDER: 'local' } }, fixture([
+        (messages, options) => {
+            assert.match(messages[0].content, /默认最终回答不超过 300 个中文字符/);
+            assert.equal(options.toolChoice, 'required');
+            offered.push(options.tools.map(tool => tool.function.name));
+            return { tool_calls: [call('preview_recipe_cost', { recipeName: 'V750' })] };
+        },
+        { content: 'V750 当前成本为100元。' },
+    ], { executeToolCall: async () => verified({ totalCost: 100 }) }));
+    assert.ok(offered[0].length <= 6);
+    assert.deepEqual(offered[0], ['preview_recipe_cost']);
+});
+
+test('dashboard overview renders once from formal evidence without a model repair round', async () => {
+    const result = await runAiAssistant({ ...input('今天的经营情况是什么'), env: { AI_PROVIDER: 'local' } }, fixture([
+        { tool_calls: [call('get_dashboard_summary', {})] },
+    ], { executeToolCall: async () => dashboardReceipt() }));
+    assert.equal(result.telemetry.modelRequestCount, 1);
+    assert.equal(result.telemetry.executedTools, 1);
+    assert.match(result.finalContent, /收入 76,303 元/);
+    assert.match(result.finalContent, /成本 69,367 元/);
+    assert.match(result.finalContent, /利润 6,936 元/);
+    assert.match(result.finalContent, /缺货 111 项/);
+    assert.match(result.finalContent, /采购完成 1 单/);
+    assert.match(result.finalContent, /待采购 1 项/);
+    assert.equal((result.finalContent.match(/69,367/g) || []).length, 1);
+    assert.doesNotMatch(result.finalContent, /完整计算明细|读取运营看板/);
+});
+
+test('dashboard monetary fallback uses canonical financial paths without duplicate nested totals', () => {
+    const { formatMoneySummary } = require('../api/services/aiAssistantAnswer.cjs');
+    const summary = formatMoneySummary([{ name: 'get_dashboard_summary', result: dashboardReceipt() }], { includeQueries: true });
+    assert.match(summary, /订单总盘.*总收入.*76303/);
+    assert.match(summary, /订单总盘.*总成本.*69367/);
+    assert.match(summary, /订单总盘.*总利润.*6936/);
+    assert.equal((summary.match(/69367/g) || []).length, 1);
+    assert.doesNotMatch(summary, /已完成订单.*0/);
+});
+test('local business turn excludes historical assistant prose and retries a skipped formal query', async () => {
+    const providerCalls = [];
+    const executed = [];
+    const result = await runAiAssistant({
+        messages: [
+            { role: 'user', content: '12-200线圈' },
+            { role: 'assistant', content: '无需查询，历史回答说它没有配方。' },
+            { role: 'user', content: '12-200的线圈都做了哪些配方' },
+        ],
+        confirmationSubject: 'test-owner',
+        env: { AI_PROVIDER: 'local' },
+    }, fixture([
+        (messages, options) => {
+            providerCalls.push(options.tools.map(tool => tool.function.name));
+            assert.doesNotMatch(JSON.stringify(messages), /历史回答说它没有配方/);
+            return { content: '无需查询，没有配方。' };
+        },
+        { tool_calls: [call('search_coils', { spec: '12', sheets: 200 })] },
+        { tool_calls: [call('get_all_recipes', { keyword: '12-200' })] },
+        { content: '12-200线圈当前用于Q12-200配方。' },
+    ], {
+        executeToolCall: async (name, args) => {
+            executed.push({ name, args });
+            return name === 'search_coils'
+                ? verified([{ schemeCode: 'COIL-200', spec: '12', sheets: 200 }])
+                : verified([{ id: 8, name: 'Q12-200', coilSpec: '12', coilSheets: 200 }]);
+        },
+    }));
+    assert.deepEqual(providerCalls[0], ['get_all_recipes', 'search_coils']);
+    assert.equal(result.toolResults.length, 2);
+    assert.equal(executed.find(item => item.name === 'get_all_recipes').args.keyword, undefined);
+    assert.match(result.finalContent, /Q12-200/);
+});
+
+test('local coil recipe relation requires both formal sides before answering', async () => {
+    const result = await runAiAssistant({
+        ...input('12-200的线圈都做了哪些配方'),
+        env: { AI_PROVIDER: 'local' },
+    }, fixture([
+        { tool_calls: [call('get_all_recipes', { keyword: '12-200' })] },
+        { content: '配方名称没有匹配，要继续查线圈吗？' },
+        { content: '12-200线圈用于Q12-200配方。' },
+    ], {
+        executeToolCall: async name => name === 'search_coils'
+            ? verified([{ id: 20, spec: '12', sheets: 200 }])
+            : verified([{ id: 8, name: 'Q12-200', coilId: 20, coilSpec: '12', coilSheets: 200 }]),
+    }));
+    assert.deepEqual(result.toolResults.map(item => item.name), ['get_all_recipes', 'search_coils']);
+    assert.match(result.finalContent, /Q12-200/);
+});
+
+test('local business turn fails closed when the model twice skips offered tools', async () => {
+    const events = [];
+    const result = await runAiAssistant({
+        ...input('查询 12-200 线圈'),
+        env: { AI_PROVIDER: 'local' },
+        emit: (type, payload) => events.push({ type, payload }),
+    }, fixture([
+        { content: '无需查询。' },
+        { content: '库存是5。' },
+    ]));
+    assert.equal(result.telemetry.outcome, 'failed_evidence');
+    assert.match(result.finalContent, /没有可验证的结论/);
+    assert.deepEqual(events.filter(event => event.type === 'content').map(event => event.payload.content), [result.finalContent]);
+});
+test('local runtime fills the official coil status requested in natural language', async () => {
+    let executedArgs;
+    await runAiAssistant({ ...input('查询 12-120 的正式线圈档案'), env: { AI_PROVIDER: 'local' } }, fixture([
+        { tool_calls: [call('search_coils', { spec: '12-120' })] },
+        { content: '已查询正式线圈档案。' },
+    ], { executeToolCall: async (_name, args) => { executedArgs = args; return verified([]); } }));
+    assert.equal(executedArgs.schemeStatus, 'official');
+});
+test('local runtime normalizes a full coil shorthand before grounding model-supplied numbers', async () => {
+    let executedArgs;
+    const result = await runAiAssistant({ ...input('12-200线圈成本是多少'), env: { AI_PROVIDER: 'local' } }, fixture([
+        { tool_calls: [call('calculate_coil_cost', { spec: '12-200', sheets: 1 })] },
+        { content: '12-200线圈当前成本为144.56元。' },
+    ], {
+        executeToolCall: async (_name, args) => {
+            executedArgs = args;
+            return verified({ spec: args.spec, sheets: args.sheets, cost: 144.56 });
+        },
+    }));
+    assert.deepEqual(executedArgs, { spec: '12', sheets: 200 });
+    assert.match(result.finalContent, /144\.56/);
+});
+test('paired coil shorthand cost comparison bypasses recipe comparison and renders the verified difference', async () => {
+    const executed = [];
+    const result = await runAiAssistant({
+        ...input('对比 12-120 与 12-140 的成本'),
+        env: { AI_PROVIDER: 'local' },
+    }, fixture([], {
+        executeToolCall: async (name, args) => {
+            executed.push({ name, args });
+            return verified({
+                spec: args.spec,
+                sheets: args.sheets,
+                totalCost: args.sheets === 120 ? 99.09 : 116.14,
+            });
+        },
+    }));
+    assert.deepEqual(executed, [
+        { name: 'calculate_coil_cost', args: { spec: '12', sheets: 120 } },
+        { name: 'calculate_coil_cost', args: { spec: '12', sheets: 140 } },
+    ]);
+    assert.match(result.finalContent, /12-120.*99\.09/s);
+    assert.match(result.finalContent, /12-140.*116\.14/s);
+    assert.match(result.finalContent, /12-140 高 17\.05 元/);
+    assert.equal(result.telemetry.modelRequestCount, 0);
+});
+test('current coil shorthand overrides stale shorthand values in long conversation history', async () => {
+    let executedArgs;
+    const result = await runAiAssistant({
+        messages: [
+            { role: 'user', content: '查12-200线圈' },
+            { role: 'assistant', content: '旧查询结果' },
+            { role: 'user', content: '查12-120线圈' },
+            { role: 'assistant', content: '旧查询结果' },
+            { role: 'user', content: '12-220线圈成本' },
+        ],
+        confirmationSubject: 'test-owner',
+        env: { AI_PROVIDER: 'local' },
+    }, fixture([
+        { tool_calls: [call('calculate_coil_cost', { spec: '12-220', sheets: 6 })] },
+        { content: '12-220线圈成本为188元。' },
+    ], {
+        executeToolCall: async (_name, args) => {
+            executedArgs = args;
+            return verified({ spec: args.spec, sheets: args.sheets, cost: 188 });
+        },
+    }));
+    assert.deepEqual(executedArgs, { spec: '12', sheets: 220 });
+    assert.match(result.finalContent, /188元/);
+});
+test('semantic-only knowledge matches cannot become a confirmed usage relationship', async () => {
+    const result = await runAiAssistant({ ...input('切割杂草用的泵壳和专用配件有哪些'), env: { AI_PROVIDER: 'local' } }, fixture([
+        { tool_calls: [call('search_factory_knowledge', { query: '切割杂草' })] },
+        { content: 'qdxss 是切割杂草的专用配件。' },
+    ], {
+        executeToolCall: async () => ({
+            ...verified([{ sourceTable: 'parts', model: 'qdxss', evidenceLevel: 'semantic_candidate' }]),
+            retrievalGuidance: { semanticCandidatesAreEvidence: false, semanticCandidateCount: 1 },
+        }),
+    }));
+    assert.match(result.finalContent, /没有检索到明确的 business_rules/);
+    assert.doesNotMatch(result.finalContent, /qdxss/);
+    assert.equal(result.telemetry.outcome, 'partial');
+});
+test('winding answers retain each matched coil material and slot identity', async () => {
+    const result = await runAiAssistant(input('查询12-120线圈档案中已设置的绕组数据'), fixture([
+        { tool_calls: [call('search_coils', { spec: '12-120' })] },
+        { content: '主线0.64，副线0.49。' },
+    ], { executeToolCall: async () => verified([{ material: '钢带', slotType: '小眼', mainWireGauge: '0.64', auxWireGauge: '0.49' }]) }));
+    assert.match(result.finalContent, /钢带\/小眼/);
 });
 test('single loop can read two types in one round and then global/order data without planning calls', async () => {
     const executed = [];
@@ -325,6 +723,28 @@ test('missing target feedback and budget answers preserve formal negatives, neve
     }
 });
 
+test('missing recipe technical files always end with an explicit unavailable conclusion', () => {
+    const { appendMissingTechnicalFileConclusion } = require('../api/services/aiAssistantAnswer.cjs');
+    const missing = {
+        success: false,
+        code: 'AI_RESOURCE_NOT_FOUND',
+        query: 'V1600-3”-12-180',
+        entityType: 'recipe',
+        executionEvidence: { verified: true, kind: 'formal_api_query_failure' },
+    };
+    const result = appendMissingTechnicalFileConclusion(
+        '没有有效测试数据可供总结。',
+        '总结V1600-3”-12-180性能测试报告。',
+        [{ name: 'get_recipe_technical_files', result: missing }]
+    );
+    assert.match(result, /V1600-3”-12-180/);
+    assert.match(result, /性能测试报告不可用/);
+    assert.equal(
+        appendMissingTechnicalFileConclusion('该性能测试报告无法提供。', '查测试报告', [{ name: 'get_recipe_technical_files', result: missing }]),
+        '该性能测试报告无法提供。'
+    );
+});
+
 test('query cost fields do not overwrite a valid nonfinancial answer', async () => {
     const result = await runAiAssistant(input('线圈库存有多少'), fixture([
         { tool_calls: [call('search_coils', { spec: '18' })] }, { content: '当前库存5套。' },
@@ -479,6 +899,34 @@ test('template-only answer is reviewed using missing preview evidence rather tha
     assert.match(result.finalContent, /25/);
 });
 
+test('persisted candidate context restores a named selection after session loss', async () => {
+    const candidateResult = {
+        success: false,
+        requiresClarification: true,
+        candidates: [{ id: 4, name: 'v750-普通' }, { id: 5, name: 'v750-tokoy' }],
+        executionEvidence: { verified: true, kind: 'formal_api_query_failure' },
+    };
+    const calls = [];
+    const result = await runAiAssistant({
+        ...input('普通的', 'persisted-candidate-selection'),
+        env: { AI_PROVIDER: 'local' },
+        persistedConversationContext: {
+            question: 'V750 的成本是多少',
+            answer: '请选择具体配方',
+            toolResults: [{ name: 'preview_recipe_cost', result: candidateResult }],
+        },
+    }, fixture([
+        { content: 'v750-普通当前成本为292.67元。' },
+    ], {
+        executeToolCall: async (name, args) => {
+            calls.push({ name, args });
+            return verified({ recipeId: args.recipeId, currentTotalCost: 292.67 });
+        },
+    }));
+    assert.deepEqual(calls, [{ name: 'preview_recipe_cost', args: { recipeId: 4, useRecipeBaseline: true } }]);
+    assert.match(result.finalContent, /292\.67/);
+});
+
 test('memory receipt survives continuation, retains the original question, and does not cross sessions', async () => {
     const session = 'memory-continue-bom';
     await runAiAssistant(input('壳A搭配12-120片带浮球的成本', session), fixture([
@@ -608,4 +1056,54 @@ test('private assistant requests current configuration pricing for existing reci
         { content: '当前成本265.23元。' },
     ], { executeToolCall: async (name, args) => { assert.equal(args.useRecipeBaseline, true); return verified({ currentTotalCost: 265.23 }); } }));
     assert.match(result.finalContent, /265.23/);
+});
+
+test('task presentation restores an authoritative cable rule after repeated unsupported money drafts', async () => {
+    const knowledge = {
+        ...verified([]),
+        answerGuidance: {
+            businessRuleStatements: [
+                '线材、长度、插头和规格共同组成一个成品电缆业务项。',
+                '成品电缆是一个整体业务项，不把线材和插头/规格拆成两个独立收费项目。\n浮球新界式差价：0.6元',
+            ],
+        },
+        sources: [{ sourceTable: 'business_rules' }],
+    };
+    const result = await runAiAssistant(input('先查成品电缆业务规则，再说明线材、长度、插头和规格是否应该拆成两个收费项目。'), fixture([
+        { tool_calls: [call('search_factory_knowledge', { query: '成品电缆', entryType: 'business_rule' })] },
+        { content: '成品电缆是整体，不应拆分，另外差价为0.6元。' },
+        { content: '成品电缆不拆分，差价仍为0.6元。' },
+    ], { executeToolCall: async () => knowledge }));
+    assert.match(result.finalContent, /成品电缆/);
+    assert.match(result.finalContent, /整体/);
+    assert.match(result.finalContent, /不把.*拆/);
+    assert.doesNotMatch(result.finalContent, /0\.6|无法核对的金额|已停止展示/);
+});
+
+test('task presentation restores configured BOM conditions omitted by the model answer', async () => {
+    const bom = verified({
+        parts: [
+            { model: 'V750-大脚板-2寸', source: 'pump_shell_template', costRole: 'stainlessShellBundle' },
+            { model: '12-120', costRole: 'coil' },
+            { model: '浮球-线径0.55', costRole: 'float' },
+            { model: 'v550木箱', costRole: 'packing' },
+            { model: '珍珠棉', costRole: 'packing' },
+        ],
+        configurationBasis: { source: 'recipe', recipeName: 'v550-tokoy' },
+        costPreview: { currentTotalCost: 272.17, partsCost: 251.17, laborCost: 21, pricingComplete: true },
+    });
+    const result = await runAiAssistant({
+        ...input('V750-大脚板-2寸的壳，做12-120片，带浮球，木箱，需要珍珠棉，成本大概多少'),
+        env: { AI_PROVIDER: 'local' },
+    }, fixture([
+        { tool_calls: [call('build_recipe_bom_draft', {
+            shellModel: 'V750-大脚板-2寸', coilSpec: '12', coilSheets: 120, hasFloat: true,
+            packingParts: [{ model: '木箱' }, { model: '珍珠棉' }],
+        })] },
+        { content: '当前总成本272.17元。' },
+    ], { executeToolCall: async () => bom }));
+    for (const expected of ['V750-大脚板-2寸', '12-120', '浮球', 'v550木箱', '珍珠棉', '272.17']) {
+        assert.match(result.finalContent, new RegExp(expected));
+    }
+    assert.match(result.finalContent, /配方基准「v550-tokoy」/);
 });

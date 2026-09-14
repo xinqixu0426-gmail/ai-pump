@@ -140,7 +140,10 @@ function getBoundEntry(confirmationToken, subject, now = Date.now(), options = {
             409
         );
     }
-    if (entry.expiresAtMs < now && !(options.allowExpiredExecuting && entry.status === 'executing')) {
+    if (
+        entry.expiresAtMs < now
+        && !(options.allowExpiredExecuting && ['executing', 'revising'].includes(entry.status))
+    ) {
         confirmations.delete(entry.tokenHash);
         throw new AiToolConfirmationError(
             'confirmation_token_expired',
@@ -197,6 +200,20 @@ function consumeAiToolConfirmation({
             409
         );
     }
+    if (entry.status === 'revising') {
+        throw new AiToolConfirmationError(
+            'confirmation_revision_in_progress',
+            '该确认卡正在重新校验，请勿重复提交',
+            409
+        );
+    }
+    if (entry.status === 'superseded') {
+        throw new AiToolConfirmationError(
+            'confirmation_superseded',
+            '该确认卡已被新预览替代，请使用最新卡片',
+            409
+        );
+    }
 
     entry.status = 'executing';
     entry.consumedAtMs = now;
@@ -213,6 +230,59 @@ function consumeAiToolConfirmation({
         issuedAt: new Date(entry.issuedAtMs).toISOString(),
         expiresAt: new Date(entry.expiresAtMs).toISOString(),
     };
+}
+
+function beginAiToolConfirmationRevision({
+    confirmationToken,
+    subject,
+    expectedToolName,
+    now = Date.now(),
+}) {
+    const entry = getBoundEntry(confirmationToken, subject, now);
+    if (expectedToolName !== undefined && String(expectedToolName) !== entry.toolName) {
+        throw new AiToolConfirmationError(
+            'confirmation_payload_mismatch',
+            '确认能力与预览内容不一致，请重新发起操作',
+            409
+        );
+    }
+    if (entry.status !== 'pending') {
+        const messages = {
+            revising: '该确认卡正在重新校验',
+            executing: '该确认操作正在执行',
+            completed: '该确认操作已执行完成',
+            failed: '该确认操作已执行失败',
+            superseded: '该确认卡已被新预览替代',
+        };
+        throw new AiToolConfirmationError(
+            'confirmation_revision_not_allowed',
+            messages[entry.status] || '该确认卡当前不能编辑',
+            409
+        );
+    }
+    entry.status = 'revising';
+    return {
+        toolName: entry.toolName,
+        argsHash: entry.argsHash,
+        operationId: entry.operationId,
+    };
+}
+
+function completeAiToolConfirmationRevision({ confirmationToken, subject, now = Date.now() }) {
+    const entry = getBoundEntry(confirmationToken, subject, now, { allowExpiredExecuting: true });
+    if (entry.status !== 'revising') {
+        throw new AiToolConfirmationError(
+            'confirmation_revision_state_invalid',
+            '确认卡编辑状态无效',
+            409
+        );
+    }
+    entry.status = 'superseded';
+}
+
+function cancelAiToolConfirmationRevision({ confirmationToken, subject, now = Date.now() }) {
+    const entry = getBoundEntry(confirmationToken, subject, now, { allowExpiredExecuting: true });
+    if (entry.status === 'revising') entry.status = 'pending';
 }
 
 function completeAiToolConfirmation({
@@ -274,7 +344,10 @@ module.exports = {
     AiToolConfirmationError,
     DEFAULT_CONFIRMATION_TTL_MS,
     argsHash,
+    beginAiToolConfirmationRevision,
+    cancelAiToolConfirmationRevision,
     completeAiToolConfirmation,
+    completeAiToolConfirmationRevision,
     confirmationSubjectForChannel,
     confirmationSubjectForRequest,
     consumeAiToolConfirmation,

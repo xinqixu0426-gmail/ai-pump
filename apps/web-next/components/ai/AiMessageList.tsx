@@ -1,14 +1,109 @@
 'use client';
 
-import { memo, type RefObject } from 'react';
-import { Bot, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound } from 'lucide-react';
-import type { AiAnswerFeedback, AiAttachment, AiToolResult } from '@/lib/ai';
+import { memo, useEffect, useState, type RefObject } from 'react';
+import { Bot, BrainCircuit, Clock3, Gauge, Hash, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound, Wrench } from 'lucide-react';
+import type { AiAnswerFeedback, AiAttachment, AiToolResult, AiTurnMetrics } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
 import { AnswerProcess, type ChatItem } from '@/components/ai/AiAnswerProcess';
 import { StreamingText } from '@/components/ai/ai-text';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
+
+function durationText(durationMs: number | null | undefined) {
+  if (!Number.isFinite(durationMs)) return '暂无统计';
+  const value = Number(durationMs);
+  if (value < 1000) return `${value} ms`;
+  return `${(value / 1000).toFixed(value < 10000 ? 1 : 0)} s`;
+}
+
+function AiTurnMetricsRow({ metrics }: { metrics: AiTurnMetrics }) {
+  const legacySpeed = (metrics as AiTurnMetrics & { effectiveTokensPerSecond?: unknown }).effectiveTokensPerSecond;
+  const speed = metrics.tokensPerSecondSource !== 'usage_over_model_time' && Number.isFinite(metrics.tokensPerSecond)
+    ? Number(metrics.tokensPerSecond)
+    : Number.isFinite(legacySpeed)
+      ? Number(legacySpeed)
+      : null;
+  const speedLabel = metrics.tokensPerSecondSource === 'stream_observed'
+    ? '生成速度·估算'
+    : '生成速度';
+  const items = [
+    {
+      icon: Gauge,
+      label: speedLabel,
+      value: speed === null
+        ? '暂无统计'
+        : `${speed.toFixed(1)} tok/s`,
+    },
+    { icon: Clock3, label: '总耗时', value: durationText(metrics.durationMs) },
+    { icon: Clock3, label: '首条内容', value: durationText(metrics.firstContentMs) },
+    ...(metrics.modelRequestCount > 0
+      ? [{ icon: BrainCircuit, label: '模型', value: `${metrics.modelRequestCount} 轮 / ${durationText(metrics.modelDurationMs)}` }]
+      : []),
+    {
+      icon: Hash,
+      label: 'Token',
+      value: metrics.usage
+        ? `${metrics.usage.completionTokens} 输出 / ${metrics.usage.promptTokens} 输入`
+        : '暂无统计',
+    },
+    ...(metrics.toolCallCount > 0
+      ? [{ icon: Wrench, label: '工具调用', value: `${metrics.toolCallCount} 次 / ${durationText(metrics.toolDurationMs)}` }]
+      : []),
+  ];
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line pt-2.5 text-[11px] text-muted" aria-label="AI 运行统计">
+      {items.map(({ icon: Icon, label, value }) => (
+        <span key={label} className="inline-flex items-center gap-1.5" title={`${label}：${value}`}>
+          <Icon size={13} aria-hidden="true" />
+          <span>{label}</span>
+          <span className="font-medium text-slate-700">{value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function LiveAiStatus({ label, startedAt }: { label: string; startedAt?: number }) {
+  const [elapsedMs, setElapsedMs] = useState(() => startedAt ? Date.now() - startedAt : 0);
+
+  useEffect(() => {
+    if (!startedAt) return;
+    const update = () => setElapsedMs(Date.now() - startedAt);
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
+
+  return (
+    <StatusBadge tone="custom" className="h-6 min-w-0 border-transparent bg-slate-100 px-2 text-slate-600">
+      {label}{startedAt ? ` · ${(elapsedMs / 1000).toFixed(1)} s` : ''}
+    </StatusBadge>
+  );
+}
+
+function confirmedWriteContent(item: ChatItem) {
+  const hasProtectedWrite = item.toolPlan?.steps?.some(
+    (step) => step.mode === 'write' && step.requiresConfirmation,
+  );
+  if (!hasProtectedWrite) return null;
+
+  const receipt = [...(item.toolResults || [])].reverse().find((tool) => {
+    if (!tool.result || typeof tool.result !== 'object') return false;
+    const result = tool.result as Record<string, unknown>;
+    return result.success === true && result.requiresConfirmation !== true;
+  });
+  if (!receipt?.result || typeof receipt.result !== 'object') return null;
+
+  const result = receipt.result as Record<string, unknown>;
+  const summary = typeof result.message === 'string' && result.message.trim()
+    ? result.message.trim()
+    : typeof result.summary === 'string' && result.summary.trim()
+      ? result.summary.trim()
+      : '操作已通过正式 API 执行完成。';
+  return `## 已执行\n\n${summary}`;
+}
 
 export const AiMessageList = memo(function AiMessageList({
   items,
@@ -84,6 +179,9 @@ export const AiMessageList = memo(function AiMessageList({
 
       {items.map((item) => {
         const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
+        const displayContent = item.role === 'assistant'
+          ? confirmedWriteContent(item) || item.content
+          : item.content;
         const hasAnswerProcess = item.role === 'assistant' && Boolean(
           item.toolPlan || item.toolCalls?.length || item.toolResults?.length
         );
@@ -101,9 +199,13 @@ export const AiMessageList = memo(function AiMessageList({
                   </StatusBadge>
                 ) : null}
                 {item.status && item.status !== 'done' ? (
-                  <StatusBadge tone="custom" className={`h-6 min-w-0 border-transparent px-2 ${item.role === 'user' ? 'bg-white/10 text-slate-100' : 'bg-slate-100 text-slate-600'}`}>
-                    {item.statusMessage || item.status}
-                  </StatusBadge>
+                  item.role === 'assistant'
+                    ? <LiveAiStatus label={item.statusMessage || item.status} startedAt={item.startedAt} />
+                    : (
+                      <StatusBadge tone="custom" className="h-6 min-w-0 border-transparent bg-white/10 px-2 text-slate-100">
+                        {item.statusMessage || item.status}
+                      </StatusBadge>
+                    )
                 ) : null}
               </div>
               {item.role === 'assistant' ? (
@@ -114,14 +216,14 @@ export const AiMessageList = memo(function AiMessageList({
                   shortcutDisabled={loading}
                 />
               ) : null}
-              {hasAnswerProcess && (item.content || item.attachments?.length) ? (
+              {hasAnswerProcess && (displayContent || item.attachments?.length) ? (
                 <div className="my-3 border-t border-line" aria-hidden="true" />
               ) : null}
               <AiMessageAttachments attachments={item.attachments || []} role={item.role} onArchive={onArchive} />
-              {item.content ? (
+              {displayContent ? (
                 item.role === 'assistant'
-                  ? <StreamingText id={item.id} text={item.content} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
-                  : <div className="whitespace-pre-wrap text-sm leading-6">{item.content}</div>
+                  ? <StreamingText id={item.id} text={displayContent} streaming={loading && !['done', 'error', 'confirming', 'cancelled'].includes(item.status || 'idle')} />
+                  : <div className="whitespace-pre-wrap text-sm leading-6">{displayContent}</div>
               ) : null}
               {item.role === 'assistant' && loading && item.status !== 'done' && !item.content ? (
                 <div className="flex items-center gap-2 text-sm text-muted">
@@ -129,6 +231,7 @@ export const AiMessageList = memo(function AiMessageList({
                   {item.statusMessage || '处理中...'}
                 </div>
               ) : null}
+              {item.role === 'assistant' && item.metrics ? <AiTurnMetricsRow metrics={item.metrics} /> : null}
               {item.role === 'assistant' && item.retryable && (item.status === 'error' || item.status === 'cancelled') ? (
                 <div className="mt-3 flex items-center gap-2 border-t border-line pt-2">
                   <Button

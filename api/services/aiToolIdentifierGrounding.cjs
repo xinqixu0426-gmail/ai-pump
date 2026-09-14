@@ -94,15 +94,16 @@ function userTextContainsCoilShorthand(messages = [], field, value) {
 }
 
 function explicitCoilShorthand(messages = []) {
+    const latestUserMessage = [...(messages || [])].reverse().find(message => (
+        message?.role === 'user' && typeof message.content === 'string'
+    ));
+    if (!latestUserMessage) return null;
     const pairs = new Map();
-    for (const message of messages || []) {
-        if (message?.role !== 'user' || typeof message.content !== 'string') continue;
-        for (const match of message.content.matchAll(/(?:^|[^\d])(\d{1,3})\s*[-—~]\s*(\d{2,4})(?:\s*片)?(?!\d)/gu)) {
-            const spec = String(Number(match[1]));
-            const sheets = Number(match[2]);
-            if (Number(spec) <= 0 || sheets <= 0) continue;
-            pairs.set(`${spec}-${sheets}`, { spec, sheets });
-        }
+    for (const match of latestUserMessage.content.matchAll(/(?:^|[^\d])(\d{1,3})\s*[-—~]\s*(\d{2,4})(?:\s*片)?(?!\d)/gu)) {
+        const spec = String(Number(match[1]));
+        const sheets = Number(match[2]);
+        if (Number(spec) <= 0 || sheets <= 0) continue;
+        pairs.set(`${spec}-${sheets}`, { spec, sheets });
     }
     return pairs.size === 1 ? [...pairs.values()][0] : null;
 }
@@ -117,7 +118,8 @@ function normalizeExplicitCoilShorthandArgs(args = {}, messages = []) {
         const hasSheets = Object.hasOwn(target, sheetsField);
         if (!hasSpec && !hasSheets) return target;
         const suppliedSpec = String(target[specField] || '').trim();
-        if (suppliedSpec && suppliedSpec !== shorthand.spec) return target;
+        const shorthandText = `${shorthand.spec}-${shorthand.sheets}`;
+        if (suppliedSpec && suppliedSpec !== shorthand.spec && suppliedSpec !== shorthandText) return target;
         return {
             ...target,
             [specField]: shorthand.spec,

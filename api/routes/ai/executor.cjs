@@ -28,6 +28,7 @@ const {
     attachVerifiedExecutionEvidence,
 } = require('../../services/aiExecutionEvidence.cjs');
 const {
+    getAiToolInputSchema,
     validateAiToolArgs,
 } = require('../../services/aiToolInputValidatorV2.cjs');
 const { withToolSpan } = require('../../services/observability.cjs');
@@ -241,6 +242,50 @@ function buildConfirmationRows(toolName, args = {}) {
     return rows;
 }
 
+const CONFIRMATION_FIELD_LABELS = Object.freeze({
+    model: '型号',
+    category: '类别',
+    subcategory: '二级分类',
+    price: '目录成本价',
+    supplier: '供应商',
+    stock: '初始库存',
+    note: '备注',
+    reason: '原因',
+    status: '状态',
+    quantity: '数量',
+    qty: '数量',
+});
+
+function confirmationFieldLocked(key) {
+    return /(?:^id$|Id$|Ids$|Version$|UpdatedAt$|Hash$|Token$|Key$)/.test(key);
+}
+
+function buildConfirmationEditableFields(toolName, args = {}) {
+    const schema = getAiToolInputSchema(toolName);
+    const properties = schema?.properties || {};
+    const required = new Set(schema?.required || []);
+    return Object.entries(properties)
+        .filter(([key, fieldSchema]) => (
+            ['string', 'number', 'integer', 'boolean'].includes(fieldSchema.type)
+            || Object.hasOwn(args, key)
+        ))
+        .slice(0, 30)
+        .map(([key, fieldSchema]) => ({
+            key,
+            label: CONFIRMATION_FIELD_LABELS[key]
+                || String(fieldSchema.description || key).split(/[（，；。]/)[0]
+                || key,
+            type: ['string', 'number', 'integer', 'boolean'].includes(fieldSchema.type)
+                ? fieldSchema.type
+                : 'json',
+            required: required.has(key),
+            locked: confirmationFieldLocked(key),
+            value: Object.hasOwn(args, key) ? args[key] : null,
+            options: Array.isArray(fieldSchema.enum) ? fieldSchema.enum : undefined,
+            description: fieldSchema.description || '',
+        }));
+}
+
 function buildWriteConfirmation(toolName, args, options = {}) {
     const capability = getAiCapability(toolName);
     const title = capability?.displayName || toolName;
@@ -266,6 +311,7 @@ function buildWriteConfirmation(toolName, args, options = {}) {
             expiresAt: token.expiresAt,
             toolName,
             args: args || {},
+            editableFields: buildConfirmationEditableFields(toolName, args || {}),
             title,
             rows,
             summary: `AI 准备执行「${title}」，确认后才会执行受保护业务动作。`,

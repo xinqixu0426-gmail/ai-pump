@@ -250,6 +250,15 @@ function rebuildOrders(db) {
     `);
 }
 
+function createOrderIndexes(db) {
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_orders_active_status_created
+            ON orders(deleted_at, status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_orders_customer
+            ON orders(customer_id, deleted_at, created_at);
+    `);
+}
+
 function rebuildCoils(db) {
     if (!coilsNeedRebuild(db)) return;
     db.exec(`
@@ -2887,11 +2896,7 @@ const MIGRATIONS = Object.freeze([
                 );
             `);
             rebuildOrders(db);
-            db.exec(CANONICAL_INDEXES_SQL);
-            db.exec(`
-                CREATE INDEX IF NOT EXISTS idx_orders_customer
-                    ON orders(customer_id, deleted_at, created_at);
-            `);
+            createOrderIndexes(db);
         },
     },
     {
@@ -2911,7 +2916,7 @@ const MIGRATIONS = Object.freeze([
                 db.exec(`ALTER TABLE orders ADD COLUMN inventory_disposition_note TEXT DEFAULT '';`);
             }
             rebuildOrders(db);
-            db.exec(CANONICAL_INDEXES_SQL);
+            createOrderIndexes(db);
         },
     },
     {
@@ -3716,6 +3721,74 @@ const MIGRATIONS = Object.freeze([
         signature: 'personal-memories-versioned-soft-delete-revisions-v1',
         up(db) {
             db.exec(PERSONAL_MEMORY_SCHEMA_SQL);
+        },
+    },
+    {
+        version: 81,
+        name: 'accept_complete_cable_same_item_phrasing',
+        signature: 'complete-cable-gate-accepts-same-cable-item-wording-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).get();
+            if (!row) return;
+            let config;
+            try {
+                config = JSON.parse(row.config_json);
+            } catch {
+                return;
+            }
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            const compositionGroup = requiredTerms.find(group => (
+                Array.isArray(group)
+                && group.some(term => ['共同组成一个', '共同组成一条', '共同构成'].includes(term))
+            ));
+            if (!compositionGroup) return;
+            for (const term of ['共同组成同一根', '共同组成同一条']) {
+                if (!compositionGroup.includes(term)) compositionGroup.push(term);
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).run(JSON.stringify(config), new Date().toISOString());
+        },
+    },
+    {
+        version: 82,
+        name: 'accept_complete_cable_this_item_phrasing',
+        signature: 'complete-cable-gate-accepts-this-item-wording-v1',
+        up(db) {
+            const row = db.prepare(`
+                SELECT config_json FROM ai_evaluation_cases
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).get();
+            if (!row) return;
+            let config;
+            try {
+                config = JSON.parse(row.config_json);
+            } catch {
+                return;
+            }
+            const requiredTerms = Array.isArray(config.requiredTerms) ? config.requiredTerms : [];
+            const compositionGroup = requiredTerms.find(group => (
+                Array.isArray(group)
+                && group.some(term => ['共同组成一个', '共同组成一条', '共同构成'].includes(term))
+            ));
+            if (!compositionGroup) return;
+            if (!compositionGroup.includes('共同组成这一项')) {
+                compositionGroup.push('共同组成这一项');
+            }
+            db.prepare(`
+                UPDATE ai_evaluation_cases
+                SET config_json = ?, updated_at = ?
+                WHERE case_key = 'complete-cable-semantics'
+                  AND source_type = 'system'
+            `).run(JSON.stringify(config), new Date().toISOString());
         },
     },
 ]);

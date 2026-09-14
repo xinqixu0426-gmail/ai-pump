@@ -1,5 +1,6 @@
 const { prioritizeCurrentEvidence } = require('./aiContext.cjs');
 const { getAiCapability } = require('../capabilities/registry.cjs');
+const { TOOL_TARGETS } = require('./aiCapabilityGraphV3.cjs');
 const {
     validateAiToolArgs,
 } = require('./aiToolInputValidatorV2.cjs');
@@ -67,6 +68,210 @@ function summarizeArgs(args = {}) {
         .slice(0, 6);
 }
 
+function validationErrorForModel(error) {
+    const failures = Array.isArray(error?.details?.failures)
+        ? [...new Set(error.details.failures.map(item => String(item || '').trim()).filter(Boolean))]
+        : [];
+    return failures.length > 0
+        ? `${error.message}：${failures.join('；')}`
+        : error.message;
+}
+
+function explicitIdentifierFromUserText(userText) {
+    const source = String(userText || '').normalize('NFKC');
+    const matches = (source.match(
+        /(?=[A-Za-z0-9._”"寸-]*\d)[A-Za-z0-9][A-Za-z0-9._”"寸\p{Script=Han}-]{1,79}/gu
+    ) || []).map(value => value
+        .replace(/(?:的)?(?:测试报告|技术档案|测试曲线|当前成本|成本|价格|单价|详情|有没有|是多少|是什么|怎么样).*$/u, '')
+        .replace(/[-._]+$/u, '')
+        .trim()
+    ).filter(Boolean);
+    const unique = [...new Map(matches.map(value => [value.toLowerCase(), value])).values()];
+    return unique.length === 1 ? unique[0] : '';
+}
+
+function normalizeTargetForGrounding(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .trim()
+        .toLocaleLowerCase('zh-CN')
+        .replace(/[\s._+#/()（）\-－]/gu, '');
+}
+
+function isLossyTargetArgument(proposed, explicitTarget) {
+    const proposedKey = normalizeTargetForGrounding(proposed);
+    const explicitKey = normalizeTargetForGrounding(explicitTarget);
+    return proposedKey.length >= 2
+        && explicitKey.length > proposedKey.length
+        && explicitKey.startsWith(proposedKey);
+}
+
+function selectedCandidateIndex(reply) {
+    const normalized = String(reply || '').normalize('NFKC').trim();
+    const digit = normalized.match(/^(?:选|选择|看|查)?\s*(?:第\s*)?(\d+)\s*(?:个|项|条|号)?$/u);
+    if (digit) return Number(digit[1]) - 1;
+    const chineseNumbers = new Map([
+        ['一', 0], ['二', 1], ['三', 2], ['四', 3], ['五', 4],
+        ['六', 5], ['七', 6], ['八', 7], ['九', 8], ['十', 9],
+    ]);
+    const chinese = normalized.match(/^(?:选|选择|看|查)?\s*(?:第\s*)?([一二三四五六七八九十])\s*(?:个|项|条|号)?$/u);
+    return chinese ? chineseNumbers.get(chinese[1]) : -1;
+}
+
+function normalizedCandidateSelectionText(value, options = {}) {
+    let normalized = String(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase('zh-CN')
+        .replace(/[\s“”"'`_.,，。:：;；()（）\[\]【】/-]+/g, '');
+    if (options.reply) {
+        normalized = normalized
+            .replace(/^(?:选|选择|看|查|要|就是|我选|我要)+/u, '')
+            .replace(/(?:那个|这个|一个|这款|那款|型号|配方|的)+$/u, '');
+    }
+    return normalized;
+}
+
+function selectedCandidateFromReply(reply, candidates = []) {
+    const index = selectedCandidateIndex(reply);
+    if (Number.isInteger(index) && index >= 0) return candidates[index] || null;
+    const replyKey = normalizedCandidateSelectionText(reply, { reply: true });
+    if (replyKey.length < 2) return null;
+    const matches = candidates.filter(candidate => [
+        candidate?.name,
+        candidate?.spec,
+        candidate?.label,
+        candidate?.model,
+        candidate?.schemeName,
+        candidate?.customerName,
+        candidate?.contractNo,
+    ].some(value => {
+        const candidateKey = normalizedCandidateSelectionText(value);
+        return candidateKey && (
+            candidateKey.includes(replyKey)
+            || replyKey.includes(candidateKey)
+        );
+    }));
+    return matches.length === 1 ? matches[0] : null;
+}
+
+function groundCandidateSelectionArgument(toolCall, capabilityName, reply, previousToolResults = []) {
+    const capability = getAiCapability(capabilityName);
+    const target = TOOL_TARGETS[capabilityName];
+    const outputIdField = target?.outputIdField;
+    if (capability?.access !== 'read' || !outputIdField) return toolCall;
+    const args = parseAiToolArguments(toolCall?.function?.arguments);
+    const targetFields = [target.inputField, outputIdField, target.outputField].filter(Boolean);
+    if (targetFields.some(field => args[field] !== undefined && args[field] !== null)) {
+        return toolCall;
+    }
+    const eligible = (previousToolResults || []).filter(item => (
+        item?.name === capabilityName
+        && item?.result?.executionEvidence?.verified === true
+        && item?.result?.requiresClarification === true
+        && Array.isArray(item.result.candidates)
+    ));
+    if (eligible.length !== 1) return toolCall;
+    const selectedId = Number(selectedCandidateFromReply(
+        reply,
+        eligible[0].result.candidates
+    )?.id);
+    if (!Number.isSafeInteger(selectedId) || selectedId <= 0) return toolCall;
+    return {
+        ...toolCall,
+        function: {
+            ...toolCall.function,
+            arguments: JSON.stringify({ ...args, [outputIdField]: selectedId }),
+        },
+    };
+}
+
+function explicitTargetForCapability(capabilityName, userText, fallback = '') {
+    const text = String(userText || '').normalize('NFKC').trim();
+    if (capabilityName === 'build_recipe_bom_draft') {
+        const shell = text.match(/(?:^|[，,。；;：:\s])([^，,。；;：:]{2,80}?)\s*(?:的壳|泵壳)(?=$|[，,。；;：:\s])/u)?.[1]
+            || text.match(/^(.{2,80}?)\s*(?:的壳|泵壳)/u)?.[1];
+        if (shell) return shell.trim();
+    }
+    if (capabilityName === 'search_customer_history') {
+        const customer = text.match(/客户\s*([^，,。；;：:]{2,40}?)(?=\s*(?:现有|全部|历史|最近).{0,8}报价)/u)?.[1];
+        if (customer) return customer.trim();
+    }
+    return String(fallback || '').trim();
+}
+
+function sanitizeModelInferredFilters(toolCall, capabilityName, userText) {
+    if (capabilityName !== 'search_parts') return toolCall;
+    const args = parseAiToolArguments(toolCall?.function?.arguments);
+    if (args.category !== undefined && !/(?:分类|类别)/u.test(String(userText || ''))) {
+        delete args.category;
+        return {
+            ...toolCall,
+            function: { ...toolCall.function, arguments: JSON.stringify(args) },
+        };
+    }
+    return toolCall;
+}
+
+function groundMissingTargetArgument(toolCall, capabilityName, originalTarget, userText) {
+    const capability = getAiCapability(capabilityName);
+    const target = TOOL_TARGETS[capabilityName];
+    const inputField = target?.inputField;
+    if (capability?.access !== 'read' || !inputField) return toolCall;
+    const args = parseAiToolArguments(toolCall?.function?.arguments);
+    const mention = explicitTargetForCapability(capabilityName, userText, originalTarget);
+    const explicitId = /(?:\bID\b|编号)\s*[:：#]?\s*\d+/iu.test(String(userText || ''));
+    if (
+        target.outputIdField
+        && args[target.outputIdField] != null
+        && mention
+        && !explicitId
+    ) {
+        delete args[target.outputIdField];
+        toolCall = {
+            ...toolCall,
+            function: { ...toolCall.function, arguments: JSON.stringify(args) },
+        };
+    }
+    const targetFields = [
+        inputField,
+        target.outputIdField,
+        target.outputField,
+        ...Object.keys(target.outputFields || {}),
+    ].filter(Boolean);
+    const currentUserText = String(userText || '').trim();
+    const proposedTarget = args[inputField];
+    if (
+        target.outputIdField
+        && proposedTarget !== undefined
+        && proposedTarget !== null
+        && mention
+        && mention !== currentUserText
+        && currentUserText.includes(mention)
+        && isLossyTargetArgument(proposedTarget, mention)
+    ) {
+        return {
+            ...toolCall,
+            function: {
+                ...toolCall.function,
+                arguments: JSON.stringify({ ...args, [inputField]: mention }),
+            },
+        };
+    }
+    if (targetFields.some(field => args[field] !== undefined && args[field] !== null)) {
+        return toolCall;
+    }
+    if (!mention || mention === currentUserText || !currentUserText.includes(mention)) {
+        return toolCall;
+    }
+    return {
+        ...toolCall,
+        function: {
+            ...toolCall.function,
+            arguments: JSON.stringify({ ...args, [inputField]: mention }),
+        },
+    };
+}
+
 function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
     const allowedToolNames = options.allowedToolNames
         ? new Set(options.allowedToolNames)
@@ -120,7 +325,7 @@ function prepareAiToolCalls(toolCalls = [], source = 'model', options = {}) {
                 source,
                 validationStatus: 'rejected',
                 validationCode: error.code || 'INVALID_AI_TOOL_INPUT',
-                validationError: error.message,
+                validationError: validationErrorForModel(error),
             };
         }
     });
@@ -230,8 +435,14 @@ module.exports = {
     buildAiToolResultMessage,
     enforceAiToolResultBudget,
     enforceAiToolResultSize,
+    explicitIdentifierFromUserText,
+    groundCandidateSelectionArgument,
+    groundMissingTargetArgument,
     parseAiToolArguments,
     prepareAiToolCalls,
     prioritizeBusinessEvidence,
+    selectedCandidateFromReply,
+    sanitizeModelInferredFilters,
+    validationErrorForModel,
     viewTypeForAiTool,
 };

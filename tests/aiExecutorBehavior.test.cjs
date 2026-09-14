@@ -3221,7 +3221,7 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
                     id: 21,
                     reportType: 'performance_test',
                     originalName: 'V1600测试报告.xlsx',
-                    summary: { testPointCount: 2 },
+                    summary: { model: 'V1600-3”-12-180', testPointCount: 2 },
                     testCurve: {
                         dataBasis: 'measuredTestPoints',
                         pointCount: 2,
@@ -3254,6 +3254,7 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
     assert.equal(result.files[0].testCurve.maxHead, 20);
     assert.equal(result.files[0].testCurve.maxFlow, 10);
     assert.equal(result.files[0].testCurve.testPoints.length, 2);
+    assert.deepEqual(result.associationWarnings, []);
     assert.deepEqual(result.sources, [{
         sourceTable: 'recipes',
         sourceId: 8,
@@ -3264,6 +3265,45 @@ test('AI executor 行为：配方技术档案按正式配方和附件 API 读取
         'GET /api/recipes',
         'GET /api/recipes/8/technical-files',
     ]);
+});
+
+test('AI executor 行为：测试报告内部型号与配方不一致时返回归属提醒', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{ id: 4, name: 'v750-普通', spec: '' }],
+            });
+        }
+        if (call.url.endsWith('/api/recipes/4/technical-files') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [{
+                    id: 1,
+                    originalName: 'v1600-12-220铝-原叶轮.xls',
+                    summary: { model: 'v1600-12-220铝-原叶轮', testReportNo: '1262' },
+                }],
+            });
+        }
+        return jsonResponse({ success: false, error: 'unexpected request' }, 500);
+    });
+
+    const result = await executeToolCall(
+        'get_recipe_technical_files',
+        { recipeName: 'v750-普通' },
+        { allowWrite: false }
+    );
+
+    assert.equal(result.success, true);
+    assert.equal(result.files.length, 1);
+    assert.deepEqual(result.associationWarnings, [{
+        code: 'technical_report_model_mismatch',
+        message: '测试报告内部型号「v1600-12-220铝-原叶轮」与关联配方「v750-普通」不一致，请核实报告归属。',
+        recipeName: 'v750-普通',
+        reportModel: 'v1600-12-220铝-原叶轮',
+        fileId: 1,
+        originalName: 'v1600-12-220铝-原叶轮.xls',
+    }]);
 });
 
 test('AI executor 行为：客户报价使用连续展示顺序且不返回内部 ID', async () => {

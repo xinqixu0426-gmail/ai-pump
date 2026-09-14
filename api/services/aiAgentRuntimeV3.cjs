@@ -13,6 +13,10 @@ const {
     selectToolsForIntent,
 } = require('./aiCapabilityCatalogV2.cjs');
 const { planAiIntentV3 } = require('./aiIntentPlannerV3.cjs');
+const {
+    buildProtectedCommandIntent,
+    buildProtectedCommandToolCall,
+} = require('./aiProtectedCommandRoute.cjs');
 const { composeAiSystemPrompt } = require('./aiPromptComposer.cjs');
 const { readAiProviderStream } = require('./aiProviderStream.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
@@ -413,20 +417,23 @@ async function runAiAgentRuntimeV3(input = {}) {
 
     emit('status', { status: 'thinking', message: '正在理解您的目标...' });
     const planningStartedAt = Date.now();
-    const intent = await planAiIntentV3(messages, {
-        pageContext,
-        resolutionContext,
-        turnState,
-        onProvider: announceProvider,
-        fetchAiProvider: provider,
-        env: input.env,
-        dbAccessors: input.dbAccessors,
-        signal: input.signal,
-        onUsage: collectUsage,
-        onPlanningPhase: phase => {
-            planningPhases[`${phase.phase}PlanningMs`] = phase.durationMs;
-        },
-    });
+    const protectedCommandToolCall = buildProtectedCommandToolCall(messages, input.commandRoute);
+    const intent = buildProtectedCommandIntent(messages, input.commandRoute)
+        || await planAiIntentV3(messages, {
+            pageContext,
+            resolutionContext,
+            turnState,
+            onProvider: announceProvider,
+            fetchAiProvider: provider,
+            env: input.env,
+            dbAccessors: input.dbAccessors,
+            signal: input.signal,
+            onUsage: collectUsage,
+            onPlanningPhase: phase => {
+                planningPhases[`${phase.phase}PlanningMs`] = phase.durationMs;
+            },
+            commandRoute: input.commandRoute,
+        });
     throwIfAiRequestAborted(input.signal);
     const planningMs = Date.now() - planningStartedAt;
     if (intent.requiresClarification) {
@@ -814,6 +821,12 @@ async function runAiAgentRuntimeV3(input = {}) {
             content = message.content || '';
             reasoningContent = message.reasoning_content || '';
             rawToolCalls = message.tool_calls || [];
+        }
+
+        if (protectedCommandToolCall && nextPlannedCapability === protectedCommandToolCall.function.name) {
+            rawToolCalls = [protectedCommandToolCall];
+            content = '';
+            reasoningContent = '';
         }
 
         if (rawToolCalls.length === 0 && containsEmbeddedToolProtocol(content)) {

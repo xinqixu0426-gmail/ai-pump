@@ -12,7 +12,7 @@ function safeProvider(config, required) {
         provider: config.provider,
         displayName: config.displayName,
         model: config.model,
-        configured: Boolean(config.apiKey),
+        configured: config.apiKeyRequired === false || Boolean(config.apiKey),
         required,
         supportsImages: Boolean(config.supportsImages),
         supportsFileExtraction: Boolean(config.supportsFileExtraction),

@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 237 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 238 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -99,7 +99,7 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 历史配方中已标记 `dynamicRule=longScrewByBarrelLength` 但零件库缺少目标长度型号时，运行 `npm run maintenance:backfill-long-screws` 进行受控回填。该命令复用 `parts.batch_create` 的 Preview/Command、持久化幂等、operation 回执和强审计，不直接绕过零件建档契约。
 
-`POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为语言上下文；实时事实重新调用正式 API。服务端会话引用绑定现有登录主体和 conversationId，15 分钟过期，不信任客户端传入的 turnState 或 resolutionContext。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；新入口暂不提供业务写工具。Web/PWA 保留流式请求互斥锁。 正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。工具提议超出剩余次数时整组不执行，转入最终回答；不必要的重复询问进行至多一次完成性复核，真实候选歧义仍保留选择。HTTP/SSE 字段不变，处理细节见 [私人 AI 助理](ai-assistant.md)。
+`POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为普通语言上下文；实时事实重新调用正式 API。本地模式的业务工具轮只发送当前用户请求、可信服务端候选和正式工具回执，不把旧助手自然语言结论重新作为业务上下文。只要本地工具短名单非空，本轮必须取得正式工具回执；首次跳过会重试一次，连续跳过则返回无可验证结论。线圈/绕组与配方/产品的关系查询同时开放 `search_coils` 和 `get_all_recipes`；问题包含明确 `规格-片数` 时，运行器会确定性补发模型遗漏的一侧只读查询，并以完整配方列表的 `coilId/coilSpec/coilSheets` 字段核对关联。服务端会话引用绑定现有登录主体和 conversationId，内存引用 15 分钟过期；`chat-<ID>` 可从同一所有者的持久会话消息恢复最近带正式执行证据的候选，不信任客户端传入的 turnState、resolutionContext 或候选数据。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；明确肯定式业务写命令由服务端切入受保护命令通道，首轮只生成确认卡，不直接写入。Web/PWA 保留流式请求互斥锁。正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。经营概览的正式看板回执先投影为订单、财务、库存和待处理摘要，不向回答模型发送缺货/采购大明细及嵌套重复财务对象；单一 `get_dashboard_summary` 的概览查询由 Presenter 直接生成去重摘要，`采购完成` 与已完成订单口径分开，不再进入额外模型修复轮。工具提议超出剩余次数时整组不执行，转入最终回答；不必要的重复询问进行至多一次完成性复核，真实候选歧义仍保留选择。本地最终正文会去除完全重复段落，用户未要求完整明细时对异常长输出执行兜底截断。SSE 只读 `metrics` 终态事件中，有供应商原生 `timings` 时返回精确生成速度；无原生计时时仅在输出足够长且有多个 SSE 内容分片时返回 `stream_observed` 估算。短回复、单分片或无可靠生成区间时速度为 `null`，不使用包含 TTFT 的整次请求耗时伪造 tok/s。处理细节见 [私人 AI 助理](ai-assistant.md)。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
@@ -368,15 +368,15 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 | `GET` | `/api/settings` | 无 | 经 `settingsQueries` 只读返回业务白名单内的设置 key-value 对象；内部设置不会泄漏 |
 | `GET` | `/api/settings/:key` | 白名单 key | 经 `settingsQueries` 返回单个业务设置的 `key/value/updatedAt`，供写入时绑定当前资源版本；非法 key 返回 400，不存在返回 404 |
 | `PUT` | `/api/settings/:key` | `{ value, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `settings.update_business_value`。更新成本与业务白名单设置；数值类必须非负，`stainless_shaft_joint_default_cost` 必须在 5–8 元闭区间，`cable_accessories` 必须含 `standard/xinjie` 的 `name` 和 `fee`。设置、operation 和强审计同一事务提交；Web 新调用绑定资源版本，旧无版本/幂等键请求兼容执行并返回 warning |
-| `GET` | `/api/settings/runtime` | 无 | 经 `settingsQueries` 和 `runtimeConfig` 读取系统初始化页公开运行配置、整体 `updatedAt`、密钥配置状态、待重启项和只读部署环境状态；永不返回 API Key 原文或密文 |
-| `PUT` | `/api/settings/runtime` | 推荐请求头 `Idempotency-Key`；camelCase 运行设置对象及 `expectedUpdatedAt?` | 能力 `settings.update_runtime`。整批校验白名单内的 AI 与知识检索设置；空密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密。密文设置、operation 与逐项强审计同一事务，提交成功后才更新当前进程环境；冷配置继续返回待重启字段 |
-| `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 经 `settingsQueries` 编排当前或本次输入的候选配置，对实际启用的提供商逐个执行最小连接测试并返回提供商、模型和耗时；不保存配置 |
+| `GET` | `/api/settings/runtime` | 无 | 经 `settingsQueries` 和 `runtimeConfig` 读取系统初始化页公开运行配置、整体 `updatedAt`、密钥配置状态、待重启项和只读部署环境状态；AI 配置包含 `aiProvider/localModel/localBaseUrl/localVisionEnabled` 以及 DeepSeek/Kimi 字段，永不返回 API Key 原文或密文 |
+| `PUT` | `/api/settings/runtime` | 推荐请求头 `Idempotency-Key`；camelCase 运行设置对象及 `expectedUpdatedAt?` | 能力 `settings.update_runtime`。整批校验白名单内的 AI 与知识检索设置；`aiProvider` 支持 `auto/local/local-first/deepseek/kimi`。`local` 严格只使用局域网模型，`local-first` 允许临时故障时降级；局域网模型地址只允许 localhost 或私网 IP 的 HTTP/HTTPS，当前无密钥也可用。空云端密钥表示保留原值，API Key 使用 `JWT_SECRET` 派生密钥进行 AES-256-GCM 加密。设置、operation 与逐项强审计同一事务，提交成功后才更新当前进程环境；冷配置继续返回待重启字段 |
+| `POST` | `/api/settings/runtime/test-ai` | AI 提供商、模型、地址及可选新 API Key | 经 `settingsQueries` 编排当前或本次输入的候选配置，对实际启用的提供商逐个执行最小连接测试并返回提供商、模型和耗时；`local` 与 `local-first` 都只探测局域网模型，不因测试调用云端；不保存配置 |
 
 设置领域按 Query / Command 分层：`settingsQueries` 只读取业务白名单和公开运行快照，AI 连接测试只执行外部探测，不写数据库或进程环境；`businessSettingCommands` 与 `runtimeSettingCommands` 分别负责业务设置和加密运行配置写入。路由不再直接查询 `system_settings` 或编排多提供商探测。
 
 `/setup` 系统初始化页只开放业务运行参数。AI 提供商、模型、API Key 和图片输入设置保存后供 AI 工作台即时读取；混合检索和向量批量大小即时读取。知识自动同步、向量开关、向量自动生成、Embedding 模型/维度/精度、缓存目录和离线模式涉及已初始化的后台控制器或模型实例，保存后会返回 `restartRequired=true`，重启 API 服务后生效。管理密码、JWT、内部接口密钥、CORS、端口和生产模式只显示配置状态，仍必须由部署环境提供，不能在网页中读取或修改。
 
-Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证属于独立产品，接口会拒绝将 `sk-kimi-*` Coding 凭证保存到开放平台字段。当前开放平台预设模型为 `kimi-k3`，`KIMI_REASONING_EFFORT` 支持 `low/high/max`，业务附件默认 `low`。DeepSeek/Kimi 的配置、能力与 auto 必需性由统一 Provider Registry 提供。`AI_PROVIDER=auto` 为默认模式：DeepSeek 处理普通对话和本地已成功解析的普通文档；图片、扫描/OCR、解析截断、含未解析页/技术图候选或本地解析不可用的文件切换 Kimi K3。图片以 base64 原图输入，只有确需外部识别的非图片附件才按开放平台 `/v1/files` 的 `file-extract` 流程临时上传、抽取正文并立即删除远端临时文件；同轮已解析附件直接内联，不重复上传。本机只缓存 Kimi 抽取结果 10 分钟，且正文作为不可信业务数据而不是系统指令进入模型。Kimi 不可用时回退 DeepSeek 与本地解析/OCR；也可设为 `deepseek` 或 `kimi` 强制固定模型。
+局域网模型、DeepSeek 与 Kimi 的配置和能力由统一 Provider Registry 提供。`AI_PROVIDER=local` 时所有对话只使用 `LOCAL_AI_BASE_URL` 指向的 OpenAI 兼容服务，失败不回退云端；`AI_PROVIDER=local-first` 使用同一本地服务，但连接失败、超时、408/429/5xx 时允许在已配置 DeepSeek 后降级，参数、认证和协议错误不降级。当前局域网服务使用纯文本 `Ornith-1.5-35B-A3B-APEX-i-compact.gguf`，32K 上下文、Q4 KV、单推理槽且默认关闭 thinking；服务允许无 API Key，请求层不会发送空 Authorization。`AI_PROVIDER=auto` 保留原智能路由：DeepSeek 处理普通对话和本地已成功解析的普通文档；图片、扫描/OCR、解析截断、含未解析页/技术图候选或本地解析不可用的文件切换 Kimi K3。Kimi 使用开放平台 `https://api.moonshot.cn/v1` 与开放平台 API Key；Kimi Coding 会员订阅凭证不能用于此处。图片以 base64 原图输入，只有确需外部识别的非图片附件才按 `/v1/files` 临时上传、抽取正文并立即删除；同轮已解析附件直接内联。本机只缓存 Kimi 抽取结果 10 分钟，正文始终作为不可信业务数据。也可设为 `deepseek` 或 `kimi` 强制固定云端模型。
 
 ## 15. 转子 Rotor
 
@@ -408,7 +408,7 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 聊天循环保留完整正式工具回执及页面明细；送给模型的订单、报价、配方列表使用标注 `modelView.kind=list_summary` 的基本信息视图，逐行 `omittedFields` 标明嵌套字段未展示，`modelView.detailTool` 指向既有详情工具。该视图不改变 HTTP/AI 工具的正式输入、响应或能力登记。详情中的 JSON 字符串在模型视图中无损解码。历史引用摘要最多估算 4096 token，超出则要求重新查询；工具说明占用过大时精简说明，保留所有工具及 schema 校验结构。大明细已取得但目录无法同时容纳时，结束工具循环并回答已有证据，缺失部分明确说明，不直接丢弃整轮答案。
 
-聊天入口仍为 `POST /api/ai/chat`，默认使用单循环助理，接受可选 `conversationId`（1–100 位字母、数字、冒号、下划线或短横线），用于现有登录主体下的服务端会话引用；不传时不跨请求保存引用。所有登记 Query/Preview 均可跨类型、跨域组合。本批不开放业务写工具，`confirm-tool` 的原协议保留。
+聊天入口仍为 `POST /api/ai/chat`，接受可选 `conversationId`（1–100 位字母、数字、冒号、下划线或短横线）和 `providerPreference`（`default | local | deepseek | kimi`）。`conversationId` 用于现有登录主体下的服务端会话引用；不传时不跨请求保存引用。`providerPreference=default` 沿用当前全局路由；其他值仅严格选择本轮已配置 Provider，不修改全局设置，也不跨模型降级。非法值返回 `400 AI_PROVIDER_SELECTION_INVALID`，未配置 Provider 返回 `422 AI_PROVIDER_NOT_CONFIGURED`。所有登记 Query/Preview 均可跨类型、跨域组合；明确肯定式的受支持业务命令进入确认式写通道，询问、否定和说明类文本仍按只读对话处理。
 
 | Method | Path | 说明 |
 |---|---|---|
@@ -422,9 +422,11 @@ Kimi 业务助手使用 Kimi 开放平台 `https://api.moonshot.cn/v1` 与开放
 
 ### AI 入口与框架撤除
 
-当前源码的 `POST /api/ai/chat` 经 `aiDispatcherV3` 兼容入口调用 `aiAssistantRuntime`。V5 shadow、preview、authority mux 和 Candidate 已撤除；废弃入口 `/api/ai/owner-read-canary` 替代为 `/api/ai/chat`。旧 header/开关不再选择另一条回答链。
+当前源码的 `POST /api/ai/chat` 经 `aiDispatcherV3` 进行服务端双通道路由：普通对话与查询调用 `aiAssistantRuntime`，明确业务写命令调用 `aiAgentRuntimeV3` 的确认和回执链。单零件录入在类别、型号、单价、供应商、库存等标签字段明确时，服务端直接按 `create_part` 现有 schema 提取参数并生成确认；`修改/更新/设置` 以及 `将/把某零件修改成...` 可按 `update_part` 现有 schema 确定性提取资料字段。`刚才录入的零件` 只绑定同一登录所有者、同一 `chat-<ID>` 会话最近 20 条助理消息内带正式执行证据的 `create_part` 回执；查询结果、失败结果和其他所有者会话不能提供修改目标。上述完整命令直接生成受保护 TaskEnvelope，不依赖模型规划或 tool choice；字段不完整或缺少可信相对目标时不构造确定性调用。V5 shadow、preview、authority mux 和 Candidate 已撤除；废弃入口 `/api/ai/owner-read-canary` 替代为 `/api/ai/chat`。旧 header/开关不再选择另一条回答链。
 
-Web 携带 `conversationId`（通常为 `chat-<正安全整数>`），服务端用于主体绑定的会话隔离和上一轮候选引用，不再构造 Candidate 跨进程信封。省略或非法会话标识时不会复用会话内存；旧 turnState 仅保留传输兼容，不授予身份或写权限。
+内部 `TaskEnvelope` 以 Capability Registry 的稳定能力身份和已校验参数记录本轮步骤、必答字段与展示类型，不建立第二套业务参数 schema，也不改变 `/api/ai/chat` 请求或 SSE 契约。`EvidenceBundle` 只接受带正式 `aiExecutionEvidence` 的 Query/Preview 回执。配置 BOM 与权威业务规则已使用领域 Presenter V1 验收必答字段；模型回答不完整时从正式证据确定性生成简短答案，未验证结果不会进入该底稿。
+
+Web 携带 `conversationId`（通常为 `chat-<正安全整数>`），服务端用于主体绑定的会话隔离和上一轮候选引用，不再构造 Candidate 跨进程信封。`chat-<ID>` 还会从该所有者的数据库会话中恢复最近 20 条助理消息内、带正式执行证据的候选，供重启后或失败续问后的序号/名称选择使用；同一窗口内带正式写回执的最近零件结果可解析用户明确的“刚才录入”引用。候选金额和状态不会被当作当前事实，选中后仍重新调用正式 API；相对写目标也只用于生成确认参数，最终执行仍由标准 API 重读目标和版本。省略或非法会话标识时不会复用会话内存、持久候选或相对写目标；旧 turnState 仅保留传输兼容，不授予身份或写权限。
 
 ### 有界业务集合查询（只读）
 
@@ -476,9 +478,10 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；智能路由额外返回 `defaultProvider=deepseek`，并分别返回可用的 `visionProvider=kimi` 与 `fileProvider=kimi`。`fileProvider` 表示 Kimi 文件抽取能力可用，不表示所有文档都会上传；`AI_VISION_ENABLED` 只控制图片原图输入，不关闭按解析状态选中的 Kimi 文件抽取 |
-| `GET` | `/api/ai/health` | 无 | 能力 `ai.health.read`。返回脱敏的模型配置就绪状态、本进程有界请求统计、总耗时与首字耗时（TTFT）、业务域规划/能力规划/工具/总结阶段耗时、重试/降级/超时、最近错误码、供应商真实返回的 token usage 覆盖率与累计值、当前发布门禁结果和运行版本；未返回 usage 的请求标记为不可用，不用本地估算冒充真实用量。不返回 API Key、问题正文、回答正文、附件内容或工具参数。`AI_PROVIDER=auto` 时 DeepSeek 是普通对话必需提供商，Kimi 是图片/文件能力的可选提供商 |
-| `POST` | `/api/ai/chat` | `{ messages, pageContext?, resolutionContext?, turnState? }` | SSE 流式对话；消息可带 `attachments: [{ id }]`；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`；`resolutionContext` 传递上一轮正式多候选，`turnState={version:3,kind:'agent_turn_state',resolvedEntities[],capabilities[]}` 只传递限长的已验证实体引用，不提供执行授权 |
+| `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；`providerOptions` 返回 `value/displayName/model/available/supportsImages`，不包含密钥，供输入框的单轮模型选择使用。智能路由额外返回 `defaultProvider=deepseek`，并分别返回可用的 `visionProvider=kimi` 与 `fileProvider=kimi`。`fileProvider` 表示 Kimi 文件抽取能力可用，不表示所有文档都会上传；`AI_VISION_ENABLED` 只控制图片原图输入，不关闭按解析状态选中的 Kimi 文件抽取 |
+| `GET` | `/api/ai/health` | 无 | 能力 `ai.health.read`。返回脱敏的模型配置就绪状态、本进程有界请求统计、总耗时与首字耗时（TTFT）、业务域规划/能力规划/工具/总结阶段耗时、重试/降级/超时、最近错误码、供应商真实返回的 token usage 覆盖率与累计值、当前发布门禁结果和运行版本；未返回 usage 的请求标记为不可用，不用本地估算冒充真实用量。不返回 API Key、问题正文、回答正文、附件内容或工具参数。`local-first` 以无密钥局域网模型配置为必需项；`auto` 时 DeepSeek 是普通对话必需提供商，Kimi 是图片/文件能力的可选提供商 |
+| `POST` | `/api/ai/chat` | `{ messages, conversationId?, providerPreference?, pageContext?, resolutionContext?, turnState? }` | SSE 流式对话；`providerPreference` 只接受 `default/local/deepseek/kimi`，手工选择仅影响本轮且不跨模型降级；消息可带 `attachments: [{ id }]`；`conversationId=chat-<ID>` 可按当前所有者恢复持久化的可信候选；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`；`resolutionContext` 与 `turnState` 仅保留兼容传输，不作为候选身份、执行证据或授权 |
+| `POST` | `/api/ai/confirm-tool/preview` | `{ confirmationToken, toolName, args }` | 能力 `ai.tool_confirmation.repreview`，无业务写入的 Preview。只允许当前登录主体编辑尚未消费的确认卡；修改参数必须重新通过对应 AI tool schema 和现有写前 Preview。新卡签发成功后旧 token 立即废弃，校验失败则恢复原卡的 pending 状态。返回新 `AiToolResult` 确认卡，仍需用户再次点击确认执行 |
 | `POST` | `/api/ai/confirm-tool` | `{ confirmationToken, toolName?, args? }` | 使用确认卡片中的服务端 token 执行写工具；token 绑定当前登录会话、capability、规范化参数哈希和 operationId，5 分钟有效且单次消费。新客户端只提交 `confirmationToken`；可选 `toolName/args` 仅用于检测篡改。没有 token 的旧请求返回 `409 confirmation_token_required`，不会执行。正式 API 还必须返回匹配 capability 的 `operationId`、完成状态和非空审计 ID；缺失时返回 `502 ai_write_evidence_missing`，token 记为失败，不会向客户端宣称完成 |
 | `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
 | `PUT` | `/api/ai/system-prompt` | `{ prompt, expectedVersion?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.factory_profile.update`。更新内存和 SQLite `config.ai-factory-profile`；不能为空，最大 8000 字符，不能覆盖核心安全、来源和写入确认边界。新 Web 调用先读内容版本再保存；配置、operation 和强审计同一事务提交，相同命令安全重放。旧无版本/幂等键调用继续执行并返回 warning |
@@ -486,7 +489,9 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 | `GET` | `/mcp` | 同上鉴权 | 当前为无状态服务，不建立旧协议 SSE 会话；返回 `405` |
 | `DELETE` | `/mcp` | 同上鉴权 | 当前不签发 `Mcp-Session-Id`，没有可删除会话；返回 `405` |
 
-AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内，并按 token 预算优先保留最近消息。默认运行器直接向模型提供已登记只读工具，跨域组合不经旧两阶段计划；处理链和预算见 [私人 AI 助理](ai-assistant.md)。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。执行阶段使用 provider-neutral 的保守 token 估算；每次 provider 请求入口把系统提示、历史消息、工具 schema、tool choice、附件片段、图片预留和正式证据放入同一总输入预算。默认上下文窗口/预留输出/历史消息/附件/知识片段/正式证据预算分别为 `32768/4096/8192/8192/6144/16384`，可由对应 `AI_*_TOKENS` 环境变量调整；分项上限不能相加后突破总窗口。100KB 附件文字和 256KB 正式工具结果字节限制继续作为最后的传输安全边界。长附件不再只保留文件开头，而是按当前问题选择有字符范围的相关片段；正式 API 结果预算不足时仍显式返回超限，不静默删除业务字段。auto 智能路由根据每个服务端文件的实际解析结果判断：无附件、普通文本、`parserStatus=parsed` 且有正文的 Word/表格/普通文字型 PDF（包括已成功提取的 PDF 表格）使用 DeepSeek 和本地内容；图片在 Kimi API Key、模型和视觉开关可用时使用 Kimi 原图；扫描/OCR PDF、含技术图候选或未解析页的 PDF、解析截断、`failed`、`metadata_only`、pending/processing 或没有可用正文的文档使用 Kimi 文件抽取。混合附件只上传被判定为 `external_file` 的文件，其余附件继续内联。纯 TXT 不经过解析器，上传时已校验 UTF-8，始终直接读取原始正文；CSV 作为表格解析。若视觉关闭但同轮另有文件需要 Kimi，Kimi 仍处理该文件，图片只提供本地 OCR。K3 成功接收图片原图时不再重复附加整段本地 OCR。单次提供商 HTTP 请求默认 120 秒，整轮 `/api/ai/chat` 默认 180 秒，分别由 `AI_PROVIDER_TIMEOUT_MS/AI_CHAT_TIMEOUT_MS` 配置；浏览器停止或断开会沿共享 `AbortSignal` 取消规划、提供商响应流和内部正式 API，避免后台继续消耗。SSE 默认每 15 秒发送注释心跳，可由 `AI_SSE_HEARTBEAT_MS` 调整。仅网络失败、超时、429 和 5xx 标记为可降级，Kimi 此时回退 DeepSeek 并使用本地解析/OCR，分别记录 `vision_fallback/file_fallback`；认证、参数错误和用户取消直接返回，不进行错误回退。已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，统一映射为 `AI_PROVIDER_NETWORK_ERROR`。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。运行进程仅以有界内存保存请求数、TTFT、阶段耗时、供应商 usage、重试、降级、取消和错误码，不保存问题、回答、附件或工具参数，进程重启后重新计数。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量、usage 尾帧和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
+参数落地时，当前用户消息中唯一明确的线圈 `规格-片数` 简写优先于模型拆分及旧历史中的其他规格；跨轮指代仍必须使用带正式执行证据的服务端候选。
+
+AI 对话请求只保留最近 10 条有效的 `user/assistant` 消息作为上下文；前端与后端都会执行该限制，当前消息包含在这 10 条内，并按 token 预算优先保留最近消息。只读通道直接向模型提供已登记只读工具；命令通道使用受保护的两阶段计划，并由服务端固定可信写模式、业务域及无歧义操作的正式能力。处理链和预算见 [私人 AI 助理](ai-assistant.md)。每条用户消息最多关联 4 个已经通过 `/api/files` 校验的附件。执行阶段使用 provider-neutral 的保守 token 估算；每次 provider 请求入口把系统提示、历史消息、工具 schema、tool choice、附件片段、图片预留和正式证据放入同一总输入预算。默认上下文窗口/预留输出/历史消息/附件/知识片段/正式证据预算分别为 `32768/4096/8192/8192/6144/16384`，可由对应 `AI_*_TOKENS` 环境变量调整；分项上限不能相加后突破总窗口。100KB 附件文字和 256KB 正式工具结果字节限制继续作为最后的传输安全边界。长附件不再只保留文件开头，而是按当前问题选择有字符范围的相关片段；正式 API 结果预算不足时仍显式返回超限，不静默删除业务字段。auto 智能路由根据每个服务端文件的实际解析结果判断：无附件、普通文本、`parserStatus=parsed` 且有正文的 Word/表格/普通文字型 PDF（包括已成功提取的 PDF 表格）使用 DeepSeek 和本地内容；图片在 Kimi API Key、模型和视觉开关可用时使用 Kimi 原图；扫描/OCR PDF、含技术图候选或未解析页的 PDF、解析截断、`failed`、`metadata_only`、pending/processing 或没有可用正文的文档使用 Kimi 文件抽取。混合附件只上传被判定为 `external_file` 的文件，其余附件继续内联。纯 TXT 不经过解析器，上传时已校验 UTF-8，始终直接读取原始正文；CSV 作为表格解析。若视觉关闭但同轮另有文件需要 Kimi，Kimi 仍处理该文件，图片只提供本地 OCR。K3 成功接收图片原图时不再重复附加整段本地 OCR。单次提供商 HTTP 请求默认 120 秒，整轮 `/api/ai/chat` 默认 180 秒，分别由 `AI_PROVIDER_TIMEOUT_MS/AI_CHAT_TIMEOUT_MS` 配置；浏览器停止或断开会沿共享 `AbortSignal` 取消规划、提供商响应流和内部正式 API，避免后台继续消耗。SSE 默认每 15 秒发送注释心跳，可由 `AI_SSE_HEARTBEAT_MS` 调整。仅网络失败、超时、429 和 5xx 标记为可降级，Kimi 此时回退 DeepSeek 并使用本地解析/OCR，分别记录 `vision_fallback/file_fallback`；认证、参数错误和用户取消直接返回，不进行错误回退。已建立请求的响应体若因 `terminated/UND_ERR_SOCKET` 等网络问题中断，统一映射为 `AI_PROVIDER_NETWORK_ERROR`。SSE 会发送 `provider` 事件，前端将实际模型保存到 AI 回复元数据并显示标签。运行进程仅以有界内存保存请求数、TTFT、阶段耗时、供应商 usage、重试、降级、取消和错误码，不保存问题、回答、附件或工具参数，进程重启后重新计数。第三方 OpenAI 兼容流由 `aiProviderStream` 独立解析，可容忍网络分片、UTF-8 字符分片、K3 `reasoning_content`、工具调用增量、usage 尾帧和非 JSON 状态行；K3 后续工具轮会原样回传模型推理字段，但不会向用户展示。
 
 通用 MCP V1 白名单覆盖 capability registry 当前全部 48 个 `access=read`、`operation=query/preview` 且 `requiresConfirmation=false` 的 AI 能力，按领域包括：成本与线圈 `full_calculate/get_copper_price/calculate_coil_cost/get_coil_specs/search_coils/dynamic_config_cost`；零件、模板与配方 `search_parts/search_templates/get_template_detail/get_all_recipes/get_recipe_detail/get_recipe_technical_files/build_recipe_bom_draft/preview_recipe_cost/preview_pump_shell_cost/compare_recipes`；客户与报价 `search_customers/search_quotations/get_quotation_detail/search_customer_history/inspect_quotation_file/build_quotation_draft/explain_cost_change`；订单与经营 `get_recent_orders/get_order_detail/get_purchase_overview/build_order_draft/get_order_knowledge_package/check_order_readiness/get_order_readiness_overview/plan_order_readiness_actions/get_dashboard_summary/get_business_alerts/get_management_action_center/plan_factory_workflow`；质量、规则与知识 `get_data_quality_summary/analyze_recipe_configuration/get_factory_learning_health/get_factory_rule_candidates/get_factory_rule_impact/get_factory_rule_compliance/get_factory_rule_history/search_factory_file_archive_targets/search_factory_knowledge/get_factory_knowledge_detail/get_factory_knowledge_health`；出图历史与业务变更 `get_rotor_drawing_history/search_business_changes`。目录契约测试会把白名单与注册表中的全部安全 Query/Preview 做集合比对，新增安全读能力未同步或误暴露写能力都会失败。任何写能力或意外返回确认令牌的调用仍会在 executor 前后双重拒绝。全部工具标记 `readOnlyHint=true`；其中 `get_copper_price` 会访问管理域外的实时铜价来源，因此标记 `openWorldHint=true`，其余正式工厂数据工具标记 `openWorldHint=false`。这些 annotations 只帮助通用 MCP 客户端理解工具行为，不替代服务端权限控制。MCP 层不持有业务实现，不访问数据库，不接收原始 URL，也不向任何 Agent 下发 `INTERNAL_SECRET`；它使用服务器内部 executor → internal API client → 正式 API 链路，并要求 `aiExecutionEvidence` 证明本轮正式 API 已成功完成后才返回业务事实。正式 API 以结构化 JSON 明确返回 `404` 时，MCP 保留 `AI_RESOURCE_NOT_FOUND` 和已验证负结果；网络失败、5xx、非 JSON 响应或超时仍返回执行证据不足，不能伪装成“未找到”。
 
@@ -504,7 +509,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 113 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 114 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -623,6 +628,8 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 本地新版要求价格、成本、库存、订单状态等易变业务数据从本轮正式工具读取，不强制独立的首轮规划或工具选择。金额回答缺少当前依据时最多提示一次继续取证，所有只读工具仍可组合；候选目录不能作为已经完成的成本预览摘要。复述用户本轮拟定价格不要求为此查库。明确查询知识库时使用知识库结果；若知识条目与实时业务 API 冲突，以实时业务值为准并提示同步知识库。
 
+`local/local-first` 模式下，内置 AI 默认由能力注册表元数据和当前问题生成 1–8 项只读工具短名单，普通闲聊不发送工具 schema；`AI_LOCAL_TOOL_SHORTLIST_ENABLED=false` 可恢复全量目录。两个明确 `规格-片数` 简写的成本对比会确定性路由到两次 `calculate_coil_cost` 正式试算，并输出两侧成本与差额；明确的配方/成品/产品对比仍使用 `compare_recipes`。该策略不增加模型规划调用，也不改变通用 MCP 的 48 项固定只读目录。
+
 ### AI 会话历史
 
 AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，并按当前登录身份隔离；历史消息中的待确认工具只读，不能从历史记录重复执行。
@@ -687,7 +694,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 默认助理通过 `aiExecutionEvidence` 核对正式执行证据，保留成功与失败工具结果；接口失败不能作为“没有数据”。`internalApiClient` 提供实际 API 调用依据。旧 `aiObservationV3` 和 Evidence Ledger 是保留的历史实验实现，不参与当前默认链。
 
-本地聊天与 processAiChat 统一经兼容名称 aiDispatcherV3 调用 aiAssistantRuntime：个人记忆/会话 → 单个模型循环 → 正式 executor/API → 执行证据 → 模型回答。明确的“条件规则，记到长期记忆里/中”也由正式记忆服务保存；条件规则不等于假设性保存指令，否定、引用及询问不保存。保存回执独立返回；若本主体与会话仍有未取得成本预览的模板查询，保存后继续原问题，重新读取实时事实。续查失败保留已保存回执，过期或其他会话不自动续接。旧两阶段 planner、V4 实验实现保留为历史兼容代码，不是默认入口，也不作为 fallback/shadow。单次最多 7 个模型轮次、10 次工具提议；所有已登记 Query/Preview 跨域、跨类型可组合。生产实际版本及验收证据以发布检查清单为准。
+本地聊天与 processAiChat 统一经 aiDispatcherV3 路由：查询进入 aiAssistantRuntime 的单模型循环，明确写命令进入 aiAgentRuntimeV3 的计划 → 确认卡 → 正式 executor/API → operation/audit 回执链。明确的“条件规则，记到长期记忆里/中”也由正式记忆服务保存；条件规则不等于假设性保存指令，否定、引用及询问不保存。保存回执独立返回；若本主体与会话仍有未取得成本预览的模板查询，保存后继续原问题，重新读取实时事实。续查失败保留已保存回执，过期或其他会话不自动续接。旧两阶段 planner、V4 实验实现保留为历史兼容代码，不是默认入口，也不作为 fallback/shadow。单次最多 7 个模型轮次、10 次工具提议；所有已登记 Query/Preview 跨域、跨类型可组合。生产实际版本及验收证据以发布检查清单为准。
 
 旧 `aiEntityResolverV3` 实现仍供历史测试使用；不能把其自动规范化、探针或 resolutionReceipt 视为当前聊天行为。当前候选与标识处理见 [私人 AI 助理](ai-assistant.md)。
 
@@ -695,7 +702,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 
 注册表保留 `entityScopes` 元数据供兼容调用方使用；V1 私人助理不按 single/collection/global 裁减读取权限，可按用户目的组合全局和单对象查询。
 
-`/api/ai/chat` 保留 SSE 协议兼容。新运行器主要发送 `status/content/tool_call/tool_result/detail/done/error`；`tool_plan/turn_state` 为既有协议事件，不能要求新循环每轮产生。正常成功流以 done 结束；error 或提前断流不得视为完成。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整正文、工具结果和轮次状态；第二次失败只显示错误，不保存半截回复。传输重试不授权业务写入。
+`/api/ai/chat` 保留 SSE 协议兼容。新运行器主要发送 `status/content/tool_call/tool_result/detail/metrics/done/error`；`tool_plan/turn_state` 为既有协议事件，不能要求新循环每轮产生。模型调用前即发送 `status`，前端在请求期间实时显示当前阶段和已用时间。未开放业务工具的普通对话将供应商正文分片直接转发为多个 `content` 事件；有业务工具参与时，正文必须等工具回执和证据校验完成后再提交，工具草稿不得流入正式回复。`metrics` 在 `done` 前发送，包含总耗时、首条内容延迟、模型调用耗时、工具耗时及次数。Token 仅使用供应商返回的真实 usage；`tok/s` 优先使用供应商原生生成计时（llama.cpp 的 `predicted_n / predicted_ms`）并标记为“生成速度”，供应商不返回原生计时时，才用全部模型轮次的输出 Token 除以模型调用总耗时并标记为“有效速度”。精确速度需等供应商尾帧，因此在完成时固定显示。正常成功流以 done 结束；error 或提前断流不得视为完成。Next Web/PWA 在连接中断时自动重试一次，重试前清空本轮不完整正文、工具结果和轮次状态；第二次失败只显示错误，不保存半截回复。传输重试不授权业务写入。
 
 AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 
@@ -730,7 +737,7 @@ AI 调度器 V3 能力目录中的草稿/编排工具均不直接写库：
 - `get_purchase_overview`：调用 `/api/orders/purchase-overview` 读取活动订单的当前采购汇总；支持 `supplier/pendingOnly/limit` 类型化筛选，默认最多 20 条重点任务。只读，不生成采购清单、不下单、不入库。
 - `search_quotations`：调用正式 `GET /api/quotations`，支持 `status/customerName/limit` 类型化筛选并保留命中报价的全部正式字段。“报价中的报价”“还在报价中的报价”直接传 `status=报价中`；不先读取全量报价再由模型二次判断状态。`get_quotation_detail` 调用 `GET /api/quotations/:id` 稳定读取一份完整报价，保留全部明细、备注、转换信息和时间字段。
 - `search_templates`：调用正式 `GET /api/templates` 筛选模板并保留每条完整正式档案；`get_template_detail` 按 ID 或唯一泵壳型号调用 `GET /api/templates/:id`，返回 BOM、泵壳组件、转子参数、工资、表面处理和套件成本。两者不得用字段白名单换取回答简洁。
-- `get_recipe_technical_files`：先用正式配方列表按 ID 或完整名称定位配方，再调用 `/api/recipes/:id/technical-files` 读取性能测试报告摘要、可信测试曲线和服务端确定的最高扬程、最大流量、最大电流及最高机组效率；AI 必须直接使用 `files[].testCurve` 的正式统计和对应测试点回答，不得自行遍历列表选择极值，也不得从模板中的规定点、实测点或偏差推断。返回配方来源，只读且不修改附件。
+- `get_recipe_technical_files`：先用正式配方列表按 ID 或完整名称定位配方，再调用 `/api/recipes/:id/technical-files` 读取性能测试报告摘要、可信测试曲线和服务端确定的最高扬程、最大流量、最大电流及最高机组效率；AI 必须直接使用 `files[].testCurve` 的正式统计和对应测试点回答，不得自行遍历列表选择极值，也不得从模板中的规定点、实测点或偏差推断。返回 `associationWarnings[]`：报告 `summary.model` 与关联配方名称不一致时使用 `technical_report_model_mismatch` 提醒核实归属，该提醒不否定附件已关联的事实。返回配方来源，只读且不修改附件。
 
 AI 工具表不再暴露旧的 `query_recipe_cost_by_name`、`query_recipe_cost_by_id` 和 `get_all_parts`。零件、线圈、订单、采购、配方等自然语言事实查询由模型归纳为结构化意图和最小能力步骤，再生成类型化 tool 参数。参数直接按 `AI_TOOLS` 唯一 JSON schema 校验；未知字段、错误类型、非法枚举、缺失必填或越界数值不会执行。服务端不再剥离语义标签、删除停用词或把剩余文本重写成关键词；无法可靠映射时由模型明确歧义并请求必要信息。
 
@@ -754,7 +761,7 @@ Next iPhone PWA `/ai` 复用本节接口：
 
 - 文字指令通过 `apps/web-next/lib/ai.ts:streamAiChat()` 调用 `POST /api/ai/chat`。
 - 手机网络导致 SSE 提前结束时，PWA 自动重试一次；只有收到 `done` 的完整回复才写入会话。“再试一次”“重试”等短指令会重新执行最近五条用户消息内最新的有效只读业务查询，不继承零件入库等写操作。
-- 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`。
+- 写操作确认通过 `apps/web-next/lib/ai.ts:confirmAiTool()` 调用 `POST /api/ai/confirm-tool`；参数需人工修改时，先由 `reviseAiToolConfirmation()` 调用 `POST /api/ai/confirm-tool/preview` 重新校验并签发新卡，不直接执行业务写入。
 - 移动端不得绕过 AI executor 自由拼接业务 API；新增助手能力必须先登记能力注册表，再扩展 `tools.cjs`、对应 executor、正式 API、文档和契约测试。
 - PWA 使用 JWT Cookie 鉴权，未登录时由 `proxyFetch()` 跳转 `/login`。
 ## 17. 数据质量

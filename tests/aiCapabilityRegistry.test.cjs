@@ -229,6 +229,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'ai.conversations.messages.update_metadata',
         'ai.conversations.delete',
         'ai.health.read',
+        'ai.tool_confirmation.repreview',
         'ai.evaluations.runs.start',
         'ai.evaluations.results.record',
         'ai.evaluations.runs.complete',

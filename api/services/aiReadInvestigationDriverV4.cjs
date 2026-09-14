@@ -245,7 +245,13 @@ async function runReadInvestigationExecutionV4(input = {}) {
                     }],
                 };
             }
-            const preparedCalls = prepareAiToolCalls(rawToolCalls, 'model', {
+            const groundedToolCalls = rawToolCalls.map(toolCall => groundMissingTargetArgument(
+                toolCall,
+                decision.capabilityName,
+                controller.goal.originalTarget,
+                latestUserText
+            ));
+            const preparedCalls = prepareAiToolCalls(groundedToolCalls, 'model', {
                 allowedToolNames: [decision.capabilityName],
                 writeIntent: false,
                 writeTools: input.writeTools,
@@ -483,6 +489,7 @@ const {
     buildAiToolPlan,
     buildAiToolResultMessage,
     enforceAiToolResultBudget,
+    groundMissingTargetArgument,
     parseAiToolArguments,
     prepareAiToolCalls,
     viewTypeForAiTool,

@@ -41,7 +41,7 @@ test('AI provider stream：跨网络与中文字符分片后仍完整聚合文�
 test('AI provider stream：记录首个可见字符耗时并读取供应商 usage', async () => {
     const body = [
         'data: {"choices":[{"delta":{"content":"完成"}}]}\n',
-        'data: {"choices":[],"usage":{"prompt_tokens":80,"completion_tokens":10,"total_tokens":90}}\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":80,"completion_tokens":10,"total_tokens":90},"timings":{"prompt_n":80,"prompt_ms":400,"predicted_n":10,"predicted_ms":275}}\n',
         'data: [DONE]\n',
     ].join('');
     const usageEvents = [];
@@ -51,9 +51,46 @@ test('AI provider stream：记录首个可见字符耗时并读取供应商 usag
         onFirstContent: event => firstContentEvents.push(event),
     });
     assert.deepEqual(result.usage, { promptTokens: 80, completionTokens: 10, totalTokens: 90 });
+    assert.deepEqual(result.timings, {
+        predictedTokens: 10,
+        predictedMs: 275,
+        tokensPerSecond: 36.4,
+        promptTokens: 80,
+        promptMs: 400,
+        source: 'provider_timings',
+    });
     assert.equal(result.ttftMs >= 0, true);
     assert.equal(usageEvents.length, 1);
     assert.equal(firstContentEvents.length, 1);
+});
+
+test('AI provider stream：无原生 timings 时只用足够长的内容分片估算生成速度', async () => {
+    const response = new Response(new ReadableStream({
+        async start(controller) {
+            const encoder = new TextEncoder();
+            controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"这是一段"}}]}\n'));
+            await new Promise(resolve => setTimeout(resolve, 55));
+            controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"足够长的回答"}}]}\n'));
+            controller.enqueue(encoder.encode('data: {"choices":[],"usage":{"prompt_tokens":80,"completion_tokens":20,"total_tokens":100}}\n'));
+            controller.enqueue(encoder.encode('data: [DONE]\n'));
+            controller.close();
+        },
+    }));
+    const result = await readAiProviderStream(response);
+    assert.equal(result.timings.source, 'stream_observed');
+    assert.equal(result.timings.predictedTokens, 20);
+    assert.equal(result.timings.predictedMs >= 50, true);
+    assert.equal(result.timings.tokensPerSecond > 0, true);
+});
+
+test('AI provider stream：短回复或单分片不伪造生成速度', async () => {
+    const body = [
+        'data: {"choices":[{"delta":{"content":"完成"}}]}\n',
+        'data: {"choices":[],"usage":{"prompt_tokens":80,"completion_tokens":4,"total_tokens":84}}\n',
+        'data: [DONE]\n',
+    ].join('');
+    const result = await readAiProviderStream(streamResponse(body));
+    assert.equal(result.timings, null);
 });
 
 test('AI provider stream：按 index 合并碎片化工具调用并保持顺序', async () => {

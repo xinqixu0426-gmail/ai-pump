@@ -52,3 +52,16 @@ test('AI 健康快照：自动路由缺少可选 Kimi 时普通 DeepSeek 对话�
     assert.equal(provider.ready, true);
     assert.equal(provider.providers.find(item => item.provider === 'kimi').configured, false);
 });
+
+test('AI 健康快照：本地优先无需 API Key 即可就绪', () => {
+    const provider = aiProviderHealth({
+        AI_PROVIDER: 'local-first',
+        LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+        LOCAL_AI_MODEL: 'local-apex',
+    });
+    assert.equal(provider.mode, 'local-first');
+    assert.equal(provider.ready, true);
+    assert.deepEqual(provider.providers.map(item => item.provider), ['local']);
+    assert.equal(provider.providers[0].configured, true);
+    assert.equal(provider.providers[0].required, true);
+});

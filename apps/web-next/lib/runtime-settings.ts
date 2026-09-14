@@ -2,10 +2,13 @@
 
 import { createIdempotencyKey, proxyRequest } from '@/lib/api';
 
-export type AiProvider = 'auto' | 'deepseek' | 'kimi';
+export type AiProvider = 'auto' | 'local' | 'local-first' | 'deepseek' | 'kimi';
 
 export type RuntimeSettingsValues = {
   aiProvider: AiProvider;
+  localModel: string;
+  localBaseUrl: string;
+  localVisionEnabled: boolean;
   deepseekModel: string;
   deepseekBaseUrl: string;
   kimiModel: string;
@@ -75,7 +78,7 @@ type AiTestResponse = {
     model: string;
     latencyMs: number;
     testedProviders?: Array<{
-      provider: 'deepseek' | 'kimi';
+      provider: 'local' | 'deepseek' | 'kimi';
       displayName: string;
       model: string;
     }>;

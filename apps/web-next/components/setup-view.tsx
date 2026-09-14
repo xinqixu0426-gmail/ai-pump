@@ -45,6 +45,9 @@ const setupSections: Array<{ value: SetupSection; label: string }> = [
 
 const initialValues: RuntimeSettingsValues = {
   aiProvider: 'auto',
+  localModel: '/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf',
+  localBaseUrl: 'http://192.168.31.111:8080/v1',
+  localVisionEnabled: false,
   deepseekModel: 'deepseek-v4-flash',
   deepseekBaseUrl: 'https://api.deepseek.com',
   kimiModel: 'kimi-k3',
@@ -142,6 +145,8 @@ export function SetupView() {
   const hasKimiKey = Boolean(form.kimiApiKey.trim() || snapshot?.secrets.kimiApiKey.configured);
   const canTest = activeProvider === 'auto'
     ? hasDeepseekKey
+    : activeProvider === 'local' || activeProvider === 'local-first'
+      ? Boolean(form.localBaseUrl.trim() && form.localModel.trim())
     : activeProvider === 'deepseek'
       ? hasDeepseekKey
       : hasKimiKey;
@@ -270,6 +275,8 @@ export function SetupView() {
             onChange={(value) => update('aiProvider', value)}
             ariaLabel="AI 提供商"
             options={[
+              { value: 'local', label: '仅本地' },
+              { value: 'local-first', label: '本地优先' },
               { value: 'auto', label: '智能路由' },
               { value: 'deepseek', label: 'DeepSeek' },
               { value: 'kimi', label: 'Kimi 开放平台' },
@@ -283,7 +290,26 @@ export function SetupView() {
             </InlineNotice>
           ) : null}
 
-          {activeProvider !== 'kimi' ? (
+          {activeProvider === 'local' || activeProvider === 'local-first' ? (
+            <div className="space-y-4">
+              <InlineNotice tone="info">
+                {activeProvider === 'local'
+                  ? '所有对话和业务查询只使用局域网模型，本地服务异常时直接报错，不调用云端模型。'
+                  : '普通对话和业务查询优先使用局域网文本模型；只有本地服务发生网络错误、超时、限流或 5xx，且 DeepSeek 已配置时才自动降级。'}
+              </InlineNotice>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="局域网模型">
+                  <Input value={form.localModel} onChange={(event) => update('localModel', event.target.value)} />
+                </Field>
+                <Field label="局域网服务地址">
+                  <Input value={form.localBaseUrl} onChange={(event) => update('localBaseUrl', event.target.value)} />
+                </Field>
+              </div>
+              <ToggleRow checked={form.localVisionEnabled} onChange={(value) => update('localVisionEnabled', value)} label="本地图片理解" />
+            </div>
+          ) : null}
+
+          {activeProvider !== 'kimi' && activeProvider !== 'local' && activeProvider !== 'local-first' ? (
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="DeepSeek 模型">
                 <Input value={form.deepseekModel} onChange={(event) => update('deepseekModel', event.target.value)} />
@@ -311,7 +337,7 @@ export function SetupView() {
             </div>
           ) : null}
 
-          {activeProvider !== 'deepseek' ? (
+          {activeProvider === 'auto' || activeProvider === 'kimi' ? (
             <div className={`space-y-4 ${activeProvider === 'auto' ? 'border-t border-line pt-4' : ''}`}>
               <InlineNotice tone="warning">
                 {activeProvider === 'auto' ? 'Kimi K3 处理图片原图以及需要外部识别的文件。' : ''}Kimi Coding 订阅凭证不能用于业务助手；此处只接受 Kimi 开放平台 API Key。
@@ -359,6 +385,8 @@ export function SetupView() {
             <div className="text-xs text-muted">
               当前：{activeProvider === 'auto'
                 ? `${form.deepseekModel} 默认 · 图片和文件使用 ${form.kimiModel}`
+                : activeProvider === 'local' || activeProvider === 'local-first'
+                  ? `${form.localModel} · ${activeProvider === 'local' ? '仅局域网' : '局域网优先'}`
                 : activeProvider === 'deepseek'
                   ? form.deepseekModel
                   : form.kimiModel}

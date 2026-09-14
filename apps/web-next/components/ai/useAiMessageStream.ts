@@ -24,6 +24,10 @@ export function applyAiStreamEvent(item: ChatItem, event: AiStreamEvent): ChatIt
     return { ...item, toolResults: [...(item.toolResults || []), { name: event.name, result: event.result }] };
   }
   if (event.type === 'detail') return { ...item, toolResults: event.toolResults || item.toolResults || [] };
+  if (event.type === 'metrics') {
+    const { type: _type, ...metrics } = event;
+    return { ...item, metrics };
+  }
   if (event.type === 'turn_state') return { ...item, turnState: event.turnState };
   if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
   if (event.type === 'error') {

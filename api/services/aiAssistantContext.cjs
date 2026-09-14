@@ -29,7 +29,174 @@ function summarizeListRow(row) {
     return { ...summary, ...(omittedFields.length ? { omittedFields } : {}) };
 }
 
-function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) {
+function summarizePartRow(row) {
+    return Object.fromEntries([
+        'id',
+        'model',
+        'category',
+        'subcategory',
+        'price',
+        'supplier',
+        'stock',
+    ].filter(key => row[key] !== undefined && row[key] !== '').map(key => [key, row[key]]));
+}
+
+function groupPartRows(rows) {
+    const groups = new Map();
+    for (const row of rows) {
+        const category = row.category || '未分类';
+        if (!groups.has(category)) groups.set(category, []);
+        groups.get(category).push([
+            row.id,
+            row.model,
+            row.price,
+            row.stock,
+            row.supplier,
+        ]);
+    }
+    return [...groups.entries()].map(([category, items]) => ({
+        category,
+        count: items.length,
+        columns: ['id', 'model', 'price', 'stock', 'supplier'],
+        items,
+    }));
+}
+
+function parseArrayField(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string' || !value.trim()) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function summarizeOrderDetail(order, userText = '') {
+    const items = parseArrayField(order.itemsJson || order.items);
+    const purchases = parseArrayField(order.purchaseListJson || order.purchaseList);
+    const todos = parseArrayField(order.todosJson || order.todos);
+    const wantsPurchases = /采购|库存|缺料|缺什么|到货|入库/u.test(userText);
+    const wantsTodos = /待办|任务|要做|未完成/u.test(userText);
+    const summary = Object.fromEntries([
+        'id',
+        'customerName',
+        'contractNo',
+        'remark',
+        'status',
+        'statusReason',
+        'purchaseCompletedAt',
+        'closedAt',
+        'cancelledAt',
+        'createdAt',
+        'updatedAt',
+    ].filter(key => order[key] !== undefined && order[key] !== '').map(key => [key, order[key]]));
+    summary.items = items.map(item => Object.fromEntries([
+        'recipeName',
+        'spec',
+        'qty',
+        'unitCost',
+        'unitPrice',
+        'profitMargin',
+    ].filter(key => item[key] !== undefined && item[key] !== '').map(key => [key, item[key]])));
+    summary.purchaseItemCount = purchases.length;
+    summary.pendingPurchaseCount = purchases.filter(
+        item => Number(item.needToBuy) > 0 && !item.purchased
+    ).length;
+    summary.todoCount = todos.length;
+    summary.pendingTodoCount = todos.filter(item => !item.done).length;
+    if (wantsPurchases) {
+        summary.purchases = purchases.map(item => Object.fromEntries([
+            'model',
+            'name',
+            'supplier',
+            'totalQty',
+            'currentStock',
+            'needToBuy',
+            'plannedQty',
+            'orderedQty',
+            'receivedQty',
+            'stockedQty',
+            'purchased',
+            'purchaseUnit',
+        ].filter(key => item[key] !== undefined && item[key] !== '').map(key => [key, item[key]])));
+    }
+    if (wantsTodos) {
+        summary.todos = todos.map(item => ({ description: item.description, done: Boolean(item.done) }));
+    }
+    return summary;
+}
+
+function summarizeDashboardResult(result) {
+    const source = result?.summary || result?.data?.summary || result?.data;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return normalizeJsonFields(result);
+    if (!['orders', 'financials', 'parts', 'workbench'].some(key => source[key] && typeof source[key] === 'object')) {
+        return normalizeJsonFields(result);
+    }
+    const { summary: _summary, data: _data, ...metadata } = result;
+    const orders = source.orders || {};
+    const financials = source.financials || {};
+    const parts = source.parts || {};
+    const workbenchItems = Array.isArray(source.workbench?.items) ? source.workbench.items : [];
+    return {
+        ...metadata,
+        summary: {
+            generatedAt: source.generatedAt,
+            orders: {
+                ...Object.fromEntries([
+                    'total',
+                    'active',
+                    'pendingPurchase',
+                    'purchasing',
+                    'completed',
+                    'today',
+                ].filter(key => orders[key] !== undefined).map(key => [key, orders[key]])),
+                ...(orders['采购完成'] !== undefined ? { purchaseCompleted: orders['采购完成'] } : {}),
+            },
+            latestOrders: (Array.isArray(orders.latest) ? orders.latest : []).slice(0, 5).map(order => Object.fromEntries([
+                'id',
+                'customerName',
+                'contractNo',
+                'status',
+                'itemCount',
+                'totalPrice',
+                'createdAt',
+            ].filter(key => order[key] !== undefined && order[key] !== '').map(key => [key, order[key]]))),
+            financials: Object.fromEntries([
+                'totalCost',
+                'totalRevenue',
+                'totalProfit',
+                'profitRate',
+                'procurementVariance',
+            ].filter(key => financials[key] !== undefined).map(key => [key, financials[key]])),
+            completedFinancials: Object.fromEntries([
+                'totalCost',
+                'totalRevenue',
+                'totalProfit',
+                'profitRate',
+            ].filter(key => financials.completed?.[key] !== undefined).map(key => [key, financials.completed[key]])),
+            parts: Object.fromEntries([
+                'total',
+                'lowStock',
+                'outOfStock',
+            ].filter(key => parts[key] !== undefined).map(key => [key, parts[key]])),
+            workbench: workbenchItems.map(item => Object.fromEntries([
+                'key',
+                'label',
+                'count',
+                'desc',
+                'severity',
+            ].filter(key => item[key] !== undefined && item[key] !== '').map(key => [key, item[key]]))),
+        },
+        modelView: {
+            kind: 'dashboard_summary',
+            note: '运营看板只向回答模型提供订单、财务、库存和待处理数量摘要；缺货零件、采购明细和嵌套重复财务对象不进入模型上下文，完整原始回执仍供页面明细和执行证据使用。',
+        },
+    };
+}
+
+function modelResultView(name, result, { knowledgeDocuments = new Map(), userText = '' } = {}) {
     if (name === 'search_factory_knowledge' && result?.success !== false && Array.isArray(result?.data)) {
         let summary = result.summary;
         const statements = result.answerGuidance?.businessRuleStatements;
@@ -65,6 +232,81 @@ function modelResultView(name, result, { knowledgeDocuments = new Map() } = {}) 
     }
     if (require('./aiAssistantAnswer.cjs').verifiedMissingTarget(result)) {
         return { ...result, modelView: { kind: 'verified_target_missing', note: '正式查询已确认此 query 目标不存在，不是接口故障。保留原始目标和这个结论，不需要换多个相似关键词反复证明不存在。若用户还有独立问题可继续查询；相近对象的资料不能代替此目标。' } };
+    }
+    if (name === 'get_dashboard_summary' && result?.success !== false) {
+        return summarizeDashboardResult(result);
+    }
+    if (name === 'search_parts' && result?.success !== false && Array.isArray(result?.data)) {
+        if (result.data.length > 40) {
+            const { data, ...metadata } = result;
+            const groupedParts = groupPartRows(data);
+            if (!/全部|完整|逐个|逐条|明细/u.test(userText)) {
+                return {
+                    ...metadata,
+                    samplePartsByCategory: groupedParts.map(group => ({
+                        ...group,
+                        items: group.items.slice(0, 3),
+                        omittedCount: Math.max(0, group.count - 3),
+                    })),
+                    modelView: {
+                        kind: 'summarized_part_list',
+                        note: '大型零件查询默认提供完整总数、分类/供应商汇总及每类最多 3 个样本；omittedCount 只表示模型视图省略数量，正式原始回执和页面明细仍保留全部行。用户明确要求全部、完整或逐条明细时重新查询并展开。',
+                    },
+                };
+            }
+            return {
+                ...metadata,
+                groupedParts,
+                modelView: {
+                    kind: 'grouped_part_list',
+                    note: '大型零件列表按分类分组；columns 声明每个 items 元组的字段顺序，全部返回行均保留。完整原始对象仍供页面展示和执行证据使用。',
+                },
+            };
+        }
+        return {
+            ...result,
+            data: result.data.map(summarizePartRow),
+            modelView: {
+                kind: 'compact_part_list',
+                note: '零件列表保留全部返回行的身份、分类、当前单价、供应商和库存；重复别名、时间戳及空备注仅从模型视图省略，完整原始回执仍供页面展示和执行证据使用。',
+            },
+        };
+    }
+    if (name === 'search_customer_history' && result?.success !== false && result?.data && !Array.isArray(result.data)) {
+        const { data, ...metadata } = result;
+        const quotations = Array.isArray(data.quotations) ? data.quotations : [];
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+        return {
+            ...metadata,
+            data: {
+                customer: data.customer ? { name: data.customer.name } : null,
+                quotationCount: quotations.length,
+                orderCount: orders.length,
+                quotations: quotations.map((quotation, index) => ({
+                    displayOrder: index + 1,
+                    status: quotation.status,
+                    totalCost: quotation.totalCost,
+                    totalPrice: quotation.totalPrice,
+                    remark: quotation.remark,
+                    createdAt: quotation.createdAt,
+                    itemCount: Array.isArray(quotation.items) ? quotation.items.length : undefined,
+                })),
+            },
+            modelView: {
+                kind: 'customer_history_summary',
+                note: '客户历史按用户可见顺序提供报价总数及摘要，不向回答模型暴露内部报价 ID、完整 BOM、采购快照或订单明细；完整原始回执仍供页面展示和执行证据使用。',
+            },
+        };
+    }
+    if (name === 'get_order_detail' && result?.success !== false && result?.order && typeof result.order === 'object') {
+        return {
+            ...result,
+            order: summarizeOrderDetail(result.order, userText),
+            modelView: {
+                kind: 'compact_order_detail',
+                note: '订单详情仅向模型提供订单、产品与数量摘要；只在用户询问采购、库存、缺料或待办时附带对应结构化摘要。完整 BOM、采购和待办原始回执仍供页面展示与执行证据使用。',
+            },
+        };
     }
     const detailTool = LIST_DETAILS[name];
     if (!detailTool || result?.success === false || !Array.isArray(result?.data)) return normalizeJsonFields(result);

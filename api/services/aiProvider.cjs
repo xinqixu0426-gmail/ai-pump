@@ -12,10 +12,14 @@ const {
 } = require('./aiAttachmentRouting.cjs');
 const {
     DEFAULT_PROVIDER_ID,
+    LOCAL_FIRST_MODE,
+    LOCAL_PROVIDER_ID,
     MULTIMODAL_PROVIDER_ID,
+    PROVIDER_REGISTRY,
     providerMode,
     resolveAiProviderConfig,
     resolveProviderConfig,
+    resolveProviderPreference,
 } = require('./aiProviderRegistry.cjs');
 const {
     allocateAiInputTokenBudget,
@@ -34,15 +38,44 @@ const MAX_PROVIDER_ATTEMPTS = 3;
 const DEFAULT_PROVIDER_TIMEOUT_MS = 120 * 1000;
 const KIMI_FILE_CACHE_TTL_MS = 10 * 60 * 1000;
 const ATTACHMENT_PROMPT_RESERVE_TOKENS = 512;
+const LOCAL_TOOL_COMPLETION_TOKENS = 384;
+const LOCAL_ANSWER_COMPLETION_TOKENS = 512;
 const kimiFileContentCache = new Map();
 
 function text(value) {
     return String(value ?? '').trim();
 }
 
+/**
+ * 局域网 OpenAI 兼容服务的对话模板可能要求 system 消息只能出现在开头（llama.cpp 的 Jinja
+ * 模板会直接抛错）。运行时会在会话中途追加纠错、预算和记忆回执等 system 指令，这里按原顺序
+ * 把这些指令并入首条 system 消息，角色交替和工具消息顺序保持不变。
+ */
+function hoistSystemMessagesToLeading(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    const leadingSystem = list[0]?.role === 'system' ? list[0] : null;
+    const extraSystem = list.filter(message => message?.role === 'system' && message !== leadingSystem);
+    if (extraSystem.length === 0) return list;
+    return [{
+        ...(leadingSystem || extraSystem[0]),
+        role: 'system',
+        content: [leadingSystem, ...extraSystem]
+            .filter(Boolean)
+            .map(message => (
+                typeof message.content === 'string'
+                    ? message.content
+                    : JSON.stringify(message.content)
+            ))
+            .join('\n\n'),
+    }, ...list.filter(message => message?.role !== 'system')];
+}
+
 function resolveAiProviderRoute(messages, options = {}) {
     const env = options.env || process.env;
+    const preferredConfig = resolveProviderPreference(options.providerPreference, env);
+    if (preferredConfig) return preferredConfig;
     const mode = providerMode(env);
+    if (mode === LOCAL_FIRST_MODE) return resolveAiProviderConfig(env);
     if (mode !== 'auto') return resolveProviderConfig(mode, env);
 
     const deepseek = resolveProviderConfig(DEFAULT_PROVIDER_ID, env);
@@ -84,6 +117,46 @@ function providerTimeoutMs(env = process.env) {
 
 function aiProviderCapabilities(env = process.env) {
     const mode = providerMode(env);
+    const defaultConfig = resolveAiProviderConfig(env);
+    const providerOptions = [
+        {
+            value: 'default',
+            displayName: mode === LOCAL_FIRST_MODE
+                ? '默认·本地优先'
+                : mode === 'auto'
+                    ? '默认·智能路由'
+                    : `默认·${resolveProviderConfig(mode, env).displayName}`,
+            model: defaultConfig.model,
+            available: true,
+            supportsImages: Boolean(defaultConfig.supportsImages),
+        },
+        ...Object.keys(PROVIDER_REGISTRY).map(provider => {
+            const config = resolveProviderConfig(provider, env);
+            return {
+                value: provider,
+                displayName: config.displayName,
+                model: config.model,
+                available: config.apiKeyRequired === false || Boolean(config.apiKey),
+                supportsImages: Boolean(config.supportsImages),
+            };
+        }),
+    ];
+    if ([LOCAL_PROVIDER_ID, LOCAL_FIRST_MODE].includes(mode)) {
+        const local = resolveProviderConfig(LOCAL_PROVIDER_ID, env);
+        return {
+            provider: mode,
+            displayName: mode === LOCAL_PROVIDER_ID ? '仅本地' : '本地优先',
+            model: local.model,
+            supportsImages: local.supportsImages,
+            supportsFiles: true,
+            acceptedFileTypes: ['pdf', 'spreadsheet', 'image', 'text'],
+            maxAttachments: MAX_CHAT_ATTACHMENTS,
+            maxFileSize: 10 * 1024 * 1024,
+            defaultProvider: LOCAL_PROVIDER_ID,
+            visionProvider: local.supportsImages ? LOCAL_PROVIDER_ID : null,
+            providerOptions,
+        };
+    }
     if (mode === 'auto') {
         const deepseek = resolveProviderConfig(DEFAULT_PROVIDER_ID, env);
         const kimi = resolveProviderConfig(MULTIMODAL_PROVIDER_ID, env);
@@ -101,6 +174,7 @@ function aiProviderCapabilities(env = process.env) {
             defaultProvider: DEFAULT_PROVIDER_ID,
             visionProvider: visionAvailable ? MULTIMODAL_PROVIDER_ID : null,
             fileProvider: fileAvailable ? MULTIMODAL_PROVIDER_ID : null,
+            providerOptions,
         };
     }
     const config = resolveAiProviderConfig(env);
@@ -113,6 +187,7 @@ function aiProviderCapabilities(env = process.env) {
         acceptedFileTypes: ['pdf', 'spreadsheet', 'image', 'text'],
         maxAttachments: MAX_CHAT_ATTACHMENTS,
         maxFileSize: 10 * 1024 * 1024,
+        providerOptions,
     };
 }
 
@@ -416,7 +491,10 @@ function prepareAiProviderMessages(messages, options = {}) {
             ],
         };
     });
-    const preparedTokens = estimateAiMessagesTokens(preparedMessages)
+    const providerMessages = config.requiresLeadingSystemMessage
+        ? hoistSystemMessagesToLeading(preparedMessages)
+        : preparedMessages;
+    const preparedTokens = estimateAiMessagesTokens(providerMessages)
         + estimateTextTokens(JSON.stringify(options.tools || []))
         + estimateTextTokens(JSON.stringify(options.toolChoice || null));
     if (preparedTokens > allocation.usableInputTokens) {
@@ -424,7 +502,7 @@ function prepareAiProviderMessages(messages, options = {}) {
         error.code = 'AI_INPUT_CONTEXT_TOO_LARGE';
         throw error;
     }
-    return preparedMessages;
+    return providerMessages;
 }
 
 const TOOL_CHOICE_UNSUPPORTED_ROUTES = new Set();
@@ -831,6 +909,7 @@ async function fetchAiProvider(messages, options = {}) {
     });
     const selectedConfig = options.config || resolveAiProviderRoute(messages, {
         env: options.env,
+        providerPreference: options.providerPreference,
         dbAccessors: options.dbAccessors,
         attachmentMode: options.attachmentMode,
         attachmentRouting,
@@ -846,7 +925,7 @@ async function fetchAiProvider(messages, options = {}) {
         });
     };
     const requestProvider = async (config) => {
-        if (!config.apiKey) {
+        if (config.apiKeyRequired !== false && !config.apiKey) {
             throw new Error(`未配置 ${config.apiKeyEnvName}`);
         }
         const routeKey = providerRouteKey(config);
@@ -876,16 +955,23 @@ async function fetchAiProvider(messages, options = {}) {
                 tools: providerTools,
                 toolChoice: effectiveToolChoice,
             });
+            const headers = { 'Content-Type': 'application/json' };
+            if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
             return fetchProviderWithRetry(`${config.baseUrl}/chat/completions`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`,
-                },
+                headers,
                 body: JSON.stringify({
                     model: config.model,
                     ...(config.provider === 'deepseek'
                         ? { thinking: { type: 'disabled' } }
+                        : {}),
+                    ...(config.provider === LOCAL_PROVIDER_ID
+                        ? {
+                            chat_template_kwargs: { enable_thinking: false },
+                            max_tokens: options.toolChoice
+                                ? LOCAL_TOOL_COMPLETION_TOKENS
+                                : LOCAL_ANSWER_COMPLETION_TOKENS,
+                        }
                         : {}),
                     messages: providerMessages,
                     ...(isKimiK3 && includeToolChoice
@@ -940,6 +1026,23 @@ async function fetchAiProvider(messages, options = {}) {
             status: error?.statusCode || null,
             fallbackEligible: isProviderFallbackEligible(error),
         });
+        if (
+            selectedConfig.routingMode === LOCAL_FIRST_MODE
+            && selectedConfig.provider === LOCAL_PROVIDER_ID
+        ) {
+            if (!isProviderFallbackEligible(error)) throw error;
+            const fallback = {
+                ...resolveProviderConfig(DEFAULT_PROVIDER_ID, options.env || process.env),
+                routingMode: LOCAL_FIRST_MODE,
+                routeReason: 'local_fallback',
+            };
+            if (!fallback.apiKey) throw error;
+            notifyProvider(fallback, {
+                fallback: true,
+                fallbackFrom: LOCAL_PROVIDER_ID,
+            });
+            return requestProvider(fallback);
+        }
         if (selectedConfig.routingMode !== 'auto' || selectedConfig.provider !== MULTIMODAL_PROVIDER_ID) {
             throw error;
         }

@@ -19,6 +19,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 当前私人 AI 助理的使用与处理链统一见 [AI 助理说明](ai-assistant.md)。在售配方完整配置继承、显式配置覆盖与当前价格重算见该说明；V1.0.2 修复的本地/隔离验证与生产发布状态分别记录。当前修复版本 V1.0.2（`pump-ai-v1.0.2`）已部署 Mac Mini 并通过自动验收；原人工确认的 V1.0.1 冻结基准保留。登录兼容服务的开机自启动限制及发布证据见 [发布清单](deployment-checklist.md)。阶段计划、撤除报告与历史失败见 [档案索引](archive/README.md)。
 
+内部 TaskEnvelope、EvidenceBundle、必答字段验收和领域 Presenter 的当前覆盖范围只在 [AI 助理说明](ai-assistant.md) 维护，不再新建重复架构文档。
+
 | 类别 | 文档 | 唯一职责 |
 |---|---|---|
 | 业务 | [business-flow.md](./business-flow.md)、[coil-domain.md](./coil-domain.md) | 业务对象、流程、库存/成本/知识边界和线圈口径 |
@@ -265,6 +267,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
+- 内置 AI 在 `local/local-first` 模式按当前问题提供 1–8 个相关只读工具，减少本地模型的 schema 输入；可通过 `AI_LOCAL_TOOL_SHORTLIST_ENABLED=false` 恢复全量。`local` 严格不调用云端，`local-first` 保留临时故障降级。通用 MCP 的固定工具目录不受该策略影响。
 - 通用 MCP：默认关闭，以 Bearer service token 提供 48 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，以真实 localhost Streamable HTTP、2025/2026 双客户端、临时 SQLite、operation/audit/Query 回读覆盖 18/18。写验收 manifest 将本轮之前已完成人工验收的 9 项作为测试基线，把批次候选 9 项分为订单与报价转单、文件归档、转子出图三个场景；剩余每项都必须通过原生拒绝零副作用检查。FreeCAD 后端只走 fail-closed 外部命令替身，报告必须标明生产未触达和临时资源已清理；`print_rotor_drawing` 保留为 HTTP/AI 能力，但不属于 MCP 目录且本地门禁要求打印调用为 0。该分组不代替部署后按身份读取真实 allowlist，本地通过不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。
@@ -299,7 +302,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 工厂知识库 | `/api/knowledge` | SQLite 知识条目同步、独立资料导入、搜索和详情读取，供 AI 检索 |
 | 业务变更 | `/api/business-changes` | 跨订单、报价、采购、零件、配方、模板、线圈、客户、常用配置预设、质量规则、转子档案、业务设置、文件、知识资料和工作流的追加型业务历史；结构化精确查询并投影到知识/向量检索 |
 | 设置 | `/api/settings/:key`、`/api/settings/runtime` | `settingsQueries` 只读提供业务白名单、公开运行快照和 AI 连接探测；两类写入都使用幂等、版本、事务回执和强审计，运行配置提交成功后才应用进程环境 |
-| AI | `/api/ai` | 对话、工具调用、会话和评测；模型流解析与工具消息协议由独立 service 统一 |
+| AI | `/api/ai` | 对话、工具调用、会话和评测；统一 Provider 支持本地优先的局域网 OpenAI 兼容模型以及 DeepSeek/Kimi，模型流解析与工具消息协议由独立 service 统一 |
 | 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 48 个只读工具，包含模板、报价完整详情和统一业务变更历史；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
 
 配方、订单、模板和常用配置预设的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
@@ -360,7 +363,7 @@ POST /api/rotor/save
 当前链路、工具使用、会话和自然语言记忆统一见 [私人 AI 助理](ai-assistant.md)，不再在本页重复实现细节。AI 反馈按钮和知识库治理保留独立的纠错审核流程，见 [学习与发布回归](ai-learning-release-gate-guide.md)。
 
 - Web 使用 SSE 显示回答及正式工具明细，聊天和消息保存于 SQLite；模型上下文预算与历史存档独立。
-- 当前助理支持跨业务只读调查和正式成本比较，业务写工具未启用；已有 HTTP/MCP 写能力不等于聊天自动取得写权限。
+- 当前助理支持跨业务只读调查、正式成本比较和受保护业务写入。聊天只有在用户明确提出操作命令后才开放对应写能力，并必须先展示确认卡；已有 HTTP/MCP 写能力本身不等于聊天自动取得写权限。
 - 文件、OCR、提供商选择和超时等正式协议见 [API 总表](api-reference.md)，实时业务数据以正式 API 为准，知识库是资料和派生快照。
 
 ### PWA 调试与限制

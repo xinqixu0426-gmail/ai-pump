@@ -246,6 +246,26 @@ test('AI 业务数值落地：12-120 简写纠正模型误填的片数并保留�
         hasFloat: true,
     });
     assert.deepEqual(normalizeExplicitCoilShorthandArgs({
+        spec: '12-200',
+        sheets: 1,
+        material: '钢带',
+    }, [{ role: 'user', content: '12-200线圈成本是多少' }]), {
+        spec: '12',
+        sheets: 200,
+        material: '钢带',
+    });
+    assert.deepEqual(normalizeExplicitCoilShorthandArgs({
+        spec: '12-220',
+        sheets: 6,
+    }, [
+        { role: 'user', content: '查一下12-120的线圈做的配方' },
+        { role: 'assistant', content: '历史回答' },
+        { role: 'user', content: '12-220线圈成本' },
+    ]), {
+        spec: '12',
+        sheets: 220,
+    });
+    assert.deepEqual(normalizeExplicitCoilShorthandArgs({
         spec: '12',
         sheets: 12,
     }, [{ role: 'user', content: '比较 12-120 和 12-140' }]), {

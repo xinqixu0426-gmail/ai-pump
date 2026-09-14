@@ -1,12 +1,33 @@
 const DEFAULT_PROVIDER_ID = 'deepseek';
 const MULTIMODAL_PROVIDER_ID = 'kimi';
+const LOCAL_PROVIDER_ID = 'local';
+const LOCAL_FIRST_MODE = 'local-first';
+const DEFAULT_PROVIDER_PREFERENCE = 'default';
 
 const PROVIDER_RUNTIME_DEFINITIONS = Object.freeze({
     aiProvider: Object.freeze({
         env: 'AI_PROVIDER',
         type: 'enum',
-        values: Object.freeze(['auto', DEFAULT_PROVIDER_ID, MULTIMODAL_PROVIDER_ID]),
+        values: Object.freeze(['auto', LOCAL_PROVIDER_ID, LOCAL_FIRST_MODE, DEFAULT_PROVIDER_ID, MULTIMODAL_PROVIDER_ID]),
         defaultValue: 'auto',
+        hot: true,
+    }),
+    localModel: Object.freeze({
+        env: 'LOCAL_AI_MODEL',
+        type: 'model',
+        defaultValue: '/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf',
+        hot: true,
+    }),
+    localBaseUrl: Object.freeze({
+        env: 'LOCAL_AI_BASE_URL',
+        type: 'privateUrl',
+        defaultValue: 'http://192.168.31.111:8080/v1',
+        hot: true,
+    }),
+    localVisionEnabled: Object.freeze({
+        env: 'LOCAL_AI_VISION_ENABLED',
+        type: 'boolean',
+        defaultValue: 'false',
         hot: true,
     }),
     deepseekApiKey: Object.freeze({
@@ -69,6 +90,29 @@ function booleanEnv(value, fallback = false) {
 }
 
 const PROVIDER_REGISTRY = Object.freeze({
+    local: Object.freeze({
+        provider: LOCAL_PROVIDER_ID,
+        displayName: '局域网模型',
+        apiKeyRequired: false,
+        autoRequired: false,
+        supportsFileExtraction: false,
+        resolve(env) {
+            return {
+                apiKey: '',
+                baseUrl: (
+                    text(env[PROVIDER_RUNTIME_DEFINITIONS.localBaseUrl.env])
+                    || PROVIDER_RUNTIME_DEFINITIONS.localBaseUrl.defaultValue
+                ).replace(/\/+$/, ''),
+                model: text(env[PROVIDER_RUNTIME_DEFINITIONS.localModel.env])
+                    || PROVIDER_RUNTIME_DEFINITIONS.localModel.defaultValue,
+                supportsImages: booleanEnv(
+                    env[PROVIDER_RUNTIME_DEFINITIONS.localVisionEnabled.env],
+                    PROVIDER_RUNTIME_DEFINITIONS.localVisionEnabled.defaultValue === 'true'
+                ),
+                requiresLeadingSystemMessage: true,
+            };
+        },
+    }),
     deepseek: Object.freeze({
         provider: 'deepseek',
         displayName: 'DeepSeek',
@@ -134,14 +178,47 @@ function resolveProviderConfig(provider, env = process.env) {
     return {
         provider: definition.provider,
         displayName: definition.displayName,
-        apiKeyEnvName: PROVIDER_RUNTIME_DEFINITIONS[definition.apiKeyField].env,
+        apiKeyEnvName: definition.apiKeyField
+            ? PROVIDER_RUNTIME_DEFINITIONS[definition.apiKeyField].env
+            : null,
+        apiKeyRequired: definition.apiKeyRequired !== false,
         autoRequired: definition.autoRequired,
         supportsFileExtraction: definition.supportsFileExtraction,
         ...definition.resolve(env),
     };
 }
 
+function normalizeProviderPreference(value) {
+    const preference = text(value).toLowerCase();
+    if (!preference || preference === DEFAULT_PROVIDER_PREFERENCE) return null;
+    if (!Object.hasOwn(PROVIDER_REGISTRY, preference)) {
+        const error = new Error('不支持的 AI 模型选择');
+        error.code = 'AI_PROVIDER_SELECTION_INVALID';
+        error.statusCode = 400;
+        throw error;
+    }
+    return preference;
+}
+
+function resolveProviderPreference(value, env = process.env) {
+    const preference = normalizeProviderPreference(value);
+    if (!preference) return null;
+    const config = resolveProviderConfig(preference, env);
+    if (config.apiKeyRequired !== false && !config.apiKey) {
+        const error = new Error(`${config.displayName} 尚未配置，请先在系统设置中完成配置`);
+        error.code = 'AI_PROVIDER_NOT_CONFIGURED';
+        error.statusCode = 422;
+        throw error;
+    }
+    return {
+        ...config,
+        routingMode: 'manual',
+        routeReason: 'manual',
+    };
+}
+
 function assertProviderModeConfigured(mode, values) {
+    if ([LOCAL_PROVIDER_ID, LOCAL_FIRST_MODE].includes(mode)) return;
     const provider = mode === 'auto' ? DEFAULT_PROVIDER_ID : mode;
     const definition = providerDefinition(provider);
     if (values?.[definition.apiKeyField]) return;
@@ -154,6 +231,13 @@ function assertProviderModeConfigured(mode, values) {
 
 function resolveAiProviderConfig(env = process.env) {
     const mode = providerMode(env);
+    if (mode === LOCAL_FIRST_MODE) {
+        return {
+            ...resolveProviderConfig(LOCAL_PROVIDER_ID, env),
+            routingMode: LOCAL_FIRST_MODE,
+            routeReason: 'local_primary',
+        };
+    }
     if (mode === 'auto') {
         return {
             ...resolveProviderConfig(DEFAULT_PROVIDER_ID, env),
@@ -166,6 +250,12 @@ function resolveAiProviderConfig(env = process.env) {
 
 function resolveProviderConfigsForMode(env = process.env, options = {}) {
     const mode = providerMode(env, options.defaultMode || DEFAULT_PROVIDER_ID);
+    if (mode === LOCAL_FIRST_MODE) {
+        return {
+            mode,
+            configs: [resolveProviderConfig(LOCAL_PROVIDER_ID, env)],
+        };
+    }
     if (mode !== 'auto') {
         return {
             mode,
@@ -175,20 +265,26 @@ function resolveProviderConfigsForMode(env = process.env, options = {}) {
     const includeUnconfigured = options.includeUnconfigured !== false;
     const configs = Object.keys(PROVIDER_REGISTRY)
         .map(provider => resolveProviderConfig(provider, env))
+        .filter(config => config.provider !== LOCAL_PROVIDER_ID)
         .filter(config => includeUnconfigured || config.autoRequired || config.apiKey);
     return { mode, configs };
 }
 
 module.exports = {
     AI_RUNTIME_FIELD_NAMES,
+    DEFAULT_PROVIDER_PREFERENCE,
     DEFAULT_PROVIDER_ID,
+    LOCAL_FIRST_MODE,
+    LOCAL_PROVIDER_ID,
     MULTIMODAL_PROVIDER_ID,
     PROVIDER_REGISTRY,
     PROVIDER_RUNTIME_DEFINITIONS,
     assertProviderModeConfigured,
     providerDefinition,
     providerMode,
+    normalizeProviderPreference,
     resolveAiProviderConfig,
     resolveProviderConfig,
     resolveProviderConfigsForMode,
+    resolveProviderPreference,
 };

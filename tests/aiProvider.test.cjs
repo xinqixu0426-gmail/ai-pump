@@ -171,6 +171,158 @@ test('V9.1 AI 模型适配：默认保持 DeepSeek，Kimi 多模态能力可配�
     assert.equal(kimi.displayName, 'Kimi 开放平台');
     assert.equal(kimi.supportsImages, true);
     assert.equal(kimi.maxAttachments, 4);
+    assert.deepEqual(
+        kimi.providerOptions.filter(option => option.available).map(option => option.value),
+        ['default', 'local', 'kimi']
+    );
+});
+
+test('AI 手动模型选择：可越过本地优先严格选择 DeepSeek', async () => {
+    let captured;
+    const response = await fetchAiProvider([{ role: 'user', content: '查询成本' }], {
+        providerPreference: 'deepseek',
+        env: {
+            AI_PROVIDER: 'local-first',
+            LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+            LOCAL_AI_MODEL: 'local-apex',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://deepseek.example/v1',
+            DEEPSEEK_MODEL: 'deepseek-v4-flash',
+        },
+        fetchImpl: async (url, init) => {
+            captured = { url, body: JSON.parse(init.body) };
+            return new Response('{}', { status: 200 });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(captured.url, 'https://deepseek.example/v1/chat/completions');
+    assert.equal(captured.body.model, 'deepseek-v4-flash');
+});
+
+test('AI 本地优先：局域网模型无需密钥并保留工具与流式请求协议', async () => {
+    let captured;
+    const response = await fetchAiProvider([{ role: 'user', content: '查询零件' }], {
+        env: {
+            AI_PROVIDER: 'local-first',
+            LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+            LOCAL_AI_MODEL: 'local-apex',
+        },
+        tools: [{
+            type: 'function',
+            function: {
+                name: 'search_parts',
+                description: '查询零件',
+                parameters: { type: 'object', properties: {} },
+            },
+        }],
+        toolChoice: 'auto',
+        stream: true,
+        fetchImpl: async (url, init) => {
+            captured = { url, headers: init.headers, body: JSON.parse(init.body) };
+            return new Response('data: [DONE]\n\n', { status: 200 });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(captured.url, 'http://192.168.31.111:8080/v1/chat/completions');
+    assert.equal(captured.headers.Authorization, undefined);
+    assert.equal(captured.body.model, 'local-apex');
+    assert.equal(captured.body.stream, true);
+    assert.equal(captured.body.stream_options.include_usage, true);
+    assert.equal(captured.body.tool_choice, 'auto');
+    assert.equal(captured.body.tools[0].function.name, 'search_parts');
+    assert.deepEqual(captured.body.chat_template_kwargs, { enable_thinking: false });
+    assert.equal(captured.body.max_tokens, 384);
+});
+
+test('AI 本地优先：中途 system 指令并入首条 system 消息以兼容只允许开头 system 的模板', async () => {
+    let captured;
+    const response = await fetchAiProvider([
+        { role: 'system', content: '系统协议' },
+        { role: 'user', content: '查询零件' },
+        { role: 'assistant', content: '正在查询' },
+        { role: 'system', content: '纠正：金额缺少本轮证据' },
+        { role: 'user', content: '继续' },
+    ], {
+        env: {
+            AI_PROVIDER: 'local',
+            LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+            LOCAL_AI_MODEL: 'local-apex',
+        },
+        fetchImpl: async (url, init) => {
+            captured = { body: JSON.parse(init.body) };
+            return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.deepEqual(
+        captured.body.messages.map(message => message.role),
+        ['system', 'user', 'assistant', 'user']
+    );
+    assert.match(captured.body.messages[0].content, /系统协议/);
+    assert.match(captured.body.messages[0].content, /金额缺少本轮证据/);
+    assert.deepEqual(captured.body.chat_template_kwargs, { enable_thinking: false });
+    assert.equal(captured.body.max_tokens, 512);
+});
+
+test('AI 云端提供商：中途 system 消息保持原位不被并入', async () => {
+    let captured;
+    const response = await fetchAiProvider([
+        { role: 'system', content: '系统协议' },
+        { role: 'user', content: '查询零件' },
+        { role: 'assistant', content: '正在查询' },
+        { role: 'system', content: '纠正：金额缺少本轮证据' },
+        { role: 'user', content: '继续' },
+    ], {
+        env: {
+            AI_PROVIDER: 'deepseek',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
+        },
+        fetchImpl: async (url, init) => {
+            captured = { body: JSON.parse(init.body) };
+            return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.deepEqual(
+        captured.body.messages.map(message => message.role),
+        ['system', 'user', 'assistant', 'system', 'user']
+    );
+});
+
+test('AI 本地优先：仅临时故障且已配置 DeepSeek 时降级', async () => {
+    const requests = [];
+    const providers = [];
+    const response = await fetchAiProvider([{ role: 'user', content: '查询零件' }], {
+        env: {
+            AI_PROVIDER: 'local-first',
+            LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+            LOCAL_AI_MODEL: 'local-apex',
+            DEEPSEEK_API_KEY: 'deepseek-key',
+            DEEPSEEK_BASE_URL: 'https://api.deepseek.test',
+        },
+        retryDelayMs: 0,
+        fetchImpl: async (url) => {
+            requests.push(url);
+            if (url.includes('192.168.31.111')) {
+                return new Response('temporary failure', { status: 503 });
+            }
+            return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        },
+        onProvider: info => providers.push(info),
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(requests.filter(url => url.includes('192.168.31.111')).length, 3);
+    assert.equal(requests.filter(url => url.includes('api.deepseek.test')).length, 1);
+    assert.equal(providers.at(-1).provider, 'deepseek');
+    assert.equal(providers.at(-1).fallback, true);
+    assert.equal(providers.at(-1).fallbackFrom, 'local');
+    assert.equal(providers.at(-1).routeReason, 'local_fallback');
 });
 
 test('AI 智能路由：普通对话和已本地解析文件走 DeepSeek，图片与扫描文件走 Kimi K3', () => {

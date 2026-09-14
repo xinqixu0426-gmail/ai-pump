@@ -5,9 +5,15 @@ const {
     buildAiToolPlan,
     buildAiToolResultMessage,
     enforceAiToolResultSize,
+    explicitIdentifierFromUserText,
+    groundCandidateSelectionArgument,
+    groundMissingTargetArgument,
     parseAiToolArguments,
     prepareAiToolCalls,
     prioritizeBusinessEvidence,
+    selectedCandidateFromReply,
+    sanitizeModelInferredFilters,
+    validationErrorForModel,
     viewTypeForAiTool,
 } = require('../api/services/aiToolProtocol.cjs');
 
@@ -62,6 +68,154 @@ test('AI tool protocol：模型候选参数只按统一 schema 校验，不用�
     assert.equal(plan.steps[1].validationStatus, 'rejected');
     assert.deepEqual(plan.steps[1].argsSummary, []);
     assert.match(plan.summary, /不会执行/);
+});
+
+test('AI tool protocol：组合 schema 失败时把具体缺失字段反馈给模型', () => {
+    const [prepared] = prepareAiToolCalls([
+        buildAiToolCall('preview_recipe_cost', {}, 'cost-1'),
+    ], 'model');
+
+    assert.equal(prepared.validationStatus, 'rejected');
+    assert.match(prepared.validationError, /args\.recipeId 为必填字段/);
+    assert.match(prepared.validationError, /args\.recipeName 为必填字段/);
+    assert.match(validationErrorForModel(new Error('普通错误')), /普通错误/);
+});
+
+test('AI tool protocol：只从用户唯一明确型号补齐只读对象字段', () => {
+    const call = buildAiToolCall('preview_recipe_cost', {}, 'cost-2');
+    assert.equal(explicitIdentifierFromUserText('V750 的成本是多少'), 'V750');
+    assert.equal(explicitIdentifierFromUserText('给我总结一下v750-普通的测试报告'), 'v750-普通');
+    assert.equal(explicitIdentifierFromUserText('V750-大脚板-2寸的详情'), 'V750-大脚板-2寸');
+    assert.equal(explicitIdentifierFromUserText('V1600-3”-12-180 的测试报告'), 'V1600-3”-12-180');
+    assert.equal(explicitIdentifierFromUserText('对比 V750 和 V550'), '');
+
+    const grounded = groundMissingTargetArgument(
+        call,
+        'preview_recipe_cost',
+        'V750',
+        'V750 的成本是多少'
+    );
+    assert.deepEqual(parseAiToolArguments(grounded.function.arguments), { recipeName: 'V750' });
+
+    const restoredExactTarget = groundMissingTargetArgument(
+        buildAiToolCall('get_recipe_technical_files', { recipeName: 'v750' }, 'files-1'),
+        'get_recipe_technical_files',
+        'v750-普通',
+        '给我总结一下v750-普通的测试报告'
+    );
+    assert.deepEqual(parseAiToolArguments(restoredExactTarget.function.arguments), {
+        recipeName: 'v750-普通',
+    });
+
+    const differentTarget = groundMissingTargetArgument(
+        buildAiToolCall('get_recipe_technical_files', { recipeName: 'v750-tokoy' }, 'files-2'),
+        'get_recipe_technical_files',
+        'v750-普通',
+        '给我总结一下v750-普通的测试报告'
+    );
+    assert.deepEqual(parseAiToolArguments(differentTarget.function.arguments), {
+        recipeName: 'v750-tokoy',
+    });
+
+    const sanitized = groundMissingTargetArgument(
+        buildAiToolCall('build_recipe_bom_draft', {
+            templateId: 123,
+            shellModel: 'V750-大脚板-2寸',
+        }, 'bom-1'),
+        'build_recipe_bom_draft',
+        'V750-大脚板-2寸',
+        'V750-大脚板-2寸的壳，做12-120片'
+    );
+    assert.deepEqual(parseAiToolArguments(sanitized.function.arguments), {
+        shellModel: 'V750-大脚板-2寸',
+    });
+
+    const inferredShell = groundMissingTargetArgument(
+        buildAiToolCall('build_recipe_bom_draft', { templateId: 750 }, 'bom-2'),
+        'build_recipe_bom_draft',
+        '',
+        'V750-大脚板-2寸的壳，做12-120片，带浮球'
+    );
+    assert.deepEqual(parseAiToolArguments(inferredShell.function.arguments), {
+        shellModel: 'V750-大脚板-2寸',
+    });
+
+    const customer = groundMissingTargetArgument(
+        buildAiToolCall('search_customer_history', {}, 'customer-1'),
+        'search_customer_history',
+        '',
+        '查询客户邱焕现有的全部报价'
+    );
+    assert.deepEqual(parseAiToolArguments(customer.function.arguments), { customerName: '邱焕' });
+
+    const ungrounded = groundMissingTargetArgument(
+        call,
+        'preview_recipe_cost',
+        'V1100',
+        'V750 的成本是多少'
+    );
+    assert.equal(ungrounded, call);
+
+    const writeCall = buildAiToolCall('delete_recipe', {}, 'delete-1');
+    assert.equal(
+        groundMissingTargetArgument(writeCall, 'delete_recipe', 'V750', '删除 V750'),
+        writeCall
+    );
+});
+
+test('AI tool protocol：未明确分类时移除模型自行添加的零件分类过滤', () => {
+    const sanitized = sanitizeModelInferredFilters(
+        buildAiToolCall('search_parts', { keyword: '800平刀切割泵壳', category: '切割泵壳' }, 'parts-1'),
+        'search_parts',
+        '查询800平刀切割泵壳目前的单价'
+    );
+    assert.deepEqual(parseAiToolArguments(sanitized.function.arguments), { keyword: '800平刀切割泵壳' });
+    const explicit = buildAiToolCall('search_parts', { category: '泵壳' }, 'parts-2');
+    assert.equal(sanitizeModelInferredFilters(explicit, 'search_parts', '查询分类为泵壳的零件'), explicit);
+});
+
+test('AI tool protocol：序号只绑定同会话上一轮已验证候选', () => {
+    const call = buildAiToolCall('preview_recipe_cost', {}, 'cost-3');
+    const previous = [{
+        name: 'preview_recipe_cost',
+        result: {
+            success: false,
+            requiresClarification: true,
+            candidates: [{ id: 4, name: 'v750-普通' }, { id: 2, name: 'v750-tokoy' }],
+            executionEvidence: { verified: true },
+        },
+    }];
+    const selected = groundCandidateSelectionArgument(
+        call,
+        'preview_recipe_cost',
+        '第二个',
+        previous
+    );
+    assert.deepEqual(parseAiToolArguments(selected.function.arguments), { recipeId: 2 });
+    const selectedByName = groundCandidateSelectionArgument(
+        call,
+        'preview_recipe_cost',
+        '普通的',
+        previous
+    );
+    assert.deepEqual(parseAiToolArguments(selectedByName.function.arguments), { recipeId: 4 });
+    assert.equal(selectedCandidateFromReply('两个都看', previous[0].result.candidates), null);
+    assert.equal(
+        groundCandidateSelectionArgument(call, 'preview_recipe_cost', '第三个', previous),
+        call
+    );
+    assert.equal(
+        groundCandidateSelectionArgument(call, 'preview_recipe_cost', '2', [{
+            ...previous[0],
+            result: { ...previous[0].result, executionEvidence: { verified: false } },
+        }]),
+        call
+    );
+    const writeCall = buildAiToolCall('delete_recipe', {}, 'delete-2');
+    assert.equal(
+        groundCandidateSelectionArgument(writeCall, 'delete_recipe', '2', previous),
+        writeCall
+    );
 });
 
 test('AI tool protocol：查询轮次拒绝模型越权调用库存写工具', () => {

@@ -25,8 +25,18 @@ export type AiAttachment = Pick<
   'parserStatus' | 'parserSummary'
 >>;
 
+export type AiProviderPreference = 'default' | 'local' | 'deepseek' | 'kimi';
+
+export type AiProviderOption = {
+  value: AiProviderPreference;
+  displayName: string;
+  model: string;
+  available: boolean;
+  supportsImages: boolean;
+};
+
 export type AiCapabilities = {
-  provider: 'auto' | 'deepseek' | 'kimi';
+  provider: 'auto' | 'local' | 'local-first' | 'deepseek' | 'kimi';
   displayName: string;
   model: string;
   supportsImages: boolean;
@@ -34,17 +44,35 @@ export type AiCapabilities = {
   acceptedFileTypes: Array<'pdf' | 'spreadsheet' | 'image' | 'text'>;
   maxAttachments: number;
   maxFileSize: number;
-  defaultProvider?: 'deepseek';
-  visionProvider?: 'kimi' | null;
+  defaultProvider?: 'local' | 'deepseek';
+  visionProvider?: 'local' | 'kimi' | null;
+  fileProvider?: 'kimi' | null;
+  providerOptions: AiProviderOption[];
 };
 
 export type AiProviderInfo = {
-  provider: 'deepseek' | 'kimi';
+  provider: 'local' | 'deepseek' | 'kimi';
   displayName: string;
   model: string;
-  routeReason: 'default' | 'image' | 'vision_unavailable' | 'vision_fallback' | 'manual';
+  routeReason: 'default' | 'local_primary' | 'local_fallback' | 'image' | 'file' | 'file_fallback' | 'vision_unavailable' | 'vision_fallback' | 'manual';
   fallback?: boolean;
-  fallbackFrom?: 'kimi';
+  fallbackFrom?: 'local' | 'kimi';
+};
+
+export type AiTurnMetrics = {
+  durationMs: number;
+  firstContentMs: number | null;
+  modelDurationMs: number | null;
+  toolDurationMs: number;
+  modelRequestCount: number;
+  toolCallCount: number;
+  tokensPerSecond: number | null;
+  tokensPerSecondSource: 'provider_timings' | 'stream_observed' | 'usage_over_model_time' | null;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  } | null;
 };
 
 export type AiToolResult = {
@@ -171,6 +199,7 @@ export type AiConversationMessage = {
     toolResults?: AiToolResult[];
     attachments?: AiAttachment[];
     provider?: AiProviderInfo;
+    metrics?: AiTurnMetrics;
     turnState?: AiTurnStateV3;
   };
   createdAt: string;
@@ -376,11 +405,11 @@ export type AiHealthSnapshot = {
   status: 'healthy' | 'attention';
   capabilityId: 'ai.health.read';
   provider: {
-    mode: 'auto' | 'deepseek' | 'kimi';
+    mode: 'auto' | 'local' | 'local-first' | 'deepseek' | 'kimi';
     ready: boolean;
     requestTimeoutMs: number;
     providers: Array<{
-      provider: 'deepseek' | 'kimi';
+      provider: 'local' | 'deepseek' | 'kimi';
       displayName: string;
       model: string;
       configured: boolean;
@@ -478,6 +507,7 @@ export type AiStreamEvent =
   | { type: 'tool_call'; name: string; args: unknown }
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
+  | ({ type: 'metrics' } & AiTurnMetrics)
   | { type: 'turn_state'; turnState: AiTurnStateV3 }
   | { type: 'done' }
   | { type: 'error'; message: string; code?: string };
@@ -541,7 +571,8 @@ export async function streamAiChat(
   pageContext?: AiPageContext | null,
   resolutionContext?: AiResolutionContext | null,
   turnState?: AiTurnStateV3 | null,
-  conversationId?: string
+  conversationId?: string,
+  providerPreference: AiProviderPreference = 'default'
 ): Promise<void> {
   let response: Response;
   try {
@@ -560,6 +591,7 @@ export async function streamAiChat(
         } : {}),
         ...(resolutionContext ? { resolutionContext } : {}),
         ...(turnState ? { turnState } : {}),
+        providerPreference,
       }),
       signal,
     });
@@ -1084,5 +1116,18 @@ export async function confirmAiTool(confirmationToken: string): Promise<AiToolRe
     body: JSON.stringify({ confirmationToken }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '确认执行失败');
+  return result.data;
+}
+
+export async function reviseAiToolConfirmation(
+  confirmationToken: string,
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<AiToolResult> {
+  const result = await proxyRequest<ApiResponse<AiToolResult>>('/api/ai/confirm-tool/preview', {
+    method: 'POST',
+    body: JSON.stringify({ confirmationToken, toolName, args }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '更新确认预览失败');
   return result.data;
 }

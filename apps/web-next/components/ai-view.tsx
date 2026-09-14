@@ -28,6 +28,7 @@ import {
   updateAiSystemPrompt,
   type AiAttachment,
   type AiConversationSummary,
+  type AiProviderPreference,
   type AiToolResult,
 } from '@/lib/ai';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
@@ -61,6 +62,8 @@ function makeId() {
 }
 
 const MAX_AI_STREAM_ATTEMPTS = 2;
+const AI_PROVIDER_PREFERENCE_STORAGE_KEY = 'pump-ai-provider-preference';
+const AI_PROVIDER_PREFERENCES: AiProviderPreference[] = ['default', 'local', 'deepseek', 'kimi'];
 
 function useStableEvent<Args extends unknown[], Result>(handler: (...args: Args) => Result) {
   const handlerRef = useRef(handler);
@@ -148,6 +151,7 @@ export function AiView({
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
   const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [providerPreference, setProviderPreference] = useState<AiProviderPreference>('default');
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContentRef = useRef<HTMLDivElement | null>(null);
@@ -177,6 +181,24 @@ export function AiView({
     : aiCapabilities?.displayName
       ? `所有对话固定使用 ${aiCapabilities.displayName}`
       : aiRoutingStatusText;
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY) as AiProviderPreference | null;
+    if (stored && AI_PROVIDER_PREFERENCES.includes(stored)) setProviderPreference(stored);
+  }, []);
+
+  useEffect(() => {
+    if (!aiCapabilities?.providerOptions?.length) return;
+    const selected = aiCapabilities.providerOptions.find((option) => option.value === providerPreference);
+    if (selected?.available) return;
+    setProviderPreference('default');
+    window.localStorage.setItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY, 'default');
+  }, [aiCapabilities, providerPreference]);
+
+  function changeProviderPreference(preference: AiProviderPreference) {
+    setProviderPreference(preference);
+    window.localStorage.setItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY, preference);
+  }
   const {
     feedbackByMessageId,
     feedbackTarget,
@@ -287,6 +309,7 @@ export function AiView({
       content: '',
       status: 'thinking',
       statusMessage: '正在理解问题...',
+      startedAt: Date.now(),
       toolCalls: [],
       toolResults: [],
     };
@@ -352,7 +375,7 @@ export function AiView({
           await streamAiChat(nextMessages, (event) => {
             finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
             updateAssistant(streamAssistantId, (item) => applyAiStreamEvent(item, event));
-          }, controller.signal, pageContext, resolutionContext, turnState, conversationTransportId(conversationId!));
+          }, controller.signal, pageContext, resolutionContext, turnState, conversationTransportId(conversationId!), providerPreference);
           streamCompleted = true;
           break;
         } catch (error) {
@@ -409,6 +432,7 @@ export function AiView({
               toolCalls: finalAssistantItem.toolCalls,
               toolResults: finalAssistantItem.toolResults,
               provider: finalAssistantItem.provider,
+              metrics: finalAssistantItem.metrics,
               turnState: finalAssistantItem.turnState,
             },
           });
@@ -426,11 +450,41 @@ export function AiView({
   function replaceToolResult(messageId: string, oldIndex: number, next: AiToolResult) {
     const currentItem = items.find((item) => item.id === messageId);
     const toolResults = (currentItem?.toolResults || []).map((tool, index) => (index === oldIndex ? next : tool));
-    updateAssistant(messageId, (item) => ({ ...item, toolResults }));
+    const nextResult = next.result && typeof next.result === 'object'
+      ? next.result as Record<string, unknown>
+      : {};
+    const confirmation = nextResult.confirmation && typeof nextResult.confirmation === 'object'
+      ? nextResult.confirmation as Record<string, unknown>
+      : null;
+    const revisedArgs = confirmation?.args && typeof confirmation.args === 'object' && !Array.isArray(confirmation.args)
+      ? confirmation.args as Record<string, unknown>
+      : null;
+    const toolCalls = revisedArgs
+      ? (currentItem?.toolCalls || []).map((call, index) => (
+          index === oldIndex ? { ...call, args: revisedArgs } : call
+        ))
+      : currentItem?.toolCalls;
+    const toolPlan = revisedArgs && currentItem?.toolPlan
+      ? {
+          ...currentItem.toolPlan,
+          steps: currentItem.toolPlan.steps.map((step, index) => (
+            index === oldIndex
+              ? {
+                  ...step,
+                  argsSummary: Object.entries(revisedArgs).slice(0, 12).map(([key, value]) => ({
+                    key,
+                    value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+                  })),
+                }
+              : step
+          )),
+        }
+      : currentItem?.toolPlan;
+    updateAssistant(messageId, (item) => ({ ...item, toolPlan, toolCalls, toolResults }));
     if (activeConversationId && currentItem?.persistedMessageId) {
       void updateAiConversationMessage(activeConversationId, currentItem.persistedMessageId, {
-        toolPlan: currentItem.toolPlan,
-        toolCalls: currentItem.toolCalls,
+        toolPlan,
+        toolCalls,
         toolResults,
       }).catch((error) => setHistoryError((error as Error).message || '更新会话记录失败'));
     }
@@ -758,10 +812,12 @@ export function AiView({
               uploadingAttachment={uploadingAttachment}
               attachmentError={attachmentError}
               aiCapabilities={aiCapabilities}
+              providerPreference={providerPreference}
               fileInputRef={fileInputRef}
               onSelectAttachments={(files) => void selectAttachments(files)}
               onRemoveAttachment={discardPendingAttachment}
               onStop={stopStream}
+              onProviderPreferenceChange={changeProviderPreference}
               onSend={sendComposerDraft}
             />
           </section>

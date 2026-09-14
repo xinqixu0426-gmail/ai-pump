@@ -1602,6 +1602,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'internal']),
     }),
+    'ai.tool_confirmation.repreview': definePreviewCapability({
+        capabilityId: 'ai.tool_confirmation.repreview',
+        domain: 'ai',
+        inputSchema: 'POST /api/ai/confirm-tool/preview { confirmationToken, toolName, args }',
+        outputSchema: 'AiToolResult<EditableConfirmationPreview>',
+        sourceOfTruth: 'pending_ai_confirmation+AI_TOOLS_input_schema+formal_write_preflight',
+        riskLevel: 'low',
+        callers: Object.freeze(['web']),
+    }),
     'ai.evaluations.runs.start': defineBusinessCapability({
         capabilityId: 'ai.evaluations.runs.start',
         recordsBusinessChange: false,

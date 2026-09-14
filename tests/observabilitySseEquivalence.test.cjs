@@ -71,9 +71,13 @@ async function capture(enabled) {
     }),
   });
   const totals = telemetry.snapshot().totals;
+  const stableOutput = res.output.replace(
+    /"(durationMs|firstContentMs)":\d+/g,
+    '"$1":"<dynamic>"'
+  );
   return {
     headers: res.headers,
-    output: res.output,
+    output: stableOutput,
     writableEnded: res.writableEnded,
     totals: {
       total: totals.total,
@@ -90,9 +94,11 @@ test('SSE event types, order, payload and termination are equivalent OFF vs ON',
   assert.deepEqual(enabled, disabled);
   assert.match(enabled.output, /"type":"provider"/);
   assert.match(enabled.output, /"type":"content"/);
+  assert.match(enabled.output, /"type":"metrics"/);
   assert.match(enabled.output, /"type":"done"/);
   assert.ok(enabled.output.indexOf('"type":"provider"') < enabled.output.indexOf('"type":"content"'));
   assert.ok(enabled.output.indexOf('"type":"content"') < enabled.output.indexOf('"type":"done"'));
+  assert.ok(enabled.output.indexOf('"type":"metrics"') < enabled.output.indexOf('"type":"done"'));
 });
 
 test.after(async () => {

@@ -96,6 +96,31 @@ function normalizeUrl(value) {
     return url.toString().replace(/\/+$/, '');
 }
 
+function isPrivateHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '::1') return true;
+    const parts = host.split('.').map(Number);
+    if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return false;
+    }
+    return parts[0] === 10
+        || parts[0] === 127
+        || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+        || (parts[0] === 192 && parts[1] === 168);
+}
+
+function normalizePrivateUrl(value) {
+    const url = new URL(String(value || '').trim());
+    if (!['http:', 'https:'].includes(url.protocol)) {
+        throw new Error('局域网模型服务地址必须使用 HTTP 或 HTTPS');
+    }
+    if (url.username || url.password) throw new Error('服务地址不能包含账号或密码');
+    if (!isPrivateHost(url.hostname)) {
+        throw new Error('局域网模型服务地址必须使用 localhost 或私网 IP');
+    }
+    return url.toString().replace(/\/+$/, '');
+}
+
 function normalizeValue(field, value) {
     const definition = DEFINITIONS[field];
     if (!definition) throw new Error(`不支持的运行设置: ${field}`);
@@ -122,6 +147,7 @@ function normalizeValue(field, value) {
         return normalized;
     }
     if (definition.type === 'url') return normalizeUrl(normalized);
+    if (definition.type === 'privateUrl') return normalizePrivateUrl(normalized);
     if (definition.type === 'model') {
         if (!MODEL_RE.test(normalized)) throw new Error(`${field} 模型名称格式无效`);
         return normalized;
