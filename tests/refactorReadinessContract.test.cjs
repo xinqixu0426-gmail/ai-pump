@@ -2313,6 +2313,12 @@ test('Next UI 契约：AI 会话侧栏、历史状态和流式消息状态按职
     assert.match(conversationHistory, /listAiConversations\(\)/);
     assert.match(conversationHistory, /getAiConversation\(id\)/);
     assert.match(conversationHistory, /deleteAiConversation\(id\)/);
+    assert.match(conversationHistory, /batchDeleteAiConversations\(ids\)/);
+    assert.match(conversationHistory, /已删除 \$\{deletedIds\.length\} 个会话/);
+    assert.match(sidebars, /批量管理/);
+    assert.match(sidebars, /aria-label="全选当前会话"/);
+    assert.match(aiView, /historyError \? \(/);
+    assert.match(aiView, /historyNotice/);
     assert.match(messageStream, /export function applyAiStreamEvent/);
     assert.match(messageStream, /const abortRef = useRef<AbortController/);
     assert.doesNotMatch(sidebars, /proxyRequest|proxyFetch|fetch\(/);

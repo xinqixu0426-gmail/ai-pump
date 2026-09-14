@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 238 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 239 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -509,7 +509,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 114 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 115 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -594,6 +594,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 | `ai.conversations.messages.append` | HTTP/Web | command/write | 当前会话 + `ai_conversation_messages` + 有效附件 | medium | 发送消息本身是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 消息、会话摘要、operation 和两条强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.messages.update_metadata` | HTTP/Web | command/write | 当前会话消息 | medium | 保存模型、工具和展示元数据，无额外确认 | 无 | 90 天持久化幂等 + 消息 `expectedUpdatedAt` | 消息元数据、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.conversations.delete` | HTTP/Web | command/write | `ai_conversations` | medium | 页面删除确认是明确动作 | 无 | 90 天持久化幂等 + 会话 `expectedUpdatedAt` | 会话软删除、operation 和强审计同一 SQLite 事务；消息留存追溯 | 默认 HTTP |
+| `ai.conversations.batch_delete` | HTTP/Web | command/write | `ai_conversations` | medium | 页面批量删除确认是明确动作 | 无 | 90 天持久化幂等 + 每个会话 `expectedUpdatedAt`；最多 50 条 | 选中会话软删除、operation 和逐项强审计同一 SQLite 事务；任一目标失败时整批回滚 | 默认 HTTP |
 | `ai.health.read` | HTTP/Web | query/read | 当前模型配置 + 本进程有界遥测 + 最近内部发布评测 | low | 无 | 无 | 查询天然幂等 | 只读且脱敏；不保存或返回问题、回答与密钥 | 默认 HTTP |
 | `ai.evaluations.runs.start` | HTTP/Web/发布门禁脚本 | maintenance/write | 手动启用或发布门禁启用的评测用例 + `ai_evaluation_runs` | medium | 启动检查本身是明确动作；`release` scope 只允许内部主体 | 无 | 90 天持久化幂等；新运行无版本 | 同 owner 未结束运行、当前运行、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.evaluations.results.record` | HTTP/Web/发布门禁脚本 | maintenance/write | 当前正式业务只读事实 + 评测用例 + `ai_evaluation_results` | medium | 自动评测记录，无额外确认 | 无 | 90 天持久化幂等 + 运行 `expectedUpdatedAt` + `(runId, caseId)` 唯一约束 | 单项结果、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
@@ -642,6 +643,7 @@ AI 工作台会把会话和消息保存到 SQLite。所有接口均需登录，�
 | `POST` | `/api/ai/conversations/:id/messages` | `{ role, content, metadata?, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.messages.append`。追加消息并原子刷新会话摘要；用户附件放在 `metadata.attachments: [{ id }]`，服务端重新读取文件名、类型、大小和下载路径后保存。新调用绑定会话版本，同键重放不重复消息；旧调用兼容并返回保护缺失 warning |
 | `PATCH` | `/api/ai/conversations/:id/messages/:messageId` | `{ metadata, expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.messages.update_metadata`。更新已保存消息的工具执行结果；新调用绑定消息版本，相同命令安全重放，旧调用兼容 |
 | `DELETE` | `/api/ai/conversations/:id` | `{ expectedUpdatedAt?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.delete`。软删除会话；历史消息保留在数据库中但不再展示。新调用绑定会话版本并持久幂等，旧空请求兼容 |
+| `POST` | `/api/ai/conversations/batch-delete` | `{ items: [{ id, expectedUpdatedAt }] }`；推荐请求头 `Idempotency-Key` | 能力 `ai.conversations.batch_delete`。一次原子软删除 1–50 个当前 owner 的会话；重复 ID、目标不存在、越权或任一版本漂移均整批拒绝，历史消息继续留存追溯 |
 
 ### AI 回答反馈
 

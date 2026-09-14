@@ -853,7 +853,7 @@ test('关键 API 集成契约：/api/knowledge 提供搜索、详情和同步入
     assert.match(source, /res\.json\(\{ success: true, data \}\)/);
 });
 
-test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保存和删除入口', () => {
+test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保存和单条及批量删除入口', () => {
     const route = readUtf8('api/routes/ai/conversations.cjs');
     const service = readUtf8('api/services/aiConversations.cjs');
     const commands = readUtf8('api/services/aiConversationCommands.cjs');
@@ -863,17 +863,20 @@ test('关键 API 集成契约：AI 会话提供历史列表、详情、消息保
     assert.match(route, /router\.post\('\/api\/ai\/conversations\/:id\/messages'/);
     assert.match(route, /router\.patch\('\/api\/ai\/conversations\/:id\/messages\/:messageId'/);
     assert.match(route, /router\.delete\('\/api\/ai\/conversations\/:id'/);
+    assert.match(route, /router\.post\('\/api\/ai\/conversations\/batch-delete'/);
     assert.match(route, /parsePositiveId/);
     assert.match(route, /conversationAuth/);
     assert.match(route, /executeCreateAiConversation/);
     assert.match(route, /executeAppendAiConversationMessage/);
     assert.match(route, /executeUpdateAiConversationMessage/);
     assert.match(route, /executeDeleteAiConversation/);
+    assert.match(route, /executeBatchDeleteAiConversations/);
     assert.match(service, /metadata\.attachments/);
     assert.match(service, /附件不存在或已删除/);
     assert.match(commands, /executePersistentCommand/);
     assert.match(commands, /assertExpectedUpdatedAt/);
     assert.match(commands, /requiredAuditCount: 2/);
+    assert.match(commands, /MAX_BATCH_DELETE_CONVERSATIONS = 50/);
 });
 
 test('关键 API 集成契约：AI 回答反馈提供提交、查询和处理入口', () => {

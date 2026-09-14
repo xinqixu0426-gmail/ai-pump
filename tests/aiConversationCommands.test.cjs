@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const { runMigrations } = require('../api/database/migrations.cjs');
 const {
     executeAppendAiConversationMessage,
+    executeBatchDeleteAiConversations,
     executeCreateAiConversation,
     executeDeleteAiConversation,
     executeUpdateAiConversationMessage,
@@ -287,6 +288,135 @@ test('AI 会话命令：删除按 owner 和版本隔离且缺少强审计时整�
         );
         assert.equal(deleted.deleted, true);
         assert.equal(deleted.auditIds.length, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 会话命令：批量删除逐项审计并支持持久幂等重放', () => {
+    const fixture = createFixture();
+    try {
+        const first = executeCreateAiConversation(
+            fixture.dependencies,
+            'admin',
+            { title: '批量删除一' },
+            context('ai-conversation-create-batch-0001')
+        );
+        const second = executeCreateAiConversation(
+            fixture.dependencies,
+            'admin',
+            { title: '批量删除二' },
+            context('ai-conversation-create-batch-0002')
+        );
+        const input = { items: [
+            { id: first.id, expectedUpdatedAt: first.updatedAt },
+            { id: second.id, expectedUpdatedAt: second.updatedAt },
+        ] };
+        const deleted = executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            input,
+            context('ai-conversation-batch-delete-0001')
+        );
+        const replay = executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            input,
+            context('ai-conversation-batch-delete-0001')
+        );
+        assert.equal(deleted.capabilityId, 'ai.conversations.batch_delete');
+        assert.deepEqual(deleted.ids, [first.id, second.id]);
+        assert.equal(deleted.deletedCount, 2);
+        assert.equal(deleted.auditIds.length, 2);
+        assert.equal(replay.idempotentReplay, true);
+        assert.equal(
+            fixture.db.prepare(
+                'SELECT COUNT(*) count FROM ai_conversations WHERE deleted_at IS NULL'
+            ).get().count,
+            0
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 会话命令：批量删除遇到越权或版本漂移时整批回滚', () => {
+    const fixture = createFixture();
+    try {
+        const first = executeCreateAiConversation(
+            fixture.dependencies,
+            'admin',
+            { title: '保留会话一' },
+            context('ai-conversation-create-batch-0003')
+        );
+        const second = executeCreateAiConversation(
+            fixture.dependencies,
+            'admin',
+            { title: '保留会话二' },
+            context('ai-conversation-create-batch-0004')
+        );
+        const foreign = executeCreateAiConversation(
+            fixture.dependencies,
+            'internal',
+            { title: '其他用户会话' },
+            context('ai-conversation-create-batch-0005')
+        );
+        assert.throws(() => executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            { items: [
+                { id: first.id, expectedUpdatedAt: first.updatedAt },
+                { id: foreign.id, expectedUpdatedAt: foreign.updatedAt },
+            ] },
+            context('ai-conversation-batch-delete-0002')
+        ), /不存在/);
+        assert.throws(() => executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            { items: [
+                { id: first.id, expectedUpdatedAt: first.updatedAt },
+                { id: second.id, expectedUpdatedAt: '2020-01-01T00:00:00.000Z' },
+            ] },
+            context('ai-conversation-batch-delete-0003')
+        ), /已被其他操作修改/);
+        assert.equal(
+            fixture.db.prepare(
+                'SELECT COUNT(*) count FROM ai_conversations WHERE owner_key = ? AND deleted_at IS NULL'
+            ).get('admin').count,
+            2
+        );
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('AI 会话命令：批量删除拒绝空列表、重复目标和超过 50 条', () => {
+    const fixture = createFixture();
+    try {
+        assert.throws(() => executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            { items: [] },
+            context('ai-conversation-batch-delete-0004')
+        ), /至少选择一个会话/);
+        assert.throws(() => executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            { items: [
+                { id: 1, expectedUpdatedAt: '2026-08-03T11:00:00.000Z' },
+                { id: 1, expectedUpdatedAt: '2026-08-03T11:00:00.000Z' },
+            ] },
+            context('ai-conversation-batch-delete-0005')
+        ), /重复会话/);
+        assert.throws(() => executeBatchDeleteAiConversations(
+            fixture.dependencies,
+            'admin',
+            { items: Array.from({ length: 51 }, (_, index) => ({
+                id: index + 1,
+                expectedUpdatedAt: '2026-08-03T11:00:00.000Z',
+            })) },
+            context('ai-conversation-batch-delete-0006')
+        ), /最多删除 50 个会话/);
     } finally {
         fixture.db.close();
     }

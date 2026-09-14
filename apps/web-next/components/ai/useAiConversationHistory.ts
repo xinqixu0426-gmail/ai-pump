@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  batchDeleteAiConversations,
   deleteAiConversation,
   getAiConversation,
   listAiAnswerFeedback,
@@ -37,6 +38,7 @@ export function useAiConversationHistory(locked: boolean) {
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
+  const [historyNotice, setHistoryNotice] = useState('');
   const [openingConversationId, setOpeningConversationId] = useState<number | null>(null);
   const [deletingConversation, setDeletingConversation] = useState(false);
 
@@ -58,6 +60,12 @@ export function useAiConversationHistory(locked: boolean) {
   useEffect(() => {
     setRestorableConversationId(readRestorableConversationId());
   }, []);
+
+  useEffect(() => {
+    if (!historyNotice) return;
+    const timeout = window.setTimeout(() => setHistoryNotice(''), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [historyNotice]);
 
   useEffect(() => {
     let active = true;
@@ -114,6 +122,7 @@ export function useAiConversationHistory(locked: boolean) {
 
   async function removeConversation(id: number) {
     setDeletingConversation(true);
+    setHistoryNotice('');
     try {
       await deleteAiConversation(id);
       const removedActiveConversation = activeConversationId === id;
@@ -123,9 +132,33 @@ export function useAiConversationHistory(locked: boolean) {
         persistActiveConversationId(null);
       }
       await refreshConversationList();
+      setHistoryNotice('会话已删除');
       return removedActiveConversation;
     } catch (error) {
       setHistoryError((error as Error).message || '删除会话失败');
+      return null;
+    } finally {
+      setDeletingConversation(false);
+    }
+  }
+
+  async function removeConversations(ids: number[]) {
+    setDeletingConversation(true);
+    setHistoryNotice('');
+    try {
+      const deletedIds = await batchDeleteAiConversations(ids);
+      const removedActiveConversation = activeConversationId !== null
+        && deletedIds.includes(activeConversationId);
+      if (removedActiveConversation) {
+        setActiveConversationId(null);
+        setRestorableConversationId(null);
+        persistActiveConversationId(null);
+      }
+      await refreshConversationList();
+      setHistoryNotice(`已删除 ${deletedIds.length} 个会话`);
+      return removedActiveConversation;
+    } catch (error) {
+      setHistoryError((error as Error).message || '批量删除会话失败');
       return null;
     } finally {
       setDeletingConversation(false);
@@ -157,6 +190,7 @@ export function useAiConversationHistory(locked: boolean) {
     historyQuery,
     historyLoading,
     historyError,
+    historyNotice,
     openingConversationId,
     deletingConversation,
     filteredConversations,
@@ -168,5 +202,6 @@ export function useAiConversationHistory(locked: boolean) {
     refreshConversationList,
     openConversation,
     removeConversation,
+    removeConversations,
   };
 }

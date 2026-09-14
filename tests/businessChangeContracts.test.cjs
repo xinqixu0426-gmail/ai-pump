@@ -82,6 +82,7 @@ test('业务变更契约：仅技术过程明确退出业务长期记忆', () =>
         'ai.conversations.messages.append',
         'ai.conversations.messages.update_metadata',
         'ai.conversations.delete',
+        'ai.conversations.batch_delete',
         'ai.feedback.submit',
         'ai.feedback.diagnose',
         'ai.feedback.retest',

@@ -1592,6 +1592,18 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         supportsPreview: false,
         transactionality: 'conversation_soft_delete_audit_and_operation_receipt_atomic',
     }),
+    'ai.conversations.batch_delete': defineBusinessCapability({
+        capabilityId: 'ai.conversations.batch_delete',
+        recordsBusinessChange: false,
+        domain: 'ai',
+        inputSchema: 'POST /api/ai/conversations/batch-delete',
+        outputSchema: 'CommandReceipt<AiConversationBatchDeleteResult>',
+        sourceOfTruth: 'ai_conversations',
+        riskLevel: 'medium',
+        requiresConfirmation: false,
+        supportsPreview: false,
+        transactionality: 'selected_conversations_soft_delete_audits_and_operation_receipt_atomic',
+    }),
     'ai.health.read': defineQueryCapability({
         capabilityId: 'ai.health.read',
         domain: 'ai',

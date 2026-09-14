@@ -26,6 +26,10 @@ const UPDATE_MESSAGE_CAPABILITY_ID = requireBusinessCapability(
 const DELETE_CAPABILITY_ID = requireBusinessCapability(
     'ai.conversations.delete'
 ).capabilityId;
+const BATCH_DELETE_CAPABILITY_ID = requireBusinessCapability(
+    'ai.conversations.batch_delete'
+).capabilityId;
+const MAX_BATCH_DELETE_CONVERSATIONS = 50;
 
 function conversationCommandError(code, message, statusCode = 409) {
     return new CommandExecutionError(code, message, statusCode);
@@ -366,12 +370,125 @@ function executeDeleteAiConversation(
     });
 }
 
+function normalizeBatchDeleteItems(value) {
+    if (!Array.isArray(value) || value.length === 0) {
+        throw conversationCommandError(
+            'ai_conversation_batch_empty',
+            '请至少选择一个会话',
+            400
+        );
+    }
+    if (value.length > MAX_BATCH_DELETE_CONVERSATIONS) {
+        throw conversationCommandError(
+            'ai_conversation_batch_too_large',
+            `一次最多删除 ${MAX_BATCH_DELETE_CONVERSATIONS} 个会话`,
+            400
+        );
+    }
+    const seen = new Set();
+    return value.map((item, index) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+            throw conversationCommandError(
+                'ai_conversation_batch_item_invalid',
+                `第 ${index + 1} 个会话参数不合法`,
+                400
+            );
+        }
+        const id = positiveId(item.id, `第 ${index + 1} 个会话ID`);
+        if (seen.has(id)) {
+            throw conversationCommandError(
+                'ai_conversation_batch_duplicate',
+                '批量删除中包含重复会话',
+                400
+            );
+        }
+        seen.add(id);
+        const expectedUpdatedAt = normalizeExpectedUpdatedAt(
+            item.expectedUpdatedAt,
+            `items[${index}].expectedUpdatedAt`
+        );
+        if (!expectedUpdatedAt) {
+            throw conversationCommandError(
+                'ai_conversation_batch_version_required',
+                '会话版本缺失，请刷新列表后重试',
+                400
+            );
+        }
+        return { id, expectedUpdatedAt };
+    });
+}
+
+function executeBatchDeleteAiConversations(
+    dependencies,
+    owner,
+    input = {},
+    commandContext = {}
+) {
+    const items = normalizeBatchDeleteItems(input.items);
+    return executePersistentCommand({
+        db: dependencies.db,
+        ...commandContext,
+        capabilityId: BATCH_DELETE_CAPABILITY_ID,
+        input: { items },
+        warnings: commandContext.warnings || [],
+        execute: ({ auditContext }) => {
+            const rows = items.map(item => {
+                const current = conversationRow(dependencies, item.id, owner);
+                if (!current) {
+                    throw conversationCommandError(
+                        'ai_conversation_not_found',
+                        `会话 ${item.id} 不存在`,
+                        404
+                    );
+                }
+                assertExpectedUpdatedAt(
+                    current,
+                    item.expectedUpdatedAt,
+                    `AI 会话 ${item.id}`
+                );
+                return current;
+            });
+            const writes = collectAudits();
+            for (const row of rows) {
+                const deleted = deleteAiConversation(owner, row.id, {
+                    dbAccessors: dependencies,
+                    auditContext,
+                    onWrite: writes.onWrite,
+                });
+                if (!deleted) {
+                    throw conversationCommandError(
+                        'ai_conversation_not_found',
+                        `会话 ${row.id} 不存在`,
+                        404
+                    );
+                }
+            }
+            const ids = rows.map(row => Number(row.id));
+            return {
+                data: { ids, deletedCount: ids.length },
+                resource: { type: 'aiConversation', ids },
+                changes: ids.map(id => ({
+                    resourceType: 'aiConversation',
+                    resourceId: id,
+                    field: 'deletedAt',
+                    from: null,
+                    to: 'soft-deleted',
+                })),
+                auditIds: writes.auditIds,
+                requiredAuditCount: ids.length,
+            };
+        },
+    });
+}
+
 module.exports = {
     APPEND_MESSAGE_CAPABILITY_ID,
+    BATCH_DELETE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     UPDATE_MESSAGE_CAPABILITY_ID,
     executeAppendAiConversationMessage,
+    executeBatchDeleteAiConversations,
     executeCreateAiConversation,
     executeDeleteAiConversation,
     executeUpdateAiConversationMessage,

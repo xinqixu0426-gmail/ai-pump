@@ -871,6 +871,26 @@ export async function deleteAiConversation(id: number): Promise<void> {
   aiConversationVersions.delete(id);
 }
 
+export async function batchDeleteAiConversations(ids: number[]): Promise<number[]> {
+  const items = ids.map((id) => ({
+    id,
+    expectedUpdatedAt: aiConversationVersions.get(id) || null,
+  }));
+  if (items.some((item) => !item.expectedUpdatedAt)) {
+    throw new Error('会话版本缺失，请刷新列表后重试');
+  }
+  const result = await proxyRequest<ApiResponse<{ ids: number[]; deletedCount: number }>>('/api/ai/conversations/batch-delete', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': createIdempotencyKey('ai-conversation-batch-delete'),
+    },
+    body: JSON.stringify({ items }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '批量删除会话失败');
+  result.data.ids.forEach((id) => aiConversationVersions.delete(id));
+  return result.data.ids;
+}
+
 export async function getAiCapabilities(): Promise<AiCapabilities> {
   const result = await proxyRequest<ApiResponse<AiCapabilities>>('/api/ai/capabilities');
   if (!result.success || !result.data) throw new Error(result.error || '读取 AI 模型能力失败');

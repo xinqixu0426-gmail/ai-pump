@@ -18,10 +18,12 @@ const {
 } = require('../../services/aiConversations.cjs');
 const {
     APPEND_MESSAGE_CAPABILITY_ID,
+    BATCH_DELETE_CAPABILITY_ID,
     CREATE_CAPABILITY_ID,
     DELETE_CAPABILITY_ID,
     UPDATE_MESSAGE_CAPABILITY_ID,
     executeAppendAiConversationMessage,
+    executeBatchDeleteAiConversations,
     executeCreateAiConversation,
     executeDeleteAiConversation,
     executeUpdateAiConversationMessage,
@@ -67,6 +69,20 @@ router.post('/api/ai/conversations', (req, res) => {
             commandContextFromRequest(req, CREATE_CAPABILITY_ID)
         );
         res.status(data.idempotentReplay ? 200 : 201).json({ success: true, data });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/api/ai/conversations/batch-delete', (req, res) => {
+    try {
+        const data = executeBatchDeleteAiConversations(
+            aiConversationDependencies,
+            req.aiConversationOwner,
+            req.body || {},
+            commandContextFromRequest(req, BATCH_DELETE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data });
     } catch (error) {
         sendCommandError(res, error);
     }

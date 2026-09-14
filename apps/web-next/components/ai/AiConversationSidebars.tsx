@@ -22,6 +22,7 @@ import type { AiConversationSummary } from '@/lib/ai';
 import { dateText } from '@/components/ai/AiResultPrimitives';
 import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/field';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { StatusBadge } from '@/components/ui/status-badge';
 
@@ -75,6 +76,9 @@ type ConversationListProps = {
   mobile?: boolean;
   onOpenConversation: (id: number) => void;
   onDeleteConversation: (conversation: AiConversationSummary) => void;
+  selectionMode: boolean;
+  selectedConversationIds: Set<number>;
+  onToggleConversation: (id: number) => void;
 };
 
 function ConversationList({
@@ -87,6 +91,9 @@ function ConversationList({
   mobile = false,
   onOpenConversation,
   onDeleteConversation,
+  selectionMode,
+  selectedConversationIds,
+  onToggleConversation,
 }: ConversationListProps) {
   if (historyLoading) {
     return <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted"><Loader2 size={15} className="animate-spin" />正在读取</div>;
@@ -105,10 +112,20 @@ function ConversationList({
         ? `flex items-center gap-1 rounded-md p-1 ${activeConversationId === conversation.id ? 'bg-slate-100' : 'hover:bg-slate-50'}`
         : `group flex items-center gap-1 rounded-md border p-1 ${activeConversationId === conversation.id ? 'border-slate-300 bg-slate-100' : 'border-transparent hover:bg-slate-50'}`}
     >
+      {selectionMode ? (
+        <label className="flex h-10 w-9 shrink-0 items-center justify-center" title={`选择会话 ${conversation.title}`}>
+          <Checkbox
+            checked={selectedConversationIds.has(conversation.id)}
+            onChange={() => onToggleConversation(conversation.id)}
+            aria-label={`选择会话 ${conversation.title}`}
+            disabled={loading}
+          />
+        </label>
+      ) : null}
       <button
         type="button"
-        onClick={() => onOpenConversation(conversation.id)}
-        disabled={loading || openingConversationId !== null}
+        onClick={() => selectionMode ? onToggleConversation(conversation.id) : onOpenConversation(conversation.id)}
+        disabled={loading || (!selectionMode && openingConversationId !== null)}
         className={mobile
           ? 'min-w-0 flex-1 rounded px-2 py-2 text-left disabled:opacity-60'
           : 'min-w-0 flex-1 rounded px-2 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-60'}
@@ -121,7 +138,7 @@ function ConversationList({
         </span>
         <span className="mt-1 block truncate pl-5 text-xs text-muted">{conversation.messageCount} 条 · {dateText(conversation.updatedAt)}</span>
       </button>
-      <Button
+      {!selectionMode ? <Button
         variant="ghost"
         size="sm"
         className={mobile
@@ -132,7 +149,7 @@ function ConversationList({
         title="删除会话"
         onClick={() => onDeleteConversation(conversation)}
         disabled={loading}
-      />
+      /> : null}
     </div>
   ));
 }
@@ -149,6 +166,12 @@ type ConversationStateProps = {
   onHistoryQueryChange: (value: string) => void;
   onOpenConversation: (id: number) => void;
   onDeleteConversation: (conversation: AiConversationSummary) => void;
+  selectionMode: boolean;
+  selectedConversationIds: Set<number>;
+  onSelectionModeChange: (value: boolean) => void;
+  onToggleConversation: (id: number) => void;
+  onToggleAllVisible: () => void;
+  onRequestBatchDelete: () => void;
 };
 
 type AiDesktopSidebarProps = ConversationStateProps & {
@@ -180,6 +203,12 @@ export function AiDesktopSidebar({
   onHistoryQueryChange,
   onOpenConversation,
   onDeleteConversation,
+  selectionMode,
+  selectedConversationIds,
+  onSelectionModeChange,
+  onToggleConversation,
+  onToggleAllVisible,
+  onRequestBatchDelete,
   onRunSample,
   onEditPrompt,
 }: AiDesktopSidebarProps) {
@@ -208,6 +237,27 @@ export function AiDesktopSidebar({
               className="h-9 w-full rounded-md border border-line bg-slate-50 pl-8 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
             />
           </label>
+          <div className="mb-2 flex min-h-8 items-center justify-between gap-2">
+            {selectionMode ? (
+              <>
+                <label className="flex min-w-0 items-center gap-2 text-xs text-muted">
+                  <Checkbox
+                    checked={filteredConversations.length > 0 && filteredConversations.every((item) => selectedConversationIds.has(item.id))}
+                    onChange={onToggleAllVisible}
+                    aria-label="全选当前会话"
+                    disabled={loading || filteredConversations.length === 0}
+                  />
+                  <span className="truncate">已选 {selectedConversationIds.size} 项</span>
+                </label>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => onSelectionModeChange(false)} disabled={loading}>取消</Button>
+                  <Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={onRequestBatchDelete} disabled={loading || selectedConversationIds.size === 0}>删除</Button>
+                </div>
+              </>
+            ) : (
+              <Button variant="ghost" size="sm" className="ml-auto text-muted" onClick={() => onSelectionModeChange(true)} disabled={loading || conversations.length === 0}>批量管理</Button>
+            )}
+          </div>
           {historyError ? (
             <div className="mb-2 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
               <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -224,6 +274,9 @@ export function AiDesktopSidebar({
               loading={loading}
               onOpenConversation={onOpenConversation}
               onDeleteConversation={onDeleteConversation}
+              selectionMode={selectionMode}
+              selectedConversationIds={selectedConversationIds}
+              onToggleConversation={onToggleConversation}
             />
           </div>
         </div>
@@ -295,6 +348,12 @@ export function AiMobileConversationDrawer({
   onHistoryQueryChange,
   onOpenConversation,
   onDeleteConversation,
+  selectionMode,
+  selectedConversationIds,
+  onSelectionModeChange,
+  onToggleConversation,
+  onToggleAllVisible,
+  onRequestBatchDelete,
   onEditPrompt,
   onAsideModeChange,
   onSampleCategoryChange,
@@ -342,6 +401,28 @@ export function AiMobileConversationDrawer({
                   />
                 </label>
 
+                <div className="mt-2 flex min-h-9 items-center justify-between gap-2">
+                  {selectionMode ? (
+                    <>
+                      <label className="flex min-w-0 items-center gap-2 text-xs text-muted">
+                        <Checkbox
+                          checked={filteredConversations.length > 0 && filteredConversations.every((item) => selectedConversationIds.has(item.id))}
+                          onChange={onToggleAllVisible}
+                          aria-label="全选当前会话"
+                          disabled={loading || filteredConversations.length === 0}
+                        />
+                        <span>已选 {selectedConversationIds.size} 项</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => onSelectionModeChange(false)} disabled={loading}>取消</Button>
+                        <Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={onRequestBatchDelete} disabled={loading || selectedConversationIds.size === 0}>删除</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="ml-auto text-muted" onClick={() => onSelectionModeChange(true)} disabled={loading || conversations.length === 0}>批量管理</Button>
+                  )}
+                </div>
+
                 {historyError ? (
                   <div className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
                     <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -360,6 +441,9 @@ export function AiMobileConversationDrawer({
                     mobile
                     onOpenConversation={onOpenConversation}
                     onDeleteConversation={onDeleteConversation}
+                    selectionMode={selectionMode}
+                    selectedConversationIds={selectedConversationIds}
+                    onToggleConversation={onToggleConversation}
                   />
                 </div>
               </div>

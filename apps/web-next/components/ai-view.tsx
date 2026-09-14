@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/dialog';
+import { InlineNotice } from '@/components/ui/notice';
 import { FadePanel } from '@/components/motion/fade-panel';
 import {
   appendAiConversationMessage,
@@ -108,6 +109,7 @@ export function AiView({
     historyQuery,
     historyLoading,
     historyError,
+    historyNotice,
     openingConversationId,
     deletingConversation,
     filteredConversations,
@@ -119,6 +121,7 @@ export function AiView({
     refreshConversationList,
     openConversation: loadConversation,
     removeConversation,
+    removeConversations,
   } = useAiConversationHistory(loading);
   const {
     aiCapabilities,
@@ -139,6 +142,9 @@ export function AiView({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeSampleCategory, setActiveSampleCategory] = useState<AiSampleCategory>('常用');
   const [deleteTarget, setDeleteTarget] = useState<AiConversationSummary | null>(null);
+  const [conversationSelectionMode, setConversationSelectionMode] = useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Set<number>>(new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
   const [promptLoading, setPromptLoading] = useState(false);
@@ -591,6 +597,43 @@ export function AiView({
     setDeleteTarget(null);
   }
 
+  function changeConversationSelectionMode(value: boolean) {
+    setConversationSelectionMode(value);
+    if (!value) setSelectedConversationIds(new Set());
+  }
+
+  function toggleConversationSelection(id: number) {
+    setSelectedConversationIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleConversations() {
+    setSelectedConversationIds((current) => {
+      const next = new Set(current);
+      const allVisibleSelected = filteredConversations.length > 0
+        && filteredConversations.every((conversation) => next.has(conversation.id));
+      filteredConversations.forEach((conversation) => {
+        if (allVisibleSelected) next.delete(conversation.id);
+        else next.add(conversation.id);
+      });
+      return next;
+    });
+  }
+
+  async function confirmBatchDeleteConversations() {
+    const ids = [...selectedConversationIds];
+    if (ids.length === 0) return;
+    const removedActiveConversation = await removeConversations(ids);
+    if (removedActiveConversation === null) return;
+    if (removedActiveConversation) performStartNewConversation();
+    setBatchDeleteOpen(false);
+    changeConversationSelectionMode(false);
+  }
+
   async function openPromptEditor() {
     setPromptOpen(true);
     setPromptLoading(true);
@@ -660,6 +703,13 @@ export function AiView({
 
   return (
     <div className={`min-h-0 bg-white ${isPanel ? 'h-full' : 'lg:bg-transparent'}`}>
+      {historyNotice ? (
+        <div className="pointer-events-none fixed inset-x-4 top-4 z-[160] flex justify-center lg:left-auto lg:right-6">
+          <InlineNotice tone="success" className="w-full max-w-sm bg-white shadow-panel">
+            {historyNotice}
+          </InlineNotice>
+        </div>
+      ) : null}
       <FadePanel className={`flex min-h-0 flex-col overflow-hidden border-0 bg-white shadow-none ${isPanel ? 'h-full xl:rounded-panel xl:border xl:border-line xl:shadow-panel' : 'h-[100dvh] md:h-[calc(100vh-8rem)] md:min-h-[620px] md:rounded-panel md:border md:border-line md:shadow-panel'}`}>
         <div className={`ai-mobile-header h-auto shrink-0 items-center justify-between border-b border-line bg-white px-3 pb-2 ${isPanel ? 'flex xl:pt-2' : 'flex lg:hidden'}`}>
           <Button
@@ -769,6 +819,12 @@ export function AiView({
             onHistoryQueryChange={setHistoryQuery}
             onOpenConversation={(id) => void openConversation(id)}
             onDeleteConversation={setDeleteTarget}
+            selectionMode={conversationSelectionMode}
+            selectedConversationIds={selectedConversationIds}
+            onSelectionModeChange={changeConversationSelectionMode}
+            onToggleConversation={toggleConversationSelection}
+            onToggleAllVisible={toggleAllVisibleConversations}
+            onRequestBatchDelete={() => setBatchDeleteOpen(true)}
             onRunSample={applyTaskTemplate}
             onEditPrompt={() => void openPromptEditor()}
           />
@@ -845,6 +901,15 @@ export function AiView({
           setMobileSidebarOpen(false);
           setDeleteTarget(conversation);
         }}
+        selectionMode={conversationSelectionMode}
+        selectedConversationIds={selectedConversationIds}
+        onSelectionModeChange={changeConversationSelectionMode}
+        onToggleConversation={toggleConversationSelection}
+        onToggleAllVisible={toggleAllVisibleConversations}
+        onRequestBatchDelete={() => {
+          setMobileSidebarOpen(false);
+          setBatchDeleteOpen(true);
+        }}
         onEditPrompt={() => {
           setMobileSidebarOpen(false);
           void openPromptEditor();
@@ -880,6 +945,29 @@ export function AiView({
           deleting={deletingConversation}
           onConfirm={confirmDeleteConversation}
           onClose={() => setDeleteTarget(null)}
+        />
+      ) : null}
+
+      {batchDeleteOpen ? (
+        <ConfirmDialog
+          open
+          layer="assistant"
+          title="批量删除会话"
+          description={(
+            <span className="space-y-2">
+              <span className="block">确定删除选中的 {selectedConversationIds.size} 个会话及其历史记录吗？</span>
+              {historyError ? (
+                <span className="block rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {historyError}
+                </span>
+              ) : null}
+            </span>
+          )}
+          confirmLabel={`删除 ${selectedConversationIds.size} 个会话`}
+          confirmVariant="danger"
+          busy={deletingConversation}
+          onConfirm={() => void confirmBatchDeleteConversations()}
+          onClose={() => setBatchDeleteOpen(false)}
         />
       ) : null}
 
