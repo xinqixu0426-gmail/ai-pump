@@ -2,6 +2,29 @@ import type { CatalogNamingInput, SavedCatalogNaming } from './catalog-naming';
 import type { ApiResponse } from './api';
 import { createIdempotencyKey, proxyRequest } from './api';
 
+export type PartRenameImpact = {
+  partId: number;
+  previousName: string;
+  proposedName: string;
+  complete: boolean;
+  nameChanged: boolean;
+  referenceCount: number;
+  references: Array<{ sourceType: string; sourceId: number; path: string; status: string }>;
+  blockers: Array<{ code: string; message: string; conflictingPartId?: number }>;
+  sourceHash: string;
+  nextOffset: number | null;
+  displayOnly: true;
+};
+
+export async function getPartRenameImpact(partId: number, model: string,
+  page: { offset?: number; sourceHash?: string } = {}, signal?: AbortSignal): Promise<PartRenameImpact> {
+  const result = await proxyRequest<ApiResponse<PartRenameImpact>>(`/api/parts/${partId}/rename-impact`, {
+    method: 'POST', body: JSON.stringify({ model, ...page, limit: 50 }), signal,
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '改名影响读取失败');
+  return result.data;
+}
+
 export type Part = {
   naming?: SavedCatalogNaming | null;
   id: number;

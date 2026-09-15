@@ -51,6 +51,7 @@ import {
   wirePrefixForCategory,
 } from '@/lib/part-form-rules';
 import { getCatalogNamingRules, previewCatalogName, type CatalogNamingRule } from '@/lib/catalog-naming';
+import { PartRenameImpactPanel } from '@/components/part-rename-impact';
 import { money } from '@/lib/format';
 import {
   mergeUntouchedPartSettings,
@@ -1136,6 +1137,8 @@ export function PartsView({
                 />
               </Field>
             )}
+
+            {editingPart && <PartRenameImpactPanel key={`${editingPart.id}:${modelPreview}`} partId={editingPart.id} model={modelPreview} />}
 
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="目录成本价" required>
