@@ -1,18 +1,22 @@
 const { ACTIVE_ORDERS_SQL } = require('./activeOrderReadiness.cjs');
-const { buildBalancedOrderPlans } = require('./orderPlanning.cjs');
+const { buildBalancedOrderPlans, buildSavedBalancedOrderPlanViews } = require('./orderPlanning.cjs');
 
 function loadDbAccessors() {
     return require('../db.cjs');
 }
 
-function buildCurrentBalancedPurchasePlans(options = {}) {
+function buildCurrentPlans(options, buildPlans) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const database = options.db || accessors.db;
     const records = options.records || database.prepare(ACTIVE_ORDERS_SQL).all();
     const parts = options.parts || accessors.dbGetAllParts();
     const coils = options.coils || accessors.dbGetAllCoils();
-    const plans = buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
+    const plans = buildPlans(records, parts, { coilsCatalog: coils });
     return { records, plans };
+}
+
+function buildCurrentBalancedPurchasePlans(options = {}) {
+    return buildCurrentPlans(options, buildBalancedOrderPlans);
 }
 
 function applyPurchasePlanView(order, plan) {
@@ -25,31 +29,36 @@ function applyPurchasePlanView(order, plan) {
 
 function listOrdersWithCurrentPurchasePlans(options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
-    const { plans } = buildCurrentBalancedPurchasePlans({
-        ...options,
-        dbAccessors: accessors,
-    });
-    return accessors.dbGetAllOrders().map(order => (
-        applyPurchasePlanView(order, plans.get(Number(order.id)))
-    ));
+    const database = options.db || accessors.db;
+    return database.transaction(() => {
+        const { plans } = buildCurrentPlans({
+            ...options,
+            dbAccessors: accessors,
+        }, buildSavedBalancedOrderPlanViews);
+        return accessors.dbGetAllOrders().map(order => (
+            applyPurchasePlanView(order, plans.get(Number(order.id)))
+        ));
+    }).deferred();
 }
 
 function getOrderWithCurrentPurchasePlan(id, options = {}) {
     const accessors = options.dbAccessors || loadDbAccessors();
     const database = options.db || accessors.db;
-    const record = database.prepare(
-        'SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL'
-    ).get(id);
-    if (!record) return null;
-    const { plans } = buildCurrentBalancedPurchasePlans({
-        ...options,
-        db: database,
-        dbAccessors: accessors,
-    });
-    return applyPurchasePlanView(
-        accessors.orderRow(record),
-        plans.get(Number(record.id))
-    );
+    return database.transaction(() => {
+        const record = database.prepare(
+            'SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL'
+        ).get(id);
+        if (!record) return null;
+        const { plans } = buildCurrentPlans({
+            ...options,
+            db: database,
+            dbAccessors: accessors,
+        }, buildSavedBalancedOrderPlanViews);
+        return applyPurchasePlanView(
+            accessors.orderRow(record),
+            plans.get(Number(record.id))
+        );
+    }).deferred();
 }
 
 module.exports = {

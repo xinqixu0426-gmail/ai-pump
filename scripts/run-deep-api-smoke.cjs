@@ -1327,6 +1327,36 @@ async function createBundleTemplate(unique, suffix = '') {
     })).payload.data;
 }
 
+async function testSavedPurchaseNameViews(databasePath) {
+    const fixture = new Database(databasePath);
+    const unique = `SAVED-PURCHASE-${Date.now()}`;
+    let partId;
+    let orderId;
+    try {
+        partId = Number(fixture.prepare('INSERT INTO parts (model, supplier, stock, price) VALUES (?, ?, 0, 3)').run(`${unique}-新名`, unique).lastInsertRowid);
+        const items = JSON.stringify([{ qty: 2, partsJson: JSON.stringify([{ partId, model: `${unique}-旧名`, supplier: unique, qty: 1 }]) }]);
+        const purchase = JSON.stringify([{ id: 'retained-purchase-row', partId, model: `${unique}-旧名`, supplier: unique,
+            inventoryType: 'part', plannedQty: 2, orderedQty: 1, receivedQty: 1, stockedQty: 0,
+            purchasePrice: 7, purchasePriceRecorded: true, actualSupplier: '实际供应商', stockInHistory: [],
+        }]);
+        orderId = Number(fixture.prepare("INSERT INTO orders (customer_name, contract_no, status, items_json, purchase_list_json) VALUES (?, ?, '采购中', ?, ?)").run(unique, unique, items, purchase).lastInsertRowid);
+        const before = fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+        const detail = (await request('订单详情采购行按保存 ID 显示现名', 'GET', `/api/orders/${orderId}`)).payload.data;
+        const row = JSON.parse(detail.purchaseListJson)[0];
+        assert(row.model === `${unique}-新名` && row.id === 'retained-purchase-row', '详情现名或采购行 ID 不正确');
+        assert(row.purchasePrice === 7 && row.orderedQty === 1 && row.receivedQty === 1 && row.stockedQty === 0, '现名读取改变采购事实');
+        const list = (await request('订单列表采购现名与详情一致', 'GET', `/api/orders?contractNo=${encodeURIComponent(unique)}`)).payload.data;
+        assert(JSON.parse(list.find(order => order.id === orderId).purchaseListJson)[0].model === row.model, '列表与详情现名不一致');
+        const overview = (await request('采购总览使用保存 ID 对应现名', 'GET', `/api/orders/purchase-overview?supplier=${encodeURIComponent(unique)}`)).payload.data;
+        assert(overview.tasks.some(task => task.model === row.model && task.orderedQty === 1 && task.receivedQty === 1), '采购总览名称或进度错误');
+        assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(before), '采购现名查询修改了订单原始快照');
+    } finally {
+        if (orderId) fixture.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
+        if (partId) fixture.prepare('DELETE FROM parts WHERE id = ?').run(partId);
+        fixture.close();
+    }
+}
+
 async function testRecipeInventoryIdentity(databasePath) {
     const fixture = new Database(databasePath);
     let recipeId;
@@ -3898,6 +3928,7 @@ async function run() {
         if (DEEP_API_SCOPE !== 'mcp') {
             await testCatalogNamingSave();
             await testRecipeInventoryIdentity(path.join(temp, 'pump.db'));
+            await testSavedPurchaseNameViews(path.join(temp, 'pump.db'));
             await testPartRenameGuard(path.join(temp, 'pump.db'));
         }
         if (DEEP_API_SCOPE !== 'catalog') {

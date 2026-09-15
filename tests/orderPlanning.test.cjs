@@ -1,6 +1,48 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildOrderPlan, buildPurchaseList, buildBalancedOrderPlans } = require('../api/services/orderPlanning.cjs');
+const { buildOrderPlan, buildPurchaseList, buildBalancedOrderPlans, buildSavedBalancedOrderPlanViews } = require('../api/services/orderPlanning.cjs');
+const { purchaseRowIdentity } = require('../api/services/purchaseIdentity.cjs');
+
+test('采购现名视图按保存 ID 读取，保留多配置行、采购进度和原始快照', () => {
+    const catalog = [{ id: 1, model: '电缆-旧规格', supplier: '甲', price: 3, stock: 0 },
+        { id: 2, model: '浮球-旧规格', supplier: '乙', price: 8, stock: 0 }];
+    const order = { id: 1, items_json: JSON.stringify([{ qty: 2, partsJson: JSON.stringify([
+        ...[1.5, 3.5].map(cableLength => ({ partId: 1, model: catalog[0].model, supplier: '甲', qty: 1, cableAssembly: true, cableLength })),
+        { partId: 2, model: catalog[1].model, supplier: '乙', qty: 1 },
+    ]) }]) };
+    const previous = buildBalancedOrderPlans([order], catalog).get(1).purchaseList.map((row, index) => ({ ...row,
+        id: `saved-row-${index}`, orderedQty: 1, receivedQty: 1, stockedQty: 0,
+        purchasePrice: 10 + index, purchasePriceRecorded: true, actualSupplier: '实际采购商',
+        stockInHistory: [],
+    }));
+    order.purchase_list_json = JSON.stringify(previous);
+    const before = JSON.stringify(order);
+    const renamed = catalog.map((part, index) => ({ ...part, model: `新显示名称${index}` }));
+    const view = buildSavedBalancedOrderPlanViews([order], renamed).get(1);
+    assert.equal(view.purchaseList.length, 3);
+    for (let index = 0; index < 3; index += 1) {
+        const row = view.purchaseList[index];
+        const old = previous[index];
+        assert.equal(row.model, renamed.find(part => part.id === row.partId).model);
+        for (const field of ['id', 'partId', 'identityKey', 'purchaseUnit', 'stockQtyPerUnit', 'plannedQty', 'orderedQty', 'receivedQty', 'stockedQty', 'purchasePrice', 'purchasePriceRecorded', 'actualSupplier']) {
+            assert.equal(row[field], old[field], field);
+        }
+        assert.equal(purchaseRowIdentity(row), old.identityKey, '显示名称变化不得改变配置身份');
+    }
+    assert.equal(JSON.stringify(order), before);
+    assert.throws(() => buildBalancedOrderPlans([order], renamed, { readSavedReferences: true }), { code: 'BOM_PART_ID_MODEL_MISMATCH' });
+});
+
+test('采购现名视图拒绝供应商冲突、停用、失效 ID 和无法接续的历史进度', () => {
+    const part = { id: 1, model: '新名', supplier: '甲', stock: 0, price: 1 };
+    const order = { id: 1, items_json: JSON.stringify([{ qty: 1, partsJson: JSON.stringify([{ partId: 1, model: '旧名', supplier: '甲', qty: 1 }]) }]) };
+    assert.throws(() => buildSavedBalancedOrderPlanViews([order], [{ ...part, supplier: '乙' }]), { code: 'BOM_PART_ID_SUPPLIER_MISMATCH' });
+    assert.throws(() => buildSavedBalancedOrderPlanViews([order], [{ ...part, deletedAt: 'deleted' }]), { code: 'BOM_PART_ID_NOT_FOUND' });
+    assert.throws(() => buildSavedBalancedOrderPlanViews([order], [{ ...part, id: 2 }]), { code: 'BOM_PART_ID_NOT_FOUND' });
+    assert.throws(() => buildSavedBalancedOrderPlanViews([{ ...order,
+        purchase_list_json: JSON.stringify([{ model: '旧名', supplier: '甲', orderedQty: 1 }]),
+    }], [part]), { code: 'PURCHASE_CONTINUITY_LOST' });
+});
 
 const partsCatalog = [
     { Id: 1, model: '201', name: '轴承', category: '轴承', supplier: '轴承供应商', stock: 3, price: 1.1 },

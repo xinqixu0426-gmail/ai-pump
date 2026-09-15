@@ -2,8 +2,8 @@ const crypto = require('node:crypto');
 const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { mergePurchasePlanItem } = require('./orderWorkflow.cjs');
-const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
-const { isPurchaseCoil: isCoilAssemblyPart, catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
+const { resolveCatalogPartIdentity, resolveSavedCatalogPartIdentity } = require('./bomPartIdentity.cjs');
+const { isPurchaseCoil: isCoilAssemblyPart, catalogId, positiveFactor, purchaseConfiguration, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
 
@@ -20,13 +20,17 @@ function parsePartsJson(partsJson) {
     }
 }
 
-function resolveInventoryPart(part, supplier, partsCatalog) {
+function resolveInventoryPart(part, supplier, partsCatalog, resolveIdentity = resolveCatalogPartIdentity) {
     try {
-        return resolveCatalogPartIdentity(partsCatalog, { ...part, supplier });
+        return resolveIdentity(partsCatalog, { ...part, supplier });
     } catch (error) {
         if (part.partId == null && ['BOM_PART_IDENTITY_NOT_FOUND', 'BOM_PART_IDENTITY_AMBIGUOUS'].includes(error.code)) return null;
         throw error;
     }
+}
+
+function resolveSavedInventoryPart(part, supplier, partsCatalog) {
+    return resolveInventoryPart(part, supplier, partsCatalog, resolveSavedCatalogPartIdentity);
 }
 
 function buildCoilIndexes(coilsCatalog) {
@@ -80,7 +84,7 @@ function isCompleteCablePart(part) {
     return part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆');
 }
 
-function buildPurchaseList(items, partsCatalog, options = {}) {
+function buildPurchaseList(items, partsCatalog, options = {}, resolvePart = resolveInventoryPart) {
     const activeParts = (partsCatalog || []).filter(part => !part.deletedAt && !part.deleted_at);
     const coilIndexes = buildCoilIndexes(options.coilsCatalog);
     const merged = new Map();
@@ -108,7 +112,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
                 }
                 : part;
             const coil = isCoilAssemblyPart(part) ? resolveCoilForPart(part, coilIndexes) : null;
-            const exactPart = isCoilAssemblyPart(part) ? null : resolveInventoryPart(part, supplier, activeParts);
+            const exactPart = isCoilAssemblyPart(part) ? null : resolvePart(part, supplier, activeParts);
             purchasePart = { ...purchasePart,
                 ...(exactPart ? { partId: exactPart.id || exactPart.Id, supplier: exactPart.supplier || '' } : {}),
                 ...(coil ? { coilId: coil.id || coil.Id, inventoryType: 'coil', purchaseUnit: '套' } : {}),
@@ -128,7 +132,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const coilPart = isCoilAssemblyPart(part);
         const exactCoil = coilPart ? resolveCoilForPart(part, coilIndexes) : null;
         const coilId = Number(exactCoil?.id || exactCoil?.Id || 0) || undefined;
-        const exactPart = coilPart ? null : resolveInventoryPart(part, supplier, activeParts);
+        const exactPart = coilPart ? null : resolvePart(part, supplier, activeParts);
         const screwPricingPart = !exactPart && isLongScrewPart(part)
             ? findScrewPricingPart(partsCatalog, part.model, supplier)?.part || null
             : null;
@@ -159,10 +163,13 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const availableStock = Math.floor(availableInventoryStock / stockQtyPerUnit);
         const needToBuy = Math.max(0, totalQty - availableStock);
         reservedDemand.set(stockIdentityKey, alreadyReserved + totalQty * stockQtyPerUnit);
+        const readSaved = resolvePart === resolveSavedInventoryPart;
+        const currentName = readSaved ? (exactPart?.model || exactCoil?.schemeName || exactCoil?.scheme_name || part.model) : part.model;
         purchaseList.push({
             id: purchaseRowId(identityItem),
-            model: part.model,
-            name: part.name || part.model,
+            model: currentName,
+            name: part.name && part.name !== part.model ? part.name : currentName,
+            ...(readSaved ? { snapshotName: part.model } : {}),
             supplier: resolvedSupplier,
             totalQty,
             currentStock: availableStock,
@@ -187,7 +194,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             cableLength: part.cableLength,
             cableAccessoryType: part.cableAccessoryType,
             cableAccessoryName: part.cableAccessoryName,
-            floatAccessoryType: part.floatAccessoryType,
+            floatAccessoryType: readSaved ? purchaseConfiguration(identityItem)[4] ?? undefined : part.floatAccessoryType,
             ...(coilPart ? { material: part.material || '钢带', slotType: part.slotType || '小眼' } : {}),
         });
     }
@@ -219,12 +226,12 @@ function buildTodos(purchaseList) {
     return todos;
 }
 
-function buildOrderPlan(items, partsCatalog, options = {}) {
-    const purchaseList = buildPurchaseList(items, partsCatalog, options);
+function buildOrderPlan(items, partsCatalog, options = {}, resolvePart = resolveInventoryPart) {
+    const purchaseList = buildPurchaseList(items, partsCatalog, options, resolvePart);
     return { purchaseList, todos: buildTodos(purchaseList) };
 }
 
-function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
+function buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, resolvePart) {
     const reservedDemand = new Map();
     const plans = new Map();
     const ordered = [...(orders || [])].sort((a, b) => {
@@ -239,7 +246,7 @@ function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
         const plan = buildOrderPlan(items, partsCatalog, {
             ...options,
             reservedDemand,
-        });
+        }, resolvePart);
         const previous = parsePartsJson(order.purchase_list_json || order.purchaseListJson);
         const previousMatches = matchPurchasePlanRows(plan.purchaseList, previous);
         plan.purchaseList = plan.purchaseList.map((item, index) => mergePurchasePlanItem(item, previousMatches[index]));
@@ -248,10 +255,21 @@ function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
     return plans;
 }
 
+function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
+    return buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, resolveInventoryPart);
+}
+
+// Only persisted order Query callers use this view. Drafts, previews and all
+// commands retain the strict builder; request fields cannot select this mode.
+function buildSavedBalancedOrderPlanViews(orders, partsCatalog, options = {}) {
+    return buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, resolveSavedInventoryPart);
+}
+
 module.exports = {
     purchaseIdentity,
     buildPurchaseList,
     buildTodos,
     buildOrderPlan,
     buildBalancedOrderPlans,
+    buildSavedBalancedOrderPlanViews,
 };

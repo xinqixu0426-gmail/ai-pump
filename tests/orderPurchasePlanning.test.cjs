@@ -28,7 +28,9 @@ function createFixture() {
             };
         },
         transaction(callback) {
-            return (...args) => callback(...args);
+            const read = (...args) => callback(...args);
+            read.deferred = read;
+            return read;
         },
     };
     const writes = [];
