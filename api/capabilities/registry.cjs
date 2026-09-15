@@ -1117,7 +1117,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         domain: 'order',
         inputSchema: 'GET /api/orders?limit?&status?&customerName?&contractNo?',
         outputSchema: 'Order[] with stable PurchaseItem id/identityKey and referencePrice/referencePriceSource(part_catalog|coil_total_cost|none)/purchasePriceRecorded; ambiguous progress continuity returns 409',
-        sourceOfTruth: 'orders.saved_ids+currentPurchasePlan+parts.model+parts.price+coils.cost',
+        sourceOfTruth: 'orders.saved_ids+currentPurchasePlan+historicalPurchaseNames+parts.model+parts.price+coils.cost',
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),
     }),

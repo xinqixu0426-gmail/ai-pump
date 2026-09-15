@@ -1350,6 +1350,16 @@ async function testSavedPurchaseNameViews(databasePath) {
         const overview = (await request('采购总览使用保存 ID 对应现名', 'GET', `/api/orders/purchase-overview?supplier=${encodeURIComponent(unique)}`)).payload.data;
         assert(overview.tasks.some(task => task.model === row.model && task.orderedQty === 1 && task.receivedQty === 1), '采购总览名称或进度错误');
         assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(before), '采购现名查询修改了订单原始快照');
+        for (const status of ['已关闭', '已取消']) {
+            fixture.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, orderId);
+            const frozen = fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+            const historical = (await request(`${status}订单详情显示现名但保留采购事实`, 'GET', `/api/orders/${orderId}`)).payload.data;
+            const historyRow = JSON.parse(historical.purchaseListJson)[0];
+            assert(historyRow.model === row.model && historyRow.id === 'retained-purchase-row' && historyRow.purchasePrice === 7 && historyRow.orderedQty === 1, '历史订单显示改变了采购事实');
+            const historyList = (await request(`${status}订单列表显示现名`, 'GET', `/api/orders?contractNo=${encodeURIComponent(unique)}`)).payload.data;
+            assert(JSON.parse(historyList.find(order => order.id === orderId).purchaseListJson)[0].model === row.model, '历史订单列表名称未更新');
+            assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(frozen), '历史现名查询改写了订单');
+        }
     } finally {
         if (orderId) fixture.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
         if (partId) fixture.prepare('DELETE FROM parts WHERE id = ?').run(partId);

@@ -1,5 +1,6 @@
 const { ACTIVE_ORDERS_SQL } = require('./activeOrderReadiness.cjs');
 const { buildBalancedOrderPlans, buildSavedBalancedOrderPlanViews } = require('./orderPlanning.cjs');
+const { historicalPurchaseNameView } = require('./historicalPurchaseNames.cjs');
 
 function loadDbAccessors() {
     return require('../db.cjs');
@@ -36,7 +37,7 @@ function listOrdersWithCurrentPurchasePlans(options = {}) {
             dbAccessors: accessors,
         }, buildSavedBalancedOrderPlanViews);
         return accessors.dbGetAllOrders().map(order => (
-            applyPurchasePlanView(order, plans.get(Number(order.id)))
+            historicalPurchaseNameView(database, applyPurchasePlanView(order, plans.get(Number(order.id))))
         ));
     }).deferred();
 }
@@ -54,10 +55,10 @@ function getOrderWithCurrentPurchasePlan(id, options = {}) {
             db: database,
             dbAccessors: accessors,
         }, buildSavedBalancedOrderPlanViews);
-        return applyPurchasePlanView(
+        return historicalPurchaseNameView(database, applyPurchasePlanView(
             accessors.orderRow(record),
             plans.get(Number(record.id))
-        );
+        ));
     }).deferred();
 }
 
