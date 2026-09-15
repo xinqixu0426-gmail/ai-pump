@@ -5,6 +5,7 @@ import { CircleAlert, RefreshCw, X } from 'lucide-react';
 import { SlideOver } from '@/components/motion/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { money } from '@/lib/format';
+import { recipeInventoryPresentation } from '@/lib/recipe-inventory-status';
 import {
   getRecipeSavedTotal,
   parseRecipePartsJson,
@@ -346,26 +347,23 @@ export function RecipeDetailPanel({
                         </tr>
                       </thead>
                       <tbody>
-                        {inventoryStatus.items.map((item, index) => (
-                          <tr key={`${item.model}-${index}`} className={item.status === 'in_stock' ? '' : 'bg-rose-50/60'}>
+                        {inventoryStatus.items.map((item, index) => {
+                          const presentation = recipeInventoryPresentation(item);
+                          return (
+                          <tr key={`${item.inventoryType}-${item.partId ?? item.coilId ?? index}-${index}`} className={item.status === 'needs_review' ? 'bg-amber-50/60' : item.status === 'missing' || item.status === 'out_of_stock' ? 'bg-rose-50/60' : ''}>
                             <td className="border-b border-line px-3 py-2">
-                              <div className="font-medium text-ink">{item.name || item.model || '-'}</div>
-                              <div className="text-xs text-muted">{item.model || '-'}{item.supplier ? ` / ${item.supplier}` : ''}</div>
+                              <div className="font-medium text-ink">{presentation.name}</div>
+                              <div className="text-xs text-muted">{presentation.model}{item.supplier ? ` / ${item.supplier}` : ''}</div>
+                              {presentation.previousName ? <div className="mt-1 text-xs text-muted">保存时型号：{presentation.previousName}</div> : null}
+                              {item.message ? <div className="mt-1 text-xs text-muted">{item.message}</div> : null}
                             </td>
-                            <td className="border-b border-line px-3 py-2 text-right text-muted">{item.partId || item.coilId ? item.currentStock : '未找到'}</td>
+                            <td className="border-b border-line px-3 py-2 text-right text-muted">{presentation.stockText}</td>
                             <td className="border-b border-line px-3 py-2">
-                              <StatusBadge tone={item.status === 'in_stock' ? 'green' : 'red'}>
-                                {item.status === 'in_stock'
-                                  ? '有库存'
-                                  : item.status === 'out_of_stock'
-                                    ? '缺货'
-                                    : item.inventoryType === 'coil'
-                                      ? '线圈方案缺失'
-                                      : '零件缺失'}
-                              </StatusBadge>
+                              <StatusBadge tone={presentation.tone}>{presentation.label}</StatusBadge>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

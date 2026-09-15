@@ -1,3 +1,6 @@
+const { inspectRecipeInventory } = require('./recipeInventory.cjs');
+const { requireBusinessCapability } = require('../capabilities/registry.cjs');
+const INVENTORY_CAPABILITY_ID = requireBusinessCapability('recipes.inventory_status').capabilityId;
 const { selectRecipeBaseline, applyRecipeBaseline } = require('./recipeConfigurationBaseline.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
@@ -126,88 +129,22 @@ function createRecipeQueries({
         if (!recipeId) {
             throw new RecipeQueryError('非法配方ID');
         }
-        const recipeRecord = db.prepare(`
-            SELECT *
-            FROM recipes
-            WHERE id = ? AND deleted_at IS NULL
-        `).get(recipeId);
-        if (!recipeRecord) {
-            throw new RecipeQueryError('配方不存在', 404);
-        }
-        const recipeParts = collapseLegacyCableParts(
-            parseJsonArray(recipeRecord.parts_json || recipeRecord.partsJson)
-        );
-        const allParts = db.prepare(`
-            SELECT *
-            FROM parts
-            WHERE deleted_at IS NULL
-        `).all();
-        const items = recipeParts.map(recipePart => {
-            const model = String(recipePart?.model || '').trim();
-            const supplier = String(recipePart?.supplier || '').trim();
-            if (String(recipePart?.name || '').trim() === '线圈转子') {
-                let coil = recipeRecord.coil_id
-                    ? db.prepare('SELECT id, stock FROM coils WHERE id = ?').get(recipeRecord.coil_id)
-                    : null;
-                if (!coil) {
-                    const candidates = db.prepare(`
-                        SELECT id, stock, is_default
-                        FROM coils
-                        WHERE spec = ?
-                          AND sheets = ?
-                          AND material = ?
-                          AND slot_type = ?
-                          AND scheme_status = 'official'
-                        ORDER BY is_default DESC, id
-                    `).all(
-                        String(recipeRecord.coil_spec || '').trim(),
-                        Number(recipeRecord.coil_sheets || 0),
-                        String(recipeRecord.coil_material || '钢带').trim() || '钢带',
-                        String(recipeRecord.coil_slot_type || '小眼').trim() || '小眼'
-                    );
-                    const defaults = candidates.filter(candidate => Number(candidate.is_default || 0) === 1);
-                    coil = candidates.length === 1
-                        ? candidates[0]
-                        : defaults.length === 1 ? defaults[0] : null;
-                }
-                const currentStock = coil ? Number(coil.stock || 0) : 0;
-                return {
-                    name: '线圈转子',
-                    model,
-                    supplier: '',
-                    currentStock,
-                    coilId: coil?.id,
-                    inventoryType: 'coil',
-                    status: !coil
-                        ? 'missing'
-                        : currentStock > 0
-                            ? 'in_stock'
-                            : 'out_of_stock',
-                };
+        return db.transaction(() => {
+            const recipeRecord = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId);
+            if (!recipeRecord) throw new RecipeQueryError('配方不存在', 404);
+            let parts;
+            try { parts = JSON.parse(recipeRecord.parts_json || '[]'); } catch {
+                throw new RecipeQueryError('配方 BOM 数据损坏，不能核对库存', 422, 'RECIPE_BOM_INVALID');
             }
-            const matchedPart = allParts.find(part => (
-                part.model === model
-                && String(part.supplier || '') === supplier
-            )) || allParts.find(part => part.model === model);
-            const currentStock = matchedPart ? Number(matchedPart.stock || 0) : 0;
-            return {
-                name: String(recipePart?.name || model),
-                model,
-                supplier,
-                currentStock,
-                partId: matchedPart?.id,
-                inventoryType: 'part',
-                status: !matchedPart
-                    ? 'missing'
-                    : currentStock > 0
-                        ? 'in_stock'
-                        : 'out_of_stock',
-            };
-        });
-        return {
-            recipe: recipeRow(recipeRecord),
-            items,
-        };
+            if (!Array.isArray(parts) || parts.some(part => !part || typeof part !== 'object' || Array.isArray(part))) {
+                throw new RecipeQueryError('配方 BOM 必须为配件对象数组', 422, 'RECIPE_BOM_INVALID');
+            }
+            if (parts.length > 10000) throw new RecipeQueryError('配方 BOM 超过库存查询上限', 413, 'RECIPE_BOM_LIMIT_EXCEEDED');
+            const recipeParts = collapseLegacyCableParts(parts);
+            const items = inspectRecipeInventory(recipeParts,
+                db.prepare('SELECT * FROM parts').all(), db.prepare('SELECT * FROM coils').all(), recipeRecord);
+            return { recipe: recipeRow(recipeRecord), items, sourceOfTruth: INVENTORY_CAPABILITY_ID };
+        }).deferred();
     }
 
     function getBomDraft(input = {}) {

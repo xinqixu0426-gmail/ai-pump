@@ -185,6 +185,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'orders.revisions.list',
         'purchasing.overview',
         'recipes.list',
+        'recipes.inventory_status',
         'customers.list',
         'customers.history',
         'templates.list',

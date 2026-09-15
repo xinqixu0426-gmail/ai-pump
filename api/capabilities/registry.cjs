@@ -1186,6 +1186,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),
     }),
+    'recipes.inventory_status': defineQueryCapability({
+        capabilityId: 'recipes.inventory_status',
+        domain: 'recipe',
+        inputSchema: 'GET /api/recipes/:id/inventory-status',
+        outputSchema: 'RecipeInventoryStatus including currentName, snapshotName, referenceStatus and nullable currentStock',
+        sourceOfTruth: 'recipes.parts_json+parts+coils',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'customers.list': defineQueryCapability({
         capabilityId: 'customers.list',
         domain: 'customer',

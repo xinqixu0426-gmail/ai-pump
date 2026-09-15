@@ -287,6 +287,7 @@ export function RecipesView() {
   const [inventoryStatus, setInventoryStatus] = useState<RecipeInventoryStatusResult | null>(null);
   const [inventoryStatusLoading, setInventoryStatusLoading] = useState(false);
   const [inventoryStatusError, setInventoryStatusError] = useState<string | null>(null);
+  const inventoryStatusRequestRef = useRef(0);
   const {
     editingRecipe,
     form,
@@ -1513,15 +1514,18 @@ export function RecipesView() {
   }
 
   async function refreshInventoryStatus(recipe: Recipe) {
+    const request = ++inventoryStatusRequestRef.current;
     setInventoryStatusLoading(true);
     setInventoryStatusError(null);
     try {
-      setInventoryStatus(await getRecipeInventoryStatus(recipe.id));
+      const result = await getRecipeInventoryStatus(recipe.id);
+      if (request === inventoryStatusRequestRef.current) setInventoryStatus(result);
     } catch (err) {
+      if (request !== inventoryStatusRequestRef.current) return;
       setInventoryStatus(null);
       setInventoryStatusError(err instanceof Error ? err.message : '库存状态读取失败');
     } finally {
-      setInventoryStatusLoading(false);
+      if (request === inventoryStatusRequestRef.current) setInventoryStatusLoading(false);
     }
   }
 

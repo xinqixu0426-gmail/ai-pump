@@ -1327,6 +1327,49 @@ async function createBundleTemplate(unique, suffix = '') {
     })).payload.data;
 }
 
+async function testRecipeInventoryIdentity(databasePath) {
+    const fixture = new Database(databasePath);
+    let recipeId;
+    let brokenId;
+    let snapshot;
+    let firstId;
+    let secondId;
+    let unavailableCoilId;
+    try {
+        const name = `INVENTORY-${Date.now()}`;
+        const insert = fixture.prepare('INSERT INTO parts (model, supplier, stock, price) VALUES (?, ?, ?, 1)');
+        firstId = Number(insert.run(name, '库存验收甲', 9).lastInsertRowid);
+        secondId = Number(insert.run(name, '库存验收乙', 0).lastInsertRowid);
+        unavailableCoilId = Number(fixture.prepare("INSERT INTO coils (spec, sheets, scheme_code, scheme_name, scheme_status, stock) VALUES ('验收', 100, ?, '未正式方案', 'testing', 20)").run(name).lastInsertRowid);
+        snapshot = JSON.stringify([
+            { partId: secondId, model: name },
+            { partId: firstId, model: '旧名称' },
+            { model: name },
+            { model: name, supplier: '不存在的供应商' },
+            { costRole: 'coil', coilId: unavailableCoilId, model: '旧线圈名称' },
+            { costRole: 'rotorProcess', model: '加工费' },
+        ]);
+        recipeId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(name, snapshot).lastInsertRowid);
+        brokenId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(`${name}-broken`, '[null]').lastInsertRowid);
+    } finally { fixture.close(); }
+    const data = (await request('配方库存按身份读取并区分待核对', 'GET', `/api/recipes/${recipeId}/inventory-status`)).payload.data;
+    assert(data.sourceOfTruth === 'recipes.inventory_status', '库存查询未声明正式来源');
+    assert(data.items[0].currentStock === 0 && data.items[0].status === 'out_of_stock', '同名其他供应商库存混入');
+    assert(data.items[1].referenceStatus === 'identity_mismatch' && data.items[1].currentName && data.items[1].currentStock === null, '旧名称不一致没有标记');
+    assert(data.items[2].referenceStatus === 'ambiguous' && data.items[2].currentStock === null, '多候选被当作零库存或任取候选');
+    assert(data.items[3].referenceStatus === 'missing', '精确供应商不存在时发生回退');
+    assert(data.items[4].referenceStatus === 'inactive' && data.items[4].currentStock === null, '非正式线圈被当作可用库存');
+    assert(data.items[5].status === 'not_tracked', '加工费被当作缺货');
+    await request('损坏配方 BOM 不返回虚假空库存', 'GET', `/api/recipes/${brokenId}/inventory-status`, undefined, [422]);
+    const check = new Database(databasePath);
+    try {
+        assert(check.prepare('SELECT parts_json FROM recipes WHERE id = ?').get(recipeId).parts_json === snapshot, '库存查询改写了配方快照');
+        check.prepare('DELETE FROM recipes WHERE id IN (?, ?)').run(recipeId, brokenId);
+        check.prepare('DELETE FROM parts WHERE id IN (?, ?)').run(firstId, secondId);
+        check.prepare('DELETE FROM coils WHERE id = ?').run(unavailableCoilId);
+    } finally { check.close(); }
+}
+
 async function testCatalogNamingSave() {
     const unique = `NAMING-${Date.now()}`;
     const namedInput = { category: '包装', supplier: unique, price: 6, stock: 2,
@@ -3815,7 +3858,10 @@ async function run() {
         cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');
         await request('登录状态', 'GET', '/api/auth/check');
-        if (DEEP_API_SCOPE !== 'mcp') await testCatalogNamingSave();
+        if (DEEP_API_SCOPE !== 'mcp') {
+            await testCatalogNamingSave();
+            await testRecipeInventoryIdentity(path.join(temp, 'pump.db'));
+        }
         if (DEEP_API_SCOPE !== 'catalog') {
             mcpExpectedCoilProfile = await waitForMcpCoilProfileStable();
             await testMcpReadOnlyFlows();

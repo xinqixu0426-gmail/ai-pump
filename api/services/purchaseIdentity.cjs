@@ -114,6 +114,6 @@ function uniquePurchaseRowIndex(rows, input) {
     return indexes[0] ?? -1;
 }
 
-module.exports = { catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity,
+module.exports = { isPurchaseCoil, catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity,
     purchaseConfiguration, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows, isLegacyMeterRow,
     purchaseRowMatches, uniquePurchaseRowIndex };

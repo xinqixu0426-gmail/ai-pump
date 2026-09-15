@@ -3,7 +3,7 @@ const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { mergePurchasePlanItem } = require('./orderWorkflow.cjs');
 const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
-const { catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
+const { isPurchaseCoil: isCoilAssemblyPart, catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
 
@@ -47,12 +47,6 @@ function buildCoilIndexes(coilsCatalog) {
         byDimensions.set(key, candidates);
     }
     return { byId, byDimensions };
-}
-
-function isCoilAssemblyPart(part) {
-    return part?.inventoryType === 'coil'
-        || part?.costSource === 'coil'
-        || String(part?.name || '').trim() === '线圈转子';
 }
 
 function resolveCoilForPart(part, coilIndexes) {

@@ -256,14 +256,19 @@ export type RecipeInventoryItem = {
   name: string;
   model: string;
   supplier?: string;
-  currentStock: number;
+  currentStock: number | null;
+  currentName?: string | null;
+  snapshotName?: string;
+  referenceStatus?: 'resolved' | 'resolved_legacy' | 'missing' | 'ambiguous' | 'inactive' | 'invalid_id' | 'identity_mismatch' | 'invalid_reference' | 'invalid_stock' | 'not_tracked';
+  message?: string | null;
   partId?: number;
   coilId?: number;
-  inventoryType: 'part' | 'coil';
-  status: 'in_stock' | 'out_of_stock' | 'missing';
+  inventoryType: 'part' | 'coil' | 'none';
+  status: 'in_stock' | 'out_of_stock' | 'missing' | 'needs_review' | 'not_tracked';
 };
 
 export type RecipeInventoryStatusResult = {
+  sourceOfTruth?: 'recipes.inventory_status';
   recipe: Recipe;
   items: RecipeInventoryItem[];
 };

@@ -6,6 +6,21 @@ const {
     createRecipeQueries,
 } = require('../api/services/recipeQueries.cjs');
 
+test('配方库存只读查询拒绝损坏 BOM，空数组正常且不写数据库', () => {
+    const fixture = createFixture();
+    try {
+        for (const value of ['broken', '{}', '[null]', '["型号"]', '[[]]']) {
+            fixture.db.prepare('UPDATE recipes SET parts_json = ? WHERE id = 1').run(value);
+            assert.throws(() => fixture.queries.getInventoryStatus(1), { code: 'RECIPE_BOM_INVALID', statusCode: 422 });
+        }
+        fixture.db.prepare('UPDATE recipes SET parts_json = ? WHERE id = 1').run('[]');
+        const changes = fixture.db.prepare('SELECT total_changes() n').get().n;
+        assert.deepEqual(fixture.queries.getInventoryStatus(1).items, []);
+        assert.equal(fixture.queries.getInventoryStatus(1).sourceOfTruth, 'recipes.inventory_status');
+        assert.equal(fixture.db.prepare('SELECT total_changes() n').get().n, changes);
+    } finally { fixture.db.close(); }
+});
+
 function createFixture() {
     const db = new Database(':memory:');
     db.exec(`
@@ -209,6 +224,7 @@ test('配方 Query 返回列表、详情及零件和正式线圈库存状态', (
                 model: '6201',
                 supplier: '甲',
                 currentStock: 5,
+                currentName: '6201', snapshotName: '6201', referenceStatus: 'resolved_legacy', message: null,
                 partId: 10,
                 inventoryType: 'part',
                 status: 'in_stock',
@@ -218,6 +234,7 @@ test('配方 Query 返回列表、详情及零件和正式线圈库存状态', (
                 model: '12-160',
                 supplier: '',
                 currentStock: 3,
+                currentName: null, snapshotName: '12-160', referenceStatus: 'resolved', message: null,
                 coilId: 20,
                 inventoryType: 'coil',
                 status: 'in_stock',
