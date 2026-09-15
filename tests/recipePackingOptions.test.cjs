@@ -162,3 +162,53 @@ test('包装候选保留同型号不同供应商的正式业务身份', () => {
 
     assert.deepEqual(options.map(option => option.supplier).sort(), ['乙厂', '甲厂'])
 })
+
+test('包装有 ID 时恢复现名，旧名被占用也不换成另一零件', () => {
+    const current = { ...paperCatalog, partId: 71, model: '纸箱-新规格' }
+    const reused = { ...paperCatalog, partId: 72 }
+    const saved = { ...paperCatalog, partId: 71, snapshotPrice: reused.price }
+    assert.equal(findPackingOption([reused, current], saved), current)
+    assert.equal(findPackingOption([reused], saved), undefined)
+    assert.equal(findPackingOption([current], { ...saved, supplier: '冲突供应商' }), undefined)
+    assert.equal(findPackingOption([current], { ...saved, supplier: '' }), current)
+    assert.equal(findPackingOption([current], { ...saved, packagingMaterial: '木箱' }), undefined)
+})
+
+test('同名包装的不同 ID 不合并，无 ID 歧义不自动选中', () => {
+    const parts = [71, 72].map(id => ({ ...paperCatalog, id, category: '包装' }))
+    const options = buildPackingOptionValues(parts, [])
+    assert.equal(options.length, 2)
+    assert.equal(findPackingOption(options, paperCatalog), undefined)
+    for (const partId of [71, 72]) {
+        assert.equal(findPackingOption(options, { ...paperCatalog, partId }).partId, partId)
+    }
+})
+
+test('历史绑定包装候选使用现名目录价，失效引用不由 boxType 补成无 ID 选项', () => {
+    const part = { ...paperCatalog, id: 71, model: '纸箱-新规格', category: '包装', catalogUnitCost: 13 }
+    const recipe = saved => ({ boxType: saved.model, packingPartsJson: JSON.stringify([saved]) })
+    const saved = { ...paperCatalog, partId: 71, snapshotPrice: 5 }
+    const options = buildPackingOptionValues([part], [recipe(saved)])
+    assert.equal(options.length, 1)
+    assert.equal(options[0].model, part.model)
+    assert.equal(options[0].price, 13)
+    assert.equal(options[0].partId, 71)
+    assert.equal(JSON.parse(updatePackingRoleValue({}, 'container', options[0]).packingPartsJson)[0].partId, 71)
+    assert.equal(saved.model, paperCatalog.model)
+    for (const badId of [0, -1, 1.5, true, '71', [71], {}, Number.MAX_SAFE_INTEGER + 1, 999]) {
+        const invalid = { ...saved, partId: badId }
+        assert.equal(findPackingOption(options, invalid), undefined)
+        assert.deepEqual(buildPackingOptionValues([], [recipe(invalid)]), [])
+    }
+    assert.deepEqual(buildPackingOptionValues([], [recipe(saved)]), [])
+    const conflict = { ...saved, supplier: '冲突供应商' }
+    assert.equal(buildPackingOptionValues([part], [recipe(conflict)]).length, 1)
+    assert.deepEqual(buildPackingOptionValues([{ ...part, category: '配件', model: '接头' }], [recipe(saved)]), [])
+})
+
+test('包装覆盖转换保留原始非法 ID，不能把布尔值或数组转换成有效引用', () => {
+    for (const partId of [0, -1, true, '71', [71]]) {
+        const value = updatePackingRoleValue({}, 'container', { ...paperCatalog, partId })
+        assert.deepEqual(JSON.parse(value.packingPartsJson)[0].partId, partId)
+    }
+})

@@ -55,6 +55,11 @@ function resolvePackingPart(value, role, boxType = '') {
 }
 
 function sameStableIdentity(option, packing) {
+  if (packing.partId != null) {
+    return Number.isSafeInteger(packing.partId) && packing.partId > 0
+      && option.partId === packing.partId
+      && (!text(packing.supplier) || text(option.supplier) === text(packing.supplier))
+  }
   return text(option.model) === text(packing.model)
     && text(option.supplier) === text(packing.supplier)
 }
@@ -64,6 +69,10 @@ function findPackingOption(options, packing) {
   const semantics = inferPackingSemantics(packing)
   const stableMatches = options.filter(option => sameStableIdentity(option, packing))
   if (stableMatches.length === 0) return undefined
+  if (packing.partId == null
+    && new Set(stableMatches.filter(option => option.partId != null).map(option => option.partId)).size > 1) {
+    return undefined
+  }
 
   const materialMatches = stableMatches.filter(option => (
     inferPackingSemantics(option).packagingMaterial === semantics.packagingMaterial
@@ -81,7 +90,7 @@ function findPackingOption(options, packing) {
 }
 
 function packingOptionKeyValue(option) {
-  return `${option.model}||${option.supplier}||${option.packagingMaterial}||${option.packingRole}`
+  return JSON.stringify([option.partId ?? null, option.model, option.supplier, option.packagingMaterial, option.packingRole])
 }
 
 function buildPackingOptionValues(parts, recipes) {
@@ -91,7 +100,7 @@ function buildPackingOptionValues(parts, recipes) {
     if (!model) return
     const semantics = inferPackingSemantics(packing)
     const option = {
-      ...(Number(packing.partId) > 0 ? { partId: Number(packing.partId) } : {}),
+      ...(packing.partId != null ? { partId: packing.partId } : {}),
       model,
       supplier: text(packing.supplier),
       price: Number(price || 0),
@@ -125,15 +134,27 @@ function buildPackingOptionValues(parts, recipes) {
   })
 
   recipes.forEach(recipe => {
-    normalizePackingParts(recipe.packingPartsJson).forEach(packing => {
-      const matchedCatalogPart = parts.find(part => (
+    const packingParts = normalizePackingParts(recipe.packingPartsJson)
+    packingParts.forEach(packing => {
+      if (packing.partId != null) {
+        if (!Number.isSafeInteger(packing.partId) || packing.partId <= 0) return
+        const part = parts.find(item => item.id === packing.partId)
+        if (!part || part.category !== '包装'
+          || (text(packing.supplier) && text(packing.supplier) !== text(part.supplier))) return
+        addOption({ ...packing, model: part.model, supplier: part.supplier },
+          Number(part.catalogUnitCost ?? part.price ?? 0))
+        return
+      }
+      const catalogMatches = parts.filter(part => (
         text(part.model) === text(packing.model)
         && (!packing.supplier || text(part.supplier) === text(packing.supplier))
       ))
+      const matchedCatalogPart = catalogMatches.length === 1 ? catalogMatches[0] : undefined
       const catalogPrice = matchedCatalogPart?.catalogUnitCost ?? matchedCatalogPart?.price
+      if (findPackingOption(Array.from(options.values()), packing)) return
       addOption(packing, Number(packing.snapshotPrice ?? catalogPrice ?? 0))
     })
-    if (recipe.boxType) {
+    if (recipe.boxType && !packingParts.some(part => part.packingRole === 'container')) {
       addOption({
         model: recipe.boxType,
         supplier: '',
@@ -155,7 +176,7 @@ function updatePackingRoleValue(overrides, role, option) {
     .filter(part => inferPackingSemantics(part).packingRole !== role)
   if (option) {
     nextParts.push({
-      ...(Number(option.partId) > 0 ? { partId: Number(option.partId) } : {}),
+      ...(option.partId != null ? { partId: option.partId } : {}),
       model: option.model,
       supplier: text(option.supplier),
       qty: 1,
