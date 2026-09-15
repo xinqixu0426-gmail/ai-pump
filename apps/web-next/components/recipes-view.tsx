@@ -1,5 +1,7 @@
 'use client';
 
+import { patchRecipeSelectionIdentity } from '@/lib/recipe-selection-identity';
+
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Layers3, Package, Plus, RefreshCw } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -1183,15 +1185,6 @@ export function RecipesView() {
     return candidates.length === 1 ? Number(candidates[0].catalogUnitCost || 0) : 0;
   }
 
-  function stablePartId(model: string, supplier: string, category?: string): number | undefined {
-    const candidates = parts.filter(part => (
-      part.model === model
-      && (!category || part.category === category)
-      && (!supplier || String(part.supplier || '').trim() === supplier.trim())
-    ));
-    return candidates.length === 1 ? candidates[0].id : undefined;
-  }
-
   function openCreateDrawer() {
     templateDraftRequestRef.current += 1;
     resetRecipeDirty();
@@ -1301,10 +1294,9 @@ export function RecipesView() {
       nextPatch.snapshotPrice = '';
       nextPatch.costSource = '';
     }
-    const nextModel = String(nextPatch.model ?? optionalParts.find(part => part.id === id)?.model ?? '');
-    const nextSupplier = String(nextPatch.supplier ?? optionalParts.find(part => part.id === id)?.supplier ?? '');
-    nextPatch.partId = stablePartId(nextModel, nextSupplier);
-    updateOptionalDraftPart(id, nextPatch);
+    updateOptionalDraftPart(id, patchRecipeSelectionIdentity(
+      optionalParts.find(part => part.id === id), nextPatch, parts
+    ));
     clearBomPreviewError();
   }
 
@@ -1327,10 +1319,9 @@ export function RecipesView() {
       nextPatch.snapshotPrice = '';
       nextPatch.costSource = '';
     }
-    const nextModel = String(nextPatch.model ?? packingParts.find(part => part.id === id)?.model ?? '');
-    const nextSupplier = String(nextPatch.supplier ?? packingParts.find(part => part.id === id)?.supplier ?? '');
-    nextPatch.partId = stablePartId(nextModel, nextSupplier, '包装');
-    updatePackingDraftPart(id, nextPatch);
+    updatePackingDraftPart(id, patchRecipeSelectionIdentity(
+      packingParts.find(part => part.id === id), nextPatch, parts, '包装'
+    ));
     clearBomPreviewError();
   }
 
