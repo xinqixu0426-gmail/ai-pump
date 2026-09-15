@@ -119,3 +119,13 @@ test('转子配方草稿优先读取技术档案中的出图参数', () => {
     assert.equal(draft.barrelLength, 180);
     assert.equal(draft.drawingName, 'V750 出图配方');
 });
+
+test('同名泵壳多供应商时不从任意记录带入出图尺寸或轴承', () => {
+    const before = structuredClone(template);
+    const candidates = [
+        { ...parts[0], id: 1, supplier: '甲' },
+        { ...parts[0], id: 2, supplier: '乙', notes: '{"openOffset":99,"defaultUpperBearing":"6205"}' },
+    ];
+    assert.throws(() => buildRotorTemplateDraft({ template, parts: candidates }), { code: 'PUMP_SHELL_PART_AMBIGUOUS', statusCode: 409 });
+    assert.deepEqual(template, before);
+});

@@ -34,6 +34,7 @@ requireBusinessCapability('recipes.current_costs');
 requireBusinessCapability('cost.recipe_difference');
 
 const RECOVERABLE_CURRENT_RECIPE_COST_CODES = new Set([
+    'PUMP_SHELL_PART_AMBIGUOUS',
     'COIL_SCHEME_AMBIGUOUS',
     'COIL_SCHEME_FAMILY_REQUIRED',
     'SAVED_PART_REFERENCES_INVALID',

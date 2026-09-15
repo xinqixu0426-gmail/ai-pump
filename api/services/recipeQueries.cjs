@@ -6,7 +6,7 @@ const { selectRecipeBaseline, applyRecipeBaseline } = require('./recipeConfigura
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { buildRecipeBomDraft } = require('./recipeBomEngine.cjs');
 const { buildRecipeCostDraft, findUnpricedRecipeParts } = require('./costEngine.cjs');
-const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
+const { resolvePumpShellPart } = require('./pumpShellPartResolver.cjs');
 const { normalizeOptionalBoolean } = require('./queryValidation.cjs');
 const { parseJsonArray, parsePositiveId } = require('./validation.cjs');
 
@@ -59,7 +59,7 @@ function createRecipeQueries({
         if (!template) {
             return { template: null, shellMeta: null };
         }
-        const shellPart = findPumpShellPart(db.prepare(`
+        const shellPart = resolvePumpShellPart(db.prepare(`
             SELECT *
             FROM parts
             WHERE category = ?

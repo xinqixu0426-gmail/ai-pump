@@ -205,3 +205,19 @@ test('转子 Query：模板变体必须真实存在且属于当前模板', () =>
     );
     db.close();
 });
+
+test('转子模板 Query 返回歧义泵壳的真实 ID，拒绝出图参数且无写副作用', () => {
+    const db = createFixture();
+    try {
+        const original = db.prepare("SELECT * FROM parts WHERE category = '泵壳' LIMIT 1").get();
+        db.prepare('INSERT INTO parts (id, model, category, remark) VALUES (?, ?, ?, ?)')
+            .run(999, original.model, original.category, '{"openOffset":999}');
+        const before = db.prepare('SELECT total_changes() n').get().n;
+        for (const read of [() => buildTemplateRotorDraft(db, 1), () => buildRecipeRotorDraft(db, 20)]) assert.throws(read, error => {
+            assert.equal(error.code, 'PUMP_SHELL_PART_AMBIGUOUS');
+            assert.deepEqual(error.details.candidates.map(row => row.partId).sort((a, b) => a - b), [original.id, 999]);
+            return true;
+        });
+        assert.equal(db.prepare('SELECT total_changes() n').get().n, before);
+    } finally { db.close(); }
+});

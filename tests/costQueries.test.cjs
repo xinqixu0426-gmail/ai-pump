@@ -125,7 +125,7 @@ function createFixture(options = {}) {
             }
             if (Number(recipe.id) === Number(options.failRecipeId)) {
                 const error = new Error('当前配方必须选择线圈方案系列');
-                error.code = 'COIL_SCHEME_FAMILY_REQUIRED';
+                error.code = options.failCode || 'COIL_SCHEME_FAMILY_REQUIRED';
                 error.details = { candidates: [{ schemeFamilyCode: 'LEGACY-V1' }] };
                 throw error;
             }
@@ -450,5 +450,15 @@ test('当日成本在单一只读事务核对保存引用，坏包装只阻塞�
         fixture.db.prepare('UPDATE recipes SET packing_parts_json = ? WHERE id = 1').run('[]');
         fixture.queries.getRecipeDifference({ leftRecipeId: 1, rightRecipeId: 2 });
         assert.equal(fixture.db.inTransaction, false);
+    } finally { fixture.db.close(); }
+});
+
+test('泵壳目录歧义只使对应配方当日成本待核对，其他配方继续返回', () => {
+    const fixture = createFixture({ failRecipeId: 1, failCode: 'PUMP_SHELL_PART_AMBIGUOUS' });
+    try {
+        const result = fixture.queries.getCurrentRecipeCosts();
+        assert.equal(result.items[0].calculationError.code, 'PUMP_SHELL_PART_AMBIGUOUS');
+        assert.equal(result.items[0].currentTotalCost, null);
+        assert.equal(result.items[1].currentTotalCost, 21);
     } finally { fixture.db.close(); }
 });

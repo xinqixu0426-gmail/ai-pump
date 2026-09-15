@@ -278,6 +278,7 @@ router.post('/recipe-draft', (req, res) => {
             success: false,
             code: e.code || 'rotor_recipe_draft_failed',
             error: e.message,
+            ...(e.details ? { details: e.details } : {}),
             requestId: req.requestId || null,
         });
     }
@@ -301,6 +302,7 @@ router.post('/template-draft', (req, res) => {
             success: false,
             code: e.code || 'rotor_template_draft_failed',
             error: e.message,
+            ...(e.details ? { details: e.details } : {}),
             requestId: req.requestId || null,
         });
     }

@@ -1,4 +1,7 @@
 const { parsePositiveId } = require('./validation.cjs');
+const { requireBusinessCapability } = require('../capabilities/registry.cjs');
+requireBusinessCapability('rotor.template_draft');
+requireBusinessCapability('rotor.recipe_draft');
 const {
     buildRotorRecipeDraft,
     buildRotorTemplateDraft,
@@ -78,7 +81,7 @@ function buildRecipeRotorDraft(db, recipeIdValue) {
         `).get(recipe.model_variant_id)
         : null;
     const parts = db.prepare(`
-        SELECT model, category, remark AS notes
+        SELECT *
         FROM parts
         WHERE deleted_at IS NULL
     `).all();
@@ -145,7 +148,7 @@ function buildTemplateRotorDraft(
     }
 
     const parts = db.prepare(`
-        SELECT model, category, remark AS notes
+        SELECT *
         FROM parts
         WHERE deleted_at IS NULL
     `).all();

@@ -29,3 +29,22 @@ test('普通业务型号后缀不作为尺寸兼容匹配', () => {
     ];
     assert.equal(findPumpShellPart(namedVariants, 'V750-DY款-圆底脚'), null);
 });
+
+test('精确同名及尺寸兼容同名的不同目录记录均拒绝按第一条匹配', () => {
+    const { resolvePumpShellPart } = require('../api/services/pumpShellPartResolver.cjs');
+    const duplicate = [parts[0], { ...parts[0], id: 4, supplier: '另一厂' }];
+    for (const list of [duplicate, [...duplicate].reverse()]) {
+        for (const name of ['V750-DY款-圆底脚-12', 'V750-DY款-圆底脚']) {
+            assert.equal(findPumpShellPart(list, name), null);
+            assert.throws(() => resolvePumpShellPart(list, name), error => {
+                assert.equal(error.code, 'PUMP_SHELL_PART_AMBIGUOUS');
+                assert.equal(error.statusCode, 409);
+                assert.deepEqual(error.details.candidates.map(item => item.partId).sort(), [1, 4]);
+                return true;
+            });
+        }
+    }
+    assert.equal(resolvePumpShellPart([duplicate[0], { ...duplicate[1], deleted_at: 'now' }], duplicate[0].model).id, 1);
+    assert.equal(resolvePumpShellPart([{ ...duplicate[0], deletedAt: 'now' }], duplicate[0].model), null);
+    assert.equal(resolvePumpShellPart([], '不存在'), null);
+});

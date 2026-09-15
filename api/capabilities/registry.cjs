@@ -631,6 +631,20 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'rotor.recipe_draft': defineQueryCapability({
+        capabilityId: 'rotor.recipe_draft', domain: 'rotor',
+        inputSchema: 'POST /api/rotor/recipe-draft { recipeId }',
+        outputSchema: 'RotorRecipeDraft with patch, hints and source IDs; ambiguous shell returns 409 with candidates',
+        sourceOfTruth: 'recipes+pump_shell_templates+unique_active_shell_catalog+rotorTemplateDraft',
+        riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
+    }),
+    'rotor.template_draft': defineQueryCapability({
+        capabilityId: 'rotor.template_draft', domain: 'rotor',
+        inputSchema: 'POST /api/rotor/template-draft { templateId, variantId? }',
+        outputSchema: 'RotorTemplateDraft with patch, hints and template metadata; ambiguous shell returns 409 with candidates',
+        sourceOfTruth: 'pump_shell_templates+unique_active_shell_catalog+rotorTemplateDraft',
+        riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
+    }),
     'recipes.current_costs': defineQueryCapability({
         capabilityId: 'recipes.current_costs', domain: 'recipes',
         inputSchema: 'GET /api/recipes/current-costs', outputSchema: 'CurrentRecipeCosts with per-recipe calculationError and incomplete costs',

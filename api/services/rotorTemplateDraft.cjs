@@ -1,4 +1,4 @@
-const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
+const { resolvePumpShellPart } = require('./pumpShellPartResolver.cjs');
 const { normalizeBearing } = require('./rotorParameters.cjs');
 
 const emptyRotorPatchKeys = new Set([
@@ -55,7 +55,7 @@ function stainlessBarrelDrawingText(barrelLength) {
 }
 
 function findShellMeta(template, parts) {
-    const shellPart = findPumpShellPart(
+    const shellPart = resolvePumpShellPart(
         parts,
         template?.shell_model ?? template?.shellModel
     );

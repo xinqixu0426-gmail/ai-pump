@@ -460,3 +460,16 @@ test('BOM 查询明确 ID 不被同名目录覆盖，失效或冲突 ID 不回�
         assert.throws(() => fixture.queries.getBomDraft({ packingParts: [{ partId: 60, model: '6201' }] }), { code: 'BOM_PART_CATEGORY_MISMATCH' });
     } finally { fixture.db.close(); }
 });
+
+test('BOM 查询泵壳多供应商歧义明确失败，不带入第一条默认参数且只读', () => {
+    const fixture = createFixture();
+    try {
+        const shell = fixture.db.prepare("SELECT * FROM parts WHERE category='泵壳' LIMIT 1").get();
+        fixture.db.prepare('INSERT INTO parts (id, model, supplier, category, stock, remark) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(999, shell.model, '另一个供应商', '泵壳', 0, '{}');
+        const changes = fixture.db.prepare('SELECT total_changes() n').get().n;
+        assert.throws(() => fixture.queries.getBomDraft({ templateId: 30 }), { code: 'PUMP_SHELL_PART_AMBIGUOUS', statusCode: 409 });
+        assert.equal(fixture.bomCalls.length, 0);
+        assert.equal(fixture.db.prepare('SELECT total_changes() n').get().n, changes);
+    } finally { fixture.db.close(); }
+});
