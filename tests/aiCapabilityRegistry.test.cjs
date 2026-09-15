@@ -324,7 +324,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             'confirmationToken_bound_inventory_snapshot',
             'expectedUpdatedAt+confirmationToken_bound_delete_preview',
             'confirmationToken_bound_expectedVersions',
-            'confirmationToken_bound_part_and_setting_versions',
+            'confirmationToken_bound_part_setting_versions_and_rename_source_hash',
             'confirmationToken_bound_file_hash_and_target_version',
             'external_snapshot_at_execution_time',
             'content_sha256_deduplication',

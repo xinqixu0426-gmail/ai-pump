@@ -198,7 +198,7 @@
 
 | 当前问题 | 代码或数据依据 | 必须覆盖的修复 |
 |---|---|---|
-| 普通零件改名没有全链条传播 | `api/services/partCommands.cjs` 仅有泵壳关联模板名级联 | 统一身份与名称读取，不为每类页面增加独立字符串替换 |
+| 普通零件改名没有全链条传播 | `partRenameImpact.cjs` 已拦截有已知引用的直接改名，完整迁移仍待接入 | 统一身份与名称读取，不为每类页面增加独立字符串替换 |
 | 配方和模板存在大量纯名称引用 | 当前 4 个配方普通 BOM 行、模板配件与组件没有 `partId` | 唯一核实后补齐引用；无法确定时返回待核对状态 |
 | ID 与旧名称同时参与身份判定 | `bomPartIdentity.cjs`、`orderPlanning.cjs`、`purchaseInventory.cjs` | 区分显示名变化与实体/规格变化，不能只补 ID 后保留旧名相等校验 |
 | 配方库存身份查询已修复，完整改名授权未接入 | `recipeInventory.cjs`、`recipeQueries.cjs:getInventoryStatus` | ID或唯一型号/供应商查询，异常单列；下一步接受保护改名和规格修订 |
@@ -434,9 +434,11 @@
 
 配方库存查询已复用普通 BOM 身份校验，支持按 ID 查询、精确供应商、异常/null库存与现名/原名分列；线圈明确 ID 不回退到其他方案，非库存费用不显示缺货，损坏 BOM 不吞为空结果。Query 采用同一只读事务，未修改快照。页面快速切换配方时忽略旧请求结果。普通件 ID＋旧型号仍标记待核对，不授权继续采购入库。
 
+零件保存已增加过渡改名保护：PATCH要求版本，资料预览绑定引用源哈希，事务内重查；已知引用、历史旁路绑定、不完整盘点、同供应商撞名或预览后源变化均拒绝。价格等不改型号的保存继续可用。此保护不等于受保护改名命令完成，仍不能让已有引用的零件安全改名。
+
 尚未完成：所有写入口强制生成名称、命名档案/旧别名的受保护保存、历史引用迁移、采购行身份全流程接续、全部 Query/UI 现名装配、搜索/AI/MCP 别名解析、跨设备实时通知、迁移与恢复演练。不能启用存量批量改名，也不能把已实现的只读接口当作上述业务功能已经上线。
 
-当前验证：API契约26项、完整测试2024项、完整深度验收457项、目录专项40项通过；lint、build和diff检查通过，隔离数据库完整性正常且无外键违规。此前外部铜价阻断在本轮完整验收中已恢复。证据为 `logs/catalog-naming/inventory-identity-*.log`。源库仍为schema82；业务与固定成本基线继续只读核对，未发布或批量改名。
+当前验证：API契约26项、完整测试2029项、完整深度验收460项、目录专项43项通过；lint、build和diff检查通过，隔离数据库完整性正常且无外键违规。证据为 `logs/catalog-naming/rename-guard-*.log`。源库仍为schema82；业务与固定成本基线、全部声明源哈希与上一批一致，未发布或批量改名。
 
 ### 7.11 引用链矩阵与迁移边界
 
@@ -445,7 +447,7 @@
 | 资源字段 | 写入方 | 读取方 | 业务用途与现有身份 | 迁移策略 |
 |---|---|---|---|---|
 | 零件 `model/remark`，默认轴承与长螺丝定价来源 | `partCommands`、批量/就地建档 | `recipeQueries`、`costEngine`、出图参数 | 主名称、默认配置、定价规则；混用 ID 和字符串 | 规格与用途分离；默认件和定价来源显式 ID；旧词建立审核别名 |
-| 模板 `shell_model`、整套泵壳 | `templateCommands`、泵壳名称旧级联 | `pumpShellPartResolver`、`recipeBomEngine`、`templateQueries` | 既是模板名又是物料匹配字符串 | 独立模板名＋`catalog_template_shell_bindings`；不再靠模板名关联泵壳 |
+| 模板 `shell_model`、整套泵壳 | `templateCommands`、零件改名依赖保护 | `pumpShellPartResolver`、`recipeBomEngine`、`templateQueries` | 既是模板名又是物料匹配字符串 | 独立模板名＋`catalog_template_shell_bindings`；不再靠模板名关联泵壳 |
 | 模板 `parts_json/shell_components_json` | 模板编辑/复制、`templateCommands` | BOM 展开、成本、配方默认值 | 固定件、组件、供应商套件；旧行无 ID | 保留已有 ID、审核后补绑定；套件内部描述不建库存 |
 | 配方 `parts_json/extra_parts_json/packing_parts_json` | `recipeCommands`、保存草稿、Web 选配与包装 | `recipeQueries`、`currentRecipeCost`、`configuredRecipeSnapshot` | BOM、成本、库存；新 ID 与旧名称快照并存 | 新写保存 ID；旧快照旁路绑定，现名与原名分开输出 |
 | 配方/模板配置规则白名单 | `recipeConfigurationPolicy`、对应保存命令 | 配置覆盖、包装选项 | `packingPartIds`、线圈 ID 数组 | 原 ID 保留，选项标签读取现名；不扩大可选范围 |

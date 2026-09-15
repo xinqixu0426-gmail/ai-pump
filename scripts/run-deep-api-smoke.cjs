@@ -1370,6 +1370,35 @@ async function testRecipeInventoryIdentity(databasePath) {
     } finally { check.close(); }
 }
 
+async function testPartRenameGuard(databasePath) {
+    const unique = `RENAME-GUARD-${Date.now()}`;
+    const part = (await request('改名保护验收建档', 'POST', '/api/parts', {
+        model: unique, category: '测试件', supplier: unique, stock: 5, price: 3,
+        idempotencyKey: `deep:rename-create:${unique}`,
+    })).payload.data;
+    const fixture = new Database(databasePath);
+    let recipeId;
+    const snapshot = JSON.stringify([{ partId: part.id, model: part.model, supplier: part.supplier, qty: 2 }]);
+    try {
+        recipeId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(unique, snapshot).lastInsertRowid);
+        const before = fixture.prepare('SELECT count(*) n FROM audit_log').get().n;
+        await request('有引用零件拒绝直接改名', 'PATCH', `/api/parts/${part.id}`, {
+            model: `${unique}-NEW`, expectedUpdatedAt: part.updatedAt,
+            idempotencyKey: `deep:rename-blocked:${unique}`,
+        }, [409]);
+        await request('有引用零件拒绝资料改名预览', 'POST', `/api/parts/${part.id}/save-preview`, {
+            model: `${unique}-NEW`, stock: 8, expectedUpdatedAt: part.updatedAt,
+        }, [409]);
+        const row = fixture.prepare('SELECT model, stock FROM parts WHERE id = ?').get(part.id);
+        assert(row.model === part.model && row.stock === 5, '拒绝改名后出现部分保存');
+        assert(fixture.prepare('SELECT parts_json FROM recipes WHERE id = ?').get(recipeId).parts_json === snapshot, '拒绝改名改写了引用快照');
+        assert(fixture.prepare('SELECT count(*) n FROM audit_log').get().n === before, '拒绝改名留下了写审计');
+    } finally {
+        if (recipeId) fixture.prepare('DELETE FROM recipes WHERE id = ?').run(recipeId);
+        fixture.close();
+    }
+}
+
 async function testCatalogNamingSave() {
     const unique = `NAMING-${Date.now()}`;
     const namedInput = { category: '包装', supplier: unique, price: 6, stock: 2,
@@ -3861,6 +3890,7 @@ async function run() {
         if (DEEP_API_SCOPE !== 'mcp') {
             await testCatalogNamingSave();
             await testRecipeInventoryIdentity(path.join(temp, 'pump.db'));
+            await testPartRenameGuard(path.join(temp, 'pump.db'));
         }
         if (DEEP_API_SCOPE !== 'catalog') {
             mcpExpectedCoilProfile = await waitForMcpCoilProfileStable();

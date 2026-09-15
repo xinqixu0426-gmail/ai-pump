@@ -80,6 +80,8 @@ function createFixture() {
             updated_at TEXT NOT NULL
         );
     `);
+    db.exec(require('../api/database/schema.cjs').CANONICAL_TABLES_SQL);
+    db.exec(require('../api/database/catalogSchema.cjs').CATALOG_IDENTITY_SCHEMA_SQL);
     let version = 0;
 
     function nextUpdatedAt() {
@@ -214,6 +216,81 @@ function seedPart(fixture, model = 'P-1', price = 10) {
 
 const namingInput = () => ({ category: '包装', supplier: '甲', stock: 3, price: 8,
     naming: { ruleId: 'packaging', spec: { kind: ' 纸箱 ', specification: '400*300*200', variant: '' } } });
+
+test('被配方引用的零件不能通过 PATCH 或资料保存改名，其他资料仍可保存', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const snapshot = JSON.stringify([{ partId: part.id, model: part.model, supplier: part.supplier, qty: 2 }]);
+        db.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run('引用配方', snapshot);
+        const before = db.prepare('SELECT count(*) n FROM audit_log').get().n;
+        const input = { model: 'NEW', stock: 8, expectedUpdatedAt: part.updatedAt };
+        assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, input, 'rename'), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
+        assert.throws(() => executePartUpdate(dependencies, part.id, input, commandContext(UPDATE_CAPABILITY_ID, 'blocked-rename')), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
+        assert.equal(db.prepare('SELECT count(*) n FROM audit_log').get().n, before);
+        assert.equal(db.prepare('SELECT model FROM parts WHERE id = ?').get(part.id).model, part.model);
+        executePartUpdate(dependencies, part.id, { price: 12, expectedUpdatedAt: part.updatedAt }, commandContext(UPDATE_CAPABILITY_ID, 'allowed-price'));
+        assert.equal(db.prepare('SELECT parts_json FROM recipes').get().parts_json, snapshot);
+    } finally { db.close(); }
+});
+
+test('历史旁路绑定即使源名称已不匹配，也必须阻止直接改名', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const profile = db.prepare("INSERT INTO catalog_identity_profiles (part_id, created_at, updated_at) VALUES (?, 'now', 'now')").run(part.id);
+        db.prepare(`INSERT INTO catalog_reference_bindings
+            (source_type, source_id, source_version, source_path, source_hash, target_profile_id, target_spec_revision, created_at, updated_at)
+            VALUES ('orderRevision', 1, 'old', '/parts/0', ?, ?, 1, 'now', 'now')`).run('a'.repeat(64), profile.lastInsertRowid);
+        assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, { model: 'NEW', stock: 5, expectedUpdatedAt: part.updatedAt }, 'rename'), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
+        assert.equal(db.prepare('SELECT model FROM parts WHERE id = ?').get(part.id).model, part.model);
+    } finally { db.close(); }
+});
+
+test('模板显式泵壳绑定不依赖模板与零件名称相同', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const template = db.prepare('INSERT INTO pump_shell_templates (shell_model) VALUES (?)').run('独立模板名');
+        db.prepare("INSERT INTO catalog_template_shell_bindings (template_id, shell_part_id, created_at, updated_at) VALUES (?, ?, 'now', 'now')").run(template.lastInsertRowid, part.id);
+        assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, { model: 'NEW', stock: 5, expectedUpdatedAt: part.updatedAt }, 'rename'), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
+    } finally { db.close(); }
+});
+
+test('改名预览绑定引用源快照，预览后新增引用不会留下半次保存', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const preview = buildPartProfileSavePreview(dependencies, part.id, { model: 'NEW', stock: 8, expectedUpdatedAt: part.updatedAt }, 'rename');
+        assert.equal(preview.renameImpact.referenceCount, 0);
+        assert.equal(preview.renameImpact.previousName, part.model);
+        db.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run('新引用', JSON.stringify([{ model: part.model }]));
+        assert.throws(() => executeConfirmedPartProfileSave(dependencies, part.id, { confirmationToken: preview.confirmationToken }, commandContext(PROFILE_SAVE_CAPABILITY_ID, 'new-reference'), 'rename'), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
+        const saved = db.prepare('SELECT model, stock FROM parts WHERE id = ?').get(part.id);
+        assert.deepEqual(saved, { model: part.model, stock: part.stock });
+        assert.equal(db.prepare('SELECT count(*) n FROM api_operations WHERE capability_id = ?').get(PROFILE_SAVE_CAPABILITY_ID).n, 0);
+    } finally { db.close(); }
+});
+
+test('改名拒绝缺少版本、同供应商撞名、不完整盘点和预览后源数据漂移', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const another = seedPart(fixture, 'OTHER').part;
+        assert.throws(() => executePartUpdate(dependencies, part.id, { model: 'NEW' }, commandContext(UPDATE_CAPABILITY_ID, 'no-version')), { code: 'PART_RENAME_VERSION_REQUIRED' });
+        assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, { model: another.model, stock: 5, expectedUpdatedAt: part.updatedAt }, 'rename'), { code: 'PART_RENAME_NAME_CONFLICT' });
+        const preview = buildPartProfileSavePreview(dependencies, part.id, { model: 'NEW', stock: 5, expectedUpdatedAt: part.updatedAt }, 'rename');
+        seedPart(fixture, 'AFTER-PREVIEW');
+        assert.throws(() => executeConfirmedPartProfileSave(dependencies, part.id, { confirmationToken: preview.confirmationToken }, commandContext(PROFILE_SAVE_CAPABILITY_ID, 'source-changed'), 'rename'), { code: 'PART_RENAME_SOURCE_CHANGED' });
+        db.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run('损坏数据', '{broken');
+        assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, { model: 'NEW', stock: 5, expectedUpdatedAt: part.updatedAt }, 'rename'), { code: 'PART_RENAME_AUDIT_INCOMPLETE' });
+    } finally { db.close(); }
+});
 
 test('规格命名新增生成型号、保存命名输入、幂等并拒绝同供应商重复', () => {
     const { db, dependencies } = createFixture();
@@ -501,7 +578,7 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
     }
 });
 
-test('泵壳零件型号修改与关联模板在同一命令内同步', () => {
+test('泵壳被模板引用时拒绝旧名称级联改写', () => {
     const fixture = createFixture();
     try {
         const created = executePartCreate(
@@ -520,7 +597,7 @@ test('泵壳零件型号修改与关联模板在同一命令内同步', () => {
             VALUES (?, ?)
         `).run('V750-DY款-圆底脚', '2026-08-03T00:00:00.000Z').lastInsertRowid);
 
-        const updated = executePartUpdate(
+        assert.throws(() => executePartUpdate(
             fixture.dependencies,
             created.part.id,
             {
@@ -528,26 +605,16 @@ test('泵壳零件型号修改与关联模板在同一命令内同步', () => {
                 expectedUpdatedAt: created.part.updatedAt,
             },
             commandContext(UPDATE_CAPABILITY_ID, 'rename-shell')
-        );
+        ), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
 
-        assert.deepEqual(updated.linkedTemplateIds, [templateId]);
-        assert.equal(
-            fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?')
-                .get(templateId).shell_model,
-            'V750-DY款-圆底脚-12'
-        );
-        assert.equal(updated.auditIds.length, 2);
-        assert.ok(updated.changes.some(change => (
-            change.resourceType === 'pump_shell_template'
-            && change.resourceId === templateId
-            && change.field === 'shellModel'
-        )));
+        assert.equal(fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?').get(templateId).shell_model, 'V750-DY款-圆底脚');
+        assert.equal(fixture.db.prepare('SELECT model FROM parts WHERE id = ?').get(created.part.id).model, created.part.model);
     } finally {
         fixture.db.close();
     }
 });
 
-test('旧型号仍有其他有效泵壳零件时不迁移关联模板', () => {
+test('同名多供应商泵壳不能绕过模板依赖保护', () => {
     const fixture = createFixture();
     try {
         const created = executePartCreate(
@@ -577,7 +644,7 @@ test('旧型号仍有其他有效泵壳零件时不迁移关联模板', () => {
             VALUES (?, ?)
         `).run('V750-DY款-圆底脚', '2026-08-03T00:00:00.000Z').lastInsertRowid);
 
-        const updated = executePartUpdate(
+        assert.throws(() => executePartUpdate(
             fixture.dependencies,
             created.part.id,
             {
@@ -585,15 +652,10 @@ test('旧型号仍有其他有效泵壳零件时不迁移关联模板', () => {
                 expectedUpdatedAt: created.part.updatedAt,
             },
             commandContext(UPDATE_CAPABILITY_ID, 'rename-one-shared-shell')
-        );
+        ), { code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION' });
 
-        assert.deepEqual(updated.linkedTemplateIds, []);
-        assert.equal(
-            fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?')
-                .get(templateId).shell_model,
-            'V750-DY款-圆底脚'
-        );
-        assert.equal(updated.auditIds.length, 1);
+        assert.equal(fixture.db.prepare('SELECT shell_model FROM pump_shell_templates WHERE id = ?').get(templateId).shell_model, 'V750-DY款-圆底脚');
+        assert.equal(fixture.db.prepare('SELECT model FROM parts WHERE id = ?').get(created.part.id).model, created.part.model);
     } finally {
         fixture.db.close();
     }

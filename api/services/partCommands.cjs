@@ -1,3 +1,4 @@
+const { inspectPartRename, verifyPartRename } = require('./partRenameImpact.cjs');
 const { normalizePartNaming, assertPartNamingUpdate } = require('./partNaming.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
@@ -658,6 +659,9 @@ function executePartUpdate(
     const updates = normalizeUpdateInput(dependencies, input, current);
     const businessSettings = normalizePartBusinessSettings(input);
     const includesStock = Object.hasOwn(updates, 'stock');
+    if (updates.model !== undefined && updates.model !== current.model && !expectedUpdatedAt) {
+        throw partCommandError('PART_RENAME_VERSION_REQUIRED', '修改型号必须提供最新零件版本，请刷新后重试', 409);
+    }
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
@@ -676,6 +680,7 @@ function executePartUpdate(
             const record = getPartRecord(dependencies.db, partId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
             assertPartNamingUpdate(record, updates);
+            verifyPartRename(dependencies.db, record, updates);
             if (Object.keys(updates).length === 0 && businessSettings.length === 0) {
                 return {
                     data: { part: dependencies.partRow(record) },
@@ -1014,7 +1019,9 @@ function buildPartProfileSavePreview(dependencies, partIdValue, input = {}, subj
         dependencies,
         normalized.businessSettings
     );
+    const renameImpact = inspectPartRename(dependencies.db, normalized.current, normalized.updates);
     const commandInput = {
+        ...(renameImpact ? { renameImpact } : {}),
         partId: normalized.partId,
         expectedUpdatedAt: normalized.expectedUpdatedAt,
         updates: normalized.updates,
@@ -1043,6 +1050,7 @@ function buildPartProfileSavePreview(dependencies, partIdValue, input = {}, subj
         suggestedIdempotencyKey: `part-profile-save:${confirmation.operationId}`,
         partId: normalized.partId,
         model: normalized.current.model,
+        ...(renameImpact ? { renameImpact } : {}),
         changes: [
             ...fieldChanges,
             ...settingSnapshots.map(({ setting, current }) => ({
@@ -1077,11 +1085,12 @@ function executePartProfileSave(
         ...commandContext,
         capabilityId: PROFILE_SAVE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'part', eventType: 'updated' }),
-        input: { partId, expectedUpdatedAt, updates, businessSettings },
+        input: { partId, expectedUpdatedAt, updates, businessSettings, ...(input.renameImpact ? { renameImpact: input.renameImpact } : {}) },
         execute: ({ auditContext }) => {
             const record = getPartRecord(dependencies.db, partId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
             assertPartNamingUpdate(record, updates);
+            verifyPartRename(dependencies.db, record, updates, input.renameImpact);
             inspectPartBusinessSettings(dependencies, businessSettings);
             const write = dependencies.safeUpdate('parts', partId, updates, auditContext);
             const linkedTemplates = cascadePumpShellTemplateModel(
