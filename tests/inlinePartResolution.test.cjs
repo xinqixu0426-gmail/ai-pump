@@ -139,3 +139,32 @@ test('就地建档 resolver 在并发拒重后回读并选中另一请求刚创�
     assert.equal(result.created, false);
     assert.equal(result.part.id, concurrent.id);
 });
+
+
+test('规格建档透传命名输入并回读，复用已有零件不改写历史命名档案', async () => {
+    const { resolveInlineCatalogPart } = await loadResolver();
+    const naming = { ruleId: 'accessory', spec: { kind: '接头', specification: 'G1' } };
+    const draft = input({ model: '接头-G1', category: '配件', naming });
+    let reads = 0;
+    const saved = part({ id: 8, model: draft.model, category: draft.category, naming: { ...naming, ruleVersion: 1 } });
+    const result = await resolveInlineCatalogPart({
+        input: draft,
+        readParts: async () => ++reads === 1 ? [] : [saved],
+        createPart: async value => {
+            assert.deepEqual(value.naming, naming);
+            assert.equal(value.model, draft.model);
+            assert.equal(value.duplicatePolicy, 'reject');
+            return saved;
+        },
+    });
+    assert.equal(result.part, saved);
+    assert.equal(result.created, true);
+    const legacy = { ...saved, naming: null };
+    const reused = await resolveInlineCatalogPart({
+        input: draft,
+        readParts: async () => [legacy],
+        createPart: async () => assert.fail('复用不能写入命名档案'),
+    });
+    assert.equal(reused.created, false);
+    assert.equal(reused.part.naming, null);
+});

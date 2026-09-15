@@ -7,6 +7,7 @@ import { EditableValueSelect } from '@/components/recipe/EditableValueSelect';
 import { ConfirmDialog, Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
 import { FormError } from '@/components/ui/form-error';
+import { getCatalogNamingRules, previewCatalogName, type CatalogNamingRule } from '@/lib/catalog-naming';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import {
   BUILTIN_CATEGORIES,
@@ -52,6 +53,7 @@ type InlinePartCreateDialogProps = {
 };
 
 type Draft = {
+  namingSpec: Record<string, string>;
   model: string;
   category: string;
   subcategory: string;
@@ -108,6 +110,7 @@ function draftFromSeed(seed: InlinePartCreateSeed | null): Draft {
   const wirePrefix = wirePrefixForCategory(category);
   const model = String(seed?.model || '').trim();
   return {
+    namingSpec: {},
     model: wirePrefix || category === '电容' ? '' : model,
     category,
     subcategory: category === '包装'
@@ -143,6 +146,10 @@ export function InlinePartCreateDialog({
   const [saving, setSaving] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [namingRules, setNamingRules] = useState<CatalogNamingRule[] | null>(null);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+  const [rulesAttempt, setRulesAttempt] = useState(0);
+  const [namingPreview, setNamingPreview] = useState<{ key: string; name: string; error?: string } | null>(null);
   const touchedSettingsFieldsRef = useRef(new Set<keyof Draft>());
   const {
     dirty,
@@ -167,7 +174,39 @@ export function InlinePartCreateDialog({
   const isPumpShellMode = draft.category === '泵壳';
   const isCapacitorMode = draft.category === '电容';
   const isPackagingMode = draft.category === '包装';
-  const modelPreview = finalPartModel({
+  const namingRule = namingRules?.find((rule) => rule.supportsPartCreate && rule.category === draft.category);
+  const namingComplete = namingRule?.fields.every((field) => field.optional || String(draft.namingSpec[field.key] ?? '').trim());
+  const namingKey = namingRule && namingComplete ? JSON.stringify({ ruleId: namingRule.id, spec: draft.namingSpec }) : '';
+  const generatedName = namingPreview?.key === namingKey ? namingPreview.name : '';
+  const namingError = namingPreview?.key === namingKey ? namingPreview.error : null;
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setNamingRules(null);
+    setRulesError(null);
+    getCatalogNamingRules().then((rules) => {
+      if (active) setNamingRules(rules);
+    }).catch((cause) => {
+      if (active) setRulesError(cause instanceof Error ? cause.message : '命名规则加载失败');
+    });
+    return () => { active = false; };
+  }, [open, rulesAttempt]);
+
+  useEffect(() => {
+    if (!open || !namingKey) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      previewCatalogName(JSON.parse(namingKey)).then((name) => {
+        if (active) setNamingPreview({ key: namingKey, name });
+      }).catch((cause) => {
+        if (active) setNamingPreview({ key: namingKey, name: '', error: cause instanceof Error ? cause.message : '请检查命名规格' });
+      });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [open, namingKey]);
+
+  const modelPreview = namingRule ? generatedName : finalPartModel({
     isCapacitorMode,
     capacitorUf: draft.capacitorUf,
     isWireMode,
@@ -190,6 +229,7 @@ export function InlinePartCreateDialog({
     resetDirty();
     touchedSettingsFieldsRef.current = new Set();
     setDraft(draftFromSeed(seed));
+    setNamingPreview(null);
     setError(null);
     setSaving(false);
   }, [open, resetDirty, seed]);
@@ -234,9 +274,17 @@ export function InlinePartCreateDialog({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!namingRules || rulesError) {
+      setError(rulesError || '命名规则加载中，请稍后再保存');
+      return;
+    }
+    if (namingRule && !generatedName) {
+      setError(namingError || '请补齐规格并等待名称生成');
+      return;
+    }
     const errors = validatePartForm({
       category: draft.category,
-      model: draft.model,
+      model: namingRule ? generatedName : draft.model,
       catalogUnitCost: draft.catalogUnitCost,
       supplier: draft.supplier,
       isCapacitorMode,
@@ -312,6 +360,7 @@ export function InlinePartCreateDialog({
       }
       const result = await onResolve({
         model: modelPreview,
+        ...(namingRule ? { naming: { ruleId: namingRule.id, spec: draft.namingSpec } } : {}),
         category: draft.category,
         subcategory: isPackagingMode ? draft.subcategory : '',
         supplier: draft.supplier.trim(),
@@ -350,6 +399,7 @@ export function InlinePartCreateDialog({
                 const category = event.target.value;
                 updateDraft({
                   category,
+                  namingSpec: {},
                   subcategory: category === '包装' ? (draft.subcategory || PACKAGING_SUBCATEGORIES[0]) : '',
                 });
               }}>
@@ -381,7 +431,24 @@ export function InlinePartCreateDialog({
             </Field>
           </div>
 
-          {isCapacitorMode ? (
+          {!namingRules ? (
+            <div role="status" className="space-y-2 text-sm text-muted">
+              {rulesError || '正在加载命名规则…'}
+              {rulesError ? <Button type="button" onClick={() => setRulesAttempt((value) => value + 1)}>重新加载命名规则</Button> : null}
+            </div>
+          ) : namingRule ? (
+            <div className="space-y-4">
+              <div className="text-sm text-muted">填写规格后系统生成名称，无需记住排列格式。{seed?.model ? `原候选：${seed.model}` : ''}</div>
+              {namingRule.fields.map((field) => (
+                <Field key={field.key} label={field.label} required={!field.optional}>
+                  <Input value={draft.namingSpec[field.key] ?? ''} maxLength={field.maxLength} required={!field.optional}
+                    onChange={(event) => updateDraft({ namingSpec: { ...draft.namingSpec, [field.key]: event.target.value } })} />
+                </Field>
+              ))}
+              <Field label="生成型号"><Input value={generatedName} placeholder="填写规格后自动生成" readOnly /></Field>
+              <FormError message={namingError ?? null} />
+            </div>
+          ) : isCapacitorMode ? (
             <Field label="电容容量 (μF)" required>
               <Input value={draft.capacitorUf} onChange={(event) => updateDraft({ capacitorUf: event.target.value })} type="number" min="0" step="0.1" />
             </Field>
@@ -433,7 +500,7 @@ export function InlinePartCreateDialog({
         <DialogFooter>
           <div className="mr-auto text-xs text-muted" aria-live="polite">{dirty ? '有未保存修改' : '尚未修改'}</div>
           <Button type="button" variant="ghost" onClick={requestClose} disabled={saving}>取消</Button>
-          <Button type="submit" variant="primary" disabled={saving || loadingSettings} icon={<Save size={15} />}>
+          <Button type="submit" variant="primary" disabled={saving || loadingSettings || !namingRules || Boolean(namingRule && !generatedName)} icon={<Save size={15} />}>
             {saving ? '保存中' : loadingSettings ? '加载设置中' : '保存并选中'}
           </Button>
         </DialogFooter>
