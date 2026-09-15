@@ -10,7 +10,7 @@ const {
 } = require('./cableAccessory.cjs');
 const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
 const { normalizeBomRoles } = require('./bomRoles.cjs');
-const { bindStableBomPartIdentities } = require('./bomPartIdentity.cjs');
+const { bindStableBomPartIdentities, resolveCatalogPartIdentity, shouldRequireCatalogIdentity } = require('./bomPartIdentity.cjs');
 
 // 成本口径边界：
 // - buildRecipeCostDraft：保存配方前生成锁定快照，写入 savedTotalCost / savedCostDetails / partsJson。
@@ -266,8 +266,12 @@ function applyLongScrewRule(part, barrelLength, extraLength = DEFAULT_LONG_SCREW
     if (!isLongScrewPart(part)) return part;
     const result = longScrewModelFromBarrel(part, barrelLength, extraLength);
     if (!result) return part;
+    const source = { ...part };
+    // A generated length is another physical item; never carry the selected
+    // source/pricing part's ID into a different length specification.
+    if (result.model !== part.model) delete source.partId;
     return {
-        ...part,
+        ...source,
         model: result.model,
         dynamicRule: 'longScrewByBarrelLength',
         barrelLength: Number(barrelLength || 0),
@@ -421,9 +425,13 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
     const missingParts = [];
     const partsCatalog = options.partsCatalog || partsCatalogFromPartsByModel(partsByModel);
     const normalizedParts = collapseLegacyCableParts(parts || []);
-    normalizedParts.forEach(p => {
-        const suppliers = partsByModel[p.model] || [];
-        const match = suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
+    normalizedParts.forEach(part => {
+        const identity = part.partId != null && shouldRequireCatalogIdentity(part)
+            ? resolveCatalogPartIdentity(partsCatalog, part)
+            : null;
+        const p = identity ? { ...part, model: identity.model, supplier: identity.supplier || '' } : part;
+        const suppliers = identity ? [identity] : partsByModel[p.model] || [];
+        const match = identity || suppliers.find(s => (s.supplier || '').trim() === (p.supplier || '').trim());
         let price = 0, source = '';
         if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) {
             price = p.snapshotPrice;
@@ -435,7 +443,7 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
                 cableLength: p.cableLength ?? p.inventoryQty,
                 cableAccessoryType: p.cableAccessoryType,
             }, {
-                partsByModel,
+                partsByModel: identity ? { ...partsByModel, [p.model]: [identity] } : partsByModel,
                 getSetting,
                 allowMissingPrice: true,
             });

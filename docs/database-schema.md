@@ -2,7 +2,7 @@
 
 ## 权威来源
 
-- 最终表结构：`api/database/schema.cjs`
+- 最终表结构：`api/database/schema.cjs`；目录命名与历史绑定扩展见 `api/database/catalogSchema.cjs`
 - 版本化迁移：`api/database/migrations.cjs`
 - 运行数据库：项目根目录 `pump.db`
 
@@ -20,10 +20,11 @@
 
 ## 当前版本
 
-当前版本为 `82`。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+代码定义的当前版本为 `83`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
+| 83 | `catalog_identity_and_snapshot_bindings` | 新增目录规格/名称版本、旧名称别名、历史快照绑定和模板泵壳绑定；仅建表，不自动回填或改名 |
 | 80 | `add_personal_assistant_memories` | 新增个人偏好记忆和修订记录，支持版本冲突检测、软删除、撤销；不修改业务数据 |
 | 81 | `accept_complete_cable_same_item_phrasing` | 成品电缆门禁接受“共同组成同一根/同一条”的等价业务表达 |
 | 82 | `accept_complete_cable_this_item_phrasing` | 成品电缆门禁接受“共同组成这一项”的等价业务表达 |
@@ -145,6 +146,17 @@
 - 数据库备份按 `daily/startup/release/safety` 分层保留；恢复前必须验证元数据、SHA-256、完整性、外键和核心表数量，并自动生成 safety 快照。
 - 数据库迁移后的代码回滚必须恢复与目标 Git commit 绑定的数据库，禁止只回滚代码。
 - `audit_log(created_at)`、`audit_log(table_name, record_id, created_at)` 和 `audit_log(operation_id)` 用于周期清理、资源追溯和命令追溯；`api_operations(expires_at/operation_id)` 用于回执清理与定位。
+
+### 目录命名与历史引用
+
+版本83由 `catalogSchema.cjs` 统一定义四张扩展表，迁移仅创建结构和索引，不回填身份或更改业务名称。名称仍由原表 `parts.model/coils.scheme_name/pump_shell_templates.shell_model/recipes.name/pump_model_variants.model_name` 保存，不增加第二套可独立修改的名称字段。
+
+- `catalog_identity_profiles`：一个档案恰好绑定一个零件、线圈、模板、配方或常用配置，五个类型化外键分别唯一；记录 `naming_state/rule_id/rule_version/spec_json/spec_fingerprint/spec_revision/name_revision/external_model`。名称修订和实物规格修订分开，旧数据默认 legacy；结构化档案必须有规则及规格指纹。
+- `catalog_name_aliases`：通过外键连接档案，保留旧名称对应的规格修订及软删除状态。同一旧名称允许对应多个档案，不能据此自动选料。
+- `catalog_reference_bindings`：源类型、源 ID、版本、JSON 路径、源哈希共同唯一定位历史引用；目标为档案外键和规格修订。绑定不能替代源验证，后续读取必须从源记录核验位置及哈希，不能信任客户端提供的旧哈希。源类型为受限枚举，跨表源的存在性和源版本由维护服务检查；此表尚未启用业务回填。
+- `catalog_template_shell_bindings`：用唯一模板外键连接明确泵壳零件外键，使模板名称与泵壳身份分离。
+
+新增写入仍须走 `safeInsert/safeUpdate` 和正式命令事务。删除档案或被绑定主物料受外键保护；规格 JSON、状态、版本正数及绑定哈希长度受 CHECK 约束。生产升级和回滚继续使用代码＋数据库一致备份，不能把数据库迁移版本手动调低。
 
 ## 验收
 

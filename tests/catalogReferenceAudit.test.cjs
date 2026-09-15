@@ -133,3 +133,30 @@ test('库存目录变化会使基线哈希改变，未修改物料的源哈希�
     assert.equal(first.sourceHashes.find(row => row.sourceType === 'part' && row.sourceId === 1).sha256,
         second.sourceHashes.find(row => row.sourceType === 'part' && row.sourceId === 1).sha256);
 });
+
+test('成本基线复用正式引擎并固定输入，只读取明确允许的业务设置', t => {
+    const db = fixture(t);
+    db.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run('成本基线', '[{"partId":2,"model":"6202","supplier":"乙","qty":3}]');
+    db.prepare('INSERT INTO system_settings (key, value) VALUES (?, ?)').run('management_fee', '5');
+    db.prepare('INSERT INTO system_settings (key, value) VALUES (?, ?)').run('unrelated_private_setting', 'excluded-fixture-value');
+    db.pragma('query_only = ON');
+    const first = auditCatalogReferences(db);
+    assert.equal(first.costBaseline.scenario, 'saved_bom_current_catalog_prices');
+    assert.equal(first.costBaseline.inputsComplete, true);
+    assert.equal(first.costBaseline.recipes[0].result.totalCost, '12.00');
+    assert.equal(first.costBaseline.recipes[0].status, 'calculated');
+    assert.deepEqual(first.costBaseline.inputs.settings.map(row => row.key), ['management_fee']);
+    assert.equal(auditCatalogReferences(db).costBaseline.inputsSha256, first.costBaseline.inputsSha256);
+    assert.equal(JSON.stringify(first).includes('excluded-fixture-value'), false);
+});
+
+test('不完整成本输入和计算失败不能报告为已计算的零成本', t => {
+    const db = fixture(t);
+    db.prepare('INSERT INTO recipes (parts_json) VALUES (?)').run('[{"partId":999,"model":"6202","qty":1}]');
+    const failure = auditCatalogReferences(db).costBaseline.recipes[0];
+    assert.equal(failure.status, 'failed');
+    assert.equal(failure.result, undefined);
+    const limited = auditCatalogReferences(db, { maxRowsPerTable: 1 }).costBaseline;
+    assert.equal(limited.inputsComplete, false);
+    assert.equal(limited.recipes[0].status, 'incomplete_inputs');
+});

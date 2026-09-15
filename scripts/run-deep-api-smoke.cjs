@@ -981,6 +981,25 @@ async function testCoreGetEndpointsDoNotWrite(databasePath) {
         [400]
     );
     const parts = (await request('零件正式全量查询', 'GET', '/api/parts')).payload.data;
+    const namingRules = (await request('服务端命名规则查询', 'GET', '/api/catalog/naming-rules')).payload.data;
+    assert(namingRules.rules.some(rule => rule.id === 'bearing'), '缺少轴承命名规则');
+    const namingPreview = (await request('服务端规格直读名称预览', 'POST', '/api/catalog/name-preview', {
+        ruleId: 'bearing', spec: { code: '202' },
+    })).payload.data;
+    assert(namingPreview.name === '轴承-202' && namingPreview.preview === true, '名称预览结果不正确');
+    await request('命名不能猜测线径单位', 'POST', '/api/catalog/name-preview', {
+        ruleId: 'cable', spec: { wireValue: 0.55 },
+    }, [400]);
+    if (parts[0]) {
+        const currentNames = (await request('目录 ID 批量现名读取', 'POST', '/api/catalog/references/resolve', {
+            references: [{ entityType: 'part', entityId: parts[0].id, snapshotName: '历史显示名称' }],
+        })).payload.data;
+        assert(currentNames.items[0].currentName === parts[0].model, '没有读取所选 ID 的当前名称');
+        assert(currentNames.items[0].snapshotName === '历史显示名称', '覆盖了历史显示名称');
+    }
+    await request('目录现名读取拒绝非法 ID', 'POST', '/api/catalog/references/resolve', {
+        references: [{ entityType: 'part', entityId: -1 }],
+    }, [400]);
     if (parts[0]?.category) {
         const filteredParts = (await request(
             '零件正式类别和数量筛选',

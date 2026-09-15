@@ -19,6 +19,10 @@ function normalizedText(value) {
 function resolveCatalogPartIdentity(partsCatalog = [], part = {}, options = {}) {
     const field = options.field || 'BOM';
     const requestedPartId = parsePositiveId(part.partId);
+    if (part.partId != null && (!requestedPartId || !Number.isSafeInteger(requestedPartId)
+        || !['string', 'number'].includes(typeof part.partId))) {
+        throw identityError('BOM_PART_ID_INVALID', `${field} 的 partId 必须是有效正整数`);
+    }
     const model = normalizedText(part.model);
     const supplier = normalizedText(part.supplier);
     if (requestedPartId) {

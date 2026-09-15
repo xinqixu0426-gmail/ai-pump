@@ -1163,6 +1163,10 @@ const COIL_INVENTORY_SCHEMA_SQL = `
 `;
 
 const APPLICATION_TABLES = Object.freeze([
+    'catalog_identity_profiles',
+    'catalog_name_aliases',
+    'catalog_reference_bindings',
+    'catalog_template_shell_bindings',
     'ai_personal_memories',
     'ai_personal_memory_revisions',
     'ai_answer_feedback',

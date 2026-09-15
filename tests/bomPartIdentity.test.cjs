@@ -115,3 +115,8 @@ test('BOM 角色统一生成配置依赖矩阵', () => {
         ['longScrew', ['customBarrelLength']],
     ]);
 });
+test('显式非法 ID 不得退回名称匹配', () => {
+    for (const partId of [0, -1, 1.5, true, [], {}, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.throws(() => resolveCatalogPartIdentity([{ id: 1, model: 'A' }], { partId, model: 'A' }), error => error.code === 'BOM_PART_ID_INVALID');
+    }
+});

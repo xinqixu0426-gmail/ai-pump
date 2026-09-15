@@ -113,6 +113,10 @@ function componentUnitPrice(partsCatalog, component) {
     const model = String(component?.model || '').trim();
     const supplier = String(component?.supplier || '').trim();
     const shellComponentCatalog = (partsCatalog || []).filter(part => part.category === '泵壳搭配');
+    if (component?.partId != null) {
+        const matched = resolveCatalogPartIdentity(shellComponentCatalog, component);
+        return { price: Number(matched.price || 0), costSource: 'catalog' };
+    }
     const catalogPrice = model ? getPriceByModelAndSupplier(shellComponentCatalog, model, supplier) : 0;
     if (catalogPrice > 0) {
         return { price: catalogPrice, costSource: 'catalog' };
@@ -194,12 +198,18 @@ function buildRecipeBomDraft(input, context) {
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
     const coilSlotType = input.coilSlotType ?? variant?.coilSlotType ?? '小眼';
     const costMode = template?.costMode || 'components';
-    const shellComponents = normalizeSelectionList(template?.shellComponentsJson);
+    const bindSelectedPart = part => {
+        if (part.partId == null || part.included === false) return part;
+        const matched = resolveCatalogPartIdentity(partsCatalog, part);
+        return { ...part, model: matched.model, supplier: matched.supplier || '' };
+    };
+    const shellComponents = normalizeSelectionList(template?.shellComponentsJson).map(bindSelectedPart);
     const hasStainlessStretchBarrelComponent = shellComponents.some(component => component?.included !== false && isStainlessStretchBarrelComponent(component));
     const shouldApplyLongScrewRule = costMode === 'components'
         ? hasStainlessStretchBarrelComponent
         : shellMeta?.isStainless === true;
     const templateParts = normalizeSelectionList(template?.partsJson)
+        .map(bindSelectedPart)
         .map(part => shouldApplyLongScrewRule ? applyLongScrewRule(part, customBarrelLength, longScrewExtraLength) : part);
 
     const baseShellPrice = template
@@ -245,6 +255,7 @@ function buildRecipeBomDraft(input, context) {
                     ? `${component.name}: ${unitCost}×${qty}cm${isVariableStainlessBarrel ? '（长度来自配方/常用配置预设）' : ''}`
                     : `${component.name}: ${unitCost}×${qty}`;
                 bomParts.push({
+                    ...(component.partId != null ? { partId: component.partId } : {}),
                     model: component.model || component.name,
                     name: component.pricingMode === 'lengthCm' ? `${component.name}(按cm)` : component.name,
                     supplier: component.supplier || '',
@@ -272,11 +283,14 @@ function buildRecipeBomDraft(input, context) {
     templateParts.forEach(part => {
         const supplier = part.supplier || '';
         bomParts.push({
+            ...(part.partId != null ? { partId: part.partId } : {}),
             model: part.model,
             name: part.name,
             supplier,
             qty: Number(part.qty || 1),
-            snapshotPrice: getPriceByModelAndSupplier(partsCatalog, part.model, supplier),
+            snapshotPrice: part.partId != null
+                ? Number(resolveCatalogPartIdentity(partsCatalog, part).price || 0)
+                : getPriceByModelAndSupplier(partsCatalog, part.model, supplier),
             ...(part.dynamicRule === 'longScrewByBarrelLength' ? {
                 dynamicRule: part.dynamicRule,
                 barrelLength: part.barrelLength,

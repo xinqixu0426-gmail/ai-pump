@@ -176,6 +176,7 @@ app.use('/api', (req, res, next) => {
 // 所有路由自带 /api/ 前缀，故挂到根路径
 app.use('/api', costRouter);
 app.use('/api/parts', require('./api/routes/parts.cjs'));
+app.use('/api/catalog', require('./api/routes/catalog.cjs'));
 app.use('/api/recipes', require('./api/routes/recipes.cjs'));
 app.use('/api/templates', require('./api/routes/templates.cjs'));
 app.use('/api/model-variants', require('./api/routes/modelVariants.cjs'));

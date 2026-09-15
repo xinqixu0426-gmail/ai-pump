@@ -142,6 +142,9 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'entities.coil_span_candidates',
         'business_changes.list',
         'catalog.reference_audit',
+        'catalog.naming_rules',
+        'catalog.name_preview',
+        'catalog.references_resolve',
         'collections.read',
         'relations.read',
         'inventory.parts.batch_adjust_stock',
@@ -273,7 +276,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
                 assert.equal(capability.transactionality, 'read_transaction');
                 assert.equal(capability.audit, 'none');
             } else {
-                assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
+                assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read','catalog.references_resolve'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
             }
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);

@@ -631,10 +631,27 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'catalog.references_resolve': defineQueryCapability({
+        capabilityId: 'catalog.references_resolve', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/references/resolve { references: CatalogReferenceV1[] }',
+        outputSchema: 'CatalogCurrentNamesV1 with currentName, snapshotName, referenceStatus and revisions',
+        sourceOfTruth: 'catalog_master_records+catalog_identity_profiles', riskLevel: 'low',
+        transactionality: 'read_transaction', callers: Object.freeze(['web', 'internal']),
+    }),
+    'catalog.naming_rules': defineQueryCapability({
+        capabilityId: 'catalog.naming_rules', domain: 'catalog',
+        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1',
+        sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
+    }),
+    'catalog.name_preview': definePreviewCapability({
+        capabilityId: 'catalog.name_preview', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/name-preview { ruleId, spec }', outputSchema: 'CatalogNamePreviewV1',
+        sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
+    }),
     'catalog.reference_audit': defineQueryCapability({
         capabilityId: 'catalog.reference_audit', domain: 'catalog',
         inputSchema: 'INTERNAL catalog-reference-audit { maxRowsPerTable?, maxReferences? }',
-        outputSchema: 'CatalogReferenceAuditV1 with complete, counts, references, sourceHashes, namingCandidates and businessBaseline',
+        outputSchema: 'CatalogReferenceAuditV1 with complete, counts, references, sourceHashes, namingCandidates, businessBaseline and costBaseline',
         sourceOfTruth: 'parts+coils+templates+recipes+quotations+orders+persisted_business_references',
         transactionality: 'read_transaction', riskLevel: 'low',
         callers: Object.freeze(['internal']),

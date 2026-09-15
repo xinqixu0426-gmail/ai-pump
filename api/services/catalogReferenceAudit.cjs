@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { buildNamingCandidates } = require('./catalogNamingCandidates.cjs');
+const { calculateRecipeCost } = require('./costEngine.cjs');
 
 const CAPABILITY_ID = requireBusinessCapability('catalog.reference_audit').capabilityId;
 
@@ -220,8 +221,44 @@ function auditCatalogReferences(db, options = {}) {
         const businessBaseline = {
             parts: (catalogs.get('part') || []).map(row => ({ id: row.id, stock: row.stock, price: row.price, supplier: row.supplier, deletedAt: row.deleted_at })),
             coils: (catalogs.get('coil') || []).map(row => ({ id: row.id, stock: row.stock, cost: row.cost, schemeCode: row.scheme_code })),
-            orders: (catalogs.get('order') || []).map(row => ({ id: row.id, status: row.status, itemsSha256: hash(row.items_json || ''), purchaseSha256: hash(row.purchase_list_json || ''), inventoryDisposition: row.inventory_disposition })),
+            orders: (catalogs.get('order') || []).map(row => ({ id: row.id, status: row.status, itemsSha256: hash(row.items_json || ''), purchaseSha256: hash(row.purchase_list_json || ''), inventoryDisposition: row.inventory_disposition,
+                itemsJson: row.items_json, purchaseListJson: row.purchase_list_json,
+                purchaseCompletedAt: row.purchase_completed_at, purchaseReceiptId: row.purchase_receipt_id })),
             quotations: (catalogs.get('quotation') || []).map(row => ({ id: row.id, status: row.status, totalCost: row.total_cost, totalPrice: row.total_price, itemsSha256: hash(row.items_json || '') })),
+        };
+        const settings = tables.has('system_settings') ? db.prepare(`
+            SELECT key, value, updated_at FROM system_settings
+            WHERE key IN ('cable_accessories', 'float_accessory_delta', 'management_fee') ORDER BY key
+        `).all() : [];
+        if (!tables.has('system_settings')) errors.push({ code: 'SOURCE_TABLE_MISSING', table: 'system_settings' });
+        const priceInputs = {
+            parts: (catalogs.get('part') || []).filter(row => !row.deleted_at),
+            coils: catalogs.get('coil') || [], settings,
+        };
+        const pricesByModel = Object.create(null);
+        for (const part of priceInputs.parts) {
+            (pricesByModel[part.model] ||= []).push({ ...part, notes: part.remark });
+        }
+        const settingValues = new Map(settings.map(row => [row.key, row.value]));
+        const costBaseline = {
+            scenario: 'saved_bom_current_catalog_prices', inputs: priceInputs, inputsSha256: hash(priceInputs),
+            inputsComplete: !incompleteCatalogs.has('part') && !incompleteCatalogs.has('coil') && tables.has('system_settings'),
+            // This is the formal parts-cost scenario, not a newly rebuilt BOM or
+            // live coil-price query. Capturing the distinction prevents false parity.
+            recipes: (catalogs.get('recipe') || []).map(row => {
+                if (incompleteCatalogs.has('part') || incompleteCatalogs.has('coil') || !tables.has('system_settings')) {
+                    return { recipeId: row.id, status: 'incomplete_inputs' };
+                }
+                try {
+                    const parts = JSON.parse(row.parts_json || '[]');
+                    if (!Array.isArray(parts)) throw new Error('配方 BOM 不是数组');
+                    const result = calculateRecipeCost(parts, {}, pricesByModel, { getSetting: key => settingValues.get(key) });
+                    return { recipeId: row.id, status: result.missingParts.length ? 'missing_prices' : 'calculated',
+                        savedTotalCost: row.saved_total_cost, result };
+                } catch (error) {
+                    return { recipeId: row.id, status: 'failed', error: error.message, code: error.code || 'COST_BASELINE_FAILED' };
+                }
+            }),
         };
         return {
             version: 1, capabilityId: CAPABILITY_ID, complete: errors.length === 0,
@@ -230,6 +267,7 @@ function auditCatalogReferences(db, options = {}) {
             coverage: { sourceTables: SOURCES.map(source => source.table), mode: 'declared_fields_and_nested_json', migrationApproved: false },
             references, sourceHashes, businessBaseline, baselineSha256: hash(businessBaseline), errors,
             namingCandidates: buildNamingCandidates(catalogs, references),
+            costBaseline,
             warnings: ['只读盘点不建立引用、不修改名称；resolved_legacy 仅表示当前精确候选唯一，不代表已迁移。'],
         };
     });

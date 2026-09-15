@@ -55,6 +55,7 @@ function collectHttpEndpoints() {
         'health.cjs': '/api/health',
         'cost.cjs': '/api',
         'parts.cjs': '/api/parts',
+        'catalog.cjs': '/api/catalog',
         'recipes.cjs': '/api/recipes',
         'templates.cjs': '/api/templates',
         'modelVariants.cjs': '/api/model-variants',

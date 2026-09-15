@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 239 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 242 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -105,6 +105,22 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
+
+### 4.1 目录命名与引用
+
+只读盘点额外输出 `costBaseline`：固定本次事务读取的零件目录价、线圈记录及 `cable_accessories/float_accessory_delta/management_fee` 白名单设置和输入哈希，以正式 `costEngine` 计算 `saved_bom_current_catalog_prices` 场景。该场景只计算保存 BOM 的配件参考成本，不冒充重新展开配置、刷新线圈价格后的完整整泵成本；每个配方保留 calculated/missing_prices/failed/incomplete_inputs 状态，输入不完整或计算失败不输出伪零值。订单基线保留原 `itemsJson/purchaseListJson` 及采购回执，以便对比采购行身份、进度和预留输入。
+
+| 方法 | 路径 | 入参 | 返回/说明 |
+|---|---|---|---|
+| `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts`。字段描述与生成器共用服务端注册表，字段类型为 text/number/choice，含中文标签、必填/可选及单位。当前 16 条规则覆盖零件类别、线圈、模板、配方及常用配置 |
+| `POST` | `/api/catalog/name-preview` | `{ ruleId, spec }` | `catalog.name_preview`。严格 schema，拒绝未知字段、直接传入 `name/model`、字符串数字、缺项、非有限数、负数/零、错误单位、过长文本。返回 `preview=true/name/normalizedSpec/normalizedInput/ruleId/ruleVersion/entityType/category/namingInputFingerprint/changes/warnings/sourceOfTruth`。不签发写确认，不建档、不改名、不进行重名判定 |
+| `POST` | `/api/catalog/references/resolve` | `{ references: [{ entityType, entityId, snapshotName?, specRevision? }] }`；类型为 `part/coil/template/recipe/modelVariant`，最多100项，允许空数组 | `catalog.references_resolve`。同一只读事务按类型批量查询，按请求顺序返回 `items[{entityType,entityId,currentName,snapshotName,referenceStatus,nameRevision,specRevision,namingState}]`。现名来自目录、历史名原样保留；不按旧名称猜 ID，不修改快照。无档案旧记录仍可显示现名，修订为 null；明确要求规格修订但没有结构化档案时返回 `specification_unverified` |
+
+规则字段为服务端唯一来源。轴承保留实际目录代号（不把 `202` 自行补为 `6202`）；螺丝按头型、直径、长度、材质及必要区别生成；油封必须明确机械密封/骨架油封以及内径、外径、高度或厚度；电容使用 μF；电缆和浮球明确区分直径 mm 与截面积 mm²，禁止把旧“线径”自动认作其中一种。线圈保留定子组合代号、片数、材质、槽眼和方案区别，片数不称为叠长。模板名独立于泵壳物料名；配方内部名含系列、定子代号、片数、机筒长度和配置区别；对外型号独立保存。泵壳、组件、皮垫、配件、包装和非标件采用品名/系列、明确规格和必要区别字段。数值最多四位小数、最大 1000000，片数必须为整数；文本先去首尾空白和 NFC 规范化，代号字段仅统一 ASCII 字母大小写。
+
+命名输入指纹来自规则 ID 与规范化命名规格；它不是完整实物规格的证明。后续保存命令必须结合线圈电压/频率/绕组等正式属性建立完整实物指纹，不能只凭名称字段判定同物。不同供应商的实体 ID 仍须分别保留。当前这三项能力用于后续表单和迁移接入，原建档/修改命令尚未强制消费规格对象。`resolved` 只证明读取时该 ID 存在且没有已知规格冲突，不是授权执行库存或规格变更的凭证。其余状态为 `missing/inactive/specification_changed/specification_unverified`；数据库错误返回失败，不能伪装为 missing。错误使用稳定 code、requestId，校验错误为400，未预期错误为500。
+
+配方选配/包装预览保留已选 `partId`；模板固定项/组件展开同样保留明确 ID，取价使用该 ID，零价不会退回手工价。当前成本查询中带 ID 的普通物料使用对应目录记录，错误 ID 拒绝且不回退同名对象；旧名称与 ID 不一致的写入仍受原有校验约束。动态长螺丝生成另一长度时清除原规格 ID，再按目标规格走后续解析，不能带着原 ID 换实物。
 
 ## 5. 线圈 Coils
 
@@ -511,13 +527,16 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 116 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 119 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
 | capabilityId | toolName | 类型 | sourceOfTruth | 风险 | 确认 | 预览 | 幂等/并发 | 事务与审计 | 超时 |
 |---|---|---|---|---|---|---|---|---|---|
 | `catalog.reference_audit` | Internal CLI | query/read | 目录、业务明细与嵌套引用 | low | 否 | 不适用 | 天然幂等 | 同一只读事务；不写审计或业务表 | 有界扫描 |
+| `catalog.naming_rules` | HTTP/Web/Internal | query/read | 服务端命名规则注册表 | low | 否 | 不适用 | 天然幂等 | 严格只读、无审计 | 15s |
+| `catalog.name_preview` | HTTP/Web/Internal | preview/read | 服务端命名规则注册表 | low | 否 | 本能力仅预览 | 天然幂等 | 无事务写入、无审计 | 15s |
+| `catalog.references_resolve` | HTTP/Web/Internal | query/read | 主目录和 `catalog_identity_profiles` | low | 否 | 不适用 | 天然幂等 | 同一只读事务、无审计 | 15s |
 | `parts.list` | HTTP/Web/`search_parts` | query/read | `parts`；当前目录价格由正式零件 Query 返回 | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP 超时 |
 | `coils.list` | HTTP/Web/`search_coils` | query/read；输出 `CoilProfile[]` 完整档案 | `coils + stator_variants` | low | 否 | 不适用 | 天然幂等/无并发 | 严格只读、无审计 | 15s |
 | `orders.list` | HTTP/Web/`get_recent_orders` | query/read | `orders` + 实时采购平衡 + `parts.price` + `coils.cost` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |

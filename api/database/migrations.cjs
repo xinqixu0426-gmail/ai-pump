@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { CATALOG_IDENTITY_SCHEMA_SQL } = require('./catalogSchema.cjs');
 const {
     PERSONAL_MEMORY_SCHEMA_SQL,    BUSINESS_CHANGE_INDEXES_SQL,
     BUSINESS_CHANGE_SCHEMA_SQL,
@@ -3789,6 +3790,14 @@ const MIGRATIONS = Object.freeze([
                 WHERE case_key = 'complete-cable-semantics'
                   AND source_type = 'system'
             `).run(JSON.stringify(config), new Date().toISOString());
+        },
+    },
+    {
+        version: 83,
+        name: 'catalog_identity_and_snapshot_bindings',
+        signature: 'catalog-identity-profiles-aliases-source-hash-bindings-v1',
+        up(db) {
+            db.exec(CATALOG_IDENTITY_SCHEMA_SQL);
         },
     },
 ]);

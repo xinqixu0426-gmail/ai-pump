@@ -300,3 +300,21 @@ test('不锈钢泵壳套件整体价随机筒长度按 150mm 基准加价', () =
     assert.equal(result.savedTotalCost, 92);
     assert.match(result.savedCostDetails, /当前机筒: 170mm/);
 });
+test('已有 partId 的参考价不因同名同供应商重复记录而被另一条价格覆盖', () => {
+    const catalog = [
+        { id: 701, model: '同名轴承', supplier: '同厂', price: 2 },
+        { id: 702, model: '同名轴承', supplier: '同厂', price: 8 },
+    ];
+    const result = calculateRecipeCost([{ partId: 702, model: '同名轴承', supplier: '', qty: 2 }], {}, { 同名轴承: catalog });
+    assert.equal(Number(result.totalCost), 16);
+    const unnamedSuppliers = catalog.map(part => ({ ...part, supplier: '' }));
+    assert.equal(Number(calculateRecipeCost([{ partId: 702, model: '同名轴承', qty: 2 }], {}, { 同名轴承: unnamedSuppliers }).totalCost), 16);
+    assert.throws(() => calculateRecipeCost([{ partId: 999, model: '同名轴承', qty: 1 }], {}, { 同名轴承: catalog }), error => error.code === 'BOM_PART_ID_NOT_FOUND');
+});
+
+test('长螺丝动态换规格时清除原规格 ID，长度未变化则保留 ID', () => {
+    const original = { partId: 123, model: '6*170', name: '不锈钢长螺丝' };
+    assert.equal(applyLongScrewRule(original, 190, 10).partId, undefined);
+    assert.equal(applyLongScrewRule(original, 170, 0).partId, 123);
+    assert.equal(original.partId, 123);
+});

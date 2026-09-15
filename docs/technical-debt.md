@@ -176,7 +176,7 @@
 
 ## 7. P1：规格直读命名与全链条引用执行计划
 
-> 计划日期：2026-09-15。状态：**实施中，P0 盘点工具已实现，完整功能尚未完成**。
+> 计划日期：2026-09-15。状态：**实施中；盘点、命名预览、现名读取与 schema 基础已实现，写入和全链条接入尚未完成**。
 >
 > 用户已选择“规格直读”方向，要求零件被模板、配方、订单、采购等引用后，名称全链条实时更新。用户随后授权新建分支并开始实施，当前开发分支为 `codex/spec-naming-live-references`；该授权不包含生产数据改名或发布。本节保留未完成清单，不能视为已上线功能说明。
 
@@ -252,7 +252,7 @@
 - [ ] 盘点读、写、复制、预览、导出及 AI/MCP 调用链，建立“资源字段 → 写入方 → 读取方 → 业务用途 → 当前身份方式 → 迁移策略”矩阵。
 - [ ] 覆盖模板固定项/组件/默认轴承等、配方普通/选配/包装/规则白名单、线圈、报价与订单嵌套快照、采购项、常用配置、转子/文件关联、成本与库存；检查隐藏在 JSON 字符串中的二次嵌套引用。
 - [x] 输出候选改名表：原对象 ID、类别、原名称、原供应商、提取规格、建议新名、缺失字段、名称冲突、引用数量与解析依据；未核实对象的建议名为空且列出缺项，全部候选仍需审核。
-- [ ] 将 `SPA 3 叶/SPA 3叶轮`、三件套“泵垫/油板”、`v1100-2`、包材 `v1100DF`、TOKOY、测试记录的处理列为业务核对项。未核实不自动合并、补单位或删除。
+- [x] 将 `SPA 3 叶/SPA 3叶轮`、三件套“泵垫/油板”、`v1100-2`、包材 `v1100DF`、TOKOY、测试记录的处理列为业务核对项。未核实不自动合并、补单位或删除。
 - [ ] 记录迁移前库存、预留、采购行 ID 与配置键、全部采购进度、订单状态、锁定金额、原始快照哈希；当前成本比较固定同一铜价/目录价格/业务设置输入，避免行情变化干扰。
 
 主要入口：`api/database/schema.cjs`、`api/db.cjs`、`api/services/bomPartIdentity.cjs`、`orderPlanning.cjs`、`configuredRecipeSnapshot.cjs`、`orderBomSnapshot.cjs`；Web/AI/MCP 调用方一起搜索。
@@ -265,7 +265,7 @@
 - [ ] 确定模板生成名与泵壳物料绑定分离方案；明确配方内部名、完整配置摘要与对外型号的字段职责。
 - [ ] 登记能力后再实现 schema：每项填写 access、sourceOfTruth、风险、调用方、输入/输出、版本、幂等、事务、审计、超时、兼容和废弃条件。
 - [ ] 复用 `parts.create/batch_create/update/save_profile`、模板/配方/线圈正式命令；新增能力仅用于确实缺少的规则查询、名称预览、引用查询、实时事件读取和显式迁移。确切能力名与路径在注册表确定，不把本计划中的职责当成现存 API。
-- [ ] 追加版本化迁移及必要的索引/外键/约束；新增写入遵守 safe helper 白名单。第一阶段只扩展结构，不在启动迁移中猜测历史引用或批量改业务名称。
+- [x] 追加版本化迁移及必要的索引/外键/约束；新增写入遵守 safe helper 白名单。版本83只扩展结构，不在启动迁移中猜测历史引用或批量改业务名称。
 - [ ] 为旧字段与旧调用方建立明确适配层。新生成名不得被旧表单保存时原样当作任意名称覆盖；无法可靠转换的旧请求返回可读错误，不静默丢参数。
 
 主要文件：`api/capabilities/registry.cjs`、`api/database/schema.cjs`、`api/database/migrations.cjs`、相关 route/client、`docs/api-reference.md`、`docs/database-schema.md`。API 文档只在能力实际实现时登记为当前事实。
@@ -274,7 +274,7 @@
 
 #### P2：实现公共命名、身份解析、现名装配与改名命令
 
-- [ ] 实现由类别元数据驱动的纯命名服务：相同规范化输入结果确定；空字段、数值、大小写、单位、字符与长度限制有统一校验。
+- [x] 实现由类别元数据驱动的纯命名服务：相同规范化输入结果确定；空字段、数值、大小写、单位、字符与长度限制有统一校验。`catalogNaming.cjs` 提供16条规则和正式只读预览；不等于写命令已强制使用。
 - [ ] 扩展公共物料身份服务，明确区分“解析用户名称候选”“读取已保存的正式引用”“验证新写入目标”。已知 ID 的旧显示名不再被当作换物料；规格修订、停用、伪造 ID 和无来源绑定仍必须拒绝。
 - [ ] 建立批量现名装配服务，按类型化 ID 查询并返回现名/历史名/状态；在分页与过滤前正确应用当前名称及别名搜索，不逐行查询，也不靠浏览器替换字符串。
 - [ ] 改名预览展示原名、新名、影响对象及未解析引用；同一事务保存标准名称、别名、版本、operation、审计和业务变更事件。复用现有 profile 保存事务，不能重复生成第二次库存调整。
@@ -418,10 +418,34 @@
 
 命名规则、引用迁移、实时展示和验收四部分任一缺失，本项不视为完成。
 
-### 7.10 实施记录
+### 7.10 当前实现与剩余接入
 
-2026-09-15：在 `codex/spec-naming-live-references` 开始 P0。新增正式内部只读能力 `catalog.reference_audit`，入口 `npm run audit:catalog-references -- [数据库路径]`；实现位于 `api/services/catalogReferenceAudit.cjs`，旧名称候选提取独立位于 `catalogNamingCandidates.cjs`。不加载 `api/db.cjs`，在单个只读事务中扫描声明的数据表、JSON 及二次嵌套字符串，输出引用位置、源哈希、库存/单据基线和候选改名表。供应商套件内部描述不计为独立库存；缺失、停用、歧义、ID/名称不一致与预算超限分别报告。没有执行名称修改、引用回填或 schema 迁移。
+开发分支为 `codex/spec-naming-live-references`。正式内部只读能力 `catalog.reference_audit` 的入口为 `npm run audit:catalog-references -- [数据库路径]`；实现位于 `api/services/catalogReferenceAudit.cjs`，旧名称候选提取独立位于 `catalogNamingCandidates.cjs`。不加载 `api/db.cjs`，在单个只读事务中扫描声明的数据表、JSON 及二次嵌套字符串，输出引用位置、源哈希、库存/单据基线和候选改名表。供应商套件内部描述不计为独立库存；缺失、停用、歧义、ID/名称不一致与预算超限分别报告。
 
-本地报告保存在被 Git 忽略的 `logs/catalog-naming/baseline.json`。`complete` 仅说明声明范围内扫描未失败；不能代替 P0 全调用链矩阵、固定价格输入的成本基线及 P1—P7 实现验收。下一步补全调用链矩阵和成本基线，再冻结服务端命名规则、规格身份及历史绑定 schema。自动生成名称、全链条当前名投影与实时通知仍未接入业务入口。
+本地报告保存在被 Git 忽略的 `logs/catalog-naming/`。新增 `costBaseline` 固定目录价、线圈记录及白名单业务设置，复用正式 `costEngine` 计算“保存 BOM 按当前目录价”的配件成本；不是重新展开完整 BOM 的当日整泵成本。采购清单与订单明细原 JSON 一并保留，供核对行 ID、配置、预留输入和采购进度。完整成本入口的迁移前后等价验收仍待执行。`complete` 仅说明声明范围内扫描未失败，不能当作全链条已完成的证明。
 
-本批验证：`npm run verify:api-contract` 26 项通过；`npm test` 1964 项通过（含新增 8 项盘点/候选测试）；`npm run test:deep-api` 437 项通过、隔离数据库完整性正常且无外键违规；`npm run lint`、`npm run build`、`git diff --check` 通过。重复只读盘点的业务基线与全部源记录哈希一致。报告包含 158 个命名候选对象，17 个有效对象可提取建议名，其余保留缺项；共 413 处声明范围内引用，其中 17 处缺失、1 处非结构化关联。仍需继续核对未覆盖的调用链，不能将这些数字解释为全项目引用覆盖证明。
+命名规则、名称预览和按 ID 批量读取现名已有正式 API，契约见 `api-reference.md` §4.1。版本83通过隔离迁移测试，提供命名档案、别名、历史绑定和模板泵壳绑定的存储；主库仍未运行本次迁移。配方选配/包装预览以及模板固定项/组件已保留明确 ID，参考价按同一 ID 读取；换长度的长螺丝不继承旧规格 ID。名称预览的输入指纹不能替代完整实物指纹，线圈电气参数等正式属性仍需纳入后续保存校验。
+
+尚未完成：所有写入口强制生成名称、命名档案/旧别名的受保护保存、历史引用迁移、采购行身份全流程接续、全部 Query/UI 现名装配、搜索/AI/MCP 别名解析、跨设备实时通知、迁移与恢复演练。不能启用存量批量改名，也不能把已实现的只读接口当作上述业务功能已经上线。
+
+本批验证：`npm run verify:api-contract` 26 项通过；`npm test` 1982 项通过（本轮新增18项命名、身份、迁移和基线测试）；`npm run test:deep-api` 442 项通过、隔离数据库完整性正常且无外键违规；`npm run lint`、`npm run build`、`git diff --check` 通过。重复只读盘点的业务基线与全部源记录哈希一致。报告包含 158 个命名候选对象，17 个有效对象可提取建议名，其余保留缺项；共 413 处声明范围内引用，其中 17 处缺失、1 处非结构化关联。仍需继续核对未覆盖的调用链，不能将这些数字解释为全项目引用覆盖证明。
+
+### 7.11 引用链矩阵与迁移边界
+
+以下为代码已定位的主要路径，作为后续逐链验收清单；表中“迁移策略”尚未全部实现。
+
+| 资源字段 | 写入方 | 读取方 | 业务用途与现有身份 | 迁移策略 |
+|---|---|---|---|---|
+| 零件 `model/remark`，默认轴承与长螺丝定价来源 | `partCommands`、批量/就地建档 | `recipeQueries`、`costEngine`、出图参数 | 主名称、默认配置、定价规则；混用 ID 和字符串 | 规格与用途分离；默认件和定价来源显式 ID；旧词建立审核别名 |
+| 模板 `shell_model`、整套泵壳 | `templateCommands`、泵壳名称旧级联 | `pumpShellPartResolver`、`recipeBomEngine`、`templateQueries` | 既是模板名又是物料匹配字符串 | 独立模板名＋`catalog_template_shell_bindings`；不再靠模板名关联泵壳 |
+| 模板 `parts_json/shell_components_json` | 模板编辑/复制、`templateCommands` | BOM 展开、成本、配方默认值 | 固定件、组件、供应商套件；旧行无 ID | 保留已有 ID、审核后补绑定；套件内部描述不建库存 |
+| 配方 `parts_json/extra_parts_json/packing_parts_json` | `recipeCommands`、保存草稿、Web 选配与包装 | `recipeQueries`、`currentRecipeCost`、`configuredRecipeSnapshot` | BOM、成本、库存；新 ID 与旧名称快照并存 | 新写保存 ID；旧快照旁路绑定，现名与原名分开输出 |
+| 配方/模板配置规则白名单 | `recipeConfigurationPolicy`、对应保存命令 | 配置覆盖、包装选项 | `packingPartIds`、线圈 ID 数组 | 原 ID 保留，选项标签读取现名；不扩大可选范围 |
+| 线圈/定子组合 | `coilCommands`、方案编辑 | `coilCost`、BOM、采购和线圈库存 | `coilId/schemeCode`、规格快照、方案族 | 保留具体方案身份；命名不改电气参数、片数或方案默认选择 |
+| 常用配置 `pump_model_variants` | `modelVariantCommands`、旧入口 | BOM/出图、配方默认值 | 配置 ID、线圈 ID 与型号快照 | 保留入口；名称与参数默认值分别迁移 |
+| 报价 `items_json`、附件来源 | `quotationCommands/quotationDraft` | `quotationQueries/quotationConversion`、导出 | 配方 ID、嵌套 BOM、对外型号和锁价 | 展示现名；原报价内容与金额保持，转单复用绑定身份 |
+| 订单 `items_json` 及修订快照 | `orderCommands/orderBomSnapshot` | `orderQueries/orderReadiness`、订单导出 | 嵌套快照与配方 ID，包含字符串化 JSON | 历史绑定核验源哈希，订单修改续接 ID；不改修订正文 |
+| 采购 `purchase_list_json` | `orderPlanning/orderWorkflow`、采购命令 | `orderQueries/purchaseInventory` | `partId/coilId/identityKey` 及名称退路 | ID＋长度/接头/单位区分；原行 ID、收货回执及进度不得重建丢失 |
+| 库存、预留与入库 | `purchaseInventory`、库存命令、订单状态机 | 采购平衡、配方库存、准备度 | 主库存 ID，预留由活动订单需求派生 | 公共身份校验；价格/显示名称变化不改变预留及扣减对象 |
+| 转子关联文本、文件关联标签 | 转子档案/文件归档命令 | 出图历史、文件归档目标查询 | `linked_pump_model` 文本、文件类型化目标 ID | 文本保留原文，关联标签用现名；非结构化文本不猜绑定 |
+| 搜索、AI/MCP、知识、导出 | 正式 API client 与各导出入口 | `entityLookupService`、AI executors、MCP | 目录查词、ID 回执、历史知识候选 | 正式查询使用现名/审核别名；知识与历史消息不提供写身份；原文件不回写 |

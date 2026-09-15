@@ -50,13 +50,14 @@ function numberValue(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function selectionToRecipeParts(
+export function selectionToRecipeParts(
   parts: RecipeSelectionRow[],
   packaging = false
 ): RecipePart[] {
   return parts
     .filter((part) => part.model.trim())
     .map((part) => ({
+      ...(part.partId !== undefined ? { partId: part.partId } : {}),
       model: part.model.trim(),
       supplier: part.supplier.trim(),
       qty: numberValue(part.qty) || 1,

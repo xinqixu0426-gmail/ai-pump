@@ -528,3 +528,23 @@ test('正式 BOM 重建拒绝多供应商电缆最低价猜选', () => {
             && error.statusCode === 422
     );
 });
+test('模板固定项及套件组件保留正式 ID，参考价来自该 ID（含零价）', () => {
+    const catalog = [
+        { id: 901, model: '同名件', supplier: '同厂', category: '泵壳搭配', price: 3 },
+        { id: 902, model: '同名件', supplier: '同厂', category: '泵壳搭配', price: 9 },
+        { id: 903, model: '零价件', supplier: '同厂', category: '泵壳搭配', price: 0 },
+    ];
+    const result = buildRecipeBomDraft({}, { partsCatalog: catalog, template: {
+        costMode: 'components',
+        partsJson: JSON.stringify([{ partId: 902, model: '同名件', name: '固定用途', qty: 2 }]),
+        shellComponentsJson: JSON.stringify([{ partId: 903, model: '零价件', name: '套件', unitCost: 50, qty: 1, componentType: 'subassembly', subassemblyContents: [{ name: '内部描述', qty: 1 }] }]),
+    } });
+    assert.equal(result.parts.find(part => part.name === '固定用途').partId, 902);
+    assert.equal(result.parts.find(part => part.name === '固定用途').snapshotPrice, 9);
+    assert.equal(result.parts.find(part => part.name === '套件').partId, 903);
+    assert.equal(result.parts.find(part => part.name === '套件').snapshotPrice, 0);
+    assert.equal(result.parts.length, 2);
+    assert.throws(() => buildRecipeBomDraft({}, { partsCatalog: catalog, template: {
+        partsJson: JSON.stringify([{ partId: 999, model: '同名件', name: '固定用途' }]),
+    } }), error => error.code === 'BOM_PART_ID_NOT_FOUND');
+});
