@@ -1,4 +1,4 @@
-const { resolveCatalogPartIdentity, partIdOf } = require('./bomPartIdentity.cjs');
+const { resolveSavedCatalogPartIdentity, partIdOf } = require('./bomPartIdentity.cjs');
 const { isPurchaseCoil } = require('./purchaseIdentity.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
@@ -30,13 +30,14 @@ function inspectPart(part, partsCatalog, base) {
     const identified = explicitId ? partsCatalog.find(row => partIdOf(row) === Number(part.partId)) : null;
     if (identified && inactive(identified)) return unresolved({ ...base, partId: partIdOf(identified) }, 'inactive', '引用零件已停用', identified.model);
     try {
-        const matched = resolveCatalogPartIdentity(partsCatalog.filter(row => !inactive(row)), part);
+        const matched = resolveSavedCatalogPartIdentity(partsCatalog, part);
         return resolved({ ...base, partId: partIdOf(matched), supplier: text(matched.supplier) }, matched,
             text(matched.model), explicitId ? 'resolved' : 'resolved_legacy');
     } catch (error) {
         const statuses = {
             BOM_PART_ID_NOT_FOUND: 'missing', BOM_PART_IDENTITY_NOT_FOUND: 'missing',
             BOM_PART_IDENTITY_AMBIGUOUS: 'ambiguous', BOM_PART_ID_MODEL_MISMATCH: 'identity_mismatch',
+            BOM_PART_ID_SUPPLIER_MISMATCH: 'identity_mismatch',
             BOM_PART_MODEL_REQUIRED: 'invalid_reference', BOM_PART_ID_INVALID: 'invalid_id',
         };
         if (!statuses[error.code]) throw error;

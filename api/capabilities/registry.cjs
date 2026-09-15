@@ -1191,7 +1191,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         domain: 'recipe',
         inputSchema: 'GET /api/recipes/:id/inventory-status',
         outputSchema: 'RecipeInventoryStatus including currentName, snapshotName, referenceStatus and nullable currentStock',
-        sourceOfTruth: 'recipes.parts_json+parts+coils',
+        sourceOfTruth: 'recipes.parts_json.saved_ids+parts+coils',
         riskLevel: 'low',
         callers: Object.freeze(['web', 'internal']),
     }),

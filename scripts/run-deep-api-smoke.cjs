@@ -1348,6 +1348,7 @@ async function testRecipeInventoryIdentity(databasePath) {
             { model: name, supplier: '不存在的供应商' },
             { costRole: 'coil', coilId: unavailableCoilId, model: '旧线圈名称' },
             { costRole: 'rotorProcess', model: '加工费' },
+            { partId: firstId, model: name, supplier: '错误供应商' },
         ]);
         recipeId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(name, snapshot).lastInsertRowid);
         brokenId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(`${name}-broken`, '[null]').lastInsertRowid);
@@ -1355,14 +1356,20 @@ async function testRecipeInventoryIdentity(databasePath) {
     const data = (await request('配方库存按身份读取并区分待核对', 'GET', `/api/recipes/${recipeId}/inventory-status`)).payload.data;
     assert(data.sourceOfTruth === 'recipes.inventory_status', '库存查询未声明正式来源');
     assert(data.items[0].currentStock === 0 && data.items[0].status === 'out_of_stock', '同名其他供应商库存混入');
-    assert(data.items[1].referenceStatus === 'identity_mismatch' && data.items[1].currentName && data.items[1].currentStock === null, '旧名称不一致没有标记');
+    assert(data.items[1].referenceStatus === 'resolved' && data.items[1].currentName && data.items[1].currentStock === 9, '已保存 ID 未读取当前名称和库存');
     assert(data.items[2].referenceStatus === 'ambiguous' && data.items[2].currentStock === null, '多候选被当作零库存或任取候选');
     assert(data.items[3].referenceStatus === 'missing', '精确供应商不存在时发生回退');
     assert(data.items[4].referenceStatus === 'inactive' && data.items[4].currentStock === null, '非正式线圈被当作可用库存');
     assert(data.items[5].status === 'not_tracked', '加工费被当作缺货');
+    assert(data.items[6].referenceStatus === 'identity_mismatch' && data.items[6].currentStock === null, '供应商冲突没有明确拒绝');
     await request('损坏配方 BOM 不返回虚假空库存', 'GET', `/api/recipes/${brokenId}/inventory-status`, undefined, [422]);
     const check = new Database(databasePath);
     try {
+        // This isolated fixture simulates a renamed catalog row; it does not
+        // bypass the production rename guard or claim command acceptance.
+        check.prepare('UPDATE parts SET model = ? WHERE id = ?').run('验收新名称', firstId);
+        const refreshed = (await request('已存 ID 在目录改名后回读现名且不依赖旧称', 'GET', `/api/recipes/${recipeId}/inventory-status`)).payload.data;
+        assert(refreshed.items[1].currentName === '验收新名称' && refreshed.items[1].currentStock === 9 && refreshed.items[1].partId === firstId, '目录改名后库存读取未跟随稳定 ID');
         assert(check.prepare('SELECT parts_json FROM recipes WHERE id = ?').get(recipeId).parts_json === snapshot, '库存查询改写了配方快照');
         check.prepare('DELETE FROM recipes WHERE id IN (?, ?)').run(recipeId, brokenId);
         check.prepare('DELETE FROM parts WHERE id IN (?, ?)').run(firstId, secondId);
@@ -1381,7 +1388,8 @@ async function testPartRenameGuard(databasePath) {
     const snapshot = JSON.stringify([{ partId: part.id, model: part.model, supplier: part.supplier, qty: 2 }]);
     try {
         recipeId = Number(fixture.prepare('INSERT INTO recipes (name, parts_json) VALUES (?, ?)').run(unique, snapshot).lastInsertRowid);
-        const before = fixture.prepare('SELECT count(*) n FROM audit_log').get().n;
+        const renameAudits = fixture.prepare("SELECT count(*) n FROM audit_log WHERE capability_id IN ('parts.update', 'parts.save_profile')");
+        const before = renameAudits.get().n;
         await request('有引用零件拒绝直接改名', 'PATCH', `/api/parts/${part.id}`, {
             model: `${unique}-NEW`, expectedUpdatedAt: part.updatedAt,
             idempotencyKey: `deep:rename-blocked:${unique}`,
@@ -1392,7 +1400,7 @@ async function testPartRenameGuard(databasePath) {
         const row = fixture.prepare('SELECT model, stock FROM parts WHERE id = ?').get(part.id);
         assert(row.model === part.model && row.stock === 5, '拒绝改名后出现部分保存');
         assert(fixture.prepare('SELECT parts_json FROM recipes WHERE id = ?').get(recipeId).parts_json === snapshot, '拒绝改名改写了引用快照');
-        assert(fixture.prepare('SELECT count(*) n FROM audit_log').get().n === before, '拒绝改名留下了写审计');
+        assert(renameAudits.get().n === before, '拒绝改名留下了写审计');
     } finally {
         if (recipeId) fixture.prepare('DELETE FROM recipes WHERE id = ?').run(recipeId);
         fixture.close();

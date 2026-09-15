@@ -25,15 +25,17 @@ test('库存查引用按 ID 或精确供应商，不能取另一个同名件的�
     assert.equal(inspect({ partId: 999, model: '轴承-202', supplier: '甲' }).referenceStatus, 'missing');
 });
 
-test('旧名称与当前名称并列返回，名称不一致或停用不能冒充已核实库存', () => {
+test('保存的 ID 读取现名和库存，不依赖旧称；供应商冲突和停用仍须核对', () => {
     const row = inspect({ name: '安装用轴承', partId: 1, model: '202' });
     assert.equal(row.name, '安装用轴承');
     assert.equal(row.model, '202');
     assert.equal(row.snapshotName, '202');
     assert.equal(row.currentName, '轴承-202');
-    assert.equal(row.referenceStatus, 'identity_mismatch');
-    assert.equal(row.currentStock, null);
-    assert.equal(row.status, 'needs_review');
+    assert.equal(row.referenceStatus, 'resolved');
+    assert.equal(row.currentStock, 5);
+    assert.equal(row.status, 'in_stock');
+    assert.equal(inspect({ partId: 1, model: '202', supplier: '乙' }).referenceStatus, 'identity_mismatch');
+    assert.equal(inspect({ partId: 1, model: '202', supplier: '乙' }).currentStock, null);
     assert.equal(inspect({ partId: 3, model: '旧件' }).referenceStatus, 'inactive');
     assert.equal(inspect({ partId: 3, model: '旧件' }).currentStock, null);
 });

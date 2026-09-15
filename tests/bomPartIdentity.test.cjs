@@ -4,8 +4,24 @@ const assert = require('node:assert/strict');
 const {
     bindStableBomPartIdentities,
     resolveCatalogPartIdentity,
+    resolveSavedCatalogPartIdentity,
 } = require('../api/services/bomPartIdentity.cjs');
 const { normalizeBomRoles } = require('../api/services/bomRoles.cjs');
+
+test('已保存引用按 ID 读取现名，新写入仍拒绝错误型号，客户端标记不能切换模式', () => {
+    const rows = [{ id: 1, model: '新名称', supplier: '甲' }];
+    const snapshot = { partId: 1, model: '弃用旧称', supplier: '甲', readMode: 'saved' };
+    const before = JSON.stringify(snapshot);
+    assert.equal(resolveSavedCatalogPartIdentity(rows, snapshot).model, '新名称');
+    assert.equal(JSON.stringify(snapshot), before);
+    assert.throws(() => resolveCatalogPartIdentity(rows, snapshot), { code: 'BOM_PART_ID_MODEL_MISMATCH' });
+    assert.throws(() => bindStableBomPartIdentities([snapshot], rows), { code: 'BOM_PART_ID_MODEL_MISMATCH' });
+    assert.throws(() => resolveSavedCatalogPartIdentity(rows, { ...snapshot, supplier: '乙' }), { code: 'BOM_PART_ID_SUPPLIER_MISMATCH' });
+    assert.throws(() => resolveSavedCatalogPartIdentity(rows, { ...snapshot, partId: 2 }), { code: 'BOM_PART_ID_NOT_FOUND' });
+    assert.throws(() => resolveSavedCatalogPartIdentity([{ ...rows[0], deletedAt: 'deleted' }], snapshot), { code: 'BOM_PART_ID_NOT_FOUND' });
+    assert.throws(() => resolveSavedCatalogPartIdentity(rows, { ...snapshot, partId: true }), { code: 'BOM_PART_ID_INVALID' });
+    assert.throws(() => resolveSavedCatalogPartIdentity(rows, { model: '弃用旧称' }), { code: 'BOM_PART_IDENTITY_NOT_FOUND' });
+});
 
 const catalog = [
     { id: 1, model: '纸箱-A', supplier: '供应商甲', price: 3 },

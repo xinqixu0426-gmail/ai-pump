@@ -389,7 +389,7 @@ test('API 静态契约：配方详情只读库存状态且不保留生产扣库�
     assert.match(queries, /function getInventoryStatus/);
     assert.match(queries, /inspectRecipeInventory/);
     const inventory = readUtf8(path.join(repoRoot, 'api/services/recipeInventory.cjs'));
-    assert.match(inventory, /resolveCatalogPartIdentity/);
+    assert.match(inventory, /resolveSavedCatalogPartIdentity/);
     assert.doesNotMatch(inventory, /safeInsert|safeUpdate|\.run\(/);
     assert.doesNotMatch(route, /production-check|router\.post\('\/:id\/produce'|function produceRecipe/);
     assert.match(nextClient, /getRecipeInventoryStatus\(recipeId: number\)/);

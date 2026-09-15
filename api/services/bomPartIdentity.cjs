@@ -83,6 +83,21 @@ function shouldRequireCatalogIdentity(part = {}) {
     return true;
 }
 
+// Only for reading a persisted reference. A saved ID is the lookup key;
+// snapshot display text is not another identity key. New writes continue to
+// use resolveCatalogPartIdentity and cannot opt into this through request data.
+function resolveSavedCatalogPartIdentity(partsCatalog = [], part = {}, options = {}) {
+    const activeParts = partsCatalog.filter(candidate => !candidate.deletedAt && !candidate.deleted_at);
+    const matched = resolveCatalogPartIdentity(activeParts,
+        part.partId == null ? part : { ...part, model: undefined }, options);
+    const supplier = normalizedText(part.supplier);
+    if (part.partId != null && supplier && supplier !== normalizedText(matched.supplier)) {
+        throw identityError('BOM_PART_ID_SUPPLIER_MISMATCH', `${options.field || 'BOM'} 的供应商与引用零件不一致`,
+            { partId: partIdOf(matched), supplier, catalogSupplier: normalizedText(matched.supplier) });
+    }
+    return matched;
+}
+
 function bindStableBomPartIdentities(parts = [], partsCatalog = [], options = {}) {
     return parts.map((part, index) => {
         if (!shouldRequireCatalogIdentity(part)) return part;
@@ -127,5 +142,6 @@ module.exports = {
     bindStableBomPartIdentities,
     partIdOf,
     resolveCatalogPartIdentity,
+    resolveSavedCatalogPartIdentity,
     shouldRequireCatalogIdentity,
 };
