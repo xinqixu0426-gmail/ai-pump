@@ -104,8 +104,8 @@ export function partInputToApi(input: PartInput): PartApiInput {
   };
 }
 
-export async function getAllParts(): Promise<Part[]> {
-  const result = await proxyRequest<ApiResponse<PartRow[]>>('/api/parts');
+export async function getAllParts(signal?: AbortSignal): Promise<Part[]> {
+  const result = await proxyRequest<ApiResponse<PartRow[]>>('/api/parts', { signal });
   if (!result.success) throw new Error(result.error || '零件加载失败');
   return (result.data || []).map(rowToPart);
 }

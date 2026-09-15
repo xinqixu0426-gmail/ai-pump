@@ -1,5 +1,7 @@
 'use client';
 
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ChevronDown,
@@ -300,24 +302,37 @@ export function PartsView({
     onDiscard: () => setDrawerOpen(false),
   });
 
-  async function load(force = false) {
-    setError(null);
-    if (force) setRefreshing(true);
-    else setLoading(true);
+  const loadVersion = useRef(0);
+  async function load(force = false, background = false) {
+    const version = ++loadVersion.current;
+    if (!background) {
+      setError(null);
+      if (force) setRefreshing(true);
+      else setLoading(true);
+    }
 
     try {
-      const data = await getAllParts();
+      const data = await getAllParts(background ? AbortSignal.timeout(10000) : undefined);
+      if (version !== loadVersion.current) return false;
       setParts(data);
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '零件加载失败');
+      if (version !== loadVersion.current) return false;
+      if (!background) setError(err instanceof Error ? err.message : '零件加载失败');
+      return false;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === loadVersion.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
+  useBusinessRefresh(() => load(false, true));
+
   useEffect(() => {
     void load();
+    return () => { loadVersion.current += 1; };
   }, []);
 
   useEffect(() => {

@@ -697,6 +697,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['internal']),
     }),
+    'business_changes.revision': defineQueryCapability({
+        capabilityId: 'business_changes.revision',
+        domain: 'business_history',
+        inputSchema: 'GET /api/business-changes/revision',
+        outputSchema: '{revision: opaque string, sourceOfTruth}',
+        sourceOfTruth: 'business_change_events.latest_committed_id_and_operation',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'business_changes.list': defineQueryCapability({
         capabilityId: 'business_changes.list',
         domain: 'business_history',

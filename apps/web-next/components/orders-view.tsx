@@ -1,5 +1,7 @@
 'use client';
 
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
@@ -138,13 +140,18 @@ export function OrdersView({
     setUpdateConfirmTarget(null);
   }
 
-  const load = useCallback(async (force = false) => {
-    setError(null);
-    if (force) setRefreshing(true);
-    else setLoading(true);
+  const loadVersion = useRef(0);
+  const load = useCallback(async (force = false, background = false) => {
+    const version = ++loadVersion.current;
+    if (!background) {
+      setError(null);
+      if (force) setRefreshing(true);
+      else setLoading(true);
+    }
 
     try {
-      const data = await getAllOrders();
+      const data = await getAllOrders(background ? AbortSignal.timeout(10000) : undefined);
+      if (version !== loadVersion.current) return false;
       setOrders(data);
       if (initialOrderId && initialOrderHandledRef.current !== initialOrderId) {
         initialOrderHandledRef.current = initialOrderId;
@@ -152,16 +159,24 @@ export function OrdersView({
         if (target) setSelectedOrder(target);
         else setError(`没有找到订单 #${initialOrderId}`);
       }
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '订单加载失败');
+      if (version !== loadVersion.current) return false;
+      if (!background) setError(err instanceof Error ? err.message : '订单加载失败');
+      return false;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === loadVersion.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [initialOrderId]);
 
+  useBusinessRefresh(() => load(false, true));
+
   useEffect(() => {
     void load();
+    return () => { loadVersion.current += 1; };
   }, [load]);
 
   async function loadAuxiliary(marginCustomerId?: string) {

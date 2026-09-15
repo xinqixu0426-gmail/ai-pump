@@ -1327,6 +1327,24 @@ async function createBundleTemplate(unique, suffix = '') {
     })).payload.data;
 }
 
+async function testBusinessRevision() {
+    const before = (await request('读取提交前业务变更版本', 'GET', '/api/business-changes/revision')).payload.data;
+    const login = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: DEEP_API_ACCESS_PASSWORD }), signal: AbortSignal.timeout(5000) });
+    assert(login.ok, '第二会话登录失败');
+    const secondCookie = (login.headers.get('set-cookie') || '').split(';')[0];
+    const unique = `REVISION-${Date.now()}`;
+    await request('正式目录提交产生刷新版本', 'POST', '/api/parts', {
+        model: unique, category: '测试件', supplier: unique, stock: 0, price: 1, idempotencyKey: `deep:revision:${unique}`,
+    });
+    const after = (await request('提交后业务变更版本改变', 'GET', '/api/business-changes/revision')).payload.data;
+    assert(before.revision !== after.revision, '提交后版本未变化');
+    const other = await fetch(`${baseUrl}/api/business-changes/revision`, { headers: { Cookie: secondCookie }, signal: AbortSignal.timeout(5000) });
+    assert(other.ok && other.headers.get('cache-control') === 'no-store', '第二会话版本接口或缓存控制失败');
+    assert((await other.json()).data.revision === after.revision, '独立会话未读到同一提交版本');
+    results.push({ label: '独立登录会话读取相同最新业务版本', status: 200, ms: 0 });
+}
+
 async function testSavedPurchaseNameViews(databasePath) {
     const fixture = new Database(databasePath);
     const unique = `SAVED-PURCHASE-${Date.now()}`;
@@ -3936,6 +3954,7 @@ async function run() {
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');
         await request('登录状态', 'GET', '/api/auth/check');
         if (DEEP_API_SCOPE !== 'mcp') {
+            await testBusinessRevision();
             await testCatalogNamingSave();
             await testRecipeInventoryIdentity(path.join(temp, 'pump.db'));
             await testSavedPurchaseNameViews(path.join(temp, 'pump.db'));

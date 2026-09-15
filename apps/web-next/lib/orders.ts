@@ -228,8 +228,8 @@ export function rowToOrder(row: OrderRow): Order {
   };
 }
 
-export async function getAllOrders(): Promise<Order[]> {
-  const result = await proxyRequest<ApiResponse<OrderRow[]>>('/api/orders');
+export async function getAllOrders(signal?: AbortSignal): Promise<Order[]> {
+  const result = await proxyRequest<ApiResponse<OrderRow[]>>('/api/orders', { signal });
   if (!result.success) throw new Error(result.error || '订单加载失败');
   return (result.data || []).map(rowToOrder);
 }

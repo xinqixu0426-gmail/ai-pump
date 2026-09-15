@@ -141,6 +141,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'ai.personal_memory.change',
         'entities.coil_span_candidates',
         'business_changes.list',
+        'business_changes.revision',
         'catalog.reference_audit',
         'catalog.naming_rules',
         'catalog.name_preview',

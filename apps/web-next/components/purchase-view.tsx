@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { CircleAlert, PackageCheck, RefreshCw, ShoppingCart, Truck } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -68,23 +70,37 @@ export function PurchaseView() {
     supplierLabel: string;
   } | null>(null);
 
-  async function load(force = false) {
-    setError(null);
-    if (force) setRefreshing(true);
-    else setLoading(true);
+  const loadVersion = useRef(0);
+  async function load(force = false, background = false) {
+    const version = ++loadVersion.current;
+    if (!background) {
+      setError(null);
+      if (force) setRefreshing(true);
+      else setLoading(true);
+    }
 
     try {
-      setOrders(await getPurchaseOrders());
+      const data = await getPurchaseOrders(background ? AbortSignal.timeout(10000) : undefined);
+      if (version !== loadVersion.current) return false;
+      setOrders(data);
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '采购数据加载失败');
+      if (version !== loadVersion.current) return false;
+      if (!background) setError(err instanceof Error ? err.message : '采购数据加载失败');
+      return false;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === loadVersion.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
+  useBusinessRefresh(() => load(false, true));
+
   useEffect(() => {
     void load();
+    return () => { loadVersion.current += 1; };
   }, []);
 
   const tasks = useMemo(() => buildPurchaseTasks(orders), [orders]);

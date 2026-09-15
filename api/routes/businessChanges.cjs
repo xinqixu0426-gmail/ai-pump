@@ -5,6 +5,15 @@ const { listBusinessChanges } = require('../services/businessChanges.cjs');
 const { searchFactoryKnowledge } = require('../services/knowledgeHybridSearch.cjs');
 
 const router = Router();
+const { readBusinessChangeRevision } = require('../services/businessChangeRevision.cjs');
+router.get('/revision', (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, data: readBusinessChangeRevision(db) });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message, code: 'business_change_revision_failed', requestId: req.requestId });
+    }
+});
 const CAPABILITY_ID = requireBusinessCapability('business_changes.list').capabilityId;
 
 router.get('/', async (req, res) => {

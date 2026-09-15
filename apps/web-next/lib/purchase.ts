@@ -139,8 +139,8 @@ export function buildPurchaseStats(orders: Order[], tasks: PurchaseTask[]): Purc
   };
 }
 
-export async function getPurchaseOrders(): Promise<Order[]> {
-  return getAllOrders();
+export async function getPurchaseOrders(signal?: AbortSignal): Promise<Order[]> {
+  return getAllOrders(signal);
 }
 
 export type PurchaseBatchDraft = {
