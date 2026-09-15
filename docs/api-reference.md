@@ -220,6 +220,8 @@ BOM 快照角色为 `fixed/shell/barrelLength/stainlessShellBundle/longScrew/cap
 
 ### 9.1 成本入口
 
+模板、配置快照和成本服务复用的 `loadPartsData()` 目录内存缓存按 SQLite 本连接写入计数、其他连接数据版本和 schema 版本校验；写入后下一次读取即更新，不再依赖10秒TTL或路由手动失效。事务内直接读取当前事务快照，既不复用事务外缓存，也不将未提交数据存入缓存；失败继续抛错。原 `invalidatePartsCache()` 保留兼容调用，HTTP 请求、响应及成本公式不变。
+
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
 | `POST` | `/api/cost/parts` | `{ parts: [{ model, supplier?, qty?, snapshotPrice? }] }` | 经 `costQueries` 委托 `costEngine` 按配件数组计算成本、缺失项和明细；不自动叠加配方工资/管理费 |

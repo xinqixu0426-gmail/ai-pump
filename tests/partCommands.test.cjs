@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const { installBusinessChangeSchema } = require('./helpers/businessChangeSchema.cjs');
+const { createPartsDataCache } = require('../api/services/partsDataCache.cjs');
 const {
     BATCH_CREATE_CAPABILITY_ID,
     BATCH_DELETE_CAPABILITY_ID,
@@ -213,6 +214,33 @@ function seedPart(fixture, model = 'P-1', price = 10) {
         commandContext(CREATE_CAPABILITY_ID, `seed-${model}`)
     );
 }
+
+test('内部正式改名提交立即刷新目录；幂等重放和审计失败不污染缓存', () => {
+    const fixture = createFixture();
+    const { db, dependencies } = fixture;
+    try {
+        const part = seedPart(fixture).part;
+        const cache = createPartsDataCache(db);
+        cache.read();
+        const input = { model: '现名', price: 15, expectedUpdatedAt: part.updatedAt };
+        const context = commandContext(UPDATE_CAPABILITY_ID, 'cache-rename');
+        const renamed = executePartUpdate(dependencies, part.id, input, context).part;
+        assert.equal(cache.read().partsByModel[part.model], undefined);
+        assert.equal(cache.read().partsCache['现名'].price, 15);
+        assert.equal(executePartUpdate(dependencies, part.id, input, context).idempotentReplay, true);
+        assert.equal(cache.read().partsByModel['现名'][0].id, part.id);
+        const failing = { ...dependencies, safeUpdate(...args) {
+            const result = dependencies.safeUpdate(...args);
+            assert.equal(cache.read().partsCache['现名'].price, 99);
+            return { ...result, auditId: null };
+        } };
+        assert.throws(() => executePartUpdate(failing, part.id,
+            { price: 99, expectedUpdatedAt: renamed.updatedAt },
+            commandContext(UPDATE_CAPABILITY_ID, 'cache-rollback')), { code: 'strong_audit_required' });
+        assert.equal(cache.read().partsCache['现名'].price, 15);
+        assert.equal(db.prepare('SELECT stock FROM parts WHERE id = ?').get(part.id).stock, 5);
+    } finally { db.close(); }
+});
 
 const namingInput = () => ({ category: '包装', supplier: '甲', stock: 3, price: 8,
     naming: { ruleId: 'packaging', spec: { kind: ' 纸箱 ', specification: '400*300*200', variant: '' } } });

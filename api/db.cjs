@@ -1,4 +1,5 @@
 const { readPartNaming } = require('./services/partNaming.cjs');
+const { createPartsDataCache } = require('./services/partsDataCache.cjs');
 /**
  * 数据库初始化 + 共享辅助函数
  */
@@ -841,38 +842,15 @@ function hardDelete(table, id, options = {}) {
     return { ...info, auditId };
 }
 
-// ── P1.7: loadPartsData 缓存 ──
-let _partsDataCache = null;
-let _partsDataCacheTime = 0;
-const PARTS_CACHE_TTL = 10_000; // 10秒缓存
-
+// Derived catalog invalidates on database changes, including internal commands.
+const partsDataCache = createPartsDataCache(db);
 function loadPartsData() {
-    const now = Date.now();
-    if (_partsDataCache && (now - _partsDataCacheTime) < PARTS_CACHE_TTL) {
-        return _partsDataCache;
-    }
-    const records = db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all();
-    const partsCache = {};
-    const partsByModel = {};
-    records.forEach(record => {
-        const model = record.model;
-        const price = record.price || 0;
-        const supplier = record.supplier || '-';
-        const notes = record.remark || '';
-        const category = record.category || '其他';
-        partsCache[model] = { price, supplier, category, notes };
-        if (!partsByModel[model]) partsByModel[model] = [];
-        partsByModel[model].push({ id: record.id, model, category, supplier, price, notes });
-    });
-    _partsDataCache = { partsCache, partsByModel };
-    _partsDataCacheTime = now;
-    return _partsDataCache;
+    return partsDataCache.read();
 }
 
-/** 使 loadPartsData 缓存失效（写入零件后调用） */
+/** Compatibility hook for existing callers; correctness does not depend on it. */
 function invalidatePartsCache() {
-    _partsDataCache = null;
-    _partsDataCacheTime = 0;
+    partsDataCache.invalidate();
 }
 
 // ── P4.22: 审计日志 ──
