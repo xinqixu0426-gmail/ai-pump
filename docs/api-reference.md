@@ -99,6 +99,8 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 历史配方中已标记 `dynamicRule=longScrewByBarrelLength` 但零件库缺少目标长度型号时，运行 `npm run maintenance:backfill-long-screws` 进行受控回填。该命令复用 `parts.batch_create` 的 Preview/Command、持久化幂等、operation 回执和强审计，不直接绕过零件建档契约。
 
+内部只读能力 `catalog.reference_audit` 由 `npm run audit:catalog-references -- [数据库路径]` 调用，默认读取项目 `pump.db`；不挂载 HTTP，不暴露为 AI/MCP 工具。脚本以 SQLite readonly + query_only 打开现有数据库，不加载业务启动模块。输入仅允许 `maxRowsPerTable`（默认 10000，上限 50000）和 `maxReferences`（默认 100000，上限 500000），CLI 使用默认预算。返回 `CatalogReferenceAuditV1`：声明范围内的 `counts/references/sourceHashes/namingCandidates/businessBaseline/baselineSha256/coverage`、`complete/allReferencesResolved/errors`。引用区分明确 ID、旧名称唯一候选、歧义、缺失、停用、ID/名称不一致、非库存描述与非结构化关联；嵌套 JSON、包装白名单及线圈白名单保留定位路径。目录截断后不解析该目录的候选，缺表、非法 JSON 或预算超限使 `complete=false`；完整扫描不代表可以迁移，`coverage.migrationApproved` 始终为 false。退出码 0 表示盘点完成（仍可能存在未解决引用），2 表示不完整，1 表示执行失败。JSON 输出到 stdout；保存业务报告时使用已忽略的 `logs/catalog-naming/`，不要提交业务明细。该能力不回填引用、不改名、不修改历史快照。
+
 `POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为普通语言上下文；实时事实重新调用正式 API。本地模式的业务工具轮只发送当前用户请求、可信服务端候选和正式工具回执，不把旧助手自然语言结论重新作为业务上下文。只要本地工具短名单非空，本轮必须取得正式工具回执；首次跳过会重试一次，连续跳过则返回无可验证结论。线圈/绕组与配方/产品的关系查询同时开放 `search_coils` 和 `get_all_recipes`；问题包含明确 `规格-片数` 时，运行器会确定性补发模型遗漏的一侧只读查询，并以完整配方列表的 `coilId/coilSpec/coilSheets` 字段核对关联。服务端会话引用绑定现有登录主体和 conversationId，内存引用 15 分钟过期；`chat-<ID>` 可从同一所有者的持久会话消息恢复最近带正式执行证据的候选，不信任客户端传入的 turnState、resolutionContext 或候选数据。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；明确肯定式业务写命令由服务端切入受保护命令通道，首轮只生成确认卡，不直接写入。Web/PWA 保留流式请求互斥锁。正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。经营概览的正式看板回执先投影为订单、财务、库存和待处理摘要，不向回答模型发送缺货/采购大明细及嵌套重复财务对象；单一 `get_dashboard_summary` 的概览查询由 Presenter 直接生成去重摘要，`采购完成` 与已完成订单口径分开，不再进入额外模型修复轮。工具提议超出剩余次数时整组不执行，转入最终回答；不必要的重复询问进行至多一次完成性复核，真实候选歧义仍保留选择。本地最终正文会去除完全重复段落，用户未要求完整明细时对异常长输出执行兜底截断。SSE 只读 `metrics` 终态事件中，有供应商原生 `timings` 时返回精确生成速度；无原生计时时仅在输出足够长且有多个 SSE 内容分片时返回 `stream_observed` 估算。短回复、单分片或无可靠生成区间时速度为 `null`，不使用包含 TTFT 的整次请求耗时伪造 tok/s。处理细节见 [私人 AI 助理](ai-assistant.md)。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
@@ -509,12 +511,13 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 115 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 116 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
 | capabilityId | toolName | 类型 | sourceOfTruth | 风险 | 确认 | 预览 | 幂等/并发 | 事务与审计 | 超时 |
 |---|---|---|---|---|---|---|---|---|---|
+| `catalog.reference_audit` | Internal CLI | query/read | 目录、业务明细与嵌套引用 | low | 否 | 不适用 | 天然幂等 | 同一只读事务；不写审计或业务表 | 有界扫描 |
 | `parts.list` | HTTP/Web/`search_parts` | query/read | `parts`；当前目录价格由正式零件 Query 返回 | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP 超时 |
 | `coils.list` | HTTP/Web/`search_coils` | query/read；输出 `CoilProfile[]` 完整档案 | `coils + stator_variants` | low | 否 | 不适用 | 天然幂等/无并发 | 严格只读、无审计 | 15s |
 | `orders.list` | HTTP/Web/`get_recent_orders` | query/read | `orders` + 实时采购平衡 + `parts.price` + `coils.cost` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |

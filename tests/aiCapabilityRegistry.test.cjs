@@ -141,6 +141,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'ai.personal_memory.change',
         'entities.coil_span_candidates',
         'business_changes.list',
+        'catalog.reference_audit',
         'collections.read',
         'relations.read',
         'inventory.parts.batch_adjust_stock',
@@ -266,7 +267,14 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             assert.equal(capability.operation, 'query');
             assert.equal(capability.requiresConfirmation, false);
             assert.equal(capability.riskLevel, 'low');
-            assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
+            if (capabilityId === 'catalog.reference_audit') {
+                assert.match(capability.inputSchema, /^INTERNAL catalog-reference-audit /);
+                assert.deepEqual(capability.callers, ['internal']);
+                assert.equal(capability.transactionality, 'read_transaction');
+                assert.equal(capability.audit, 'none');
+            } else {
+                assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
+            }
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);
             continue;

@@ -631,6 +631,14 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'catalog.reference_audit': defineQueryCapability({
+        capabilityId: 'catalog.reference_audit', domain: 'catalog',
+        inputSchema: 'INTERNAL catalog-reference-audit { maxRowsPerTable?, maxReferences? }',
+        outputSchema: 'CatalogReferenceAuditV1 with complete, counts, references, sourceHashes, namingCandidates and businessBaseline',
+        sourceOfTruth: 'parts+coils+templates+recipes+quotations+orders+persisted_business_references',
+        transactionality: 'read_transaction', riskLevel: 'low',
+        callers: Object.freeze(['internal']),
+    }),
     'relations.read': defineQueryCapability({
         capabilityId: 'relations.read', domain: 'catalog',
         inputSchema: 'POST /api/relations/read RelationReadRequestV1',

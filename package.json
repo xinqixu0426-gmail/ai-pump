@@ -32,6 +32,7 @@
     "db:backup:verify": "node scripts/manage-database-backups.cjs verify",
     "db:restore": "node scripts/manage-database-backups.cjs restore",
     "maintenance:backfill-long-screws": "node scripts/backfill-recipe-long-screw-parts.cjs",
+    "audit:catalog-references": "node scripts/audit-catalog-references.cjs",
     "deploy:macmini": "powershell -ExecutionPolicy Bypass -File scripts/deploy-macmini.ps1",
     "restart:local": "powershell -ExecutionPolicy Bypass -File scripts/restart-local-dev.ps1",
     "verify:prod-env": "node scripts/verify-production-env.cjs",
