@@ -2869,7 +2869,7 @@ test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中
 
     assert.match(batchDialog, /await getAllParts\(\)[\s\S]*previewPartBatchCreate/);
     assert.match(batchDialog, /partIdentityKey\(part\) === identityKey\(row\)/);
-    assert.match(batchDialog, /existing\.catalogUnitCost !== candidate\.catalogUnitCost/);
+    assert.match(readUtf8('apps/web-next/components/recipe/missing-part-naming.ts'), /existing\.catalogUnitCost !== candidate\.catalogUnitCost/);
     assert.match(batchDialog, /await confirmPartBatchCreate\(preview\)[\s\S]*await getAllParts\(\)/);
     assert.match(batchDialog, /勿重复提交本批建档/);
     assert.match(batchDialog, /setCommitted\(true\);\s*try \{\s*await confirmPartBatchCreate\(preview\);\s*resetDirty\(\);/);

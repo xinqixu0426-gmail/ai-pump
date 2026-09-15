@@ -10,14 +10,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog, Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/ui/dialog';
 import { FormError } from '@/components/ui/form-error';
-import { selectInputValueOnFocus } from '@/components/ui/field';
+import { getCatalogNamingRules, previewCatalogName, type CatalogNamingRule } from '@/lib/catalog-naming';
+import { identityKey, partIdentityKey, uniqueBatchInputs, nameMissingPartCandidates, type NamedMissingPartCandidate } from './missing-part-naming';
+import { Field, Input, selectInputValueOnFocus } from '@/components/ui/field';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import {
   confirmPartBatchCreate,
   getAllParts,
   previewPartBatchCreate,
   type Part,
-  type PartBatchCreateInput,
   type PartBatchCreatePreview,
 } from '@/lib/parts';
 
@@ -29,41 +30,6 @@ type MissingPartsBatchDialogProps = {
   onCompleted: (candidates: MissingPartCandidate[], parts: Part[]) => void | Promise<void>;
 };
 
-function identityKey(candidate: MissingPartCandidate): string {
-  return `${candidate.model.trim().toLocaleLowerCase()}\u0000${candidate.supplier.trim().toLocaleLowerCase()}`;
-}
-
-function partIdentityKey(part: Part): string {
-  return `${part.model.trim().toLocaleLowerCase()}\u0000${part.supplier.trim().toLocaleLowerCase()}`;
-}
-
-function uniqueBatchInputs(candidates: MissingPartCandidate[]): PartBatchCreateInput[] {
-  const groups = new Map<string, MissingPartCandidate>();
-  for (const candidate of candidates) {
-    const key = identityKey(candidate);
-    const existing = groups.get(key);
-    if (existing) {
-      if (existing.category !== candidate.category || existing.subcategory !== candidate.subcategory) {
-        throw new Error(`型号“${candidate.model}”和供应商“${candidate.supplier}”被分到多个分类，请分别调整供应商或使用单条建档`);
-      }
-      if (existing.catalogUnitCost !== candidate.catalogUnitCost || existing.stock !== candidate.stock) {
-        throw new Error(`型号“${candidate.model}”和供应商“${candidate.supplier}”在多行使用了不同价格，请统一后再集中建档`);
-      }
-      continue;
-    }
-    groups.set(key, candidate);
-  }
-  return Array.from(groups.values()).map((candidate) => ({
-    model: candidate.model.trim(),
-    category: candidate.category,
-    subcategory: candidate.subcategory || undefined,
-    supplier: candidate.supplier.trim(),
-    catalogUnitCost: candidate.catalogUnitCost,
-    stock: candidate.stock,
-    remark: `从${candidate.contextLabel}集中补齐零件`,
-  }));
-}
-
 export function MissingPartsBatchDialog({
   open,
   candidates,
@@ -72,6 +38,11 @@ export function MissingPartsBatchDialog({
   onCompleted,
 }: MissingPartsBatchDialogProps) {
   const [rows, setRows] = useState<MissingPartCandidate[]>(candidates);
+  const [namingRules, setNamingRules] = useState<CatalogNamingRule[] | null>(null);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+  const [rulesAttempt, setRulesAttempt] = useState(0);
+  const [specs, setSpecs] = useState<Record<string, Record<string, string>>>({});
+  const [namedRows, setNamedRows] = useState<NamedMissingPartCandidate[]>([]);
   const [preview, setPreview] = useState<PartBatchCreatePreview | null>(null);
   const [alreadyExistingCount, setAlreadyExistingCount] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -101,12 +72,24 @@ export function MissingPartsBatchDialog({
     if (!open) return;
     resetDirty();
     setRows(candidates);
+    setSpecs({});
+    setNamedRows([]);
     setPreview(null);
     setAlreadyExistingCount(0);
     setBusy(false);
     setCommitted(false);
     setError(null);
   }, [candidates, open, resetDirty]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setNamingRules(null);
+    setRulesError(null);
+    getCatalogNamingRules().then((rules) => { if (active) setNamingRules(rules); })
+      .catch((cause) => { if (active) setRulesError(cause instanceof Error ? cause.message : '命名规则加载失败'); });
+    return () => { active = false; };
+  }, [open, rulesAttempt]);
 
   function updateRow(key: string, patch: Partial<MissingPartCandidate>) {
     markDirty();
@@ -130,18 +113,22 @@ export function MissingPartsBatchDialog({
     setBusy(true);
     setError(null);
     try {
+      if (!namingRules) throw new Error(rulesError || '命名规则加载中，请稍后重试');
       validateRows();
+      const resolvedRows = await nameMissingPartCandidates(rows, namingRules, specs, previewCatalogName);
+      uniqueBatchInputs(resolvedRows);
       const freshParts = await getAllParts();
-      const unresolvedRows = rows.filter((row) => !freshParts.some((part) => candidateMatchesPart(row, part)));
+      const unresolvedRows = resolvedRows.filter((row) => !freshParts.some((part) => candidateMatchesPart(row, part)));
       for (const row of unresolvedRows) {
         const conflicting = freshParts.find((part) => partIdentityKey(part) === identityKey(row));
         if (conflicting) {
           throw new Error(`型号“${row.model}”和供应商“${row.supplier}”已存在于“${conflicting.category}”分类，请使用单条建档调整绑定`);
         }
       }
-      setAlreadyExistingCount(rows.length - unresolvedRows.length);
+      setAlreadyExistingCount(resolvedRows.length - unresolvedRows.length);
+      setNamedRows(resolvedRows);
       if (unresolvedRows.length === 0) {
-        await onCompleted(rows, freshParts);
+        await onCompleted(resolvedRows, freshParts);
         resetDirty();
         return;
       }
@@ -169,7 +156,7 @@ export function MissingPartsBatchDialog({
         setError('零件已经正式建档，但目录回读失败。请关闭后刷新页面，勿重复提交本批建档。');
         return;
       }
-      await onCompleted(rows, freshParts);
+      await onCompleted(namedRows, freshParts);
     } catch (createError) {
       setPreview(null);
       const message = createError instanceof Error ? createError.message : '集中建档结果未确认';
@@ -192,11 +179,15 @@ export function MissingPartsBatchDialog({
       <DialogHeader>
         <div>
           <h2 className="text-lg font-semibold text-ink">集中补齐零件</h2>
-          <p className="mt-1 text-sm text-muted">先补齐供应商和目录价，再预览整批变化；确认后由正式批量命令原子建档并回绑当前草稿。</p>
+          <p className="mt-1 text-sm text-muted">先补齐命名规格、供应商和目录价，再预览整批生成名称；确认后由正式批量命令原子建档并回绑当前草稿。</p>
         </div>
       </DialogHeader>
       <DialogBody className="max-h-[70dvh] overflow-y-auto">
         <FormError message={error} />
+        {!namingRules ? <div role="status" className="mb-3 text-sm text-muted">
+          {rulesError || '正在加载命名规则…'}
+          {rulesError ? <Button type="button" onClick={() => setRulesAttempt((value) => value + 1)}>重新加载命名规则</Button> : null}
+        </div> : null}
 
         <div className="space-y-3">
           {rows.map((row) => (
@@ -235,6 +226,25 @@ export function MissingPartsBatchDialog({
               <div className="flex items-center text-xs text-muted">
                 初始库存 0
               </div>
+              {namingRules?.find((rule) => rule.supportsPartCreate && rule.category === row.category) ? (
+                <div className="space-y-3 lg:col-span-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {namingRules.find((rule) => rule.supportsPartCreate && rule.category === row.category)!.fields.map((field) => (
+                      <Field key={field.key} label={field.label} required={!field.optional}>
+                        <Input value={specs[row.key]?.[field.key] ?? ''} maxLength={field.maxLength}
+                          disabled={Boolean(preview) || busy || committed}
+                          onChange={(event) => {
+                            markDirty();
+                            setSpecs((current) => ({ ...current, [row.key]: { ...current[row.key], [field.key]: event.target.value } }));
+                            setNamedRows([]);
+                            setError(null);
+                          }} />
+                      </Field>
+                    ))}
+                  </div>
+                  <div className="break-words text-sm text-muted">生成型号：{namedRows.find((item) => item.key === row.key)?.model || '填写规格后点击预览生成'}</div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -258,12 +268,13 @@ export function MissingPartsBatchDialog({
       <DialogFooter>
         <div className="mr-auto text-xs text-muted" aria-live="polite">{dirty ? '有未保存修改' : '尚未修改'}</div>
         <Button type="button" variant="ghost" onClick={requestClose} disabled={busy}>取消</Button>
+        {preview && !committed ? <Button type="button" disabled={busy} onClick={() => { setPreview(null); setNamedRows([]); setAlreadyExistingCount(0); }}>修改规格</Button> : null}
         {preview ? (
           <Button type="button" variant="primary" onClick={() => void confirmCreate()} disabled={busy || committed} icon={<PackagePlus size={15} />}>
             {busy ? '建档并回读中' : '确认集中建档'}
           </Button>
         ) : (
-          <Button type="button" variant="primary" onClick={() => void buildPreview()} disabled={busy || committed || rows.length === 0} icon={<PackagePlus size={15} />}>
+          <Button type="button" variant="primary" onClick={() => void buildPreview()} disabled={busy || committed || !namingRules || rows.length === 0} icon={<PackagePlus size={15} />}>
             {busy ? '生成预览中' : '预览集中建档'}
           </Button>
         )}
