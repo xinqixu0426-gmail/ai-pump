@@ -170,7 +170,7 @@ function buildDataQualitySummary(options = {}) {
             coilIssues.push(row('coil', coil.id, `${coil.spec}-${coil.sheets}`, '缺少默认电容，AI 自动匹配电容时信息不足。', '/coils', { reason: 'missing_capacitor', material: coil.material }));
         }
         if (!normalize(coil.defaultWireGauge)) {
-            coilIssues.push(row('coil', coil.id, `${coil.spec}-${coil.sheets}`, '缺少默认线径，浮球/电缆线径推荐不稳定。', '/coils', { reason: 'missing_wire_gauge', material: coil.material }));
+            coilIssues.push(row('coil', coil.id, `${coil.spec}-${coil.sheets}`, '缺少默认搭配导线规格，浮球规格和电缆横截面积推荐不稳定。', '/coils', { reason: 'missing_wire_gauge', material: coil.material }));
         }
     }
 

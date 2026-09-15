@@ -4816,10 +4816,10 @@ test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详�
             });
         }
         if (call.url.endsWith('/api/knowledge/6') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: { id: 6, title: '线圈：12-220 钢带 小眼', content: '默认搭配电缆线径：1.2' } });
+            return jsonResponse({ success: true, data: { id: 6, title: '线圈：12-220 钢带 小眼', content: '默认搭配电缆横截面积：1.2' } });
         }
         if (call.url.endsWith('/api/knowledge/9') && call.method === 'GET') {
-            return jsonResponse({ success: true, data: { id: 9, title: '线圈：12-220 冷轧 国标眼', content: '默认搭配电缆线径：2' } });
+            return jsonResponse({ success: true, data: { id: 9, title: '线圈：12-220 冷轧 国标眼', content: '默认搭配电缆横截面积：2' } });
         }
         if (call.url.endsWith('/api/knowledge/overview') && call.method === 'GET') {
             return jsonResponse({ success: true, data: { generatedAt: '2026-01-03', changes: [] } });
@@ -4835,7 +4835,7 @@ test('AI executor 行为：精确线圈知识查询返回全部材质槽眼详�
 
     assert.equal(result.success, true);
     assert.equal(result.data.length, 2);
-    assert.match(result.data[0].content, /默认搭配电缆线径/);
+    assert.match(result.data[0].content, /默认搭配电缆横截面积/);
     assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
         'GET /api/knowledge?query=12-220&entryType=coil&limit=10',
         'GET /api/knowledge/6',

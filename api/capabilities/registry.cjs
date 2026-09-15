@@ -683,7 +683,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'catalog.naming_rules': defineQueryCapability({
         capabilityId: 'catalog.naming_rules', domain: 'catalog',
-        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1',
+        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 2, cable requires cross-section mm²',
         sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
     'catalog.name_preview': definePreviewCapability({

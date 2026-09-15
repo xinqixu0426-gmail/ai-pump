@@ -801,7 +801,7 @@ export function RecipesView() {
 
     if (form.hasCable) {
       annotations.push({
-        label: '电缆线径',
+        label: '电缆横截面积（mm²）',
         value: form.cableWire || recommendedCableWire || '-',
         note: wireLinkNote(form.hasCable, form.cableWire, recommendedCableWire),
         tone: isCableWireRecommended ? 'green' : recommendedCableWire ? 'amber' : 'slate',
@@ -976,7 +976,7 @@ export function RecipesView() {
     if (!form.templateId) hints.push('未选择泵壳模板');
     if (!form.coilSpec || !form.coilSheets) hints.push('线圈规格或片数不完整');
     else if (!form.coilId) hints.push('未选择具体线圈方案');
-    if (form.hasCable && (!form.cableWire || !form.cableLength)) hints.push('电缆线径或长度不完整');
+    if (form.hasCable && (!form.cableWire || !form.cableLength)) hints.push('电缆横截面积（mm²）或长度不完整');
     if (form.hasFloat && !form.floatWire) hints.push('浮球线径未填写');
     if (bomDraftError) hints.push(bomDraftError);
     return hints;

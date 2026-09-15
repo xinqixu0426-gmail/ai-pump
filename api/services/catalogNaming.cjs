@@ -5,6 +5,7 @@ const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const RULES_CAPABILITY_ID = requireBusinessCapability('catalog.naming_rules').capabilityId;
 const PREVIEW_CAPABILITY_ID = requireBusinessCapability('catalog.name_preview').capabilityId;
 const RULE_VERSION = 1;
+const RULESET_VERSION = 2;
 // Only categories without name-reconstructing dimensional selectors can save these names.
 const PART_CREATE_NAMING_RULES = new Set(['gasket', 'accessory', 'packaging', 'custom-part']);
 const text = (key, label, optional = false, uppercase = false) => ({ key, label, type: 'text', optional, uppercase, maxLength: 64 });
@@ -24,10 +25,11 @@ const DEFINITIONS = [
     { id: 'seal', category: '油封', fields: [choice('sealType', '密封类型', ['机械密封', '骨架油封']), ...dimensionsMm, variant], nameParts: [field('sealType'), dimensions('innerDiameterMm', 'outerDiameterMm', 'heightMm'), field('variant')] },
     { id: 'shell', category: '泵壳', fields: [text('series', '系列或原厂型号', false, true), text('specification', '明确规格'), variant], nameParts: ['泵壳', field('series'), field('specification'), field('variant')] },
     { id: 'shell-component', category: '泵壳搭配', fields: [text('kind', '组件或套件品名'), text('specification', '明确规格'), variant], nameParts: [field('kind'), field('specification'), field('variant')] },
-    ...[['float', '浮球', '浮球'], ['cable', '电缆线', '电缆']].map(([id, category, label]) => ({
+    ...[['float', '浮球', '浮球']].map(([id, category, label]) => ({
         id, category, fields: [number('wireValue', '导线规格值'), choice('wireMeasure', '导线规格含义', ['直径', '截面积']), choice('wireUnit', '导线规格单位', ['mm', 'mm²']), variant],
         nameParts: [label, { fields: ['wireMeasure', 'wireValue', 'wireUnit'], separator: '' }, field('variant')],
     })),
+    { id: 'cable', version: 2, category: '电缆线', fields: [number('wireValue', '横截面积', 'mm²'), choice('wireMeasure', '规格含义', ['截面积']), choice('wireUnit', '规格单位', ['mm²']), variant], nameParts: ['电缆', { fields: ['wireMeasure', 'wireValue', 'wireUnit'], separator: '' }, field('variant')] },
     ...[['gasket', '皮垫'], ['accessory', '配件'], ['packaging', '包装'], ['custom-part', '其他']].map(([id, category]) => ({
         id, category, fields: [text('kind', '品名'), text('specification', '明确规格'), variant], nameParts: [field('kind'), field('specification'), field('variant')],
     })),
@@ -68,7 +70,7 @@ const RULES = new Map(DEFINITIONS.map(definition => [definition.id, {
 const REQUEST_SCHEMA = z.object({ ruleId: z.string().min(1).max(40), spec: z.record(z.unknown()) }).strict();
 
 function getNamingRules() {
-    return { version: RULE_VERSION, sourceOfTruth: RULES_CAPABILITY_ID, rules: structuredClone(DEFINITIONS).map(rule => ({ ...rule, supportsPartCreate: PART_CREATE_NAMING_RULES.has(rule.id) })) };
+    return { version: RULESET_VERSION, sourceOfTruth: RULES_CAPABILITY_ID, rules: structuredClone(DEFINITIONS).map(rule => ({ ...rule, supportsPartCreate: PART_CREATE_NAMING_RULES.has(rule.id) })) };
 }
 
 function generateCatalogName(input) {
@@ -92,7 +94,7 @@ function generateCatalogName(input) {
     }).filter(Boolean).join('-');
     if (name.length > 180) throw namingError('NAMING_NAME_TOO_LONG', '生成的名称超过 180 字，请精简规格描述');
     const namingInputFingerprint = crypto.createHash('sha256').update(JSON.stringify({ ruleId: rule.definition.id, spec })).digest('hex');
-    return { ruleId: rule.definition.id, ruleVersion: RULE_VERSION, entityType: rule.definition.entityType,
+    return { ruleId: rule.definition.id, ruleVersion: rule.definition.version, entityType: rule.definition.entityType,
         category: rule.definition.category, normalizedSpec: spec, name, namingInputFingerprint };
 }
 

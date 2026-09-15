@@ -318,3 +318,13 @@ test('长螺丝动态换规格时清除原规格 ID，长度未变化则保留 I
     assert.equal(applyLongScrewRule(original, 170, 0).partId, 123);
     assert.equal(original.partId, 123);
 });
+
+test('电缆横截面积只选每米单价，不能再乘一次面积或影响库存米数', () => {
+    for (const [wire, price, expected] of [['0.55', 1.45, 15], ['0.75', 1.88, 18.44]]) {
+        const model = `电缆-线径${wire}`;
+        const result = calculateCompleteCableCost({ model, cableLength: 8, cableAccessoryType: 'xinjie', accessoryFee: 3.4 }, { partsByModel: { [model]: [{ model, supplier: 'A', price }] } });
+        assert.equal(result.snapshotPrice, expected);
+        assert.equal(result.inventoryQty, 8);
+        assert.equal(result.inventoryUnit, 'm');
+    }
+});

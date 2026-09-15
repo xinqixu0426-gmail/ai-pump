@@ -1109,15 +1109,15 @@ export function PartsView({
               </label>
             ) : isWireMode ? (
               <label className="block">
-                <span className="text-sm font-medium text-ink">线径</span>
+                <span className="text-sm font-medium text-ink">{isCableMode ? '横截面积 mm²' : '线径'}</span>
                 <div className="mt-2 flex rounded-md border border-line focus-within:border-slate-400">
-                  <span className="flex h-10 items-center border-r border-line bg-slate-50 px-3 text-sm text-muted">{wirePrefix}</span>
+                  <span className="flex h-10 items-center border-r border-line bg-slate-50 px-3 text-sm text-muted">{isCableMode ? '电缆' : wirePrefix}</span>
                   <input
                     value={form.wireGauge}
                     onChange={(event) => setForm((current) => ({ ...current, wireGauge: event.target.value }))}
                     list="part-wire-options"
                     className="h-10 min-w-0 flex-1 rounded-r-md border-0 px-3 text-sm text-ink outline-none"
-                    placeholder="例如：3*1.5"
+                    placeholder={isCableMode ? '例如：0.55' : '例如：3*1.5'}
                   />
                   <datalist id="part-wire-options">
                     {wireOptions.map((item) => (
@@ -1125,7 +1125,7 @@ export function PartsView({
                     ))}
                   </datalist>
                 </div>
-                {smallHelp(`保存型号会自动生成：${modelPreview || `${wirePrefix}线径`}`)}
+                {smallHelp(isCableMode ? '横截面积用于选择每米单价；成品电缆成本 = 每米单价 × 长度 + 配件费用。' : `保存型号会自动生成：${modelPreview || `${wirePrefix}线径`}`)}
               </label>
             ) : (
               <Field label="型号" required>
@@ -1141,7 +1141,7 @@ export function PartsView({
             {editingPart && <PartRenameImpactPanel key={`${editingPart.id}:${modelPreview}`} partId={editingPart.id} model={modelPreview} />}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="目录成本价" required>
+              <Field label={isCableMode ? "目录成本价（元/米）" : "目录成本价"} required>
                 <Input
                   value={form.catalogUnitCost}
                   onChange={(event) => setForm((current) => ({ ...current, catalogUnitCost: event.target.value }))}
@@ -1152,7 +1152,7 @@ export function PartsView({
                 />
               </Field>
 
-              <Field label="库存">
+              <Field label={isCableMode ? "库存（米）" : "库存"}>
                 <Input
                   value={form.stock}
                   onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))}
@@ -1166,7 +1166,7 @@ export function PartsView({
 
             {isCableMode ? (
               <section className="rounded-md border border-line bg-slate-50 p-4">
-                <div className="text-sm font-medium text-ink">成品电缆插头 / 规格费用</div>
+                <div className="text-sm font-medium text-ink">成品电缆配件费用</div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="block">
                     <span className="text-xs font-medium text-muted">第一种名称</span>

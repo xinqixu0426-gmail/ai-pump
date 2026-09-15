@@ -213,7 +213,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 ### 电缆与包装
 
 - 浮球铜套类型为 `standard` 或 `xinjie`；新界式成本在基础浮球价上增加全局 `float_accessory_delta`。
-- 电缆成本：`线缆单价 × 长度 + 铜套费`。
+- 电缆目录中的旧“线径”表示横截面积（mm²），各规格价格是元/米，库存按米。电缆成本：`对应规格每米单价 × 长度 + 配件费`，不再乘面积；命名预览只接受截面积 mm²，浮球单位独立确认。
 - 铜套类型为 `standard` 或 `xinjie`，名称和价格统一存于 `system_settings.cable_accessories`。
 - 旧零件备注中的铜套 JSON 仅用于历史数据迁移和回退。
 - 包装按配方配置，支持 `standalone`（独立包装）和 `grouped`（组合包装）两种业务方式；材料明细存于 `packingPartsJson`，每项包含型号、供应商、数量、包材类型和 `packingRole`。角色分为 `container`（纸箱/木箱）、`foam`（泡沫）、`pearlCotton`（珍珠棉）和 `fixed`（说明书、贴纸等固定包材）；旧数据由型号与包材类型自动识别，旧 `boxType` 只作为兼容回退。

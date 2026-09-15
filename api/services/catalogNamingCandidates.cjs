@@ -1,3 +1,5 @@
+const { generateCatalogName } = require('./catalogNaming.cjs');
+
 // Read-only migration proposals. This adapter is deliberately separate from future
 // formal naming validation: a parseable old name is not proof of physical identity.
 function extractPartCandidate(row) {
@@ -22,13 +24,25 @@ function extractPartCandidate(row) {
         result.missingFields = ['sealType', 'dimensionMeaning'];
         if (/^\d+(?:\.\d+)?\*\d+(?:\.\d+)?$/.test(name)) result.missingFields.push('thickness');
     } else if (category === '电缆线' || category === '浮球') {
-        match = name.match(/线径(\d+(?:\.\d+)?)$/);
+        match = name.match(category === '电缆线' ? /^电缆-线径(\d+(?:\.\d+)?)$/ : /线径(\d+(?:\.\d+)?)$/);
         if (match) result.extractedSpec = { legacyWireValue: Number(match[1]) };
-        result.missingFields = ['wireMeasure', 'wireUnit'];
+        if (match && category === '电缆线') {
+            // Owner-confirmed: legacy cable values select a cross-section's per-metre price.
+            result.extractedSpec = { wireValue: Number(match[1]), wireMeasure: '截面积', wireUnit: 'mm²' };
+            try {
+                result.suggestedName = generateCatalogName({ ruleId: 'cable', spec: result.extractedSpec }).name;
+                result.basis = 'confirmed_cable_cross_section';
+            } catch (error) {
+                if (error.statusCode !== 400) throw error;
+                result.missingFields = ['validCrossSection'];
+            }
+        } else {
+            result.missingFields = ['wireMeasure', 'wireUnit'];
+        }
     } else {
         result.missingFields = ['structuredSpecification'];
     }
-    // No unit, grade, customer identity or dimensional meaning is inferred.
+    // Only the owner-confirmed cable unit is applied; other dimensional meanings remain unconfirmed.
     return result;
 }
 

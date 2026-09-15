@@ -56,3 +56,9 @@ test('线圈片数不标作叠长，预览不签发写确认或声明完成改�
     rules.rules[0].fields[0].label = '外部修改';
     assert.notEqual(getNamingRules().rules[0].fields[0].label, '外部修改');
 });
+
+test('电缆只能使用横截面积，浮球保留独立的规格含义', () => {
+    assert.equal(generateCatalogName({ ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '截面积', wireUnit: 'mm²' } }).name, '电缆-截面积0.55mm²');
+    assert.throws(() => generateCatalogName({ ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }), { code: 'NAMING_SPEC_INVALID' });
+    assert.equal(generateCatalogName({ ruleId: 'float', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }).name, '浮球-直径0.55mm');
+});

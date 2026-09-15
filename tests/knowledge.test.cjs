@@ -235,7 +235,7 @@ test('Knowledge service：从核心业务数据构建工厂知识条目', () => 
     }
     assert.ok(entries.find(entry => entry.title.includes('V750 12-140')).searchText.includes('6202轴承'));
     const coilEntry = entries.find(entry => entry.entryType === 'coil');
-    assert.match(coilEntry.content, /默认搭配电缆线径：1\.0/);
+    assert.match(coilEntry.content, /默认搭配电缆横截面积：1\.0/);
     assert.match(coilEntry.content, /主线漆包线线径：0\.55/);
     assert.match(coilEntry.content, /副线数据：副线 960 匝/);
     const kitCoilEntry = entries.find(entry => entry.entryType === 'coil' && entry.sourceId === '8');
@@ -433,7 +433,7 @@ test('Knowledge service：同一规格片数按材质和槽眼保留全部线圈
         '冷轧/国标眼',
     ]));
     const coldRolled = getKnowledgeEntryDetail(rows.find(row => row.metadata.material === '冷轧').id, { dbAccessors: accessors });
-    assert.match(coldRolled.content, /默认搭配电缆线径：2/);
+    assert.match(coldRolled.content, /默认搭配电缆横截面积：2/);
     assert.match(coldRolled.content, /主线漆包线线径：0\.62/);
     assert.doesNotMatch(coldRolled.content, /默认线径：/);
     const malaysiaRows = searchKnowledgeEntries({ query: 'MY240-12-220 马来西亚', entryType: 'coil', limit: 10 }, { dbAccessors: accessors });

@@ -102,7 +102,7 @@ const DOMAIN_PROMPTS = Object.freeze({
 - 线圈库存单位为“套”。批量简写放在同一批调整并显示确认卡片。
 - 同一规格片数可能有不同材质、槽眼和方案状态；未指定时列出全部匹配方案及 schemeStatus 并澄清，不默认钢带小眼。用户只问正式方案时只展示 schemeStatus=official 的结果。
 - 查询用途、经验和历史规则时才按完整简写和 entryType=coil 检索知识库；明确材质、槽眼组合的成本才拆分 spec/sheets 调用 calculate_coil_cost。
-- defaultWireGauge 是默认搭配电缆线径，不是漆包线线径；漆包线只读取主线和副线线径字段。`,
+- defaultWireGauge 是默认搭配电缆横截面积（mm²），按规格选择元/米价格；电缆成本=每米单价×长度+配件费，不再乘面积。它不是漆包线线径；漆包线只读取主线和副线线径字段。`,
 
     catalog: `【零件、配件与库存】
 - 当前价格、库存、供应商等字段使用实时零件工具，不使用知识快照代替。

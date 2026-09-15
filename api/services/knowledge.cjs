@@ -319,7 +319,7 @@ function coilEntry(coil) {
         sourceId: coil.id,
         sourceUpdatedAt: coil.updatedAt,
         title: `线圈：${coilKey} ${coil.material || '钢带'} ${coil.slotType || '小眼'}${schemeIdentity ? ` ${schemeIdentity}` : ''}`,
-        summary: `${schemeStatus === 'testing' ? '测试' : schemeStatus === 'disabled' ? '停用' : '正式'}方案${isDefault ? '（默认）' : ''}，${[ratedVoltageV && `${ratedVoltageV}V`, ratedFrequencyHz && `${ratedFrequencyHz}Hz`, market].filter(Boolean).join('，') || '未填写电气适用范围'}，${pricingSummary}，默认搭配电缆线径 ${pairedCableWireGauge || '-'}`,
+        summary: `${schemeStatus === 'testing' ? '测试' : schemeStatus === 'disabled' ? '停用' : '正式'}方案${isDefault ? '（默认）' : ''}，${[ratedVoltageV && `${ratedVoltageV}V`, ratedFrequencyHz && `${ratedFrequencyHz}Hz`, market].filter(Boolean).join('，') || '未填写电气适用范围'}，${pricingSummary}，默认搭配电缆横截面积 ${pairedCableWireGauge || '-'}`,
         content: [
             `规格片数：${coilKey}`,
             `规格俗称：${coil.commonName || coil.spec}`,
@@ -337,7 +337,7 @@ function coilEntry(coil) {
             `适用市场：${market}`,
             ...pricingLines,
             `成本：${Number(coil.cost || 0)}`,
-            `默认搭配电缆线径：${pairedCableWireGauge}`,
+            `默认搭配电缆横截面积：${pairedCableWireGauge}`,
             `默认电容：${coil.defaultCapacitor || ''}`,
             `主线漆包线线径：${coil.mainWireGauge || ''}`,
             `主线数据：${coil.mainWireData || ''}`,

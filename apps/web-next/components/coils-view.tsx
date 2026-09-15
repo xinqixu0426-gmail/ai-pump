@@ -727,7 +727,7 @@ export function CoilsView() {
                 <div className="mt-2 grid gap-1 text-xs text-muted">
                   <span>定子：{calcResult.diameterMm}mm / {calcResult.material} / {calcResult.slotType}</span>
                   <span>来源：{calcResult.source || '-'}</span>
-                  <span>搭配电缆线径：{calcResult.wireGauge || '-'}</span>
+                  <span>搭配电缆横截面积（mm²）：{calcResult.wireGauge || '-'}</span>
                   <span>电容：{calcResult.capacitor ? `${calcResult.capacitor}μF` : '-'}</span>
                 </div>
               </div>
@@ -746,7 +746,7 @@ export function CoilsView() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label="搜索线圈记录"
-                placeholder="搜索规格、材质、槽眼、方案、片数、电缆线径或绕组数据"
+                placeholder="搜索规格、材质、槽眼、方案、片数、电缆横截面积（mm²）或绕组数据"
                 className="h-8 min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
               {query ? (
@@ -1078,7 +1078,7 @@ export function CoilsView() {
                   </Field>
                 </>
               )}
-              <Field label="默认搭配电缆线径">
+              <Field label="默认搭配电缆横截面积（mm²）">
                 <Input value={form.defaultWireGauge} onChange={(event) => updateForm({ defaultWireGauge: event.target.value })} />
               </Field>
               <Field label="默认电容 μF">

@@ -93,14 +93,16 @@ test('明确 ID 不回退到同名对象，停用及非法 ID 保留异常状态
     }
 });
 
-test('候选名只使用已明确的旧规格，不补轴承代号、油封类型或线径单位', () => {
+test('候选名只使用已明确的旧规格，不补轴承代号、油封类型或未确认的浮球单位', () => {
     assert.equal(extractPartCandidate({ category: '轴承', model: '202' }).suggestedName, '轴承-202');
     assert.equal(extractPartCandidate({ category: '电容', model: '18μF' }).suggestedName, '电容-18μF');
     assert.equal(extractPartCandidate({ category: '螺丝', model: '6*25-内六-201-组合' }).suggestedName, '内六角螺丝-6*25-201-组合');
     for (const part of [
         { category: '油封', model: '14*28' },
         { category: '油封', model: '14*28*38' },
-        { category: '电缆线', model: '电缆-线径0.55' },
+        { category: '浮球', model: '浮球-线径0.55' },
+        { category: '电缆线', model: '电缆-线径0' },
+        { category: '电缆线', model: '未知线径0.55' },
         { category: '泵壳', model: 'v1100-2' },
         { category: '包装', model: 'v1100DF' },
         { category: '螺丝', model: '6*25-未知材质' },
@@ -159,4 +161,13 @@ test('不完整成本输入和计算失败不能报告为已计算的零成本',
     const limited = auditCatalogReferences(db, { maxRowsPerTable: 1 }).costBaseline;
     assert.equal(limited.inputsComplete, false);
     assert.equal(limited.recipes[0].status, 'incomplete_inputs');
+});
+
+test('电缆旧规格按已确认横截面积生成候选，不改原目录也不批准迁移', () => {
+    const row = { category: '电缆线', model: '电缆-线径0.55' };
+    const result = extractPartCandidate(row);
+    assert.deepEqual(result.extractedSpec, { wireValue: 0.55, wireMeasure: '截面积', wireUnit: 'mm²' });
+    assert.equal(result.suggestedName, '电缆-截面积0.55mm²');
+    assert.deepEqual(result.missingFields, []);
+    assert.equal(row.model, '电缆-线径0.55');
 });

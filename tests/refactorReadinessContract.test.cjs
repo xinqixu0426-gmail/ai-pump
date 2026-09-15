@@ -1554,7 +1554,7 @@ test('Next UI 契约：零件页必须按分类提供结构化输入', () => {
     assert.match(partsView, /mergeUntouchedPartSettings/);
     assert.match(partsView, /function updateSettingsForm/);
     assert.doesNotMatch(partsView, /setSettingValue/);
-    for (const label of ['电容容量', '线径', '成品电缆插头 / 规格费用', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
+    for (const label of ['电容容量', '线径', '成品电缆配件费用', '新界式浮球加价', '按长度自动计价', '不锈钢机筒', '保存并继续']) {
         assert.match(partsView, new RegExp(label));
     }
     for (const marker of ['groupedParts', 'collapsedCategories', 'toggleSelectGroup', 'exportSelectedCsv', 'deleteParts']) {
@@ -1965,7 +1965,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /wireOptions\(parts, '浮球', '浮球-线径'\)/);
     assert.match(recipesView, /wireOptions\(parts, '电缆线', '电缆-线径'\)/);
     assert.match(recipeDynamicConfigSection, /ariaLabel="浮球线径"/);
-    assert.match(recipeDynamicConfigSection, /ariaLabel="电缆线径"/);
+    assert.match(recipeDynamicConfigSection, /ariaLabel="电缆横截面积 mm²"/);
     assert.match(editableValueSelect, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
     assert.match(editableValueSelect, /function EditableNumberSelect/);
@@ -1987,7 +1987,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /不锈钢长螺丝/);
     assert.match(recipesView, /关联电容/);
     assert.match(recipeDynamicConfigSection, /浮球线径/);
-    assert.match(recipeDynamicConfigSection, /电缆线径/);
+    assert.match(recipeDynamicConfigSection, /电缆横截面积/);
     assert.match(recipeDynamicConfigSection, /wireLinkNote/);
     assert.match(modelVariantPanel, /机筒 \/ 长螺丝/);
     assert.doesNotMatch(recipesView, /bomDraft\.parts\.slice\(0,\s*12\)/);
@@ -2581,8 +2581,8 @@ test('Next UI 契约：线圈新增按定子组合自动带入并区分槽眼和
     assert.match(coilsView, /定子直径 mm/);
     assert.match(coilsView, /国标眼/);
     assert.match(coilsView, /schemeStatus/);
-    assert.match(coilsView, /默认搭配电缆线径/);
-    assert.match(coilsView, /搭配电缆线径/);
+    assert.match(coilsView, /默认搭配电缆横截面积/);
+    assert.match(coilsView, /搭配电缆横截面积/);
     assert.match(coilsLib, /getCoilSpecDraft/);
     assert.match(coilsLib, /\/api\/coils\/spec-draft/);
     assert.match(coilsRoute, /router\.post\('\/spec-draft'/);

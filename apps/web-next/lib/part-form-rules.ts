@@ -220,7 +220,7 @@ export function validatePartForm(input: PartFormValidationInput): Record<string,
   if (input.isCapacitorMode) {
     if (!input.capacitorUf.trim() || Number.isNaN(Number(input.capacitorUf)) || Number(input.capacitorUf) <= 0) errors.model = '请输入有效的电容值 (μF)';
   } else if (input.isWireMode) {
-    if (!input.wireGauge.trim()) errors.model = '请选择线径';
+    if (!input.wireGauge.trim()) errors.model = input.isCableMode ? '请选择电缆横截面积（mm²）' : '请选择线径';
   } else if (!input.model.trim()) {
     errors.model = '型号不能为空';
   }
