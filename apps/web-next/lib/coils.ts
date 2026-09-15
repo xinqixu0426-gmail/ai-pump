@@ -242,8 +242,8 @@ export function rowToCoil(row: CoilRow): CoilRecord {
   };
 }
 
-export async function getAllCoils(): Promise<CoilRecord[]> {
-  const result = await proxyRequest<ApiResponse<CoilRow[]>>('/api/coils');
+export async function getAllCoils(signal?: AbortSignal): Promise<CoilRecord[]> {
+  const result = await proxyRequest<ApiResponse<CoilRow[]>>('/api/coils', { signal });
   if (!result.success) throw new Error(result.error || '线圈数据加载失败');
   return (result.data || []).map(rowToCoil);
 }

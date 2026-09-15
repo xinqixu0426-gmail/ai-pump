@@ -559,14 +559,14 @@ export function buildTemplateNameMap(templates: PumpShellTemplate[]): Map<number
   return new Map(templates.map((template) => [template.id, template.shellModel]));
 }
 
-export async function getAllRecipes(): Promise<Recipe[]> {
-  const result = await proxyRequest<ApiResponse<RecipeRow[]>>('/api/recipes');
+export async function getAllRecipes(signal?: AbortSignal): Promise<Recipe[]> {
+  const result = await proxyRequest<ApiResponse<RecipeRow[]>>('/api/recipes', { signal });
   if (!result.success) throw new Error(result.error || '配方加载失败');
   return (result.data || []).map(rowToRecipe);
 }
 
-export async function getAllTemplates(): Promise<PumpShellTemplate[]> {
-  const result = await proxyRequest<ApiResponse<TemplateRow[]>>('/api/templates');
+export async function getAllTemplates(signal?: AbortSignal): Promise<PumpShellTemplate[]> {
+  const result = await proxyRequest<ApiResponse<TemplateRow[]>>('/api/templates', { signal });
   if (!result.success) throw new Error(result.error || '泵壳模板加载失败');
   return (result.data || []).map(rowToTemplate);
 }
@@ -628,33 +628,33 @@ export async function deleteTemplate(template: PumpShellTemplate): Promise<void>
   if (!result.success) throw new Error(result.error || '泵壳模板删除失败');
 }
 
-export async function getAllModelVariants(): Promise<PumpModelVariant[]> {
-  const result = await proxyRequest<ApiResponse<VariantRow[]>>('/api/model-variants');
+export async function getAllModelVariants(signal?: AbortSignal): Promise<PumpModelVariant[]> {
+  const result = await proxyRequest<ApiResponse<VariantRow[]>>('/api/model-variants', { signal });
   if (!result.success) throw new Error(result.error || '常用配置预设加载失败');
   return (result.data || []).map(rowToVariant);
 }
 
-export async function getCoilSpecOptions(): Promise<CoilSpecOption[]> {
-  const result = await proxyRequest<ApiResponse<CoilSpecOption[]>>('/api/coils/specs');
+export async function getCoilSpecOptions(signal?: AbortSignal): Promise<CoilSpecOption[]> {
+  const result = await proxyRequest<ApiResponse<CoilSpecOption[]>>('/api/coils/specs', { signal });
   if (!result.success) throw new Error(result.error || '线圈规格加载失败');
   return result.data || [];
 }
 
-export async function getCopperPrice(): Promise<number | null> {
-  const result = await proxyRequest<ApiResponse<{ livePricePerKg?: string | number; dbPrice?: string | number | null }>>('/api/copper-price');
+export async function getCopperPrice(signal?: AbortSignal): Promise<number | null> {
+  const result = await proxyRequest<ApiResponse<{ livePricePerKg?: string | number; dbPrice?: string | number | null }>>('/api/copper-price', { signal });
   if (!result.success || !result.data) return null;
   const dbPrice = Number(result.data.dbPrice || 0);
   const livePricePerKg = Number(result.data.livePricePerKg || 0);
   return dbPrice > 0 ? dbPrice : livePricePerKg > 0 ? livePricePerKg : null;
 }
 
-export async function getRecipeDataset(): Promise<RecipeDataset> {
+export async function getRecipeDataset(signal?: AbortSignal): Promise<RecipeDataset> {
   const [recipes, templates, variants, currentCopperPricePerKg, currentCostsResult] = await Promise.all([
-    getAllRecipes(),
-    getAllTemplates(),
-    getAllModelVariants(),
-    getCopperPrice().catch(() => null),
-    getAllRecipeCurrentCosts()
+    getAllRecipes(signal),
+    getAllTemplates(signal),
+    getAllModelVariants(signal),
+    getCopperPrice(signal).catch(() => null),
+    getAllRecipeCurrentCosts(signal)
       .then((currentCosts) => ({ currentCosts, warning: null as string | null }))
       .catch((error) => ({
         currentCosts: [] as RecipeCurrentTotalCost[],
@@ -671,8 +671,8 @@ export async function getRecipeDataset(): Promise<RecipeDataset> {
   };
 }
 
-export async function getAllRecipeCurrentCosts(): Promise<RecipeCurrentTotalCost[]> {
-  const result = await proxyRequest<ApiResponse<{ asOf: string; items: RecipeCurrentTotalCost[] }>>('/api/recipes/current-costs');
+export async function getAllRecipeCurrentCosts(signal?: AbortSignal): Promise<RecipeCurrentTotalCost[]> {
+  const result = await proxyRequest<ApiResponse<{ asOf: string; items: RecipeCurrentTotalCost[] }>>('/api/recipes/current-costs', { signal });
   if (!result.success || !result.data) throw new Error(result.error || '配方当日成本计算失败');
   return (result.data.items || []).map((item) => ({
     ...item,
@@ -765,7 +765,7 @@ export async function previewRecipeCostDraft(input: {
   return result.data;
 }
 
-export async function getRecipeCurrentCost(recipeId: number): Promise<RecipeCurrentCostResult> {
+export async function getRecipeCurrentCost(recipeId: number, signal?: AbortSignal): Promise<RecipeCurrentCostResult> {
   const result = await proxyRequest<ApiResponse<{
     recipeId?: number | string;
     recipeName?: string;
@@ -774,7 +774,7 @@ export async function getRecipeCurrentCost(recipeId: number): Promise<RecipeCurr
     itemCount?: number;
     details?: RecipeCurrentCostDetail[];
     missingParts?: string[];
-  }>>(`/api/recipes/${recipeId}/cost`);
+  }>>(`/api/recipes/${recipeId}/cost`, { signal });
   if (!result.success || !result.data) throw new Error(result.error || '配方当前成本计算失败');
   return {
     recipeId,
@@ -788,8 +788,8 @@ export async function getRecipeCurrentCost(recipeId: number): Promise<RecipeCurr
   };
 }
 
-export async function getRecipeInventoryStatus(recipeId: number): Promise<RecipeInventoryStatusResult> {
-  const result = await proxyRequest<ApiResponse<RecipeInventoryStatusResult>>(`/api/recipes/${recipeId}/inventory-status`);
+export async function getRecipeInventoryStatus(recipeId: number, signal?: AbortSignal): Promise<RecipeInventoryStatusResult> {
+  const result = await proxyRequest<ApiResponse<RecipeInventoryStatusResult>>(`/api/recipes/${recipeId}/inventory-status`, { signal });
   if (!result.success || !result.data) throw new Error(result.error || '库存状态读取失败');
   return {
     ...result.data,

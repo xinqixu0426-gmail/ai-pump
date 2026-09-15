@@ -355,7 +355,7 @@ V10.4 订单知识包不新建业务事实，也不依赖知识同步时点。`o
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/business-changes/revision` | 无 | `business_changes.revision`；认证只读接口，返回 `{revision,sourceOfTruth}`，按已提交事件最大 ID 和 operation 生成不透明版本，空库为 empty；不返回事件正文。`Cache-Control: no-store`。版本变化只用于触发正式资源回读，不能作为写授权。Web 零件/订单/采购页面共用约1秒轮询；隐藏暂停，恢复前台或联网强制回读，版本读取5秒和后台资源读取10秒超时，失败保持待刷新状态并重试；不重置表单草稿 |
+| `GET` | `/api/business-changes/revision` | 无 | `business_changes.revision`；认证只读接口，返回 `{revision,sourceOfTruth}`，按已提交事件最大 ID 和 operation 生成不透明版本，空库为 empty；不返回事件正文。`Cache-Control: no-store`。版本变化只用于触发正式资源回读，不能作为写授权。Web 零件/订单/采购/配方工作区（含模板与配置预设列表）共用约1秒轮询；隐藏暂停，恢复前台或联网强制回读，版本读取5秒和后台资源读取10秒超时，失败保持待刷新状态并重试；不重置表单草稿。配方工作区的编辑/保存期间暂缓后台回读，关闭后补刷；请求返回时再次检查编辑状态与序号。配方、模板、预设、线圈、铜价、成本与库存读取 client 支持可选 AbortSignal，HTTP 字段不变；详情读取失败显式报错并支持重试 |
 | `GET` | `/api/business-changes` | 查询参数 `period?=today/yesterday/last7days/last30days/all`、`from?`、`to?`、`domain?=order/quotation/purchasing/part/recipe/template/coil/customer/model_variant/quality/rotor/settings/file/knowledge/workflow`、`entityType?`、`entityId?`、`eventType?=created/updated/deleted/status_changed/inventory_changed/converted`、`keyword?`、`semanticQuery?`、`beforeId?`、`limit?` | 能力 `business_changes.list`。从追加型结构化事件返回 `items/total/nextCursor/appliedFilters/asOf/provenance`；`period` 按北京时间计算，最大 100 条。精确时间、数量和筛选始终来自事件表；`semanticQuery` 只用知识/向量投影筛选候选，零命中返回空列表，向量或投影不可用时由结构化筛选继续提供正式历史 |
 
 每个已登记正式业务命令最多生成一条事件，即使同一操作修改多个订单、库存或报价；关联对象在 `entities` 中完整列出。空操作、失败事务和幂等重放不新增事件。订单受控修改的 `detailRef` 指向不可变 `order_revisions`，事件不复制订单详情权威。现有订单修订在迁移 67 安全补录；其他领域不从旧审计猜测历史，从本版本上线后开始记录。

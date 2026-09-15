@@ -2091,8 +2091,8 @@ test('Next UI 契约：配方详情独立展示成本、BOM、技术参数和库
 
     assert.match(recipesView, /<RecipeDetailPanel/);
     assert.match(recipesView, /onRefreshInventory=\{refreshInventoryStatus\}/);
-    assert.match(recipesView, /getRecipeCurrentCost\(detailRecipe\.id\)/);
-    assert.match(recipesView, /getRecipeInventoryStatus\(recipe\.id\)/);
+    assert.match(recipesView, /getRecipeCurrentCost\(detailRecipe\.id, AbortSignal\.timeout\(10000\)\)/);
+    assert.match(recipesView, /getRecipeInventoryStatus\(recipe\.id, AbortSignal\.timeout\(10000\)\)/);
     assert.doesNotMatch(recipesView, /const detailParts = useMemo/);
     assert.doesNotMatch(recipesView, /const detailTechnicalEntries = useMemo/);
     assert.doesNotMatch(recipesView, /const detailPartCompareRows = useMemo/);
@@ -2436,8 +2436,8 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /stock:\s*0/);
     assert.match(inlineResolution, /const beforeRows = await readParts\(\)/);
     assert.match(inlineResolution, /const afterRows = await readParts\(\)/);
-    assert.match(recipesView, /window\.addEventListener\('focus', refreshWhenVisible\)/);
-    assert.match(recipesView, /document\.addEventListener\('visibilitychange', refreshWhenVisible\)/);
+    assert.match(recipesView, /useBusinessRefresh\(\(\) => load\(false, true\)\)/);
+    assert.doesNotMatch(recipesView, /addEventListener\('(?:focus|visibilitychange)', refreshWhenVisible\)/);
     assert.doesNotMatch(shellCostEditor, /checked=\{Boolean\(row\.isStainlessStretchBarrel\)\}/);
     assert.match(shellCostEditor, /supplier/);
     assert.doesNotMatch(recipesView, /function addSubassemblyContentRow/);
@@ -2512,7 +2512,8 @@ test('Next UI 契约：模板和配方缺失零件统一就地建档并回绑正
     assert.match(recipesView, /整套泵壳只能绑定“泵壳”分类的正式零件/);
     assert.match(recipesView, /配方包装只能绑定具有正式二级分类的“包装”零件/);
     assert.match(recipesView, /categoryScope: kind === 'packing' \|\| knownOptionalCategory \? 'locked' : 'non-packaging'/);
-    assert.match(recipesView, /!templateDrawerOpen && !drawerOpen/);
+    assert.match(recipesView, /drawerOpen \|\| templateDrawerOpen/);
+    assert.match(recipesView, /refreshGuard\.canApply\(request\)/);
     assert.match(templateEditor, /onOpenCreateShellPart/);
     assert.match(templateEditor, /onOpenCreateFixedPart/);
     assert.match(templateEditor, /新增泵壳/);

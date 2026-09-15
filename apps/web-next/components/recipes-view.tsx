@@ -84,6 +84,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
 import { getAllCoils, type CoilRecord } from '@/lib/coils';
 import { money } from '@/lib/format';
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+import { createResourceRefreshGuard } from '@/lib/resource-refresh-guard';
 import { resolveInlineCatalogPart } from '@/lib/inline-part-resolution';
 import { createPart, getAllParts, type Part, type PartInput } from '@/lib/parts';
 import {
@@ -397,14 +399,26 @@ export function RecipesView() {
     message: '当前泵壳模板有尚未保存的修改，确定放弃吗？',
   });
 
-  async function load(force = false) {
-    setError(null);
-    setDataWarning(null);
-    if (force) setRefreshing(true);
-    else setLoading(true);
+  const editorBusyRef = useLatestValue(drawerOpen || templateDrawerOpen || !!variantEditorTarget
+    || productCreationOpen || !!inlinePartCreateTarget || !!missingPartsBatchTarget || saving);
+  const [refreshGuard] = useState(() => createResourceRefreshGuard(() => editorBusyRef.current));
+
+  const load = useCallback(async (force = false, background = false) => {
+    const request = refreshGuard.begin(background);
+    if (!request) return false;
+    if (!background) {
+      setError(null);
+      setDataWarning(null);
+      if (force) setRefreshing(true);
+      else setLoading(true);
+    }
 
     try {
-      const [data, partRows] = await Promise.all([getRecipeDataset(), getAllParts()]);
+      const signal = AbortSignal.timeout(10000);
+      const [data, partRows, specs, coils] = await Promise.all([
+        getRecipeDataset(signal), getAllParts(signal), getCoilSpecOptions(signal), getAllCoils(signal),
+      ]);
+      if (!refreshGuard.canApply(request)) return false;
       setRecipes(data.recipes);
       setCurrentCosts(data.currentCosts);
       setDataWarning(data.currentCostsWarning);
@@ -412,15 +426,24 @@ export function RecipesView() {
       setVariants(data.variants);
       setParts(partRows);
       setCurrentCopperPricePerKg(data.currentCopperPricePerKg);
-      void getCoilSpecOptions().then(setCoilSpecs).catch(() => setCoilSpecs([]));
-      void getAllCoils().then(setCoilRecords).catch(() => setCoilRecords([]));
+      setCoilSpecs(specs);
+      setCoilRecords(coils);
+      setDetailRecipe((current) => current ? data.recipes.find((recipe) => recipe.id === current.id) || null : null);
+      return !data.currentCostsWarning && !signal.aborted;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '配方加载失败');
+      if (refreshGuard.canApply(request) && !background) {
+        setError(err instanceof Error ? err.message : '配方加载失败');
+      }
+      return false;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (refreshGuard.isLatest(request)) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }
+  }, [refreshGuard]);
+
+  useBusinessRefresh(() => load(false, true));
 
   const readPartsFresh = useCallback(async () => {
     if (partsReadPromiseRef.current) return partsReadPromiseRef.current;
@@ -518,21 +541,8 @@ export function RecipesView() {
 
   useEffect(() => {
     void load();
-  }, []);
-
-  useEffect(() => {
-    if (!templateDrawerOpen && !drawerOpen) return;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void refreshShellComponentParts();
-    };
-    void refreshShellComponentParts();
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    return () => {
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
-  }, [drawerOpen, refreshShellComponentParts, templateDrawerOpen]);
+    return () => refreshGuard.invalidate();
+  }, [load, refreshGuard]);
 
   useEffect(() => {
     if (loading || deepLinkHandledRef.current) return;
@@ -610,23 +620,30 @@ export function RecipesView() {
     if (!detailRecipe) {
       setDetailCurrentCost(null);
       setDetailCurrentCostError(null);
+      setInventoryStatus(null);
+      setInventoryStatusError(null);
+      setInventoryStatusLoading(false);
       return;
     }
 
+    void refreshInventoryStatus(detailRecipe);
     let cancelled = false;
+    setDetailCurrentCost(null);
     setDetailCurrentCostError(null);
-    void getRecipeCurrentCost(detailRecipe.id)
+    void getRecipeCurrentCost(detailRecipe.id, AbortSignal.timeout(10000))
       .then((result) => {
         if (!cancelled) setDetailCurrentCost(result);
       })
       .catch((err) => {
-        if (!cancelled) setDetailCurrentCostError(err instanceof Error ? err.message : '当前成本读取失败');
-      })
-      .finally(() => {
+        if (!cancelled) {
+          setDetailCurrentCost(null);
+          setDetailCurrentCostError(err instanceof Error ? err.message : '当前成本读取失败');
+        }
       });
 
     return () => {
       cancelled = true;
+      inventoryStatusRequestRef.current += 1;
     };
   }, [detailRecipe]);
 
@@ -1518,7 +1535,7 @@ export function RecipesView() {
     setInventoryStatusLoading(true);
     setInventoryStatusError(null);
     try {
-      const result = await getRecipeInventoryStatus(recipe.id);
+      const result = await getRecipeInventoryStatus(recipe.id, AbortSignal.timeout(10000));
       if (request === inventoryStatusRequestRef.current) setInventoryStatus(result);
     } catch (err) {
       if (request !== inventoryStatusRequestRef.current) return;
@@ -1533,7 +1550,6 @@ export function RecipesView() {
     setDetailRecipe(recipe);
     setInventoryStatus(null);
     setInventoryStatusError(null);
-    void refreshInventoryStatus(recipe);
   }
 
   function openCreateVariant() {
