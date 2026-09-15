@@ -1,3 +1,4 @@
+const { resolveSavedCatalogPartIdentity } = require('./bomPartIdentity.cjs');
 const { parsePositiveId } = require('./validation.cjs');
 const {
     normalizeOptionalLimit,
@@ -69,7 +70,33 @@ function createTemplateQueries({
         return template;
     }
 
+    function templateParts(value, field) {
+        let rows;
+        try { rows = typeof value === 'string' ? JSON.parse(value || '[]') : (value ?? []); }
+        catch { throw new TemplateQueryError(`${field} 不是有效 JSON`, 422); }
+        if (!Array.isArray(rows) || rows.length > 1000 || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
+            throw new TemplateQueryError(`${field} 必须是最多 1000 项的有效物料数组`, 422);
+        }
+        return rows;
+    }
+
+    function currentSavedParts(rows, partsByModel, component = false) {
+        const catalog = Object.values(partsByModel).flat();
+        return rows.map((row, index) => {
+            if (row.partId == null) return row;
+            const part = resolveSavedCatalogPartIdentity(catalog, row, { field: `模板${component ? '组件' : '固定件'}[${index}]` });
+            if (component && part.category !== shellComponentCategory) {
+                throw new TemplateQueryError('模板组件 ID 必须引用泵壳搭配零件', 422);
+            }
+            return { ...row, model: part.model, supplier: part.supplier || '' };
+        });
+    }
+
     function componentCatalogPrice(component, partsByModel = {}) {
+        if (component.partId != null) {
+            const part = Object.values(partsByModel).flat().find(item => Number(item.id) === Number(component.partId));
+            return Number(part?.price || 0);
+        }
         const model = String(component?.model || '').trim();
         const supplier = String(component?.supplier || '').trim();
         const candidates = (partsByModel[model] || [])
@@ -82,7 +109,7 @@ function createTemplateQueries({
         return Number(fallback?.price || 0);
     }
 
-    function buildTemplateCostParts(template, fixedParts, partsByModel = {}) {
+    function buildTemplateCostParts(template, fixedParts, partsByModel = {}, savedComponents = []) {
         const mode = template.cost_mode || 'components';
         if (mode === 'bundle') {
             return [
@@ -102,7 +129,7 @@ function createTemplateQueries({
             ];
         }
 
-        const components = parseJson(template.shell_components_json, [])
+        const components = savedComponents
             .filter(component => (
                 component
                 && component.name
@@ -119,6 +146,7 @@ function createTemplateQueries({
                     ? component.subassemblyContents
                     : [];
                 return {
+                    ...(component.partId != null ? { partId: component.partId } : {}),
                     model: component.model || component.name,
                     name: component.name,
                     supplier: component.supplier || '',
@@ -147,10 +175,11 @@ function createTemplateQueries({
 
     function loadCostContext(rawTemplateId) {
         const rawTemplate = loadRawTemplate(rawTemplateId);
-        const fixedParts = parseJson(rawTemplate.parts_json, []);
         const { partsCache, partsByModel } = loadPartsData();
+        const fixedParts = currentSavedParts(templateParts(rawTemplate.parts_json, 'partsJson'), partsByModel);
+        const components = currentSavedParts(templateParts(rawTemplate.shell_components_json, 'shellComponentsJson'), partsByModel, true);
         const cost = calculateRecipeCost(
-            buildTemplateCostParts(rawTemplate, fixedParts, partsByModel),
+            buildTemplateCostParts(rawTemplate, fixedParts, partsByModel, components),
             partsCache,
             partsByModel
         );
@@ -219,7 +248,8 @@ function createTemplateQueries({
 
     function applyTemplate(rawTemplateId, baseRecipe = {}) {
         const template = getTemplate(rawTemplateId);
-        const parts = parseJson(template.partsJson, []);
+        const { partsByModel } = loadPartsData();
+        const parts = currentSavedParts(templateParts(template.partsJson, 'partsJson'), partsByModel);
         const recipeDraft = {
             ...baseRecipe,
             templateId: template.id,
@@ -261,11 +291,11 @@ function createTemplateQueries({
     }
 
     return {
-        applyTemplate,
+        applyTemplate: db.transaction(applyTemplate),
         getAllTemplates,
-        getDefaultRecipe,
+        getDefaultRecipe: db.transaction(getDefaultRecipe),
         getTemplate,
-        getTemplateCost,
+        getTemplateCost: db.transaction(getTemplateCost),
         getTemplateRecipes,
     };
 }

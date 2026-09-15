@@ -108,6 +108,7 @@ function createFixture() {
     const queries = createTemplateQueries({
         db,
         calculateRecipeCost: (parts, receivedCache, receivedByModel) => {
+            assert.equal(db.inTransaction, true);
             costCalls.push({
                 parts,
                 partsCache: receivedCache,
@@ -377,4 +378,58 @@ test('泵壳模板 Query 对非法 ID 和不存在资源返回稳定 400/404', (
     } finally {
         fixture.db.close();
     }
+});
+
+test('模板保存 ID 改名后按同一 ID 读取现名现价，默认与应用草稿保留 ID 且不写快照', () => {
+    const fixture = createFixture();
+    try {
+        const fixed = [{ partId: 7, model: '旧固定件', supplier: '甲', qty: 2 }];
+        const components = [{ partId: 8, model: '旧组件', supplier: '甲', name: '机筒', qty: 1, unitCost: 999 }];
+        fixture.db.prepare('UPDATE pump_shell_templates SET parts_json=?, shell_components_json=? WHERE id=1').run(JSON.stringify(fixed), JSON.stringify(components));
+        fixture.partsByModel['现固定件'] = [{ id: 7, model: '现固定件', supplier: '甲', category: '配件', price: 6 }];
+        fixture.partsByModel['现组件'] = [{ id: 9, model: '现组件', supplier: '乙', category: '泵壳搭配', price: 88 }, { id: 8, model: '现组件', supplier: '甲', category: '泵壳搭配', price: 65 }];
+        fixture.partsByModel['旧组件'] = [{ id: 10, model: '旧组件', supplier: '甲', category: '泵壳搭配', price: 90 }];
+        const before = fixture.db.prepare('SELECT total_changes() n').get().n;
+        const cost = fixture.queries.getTemplateCost(1);
+        assert.equal(cost.partsCost, 65);
+        assert.equal(fixture.costCalls[0].parts[0].partId, 8);
+        assert.equal(fixture.costCalls[0].parts[0].model, '现组件');
+        assert.equal(fixture.costCalls[0].parts[1].model, '现固定件');
+        const actual = require('../api/services/costEngine.cjs').calculateRecipeCost(fixture.costCalls[0].parts, fixture.partsCache, fixture.partsByModel);
+        assert.equal(actual.totalCost, '77.00');
+        assert.deepEqual(actual.missingParts, []);
+        for (const result of [fixture.queries.getDefaultRecipe(1), fixture.queries.applyTemplate(1)]) {
+            assert.equal(result.parts[0].model, '现固定件');
+            assert.equal(result.parts[0].partId, 7);
+            assert.equal(JSON.parse(result.template.partsJson)[0].model, '旧固定件');
+        }
+        assert.equal(fixture.db.prepare('SELECT total_changes() n').get().n, before);
+        assert.equal(JSON.parse(fixture.db.prepare('SELECT parts_json FROM pump_shell_templates WHERE id=1').get().parts_json)[0].model, '旧固定件');
+    } finally { fixture.db.close(); }
+});
+
+test('模板显式 ID 失效、供应商冲突和组件错分类不回退同名或手工价', () => {
+    const fixture = createFixture();
+    try {
+        const reference = { partId: 8, model: 'BARREL-1', supplier: '甲', name: '机筒', qty: 1, unitCost: 999 };
+        fixture.db.prepare('UPDATE pump_shell_templates SET parts_json=?, shell_components_json=? WHERE id=1').run('[]', JSON.stringify([reference]));
+        for (const candidate of [null, { id: 8, model: '新名', supplier: '乙', category: '泵壳搭配' }, { id: 8, model: '新名', supplier: '甲', category: '配件' }, { id: 8, model: '新名', supplier: '甲', category: '泵壳搭配', deletedAt: '停用' }]) {
+            fixture.partsByModel['新名'] = candidate ? [candidate] : [];
+            assert.throws(() => fixture.queries.getTemplateCost(1), error => error.statusCode === 422);
+        }
+        assert.equal(fixture.costCalls.length, 0);
+    } finally { fixture.db.close(); }
+});
+
+test('模板损坏物料 JSON 不被成本和草稿查询吞为零项', () => {
+    const fixture = createFixture();
+    try {
+        for (const value of ['{bad', '{}', '[null]', JSON.stringify(Array.from({ length: 1001 }, () => ({})))]) {
+            fixture.db.prepare('UPDATE pump_shell_templates SET parts_json=? WHERE id=1').run(value);
+            for (const read of [fixture.queries.getTemplateCost, fixture.queries.getDefaultRecipe, fixture.queries.applyTemplate]) {
+                assert.throws(() => read(1), error => error.statusCode === 422);
+            }
+        }
+        assert.equal(fixture.costCalls.length, 0);
+    } finally { fixture.db.close(); }
 });
