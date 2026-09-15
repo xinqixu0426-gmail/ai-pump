@@ -136,18 +136,31 @@ function buildCompleteCablePart({
 
 function collapseLegacyCableParts(parts) {
     if (!Array.isArray(parts)) return [];
-    const completeCableIndex = parts.findIndex(
-        part => part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆')
-    );
-    if (completeCableIndex >= 0) {
-        return parts.filter((part, index) => (
-            index === completeCableIndex
-            || (!isCableWirePart(part) && !isLegacyCableAccessoryPart(part))
-        ));
+    const complete = parts.filter(part => part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆'));
+    const legacyWires = parts.filter(part => isCableWirePart(part) && !complete.includes(part));
+    const accessories = parts.filter(isLegacyCableAccessoryPart);
+    const ambiguous = () => {
+        const error = new Error('电缆旧行与成品配置不能唯一对应，请核对长度和接头，不能自动删除或合并');
+        error.code = 'CABLE_LEGACY_CONFIGURATION_AMBIGUOUS';
+        error.statusCode = 409;
+        throw error;
+    };
+    if (complete.length) {
+        if (!legacyWires.length && !accessories.length) return parts;
+        if (complete.length !== 1 || legacyWires.length > 1 || accessories.length > 1
+            || legacyWires.some(part => String(part.model || '') !== String(complete[0].model || '')
+                || String(part.supplier || '') !== String(complete[0].supplier || '')
+                || (part.partId != null && complete[0].partId != null && Number(part.partId) !== Number(complete[0].partId))
+                || (complete[0].cableLength != null && (part.cableLength ?? part.inventoryQty ?? part.qty) != null
+                    && Number(complete[0].cableLength) !== Number(part.cableLength ?? part.inventoryQty ?? part.qty)))
+            || accessories.some(part => part.cableAccessoryType != null && complete[0].cableAccessoryType != null
+                && part.cableAccessoryType !== complete[0].cableAccessoryType)) ambiguous();
+        return parts.filter(part => !legacyWires.includes(part) && !accessories.includes(part));
     }
     const cableIndex = parts.findIndex(isCableWirePart);
     const accessoryIndex = parts.findIndex(isLegacyCableAccessoryPart);
     if (cableIndex < 0 || accessoryIndex < 0) return parts;
+    if (legacyWires.length !== 1 || accessories.length !== 1) ambiguous();
 
     const cable = parts[cableIndex];
     const accessory = parts[accessoryIndex];

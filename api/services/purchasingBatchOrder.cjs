@@ -6,6 +6,7 @@ const {
     requestHash,
 } = require('./commandExecution.cjs');
 const { standardBusinessChange } = require('./businessChanges.cjs');
+const { purchaseRowMatches: itemMatches, purchaseRowIdentity, purchaseIdentityError } = require('./purchaseIdentity.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -75,14 +76,6 @@ function normalizeBatchInput(input = {}) {
     return tasks;
 }
 
-function itemMatches(item, input) {
-    if (input.identityKey) {
-        return String(item.identityKey || '') === input.identityKey;
-    }
-    return String(item.model || '') === input.model
-        && String(item.supplier || '').trim() === input.supplier;
-}
-
 function matchingTask(item, taskInputs) {
     const matches = taskInputs.filter(taskInput => itemMatches(item, taskInput));
     if (matches.length > 1) {
@@ -108,6 +101,13 @@ function buildBatchState(dependencies, taskInputs) {
         coils: dbGetAllCoils(),
     });
     const matchedTaskIdentities = new Set();
+    for (const input of taskInputs) {
+        if (input.identityKey) continue;
+        const identities = new Set(records.filter(record => !['待确认', '采购完成'].includes(record.status))
+            .flatMap(record => plans.get(Number(record.id))?.purchaseList || [])
+            .filter(item => itemMatches(item, input)).map(purchaseRowIdentity));
+        if (identities.size > 1) throw purchaseIdentityError('PURCHASE_TARGET_AMBIGUOUS', '同名采购任务包含不同物料或配置，请选择具体任务');
+    }
     const orderStates = records.map(record => {
         const purchaseList = (
             plans.get(Number(record.id))?.purchaseList || []

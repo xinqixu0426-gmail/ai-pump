@@ -10,6 +10,26 @@ const {
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
 const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
+const { buildPurchaseList } = require('../api/services/orderPlanning.cjs');
+
+test('跨订单同名不同配置必须明确任务身份，不得把多个配置批量下单', () => {
+    const fixture = createFixture();
+    try {
+        let chosen;
+        for (const [id, length] of [[3, 2], [4, 5]]) {
+            const items = [{ qty: 2, partsJson: JSON.stringify([{ partId: 1, model: 'P-1', supplier: '供应商A',
+                name: '成品电缆', cableAssembly: true, cableLength: length, cableAccessoryType: 'standard', qty: 1 }]) }];
+            fixture.db.prepare('UPDATE orders SET items_json=? WHERE id=?').run(JSON.stringify(items), id);
+            if (id === 3) chosen = buildPurchaseList(items, fixture.dependencies.dbGetAllParts())[0];
+        }
+        const input = { model: 'P-1', supplier: '供应商A', purchased: true };
+        assert.throws(() => buildPurchaseBatchDraft(fixture.dependencies, input), { code: 'PURCHASE_TARGET_AMBIGUOUS' });
+        const draft = buildPurchaseBatchDraft(fixture.dependencies, { ...input, identityKey: chosen.identityKey });
+        assert.equal(draft.affectedOrders.length, 1);
+        assert.equal(draft.affectedOrders[0].orderId, 3);
+        assert.equal(fixture.db.prepare('SELECT count(*) n FROM api_operations').get().n, 0);
+    } finally { fixture.db.close(); }
+});
 
 function createFixture() {
     const db = new Database(':memory:');

@@ -6,6 +6,7 @@ const {
     requestHash,
 } = require('./commandExecution.cjs');
 const { standardBusinessChange } = require('./businessChanges.cjs');
+const { uniquePurchaseRowIndex } = require('./purchaseIdentity.cjs');
 const {
     buildCurrentBalancedPurchasePlans,
 } = require('./orderPurchasePlanning.cjs');
@@ -97,14 +98,6 @@ function normalizeProgressInput(input = {}) {
     return normalized;
 }
 
-function purchaseItemMatches(item, input) {
-    if (input.identityKey) {
-        return String(item.identityKey || '') === input.identityKey;
-    }
-    return String(item.model || '') === input.model
-        && String(item.supplier || '') === input.supplier;
-}
-
 function buildLegacyPurchaseItemToggleInput(
     dependencies,
     orderIdValue,
@@ -124,12 +117,8 @@ function buildLegacyPurchaseItemToggleInput(
             400
         );
     }
-    const item = parseJsonArray(record.purchase_list_json)
-        .map(normalizePurchaseItem)
-        .find(candidate => (
-            candidate.model === model
-            && String(candidate.supplier || '') === supplier
-        ));
+    const purchaseList = parseJsonArray(record.purchase_list_json).map(normalizePurchaseItem);
+    const item = purchaseList[uniquePurchaseRowIndex(purchaseList, { model, supplier })];
     if (!item) {
         throw progressError(
             'purchase_item_not_found',
@@ -175,9 +164,7 @@ function buildProgressState(dependencies, orderId, progressInput, options = {}) 
         plans.get(orderId)?.purchaseList
         || parseJsonArray(record.purchase_list_json)
     ).map(normalizePurchaseItem);
-    const itemIndex = purchaseList.findIndex(item => (
-        purchaseItemMatches(item, progressInput)
-    ));
+    const itemIndex = uniquePurchaseRowIndex(purchaseList, progressInput);
     if (itemIndex < 0) {
         throw progressError('purchase_item_not_found', '采购项不存在', 404);
     }

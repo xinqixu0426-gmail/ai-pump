@@ -1,7 +1,9 @@
 const crypto = require('node:crypto');
 const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
-const { mergePurchasePlanItem, normalizePurchaseItem } = require('./orderWorkflow.cjs');
+const { mergePurchasePlanItem } = require('./orderWorkflow.cjs');
+const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
+const { catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
 
@@ -18,39 +20,13 @@ function parsePartsJson(partsJson) {
     }
 }
 
-function buildPartIndexes(partsCatalog) {
-    const partIndex = new Map();
-    const partsByModel = new Map();
-    const partsById = new Map();
-    for (const part of partsCatalog || []) {
-        const model = String(part.model || '').trim();
-        const supplier = String(part.supplier || '').trim();
-        if (!model) continue;
-        partIndex.set(`${model}|${supplier}`, part);
-        const modelParts = partsByModel.get(model) || [];
-        modelParts.push(part);
-        partsByModel.set(model, modelParts);
-        const id = Number(part.id || part.Id || 0);
-        if (id > 0) partsById.set(id, part);
+function resolveInventoryPart(part, supplier, partsCatalog) {
+    try {
+        return resolveCatalogPartIdentity(partsCatalog, { ...part, supplier });
+    } catch (error) {
+        if (part.partId == null && ['BOM_PART_IDENTITY_NOT_FOUND', 'BOM_PART_IDENTITY_AMBIGUOUS'].includes(error.code)) return null;
+        throw error;
     }
-    return { partIndex, partsByModel, partsById };
-}
-
-function resolveInventoryPart(part, supplier, indexes) {
-    const explicitPartId = Number(part?.partId || 0);
-    if (explicitPartId > 0) {
-        const byId = indexes.partsById.get(explicitPartId) || null;
-        return byId && String(byId.model || '').trim() === String(part?.model || '').trim()
-            ? byId
-            : null;
-    }
-    const model = String(part?.model || '').trim();
-    const normalizedSupplier = String(supplier || '').trim();
-    if (normalizedSupplier) {
-        return indexes.partIndex.get(`${model}|${normalizedSupplier}`) || null;
-    }
-    const candidates = indexes.partsByModel.get(model) || [];
-    return candidates.length === 1 ? candidates[0] : null;
 }
 
 function buildCoilIndexes(coilsCatalog) {
@@ -73,11 +49,6 @@ function buildCoilIndexes(coilsCatalog) {
     return { byId, byDimensions };
 }
 
-function purchaseIdentity(model, supplier = '', partId) {
-    if (partId) return `part:${partId}`;
-    return `model:${String(model || '').trim()}|supplier:${String(supplier || '').trim()}`;
-}
-
 function isCoilAssemblyPart(part) {
     return part?.inventoryType === 'coil'
         || part?.costSource === 'coil'
@@ -85,8 +56,14 @@ function isCoilAssemblyPart(part) {
 }
 
 function resolveCoilForPart(part, coilIndexes) {
-    const explicitId = Number(part?.coilId || 0);
-    if (explicitId > 0 && coilIndexes.byId.has(explicitId)) return coilIndexes.byId.get(explicitId);
+    const explicitId = catalogId(part?.coilId);
+    if (explicitId) {
+        const coil = coilIndexes.byId.get(explicitId);
+        if (!coil || String(coil.schemeStatus || coil.scheme_status || 'official') !== 'official') {
+            throw purchaseIdentityError('PURCHASE_COIL_UNAVAILABLE', '采购项的正式线圈方案不存在或已停用');
+        }
+        return coil;
+    }
     const model = String(part?.model || '').trim();
     const separator = model.lastIndexOf('-');
     if (separator <= 0) return null;
@@ -109,15 +86,8 @@ function isCompleteCablePart(part) {
     return part?.cableAssembly === true || String(part?.name || '').startsWith('成品电缆');
 }
 
-function completeCableIdentity(part, supplier, partId) {
-    const base = purchaseIdentity(part.model, supplier, partId);
-    const length = Number(part.cableLength ?? part.inventoryQty ?? 0);
-    const accessory = String(part.cableAccessoryType || part.cableAccessoryName || 'standard').trim();
-    return `${base}|cable:${length}m|accessory:${accessory}`;
-}
-
 function buildPurchaseList(items, partsCatalog, options = {}) {
-    const partIndexes = buildPartIndexes(partsCatalog);
+    const activeParts = (partsCatalog || []).filter(part => !part.deletedAt && !part.deleted_at);
     const coilIndexes = buildCoilIndexes(options.coilsCatalog);
     const merged = new Map();
     const reservedDemand = options.reservedDemand instanceof Map ? options.reservedDemand : new Map();
@@ -135,15 +105,7 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             const qty = completeCable ? Number(part.qty ?? 1) : Number(part.inventoryQty ?? part.qty ?? 0);
             if (qty <= 0) continue;
             const supplier = String(part.supplier || '').trim();
-            const explicitPartId = Number(part.partId || 0);
-            const mergeKey = isCoilAssemblyPart(part)
-                ? Number(part.coilId || 0) > 0
-                    ? `coil:${Number(part.coilId)}`
-                    : `${model}|${part.material || '钢带'}|${part.slotType || '小眼'}`
-                : completeCable
-                ? `${explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`}|${cableLength}|${part.cableAccessoryType || part.cableAccessoryName || 'standard'}`
-                : explicitPartId > 0 ? `part:${explicitPartId}` : `${model}|${supplier}`;
-            const purchasePart = completeCable
+            let purchasePart = completeCable
                 ? {
                     ...part,
                     purchaseUnit: '根',
@@ -151,6 +113,13 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
                     specification: `每根 ${cableLength}m + ${part.cableAccessoryName || (part.cableAccessoryType === 'xinjie' ? '新界式' : '普通铜套')}`,
                 }
                 : part;
+            const coil = isCoilAssemblyPart(part) ? resolveCoilForPart(part, coilIndexes) : null;
+            const exactPart = isCoilAssemblyPart(part) ? null : resolveInventoryPart(part, supplier, activeParts);
+            purchasePart = { ...purchasePart,
+                ...(exactPart ? { partId: exactPart.id || exactPart.Id, supplier: exactPart.supplier || '' } : {}),
+                ...(coil ? { coilId: coil.id || coil.Id, inventoryType: 'coil', purchaseUnit: '套' } : {}),
+            };
+            const mergeKey = purchaseRowIdentity(purchasePart);
             const existing = merged.get(mergeKey);
             if (existing) {
                 existing.totalQty += qty * itemQty;
@@ -165,12 +134,12 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const coilPart = isCoilAssemblyPart(part);
         const exactCoil = coilPart ? resolveCoilForPart(part, coilIndexes) : null;
         const coilId = Number(exactCoil?.id || exactCoil?.Id || 0) || undefined;
-        const exactPart = resolveInventoryPart(part, supplier, partIndexes);
+        const exactPart = coilPart ? null : resolveInventoryPart(part, supplier, activeParts);
         const screwPricingPart = !exactPart && isLongScrewPart(part)
             ? findScrewPricingPart(partsCatalog, part.model, supplier)?.part || null
             : null;
         const dbPart = exactPart || screwPricingPart;
-        const stockQtyPerUnit = Math.max(1, Number(part.stockQtyPerUnit || 1));
+        const stockQtyPerUnit = positiveFactor(part.stockQtyPerUnit);
         const currentInventoryStock = coilId
             ? Number(exactCoil.stock || 0)
             : exactPart ? Number(exactPart.stock || 0) : 0;
@@ -187,18 +156,17 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
         const referencePriceSource = referencePrice > 0
             ? coilId ? 'coil_total_cost' : 'part_catalog'
             : 'none';
-        const stockIdentityKey = coilId
-            ? `coil:${coilId}`
-            : purchaseIdentity(part.model, resolvedSupplier, partId);
-        const identityKey = isCompleteCablePart(part)
-            ? completeCableIdentity(part, resolvedSupplier, partId)
-            : stockIdentityKey;
+        const identityItem = { ...part, supplier: resolvedSupplier, partId, coilId, inventoryType,
+            purchaseUnit: coilPart ? '套' : part.purchaseUnit || '', stockQtyPerUnit };
+        const stockIdentityKey = purchaseStockIdentity(identityItem);
+        const identityKey = purchaseRowIdentity(identityItem);
         const alreadyReserved = Number(reservedDemand.get(stockIdentityKey) || 0);
         const availableInventoryStock = Math.max(0, currentInventoryStock - alreadyReserved);
         const availableStock = Math.floor(availableInventoryStock / stockQtyPerUnit);
         const needToBuy = Math.max(0, totalQty - availableStock);
         reservedDemand.set(stockIdentityKey, alreadyReserved + totalQty * stockQtyPerUnit);
         purchaseList.push({
+            id: purchaseRowId(identityItem),
             model: part.model,
             name: part.name || part.model,
             supplier: resolvedSupplier,
@@ -225,6 +193,8 @@ function buildPurchaseList(items, partsCatalog, options = {}) {
             cableLength: part.cableLength,
             cableAccessoryType: part.cableAccessoryType,
             cableAccessoryName: part.cableAccessoryName,
+            floatAccessoryType: part.floatAccessoryType,
+            ...(coilPart ? { material: part.material || '钢带', slotType: part.slotType || '小眼' } : {}),
         });
     }
 
@@ -246,7 +216,7 @@ function buildTodos(purchaseList) {
     for (const [supplier, parts] of bySupplier) {
         const detail = parts.map(part => `${part.model}×${part.needToBuy}${part.purchaseUnit || ''}`).join(', ');
         todos.push({
-            id: makeId(`${supplier}|${detail}`),
+            id: makeId(JSON.stringify([supplier, parts.map(purchaseRowIdentity).sort()])),
             supplier,
             description: `联系【${supplier}】采购：${detail}`,
             done: false,
@@ -277,35 +247,8 @@ function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
             reservedDemand,
         });
         const previous = parsePartsJson(order.purchase_list_json || order.purchaseListJson);
-        const previousByKey = new Map(previous.map(item => [
-            item.identityKey || purchaseIdentity(item.model, item.supplier, item.partId),
-            normalizePurchaseItem(item),
-        ]));
-        plan.purchaseList = plan.purchaseList.map(item => {
-            const previousItem = previousByKey.get(item.identityKey)
-                || (item.inventoryType === 'coil'
-                    ? previous.find(previousItem => (
-                        !previousItem.inventoryType
-                        && previousItem.model === item.model
-                        && String(previousItem.supplier || '') === String(item.supplier || '')
-                    ))
-                    : undefined)
-                || (item.inventoryType === 'part' && item.partId
-                    ? previous.find(previousItem => (
-                        !previousItem.partId
-                        && previousItem.model === item.model
-                        && String(previousItem.supplier || '') === String(item.supplier || '')
-                    ))
-                    : undefined)
-                || (item.purchaseUnit === '根'
-                    ? previous.find(previousItem => (
-                        !previousItem.purchaseUnit
-                        && previousItem.model === item.model
-                        && String(previousItem.supplier || '') === String(item.supplier || '')
-                    ))
-                    : undefined);
-            return mergePurchasePlanItem(item, previousItem);
-        });
+        const previousMatches = matchPurchasePlanRows(plan.purchaseList, previous);
+        plan.purchaseList = plan.purchaseList.map((item, index) => mergePurchasePlanItem(item, previousMatches[index]));
         plans.set(Number(order.id || order.Id), plan);
     }
     return plans;

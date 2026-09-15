@@ -1,5 +1,6 @@
 const { parsePositiveId } = require('./validation.cjs');
 const { ORDER_STATUSES } = require('./orderWorkflow.cjs');
+const { purchaseRowIdentity } = require('./purchaseIdentity.cjs');
 const {
     normalizeOptionalBoolean,
     normalizeOptionalEnum,
@@ -80,9 +81,9 @@ function createOrderQueries({
                 const stockedQty = Number(item.stockedQty || 0);
                 const supplier = String(item.supplier || '').trim();
                 const model = String(item.model || item.name || '').trim();
-                const key = String(item.identityKey || `${supplier}||${model}`);
+                const key = purchaseRowIdentity(item);
                 const current = tasksByKey.get(key) || {
-                    identityKey: item.identityKey || '',
+                    identityKey: key,
                     supplier,
                     supplierLabel: supplier || '未指定供应商',
                     model,

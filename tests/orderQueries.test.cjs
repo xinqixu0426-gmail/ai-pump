@@ -178,7 +178,7 @@ test('订单 Query 采购总览只聚合活动订单的当前采购计划', () =
         assert.deepEqual(
             overview.tasks.find(task => task.model === 'A'),
             {
-                identityKey: 'S||A',
+                identityKey: 'model:["A","S"]',
                 supplier: 'S',
                 supplierLabel: 'S',
                 model: 'A',

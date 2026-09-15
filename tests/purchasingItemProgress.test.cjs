@@ -11,6 +11,29 @@ const {
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
 const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
+const { buildPurchaseList } = require('../api/services/orderPlanning.cjs');
+
+test('同名多电缆配置禁止按名称选择首行，明确身份只修改目标配置', () => {
+    const fixture = createFixture();
+    try {
+        const items = [{ qty: 3, partsJson: JSON.stringify([2, 5].map(length => ({
+            partId: 1, model: 'P-1', supplier: '供应商A', name: '成品电缆', cableAssembly: true,
+            cableLength: length, cableAccessoryType: 'standard', qty: 1,
+        }))) }];
+        const rows = buildPurchaseList(items, fixture.dependencies.dbGetAllParts());
+        fixture.db.prepare('UPDATE orders SET items_json=?, purchase_list_json=? WHERE id=3').run(JSON.stringify(items), JSON.stringify(rows));
+        const input = { model: 'P-1', supplier: '供应商A', orderedQty: 2, receivedQty: 0, stockedQty: 0 };
+        assert.throws(() => buildPurchaseItemProgressDraft(fixture.dependencies, 3, input), { code: 'PURCHASE_TARGET_AMBIGUOUS' });
+        assert.throws(() => buildLegacyPurchaseItemToggleInput(fixture.dependencies, 3, input), { code: 'PURCHASE_TARGET_AMBIGUOUS' });
+        const selected = { ...input, identityKey: rows[1].identityKey };
+        const draft = buildPurchaseItemProgressDraft(fixture.dependencies, 3, selected);
+        executePurchaseItemProgress(fixture.dependencies, { ...selected, orderId: 3, expectedUpdatedAt: draft.expectedUpdatedAt,
+            previewHash: draft.previewHash }, { capabilityId: CAPABILITY_ID, actorKey: 'test', idempotencyKey: 'test-config-selection', operationId: 'test-config-selection' });
+        const after = JSON.parse(fixture.db.prepare('SELECT purchase_list_json FROM orders WHERE id=3').get().purchase_list_json);
+        assert.deepEqual(after.map(row => row.orderedQty), [0, 2]);
+        assert.deepEqual(after.map(row => row.id), rows.map(row => row.id));
+    } finally { fixture.db.close(); }
+});
 
 function createFixture() {
     const db = new Database(':memory:');

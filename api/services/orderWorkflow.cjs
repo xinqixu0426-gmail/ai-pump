@@ -1,3 +1,4 @@
+const { isLegacyMeterRow, positiveFactor, purchaseIdentityError } = require('./purchaseIdentity.cjs');
 const ORDER_STATUSES = new Set(['待确认', '待采购', '采购中', '采购完成', '已关闭', '已取消']);
 const TERMINAL_ORDER_STATUSES = new Set(['已关闭', '已取消']);
 
@@ -134,23 +135,28 @@ function assertQuotationTransition(currentStatus, nextStatus) {
 }
 
 function mergePurchasePlanItem(nextItem, previousItem) {
-    const stockQtyPerUnit = finiteNonNegative(nextItem?.stockQtyPerUnit, 1) || 1;
-    const legacyCableProgress = nextItem?.purchaseUnit === '根'
-        && previousItem
-        && previousItem.purchaseUnit !== '根'
-        && stockQtyPerUnit > 1;
+    const stockQtyPerUnit = positiveFactor(nextItem?.stockQtyPerUnit);
+    const legacyCableProgress = previousItem && isLegacyMeterRow(nextItem, previousItem);
+    const convert = value => {
+        const result = finiteNonNegative(value) / stockQtyPerUnit;
+        if (!Number.isSafeInteger(result)) throw purchaseIdentityError('PURCHASE_UNIT_MIGRATION_REQUIRED', '历史电缆进度不能准确换算为整根，请先核实单位，不能向上取整');
+        return result;
+    };
+    if (legacyCableProgress && (previousItem.purchasePriceRecorded || Number(previousItem.purchasePrice) > 0)) {
+        throw purchaseIdentityError('PURCHASE_UNIT_MIGRATION_REQUIRED', '历史电缆已有实际单价，不能在刷新时改变其计价单位');
+    }
     const convertedPrevious = legacyCableProgress
         ? {
             ...previousItem,
-            plannedQty: Math.ceil(finiteNonNegative(previousItem.plannedQty, finiteNonNegative(previousItem.needToBuy)) / stockQtyPerUnit),
-            needToBuy: Math.ceil(finiteNonNegative(previousItem.needToBuy) / stockQtyPerUnit),
-            orderedQty: Math.ceil(finiteNonNegative(previousItem.orderedQty) / stockQtyPerUnit),
-            receivedQty: Math.ceil(finiteNonNegative(previousItem.receivedQty) / stockQtyPerUnit),
-            stockedQty: Math.ceil(finiteNonNegative(previousItem.stockedQty) / stockQtyPerUnit),
+            plannedQty: convert(previousItem.plannedQty ?? previousItem.needToBuy),
+            needToBuy: convert(previousItem.needToBuy),
+            orderedQty: convert(previousItem.orderedQty ?? (previousItem.purchased ? previousItem.plannedQty ?? previousItem.needToBuy : 0)),
+            receivedQty: convert(previousItem.receivedQty),
+            stockedQty: convert(previousItem.stockedQty),
             stockInHistory: Array.isArray(previousItem.stockInHistory)
                 ? previousItem.stockInHistory.map(entry => ({
                     ...entry,
-                    qty: Math.ceil(finiteNonNegative(entry.qty) / stockQtyPerUnit),
+                    qty: convert(entry.qty),
                 }))
                 : [],
             purchaseUnit: '根',
@@ -181,6 +187,7 @@ function mergePurchasePlanItem(nextItem, previousItem) {
         cableLength: next.cableLength,
         cableAccessoryType: next.cableAccessoryType,
         cableAccessoryName: next.cableAccessoryName,
+        floatAccessoryType: next.floatAccessoryType,
         plannedQty,
         needToBuy: plannedQty,
     });

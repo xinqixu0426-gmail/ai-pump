@@ -154,7 +154,8 @@ function createFixture() {
             id, model, name, supplier, price, stock, updated_at
         ) VALUES
             (1, 'P-1', '测试零件', '供应商A', 5, 0, '${FIXED_UPDATED_AT}'),
-            (2, 'BOX-1', '测试纸箱', '包装供应商', 12, 0, '${FIXED_UPDATED_AT}');
+            (2, 'BOX-1', '测试纸箱', '包装供应商', 12, 0, '${FIXED_UPDATED_AT}'),
+            (30, '浮球-0.55', '浮球', '供应商A', 10, 0, '${FIXED_UPDATED_AT}');
         INSERT INTO coils (
             id, spec, sheets, material, slot_type, scheme_status, stock, updated_at
         ) VALUES (10, 'Y90', 10, '钢带', '小眼', 'official', 0, '${FIXED_UPDATED_AT}');
@@ -261,8 +262,8 @@ function createFixture() {
             },
             partsByModel: {
                 'P-1': [{ id: 1, model: 'P-1', name: '测试零件', supplier: '供应商A', price: 5 }],
-                '浮球-0.55': [{ id: 2, model: '浮球-0.55', name: '浮球', supplier: '供应商A', price: 10 }],
-                'BOX-1': [{ id: 3, model: 'BOX-1', name: '测试纸箱', supplier: '包装供应商', price: 12, category: '包装' }],
+                '浮球-0.55': [{ id: 30, model: '浮球-0.55', name: '浮球', supplier: '供应商A', price: 10 }],
+                'BOX-1': [{ id: 2, model: 'BOX-1', name: '测试纸箱', supplier: '包装供应商', price: 12, category: '包装' }],
             },
         }),
         orderRow,
