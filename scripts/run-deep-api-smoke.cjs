@@ -20,6 +20,8 @@ const {
 } = require('@napi-rs/canvas');
 const { buildPdfBuffer } = require('../tests/helpers/pdfFixture.cjs');
 const { MCP_READ_ONLY_TOOL_NAMES } = require('../api/mcp/catalog.cjs');
+const { auditCatalogReferences } = require('../api/services/catalogReferenceAudit.cjs');
+const { readCatalogSource } = require('../api/services/catalogSources.cjs');
 
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
@@ -956,6 +958,38 @@ function readGetPuritySnapshot(databasePath) {
     } finally {
         snapshotDb.close();
     }
+}
+
+async function testCatalogReferenceBindings(databasePath) {
+    const inspectDb = new Database(databasePath, { readonly: true });
+    try {
+        const report = auditCatalogReferences(inspectDb);
+        assert(report.complete, '绑定验收盘点不完整');
+        const reference = report.references.find(ref => ref.sourceType === 'recipe' && ref.targetType === 'part'
+            && ['resolved_id', 'resolved_legacy'].includes(ref.status) && ref.candidateIds.length === 1);
+        assert(reference, '缺少可核实的历史配方引用');
+        const sourceInput = { sourceType: reference.sourceType, sourceId: reference.sourceId };
+        const sourceBefore = readCatalogSource(inspectDb, reference.sourceType, reference.sourceId);
+        const targetBefore = readCatalogSource(inspectDb, 'part', reference.candidateIds[0]);
+        const preview = (await request('历史引用绑定预览', 'POST', '/api/catalog/reference-bindings-preview', {
+            bindings: [{ ...sourceInput, path: reference.path, sourceHash: reference.sourceHash,
+                targetType: 'part', targetId: reference.candidateIds[0] }],
+        })).payload.data;
+        await request('绑定拒绝隐式幂等键', 'POST', '/api/catalog/reference-bindings', {
+            confirmationToken: preview.confirmationToken,
+        }, [400]);
+        const body = { confirmationToken: preview.confirmationToken, idempotencyKey: preview.suggestedIdempotencyKey };
+        const receipt = (await request('历史引用绑定正式保存', 'POST', '/api/catalog/reference-bindings', body)).payload.data;
+        assert(receipt.bindingIds.length === 1 && receipt.auditIds.length >= 1, '缺少绑定或强审计');
+        const replay = (await request('历史引用绑定幂等重放', 'POST', '/api/catalog/reference-bindings', body)).payload.data;
+        assert(replay.idempotentReplay && replay.bindingIds[0] === receipt.bindingIds[0], '重复提交未返回原回执');
+        const names = (await request('历史引用读取现名', 'POST', '/api/catalog/bound-names', sourceInput)).payload.data;
+        const name = names.items.find(item => item.bindingId === receipt.bindingIds[0]);
+        assert(name?.currentName === targetBefore.model && name.displayOnly, '绑定未投影正式现名');
+        assert(JSON.stringify(readCatalogSource(inspectDb, reference.sourceType, reference.sourceId)) === JSON.stringify(sourceBefore), '绑定改写了配方快照');
+        assert(JSON.stringify(readCatalogSource(inspectDb, 'part', reference.candidateIds[0])) === JSON.stringify(targetBefore), '绑定修改了物料事实');
+        await request('绑定读取拒绝超限分页', 'POST', '/api/catalog/bound-names', { ...sourceInput, limit: 101 }, [400]);
+    } finally { inspectDb.close(); }
 }
 
 async function testCoreGetEndpointsDoNotWrite(databasePath) {
@@ -3749,6 +3783,7 @@ async function run() {
             const proxyFailure = await request('前端转发失败返回 502', 'GET', '/frontend-proxy-check', undefined, [502]);
             assert(String(proxyFailure.payload).includes('前端服务暂时不可用'), '前端转发失败提示不明确');
             await request('未登录访问保护', 'GET', '/api/parts', undefined, [401]);
+            await request('未登录不能绑定历史引用', 'POST', '/api/catalog/reference-bindings-preview', { bindings: [] }, [401]);
         }
         await request(
             '通用 MCP 未授权访问',
@@ -3792,6 +3827,7 @@ async function run() {
             assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
 
             await testCoreGetEndpointsDoNotWrite(path.join(temp, 'pump.db'));
+            await testCatalogReferenceBindings(path.join(temp, 'pump.db'));
             const resources = await readCoreResources();
             await testBusinessSettingCommand();
             const baseResources = await testResourceDetails(resources);

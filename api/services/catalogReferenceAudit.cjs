@@ -1,4 +1,4 @@
-const crypto = require('node:crypto');
+const { catalogSourceHash: hash } = require('./catalogSources.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { buildNamingCandidates } = require('./catalogNamingCandidates.cjs');
 const { calculateRecipeCost } = require('./costEngine.cjs');
@@ -33,10 +33,6 @@ const NESTED_JSON_KEYS = new Set([
     'extraPartsJson', 'packingPartsJson', 'configurationPolicyJson', 'configuration_policy_json',
 ]);
 const NON_INVENTORY_ROLES = new Set(['rotorProcess']);
-
-function hash(value) {
-    return crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
-}
 
 function text(value) { return typeof value === 'string' ? value.trim() : ''; }
 function pointer(key) { return String(key).replaceAll('~', '~0').replaceAll('/', '~1'); }

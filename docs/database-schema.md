@@ -153,7 +153,7 @@
 
 - `catalog_identity_profiles`：一个档案恰好绑定一个零件、线圈、模板、配方或常用配置，五个类型化外键分别唯一；记录 `naming_state/rule_id/rule_version/spec_json/spec_fingerprint/spec_revision/name_revision/external_model`。名称修订和实物规格修订分开，旧数据默认 legacy；结构化档案必须有规则及规格指纹。
 - `catalog_name_aliases`：通过外键连接档案，保留旧名称对应的规格修订及软删除状态。同一旧名称允许对应多个档案，不能据此自动选料。
-- `catalog_reference_bindings`：源类型、源 ID、版本、JSON 路径、源哈希共同唯一定位历史引用；目标为档案外键和规格修订。绑定不能替代源验证，后续读取必须从源记录核验位置及哈希，不能信任客户端提供的旧哈希。源类型为受限枚举，跨表源的存在性和源版本由维护服务检查；此表尚未启用业务回填。
+- `catalog_reference_bindings`：源类型、源 ID、版本、JSON 路径、源哈希共同唯一定位历史引用；目标为档案外键和规格修订。绑定不能替代源验证，后续读取必须从源记录核验位置及哈希，不能信任客户端提供的旧哈希。源类型为受限枚举，跨表源的存在性和源版本由 `catalog.bind_references` 正式命令核验。当前版本使用 `sha256:<source_hash>` 作为内容版本；确认保存仅创建唯一核实的绑定，`catalog.bound_names` 读取时再次核对原行投影哈希，来源变化明确失效。实际存量业务回填尚未执行，绑定只供显示，不授权采购入库。
 - `catalog_template_shell_bindings`：用唯一模板外键连接明确泵壳零件外键，使模板名称与泵壳身份分离。
 
 新增写入仍须走 `safeInsert/safeUpdate` 和正式命令事务。删除档案或被绑定主物料受外键保护；规格 JSON、状态、版本正数及绑定哈希长度受 CHECK 约束。生产升级和回滚继续使用代码＋数据库一致备份，不能把数据库迁移版本手动调低。

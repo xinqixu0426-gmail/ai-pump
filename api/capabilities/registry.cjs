@@ -631,6 +631,22 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'catalog.bind_references': defineBusinessCapability({
+        capabilityId: 'catalog.bind_references', displayName: '绑定历史物料引用', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/reference-bindings-preview { bindings[] }; POST /api/catalog/reference-bindings { confirmationToken, idempotencyKey? }',
+        outputSchema: 'CommandReceipt<{ bindingIds: number[], displayOnly: true }>; preview: CatalogBindingPreviewV1',
+        sourceOfTruth: 'audited_source_records+catalog_identity_profiles+catalog_reference_bindings', riskLevel: 'high',
+        supportsPreview: true, callers: Object.freeze(['web', 'internal']),
+        previewPath: '/api/catalog/reference-bindings-preview',
+        concurrencyControl: 'confirmationToken_bound_snapshot',
+    }),
+    'catalog.bound_names': defineQueryCapability({
+        capabilityId: 'catalog.bound_names', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/bound-names { sourceType, sourceId, afterId?, limit? }',
+        outputSchema: 'CatalogBoundNamesV1 with source validity, currentName and snapshotValue',
+        sourceOfTruth: 'source_records+catalog_reference_bindings+catalog_master_records',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'internal']),
+    }),
     'catalog.references_resolve': defineQueryCapability({
         capabilityId: 'catalog.references_resolve', domain: 'catalog',
         inputSchema: 'POST /api/catalog/references/resolve { references: CatalogReferenceV1[] }',
