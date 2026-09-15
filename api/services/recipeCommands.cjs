@@ -1,3 +1,4 @@
+const { prepareCatalogCreation, persistCatalogCreation } = require('./catalogCreation.cjs');
 const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
@@ -224,7 +225,7 @@ function normalizeRecipePayload(dependencies, input = {}, existingRecord = null)
         ...(existingRecord || {}),
         ...incoming,
     };
-    const name = String(source.name || '').trim();
+    const name = existingRecord ? String(source.name || '').trim() : prepareCatalogCreation('recipe', { coil_spec: String(source.coil_spec || '').trim(), coil_sheets: parseNonNegativeNumber(source.coil_sheets, 'coilSheets'), custom_barrel_length: normalizeOptionalNumber(source.custom_barrel_length, 'customBarrelLength') }, input).generated.name;
     if (!name) throw recipeCommandError('recipe_name_required', '成品型号不能为空', 400);
 
     const parts = parseJsonArray(source.parts_json);
@@ -554,6 +555,8 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
     });
     const initialPayload = {
         name: String(form.name || '').trim(),
+        naming: form.naming,
+        externalModel: form.externalModel,
         spec: String(form.spec || '').trim(),
         partsJson: JSON.stringify(authoritativeBom.parts || []),
         templateId,
@@ -608,9 +611,9 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         managementFee: parseNonNegativeNumber(form.managementFee, 'form.managementFee'),
         configurationPolicyJson,
     };
-    const payload = payloadToCamelCase(
-        normalizeRecipePayload(dependencies, initialPayload, existingRecord)
-    );
+    const normalizedPayload = normalizeRecipePayload(dependencies, initialPayload, existingRecord);
+    const creation = !existingRecord ? prepareCatalogCreation('recipe', normalizedPayload, initialPayload) : null;
+    const payload = { ...payloadToCamelCase(normalizedPayload), ...(creation ? { naming: creation.naming, externalModel: creation.externalModel } : {}) };
     const effectiveExpectedUpdatedAt = existingRecord
         ? expectedUpdatedAt || existingRecord.updated_at
         : null;
@@ -742,7 +745,8 @@ function createCompatibilityWarnings(input, resourceId = null) {
 
 function executeRecipeCreate(dependencies, input = {}, commandContext = {}) {
     const payload = normalizeRecipePayload(dependencies, input);
-    const camelPayload = payloadToCamelCase(payload);
+    const creation = prepareCatalogCreation('recipe', payload, input);
+    const camelPayload = { ...payloadToCamelCase(payload), naming: creation.naming, externalModel: creation.externalModel };
     const expectedPreviewHash = normalizePreviewHash(input.previewHash);
     const currentPreviewHash = recipeSavePreviewHash(
         CREATE_CAPABILITY_ID,
@@ -778,6 +782,7 @@ function executeRecipeCreate(dependencies, input = {}, commandContext = {}) {
             const record = dependencies.db.prepare(
                 'SELECT * FROM recipes WHERE id = ?'
             ).get(recipeId);
+            const profileAuditIds = persistCatalogCreation(dependencies, 'recipe', record, creation, auditContext);
             const longScrews = autoCreateRecipeLongScrews(
                 dependencies,
                 record,
@@ -785,6 +790,7 @@ function executeRecipeCreate(dependencies, input = {}, commandContext = {}) {
             );
             const auditIds = [
                 ...(write.auditId ? [write.auditId] : []),
+                ...profileAuditIds,
                 ...longScrews.auditIds,
             ];
             return {
@@ -813,7 +819,7 @@ function executeRecipeCreate(dependencies, input = {}, commandContext = {}) {
                     to: part.model,
                 }))],
                 auditIds,
-                requiredAuditCount: 1 + longScrews.items.length,
+                requiredAuditCount: 1 + profileAuditIds.length + longScrews.items.length,
             };
         },
     });

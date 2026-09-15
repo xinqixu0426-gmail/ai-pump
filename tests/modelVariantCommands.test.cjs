@@ -235,6 +235,7 @@ function commandContext(capabilityId, suffix) {
 function variantInput(overrides = {}) {
     return {
         modelName: 'V750 常用配置',
+        naming: { ruleId: 'model-variant', spec: { series: 'V750', configuration: '普通' } },
         templateId: 1,
         coilId: 1,
         coilSpec: '12',
@@ -311,10 +312,10 @@ test('常用配置新增、长螺丝沉淀和 operation 回执原子提交且可
     );
 
     assert.equal(result.capabilityId, CREATE_CAPABILITY_ID);
-    assert.equal(result.variant.modelName, 'V750 常用配置');
+    assert.equal(result.variant.modelName, '配置-V750-普通');
     assert.equal(
         fixture.db.prepare('SELECT model_name FROM pump_model_variants WHERE id = ?').get(result.variant.id).model_name,
-        'V750 常用配置'
+        '配置-V750-普通'
     );
     assert.equal(result.createdLongScrewParts.length, 1);
     assert.equal(result.createdLongScrewParts[0].model, '6*210');

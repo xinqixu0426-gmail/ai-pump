@@ -826,7 +826,10 @@ function executeCoilDelete(
             const record = getCoilRecord(dependencies, coilId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `线圈 #${coilId}`);
             dependencies.assertCoilCanBeDeleted(dependencies.db, coilId);
-            const write = dependencies.hardDelete('coils', coilId, auditContext);
+            const hasProfiles = dependencies.db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name='catalog_identity_profiles'").get();
+            const retainedProfile = hasProfiles && dependencies.db.prepare('SELECT id FROM catalog_identity_profiles WHERE coil_id=?').get(coilId);
+            const write = retainedProfile ? dependencies.safeUpdate('coils', coilId, { scheme_status: 'disabled', is_default: 0 }, auditContext)
+                : dependencies.hardDelete('coils', coilId, auditContext);
             const fallbackResult = record.scheme_status === 'official' && Number(record.is_default || 0) === 1
                 ? promoteFallbackDefault(
                     dependencies,

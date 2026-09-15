@@ -35,7 +35,7 @@ function inspectRename(db, input) {
         const stored = JSON.parse(profile.spec_json);
         if (stored.physical && requestHash(stored.physical) !== requestHash(physical)) fail('CATALOG_SPECIFICATION_REPLACEMENT_REQUIRED', '实物规格、供应商或业务配置变化需要新建/选择另一物料，不能原地改名');
     }
-    const duplicate = context.catalogs.get(input.entityType).find(row => row.id !== current.id && !row.deleted_at
+    const duplicate = context.catalogs.get(input.entityType).find(row => row.id !== current.id && (!row.deleted_at || ['template', 'modelVariant'].includes(input.entityType))
         && String(row[descriptor.name]).trim().toLowerCase() === generated.name.toLowerCase()
         && (input.entityType !== 'part' || String(row.supplier).trim().toLowerCase() === String(current.supplier).trim().toLowerCase()));
     if (duplicate) fail('CATALOG_RENAME_CONFLICT', `新名称已有对象 #${duplicate.id}，请补充真实区别`);
@@ -76,6 +76,11 @@ function inspectRename(db, input) {
     }
     return { entityType: input.entityType, entityId: input.entityId, previousName: current[descriptor.name], currentName: generated.name,
         generated, physical, entries, affectedResources: [...affected.values()], shellTemplates, ownShell, sourceHash: requestHash({ current, profile, sources: report.sourceHashes, bindings: context.bindings, shells: context.shells }) };
+}
+function inspectCatalogRename(db, value) {
+    const parsed = INPUT.safeParse(value);
+    if (!parsed.success) fail('CATALOG_RENAME_INVALID', '请提供对象、规格、当前版本，并确认这是同一实物', 400);
+    return inspectRename(db, parsed.data);
 }
 function previewCatalogRename(db, value, subject) {
     const parsed = INPUT.safeParse(value);
@@ -143,4 +148,4 @@ function executeCatalogRename(dependencies, value, context, subject) {
                 auditIds, requiredAuditCount: auditIds.length };
         } });
 }
-module.exports = { CAPABILITY_ID, physicalSpecification, previewCatalogRename, executeCatalogRename };
+module.exports = { CAPABILITY_ID, physicalSpecification, inspectCatalogRename, previewCatalogRename, executeCatalogRename };

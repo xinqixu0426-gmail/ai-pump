@@ -87,8 +87,10 @@ function hydrateCatalogRow(db, type, source, suppliedContext) {
         }
         for (const field of ['defaultUpperBearing', 'defaultLowerBearing', 'screwPricingModel']) {
             const bound = validBindingTarget(context, type, original, `${path}/${field}`, hash);
-            let record = bound?.type === 'part' ? target('part', bound.id) : null;
-            if (!record && /^default(?:Upper|Lower)Bearing$/.test(field) && value[field]) {
+            const savedId = value[field === 'screwPricingModel' ? 'screwPricingPartId' : `${field}PartId`];
+            let record = savedId != null ? target('part', savedId) : bound?.type === 'part' ? target('part', bound.id) : null;
+            if (record && /^default/.test(field) && record.category !== '轴承') record = null;
+            if (savedId == null && !record && /^default(?:Upper|Lower)Bearing$/.test(field) && value[field]) {
                 const candidates = context.catalogs.get('part').filter(part => part.category === '轴承' && !part.deleted_at && bearingCodeOf(part) === bearingCodeOf({ model: value[field] }));
                 if (candidates.length === 1) record = candidates[0];
             }

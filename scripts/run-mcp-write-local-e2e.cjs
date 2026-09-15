@@ -668,7 +668,7 @@ async function verifyPersistentReceipts(databasePath, toolReports) {
 async function run() {
     const startedAt = new Date();
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pump-mcp-write-e2e-'));
-    const databasePath = path.join(tempDir, 'pump.db');
+    const databasePath = path.join(fs.realpathSync(tempDir), 'pump.db');
     const stubLogPath = path.join(tempDir, 'external-stub.jsonl');
     const report = {
         schemaVersion: 3,
@@ -722,6 +722,7 @@ async function run() {
                 ...process.env,
                 NODE_ENV: 'development',
                 NODE_TEST_CONTEXT: 'mcp-write-local-e2e',
+                PUMP_TEST_DATABASE_PATH: databasePath,
                 PORT: String(port),
                 NEXT_ORIGIN: `http://127.0.0.1:${unusedNextPort}`,
                 BEHIND_PROXY: 'false',
@@ -751,7 +752,7 @@ async function run() {
                 MCP_LOCAL_EXTERNAL_STUB_ENABLED: 'true',
                 MCP_LOCAL_FREECAD_STUB_COMMAND: 'mcp-local-freecad-stub',
                 MCP_LOCAL_EXTERNAL_STUB_LOG: stubLogPath,
-                MCP_LOCAL_EXTERNAL_STUB_ROOT: tempDir,
+                MCP_LOCAL_EXTERNAL_STUB_ROOT: fs.realpathSync(tempDir),
                 MCP_LOCAL_EXTERNAL_STUB_FAIL_CLOSED: 'true',
                 NODE_OPTIONS: `--require=${stubPath}`,
                 NODE_PATH: path.join(ROOT, 'node_modules'),
@@ -1163,9 +1164,15 @@ async function run() {
         assert(!parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeB), '移除配方后仍存在');
         assert(parseJsonArray(order.itemsJson).some(item => item.recipeName === FIXTURE.recipeA), '移除配方误删了其他产品');
 
-        const createdRecipeName = `MCP-WRITE-RECIPE-${unique}`;
+        const createdExternalModel = `MCP-WRITE-RECIPE-${unique}`;
         const createdRecipeCall = await callWrite('create_recipe', {
-            name: createdRecipeName,
+            name: createdExternalModel,
+            naming: { ruleId: 'recipe', spec: { series: 'MCP', configuration: unique } },
+            coilSpec: FIXTURE.coilSpec,
+            coilSheets: FIXTURE.coilSheets,
+            coilMaterial: FIXTURE.coilMaterial,
+            coilSlotType: FIXTURE.coilSlotType,
+            coilId: fixtureIds.coilId,
             spec: '',
             parts: [{ model: FIXTURE.partModel, qty: 1 }],
         });
@@ -1176,6 +1183,8 @@ async function run() {
             'GET',
             `/api/recipes/${createdRecipeId}`
         )).payload.data;
+        const createdRecipeName = recipeBaseline.name;
+        assert(recipeBaseline.externalModel === createdExternalModel, '配方对外型号未保留');
         const recipeBaselineSnapshot = recipeBusinessSnapshot(recipeBaseline);
         const partIdsBeforeRecipeUpdate = (await apiRequest(
             '读取配方修改前零件目录',
@@ -1237,9 +1246,9 @@ async function run() {
             'GET',
             '/api/parts'
         )).payload.data.map(part => Number(part.id)).sort((left, right) => left - right);
-        const createdPartModel = `MCP-WRITE-PART-${unique}`;
+        let createdPartModel = `MCP-WRITE-PART-${unique}`;
         const createdPartCategory = `MCP-WRITE-CATEGORY-${unique}`;
-        await callWrite('batch_create_parts', {
+        const createdPartsCall = await callWrite('batch_create_parts', {
             parts: [{
                 model: createdPartModel,
                 category: createdPartCategory,
@@ -1248,6 +1257,8 @@ async function run() {
                 stock: 0,
             }],
         });
+        createdPartModel = createdPartsCall.receipt.result?.parts?.[0]?.model;
+        assert(createdPartModel, '批量新建未返回系统生成的零件名称');
         let createdPart = (await apiRequest(
             '回读批量新增零件',
             'GET',

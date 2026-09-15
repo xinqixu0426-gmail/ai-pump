@@ -1508,7 +1508,7 @@ test('Next UI 契约：配方草稿集中管理生命周期和纯草稿操作', 
     assert.match(recipeDraftHook, /const startCreate = useCallback/);
     assert.match(recipeDraftHook, /const startEdit = useCallback/);
     assert.match(recipeDraftHook, /const startClone = useCallback/);
-    assert.match(recipeDraftHook, /未命名配方.*副本/);
+    assert.match(recipeDraftHook, /const startClone[\s\S]*name: ''/);
     assert.match(recipeDraftHook, /variantId: ''/);
     assert.match(recipeDraftHook, /savedCoilWireWeight/);
     assert.doesNotMatch(bomPreviewHook, /bomPreviewFromRecipe/);
@@ -2416,8 +2416,8 @@ test('Next UI 契约：泵壳模板分离套件引用和自由组合组件', () 
     assert.match(recipesView, /<PumpShellTemplateEditor/);
     assert.match(templateEditor, /零件库泵壳型号/);
     assert.match(templateEditor, /组合模板名称/);
-    assert.match(templateEditor, /listboxId="shell-template-model-options"/);
-    assert.match(templateEditor, /可直接输入新的组合名称，也可展开选择零件库中的泵壳型号/);
+    assert.match(templateEditor, /<CatalogCreateNaming ruleId="template"/);
+    assert.match(templateEditor, /readOnly aria-label="系统生成的模板名称"/);
     assert.match(templateEditor, /<ShellCostEditor/);
     assert.match(shellCostEditor, /componentType/);
     assert.match(partFormRules, /泵壳搭配/);

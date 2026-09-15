@@ -1,3 +1,4 @@
+const { prepareCatalogCreation, persistCatalogCreation } = require('./catalogCreation.cjs');
 const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
@@ -185,11 +186,11 @@ function getActiveModelVariant(db, modelVariantId) {
 
 function assertTemplateExists(db, templateId) {
     const template = db.prepare(`
-        SELECT id
+        SELECT *
         FROM pump_shell_templates
         WHERE id = ?
     `).get(templateId);
-    if (!template) {
+    if (!template || template.deleted_at) {
         throw modelVariantCommandError(
             'model_variant_template_not_found',
             '泵壳模板不存在',
@@ -264,7 +265,7 @@ function autoCreateVariantLongScrews(
         FROM pump_shell_templates
         WHERE id = ?
     `).get(variant.template_id || variant.templateId);
-    if (!template) return { parts: [], auditIds: [] };
+    if (!template || template.deleted_at) return { parts: [], auditIds: [] };
 
     const partsToCreate = buildLongScrewInventoryParts({
         variant,
@@ -306,7 +307,8 @@ function executeModelVariantCreate(
     input = {},
     commandContext = {}
 ) {
-    const normalized = normalizeModelVariant(input);
+    const creation = prepareCatalogCreation('modelVariant', {}, input);
+    const normalized = normalizeModelVariant({ ...input, modelName: creation.generated.name });
     const coilSelection = assertOfficialCoilBinding(dependencies.db, normalized);
     normalized.coil_id = coilSelection.coilId;
     normalized.coil_scheme_family_code = coilSelection.schemeFamilyCode;
@@ -315,7 +317,7 @@ function executeModelVariantCreate(
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'model_variant', eventType: 'created' }),
-        input: normalized,
+        input: { ...normalized, naming: creation.naming },
         execute: ({ auditContext }) => {
             assertTemplateExists(dependencies.db, normalized.template_id);
             assertUniqueModelName(dependencies.db, normalized.model_name);
@@ -326,6 +328,7 @@ function executeModelVariantCreate(
                 updated_at: now,
             }, auditContext);
             const modelVariantId = Number(write.lastInsertRowid);
+            const profileAuditIds = persistCatalogCreation(dependencies, 'modelVariant', getActiveModelVariant(dependencies.db, modelVariantId), creation, auditContext);
             const row = getActiveModelVariant(
                 dependencies.db,
                 modelVariantId
@@ -338,6 +341,7 @@ function executeModelVariantCreate(
             const variant = dependencies.modelVariantRow(row);
             const auditIds = [
                 write.auditId,
+                ...profileAuditIds,
                 ...longScrews.auditIds,
             ].filter(Boolean);
             return {
@@ -363,7 +367,7 @@ function executeModelVariantCreate(
                     to: { model: part.model },
                 }))],
                 auditIds,
-                requiredAuditCount: 1 + longScrews.parts.length,
+                requiredAuditCount: 1 + profileAuditIds.length + longScrews.parts.length,
             };
         },
     });

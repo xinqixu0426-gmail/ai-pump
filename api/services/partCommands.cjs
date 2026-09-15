@@ -1,3 +1,4 @@
+const { normalizePartCatalogReferences } = require('./partCatalogReferences.cjs');
 const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const { inferLegacyPartNaming } = require('./legacyPartNaming.cjs');
 const { inspectPartRename, verifyPartRename } = require('./partRenameImpact.cjs');
@@ -160,7 +161,7 @@ function normalizeCreateInput(dependencies, input) {
         price: parseNonNegativeNumber(fields.price, 'price'),
         supplier: String(fields.supplier || '-').trim() || '-',
         stock: parseNonNegativeNumber(fields.stock, 'stock'),
-        remark: String(fields.remark || '').trim(),
+        remark: normalizePartCatalogReferences(dependencies.db, String(fields.remark || '').trim()),
     };
 }
 
@@ -515,7 +516,7 @@ function normalizeUpdateInput(dependencies, input, current) {
             : { stock: parseNonNegativeNumber(fields.stock, 'stock') }),
         ...(input.notes === undefined && input.remark === undefined
             ? {}
-            : { remark: String(fields.remark || '').trim() }),
+            : { remark: normalizePartCatalogReferences(dependencies.db, String(fields.remark || '').trim()) }),
     };
     assertCatalogPhysicalUpdate(dependencies.db, 'part', current, updates);
     return updates;

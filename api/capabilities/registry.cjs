@@ -699,6 +699,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         inputSchema: 'POST /api/catalog/name-preview { ruleId, spec }', outputSchema: 'CatalogNamePreviewV1',
         sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
+    'catalog.migrate': defineBusinessCapability({
+        capabilityId: 'catalog.migrate', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/migrate {confirmationToken,idempotencyKey}',
+        outputSchema: 'CommandReceipt<CatalogMigrationResult>',
+        sourceOfTruth: 'catalog_identity_profiles+catalog_reference_bindings+catalog_tables',
+        riskLevel: 'high', supportsPreview: true, previewPath: '/api/catalog/migration-preview',
+        concurrencyControl: 'confirmationToken_bound_source_and_catalog_hash',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'catalog.reference_audit': defineQueryCapability({
         capabilityId: 'catalog.reference_audit', domain: 'catalog',
         inputSchema: 'INTERNAL catalog-reference-audit { maxRowsPerTable?, maxReferences? }',
@@ -947,7 +956,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'templates.create': defineBusinessCapability({
         capabilityId: 'templates.create',
         domain: 'recipe',
-        inputSchema: 'POST /api/templates TemplateInput(partsJson[].partId?, shellComponentsJson[].partId?, configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
+        inputSchema: 'POST /api/templates TemplateInput(naming required, shellPartId required for bundle, partsJson[].partId?, shellComponentsJson[].partId?, configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
         outputSchema: 'CommandReceipt<TemplateCreateResult>',
         sourceOfTruth: 'pump_shell_templates+partsCatalog',
         riskLevel: 'medium',
@@ -977,7 +986,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'model_variants.create': defineBusinessCapability({
         capabilityId: 'model_variants.create',
         domain: 'recipe',
-        inputSchema: 'POST /api/model-variants',
+        inputSchema: 'POST /api/model-variants ModelVariantInput(naming required)',
         outputSchema: 'CommandReceipt<ModelVariantCreateResult>',
         sourceOfTruth: 'pump_model_variants+pump_shell_templates+parts',
         riskLevel: 'high',
@@ -1435,7 +1444,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'recipes.create': defineBusinessCapability({
         capabilityId: 'recipes.create',
         domain: 'recipe',
-        inputSchema: 'POST /api/recipes',
+        inputSchema: 'POST /api/recipes RecipeInput(naming required, externalModel optional)',
         outputSchema: 'CommandReceipt<RecipeCreateResult>',
         sourceOfTruth: 'recipeConfigurationPolicy+recipeBomEngine+costEngine+stablePartIdentity+recipes',
         riskLevel: 'high',

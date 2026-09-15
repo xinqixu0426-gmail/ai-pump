@@ -1,3 +1,4 @@
+import type { CatalogNamingInput } from './catalog-naming';
 import type { ApiResponse } from './api';
 import { proxyFetch, proxyRequest } from './api';
 
@@ -25,6 +26,7 @@ export type RecipePart = {
   barrelLength?: number;
   longScrewExtraLength?: number;
   screwLength?: number;
+  screwPricingPartId?: number;
   baseSnapshotPrice?: number;
   bundleBaseLength?: number;
   bundleStepMm?: number;
@@ -102,6 +104,10 @@ export type Recipe = {
   externalModel?: string;
   spec: string;
   partsJson: string;
+  snapshotPartsJson?: string;
+  snapshotExtraPartsJson?: string | null;
+  snapshotPackingPartsJson?: string | null;
+  snapshotConfigurationPolicyJson?: string | null;
   savedTotalCost?: number;
   savedCostDetails?: string;
   templateId?: number | null;
@@ -145,6 +151,7 @@ export type Recipe = {
 };
 
 export type PumpShellTemplate = {
+  shellPartId?: number | null;
   id: number;
   shellModel: string;
   description?: string;
@@ -391,6 +398,10 @@ export function rowToRecipe(row: RecipeRow): Recipe {
     externalModel: row.externalModel,
     spec: row.spec || '',
     partsJson: row.partsJson || '[]',
+    snapshotPartsJson: row.snapshotPartsJson,
+    snapshotExtraPartsJson: row.snapshotExtraPartsJson,
+    snapshotPackingPartsJson: row.snapshotPackingPartsJson,
+    snapshotConfigurationPolicyJson: row.snapshotConfigurationPolicyJson,
     savedTotalCost: Number(row.savedTotalCost) || 0,
     savedCostDetails: row.savedCostDetails || '',
     templateId: row.templateId ?? null,
@@ -436,6 +447,7 @@ export function rowToTemplate(row: TemplateRow): PumpShellTemplate {
   return {
     id: rowId(row),
     shellModel: row.shellModel || '',
+    shellPartId: row.shellPartId ?? null,
     description: row.description || '',
     partsJson: row.partsJson || '[]',
     rotorParamsJson: row.rotorParamsJson || '{}',
@@ -582,6 +594,8 @@ export async function getAllTemplates(signal?: AbortSignal): Promise<PumpShellTe
 }
 
 export type TemplateInput = {
+  naming?: CatalogNamingInput;
+  shellPartId?: number | null;
   shellModel: string;
   description?: string;
   partsJson: string;
@@ -810,6 +824,8 @@ export async function getRecipeInventoryStatus(recipeId: number, signal?: AbortS
 }
 
 export type RecipeSaveInput = {
+  naming?: CatalogNamingInput;
+  externalModel?: string;
   name: string;
   spec: string;
   partsJson: string;
@@ -934,6 +950,8 @@ export type RecipeSavePayloadDraftInput = {
   recipeId?: number;
   expectedUpdatedAt?: string;
   form: {
+    naming?: CatalogNamingInput;
+    externalModel?: string;
     name: string;
     spec: string;
     templateId?: number | string | null;
@@ -1018,6 +1036,7 @@ export async function deleteRecipe(id: number, expectedUpdatedAt?: string): Prom
 }
 
 export type ModelVariantInput = {
+  naming?: CatalogNamingInput;
   modelName: string;
   templateId: number;
   coilId?: number | null;

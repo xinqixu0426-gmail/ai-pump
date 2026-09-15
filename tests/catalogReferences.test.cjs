@@ -10,6 +10,7 @@ function fixture(t) {
     t.after(() => db.close());
     db.exec(CANONICAL_TABLES_SQL);
     db.exec(CATALOG_IDENTITY_SCHEMA_SQL);
+    db.exec('ALTER TABLE pump_shell_templates ADD COLUMN deleted_at TEXT');
     db.prepare('INSERT INTO parts (model, supplier, stock) VALUES (?, ?, ?)').run('轴承-202', '甲', 9);
     db.prepare('INSERT INTO parts (model, supplier, stock) VALUES (?, ?, ?)').run('轴承-202', '乙', 10);
     db.prepare("INSERT INTO parts (model, deleted_at) VALUES ('已停用', 'now')").run();

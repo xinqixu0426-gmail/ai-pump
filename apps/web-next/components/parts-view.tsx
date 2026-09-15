@@ -108,7 +108,9 @@ type PartFormState = {
   isStainless: boolean;
   openOffset: string;
   defaultUpperBearing: string;
+  defaultUpperBearingPartId?: number;
   defaultLowerBearing: string;
+  defaultLowerBearingPartId?: number;
   defaultOilSealDia: string;
   defaultBearingSpan: string;
   defaultImpellerDia: string;
@@ -199,7 +201,9 @@ function formFromPart(part: Part): PartFormState {
     isStainless: Boolean(pumpShellMeta.isStainless),
     openOffset: numericText(pumpShellMeta.openOffset),
     defaultUpperBearing: pumpShellMeta.defaultUpperBearing || '',
+    defaultUpperBearingPartId: pumpShellMeta.defaultUpperBearingPartId,
     defaultLowerBearing: pumpShellMeta.defaultLowerBearing || '',
+    defaultLowerBearingPartId: pumpShellMeta.defaultLowerBearingPartId,
     defaultOilSealDia: numericText(pumpShellMeta.defaultOilSealDia),
     defaultBearingSpan: numericText(pumpShellMeta.defaultBearingSpan),
     defaultImpellerDia: numericText(pumpShellMeta.defaultImpellerDia),
@@ -540,7 +544,9 @@ export function PartsView({
       isStainless: form.isStainless,
       openOffset: form.openOffset,
       defaultUpperBearing: form.defaultUpperBearing,
+      defaultUpperBearingPartId: form.defaultUpperBearingPartId,
       defaultLowerBearing: form.defaultLowerBearing,
+      defaultLowerBearingPartId: form.defaultLowerBearingPartId,
       defaultOilSealDia: form.defaultOilSealDia,
       defaultBearingSpan: form.defaultBearingSpan,
       defaultImpellerDia: form.defaultImpellerDia,
@@ -1140,6 +1146,8 @@ export function PartsView({
                 />
               </Field>
             )}
+
+            {form.category === '泵壳' ? <div className="grid gap-3 sm:grid-cols-2">{(['defaultUpperBearing', 'defaultLowerBearing'] as const).map((field, index) => <label key={field} className="block"><span className="text-xs text-muted">默认{index === 0 ? '上' : '下'}轴承（可选）</span><select aria-label={`默认${index === 0 ? '上' : '下'}轴承`} value={form[`${field}PartId`] || ''} onChange={event => { const selected = parts.find(part => part.id === Number(event.target.value)); setForm(current => ({ ...current, [field]: selected?.model || '', [`${field}PartId`]: selected?.id })); }} className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm"><option value="">{form[field] ? `${form[field]}（历史配置，需核对具体零件）` : '不设置'}</option>{parts.filter(part => part.category === '轴承').map(part => <option key={part.id} value={part.id}>{part.model} · {part.supplier}</option>)}</select></label>)}</div> : null}
 
             {editingPart && <Button type="button" disabled={formDirty} title={formDirty ? '请先保存或取消当前修改' : undefined} onClick={() => setRenameTarget({ entityType: 'part', entityId: editingPart.id, name: editingPart.model, updatedAt: editingPart.updatedAt || '', category: editingPart.category, naming: editingPart.naming })}>按规格规范名称</Button>}
             {editingPart && <PartRenameImpactPanel key={`${editingPart.id}:${modelPreview}`} partId={editingPart.id} model={modelPreview} />}

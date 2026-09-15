@@ -22,7 +22,9 @@ export type PumpShellMeta = {
   isStainless?: boolean;
   openOffset?: number;
   defaultUpperBearing?: string;
+  defaultUpperBearingPartId?: number;
   defaultLowerBearing?: string;
+  defaultLowerBearingPartId?: number;
   defaultOilSealDia?: number;
   defaultBearingSpan?: number;
   defaultImpellerDia?: number;
@@ -68,7 +70,9 @@ export type PartRemarkInput = {
   isStainless: boolean;
   openOffset: string;
   defaultUpperBearing: string;
+  defaultUpperBearingPartId?: number;
   defaultLowerBearing: string;
+  defaultLowerBearingPartId?: number;
   defaultOilSealDia: string;
   defaultBearingSpan: string;
   defaultImpellerDia: string;
@@ -142,7 +146,9 @@ export function parsePumpShellMeta(remark?: string): PumpShellMeta {
     isStainless: Boolean(meta.isStainless),
     openOffset: optionalNumber(String(meta.openOffset ?? '')),
     defaultUpperBearing: text(meta.defaultUpperBearing),
+    defaultUpperBearingPartId: typeof meta.defaultUpperBearingPartId === 'number' ? meta.defaultUpperBearingPartId : undefined,
     defaultLowerBearing: text(meta.defaultLowerBearing),
+    defaultLowerBearingPartId: typeof meta.defaultLowerBearingPartId === 'number' ? meta.defaultLowerBearingPartId : undefined,
     defaultOilSealDia: optionalNumber(String(meta.defaultOilSealDia ?? '')),
     defaultBearingSpan: optionalNumber(String(meta.defaultBearingSpan ?? '')),
     defaultImpellerDia: optionalNumber(String(meta.defaultImpellerDia ?? '')),
@@ -244,7 +250,9 @@ export function buildPartRemark(input: PartRemarkInput): Record<string, unknown>
       isStainless: input.isStainless,
       openOffset: optionalNumber(input.openOffset),
       defaultUpperBearing: input.defaultUpperBearing || undefined,
+      defaultUpperBearingPartId: input.defaultUpperBearingPartId,
       defaultLowerBearing: input.defaultLowerBearing || undefined,
+      defaultLowerBearingPartId: input.defaultLowerBearingPartId,
       defaultOilSealDia: optionalNumber(input.defaultOilSealDia),
       defaultBearingSpan: optionalNumber(input.defaultBearingSpan),
       defaultImpellerDia: optionalNumber(input.defaultImpellerDia),

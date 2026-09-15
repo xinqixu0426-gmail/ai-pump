@@ -551,7 +551,8 @@ test('关键 API 集成契约：泵壳模板 CRUD 由正式 command service 执�
     assert.match(service, /validateShellComponents/);
     assert.match(service, /safeInsert\('pump_shell_templates'/);
     assert.match(service, /safeUpdate\(\s*'pump_shell_templates'/);
-    assert.match(service, /hardDelete\(\s*'pump_shell_templates'/);
+    assert.match(service, /safeUpdate\(\s*'pump_shell_templates'/);
+    assert.match(service, /deleted_at: new Date\(\)\.toISOString\(\)/);
     assert.match(service, /SELECT COUNT\(\*\) AS count FROM recipes WHERE template_id = \?/);
     assert.match(service, /requiredAuditCount: 1/);
     assert.match(client, /template-create/);

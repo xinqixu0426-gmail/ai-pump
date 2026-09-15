@@ -23,7 +23,7 @@ const SOURCES = Object.freeze([
 
 const ID_KEYS = Object.freeze({
     partId: 'part', coilId: 'coil', recipeId: 'recipe', templateId: 'template',
-    shellPartId: 'part', modelVariantId: 'modelVariant', statorVariantId: 'stator',
+    shellPartId: 'part', modelVariantId: 'modelVariant', statorVariantId: 'stator', defaultUpperBearingPartId: 'part', defaultLowerBearingPartId: 'part', screwPricingPartId: 'part',
     part_id: 'part', coil_id: 'coil', recipe_id: 'recipe', template_id: 'template',
     model_variant_id: 'modelVariant', stator_variant_id: 'stator',
 });
@@ -180,7 +180,7 @@ function auditCatalogReferences(db, options = {}) {
                         supplier: key === 'screwPricingModel' ? text(value.screwPricingSupplier) : '',
                     }, sourceHash);
                 } else if (BEARING_KEYS.has(key) && text(child)) {
-                    add(source, row, childPath, { targetType: 'part', model: text(child), category: '轴承' }, sourceHash);
+                    add(source, row, childPath, { targetType: 'part', targetId: value[`${key}PartId`] ?? null, model: text(child), category: '轴承' }, sourceHash);
                 } else if (key === 'subassemblyContents') {
                     // A supplier kit's descriptions are not separately purchased or stocked.
                     if (child != null) add(source, row, childPath, { targetType: 'description', model: '' }, sourceHash, 'non_inventory');

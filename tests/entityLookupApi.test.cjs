@@ -24,7 +24,7 @@ function createDb() {
         CREATE TABLE orders (id INTEGER PRIMARY KEY, contract_no TEXT, customer_name TEXT, deleted_at TEXT);
         CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, deleted_at TEXT);
         CREATE TABLE recipes (id INTEGER PRIMARY KEY, name TEXT, spec TEXT, deleted_at TEXT);
-        CREATE TABLE pump_shell_templates (id INTEGER PRIMARY KEY, shell_model TEXT);
+        CREATE TABLE pump_shell_templates (id INTEGER PRIMARY KEY, shell_model TEXT, deleted_at TEXT);
     `);
     return db;
 }

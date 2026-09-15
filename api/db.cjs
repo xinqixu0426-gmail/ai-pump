@@ -27,8 +27,10 @@ const testDatabaseTemplate = String(
 );
 const testDatabasePath = testDatabaseTemplate.includes('{pid}')
     ? testDatabaseTemplate.replaceAll('{pid}', String(process.pid))
-    : `${testDatabaseTemplate}.${process.pid}`;
-const DB_PATH = process.env.NODE_ENV === 'test'
+    : testDatabaseTemplate;
+// node --test sets NODE_TEST_CONTEXT even when a focused test omits NODE_ENV.
+// Such imports must never open or migrate the application's database.
+const DB_PATH = process.env.NODE_ENV === 'test' || process.env.NODE_TEST_CONTEXT
     ? path.resolve(testDatabasePath)
     : path.join(__dirname, '..', 'pump.db');
 const db = new Database(DB_PATH);
@@ -110,6 +112,9 @@ function recipeRow(r) {
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
         snapshotPartsJson: snapshot.parts_json,
+        snapshotExtraPartsJson: snapshot.extra_parts_json,
+        snapshotPackingPartsJson: snapshot.packing_parts_json,
+        snapshotConfigurationPolicyJson: snapshot.configuration_policy_json,
         id: r.id, Id: r.id, name: r.name, externalModel: r.external_model, spec: r.spec,
         partsJson: (() => {
             try {
@@ -571,7 +576,7 @@ function dbGetAllRecipes() { return hydrateCatalogRows(db, 'recipe', db.prepare(
 function dbGetAllOrders() { return hydrateCatalogRows(db, 'order', db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all()).map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
 function dbGetAllStatorVariants() { return db.prepare('SELECT * FROM stator_variants ORDER BY diameter_mm, material, slot_type').all().map(statorVariantRow); }
-function dbGetAllTemplates() { return hydrateCatalogRows(db, 'template', db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all()).map(templateRow); }
+function dbGetAllTemplates() { return hydrateCatalogRows(db, 'template', db.prepare('SELECT * FROM pump_shell_templates WHERE deleted_at IS NULL ORDER BY shell_model').all()).map(templateRow); }
 function dbGetAllModelVariants() { return hydrateCatalogRows(db, 'modelVariant', db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all()).map(modelVariantRow); }
 function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
 function dbGetAllQuotations() { return hydrateCatalogRows(db, 'quotation', db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all()).map(quotationRow); }

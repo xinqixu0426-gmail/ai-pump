@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
+import { previewCatalogName, type CatalogNamingInput } from '@/lib/catalog-naming';
+
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { RecipeSelectionRow } from '@/components/recipe/RecipeDataTable';
 import {
   parseRecipePartsJson,
@@ -11,6 +13,9 @@ import {
 import { parseTechnicalDataJson, type RecipeTechnicalData } from '@/lib/technical-data';
 
 export type RecipeFormState = {
+  naming?: CatalogNamingInput;
+  namingError?: string;
+  externalModel?: string;
   name: string;
   spec: string;
   templateId: string;
@@ -206,6 +211,25 @@ export function useRecipeDraft(): UseRecipeDraftResult {
   const [optionalParts, setOptionalParts] = useState<RecipeSelectionRow[]>([]);
   const [packingParts, setPackingParts] = useState<RecipeSelectionRow[]>([]);
 
+  const namingSpec: Record<string, string | number> = { ...(form.naming?.spec || {}), statorCode: form.coilSpec, sheets: Number(form.coilSheets || 0) };
+  delete namingSpec.barrelLengthMm;
+  if (form.customBarrelLength) namingSpec.barrelLengthMm = Number(form.customBarrelLength);
+  const namingSignature = form.naming ? JSON.stringify({ ruleId: 'recipe', spec: namingSpec }) : '';
+  useEffect(() => {
+    if (editingRecipe || !namingSignature) return;
+    let active = true;
+    const naming: CatalogNamingInput = JSON.parse(namingSignature);
+    setForm(current => current.name ? { ...current, name: '' } : current);
+    const timer = setTimeout(() => {
+      previewCatalogName(naming).then(name => {
+        if (active) setForm(current => ({ ...current, naming, name, namingError: undefined }));
+      }).catch(error => {
+        if (active) setForm(current => ({ ...current, name: '', namingError: error.message }));
+      });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [namingSignature, editingRecipe]);
+
   const updateForm = useCallback((patch: Partial<RecipeFormState>) => {
     setForm((current) => ({ ...current, ...patch }));
   }, []);
@@ -258,7 +282,8 @@ export function useRecipeDraft(): UseRecipeDraftResult {
     setEditingRecipe(null);
     setForm({
       ...formFromRecipe(recipe),
-      name: `${recipe.name || '未命名配方'} - 副本`,
+      // 副本保留物料与配置，名称必须重新填写规格并由服务端生成。
+      name: '',
       variantId: '',
     });
     setOptionalParts(selections.optionalParts);

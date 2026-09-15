@@ -65,7 +65,7 @@ function createTemplateQueries({
         const template = db.prepare(
             'SELECT * FROM pump_shell_templates WHERE id = ?'
         ).get(templateId);
-        if (!template) {
+        if (!template || template.deleted_at) {
             throw new TemplateQueryError('模板不存在', 404);
         }
         return hydrateCatalogRow(db, 'template', template);

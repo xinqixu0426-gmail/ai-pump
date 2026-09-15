@@ -1666,7 +1666,9 @@ export function RecipesView() {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const continueToRecipe = !editingTemplate && submitter?.name === 'continueToRecipe';
-    if (!templateForm.shellModel.trim()) {
+    if (!editingTemplate && !templateForm.templateName) { setFormError('请补齐命名规格'); return; }
+    if (templateForm.costMode === 'bundle' && !editingTemplate && !templateForm.shellPartId) { setFormError('请选择具体泵壳及供应商'); return; }
+    if (templateForm.costMode === 'bundle' && !templateForm.shellModel.trim()) {
       setFormError(templateForm.costMode === 'bundle' ? '请从零件库选择泵壳型号' : '请填写组合模板名称');
       return;
     }
@@ -1931,6 +1933,8 @@ export function RecipesView() {
         recipeId: editingRecipe?.id,
         expectedUpdatedAt: editingRecipe?.updatedAt,
         form: {
+          naming: form.naming,
+          externalModel: form.externalModel,
           name: form.name,
           spec: form.spec,
           templateId: form.templateId || null,
@@ -2222,6 +2226,7 @@ export function RecipesView() {
           <div className="min-w-0 space-y-4">
             {editingRecipe ? <Button type="button" disabled={recipeFormDirty} title={recipeFormDirty ? '请先保存或取消当前修改' : undefined} onClick={() => setRenameTarget({ entityType: 'recipe', entityId: editingRecipe.id, name: editingRecipe.name, updatedAt: editingRecipe.updatedAt || '' })}>按规格规范名称</Button> : null}
             <RecipeBasicSection
+              creating={!editingRecipe}
               form={form}
               templates={templates}
               hasStainlessBarrel={hasStainlessBarrel}

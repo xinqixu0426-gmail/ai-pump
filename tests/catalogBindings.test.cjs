@@ -12,6 +12,7 @@ function fixture(t) {
     t.after(() => db.close());
     db.exec(CANONICAL_TABLES_SQL);
     db.exec(CATALOG_IDENTITY_SCHEMA_SQL);
+    db.exec('ALTER TABLE pump_shell_templates ADD COLUMN deleted_at TEXT');
     db.pragma('foreign_keys = ON');
     db.prepare('INSERT INTO parts (model, supplier, stock, price) VALUES (?, ?, ?, ?)').run('202', '甲', 9, 3);
     db.prepare('INSERT INTO parts (model, supplier, stock, price) VALUES (?, ?, ?, ?)').run('202', '乙', 8, 4);

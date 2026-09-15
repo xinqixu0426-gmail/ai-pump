@@ -120,7 +120,7 @@ const MCP_WRITE_ACCEPTANCE_CASES = Object.freeze([
     },
     {
         name: 'create_recipe',
-        args: { name: '本地验收配方', spec: '1寸' },
+        args: { name: '本地验收配方', spec: '1寸', naming: { ruleId: 'recipe', spec: { series: 'V750', configuration: '普通' } }, coilSpec: '12', coilSheets: 140, coilId: 1 },
         businessTests: ['tests/recipeCommands.test.cjs'],
         isolation: 'in-memory recipe database',
     },

@@ -1310,8 +1310,11 @@ async function testResourceDetails(resources) {
 }
 
 async function createBundleTemplate(unique, suffix = '') {
+    const shell = (await request(`新增模板泵壳${suffix}`, 'POST', '/api/parts', { naming: { ruleId: 'shell', spec: { series: `${unique}${suffix}`, specification: '整套' } }, category: '泵壳', supplier: '自动验收', price: 100, stock: 0, idempotencyKey: `deep:template-shell:${unique}${suffix}` })).payload.data;
     return (await request(`新增模板${suffix}`, 'POST', '/api/templates', {
         shellModel: `${unique}-SHELL${suffix}`,
+        shellPartId: shell.id,
+        naming: { ruleId: 'template', spec: { series: `${unique}${suffix}`, configuration: '整套' } },
         description: '隔离验收模板',
         partsJson: '[]',
         shellComponentsJson: '[]',
@@ -1344,6 +1347,27 @@ async function testBusinessRevision() {
     assert(other.ok && other.headers.get('cache-control') === 'no-store', '第二会话版本接口或缓存控制失败');
     assert((await other.json()).data.revision === after.revision, '独立会话未读到同一提交版本');
     results.push({ label: '独立登录会话读取相同最新业务版本', status: 200, ms: 0 });
+}
+
+async function testCatalogMigrationHttp(databasePath) {
+    const fixture = new Database(databasePath);
+    const supplier = `MIGRATION-${Date.now()}`;
+    try {
+        const ids = ['6287', '6288'].map(model => Number(fixture.prepare("INSERT INTO parts (model, category, supplier, price, stock, updated_at) VALUES (?, '轴承', ?, 2, 11, ?)").run(model, supplier, new Date().toISOString()).lastInsertRowid));
+        const entries = ids.map((entityId, index) => ({ entityType: 'part', entityId, naming: { ruleId: 'bearing', spec: { code: `628${index + 7}` } }, samePhysicalItem: true, expectedUpdatedAt: fixture.prepare('SELECT updated_at FROM parts WHERE id=?').get(entityId).updated_at }));
+        const before = fixture.prepare('SELECT COUNT(*) n FROM audit_log').get().n;
+        const preview = (await request('已核对批量迁移正式 HTTP 预览', 'POST', '/api/catalog/migration-preview', { entries })).payload.data;
+        assert(fixture.prepare('SELECT COUNT(*) n FROM audit_log').get().n === before, '迁移预览产生业务写入');
+        const input = { confirmationToken: preview.confirmationToken, idempotencyKey: preview.suggestedIdempotencyKey };
+        const applied = (await request('已核对批量迁移原子提交并返回审计', 'POST', '/api/catalog/migrate', input)).payload.data;
+        assert(applied.migratedCount === 2 && applied.auditIds.length >= 4, '批量迁移数量或审计不完整');
+        assert((await request('批量迁移 HTTP 幂等重放不重复写入', 'POST', '/api/catalog/migrate', input)).payload.data.idempotentReplay, '批量迁移未幂等');
+        const rows = (await request('批量迁移后正式目录回读现名及库存', 'GET', '/api/parts')).payload.data;
+        for (const [index, id] of ids.entries()) assert(rows.find(row => row.id === id)?.model === `轴承-28${index + 7}` && fixture.prepare('SELECT stock FROM parts WHERE id=?').get(id).stock === 11, '迁移改变身份或库存');
+        const versions = ids.map(entityId => fixture.prepare('SELECT updated_at FROM parts WHERE id=?').get(entityId).updated_at);
+        await request('过期迁移映射明确拒绝', 'POST', '/api/catalog/migration-preview', { entries }, [409]);
+        assert(ids.every((id, index) => fixture.prepare('SELECT updated_at FROM parts WHERE id=?').get(id).updated_at === versions[index]), '过期映射修改了目录');
+    } finally { fixture.close(); }
 }
 
 async function testSavedPurchaseNameViews(databasePath) {
@@ -1874,6 +1898,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         '/api/templates',
         {
             shellModel: `${unique}-COMPONENT-SHELL`,
+            naming: { ruleId: 'template', spec: { series: unique, configuration: 'COMPONENT-SHELL' } },
             description: '组件数量与字段白名单验收',
             partsJson: '[]',
             shellComponentsJson: JSON.stringify([{
@@ -1912,6 +1937,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         '/api/templates',
         {
             shellModel: `${unique}-INVALID-QTY`,
+            naming: { ruleId: 'template', spec: { series: unique, configuration: 'INVALID-QTY' } },
             partsJson: '[]',
             shellComponentsJson: JSON.stringify([{
                 name: '验收组件',
@@ -1943,6 +1969,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(updatedTemplate.capabilityId === 'templates.update', '修改模板缺少正式 capability 回执');
     assert(updatedTemplate.auditId, '修改模板缺少强审计回执');
     const variantInput = {
+        naming: { ruleId: 'model-variant', spec: { series: unique, configuration: '普通' } },
         modelName: `${unique}-MODEL`,
         templateId: template.id,
         coilId: baseCoil.id,
@@ -1974,6 +2001,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     assert(variantReplay.idempotentReplay === true, '新增型号配置重放未命中持久幂等回执');
     const updatedVariant = (await request('修改型号配置', 'PATCH', `/api/model-variants/${variant.id}`, {
         ...variantInput,
+        modelName: variant.modelName,
         longScrewExtraLength: 1,
         note: '自动验收已修改',
         expectedUpdatedAt: variant.updatedAt,
@@ -1985,6 +2013,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     });
 
     const recipeInput = {
+        naming: { ruleId: 'recipe', spec: { series: unique, configuration: '普通' } },
         ...baseRecipe,
         id: undefined,
         name: `${unique}-RECIPE`,
@@ -2580,11 +2609,16 @@ async function testCrossModuleWriteFlow(baseResources) {
             ...baseRecipe,
             id: undefined,
             name: `${unique}-ACTION-RECIPE`,
+            naming: { ruleId: 'recipe', spec: { series: unique, configuration: '方案执行' } },
             spec: '订单方案执行自动验收',
             templateId: null,
             modelVariantId: null,
-            coilSpec: '',
-            coilSheets: 0,
+            coilSpec: baseCoil.spec,
+            coilSheets: baseCoil.sheets,
+            coilId: baseCoil.id,
+            coilMaterial: baseCoil.material,
+            coilSlotType: baseCoil.slotType,
+            coilSchemeFamilyCode: '',
             coilWireWeight: null,
             partsJson: JSON.stringify([{
                 name: '深度验收零件',
@@ -3979,6 +4013,7 @@ async function run() {
             await testCatalogNamingSave();
             await testRecipeInventoryIdentity(path.join(temp, 'pump.db'));
             await testSavedPurchaseNameViews(path.join(temp, 'pump.db'));
+            await testCatalogMigrationHttp(path.join(temp, 'pump.db'));
             await testPartRenameGuard(path.join(temp, 'pump.db'));
         }
         if (DEEP_API_SCOPE !== 'catalog') {

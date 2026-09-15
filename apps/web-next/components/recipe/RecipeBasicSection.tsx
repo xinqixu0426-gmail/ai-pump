@@ -1,5 +1,7 @@
 'use client';
 
+import { CatalogCreateNaming } from '@/components/catalog-create-naming';
+import type { CatalogNamingInput } from '@/lib/catalog-naming';
 import { ChevronDown, CircleHelp } from 'lucide-react';
 import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
 import { RecipeSection as WorkspaceSection, RecipeStatusBadge } from '@/components/recipe/RecipeSection';
@@ -14,6 +16,11 @@ export type LinkedChangeAnnotation = {
 };
 
 type RecipeBasicFields = {
+  naming?: CatalogNamingInput;
+  namingError?: string;
+  externalModel?: string;
+  coilSpec?: string;
+  coilSheets?: string;
   name: string;
   spec: string;
   templateId: string;
@@ -22,6 +29,7 @@ type RecipeBasicFields = {
 };
 
 type RecipeBasicSectionProps = {
+  creating?: boolean;
   form: RecipeBasicFields;
   templates: PumpShellTemplate[];
   hasStainlessBarrel: boolean;
@@ -44,6 +52,7 @@ function linkedChangeToneClass(tone: LinkedChangeAnnotation['tone']): string {
 }
 
 export function RecipeBasicSection({
+  creating,
   form,
   templates,
   hasStainlessBarrel,
@@ -67,17 +76,20 @@ export function RecipeBasicSection({
       badgeTone={complete ? 'green' : 'amber'}
     >
       <div className="space-y-3">
+        {creating ? <CatalogCreateNaming ruleId="recipe" naming={form.naming} name={form.name} previewEnabled={false} previewError={form.namingError} lockedSpec={{ statorCode: form.coilSpec || '', sheets: Number(form.coilSheets || 0), barrelLengthMm: form.customBarrelLength ? Number(form.customBarrelLength) : undefined }} onChange={(naming, name) => onChange({ naming, name })} /> : null}
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block md:col-span-2">
-            <span className="text-xs font-medium text-muted">成品型号</span>
+            <span className="text-xs font-medium text-muted">系统名称</span>
             <input
               value={form.name}
-              onChange={(event) => onChange({ name: event.target.value })}
+              readOnly
+              aria-label="系统生成的成品名称"
               className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
               placeholder="例如：1500W 不锈钢泵"
             />
           </label>
 
+          {creating ? <label className="block md:col-span-3"><span className="text-xs text-muted">对外型号（可选）</span><input aria-label="对外型号" value={form.externalModel || ''} onChange={event => onChange({ externalModel: event.target.value })} className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm" /></label> : null}
           <label className="block">
             <span className="text-xs font-medium text-muted">配置摘要</span>
             <input

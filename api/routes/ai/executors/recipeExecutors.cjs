@@ -163,6 +163,8 @@ async function buildAiRecipeSavePayload(internalFetch, form, parts, options = {}
         } : {}),
         form: {
             name: form.name,
+            naming: form.naming,
+            externalModel: form.externalModel,
             spec: form.spec || '',
             assemblyWage: form.assemblyWage ?? 0,
             packingWage: form.packingWage ?? 0,
@@ -361,7 +363,14 @@ function assertRecipeUpdateReadback(draft, readback) {
         return typeof expected === 'number' || typeof actual === 'number'
             ? Number(expected) !== Number(actual)
             : expected !== actual;
-    }) || jsonFields.find(field => !sameJsonValue(draft[field] ?? null, readback?.[field] ?? null));
+    }) || jsonFields.find(field => {
+        // Compare the persisted snapshot with the confirmed payload. Current
+        // labels are a read-only projection and may differ after catalog naming.
+        const snapshotField = `snapshot${field[0].toUpperCase()}${field.slice(1)}`;
+        const actual = Object.prototype.hasOwnProperty.call(readback || {}, snapshotField)
+            ? readback[snapshotField] : readback?.[field];
+        return !sameJsonValue(draft[field] ?? null, actual ?? null);
+    });
     if (mismatch) {
         throw recipeUpdateError(
             'recipe_update_readback_mismatch',
@@ -671,7 +680,7 @@ async function executeRecipeTool(toolName, args, internalFetch, options = {}) {
 
             try {
                 const recipeParts = buildAiRecipeParts(parts, await loadParts(internalFetch));
-                const payload = await buildAiRecipeSavePayload(internalFetch, { name, spec }, recipeParts);
+                const payload = await buildAiRecipeSavePayload(internalFetch, { ...args, name, spec }, recipeParts);
                 const saved = await postJson(internalFetch, '/api/recipes', payload, '配方创建失败');
                 return {
                     success: true,

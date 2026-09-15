@@ -231,8 +231,11 @@ function draftInput(overrides = {}) {
     return {
         form: {
             name: '测试配方',
+            naming: { ruleId: 'recipe', spec: { series: 'V750', configuration: '普通' } },
             spec: 'V1',
-            coilSheets: 10,
+            coilSpec: '12',
+            coilId: 1,
+            coilSheets: 140,
             coilMaterial: '钢带',
             coilSlotType: '小眼',
             coilWireWeight: 0.45,
@@ -316,11 +319,11 @@ test('配方创建绑定预览、持久幂等和强审计并保持完整资源�
         const first = executeRecipeCreate(fixture.dependencies, draft, context);
         const replay = executeRecipeCreate(fixture.dependencies, draft, context);
 
-        assert.equal(first.recipe.name, '测试配方');
+        assert.equal(first.recipe.name, '水泵-V750-12-140片-普通');
         assert.equal(first.recipe.spec, 'V1');
         assert.deepEqual(
             fixture.db.prepare('SELECT name, spec FROM recipes WHERE id = ?').get(first.recipe.id),
-            { name: '测试配方', spec: 'V1' }
+            { name: '水泵-V750-12-140片-普通', spec: 'V1' }
         );
         assert.equal(first.recipe.savedTotalCost, 7);
         assert.equal(first.recipe.coilWireWeight, 0.45);
@@ -340,6 +343,7 @@ test('配方填写线圈维度时必须绑定具体正式方案并持久保存 c
         const form = {
             ...draftInput().form,
             coilSpec: '12',
+            coilId: null,
             coilSheets: 140,
         };
         assert.throws(
@@ -395,6 +399,7 @@ test('配方非精确片数明确方案系列后持久保存并允许插值', ()
         const form = {
             ...draftInput().form,
             coilSpec: '12',
+            coilId: null,
             coilSheets: 130,
             coilSchemeFamilyCode: 'test-family',
         };
@@ -430,7 +435,7 @@ test('配方创建拒绝被篡改的保存草稿并整体回滚', () => {
         assert.throws(
             () => executeRecipeCreate(
                 fixture.dependencies,
-                { ...draft, name: '被篡改配方' },
+                { ...draft, externalModel: '被篡改对外型号' },
                 commandContext(CREATE_CAPABILITY_ID, 'preview-conflict')
             ),
             error => error.code === 'preview_changed' && error.statusCode === 409
@@ -520,7 +525,7 @@ test('配方更新版本冲突时不写业务表、审计或 operation', () => {
         assert.equal(
             fixture.db.prepare('SELECT name FROM recipes WHERE id = ?')
                 .get(created.recipe.id).name,
-            '测试配方'
+            '水泵-V750-12-140片-普通'
         );
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count,

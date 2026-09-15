@@ -1,3 +1,4 @@
+const { prepareCatalogCreation, persistCatalogCreation } = require('./catalogCreation.cjs');
 const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
@@ -394,7 +395,7 @@ function getTemplateRecord(db, templateId) {
     const record = db.prepare(
         'SELECT * FROM pump_shell_templates WHERE id = ?'
     ).get(templateId);
-    if (!record) {
+    if (!record || record.deleted_at) {
         throw templateCommandError('template_not_found', '模板不存在', 404);
     }
     return record;
@@ -413,20 +414,24 @@ function assertUniqueShellModel(db, shellModel, excludeId = null) {
     if (existing) {
         throw templateCommandError(
             'template_shell_model_conflict',
-            `泵壳型号 "${shellModel}" 已存在`,
+            `模板名称 "${shellModel}" 已被已有或历史记录使用`,
             409
         );
     }
 }
 
 function executeTemplateCreate(dependencies, input = {}, commandContext = {}) {
-    const normalized = normalizeCreateInput(input);
+    const creation = prepareCatalogCreation('template', {}, input);
+    const normalized = normalizeCreateInput({ ...input, shellModel: creation.generated.name });
+    const shellPartId = input.shellPartId == null ? null : parsePositiveId(input.shellPartId);
+    if (input.shellPartId != null && !shellPartId) throw templateCommandError('template_shell_id_invalid', '泵壳ID必须为正整数', 400);
+    if (normalized.cost_mode === 'bundle' && !shellPartId) throw templateCommandError('template_shell_id_required', '整套泵壳模板必须选择具体泵壳零件', 400);
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
         capabilityId: CREATE_CAPABILITY_ID,
         businessChange: standardBusinessChange({ domain: 'template', eventType: 'created' }),
-        input: normalized,
+        input: { ...normalized, naming: creation.naming, shellPartId },
         execute: ({ auditContext }) => {
             assertUniqueShellModel(dependencies.db, normalized.shell_model);
             validateShellComponents(
@@ -442,6 +447,14 @@ function executeTemplateCreate(dependencies, input = {}, commandContext = {}) {
                 updated_at: now,
             }, auditContext);
             const templateId = Number(write.lastInsertRowid);
+            const profileAuditIds = persistCatalogCreation(dependencies, 'template', getTemplateRecord(dependencies.db, templateId), creation, auditContext);
+            if (shellPartId) {
+                const shell = dependencies.db.prepare('SELECT * FROM parts WHERE id = ? AND deleted_at IS NULL').get(shellPartId);
+                if (!shell || shell.category !== '泵壳') throw templateCommandError('template_shell_id_unavailable', '选择的泵壳不存在、已停用或分类不符', 422);
+                const binding = dependencies.safeInsert('catalog_template_shell_bindings', { template_id: templateId, shell_part_id: shellPartId, created_at: now, updated_at: now }, auditContext);
+                if (!binding.auditId) throw templateCommandError('command_audit_required', '泵壳身份绑定缺少审计，保存已回滚', 500);
+                profileAuditIds.push(binding.auditId);
+            }
             const template = dependencies.templateRow(
                 getTemplateRecord(dependencies.db, templateId)
             );
@@ -455,8 +468,8 @@ function executeTemplateCreate(dependencies, input = {}, commandContext = {}) {
                     from: null,
                     to: { shellModel: template.shellModel },
                 }],
-                auditIds: write.auditId ? [write.auditId] : [],
-                requiredAuditCount: 1,
+                auditIds: [write.auditId, ...profileAuditIds].filter(Boolean),
+                requiredAuditCount: 1 + profileAuditIds.length,
             };
         },
     });
@@ -588,9 +601,10 @@ function executeTemplateDelete(
                     409
                 );
             }
-            const write = dependencies.hardDelete(
+            const write = dependencies.safeUpdate(
                 'pump_shell_templates',
                 templateId,
+                { deleted_at: new Date().toISOString() },
                 auditContext
             );
             return {

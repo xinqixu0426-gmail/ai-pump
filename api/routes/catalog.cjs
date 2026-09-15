@@ -5,7 +5,14 @@ const { db, safeInsert, safeUpdate } = require('../db.cjs');
 const { CAPABILITY_ID, previewCatalogBindings, executeCatalogBindings, readBoundCatalogNames } = require('../services/catalogBindings.cjs');
 const { commandActorKey, commandContextFromRequest, sendCommandError } = require('../services/commandRequest.cjs');
 const { CAPABILITY_ID: RENAME_ID, previewCatalogRename, executeCatalogRename } = require('../services/catalogRename.cjs');
+const { CAPABILITY_ID: MIGRATION_ID, previewCatalogMigration, executeCatalogMigration } = require('../services/catalogMigration.cjs');
 const router = Router();
+router.post('/migration-preview', (req, res) => {
+    try { res.json({ success: true, data: previewCatalogMigration(db, req.body, commandActorKey(req)) }); } catch (error) { sendCommandError(res, error); }
+});
+router.post('/migrate', (req, res) => {
+    try { res.json({ success: true, data: executeCatalogMigration({ db, safeInsert, safeUpdate }, req.body, commandContextFromRequest(req, MIGRATION_ID), commandActorKey(req)) }); } catch (error) { sendCommandError(res, error); }
+});
 router.post('/rename-preview', (req, res) => {
     try { res.json({ success: true, data: previewCatalogRename(db, req.body, commandActorKey(req)) }); } catch (error) { sendCommandError(res, error); }
 });

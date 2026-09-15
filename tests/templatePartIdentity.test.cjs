@@ -11,7 +11,7 @@ const { executeTemplateCreate, executeTemplateUpdate, validateTemplatePartRefere
 test.after(() => { deps.stopBackupScheduler(); deps.db.close(); fs.rmSync(dir, { recursive: true, force: true }); });
 const partId = Number(deps.safeInsert('parts', { model: '身份组件', category: '泵壳搭配', supplier: '甲', price: 3, stock: 0 }).lastInsertRowid);
 const component = { partId, name: '泵头', model: '身份组件', supplier: '甲', qty: 1, unitCost: 3, included: true };
-const input = { shellModel: '身份模板', costMode: 'components', partsJson: JSON.stringify([component]), shellComponentsJson: JSON.stringify([component]), assemblyWage: 1, packingWage: 1, surfaceTreatmentCost: 0 };
+const input = { naming: { ruleId: 'template', spec: { series: 'V750', configuration: '组合' } }, shellModel: '身份模板', costMode: 'components', partsJson: JSON.stringify([component]), shellComponentsJson: JSON.stringify([component]), assemblyWage: 1, packingWage: 1, surfaceTreatmentCost: 0 };
 
 test('模板正式保存、回读、更新及幂等重放保留固定件和组件 ID', () => {
     const ctx = { actorKey: 'test:template', idempotencyKey: 'template-id-create' };
@@ -28,7 +28,7 @@ test('模板 ID 冲突和无效引用拒绝且不留下模板、审计或 operat
     const counts = () => ['pump_shell_templates', 'audit_log', 'api_operations'].filter(name => deps.db.prepare("SELECT 1 FROM sqlite_master WHERE name=?").get(name)).map(name => deps.db.prepare(`SELECT COUNT(*) n FROM ${name}`).get().n);
     for (const patch of [{ model: '错误型号' }, { supplier: '乙' }, { partId: -1 }, { partId: true }, { partId: 999999 }, { partId: 1.5 }]) {
         const before = counts();
-        assert.throws(() => executeTemplateCreate(deps, { ...input, shellModel: '无效模板', partsJson: JSON.stringify([{ ...component, ...patch }]) }, { actorKey: 'test:template', idempotencyKey: `invalid-${require('node:crypto').randomUUID()}` }), error => /BOM_PART_|template_part_/.test(error.code));
+        assert.throws(() => executeTemplateCreate(deps, { ...input, naming: { ruleId: 'template', spec: { series: 'V750', configuration: '无效模板' } }, shellModel: '无效模板', partsJson: JSON.stringify([{ ...component, ...patch }]) }, { actorKey: 'test:template', idempotencyKey: `invalid-${require('node:crypto').randomUUID()}` }), error => /BOM_PART_|template_part_/.test(error.code));
         assert.deepEqual(counts(), before);
     }
     deps.safeUpdate('parts', partId, { deleted_at: new Date().toISOString() });
@@ -51,7 +51,7 @@ test('模板前端编辑和复用序列化保留 ID，旧记录不猜补 ID', ()
 });
 
 test('模板更新冲突、组件错分类及写入后故障均整体回滚', () => {
-    const saved = executeTemplateCreate(deps, { ...input, shellModel: '回滚模板' }, { actorKey: 'test:template', idempotencyKey: 'template-rollback-create' }).template;
+    const saved = executeTemplateCreate(deps, { ...input, naming: { ruleId: 'template', spec: { series: 'V750', configuration: '回滚模板' } }, shellModel: '回滚模板' }, { actorKey: 'test:template', idempotencyKey: 'template-rollback-create' }).template;
     const before = deps.db.prepare('SELECT * FROM pump_shell_templates WHERE id=?').get(saved.id);
     assert.throws(() => executeTemplateUpdate(deps, saved.id, {
         description: '不能保存', expectedUpdatedAt: saved.updatedAt,
@@ -64,6 +64,6 @@ test('模板更新冲突、组件错分类及写入后故障均整体回滚', ()
     assert.throws(() => executeTemplateCreate({ ...deps, safeInsert: (...args) => {
         deps.safeInsert(...args);
         throw new Error('模拟写后故障');
-    } }, { ...input, shellModel: '写后故障模板' }, { actorKey: 'test:template', idempotencyKey: 'template-write-failure' }), /模拟写后故障/);
+    } }, { ...input, naming: { ruleId: 'template', spec: { series: 'V750', configuration: '写后故障模板' } }, shellModel: '写后故障模板' }, { actorKey: 'test:template', idempotencyKey: 'template-write-failure' }), /模拟写后故障/);
     assert.equal(deps.db.prepare('SELECT COUNT(*) n FROM pump_shell_templates').get().n, count);
 });

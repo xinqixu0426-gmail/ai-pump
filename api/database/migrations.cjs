@@ -3809,6 +3809,12 @@ const MIGRATIONS = Object.freeze([
                 CHECK (naming_json IS NULL OR (json_valid(naming_json) AND json_type(naming_json) = 'object'))`);
         },
     },
+    {
+        version: 85,
+        name: 'template_soft_delete',
+        signature: 'pump-shell-templates-nullable-deleted-at-v1',
+        up(db) { db.exec('ALTER TABLE pump_shell_templates ADD COLUMN deleted_at TEXT'); },
+    },
 ]);
 
 function migrationChecksum(migration) {

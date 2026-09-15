@@ -612,7 +612,15 @@ const AI_TOOLS = [
             parameters: {
                 type: 'object',
                 properties: {
-                    name: { type: 'string', description: '成品型号' },
+                    name: { type: 'string', description: '成品型号（对外型号），系统名称按规格自动生成' },
+                    naming: { type: 'object', additionalProperties: false, properties: { ruleId: { type: 'string', enum: ['recipe'] }, spec: { type: 'object', additionalProperties: false, properties: { series: { type: 'string' }, configuration: { type: 'string' } }, required: ['series', 'configuration'] } }, required: ['ruleId', 'spec'] },
+                    coilSpec: { type: 'string', description: '定子组合代号' },
+                    coilSheets: { type: 'number', description: '片数' },
+                    coilId: { type: 'number', description: '具体正式线圈ID，或明确选择方案系列' },
+                    coilSchemeFamilyCode: { type: 'string' },
+                    coilMaterial: { type: 'string', enum: ['钢带', '冷轧'] },
+                    coilSlotType: { type: 'string', enum: ['小眼', '国标眼'] },
+                    customBarrelLength: { type: 'number', description: '已知机筒长度mm；未知省略' },
                     spec: { type: 'string', description: '配置摘要（如1寸、1.5寸）' },
                     parts: {
                         type: 'array',
@@ -627,7 +635,7 @@ const AI_TOOLS = [
                         }
                     }
                 },
-                required: ['name']
+                required: ['name', 'naming', 'coilSpec', 'coilSheets']
             }
         }
     },

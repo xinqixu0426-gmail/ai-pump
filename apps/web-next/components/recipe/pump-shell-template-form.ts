@@ -158,6 +158,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
 
   return {
     shellModel: template.shellModel || '',
+    shellPartId: template.shellPartId,
     description: template.description || '',
     assemblyWage: String(template.assemblyWage || 0),
     packingWage: String(template.packingWage || 0),
@@ -257,7 +258,9 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
   );
 
   return {
-    shellModel: form.shellModel.trim(),
+    shellModel: form.naming ? (form.templateName || '').trim() : form.shellModel.trim(),
+    naming: form.naming,
+    shellPartId: form.shellPartId,
     description: form.description.trim(),
     partsJson: JSON.stringify(partsPayload),
     shellComponentsJson: JSON.stringify(componentsPayload),

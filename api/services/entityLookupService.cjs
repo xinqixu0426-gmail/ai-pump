@@ -148,7 +148,7 @@ const EXACT_LOOKUPS = Object.freeze({
         sql: `
             SELECT id
             FROM pump_shell_templates
-            WHERE shell_model = ? COLLATE NOCASE
+            WHERE deleted_at IS NULL AND shell_model = ? COLLATE NOCASE
             ORDER BY id
             LIMIT ?
         `,

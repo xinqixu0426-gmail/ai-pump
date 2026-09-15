@@ -54,9 +54,8 @@ function createRecipeQueries({
         if (!templateId) {
             return { template: null, shellMeta: null };
         }
-        const template = templateRow(
-            db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(templateId)
-        );
+        const rawTemplate = db.prepare('SELECT * FROM pump_shell_templates WHERE id = ?').get(templateId);
+        const template = rawTemplate && !rawTemplate.deleted_at ? templateRow(rawTemplate) : null;
         if (!template) {
             return { template: null, shellMeta: null };
         }
@@ -175,6 +174,7 @@ function createRecipeQueries({
         }
         if (!templateId && shellModel) {
             const templates = db.prepare('SELECT * FROM pump_shell_templates ORDER BY id').all()
+                .filter(row => !row.deleted_at)
                 .map(templateRow);
             const exact = templates.filter(item => (
                 String(item?.shellModel || '').trim().toLocaleLowerCase() === shellModel.toLocaleLowerCase()

@@ -355,12 +355,18 @@ function calculateScrewUnitPrice(length) {
     return roundMoney(Math.max(0, SCREW_LENGTH_PRICE_FACTOR * screwLength + SCREW_LENGTH_PRICE_OFFSET));
 }
 
-function findScrewPricingPart(partsCatalog, model, supplier = '') {
+function findScrewPricingPart(partsCatalog, model, supplier = '', pricingPartId) {
     const diameter = screwDiameterFromModel(model);
     if (!diameter || !Array.isArray(partsCatalog)) return null;
     const candidates = partsCatalog
         .map(part => ({ part, pricing: parseScrewPricingMeta(part.notes || part.remark) }))
         .filter(item => item.pricing && !item.part.deletedAt && !item.part.deleted_at && item.part.category === '螺丝' && Number(item.pricing.diameter) === diameter);
+    if (pricingPartId != null) {
+        if (!Number.isSafeInteger(pricingPartId) || pricingPartId <= 0) throw Object.assign(new Error('长螺丝定价来源ID无效'), { code: 'SCREW_PRICING_ID_INVALID', statusCode: 422 });
+        const selected = candidates.filter(item => Number(item.part.id || item.part.Id) === pricingPartId && (!supplier || item.part.supplier === supplier));
+        if (selected.length !== 1) throw Object.assign(new Error('长螺丝定价来源不存在、停用或规格/供应商不符'), { code: 'SCREW_PRICING_ID_UNAVAILABLE', statusCode: 422 });
+        return selected[0];
+    }
     if (candidates.length === 0) return null;
     const normalizedSupplier = String(supplier || '').trim();
     const matching = normalizedSupplier ? candidates.filter(item => String(item.part.supplier || '').trim() === normalizedSupplier) : candidates;
@@ -368,13 +374,14 @@ function findScrewPricingPart(partsCatalog, model, supplier = '') {
     return matching[0] || null;
 }
 
-function longScrewPriceByModel(partsCatalog, model, supplier = '') {
+function longScrewPriceByModel(partsCatalog, model, supplier = '', pricingPartId) {
     const length = screwLengthFromModel(model);
     if (!length) return null;
-    const matched = findScrewPricingPart(partsCatalog, model, supplier);
+    const matched = findScrewPricingPart(partsCatalog, model, supplier, pricingPartId);
     if (!matched) return null;
     return {
         unitPrice: calculateScrewUnitPrice(length),
+        pricingPartId: matched.part.id || matched.part.Id,
         pricingPartModel: matched.part.model,
         pricingSupplier: matched.part.supplier || '',
     };
@@ -485,7 +492,7 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
             if (source !== '快照价格') price += getFloatAccessoryDelta(p.floatAccessoryType, getSetting);
             if (p.floatAccessoryType === 'xinjie') source += '+新界式';
         } else if (isLongScrewPart(p)) {
-            const screwPricing = longScrewPriceByModel(partsCatalog, p.model, p.supplier) || longScrewFormulaPriceByModel(p.model);
+            const screwPricing = longScrewPriceByModel(partsCatalog, p.model, p.supplier, p.screwPricingPartId) || longScrewFormulaPriceByModel(p.model);
             if (screwPricing) {
                 price = screwPricing.unitPrice;
                 source = screwPricing.pricingPartModel ? `参数化螺丝(${screwPricing.pricingPartModel})` : '长螺丝公式价';
@@ -566,12 +573,13 @@ function assertRecipeBomPrices(parts) {
 
 function applyScrewPricing(part, partsCatalog) {
     if (!isLongScrewPart(part)) return part;
-    const pricing = longScrewPriceByModel(partsCatalog, part.model, part.supplier) || longScrewFormulaPriceByModel(part.model);
+    const pricing = longScrewPriceByModel(partsCatalog, part.model, part.supplier, part.screwPricingPartId) || longScrewFormulaPriceByModel(part.model);
     if (!pricing) return part;
     return {
         ...part,
         snapshotPrice: pricing.unitPrice,
         costSource: pricing.pricingPartModel ? 'screw_pricing' : 'screw_formula',
+        screwPricingPartId: pricing.pricingPartId,
         screwPricingModel: pricing.pricingPartModel,
         screwPricingSupplier: pricing.pricingSupplier,
     };

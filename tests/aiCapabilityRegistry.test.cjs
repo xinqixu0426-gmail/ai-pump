@@ -147,6 +147,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'catalog.name_preview',
         'catalog.references_resolve',
         'catalog.rename',
+        'catalog.migrate',
         'catalog.bind_references',
         'catalog.bound_names',
         'recipes.current_costs',

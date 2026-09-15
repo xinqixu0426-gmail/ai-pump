@@ -110,7 +110,7 @@ function buildTemplateRotorDraft(
     const template = db.prepare(
         'SELECT * FROM pump_shell_templates WHERE id = ?'
     ).get(templateId);
-    if (!template) {
+    if (!template || template.deleted_at) {
         throw rotorQueryError('template_not_found', '模板不存在', 404);
     }
 

@@ -379,6 +379,10 @@ test('AI executor 行为：新建配方把所选零件交给权威 BOM 保存草
 
     const result = await executeToolCall('create_recipe', {
         name: 'MCP配方A',
+        naming: { ruleId: 'recipe', spec: { series: 'V750', configuration: '普通' } },
+        coilSpec: '12',
+        coilSheets: 140,
+        coilId: 1,
         spec: '1寸',
         parts: [{ model: '正式零件A', qty: 2 }],
     }, { allowWrite: true, operationId: 'operation-create-recipe' });
@@ -1326,6 +1330,20 @@ test('AI executor 行为：确认后的配方修改只执行冻结草稿并对�
     assert.equal(result.success, false);
     assert.equal(result.code, 'resource_version_conflict');
     assert.equal(calls.length, 1);
+});
+
+test('AI executor 行为：改名投影不干扰保存回读，但原始快照漂移仍拒绝成功', async () => {
+    for (const changedQuantity of [false, true]) {
+        const draft = { name: '规范配方', spec: '已确认', partsJson: '[{"partId":1,"model":"旧显示名","qty":1}]', extraPartsJson: '[]', packingPartsJson: '[]', savedCostDetails: '{}', technicalDataJson: '{}', configurationPolicyJson: null };
+        installFetchStub(call => {
+            if (call.url.endsWith('/api/recipes/57') && call.method === 'PATCH') return jsonResponse({ success: true, data: commandData('recipes.update') });
+            if (call.url.endsWith('/api/recipes/57') && call.method === 'GET') return jsonResponse({ success: true, data: { ...draft, partsJson: '[{"partId":1,"model":"当前名称","qty":1}]', snapshotPartsJson: changedQuantity ? '[{"partId":1,"model":"旧显示名","qty":2}]' : draft.partsJson } });
+            return jsonResponse({ success: false, error: '只能执行冻结草稿和正式回读' }, 500);
+        });
+        const result = await executeToolCall('update_recipe', { recipeName: '规范配方', newSpec: '已确认' }, { allowWrite: true, operationId: `snapshot-readback-${changedQuantity}`, confirmationContext: { kind: 'recipe_update_preview', recipeId: 57, recipeName: '规范配方', requestedChanges: [], draft } });
+        assert.equal(result.success, !changedQuantity);
+        if (changedQuantity) assert.equal(result.code, 'recipe_update_readback_mismatch');
+    }
 });
 
 test('AI executor 行为：模板和动态配置配方更新名称时不会把生成 BOM 当作可选零件重复保存', async () => {

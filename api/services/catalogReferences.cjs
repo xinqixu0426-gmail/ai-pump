@@ -13,7 +13,7 @@ const QUERIES = {
         n.naming_state AS namingState, n.name_revision AS nameRevision, n.spec_revision AS specRevision
         FROM coils p LEFT JOIN catalog_identity_profiles n ON n.coil_id = p.id
         WHERE p.id IN (SELECT value FROM json_each(?))`,
-    template: `SELECT p.id, p.shell_model AS currentName, NULL AS deletedAt,
+    template: `SELECT p.id, p.shell_model AS currentName, p.deleted_at AS deletedAt,
         n.naming_state AS namingState, n.name_revision AS nameRevision, n.spec_revision AS specRevision
         FROM pump_shell_templates p LEFT JOIN catalog_identity_profiles n ON n.template_id = p.id
         WHERE p.id IN (SELECT value FROM json_each(?))`,

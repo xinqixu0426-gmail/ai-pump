@@ -12,10 +12,11 @@ test('配方读取适配保留独立对外型号，旧响应不伪造型号', ()
         assert.equal(name, './api');
         return {};
     });
-    const row = { id: 4, name: '水泵-V750-12-140片-普通', externalModel: 'v750-普通', partsJson: '[]' };
+    const row = { id: 4, name: '水泵-V750-12-140片-普通', externalModel: 'v750-普通', partsJson: '[]', snapshotPartsJson: '[{"model":"旧名"}]', snapshotExtraPartsJson: '[]', snapshotPackingPartsJson: '[]', snapshotConfigurationPolicyJson: '{}' };
     const recipe = exports.rowToRecipe(row);
     assert.equal(recipe.name, row.name);
     assert.equal(recipe.externalModel, row.externalModel);
+    for (const field of ['snapshotPartsJson', 'snapshotExtraPartsJson', 'snapshotPackingPartsJson', 'snapshotConfigurationPolicyJson']) assert.equal(recipe[field], row[field]);
     assert.equal(exports.rowToRecipe({ id: 4, name: row.name }).externalModel, undefined);
 });
 
@@ -29,7 +30,9 @@ function fixture() {
                 return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }];
             },
             useCallback: callback => callback,
+            useEffect() {},
         },
+        '@/lib/catalog-naming': { previewCatalogName: async () => { throw new Error('本测试不发起命名请求'); } },
         '@/lib/recipes': { parseRecipePartsJson: value => JSON.parse(value || '[]') },
         '@/lib/technical-data': { parseTechnicalDataJson: value => JSON.parse(value || '{}') },
     };
@@ -55,6 +58,10 @@ test('编辑和复制配方经过预览序列化保留原始 ID，非法值不�
             const recipe = { id: 1, name: '配方', extraPartsJson: JSON.stringify([selection]), packingPartsJson: JSON.stringify([selection]) };
             const before = structuredClone(recipe);
             draft[action](recipe);
+            if (action === 'startClone') {
+                assert.equal(states[1].name, '');
+                assert.equal(states[1].naming, undefined);
+            }
             for (const [index, packaging] of [[2, false], [3, true]]) {
                 const rows = serialize(states[index], packaging);
                 assert.deepEqual(rows[0].partId, partId);

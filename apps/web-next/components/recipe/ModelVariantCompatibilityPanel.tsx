@@ -1,5 +1,7 @@
 'use client';
 
+import { CatalogCreateNaming } from '@/components/catalog-create-naming';
+import type { CatalogNamingInput } from '@/lib/catalog-naming';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CircleAlert, Copy, Layers3, Pencil, Plus, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { FadePanel } from '@/components/motion/fade-panel';
@@ -26,6 +28,7 @@ type VariantCustomField = {
 };
 
 type VariantFormState = {
+  naming?: CatalogNamingInput;
   modelName: string;
   templateId: string;
   coilId: string;
@@ -150,6 +153,7 @@ function variantFormFromVariant(variant: PumpModelVariant, modelName = variant.m
 function variantFormToInput(form: VariantFormState): ModelVariantInput {
   return {
     modelName: form.modelName.trim(),
+    naming: form.naming,
     templateId: Number(form.templateId),
     coilId: form.coilId ? Number(form.coilId) : null,
     coilSchemeFamilyCode: form.coilSchemeFamilyCode,
@@ -500,12 +504,14 @@ export function ModelVariantCompatibilityPanel({
               </div>
             ) : null}
 
+            {editorTarget?.mode !== 'edit' ? <CatalogCreateNaming ruleId="model-variant" naming={form.naming} name={form.modelName} onChange={(naming, modelName) => updateForm({ naming, modelName })} /> : null}
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium text-ink">预设名称</span>
                 <input
                   value={form.modelName}
-                  onChange={(event) => updateForm({ modelName: event.target.value })}
+                  readOnly
+                  aria-label="系统生成的配置名称"
                   className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                   placeholder="例如：4QGD1.2-50-0.37"
                 />

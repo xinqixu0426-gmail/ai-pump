@@ -15,6 +15,11 @@ function physicalSpecification(type, row, naming) {
             const omit = new Set(['cableAccessoryFee', 'cableAccessoryFees', 'cableAccessoryNames',
                 'autoCreatedFrom', 'recipeName', 'modelVariantName', 'screwPricingModel', 'screwPricingSupplier']);
             fields.engineering = Object.fromEntries(Object.entries(metadata).filter(([key]) => !omit.has(key)));
+            for (const field of ['defaultUpperBearing', 'defaultLowerBearing']) {
+                // The saved ID is physical identity; its current display label
+                // can change without replacing this shell or its default part.
+                if (metadata[`${field}PartId`] != null) delete fields.engineering[field];
+            }
         }
     }
     return { namingSpec: spec, fields: ['part', 'coil'].includes(type) ? fields : {} };

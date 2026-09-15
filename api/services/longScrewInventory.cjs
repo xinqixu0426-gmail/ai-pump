@@ -24,6 +24,7 @@ function buildLongScrewPartRemark({ variant, part, pricing }) {
         screwLength: part.screwLength,
         barrelLength: part.barrelLength,
         longScrewExtraLength: part.longScrewExtraLength,
+        screwPricingPartId: pricing.pricingPartId,
         screwPricingModel: pricing.pricingPartModel,
         screwPricingSupplier: pricing.pricingSupplier,
     });
@@ -36,6 +37,7 @@ function buildRecipeLongScrewPartRemark({ recipeName, part, pricing }) {
         screwLength: part.screwLength || part.requestedScrewLength || null,
         barrelLength: part.barrelLength,
         longScrewExtraLength: part.longScrewExtraLength,
+        screwPricingPartId: pricing?.pricingPartId || part.screwPricingPartId,
         screwPricingModel: pricing?.pricingPartModel || part.screwPricingModel || '',
         screwPricingSupplier: pricing?.pricingSupplier || part.screwPricingSupplier || '',
     });
@@ -54,8 +56,8 @@ function findSupplierByDiameter(partsCatalog, model) {
     return suppliers[0] || '';
 }
 
-function resolveLongScrewPricing(partsCatalog, model, supplier = '') {
-    const pricing = longScrewPriceByModel(partsCatalog, model, supplier);
+function resolveLongScrewPricing(partsCatalog, model, supplier = '', pricingPartId) {
+    const pricing = longScrewPriceByModel(partsCatalog, model, supplier, pricingPartId);
     if (pricing) return pricing;
     const length = screwLengthFromModel(model);
     if (!length) return null;
@@ -82,7 +84,7 @@ function buildLongScrewInventoryParts({ variant, template, partsCatalog }) {
             const model = String(part.model || '').trim();
             const identity = JSON.stringify([model, part.supplier || part.screwPricingSupplier || '']);
             if (!model || seen.has(identity)) return;
-            const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '');
+            const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '', part.screwPricingPartId);
             if (!pricing || pricing.unitPrice <= 0) return;
             seen.add(identity);
             results.push({
@@ -106,7 +108,7 @@ function buildLongScrewInventoryPartsFromRecipe({ recipeName, parts, partsCatalo
             const model = String(part.model || '').trim();
             const identity = JSON.stringify([model, part.supplier || part.screwPricingSupplier || '']);
             if (!model || seen.has(identity)) return;
-            const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '');
+            const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '', part.screwPricingPartId);
             const snapshotPrice = Number(part.snapshotPrice);
             const price = Number.isFinite(snapshotPrice) && snapshotPrice > 0
                 ? snapshotPrice

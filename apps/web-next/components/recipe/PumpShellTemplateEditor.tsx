@@ -1,5 +1,7 @@
 'use client';
 
+import { CatalogCreateNaming } from '@/components/catalog-create-naming';
+import type { CatalogNamingInput } from '@/lib/catalog-naming';
 import type { FormEvent } from 'react';
 import { Check, CircleAlert, Layers3, Package, PackagePlus, Plus, Save, Trash2, X } from 'lucide-react';
 import { SlideOver } from '@/components/motion/slide-over';
@@ -49,6 +51,9 @@ export type TemplatePartFormRow = TemplatePartInput & {
 };
 
 export type TemplateFormState = {
+  naming?: CatalogNamingInput;
+  templateName?: string;
+  shellPartId?: number | null;
   shellModel: string;
   description: string;
   assemblyWage: string;
@@ -162,7 +167,9 @@ export function PumpShellTemplateEditor({
   onClose,
   onSubmit,
 }: PumpShellTemplateEditorProps) {
-  const selectedShellParts = shellCatalogOptions.find((option) => option.model === form.shellModel)?.rows || [];
+  const boundShell = shellCatalogOptions.flatMap(option => option.rows).find(part => part.id === form.shellPartId);
+  const selectedShellModel = boundShell?.model || form.shellModel;
+  const selectedShellParts = shellCatalogOptions.find((option) => option.model === selectedShellModel)?.rows || [];
 
   function updateForm(patch: Partial<TemplateFormState>) {
     onFormChange((current) => ({ ...current, ...patch }));
@@ -175,6 +182,7 @@ export function PumpShellTemplateEditor({
     onFormChange((current) => ({
       ...current,
       shellModel,
+      shellPartId: shellOption?.rows.length === 1 ? shellOption.rows[0].id : null,
       bundleCost: current.costMode === 'bundle' && referencePrice != null
         ? String(referencePrice)
         : current.bundleCost,
@@ -371,7 +379,7 @@ export function PumpShellTemplateEditor({
               <Check size={14} className="shrink-0 text-blue-600" />
               {form.costMode === 'bundle'
                 ? '已选择泵壳套件：下一步从零件库选择整套泵壳型号。'
-                : '已选择自由搭配：下一步填写组合名称，并逐项绑定泵壳组件。'}
+                : '已选择自由搭配：下一步填写系列和规格，并逐项绑定泵壳组件。'}
             </div>
           </section>
 
@@ -383,7 +391,9 @@ export function PumpShellTemplateEditor({
 
           <section className="rounded-panel border border-line p-4">
             <div className="text-sm font-semibold text-ink">模板基础信息</div>
-            <div className="mt-1 text-xs text-muted">泵壳套件需要选择零件库整套型号；自由搭配可输入组合名称，也可从已有泵壳型号中选择，组件逐项绑定真实零件。</div>
+            {!editingTemplate ? <CatalogCreateNaming ruleId="template" naming={form.naming} name={form.templateName || ''} onChange={(naming, templateName) => updateForm({ naming, templateName })} /> : null}
+            {!editingTemplate && form.costMode === 'bundle' && selectedShellParts.length > 1 ? <label className="block"><span className="text-xs text-muted">泵壳供应商</span><select aria-label="模板泵壳供应商" value={form.shellPartId || ''} onChange={event => updateForm({ shellPartId: Number(event.target.value) || null })} className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm"><option value="">请选择具体泵壳</option>{selectedShellParts.map(part => <option key={part.id} value={part.id}>{part.supplier}</option>)}</select></label> : null}
+            <div className="mt-1 text-xs text-muted">泵壳套件选择零件库中的具体泵壳；自由搭配逐项选择组件。模板名称由系列和配置自动生成。</div>
             <div className="mt-3 grid gap-4 md:grid-cols-2">
               <label className="block">
                 {onRename ? <Button type="button" size="sm" onClick={onRename} disabled={saving}>按规格规范名称</Button> : null}
@@ -392,13 +402,13 @@ export function PumpShellTemplateEditor({
                   <>
                     <span className="mt-2 flex gap-2">
                       <select
-                        value={form.shellModel}
+                        value={selectedShellModel}
                         onChange={(event) => selectShell(event.target.value)}
                         className="h-10 min-w-0 flex-1 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
                       >
                         <option value="">请选择泵壳型号</option>
-                        {form.shellModel && !shellCatalogOptions.some((option) => option.model === form.shellModel) ? (
-                          <option value={form.shellModel}>{form.shellModel}（零件库中未找到）</option>
+                        {selectedShellModel && !shellCatalogOptions.some((option) => option.model === selectedShellModel) ? (
+                          <option value={selectedShellModel}>{selectedShellModel}（零件库中未找到）</option>
                         ) : null}
                         {shellCatalogOptions.map((option) => {
                           const hasTemplate = templates.some((template) => (
@@ -423,16 +433,8 @@ export function PumpShellTemplateEditor({
                   </>
                 ) : (
                   <>
-                    <EditableValueSelect
-                      value={form.shellModel}
-                      options={shellCatalogOptions.map((option) => option.model)}
-                      onChange={selectShell}
-                      ariaLabel="组合名称或泵壳型号"
-                      listboxId="shell-template-model-options"
-                      placeholder="例如：V系列自由组合壳体"
-                      rootClassName="relative mt-2"
-                    />
-                    <span className="mt-2 block text-xs text-muted">可直接输入新的组合名称，也可展开选择零件库中的泵壳型号。</span>
+                    <input value={editingTemplate ? form.shellModel : form.templateName || ''} readOnly aria-label="系统生成的模板名称" className="mt-2 h-10 w-full rounded-md border border-line bg-slate-50 px-3 text-sm" />
+                    <span className="mt-2 block text-xs text-muted">填写系列和配置后自动生成，组件在下方选择。</span>
                   </>
                 )}
               </label>
