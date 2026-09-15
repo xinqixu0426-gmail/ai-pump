@@ -1452,6 +1452,15 @@ async function testPartRenameGuard(databasePath) {
             model: `${unique}-NEW`, expectedUpdatedAt: part.updatedAt,
             idempotencyKey: `deep:rename-blocked:${unique}`,
         }, [409]);
+        const impact = (await request('有引用零件改名影响只读报告', 'POST', `/api/parts/${part.id}/rename-impact`, {
+            model: `${unique}-NEW`, limit: 1,
+        })).payload.data;
+        assert(impact.displayOnly && impact.referenceCount > 0 && impact.references[0].sourceId === recipeId,
+            '改名影响报告遗漏引用或不是只读结果');
+        assert(impact.blockers.some(item => item.code === 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION'), '报告遗漏引用迁移阻塞');
+        await request('改名影响报告拒绝伪造分页版本', 'POST', `/api/parts/${part.id}/rename-impact`, {
+            model: `${unique}-NEW`, offset: 1, sourceHash: '0'.repeat(64),
+        }, [409]);
         await request('有引用零件拒绝资料改名预览', 'POST', `/api/parts/${part.id}/save-preview`, {
             model: `${unique}-NEW`, stock: 8, expectedUpdatedAt: part.updatedAt,
         }, [409]);

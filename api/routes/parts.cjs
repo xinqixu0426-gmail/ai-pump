@@ -21,6 +21,7 @@ const {
     executeConfirmedPartStockBatch,
 } = require('../services/inventoryCommands.cjs');
 const { listParts } = require('../services/partQueries.cjs');
+const { queryPartRenameImpact } = require('../services/partRenameQuery.cjs');
 const {
     BATCH_CREATE_CAPABILITY_ID: PART_BATCH_CREATE_CAPABILITY_ID,
     BATCH_DELETE_CAPABILITY_ID: PART_BATCH_DELETE_CAPABILITY_ID,
@@ -46,6 +47,13 @@ const PART_STOCK_CAPABILITY_ID = requireBusinessCapability(
     'inventory.parts.batch_adjust_stock'
 ).capabilityId;
 const router = Router();
+
+router.post('/:id/rename-impact', (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, data: queryPartRenameImpact(db, parsePositiveId(req.params.id), req.body) });
+    } catch (error) { sendCommandError(res, error); }
+});
 
 function partDependencies() {
     return {

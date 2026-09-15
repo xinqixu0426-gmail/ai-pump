@@ -2,8 +2,7 @@ const { auditCatalogReferences } = require('./catalogReferenceAudit.cjs');
 const { requestHash, CommandExecutionError } = require('./commandExecution.cjs');
 const { findPumpShellPart } = require('./pumpShellPartResolver.cjs');
 
-function inspectPartRename(db, current, updates) {
-    if (updates.model === undefined || updates.model === current.model) return null;
+function analyzePartRename(db, current, updates) {
     const report = auditCatalogReferences(db);
     const references = report.references.filter(reference => reference.targetType === 'part'
         && (Number(reference.targetId) === Number(current.id)
@@ -43,14 +42,22 @@ function inspectPartRename(db, current, updates) {
         // Only a concurrency token, never proof of complete physical specifications.
         sourceHash: requestHash({ sources: report.sourceHashes, errors: report.errors }),
     };
-    if (!report.complete) throw new CommandExecutionError('PART_RENAME_AUDIT_INCOMPLETE', '引用检查不完整，暂不能修改型号；其他资料可单独保存', 409);
+    const blockers = [];
+    if (!report.complete) blockers.push({ code: 'PART_RENAME_AUDIT_INCOMPLETE', message: '引用检查不完整，暂不能修改型号；其他资料可单独保存' });
     const duplicate = db.prepare(`SELECT id FROM parts WHERE id != ? AND deleted_at IS NULL
         AND lower(trim(model)) = lower(trim(?)) AND lower(trim(supplier)) = lower(trim(?)) LIMIT 1`)
         .get(current.id, updates.model, updates.supplier ?? current.supplier);
-    if (duplicate) throw new CommandExecutionError('PART_RENAME_NAME_CONFLICT', '该型号和供应商已有零件，请使用现有记录或补充真实规格区别', 409);
-    if (references.length) {
-        const error = new CommandExecutionError('PART_RENAME_REFERENCES_REQUIRE_MIGRATION',
-            `该零件有 ${references.length} 处引用，需完成引用迁移后再改名；其他资料可单独保存`, 409);
+    if (duplicate) blockers.push({ code: 'PART_RENAME_NAME_CONFLICT', message: '该型号和供应商已有零件，请使用现有记录或补充真实规格区别', conflictingPartId: duplicate.id });
+    if (references.length) blockers.push({ code: 'PART_RENAME_REFERENCES_REQUIRE_MIGRATION',
+        message: `该零件有 ${references.length} 处引用，需完成引用迁移后再改名；其他资料可单独保存` });
+    return { impact, blockers };
+}
+
+function inspectPartRename(db, current, updates) {
+    if (updates.model === undefined || updates.model === current.model) return null;
+    const { impact, blockers } = analyzePartRename(db, current, updates);
+    if (blockers.length) {
+        const error = new CommandExecutionError(blockers[0].code, blockers[0].message, 409);
         error.details = impact;
         throw error;
     }
@@ -65,4 +72,4 @@ function verifyPartRename(db, current, updates, expectedImpact) {
     return impact;
 }
 
-module.exports = { inspectPartRename, verifyPartRename };
+module.exports = { analyzePartRename, inspectPartRename, verifyPartRename };

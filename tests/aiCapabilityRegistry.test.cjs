@@ -164,6 +164,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'parts.batch_delete',
         'parts.update',
         'parts.save_profile',
+        'parts.rename_impact',
         'parts.delete',
         'parts.batch_update_prices',
         'coils.create',
@@ -280,7 +281,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
                 assert.equal(capability.transactionality, 'read_transaction');
                 assert.equal(capability.audit, 'none');
             } else {
-                assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read','catalog.references_resolve','catalog.bound_names'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
+                assert.match(capability.inputSchema, ['entities.coil_span_candidates','collections.read','relations.read','catalog.references_resolve','catalog.bound_names','parts.rename_impact'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
             }
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);

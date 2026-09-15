@@ -802,6 +802,16 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         concurrencyControl: 'confirmationToken_bound_absence_snapshot',
         callers: Object.freeze(['web', 'ai', 'internal']),
     }),
+    'parts.rename_impact': defineQueryCapability({
+        capabilityId: 'parts.rename_impact',
+        domain: 'catalog',
+        inputSchema: 'POST /api/parts/:id/rename-impact { model, offset?, limit?, sourceHash? }',
+        outputSchema: 'PartRenameImpact { blockers, references, referenceCount, sourceHash, nextOffset, displayOnly:true }; no write authorization',
+        sourceOfTruth: 'parts+catalogReferenceAudit+catalog_reference_bindings+catalog_template_shell_bindings',
+        riskLevel: 'low',
+        transactionality: 'read_only_snapshot',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'parts.update': defineBusinessCapability({
         capabilityId: 'parts.update',
         domain: 'catalog',

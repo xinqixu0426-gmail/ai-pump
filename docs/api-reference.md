@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 246 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 247 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -79,6 +79,7 @@ gateway 暂作现有登录凭据兼容，不接管注销、业务和 AI 路径�
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
+| `POST` | `/api/parts/:id/rename-impact` | `{ model, offset?, limit?, sourceHash? }` | 只读能力 `parts.rename_impact`，Web/Internal；返回拟改名称、引用数量/位置/状态、完整性、撞名及普通修改阻塞、当前资源版本和数据哈希。分页默认50、最大100，后续页必须携带 sourceHash，来源变化409；参数400、目标缺失/停用404。`displayOnly=true`，不写库、不签发改名或入库授权；无阻塞不等于完整规格核验通过。与改名保护复用检查，同一只读事务，no-store |
 | `GET` | `/api/parts` | 可选 query：`keyword`、`category`、`supplier`、`stockStatus=low\|out\|attention\|ok`、`limit`（1–100）、`minPrice/maxPrice/priceBelow/priceAbove/minStock/maxStock/stockBelow/stockAbove`、`sortBy=price\|stock\|model\|updatedAt`、`sortOrder=asc\|desc` | 正式能力 `parts.list`。无 `limit` 时返回全部有效零件；文本字段模糊筛选，`min/max` 为包含边界，`Below/Above` 为严格边界。指定 `sortBy` 时先排序再应用 `limit`，`sortOrder` 默认 `desc`。`stock` 是以“件”为当前领域确定性单位的库存数量，合法 `0` 原样返回；库存筛选状态口径：`low`=1–5、`out`=不大于 0、`attention`=不大于 5、`ok`=大于 5。Row Adapter 输出 camelCase；包装零件额外返回 `subcategory`。零件说明规范字段为 `remark`，兼容期同时返回旧 `notes`；另外临时保留 `Id/CreatedAt/UpdatedAt` |
 | `POST` | `/api/parts` | 请求头 `Idempotency-Key`；`model, category, subcategory?, price, supplier, stock, remark, duplicatePolicy?=allow\|reject, businessSettings?[]`；历史调用可继续提交 `notes` | 能力 `parts.create`。新增零件并返回原零件顶层字段和标准 operation receipt；零件说明的规范字段为 `remark`，Row Adapter 在兼容期同时返回旧字段 `notes`，Web 只消费 `remark`。允许设置建档初始库存。`businessSettings` 仅接受当前零件表单负责的 `cable_accessories/float_accessory_delta` 及其版本，并与零件、operation、强审计在同一事务提交。`duplicatePolicy=reject` 时，正式命令在同一事务内按不区分大小写的“型号 + 供应商”重验有效零件，重复身份返回 `409 part_identity_conflict`，不同供应商允许新增；默认 `allow` 保留零件资料页人工确认后重复建档的既有语义。Web 调用方包括零件资料页，以及泵壳自由搭配、整套泵壳、模板固定配件、配方选配件和包装材料的就地建档；就地调用方使用 `reject`，保存前后都重新读取正式目录，同身份已有同类记录直接选中，跨类别冲突拒绝静默改类，成功后以正式 `id/model/supplier/price` 回绑当前草稿；创建或回读失败均保留草稿且不显示为成功。自由搭配固定写入 `category=泵壳搭配, stock=0`；整套泵壳和包装入口分别锁定 `泵壳`、`包装` 分类，其他入口使用当前表单确认的正式分类与当前展示的专用元数据字段；泵壳完整默认参数仍由零件资料页维护。`category=包装` 时二级分类必须为 `外包装/内衬/固定包材` |
 | `POST` | `/api/parts/batch-create-preview` | `{ parts: [{ model, category?, subcategory?, price, supplier?, stock?, remark? }] }` | 能力 `parts.batch_create` 的正式只读预览，单次 1-100 项。完整校验每项，按“型号 + 供应商”识别现有建档：同型号不同供应商允许新增，同型号同供应商跳过并返回 warning；返回服务端签发的 `confirmationToken/previewHash/suggestedIdempotencyKey`，不写库。Web 的模板和配方编辑器用此接口集中预览草稿中尚未建档的零件 |
@@ -552,7 +553,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 123 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 124 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
