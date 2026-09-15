@@ -13,11 +13,13 @@ import {
   isSubassemblyComponent,
   type ShellComponentRow,
 } from '@/components/recipe/ShellCostEditor';
+import { templateReferenceDisplay } from '@/lib/template-reference-display';
 import { money } from '@/lib/format';
 import type { Part } from '@/lib/parts';
 import type { PumpShellTemplate } from '@/lib/recipes';
 
 type TemplatePartRow = {
+  partId?: number;
   name?: string;
   model?: string;
   supplier?: string;
@@ -57,7 +59,8 @@ export function PumpShellTemplateWorkspace({
   onReuse,
   onRemove,
 }: PumpShellTemplateWorkspaceProps) {
-  const [detail, setDetail] = useState<PumpShellTemplate | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
+  const detail = templates.find(template => template.id === detailId) ?? null;
   const rows = useMemo(() => templates.map((template) => {
     const fixedParts = parseJsonArray<TemplatePartRow>(template.partsJson);
     const shellComponents = parseJsonArray<ShellComponentRow>(template.shellComponentsJson);
@@ -66,8 +69,11 @@ export function PumpShellTemplateWorkspace({
       ? Number(template.bundleCost || 0)
       : shellComponents
           .filter((component) => component.included !== false)
-          .reduce((sum, component) => {
-            const catalogPart = parts.find((part) => (
+          .reduce<number | null>((sum, component) => {
+            if (sum == null) return null;
+            const reference = templateReferenceDisplay(component, parts, '泵壳搭配');
+            if (reference.issue) return null;
+            const catalogPart = component.partId != null ? reference.part : parts.find((part) => (
               part.model === component.model
               && (!component.supplier || part.supplier === component.supplier)
             ));
@@ -131,7 +137,7 @@ export function PumpShellTemplateWorkspace({
                           {row.costMode === 'bundle' ? '泵壳套件' : '自由搭配'}
                         </span>
                       </td>
-                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(row.shellCost)}</td>
+                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{row.shellCost == null ? '引用待核对' : money(row.shellCost)}</td>
                       <td className="border-b border-line px-4 py-3 text-right text-muted">
                         <div>{money(row.laborCost)}</div>
                         <div className="mt-0.5 text-xs">{surfaceTreatmentLabel(row.template.surfaceTreatmentMode)} · {money(row.template.surfaceTreatmentCost || 0)}</div>
@@ -139,7 +145,7 @@ export function PumpShellTemplateWorkspace({
                       <td className="border-b border-line px-4 py-3 text-right text-muted">{row.fixedParts.length}</td>
                       <td className="border-b border-line px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => setDetail(row.template)} icon={<Eye size={14} />}>
+                          <Button size="sm" variant="ghost" onClick={() => setDetailId(row.template.id)} icon={<Eye size={14} />}>
                             明细
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => onEdit(row.template)} disabled={saving} icon={<Pencil size={14} />}>
@@ -169,7 +175,7 @@ export function PumpShellTemplateWorkspace({
         </FadePanel>
       ) : null}
 
-      <SlideOver open={Boolean(detail)} onClose={() => setDetail(null)}>
+      <SlideOver open={Boolean(detail)} onClose={() => setDetailId(null)}>
         {detail ? (
           <div className="flex min-h-full flex-col">
             <div className="flex items-start justify-between gap-4 border-b border-line p-5">
@@ -185,7 +191,7 @@ export function PumpShellTemplateWorkspace({
                   disabled={saving}
                   onClick={() => {
                     onReuse(detail);
-                    setDetail(null);
+                    setDetailId(null);
                   }}
                   icon={<Copy size={14} />}
                 >
@@ -194,7 +200,7 @@ export function PumpShellTemplateWorkspace({
                 <button
                   type="button"
                   aria-label="关闭"
-                  onClick={() => setDetail(null)}
+                  onClick={() => setDetailId(null)}
                   className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink"
                 >
                   <X size={16} />
@@ -210,7 +216,10 @@ export function PumpShellTemplateWorkspace({
                   ) : detailParts.map((part, index) => (
                     <div key={`${part.name}-${index}`} className="grid gap-2 p-3 text-sm md:grid-cols-[1fr_1fr_1fr_auto]">
                       <span className="font-medium text-ink">{part.name || '-'}</span>
-                      <span className="text-muted">{part.model || '-'}</span>
+                      <span className="min-w-0 break-words text-muted">
+                        {templateReferenceDisplay(part, parts).name}
+                        {templateReferenceDisplay(part, parts).issue ? <span className="mt-1 block text-xs text-amber-700">{templateReferenceDisplay(part, parts).issue}</span> : null}
+                      </span>
                       <span className="text-muted">{part.supplier || '-'}</span>
                       <span className="text-muted">x{part.qty || 1}</span>
                     </div>
@@ -231,10 +240,13 @@ export function PumpShellTemplateWorkspace({
                     <div key={`${component.name}-${index}`} className="p-3 text-sm">
                       <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto_auto_auto]">
                         <span className="font-medium text-ink">{component.name || '-'}</span>
-                        <span className="text-muted">{component.model || '-'}</span>
+                        <span className="min-w-0 break-words text-muted">
+                          {templateReferenceDisplay(component, parts, '泵壳搭配').name}
+                          {templateReferenceDisplay(component, parts, '泵壳搭配').issue ? <span className="mt-1 block text-xs text-amber-700">{templateReferenceDisplay(component, parts, '泵壳搭配').issue}</span> : null}
+                        </span>
                         <span className="text-muted">{component.supplier || '-'}</span>
                         <span className="text-muted">x{component.qty ?? 1}</span>
-                        <span className="text-muted">{money(component.unitCost || 0)}</span>
+                        <span className="text-muted" title="模板保存的参考单价">参考价 {money(component.unitCost || 0)}</span>
                         <span className="text-muted">
                           {isSubassemblyComponent(component) ? '供应商小套件' : isStainlessStretchBarrelComponent(component) ? '按机筒长度' : '单件'}
                         </span>
