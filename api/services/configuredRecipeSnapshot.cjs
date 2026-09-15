@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const { assertRecipeBomPrices } = require('./costEngine.cjs');
 const {
     calculateRecipeCostPreview,
@@ -227,7 +228,7 @@ function buildConfiguredRecipeSnapshot(dependencies, recipeIdValue, rawOverrides
         error.code = 'RECIPE_CONFIGURATION_RECIPE_REQUIRED';
         throw error;
     }
-    const recipe = options.recipe || db.prepare(
+    let recipe = options.recipe || db.prepare(
         'SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL'
     ).get(recipeId);
     if (!recipe) {
@@ -237,6 +238,7 @@ function buildConfiguredRecipeSnapshot(dependencies, recipeIdValue, rawOverrides
         throw error;
     }
 
+    recipe = hydrateCatalogRow(db, 'recipe', recipe);
     const fieldPrefix = options.overridesField || 'overrides';
     const configurationOverrides = normalizeRecipeConfigurationOverrides(rawOverrides, fieldPrefix);
     const baselineConfiguration = configurationSnapshotFromRecipeData(recipe);

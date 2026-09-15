@@ -42,6 +42,7 @@ function resolveCatalogPartIdentity(partsCatalog = [], part = {}, options = {}) 
                 { partId: requestedPartId, model, catalogModel }
             );
         }
+        if (supplier && supplier !== normalizedText(matched.supplier)) throw identityError('BOM_PART_ID_SUPPLIER_MISMATCH', `${field} 的供应商与引用零件不一致`, { partId: requestedPartId, supplier, catalogSupplier: normalizedText(matched.supplier) });
         return matched;
     }
     if (!model) {

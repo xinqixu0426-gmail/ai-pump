@@ -10,16 +10,19 @@ import type { CableAccessoryType, RecipePart } from '@/lib/recipes';
 type RecipeDynamicFields = {
   hasFloat: boolean;
   floatWire: string;
+  floatPartId?: string;
   floatAccessoryType: CableAccessoryType;
   hasCable: boolean;
   cableLength: string;
   cableWire: string;
+  cablePartId?: string;
   cableAccessoryType: CableAccessoryType;
 };
 
 type RecipeDynamicConfigSectionProps = {
   form: RecipeDynamicFields;
   complete: boolean;
+  wireParts?: Array<{ id: number; model: string; supplier: string; category: string; wireValue: string }>;
   floatWireOptions: string[];
   cableWireOptions: string[];
   recommendedFloatWire: string;
@@ -90,6 +93,7 @@ function DynamicConfigCostRow({
 export function RecipeDynamicConfigSection({
   form,
   complete,
+  wireParts = [],
   floatWireOptions,
   cableWireOptions,
   recommendedFloatWire,
@@ -113,7 +117,7 @@ export function RecipeDynamicConfigSection({
       title="3. 浮球与电缆"
       description="动态配置会进入 BOM 草稿，并实时影响成本预览。"
       summary={[
-        form.hasFloat ? `浮球 ${form.floatWire || '待填线径'}` : '',
+        form.hasFloat ? `浮球 ${form.floatWire || '待填横截面积'}` : '',
         form.hasCable ? `电缆 ${form.cableWire ? `${form.cableWire}mm²` : '待填横截面积'} / ${form.cableLength || '待填长度'}m` : '',
       ].filter(Boolean).join(' · ') || '未启用浮球和电缆'}
       status={complete ? 'complete' : 'warning'}
@@ -133,20 +137,21 @@ export function RecipeDynamicConfigSection({
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             <label className="block">
               <span className="flex min-h-6 items-center gap-2 text-xs font-medium text-muted">
-                线径
+                横截面积 mm²
                 {isFloatWireRecommended ? <RecipeStatusBadge tone="green">系统推荐</RecipeStatusBadge> : null}
               </span>
               <EditableWireSelect
                 value={form.floatWire}
                 options={floatWireOptions}
                 onChange={onFloatWireChange}
-                ariaLabel="浮球线径"
+                ariaLabel="浮球横截面积 mm²"
                 listboxId="recipe-float-wire-listbox"
                 disabled={!form.hasFloat}
               />
+              {wireParts.filter(part => part.category === '浮球' && part.wireValue === form.floatWire).length > 1 ? <select aria-label="浮球供应商物料" value={form.floatPartId || ''} onChange={event => onChange({ floatPartId: event.target.value })} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-2 text-sm"><option value="">请选择供应商物料</option>{wireParts.filter(part => part.category === '浮球' && part.wireValue === form.floatWire).map(part => <option key={part.id} value={part.id}>{part.model} · {part.supplier}</option>)}</select> : null}
               {form.hasFloat ? (
                 <span className={`mt-1 block text-xs ${isFloatWireRecommended ? 'text-emerald-700' : recommendedFloatWire ? 'text-amber-700' : 'text-muted'}`}>
-                  {wireLinkNote(form.hasFloat, form.floatWire, recommendedFloatWire)}
+                  {wireLinkNote(form.hasFloat, form.floatWire, recommendedFloatWire, '横截面积（mm²）')}
                 </span>
               ) : null}
             </label>
@@ -190,6 +195,7 @@ export function RecipeDynamicConfigSection({
                 listboxId="recipe-cable-wire-listbox"
                 disabled={!form.hasCable}
               />
+              {wireParts.filter(part => part.category === '电缆线' && part.wireValue === form.cableWire).length > 1 ? <select aria-label="电缆线供应商物料" value={form.cablePartId || ''} onChange={event => onChange({ cablePartId: event.target.value })} className="mt-2 h-9 w-full rounded-md border border-line bg-white px-2 text-sm"><option value="">请选择供应商物料</option>{wireParts.filter(part => part.category === '电缆线' && part.wireValue === form.cableWire).map(part => <option key={part.id} value={part.id}>{part.model} · {part.supplier}</option>)}</select> : null}
               {form.hasCable ? (
                 <span className={`mt-1 block text-xs ${isCableWireRecommended ? 'text-emerald-700' : recommendedCableWire ? 'text-amber-700' : 'text-muted'}`}>
                   {wireLinkNote(form.hasCable, form.cableWire, recommendedCableWire, '横截面积（mm²）')}

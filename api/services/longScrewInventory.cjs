@@ -44,12 +44,14 @@ function buildRecipeLongScrewPartRemark({ recipeName, part, pricing }) {
 function findSupplierByDiameter(partsCatalog, model) {
     const diameter = screwDiameterFromModel(model);
     if (!diameter) return '';
-    const match = (partsCatalog || []).find(part => (
+    const matches = (partsCatalog || []).filter(part => (
         part.category === '螺丝'
         && String(part.supplier || '').trim()
         && screwDiameterFromModel(part.model) === diameter
     ));
-    return match?.supplier || '';
+    const suppliers = [...new Set(matches.filter(part => !part.deleted_at && !part.deletedAt).map(part => part.supplier))];
+    if (suppliers.length > 1) throw Object.assign(new Error('长螺丝同直径有多个供应商，需要明确供应商'), { code: 'SCREW_PRICING_AMBIGUOUS', statusCode: 409 });
+    return suppliers[0] || '';
 }
 
 function resolveLongScrewPricing(partsCatalog, model, supplier = '') {
@@ -62,7 +64,7 @@ function resolveLongScrewPricing(partsCatalog, model, supplier = '') {
     return {
         unitPrice,
         pricingPartModel: '',
-        pricingSupplier: findSupplierByDiameter(partsCatalog, model),
+        pricingSupplier: supplier || findSupplierByDiameter(partsCatalog, model),
     };
 }
 
@@ -78,10 +80,11 @@ function buildLongScrewInventoryParts({ variant, template, partsCatalog }) {
         .map(part => applyLongScrewRule(part, barrelLength, variant?.long_screw_extra_length ?? variant?.longScrewExtraLength ?? 0))
         .forEach(part => {
             const model = String(part.model || '').trim();
-            if (!model || seen.has(model)) return;
+            const identity = JSON.stringify([model, part.supplier || part.screwPricingSupplier || '']);
+            if (!model || seen.has(identity)) return;
             const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '');
             if (!pricing || pricing.unitPrice <= 0) return;
-            seen.add(model);
+            seen.add(identity);
             results.push({
                 model,
                 category: '螺丝',
@@ -101,14 +104,15 @@ function buildLongScrewInventoryPartsFromRecipe({ recipeName, parts, partsCatalo
         .filter(isLongScrewPart)
         .forEach(part => {
             const model = String(part.model || '').trim();
-            if (!model || seen.has(model)) return;
+            const identity = JSON.stringify([model, part.supplier || part.screwPricingSupplier || '']);
+            if (!model || seen.has(identity)) return;
             const pricing = resolveLongScrewPricing(partsCatalog, model, part.supplier || '');
             const snapshotPrice = Number(part.snapshotPrice);
             const price = Number.isFinite(snapshotPrice) && snapshotPrice > 0
                 ? snapshotPrice
                 : pricing?.unitPrice;
             if (!Number.isFinite(price) || price <= 0) return;
-            seen.add(model);
+            seen.add(identity);
             results.push({
                 model,
                 category: '螺丝',

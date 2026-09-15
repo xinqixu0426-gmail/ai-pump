@@ -9,6 +9,10 @@ function createIdempotencyKey(prefix: string): string {
 }
 
 export type RecipePart = {
+  partId?: number;
+  coilId?: number;
+  costRole?: string;
+  snapshotName?: string;
   model: string;
   name?: string;
   supplier?: string;
@@ -109,10 +113,12 @@ export type Recipe = {
   coilWireWeight?: number | null;
   hasFloat?: number;
   floatWire?: string;
+  floatPartId?: number;
   floatAccessoryType?: CableAccessoryType;
   hasCable?: number;
   cableLength?: number;
   cableWire?: string;
+  cablePartId?: number;
   cableAccessoryType?: CableAccessoryType;
   boxType?: string;
   packingPartsJson?: string;
@@ -709,10 +715,12 @@ export async function previewRecipeBomDraft(input: {
   optionalParts?: RecipePart[];
   hasFloat?: boolean | number;
   floatWire?: string;
+  floatPartId?: number;
   floatAccessoryType?: CableAccessoryType;
   hasCable?: boolean | number;
   cableLength?: number | string;
   cableWire?: string;
+  cablePartId?: number;
   cableAccessoryType?: CableAccessoryType;
   packingParts?: RecipePart[];
 }): Promise<RecipeBomDraftResult> {
@@ -814,10 +822,12 @@ export type RecipeSaveInput = {
   coilSlotType: '小眼' | '国标眼';
   hasFloat?: number;
   floatWire?: string;
+  floatPartId?: number;
   floatAccessoryType?: CableAccessoryType;
   hasCable?: number;
   cableLength?: number;
   cableWire?: string;
+  cablePartId?: number;
   cableAccessoryType?: CableAccessoryType;
   packingPartsJson?: string;
   extraPartsJson?: string;
@@ -934,10 +944,12 @@ export type RecipeSavePayloadDraftInput = {
     coilWireWeight?: number | string | null;
     hasFloat?: boolean;
     floatWire?: string;
+  floatPartId?: number;
     floatAccessoryType?: CableAccessoryType;
     hasCable?: boolean;
     cableLength?: number | string;
     cableWire?: string;
+  cablePartId?: number;
     cableAccessoryType?: CableAccessoryType;
     customBarrelLength?: number | string | null;
     longScrewExtraLength?: number | string;

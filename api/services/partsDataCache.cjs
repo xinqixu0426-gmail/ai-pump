@@ -22,7 +22,7 @@ function createPartsDataCache(db) {
             const category = record.category || '其他';
             partsCache[model] = { price, supplier, category, notes };
             if (!partsByModel[model]) partsByModel[model] = [];
-            partsByModel[model].push({ id: record.id, model, category, supplier, price, notes });
+            partsByModel[model].push({ id: record.id, model, category, supplier, price, notes, ...(record.naming_json ? { naming: JSON.parse(record.naming_json) } : {}) });
         }
         const result = { partsCache, partsByModel };
         if (revision !== null) {

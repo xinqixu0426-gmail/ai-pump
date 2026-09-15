@@ -35,7 +35,13 @@ function findPumpShellPart(parts, shellModel) {
     return matches.length === 1 ? matches[0] : null;
 }
 
-function resolvePumpShellPart(parts, shellModel) {
+function resolvePumpShellPart(parts, shellModel, shellPartId) {
+    if (shellPartId != null) {
+        if (!Number.isSafeInteger(shellPartId) || shellPartId <= 0) throw Object.assign(new Error('泵壳 ID 必须为正安全整数'), { code: 'PUMP_SHELL_PART_UNAVAILABLE', statusCode: 422 });
+        const matches = (parts || []).filter(part => Number(part.id || part.Id) === Number(shellPartId) && part.category === '泵壳' && !part.deleted_at && !part.deletedAt);
+        if (matches.length !== 1) throw Object.assign(new Error('模板绑定的泵壳不存在、分类不符或已停用'), { code: 'PUMP_SHELL_PART_UNAVAILABLE', statusCode: 422 });
+        return matches[0];
+    }
     const matches = matchingPumpShellParts(parts, shellModel);
     if (matches.length > 1) {
         throw Object.assign(new Error(`泵壳“${shellModel}”匹配到多个零件，请核对模板关联，不能自动带入参数`), {
@@ -49,6 +55,7 @@ function resolvePumpShellPart(parts, shellModel) {
 module.exports = {
     describePumpShellModel,
     findPumpShellPart,
+    matchingPumpShellParts,
     normalizePumpShellModel,
     resolvePumpShellPart,
 };

@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const {
     calculatePackingEstimate,
     calculateOverheadEstimate,
@@ -288,7 +289,7 @@ function createCostQueries({
     }
 
     function previewRecipeCost(rawRecipeId, overrides = {}) {
-        const row = db.prepare(`
+        let row = db.prepare(`
             SELECT *
             FROM recipes
             WHERE id = ? AND deleted_at IS NULL
@@ -296,6 +297,7 @@ function createCostQueries({
         if (!row) {
             throw new CostQueryError('Recipe not found', 404);
         }
+        row = hydrateCatalogRow(db, 'recipe', row);
         const { partsCache, partsByModel } = loadPartsData();
         const normalizedOverrides = normalizeRecipeConfigurationOverrides(overrides);
         const configurationPolicy = recipeConfigurationPolicyFromRecord(row);

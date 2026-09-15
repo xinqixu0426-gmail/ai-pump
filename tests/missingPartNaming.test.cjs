@@ -14,13 +14,13 @@ const generate = async input => previewCatalogName(input).name;
 
 test('批量规格命名采用服务端名称且保留每个原草稿行标识', async () => {
     const input = [row('a'), row('b', { category: '包装', subcategory: '外包装' }), row('c', { category: '轴承', model: '6204' })];
-    const specs = { a: { kind: '接头', specification: 'G1' }, b: { kind: '纸箱', specification: '20×30' } };
+    const specs = { a: { kind: '接头', specification: 'G1' }, b: { kind: '纸箱', specification: '20×30' }, c: { code: '6204' } };
     const named = await nameMissingPartCandidates(input, rules(), specs, generate);
-    assert.deepEqual(named.map(x => x.model), ['接头-G1', '纸箱-20×30', '6204']);
+    assert.deepEqual(named.map(x => x.model), ['接头-G1', '纸箱-20×30', '轴承-204']);
     assert.deepEqual(named.map(x => x.rowId), ['a', 'b', 'c']);
     assert.equal(named[0].matchScope, 'exact-category');
     assert.equal(input[0].model, '原候选');
-    assert.equal(named[2].naming, undefined);
+    assert.equal(named[2].naming.ruleId, 'bearing');
     assert.equal(uniqueBatchInputs(named)[0].naming.ruleId, 'accessory');
 });
 

@@ -53,7 +53,7 @@ type InlinePartCreateDialogProps = {
 };
 
 type Draft = {
-  namingSpec: Record<string, string>;
+  namingSpec: Record<string, string | number>;
   model: string;
   category: string;
   subcategory: string;
@@ -175,6 +175,11 @@ export function InlinePartCreateDialog({
   const isCapacitorMode = draft.category === '电容';
   const isPackagingMode = draft.category === '包装';
   const namingRule = namingRules?.find((rule) => rule.supportsPartCreate && rule.category === draft.category);
+  useEffect(() => {
+    if (!namingRule) return;
+    const defaults = Object.fromEntries(namingRule.fields.filter(field => field.values?.length === 1).map(field => [field.key, field.values![0]]));
+    if (Object.keys(defaults).some(key => !draft.namingSpec[key])) setDraft(current => ({ ...current, namingSpec: { ...defaults, ...current.namingSpec } }));
+  }, [namingRule, draft.namingSpec]);
   const namingComplete = namingRule?.fields.every((field) => field.optional || String(draft.namingSpec[field.key] ?? '').trim());
   const namingKey = namingRule && namingComplete ? JSON.stringify({ ruleId: namingRule.id, spec: draft.namingSpec }) : '';
   const generatedName = namingPreview?.key === namingKey ? namingPreview.name : '';
@@ -287,9 +292,9 @@ export function InlinePartCreateDialog({
       model: namingRule ? generatedName : draft.model,
       catalogUnitCost: draft.catalogUnitCost,
       supplier: draft.supplier,
-      isCapacitorMode,
+      isCapacitorMode: !namingRule && isCapacitorMode,
       capacitorUf: draft.capacitorUf,
-      isWireMode,
+      isWireMode: !namingRule && isWireMode,
       wireGauge: draft.wireGauge,
       isCableMode,
       standardCableAccessoryFee: draft.standardCableAccessoryFee,
@@ -439,10 +444,9 @@ export function InlinePartCreateDialog({
           ) : namingRule ? (
             <div className="space-y-4">
               <div className="text-sm text-muted">填写规格后系统生成名称，无需记住排列格式。{seed?.model ? `原候选：${seed.model}` : ''}</div>
-              {namingRule.fields.map((field) => (
-                <Field key={field.key} label={field.label} required={!field.optional}>
-                  <Input value={draft.namingSpec[field.key] ?? ''} maxLength={field.maxLength} required={!field.optional}
-                    onChange={(event) => updateDraft({ namingSpec: { ...draft.namingSpec, [field.key]: event.target.value } })} />
+              {namingRule.fields.filter(field => field.values?.length !== 1).map(field => (
+                <Field key={field.key} label={`${field.label}${field.unit ? `（${field.unit}）` : ''}`} required={!field.optional}>
+                  {field.type === 'choice' ? <Select value={String(draft.namingSpec[field.key] ?? '')} required={!field.optional} onChange={event => updateDraft({ namingSpec: { ...draft.namingSpec, [field.key]: event.target.value } })}><option value="">请选择</option>{field.values?.map(value => <option key={value}>{value}</option>)}</Select> : <Input value={draft.namingSpec[field.key] ?? ''} type={field.type === 'number' ? 'number' : 'text'} maxLength={field.maxLength} required={!field.optional} onChange={event => updateDraft({ namingSpec: { ...draft.namingSpec, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value } })} />}
                 </Field>
               ))}
               <Field label="生成型号"><Input value={generatedName} placeholder="填写规格后自动生成" readOnly /></Field>
@@ -453,7 +457,7 @@ export function InlinePartCreateDialog({
               <Input value={draft.capacitorUf} onChange={(event) => updateDraft({ capacitorUf: event.target.value })} type="number" min="0" step="0.1" />
             </Field>
           ) : isWireMode ? (
-            <Field label={`线径（最终型号：${modelPreview || '-'}）`} required>
+            <Field label={`横截面积 mm²（最终型号：${modelPreview || '-'}）`} required>
               <Input value={draft.wireGauge} onChange={(event) => updateDraft({ wireGauge: event.target.value })} placeholder="例如：0.75" />
             </Field>
           ) : (

@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const { resolveSavedCatalogPartIdentity } = require('./bomPartIdentity.cjs');
 const { parsePositiveId } = require('./validation.cjs');
 const {
@@ -67,7 +68,7 @@ function createTemplateQueries({
         if (!template) {
             throw new TemplateQueryError('模板不存在', 404);
         }
-        return template;
+        return hydrateCatalogRow(db, 'template', template);
     }
 
     function templateParts(value, field) {
@@ -112,11 +113,13 @@ function createTemplateQueries({
     function buildTemplateCostParts(template, fixedParts, partsByModel = {}, savedComponents = []) {
         const mode = template.cost_mode || 'components';
         if (mode === 'bundle') {
+            const shell = template.shell_part_id == null ? null : Object.values(partsByModel).flat().find(part => Number(part.id ?? part.Id) === template.shell_part_id);
             return [
                 {
-                    model: template.shell_model,
+                    ...(shell ? { partId: shell.id ?? shell.Id } : {}),
+                    model: shell?.model || template.shell_model,
                     name: '泵壳套件',
-                    supplier: '',
+                    supplier: shell?.supplier || '',
                     qty: 1,
                     snapshotPrice: Number(template.bundle_cost || 0),
                     source: 'pump_shell_template',

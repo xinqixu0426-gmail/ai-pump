@@ -26,6 +26,7 @@ function resolveInventoryPart(part, supplier, partsCatalog, resolveIdentity = re
         assertPurchasePartSupplier({ ...part, supplier }, matched);
         return matched;
     } catch (error) {
+        if (resolveIdentity === resolveCatalogPartIdentity && error.code === 'BOM_PART_ID_SUPPLIER_MISMATCH') throw purchaseIdentityError('PURCHASE_PART_SUPPLIER_CHANGED', error.message);
         if (part.partId == null && ['BOM_PART_IDENTITY_NOT_FOUND', 'BOM_PART_IDENTITY_AMBIGUOUS'].includes(error.code)) return null;
         throw error;
     }

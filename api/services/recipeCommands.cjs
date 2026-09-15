@@ -1,3 +1,4 @@
+const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
@@ -517,6 +518,9 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         : (existingRecord?.configuration_policy_json ?? templatePolicy);
     const packingParts = recipeSelectionRows(body.packingParts, true);
     const optionalParts = recipeSelectionRows(body.optionalParts);
+    for (const field of ['floatPartId', 'cablePartId']) {
+        if (form[field] != null && !parsePositiveId(form[field])) throw new CommandExecutionError('WIRE_PART_ID_INVALID', `${field} 必须为正安全整数`, 400);
+    }
     const authoritativeBom = dependencies.buildRecipeBomDraft({
         requireStablePartIdentity: true,
         templateId,
@@ -538,10 +542,12 @@ function buildRecipeSavePayloadDraft(dependencies, body = {}) {
         coilWireWeight: normalizeOptionalNumber(form.coilWireWeight, 'form.coilWireWeight'),
         hasFloat: Boolean(form.hasFloat),
         floatWire: String(form.floatWire || '').trim(),
+        floatPartId: form.floatPartId == null ? undefined : parsePositiveId(form.floatPartId),
         floatAccessoryType: form.floatAccessoryType || 'standard',
         hasCable: Boolean(form.hasCable),
         cableLength: parseNonNegativeNumber(form.cableLength, 'form.cableLength'),
         cableWire: String(form.cableWire || '').trim(),
+        cablePartId: form.cablePartId == null ? undefined : parsePositiveId(form.cablePartId),
         cableAccessoryType: form.cableAccessoryType || 'standard',
         packingParts,
         optionalParts,
@@ -865,6 +871,7 @@ function executeRecipeUpdate(
                 currentPreviewHash,
                 '配方保存草稿已经变化，请重新预览并确认'
             );
+            assertCatalogPhysicalUpdate(dependencies.db, 'recipe', current, payload);
             const write = dependencies.safeUpdate(
                 'recipes',
                 recipeId,

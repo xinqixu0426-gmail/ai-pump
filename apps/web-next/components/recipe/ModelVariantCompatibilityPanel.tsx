@@ -60,6 +60,7 @@ type ModelVariantCompatibilityPanelProps = {
   saving: boolean;
   error: string | null;
   onOpenEdit: (variant: PumpModelVariant) => void;
+  onRename?: (variant: PumpModelVariant) => void;
   onOpenClone: (variant: PumpModelVariant) => void;
   onCloseEditor: () => void;
   onSubmit: (input: ModelVariantInput, editingVariant: PumpModelVariant | null) => Promise<void>;
@@ -185,6 +186,7 @@ export function ModelVariantCompatibilityPanel({
   saving,
   error,
   onOpenEdit,
+  onRename,
   onOpenClone,
   onCloseEditor,
   onSubmit,
@@ -454,6 +456,7 @@ export function ModelVariantCompatibilityPanel({
                             <Button size="sm" variant="ghost" onClick={() => onOpenEdit(variant)} disabled={saving} icon={<Pencil size={14} />}>
                               编辑
                             </Button>
+                            {onRename ? <Button size="sm" variant="ghost" onClick={() => onRename(variant)} disabled={saving || !!editorTarget}>规范名称</Button> : null}
                             <Button size="sm" variant="danger" onClick={() => onRemove(variant)} disabled={saving} icon={<Trash2 size={14} />}>
                               删除
                             </Button>

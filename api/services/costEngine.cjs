@@ -1,3 +1,4 @@
+const { selectWirePart } = require('./catalogSpec.cjs');
 const {
     parseCableAccessoryFee,
     getGlobalCableAccessory,
@@ -104,7 +105,9 @@ function cableAccessorySource({ partsCatalog, matchedPart, accessoryType, getSet
 }
 
 function calculateCompleteCableCost(input = {}, options = {}) {
-    const model = String(input.model || configuredWireModel('电缆', input.wire || input.cableWire, '')).trim();
+    const suppliedWire = input.wire || input.cableWire;
+    const selected = !input.model && suppliedWire ? selectWirePart(options.partsCatalog || partsCatalogFromPartsByModel(options.partsByModel || {}), '电缆线', suppliedWire, input.supplier) : null;
+    const model = String(input.model || selected?.model || configuredWireModel('电缆', suppliedWire, '')).trim();
     if (!model || model === '电缆-线径') {
         throw createCablePricingError('CABLE_MODEL_REQUIRED', '启用电缆时必须提供有效 cableWire 或 model');
     }
@@ -253,10 +256,10 @@ function longScrewModelFromBarrel(part, barrelLength, extraLength = DEFAULT_LONG
     const requestedLength = barrel + extra;
     if (!Number.isFinite(requestedLength) || requestedLength <= 0) return null;
 
-    const prefixMatch = String(part?.model || '').match(/^(.+?\*)/);
-    const prefix = prefixMatch ? prefixMatch[1] : '6*';
+    const dimensions = String(part?.model || '').match(/^(.*?\d+(?:\.\d+)?\*)(\d+(?:\.\d+)?)(.*)$/);
+    const prefix = dimensions ? dimensions[1] : '6*';
     return {
-        model: `${prefix}${formatLengthMm(requestedLength)}`,
+        model: `${prefix}${formatLengthMm(requestedLength)}${dimensions?.[3] || ''}`,
         requestedLength,
         screwLength: requestedLength,
     };
@@ -335,13 +338,13 @@ function parseScrewPricingMeta(notes) {
 }
 
 function screwDiameterFromModel(model) {
-    const match = String(model || '').match(/^(\d+(?:\.\d+)?)\*/);
+    const match = String(model || '').match(/(?:^|-)(\d+(?:\.\d+)?)\*/);
     const diameter = match ? Number(match[1]) : NaN;
     return Number.isFinite(diameter) && diameter > 0 ? diameter : null;
 }
 
 function screwLengthFromModel(model) {
-    const match = String(model || '').match(/\*(\d+(?:\.\d+)?)$/);
+    const match = String(model || '').match(/\*(\d+(?:\.\d+)?)(?:-|$)/);
     const length = match ? Number(match[1]) : NaN;
     return Number.isFinite(length) && length > 0 ? length : null;
 }
@@ -357,11 +360,12 @@ function findScrewPricingPart(partsCatalog, model, supplier = '') {
     if (!diameter || !Array.isArray(partsCatalog)) return null;
     const candidates = partsCatalog
         .map(part => ({ part, pricing: parseScrewPricingMeta(part.notes || part.remark) }))
-        .filter(item => item.pricing && item.part.category === '螺丝' && Number(item.pricing.diameter) === diameter);
+        .filter(item => item.pricing && !item.part.deletedAt && !item.part.deleted_at && item.part.category === '螺丝' && Number(item.pricing.diameter) === diameter);
     if (candidates.length === 0) return null;
     const normalizedSupplier = String(supplier || '').trim();
-    const exact = candidates.find(item => normalizedSupplier && String(item.part.supplier || '').trim() === normalizedSupplier);
-    return exact || candidates.reduce((min, item) => Number(item.part.price || 0) < Number(min.part.price || 0) ? item : min, candidates[0]);
+    const matching = normalizedSupplier ? candidates.filter(item => String(item.part.supplier || '').trim() === normalizedSupplier) : candidates;
+    if (matching.length > 1) throw Object.assign(new Error('长螺丝定价来源有多个候选，需要明确供应商或基础零件'), { code: 'SCREW_PRICING_AMBIGUOUS', statusCode: 409 });
+    return matching[0] || null;
 }
 
 function longScrewPriceByModel(partsCatalog, model, supplier = '') {

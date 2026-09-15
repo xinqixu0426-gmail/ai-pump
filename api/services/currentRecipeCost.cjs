@@ -9,7 +9,11 @@ function parseParts(value) {
 function buildCurrentRecipeBomInput(recipe, catalog) {
     const selections = (value, field, category) => catalog
         ? currentSavedParts(value, catalog, field, category) : parseParts(value);
+    const dynamic = parseParts(recipe.partsJson);
+    const floatPartId = dynamic.find(part => part.costRole === 'float' || /^浮球(?:-|$)/.test(part.name || ''))?.partId;
+    const cablePartId = dynamic.find(part => part.cableAssembly === true || part.costRole === 'cable')?.partId;
     return {
+        ...(floatPartId ? { floatPartId } : {}), ...(cablePartId ? { cablePartId } : {}),
         templateId: recipe.templateId ?? null,
         modelVariantId: recipe.modelVariantId ?? null,
         customBarrelLength: recipe.customBarrelLength ?? null,

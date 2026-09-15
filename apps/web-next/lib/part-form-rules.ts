@@ -119,7 +119,7 @@ function text(value: unknown): string {
 }
 
 export function capacitorValueFromModel(model: string): number | null {
-  const normalized = String(model || '').replace(/[uUμfFvV\s]/g, '').trim();
+  const normalized = String(model || '').replace(/^电容-/, '').replace(/[uUμfFvV\s]/g, '').trim();
   const value = Number.parseFloat(normalized);
   return Number.isFinite(value) ? value : null;
 }
@@ -128,8 +128,9 @@ export function wireOptionsFromParts(parts: Part[], prefix: string): string[] {
   const wires = new Set<string>();
   parts.forEach((part) => {
     const model = part.model || '';
-    if (!model.startsWith(prefix)) return;
-    const wire = model.replace(prefix, '');
+    const category = prefix.startsWith('浮球') ? '浮球' : '电缆线';
+    if (part.category !== category) return;
+    const wire = ['float', 'cable'].includes(part.naming?.ruleId || '') ? String(part.naming?.spec.wireValue ?? '') : model.startsWith(prefix) ? model.replace(prefix, '') : '';
     if (wire) wires.add(wire);
   });
   return Array.from(wires).sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b));
@@ -193,6 +194,7 @@ export function isCapacitorCategory(category: string): boolean {
 
 export function modelFieldsFromPart(part: Part): { model: string; wireGauge: string; capacitorUf: string } {
   const wirePrefix = wirePrefixForCategory(part.category);
+  if (wirePrefix && ['float', 'cable'].includes(part.naming?.ruleId || '')) return { model: part.model, wireGauge: String(part.naming?.spec.wireValue ?? ''), capacitorUf: '' };
   if (wirePrefix && part.model.startsWith(wirePrefix)) {
     return { model: part.model, wireGauge: part.model.replace(wirePrefix, ''), capacitorUf: '' };
   }

@@ -1,3 +1,4 @@
+const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
@@ -355,12 +356,20 @@ function versionCompatibilityWarning(coilId, expectedUpdatedAt) {
 function normalizeCreateInput(input = {}) {
     const scheme = normalizeSchemeInput(input);
     assertSchemeMetadata(scheme);
+    const generated = require('./catalogNaming.cjs').generateCatalogName({ ruleId: 'coil', spec: {
+        statorCode: scheme.commonName,
+        sheets: Number(input.sheets),
+        material: scheme.material,
+        slotType: scheme.slotType,
+        scheme: scheme.schemeName,
+    } });
     const cost = coilCostFromValues({
         ...input,
         sheets: input.sheets,
     });
     return {
         ...scheme,
+        schemeName: generated.name,
         ...cost,
         defaultWireGauge: String(input.defaultWireGauge || '').trim(),
         defaultCapacitor: String(input.defaultCapacitor || '').trim(),
@@ -736,6 +745,7 @@ function executeCoilUpdate(
                     auditContext
                 )
                 : { auditIds: [], writeCount: 0, changes: [] };
+            assertCatalogPhysicalUpdate(dependencies.db, 'coil', record, dbUpdates);
             const write = dependencies.safeUpdate(
                 'coils',
                 coilId,

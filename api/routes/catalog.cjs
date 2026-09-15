@@ -1,10 +1,17 @@
 const { Router } = require('express');
 const { getNamingRules, previewCatalogName } = require('../services/catalogNaming.cjs');
 const { resolveCatalogReferences } = require('../services/catalogReferences.cjs');
-const { db, safeInsert } = require('../db.cjs');
+const { db, safeInsert, safeUpdate } = require('../db.cjs');
 const { CAPABILITY_ID, previewCatalogBindings, executeCatalogBindings, readBoundCatalogNames } = require('../services/catalogBindings.cjs');
 const { commandActorKey, commandContextFromRequest, sendCommandError } = require('../services/commandRequest.cjs');
+const { CAPABILITY_ID: RENAME_ID, previewCatalogRename, executeCatalogRename } = require('../services/catalogRename.cjs');
 const router = Router();
+router.post('/rename-preview', (req, res) => {
+    try { res.json({ success: true, data: previewCatalogRename(db, req.body, commandActorKey(req)) }); } catch (error) { sendCommandError(res, error); }
+});
+router.post('/rename', (req, res) => {
+    try { res.json({ success: true, data: executeCatalogRename({ db, safeInsert, safeUpdate }, req.body, commandContextFromRequest(req, RENAME_ID), commandActorKey(req)) }); } catch (error) { sendCommandError(res, error); }
+});
 
 router.post('/reference-bindings-preview', (req, res) => {
     try {
@@ -14,7 +21,7 @@ router.post('/reference-bindings-preview', (req, res) => {
 
 router.post('/reference-bindings', (req, res) => {
     try {
-        const data = executeCatalogBindings({ db, safeInsert }, req.body,
+        const data = executeCatalogBindings({ db, safeInsert, safeUpdate }, req.body,
             commandContextFromRequest(req, CAPABILITY_ID), commandActorKey(req));
         res.json({ success: true, data });
     } catch (error) { sendCommandError(res, error); }

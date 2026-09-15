@@ -1,4 +1,5 @@
 'use client';
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -272,6 +273,8 @@ export function QuotationsView() {
       setRefreshing(false);
     }
   }
+
+  useBusinessRefresh(() => load(true));
 
   useEffect(() => {
     void load();

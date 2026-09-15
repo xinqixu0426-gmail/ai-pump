@@ -33,14 +33,14 @@ test('BOM 零件优先按 partId 绑定并使用目录标准身份', () => {
     const matched = resolveCatalogPartIdentity(catalog, {
         partId: 2,
         model: '纸箱-A',
-        supplier: '旧供应商名称',
+        supplier: '供应商乙',
     });
     assert.equal(matched.id, 2);
 
     const [bound] = bindStableBomPartIdentities([{
         partId: 2,
         model: '纸箱-A',
-        supplier: '旧供应商名称',
+        supplier: '供应商乙',
         qty: 1,
         snapshotPrice: 2,
         costRole: 'packing',

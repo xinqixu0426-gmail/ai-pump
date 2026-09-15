@@ -1,3 +1,4 @@
+const { hydrateCatalogRow, hydrateCatalogRows } = require('./catalogLiveReferences.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { ACTIVE_ORDERS_SQL } = require('./activeOrderReadiness.cjs');
@@ -77,7 +78,7 @@ function normalizeOrderItems(dependencies, items, options = {}) {
                 `items[${index}].recipeId 必须引用有效配方`,
                 422
             );
-            const recipe = db.prepare(`
+            let recipe = db.prepare(`
                 SELECT *
                 FROM recipes
                 WHERE id = ? AND deleted_at IS NULL
@@ -87,6 +88,7 @@ function normalizeOrderItems(dependencies, items, options = {}) {
                 `配方 #${recipeId} 不存在或已停用`,
                 422
             );
+            recipe = hydrateCatalogRow(db, 'recipe', recipe);
             const hasConfigurationOverrides = Object.prototype.hasOwnProperty.call(item, 'configurationOverrides')
                 || Object.prototype.hasOwnProperty.call(item, 'overrides');
             const existingItem = existingItems.get(String(item.id || ''));
@@ -312,7 +314,7 @@ function buildOrderSavePayloadDraft(dependencies, body = {}) {
         purchase_list_json: '[]',
     };
     const plan = buildBalancedOrderPlans(
-        [...activeOrders, draftOrder],
+        [...hydrateCatalogRows(db, 'order', activeOrders), draftOrder],
         dbGetAllParts(),
         { coilsCatalog: dbGetAllCoils() }
     ).get(draftOrderId);
@@ -480,7 +482,7 @@ function getOrderRecord(db, orderId) {
         'SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL'
     ).get(orderId);
     if (!record) throw orderCommandError('order_not_found', '订单不存在', 404);
-    return record;
+    return hydrateCatalogRow(db, 'order', record);
 }
 
 function executeOrderUpdate(dependencies, orderIdValue, input = {}, commandContext = {}) {

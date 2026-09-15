@@ -333,7 +333,7 @@ test('报价切换表面处理时替换配方原工艺成本', () => {
 });
 
 test('报价电缆覆盖同时生成实际长度 BOM 快照', () => {
-    const cable = { id: 8, model: '电缆-线径0.75', supplier: '线缆厂', stock: 100, price: 2 };
+    const cable = { id: 8, category: '电缆线', model: '电缆-线径0.75', supplier: '线缆厂', stock: 100, price: 2 };
     const row = {
         id: 6,
         name: '电缆覆盖配方',
@@ -385,8 +385,8 @@ test('浮球覆盖存在多供应商时拒绝最低价猜选', () => {
         has_cable: 0,
     };
     const floats = [
-        { id: 71, model: '浮球-线径0.75', supplier: '供应商甲', price: 8 },
-        { id: 72, model: '浮球-线径0.75', supplier: '供应商乙', price: 6 },
+        { id: 71, category: '浮球', model: '浮球-线径0.75', supplier: '供应商甲', price: 8 },
+        { id: 72, category: '浮球', model: '浮球-线径0.75', supplier: '供应商乙', price: 6 },
     ];
 
     assert.throws(
@@ -398,8 +398,8 @@ test('浮球覆盖存在多供应商时拒绝最低价猜选', () => {
             getSetting: () => undefined,
             getCoils: () => [],
         }),
-        error => error.code === 'BOM_PART_IDENTITY_AMBIGUOUS'
-            && error.statusCode === 422
+        error => error.code === 'WIRE_SPEC_AMBIGUOUS'
+            && error.statusCode === 409
     );
 });
 
@@ -438,4 +438,27 @@ test('不锈钢接轴只增加一次非库存工艺成本且不改变线圈转�
     assert.equal(process.inventoryType, 'none');
     assert.equal(result.costSnapshot.processes.rotorShaft.process, 'stainless_friction_weld');
     assert.equal(result.costSnapshot.partsCost, 106);
+});
+
+
+test('规范电缆改名后覆盖长度按保存 ID 保留供应商，每米单价只乘长度', () => {
+    const naming = { ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '截面积', wireUnit: 'mm²' } };
+    const cables = [
+        { id: 81, category: '电缆线', model: '电缆-截面积0.55mm²', supplier: '甲', price: 1.45, naming },
+        { id: 82, category: '电缆线', model: '电缆-截面积0.55mm²', supplier: '乙', price: 2, naming },
+    ];
+    const row = { id: 81, name: '配方', has_cable: 1, cable_wire: '0.55', cable_length: 8,
+        cable_accessory_type: 'standard', saved_total_cost: 115,
+        parts_json: JSON.stringify([{ model: '固定', qty: 1, snapshotPrice: 100 },
+            { partId: 81, model: cables[0].model, supplier: '甲', cableAssembly: true,
+                cableLength: 8, inventoryQty: 8, qty: 1, snapshotPrice: 15 }]) };
+    const result = calculateRecipeCostPreview(row, { cableLength: 10 }, {
+        partsByModel: { [cables[0].model]: cables }, partsCatalog: cables, calculateRecipeCost,
+        getSetting: key => key === 'cable_accessories' ? JSON.stringify({ standard: { fee: 3.4 } }) : undefined,
+    });
+    assert.equal(result.unitCost, 117.9);
+    const cable = result.parts.find(part => part.cableAssembly);
+    assert.equal(cable.partId, 81); assert.equal(cable.supplier, '甲');
+    assert.equal(cable.inventoryQty, 10); assert.equal(cable.snapshotPrice, 17.9);
+    assert.equal(JSON.parse(row.parts_json)[1].snapshotPrice, 15);
 });

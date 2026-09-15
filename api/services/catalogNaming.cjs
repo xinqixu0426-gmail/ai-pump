@@ -5,9 +5,9 @@ const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const RULES_CAPABILITY_ID = requireBusinessCapability('catalog.naming_rules').capabilityId;
 const PREVIEW_CAPABILITY_ID = requireBusinessCapability('catalog.name_preview').capabilityId;
 const RULE_VERSION = 1;
-const RULESET_VERSION = 2;
-// Only categories without name-reconstructing dimensional selectors can save these names.
-const PART_CREATE_NAMING_RULES = new Set(['gasket', 'accessory', 'packaging', 'custom-part']);
+const RULESET_VERSION = 3;
+// All supported part categories share the formal server generator.
+const PART_CREATE_NAMING_RULES = new Set(['bearing', 'capacitor', 'screw', 'seal', 'shell', 'shell-component', 'float', 'cable', 'gasket', 'accessory', 'packaging', 'custom-part']);
 const text = (key, label, optional = false, uppercase = false) => ({ key, label, type: 'text', optional, uppercase, maxLength: 64 });
 const number = (key, label, unit = '', integer = false) => ({ key, label, type: 'number', unit, integer });
 const choice = (key, label, values, optional = false) => ({ key, label, type: 'choice', values, optional });
@@ -19,16 +19,13 @@ const dimensionsMm = [number('innerDiameterMm', '内径', 'mm'), number('outerDi
 // Both form descriptors and name rendering come from this registry. Existing
 // catalog strings are never parsed here; only explicitly supplied specifications.
 const DEFINITIONS = [
-    { id: 'bearing', category: '轴承', fields: [text('code', '轴承代号', false, true), variant], nameParts: ['轴承', field('code'), field('variant')] },
+    { id: 'bearing', version: 2, category: '轴承', fields: [text('code', '轴承代号', false, true), variant], nameParts: ['轴承', field('code'), field('variant')] },
     { id: 'capacitor', category: '电容', fields: [number('capacitanceUf', '容量', 'μF'), variant], nameParts: ['电容', field('capacitanceUf', 'μF'), field('variant')] },
     { id: 'screw', category: '螺丝', fields: [choice('headStyle', '头型', ['内六角', '外六角', '法兰', '十字', '空气', '长螺杆', '其他']), number('diameterMm', '直径', 'mm'), number('lengthMm', '长度', 'mm'), text('material', '材质', false, true), variant], nameParts: [field('headStyle', '螺丝'), dimensions('diameterMm', 'lengthMm'), field('material'), field('variant')] },
     { id: 'seal', category: '油封', fields: [choice('sealType', '密封类型', ['机械密封', '骨架油封']), ...dimensionsMm, variant], nameParts: [field('sealType'), dimensions('innerDiameterMm', 'outerDiameterMm', 'heightMm'), field('variant')] },
     { id: 'shell', category: '泵壳', fields: [text('series', '系列或原厂型号', false, true), text('specification', '明确规格'), variant], nameParts: ['泵壳', field('series'), field('specification'), field('variant')] },
     { id: 'shell-component', category: '泵壳搭配', fields: [text('kind', '组件或套件品名'), text('specification', '明确规格'), variant], nameParts: [field('kind'), field('specification'), field('variant')] },
-    ...[['float', '浮球', '浮球']].map(([id, category, label]) => ({
-        id, category, fields: [number('wireValue', '导线规格值'), choice('wireMeasure', '导线规格含义', ['直径', '截面积']), choice('wireUnit', '导线规格单位', ['mm', 'mm²']), variant],
-        nameParts: [label, { fields: ['wireMeasure', 'wireValue', 'wireUnit'], separator: '' }, field('variant')],
-    })),
+    { id: 'float', version: 2, category: '浮球', fields: [number('wireValue', '横截面积', 'mm²'), choice('wireMeasure', '规格含义', ['截面积']), choice('wireUnit', '规格单位', ['mm²']), variant], nameParts: ['浮球', { fields: ['wireMeasure', 'wireValue', 'wireUnit'], separator: '' }, field('variant')] },
     { id: 'cable', version: 2, category: '电缆线', fields: [number('wireValue', '横截面积', 'mm²'), choice('wireMeasure', '规格含义', ['截面积']), choice('wireUnit', '规格单位', ['mm²']), variant], nameParts: ['电缆', { fields: ['wireMeasure', 'wireValue', 'wireUnit'], separator: '' }, field('variant')] },
     ...[['gasket', '皮垫'], ['accessory', '配件'], ['packaging', '包装'], ['custom-part', '其他']].map(([id, category]) => ({
         id, category, fields: [text('kind', '品名'), text('specification', '明确规格'), variant], nameParts: [field('kind'), field('specification'), field('variant')],
@@ -81,6 +78,7 @@ function generateCatalogName(input) {
     const parsed = rule.schema.safeParse(request.data.spec);
     if (!parsed.success) throw namingError('NAMING_SPEC_INVALID', '请补齐并检查命名规格', parsed.error.issues);
     const spec = Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value !== undefined));
+    if (rule.definition.id === 'bearing' && /^6[0-9]{3}(?:ZZ|2RS|RS|Z)?$/.test(spec.code)) spec.code = spec.code.slice(1);
     if (spec.wireMeasure && (spec.wireMeasure === '直径' ? spec.wireUnit !== 'mm' : spec.wireUnit !== 'mm²')) {
         throw namingError('NAMING_WIRE_UNIT_MISMATCH', '直径使用 mm，截面积使用 mm²；不能自动换算旧线径');
     }

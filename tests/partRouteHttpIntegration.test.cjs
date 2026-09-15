@@ -150,8 +150,8 @@ test('零件资料保存真实 HTTP 链路绑定认证主体、幂等键和标�
         WHERE key = 'float_accessory_delta'
     `).get();
     const saveInput = {
-        model: 'HTTP-PROFILE-SAVED',
-        category: '浮球',
+        model: part.model,
+        category: part.category,
         subcategory: part.subcategory,
         price: 12.5,
         supplier: part.supplier,
@@ -223,7 +223,7 @@ test('零件资料保存真实 HTTP 链路绑定认证主体、幂等键和标�
     assert.equal(saved.payload.data.operationStatus, 'completed');
     assert.equal(saved.payload.data.capabilityId, 'parts.save_profile');
     assert.equal(saved.payload.data.id, part.id);
-    assert.equal(saved.payload.data.model, 'HTTP-PROFILE-SAVED');
+    assert.equal(saved.payload.data.model, part.model);
     assert.equal(saved.payload.data.stock, 9);
     assert.equal(saved.payload.data.businessSettings[0].key, 'float_accessory_delta');
     assert.equal(saved.payload.data.businessSettings[0].value, '0.8');

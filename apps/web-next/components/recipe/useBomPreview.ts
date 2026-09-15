@@ -25,10 +25,12 @@ export type BomPreviewForm = {
   coilWireWeight: string;
   hasFloat: boolean;
   floatWire: string;
+  floatPartId?: string;
   floatAccessoryType: CableAccessoryType;
   hasCable: boolean;
   cableLength: string;
   cableWire: string;
+  cablePartId?: string;
   cableAccessoryType: CableAccessoryType;
 };
 
@@ -100,10 +102,12 @@ function buildBomPreviewInput(
     optionalParts: selectionToRecipeParts(optionalParts),
     hasFloat: form.hasFloat,
     floatWire: form.floatWire,
+    floatPartId: form.floatPartId ? Number(form.floatPartId) : undefined,
     floatAccessoryType: form.floatAccessoryType,
     hasCable: form.hasCable,
     cableLength: form.cableLength,
     cableWire: form.cableWire,
+    cablePartId: form.cablePartId ? Number(form.cablePartId) : undefined,
     cableAccessoryType: form.cableAccessoryType,
     packingParts: selectionToRecipeParts(packingParts, true),
   };

@@ -258,6 +258,7 @@ test('线圈新增持久幂等，并允许同组合多套正式方案且保留�
             coilInput(),
             commandContext(CREATE_CAPABILITY_ID, 'create-first')
         );
+        assert.equal(first.coil.schemeName, '线圈-12-140片-钢带-小眼-正式方案');
         const secondContext = commandContext(CREATE_CAPABILITY_ID, 'create-second');
         const secondInput = coilInput({ schemeName: '新正式方案', wireWeight: 1.3 });
         const second = executeCoilCreate(

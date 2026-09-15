@@ -57,7 +57,8 @@ function stainlessBarrelDrawingText(barrelLength) {
 function findShellMeta(template, parts) {
     const shellPart = resolvePumpShellPart(
         parts,
-        template?.shell_model ?? template?.shellModel
+        template?.shell_model ?? template?.shellModel,
+        template?.shell_part_id ?? template?.shellPartId
     );
     return safeParseObject(shellPart?.notes ?? shellPart?.remark ?? '{}');
 }

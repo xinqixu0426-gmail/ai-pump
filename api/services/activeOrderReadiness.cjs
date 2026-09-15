@@ -1,3 +1,4 @@
+const { hydrateCatalogRow, hydrateCatalogRows } = require('./catalogLiveReferences.cjs');
 const { buildOrderPlan, buildBalancedOrderPlans } = require('./orderPlanning.cjs');
 const { buildOrderReadiness } = require('./orderReadiness.cjs');
 const { buildOrderReadinessPlan } = require('./orderReadinessPlan.cjs');
@@ -21,9 +22,9 @@ function buildOrderReadinessContext(record, options = {}) {
     const parts = options.parts || accessors.dbGetAllParts();
     const coils = options.coils || accessors.dbGetAllCoils();
     const recipes = options.recipes || accessors.dbGetAllRecipes();
-    const plans = options.plans || buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
+    const plans = options.plans || buildBalancedOrderPlans(hydrateCatalogRows(database, 'order', records), parts, { coilsCatalog: coils });
     const plan = plans.get(Number(record.id)) || buildOrderPlan(
-        parseJsonArray(record.items_json),
+        parseJsonArray(hydrateCatalogRow(database, 'order', record).items_json),
         parts,
         { coilsCatalog: coils }
     );
@@ -42,7 +43,7 @@ function buildActiveOrdersReadinessOverview(options = {}) {
     const parts = options.parts || accessors.dbGetAllParts();
     const coils = options.coils || accessors.dbGetAllCoils();
     const recipes = options.recipes || accessors.dbGetAllRecipes();
-    const plans = buildBalancedOrderPlans(records, parts, { coilsCatalog: coils });
+    const plans = buildBalancedOrderPlans(hydrateCatalogRows(database, 'order', records), parts, { coilsCatalog: coils });
     const entries = records.map(record => {
         const { readiness } = buildOrderReadinessContext(record, {
             dbAccessors: accessors,

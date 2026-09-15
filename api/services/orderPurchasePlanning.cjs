@@ -1,3 +1,4 @@
+const { hydrateCatalogRows } = require('./catalogLiveReferences.cjs');
 const { ACTIVE_ORDERS_SQL } = require('./activeOrderReadiness.cjs');
 const { buildBalancedOrderPlans, buildSavedBalancedOrderPlanViews } = require('./orderPlanning.cjs');
 const { historicalPurchaseNameView } = require('./historicalPurchaseNames.cjs');
@@ -12,7 +13,7 @@ function buildCurrentPlans(options, buildPlans) {
     const records = options.records || database.prepare(ACTIVE_ORDERS_SQL).all();
     const parts = options.parts || accessors.dbGetAllParts();
     const coils = options.coils || accessors.dbGetAllCoils();
-    const plans = buildPlans(records, parts, { coilsCatalog: coils });
+    const plans = buildPlans(hydrateCatalogRows(database, 'order', records), parts, { coilsCatalog: coils });
     return { records, plans };
 }
 

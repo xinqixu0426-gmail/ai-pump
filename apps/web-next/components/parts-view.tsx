@@ -1,5 +1,7 @@
 'use client';
 
+import { CatalogRenameDialog, type CatalogRenameTarget } from '@/components/catalog-rename-dialog';
+
 import { useBusinessRefresh } from '@/lib/use-business-refresh';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -277,6 +279,7 @@ export function PartsView({
   const [category, setCategory] = useState('全部');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(initialQuickFilter);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<CatalogRenameTarget | null>(null);
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingPartAction | null>(null);
   const [form, setForm] = useState<PartFormState>(emptyForm);
@@ -348,6 +351,11 @@ export function PartsView({
   }, [drawerOpen]);
 
   const namingRule = !editingPart ? namingRules?.find(rule => rule.supportsPartCreate && rule.category === form.category) : undefined;
+  useEffect(() => {
+    if (!namingRule) return;
+    const defaults = Object.fromEntries(namingRule.fields.filter(field => field.values?.length === 1).map(field => [field.key, field.values![0]]));
+    if (Object.keys(defaults).some(key => !form.namingSpec[key])) setForm(current => ({ ...current, namingSpec: { ...defaults, ...current.namingSpec } }));
+  }, [namingRule, form.namingSpec]);
   const namingComplete = namingRule?.fields.every(field => field.optional || String(form.namingSpec[field.key] ?? '').trim());
   const namingKey = namingRule && namingComplete ? JSON.stringify({ ruleId: namingRule.id, spec: form.namingSpec }) : '';
   const generatedName = namingPreview?.key === namingKey ? namingPreview.name : '';
@@ -611,9 +619,9 @@ export function PartsView({
       model: namingRule ? generatedName : form.model,
       catalogUnitCost: form.catalogUnitCost,
       supplier: form.supplier,
-      isCapacitorMode,
+      isCapacitorMode: !namingRule && isCapacitorMode,
       capacitorUf: form.capacitorUf,
-      isWireMode,
+      isWireMode: !namingRule && isWireMode,
       wireGauge: form.wireGauge,
       isCableMode,
       standardCableAccessoryFee: form.standardCableAccessoryFee,
@@ -1076,14 +1084,9 @@ export function PartsView({
             ) : namingRule ? (
               <div className="space-y-4">
                 <div className="text-sm text-muted">填写规格后系统生成名称，无需记住排列格式。</div>
-                {namingRule.fields.map(field => (
-                  <Field key={field.key} label={field.label} required={!field.optional}>
-                    <Input
-                      value={String(form.namingSpec[field.key] ?? '')}
-                      maxLength={field.maxLength}
-                      required={!field.optional}
-                      onChange={event => setForm(current => ({ ...current, namingSpec: { ...current.namingSpec, [field.key]: event.target.value } }))}
-                    />
+                {namingRule.fields.filter(field => field.values?.length !== 1).map(field => (
+                  <Field key={field.key} label={`${field.label}${field.unit ? `（${field.unit}）` : ''}`} required={!field.optional}>
+                    {field.type === 'choice' ? <Select value={String(form.namingSpec[field.key] ?? '')} required={!field.optional} onChange={event => setForm(current => ({ ...current, namingSpec: { ...current.namingSpec, [field.key]: event.target.value } }))}><option value="">请选择</option>{field.values?.map(value => <option key={value}>{value}</option>)}</Select> : <Input value={String(form.namingSpec[field.key] ?? '')} type={field.type === 'number' ? 'number' : 'text'} maxLength={field.maxLength} required={!field.optional} onChange={event => setForm(current => ({ ...current, namingSpec: { ...current.namingSpec, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value } }))} />}
                   </Field>
                 ))}
                 <Field label="生成型号"><Input value={generatedName} placeholder="填写规格后自动生成" readOnly /></Field>
@@ -1109,7 +1112,7 @@ export function PartsView({
               </label>
             ) : isWireMode ? (
               <label className="block">
-                <span className="text-sm font-medium text-ink">{isCableMode ? '横截面积 mm²' : '线径'}</span>
+                <span className="text-sm font-medium text-ink">{'横截面积 mm²'}</span>
                 <div className="mt-2 flex rounded-md border border-line focus-within:border-slate-400">
                   <span className="flex h-10 items-center border-r border-line bg-slate-50 px-3 text-sm text-muted">{isCableMode ? '电缆' : wirePrefix}</span>
                   <input
@@ -1138,6 +1141,7 @@ export function PartsView({
               </Field>
             )}
 
+            {editingPart && <Button type="button" disabled={formDirty} title={formDirty ? '请先保存或取消当前修改' : undefined} onClick={() => setRenameTarget({ entityType: 'part', entityId: editingPart.id, name: editingPart.model, updatedAt: editingPart.updatedAt || '', category: editingPart.category, naming: editingPart.naming })}>按规格规范名称</Button>}
             {editingPart && <PartRenameImpactPanel key={`${editingPart.id}:${modelPreview}`} partId={editingPart.id} model={modelPreview} />}
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -1323,6 +1327,7 @@ export function PartsView({
         </form>
       </SlideOver>
 
+      <CatalogRenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} onSaved={async () => { await load(true); setDrawerOpen(false); }} />
       <ConfirmDialog
         open={discardPromptOpen}
         title="放弃未保存修改？"

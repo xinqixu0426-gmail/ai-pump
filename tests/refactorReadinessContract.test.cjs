@@ -1964,7 +1964,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /autoWireSelectionRef\.current\.cableWire = ''/);
     assert.match(recipesView, /wireOptions\(parts, '浮球', '浮球-线径'\)/);
     assert.match(recipesView, /wireOptions\(parts, '电缆线', '电缆-线径'\)/);
-    assert.match(recipeDynamicConfigSection, /ariaLabel="浮球线径"/);
+    assert.match(recipeDynamicConfigSection, /ariaLabel="浮球横截面积 mm²"/);
     assert.match(recipeDynamicConfigSection, /ariaLabel="电缆横截面积 mm²"/);
     assert.match(editableValueSelect, /function EditableWireSelect/);
     assert.match(recipesView, /const coilSheetOptions = useMemo/);
@@ -1986,7 +1986,7 @@ test('Next UI 契约：配方页必须保留模板入口并支持直接复制配
     assert.match(recipesView, /泵壳整体成本/);
     assert.match(recipesView, /不锈钢长螺丝/);
     assert.match(recipesView, /关联电容/);
-    assert.match(recipeDynamicConfigSection, /浮球线径/);
+    assert.match(recipeDynamicConfigSection, /浮球横截面积 mm²/);
     assert.match(recipeDynamicConfigSection, /电缆横截面积/);
     assert.match(recipeDynamicConfigSection, /wireLinkNote/);
     assert.match(modelVariantPanel, /机筒 \/ 长螺丝/);

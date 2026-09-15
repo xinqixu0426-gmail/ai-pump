@@ -1,3 +1,4 @@
+const { hydrateCatalogRow, hydrateCatalogRows } = require('./catalogLiveReferences.cjs');
 const { parsePositiveId } = require('./validation.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 requireBusinessCapability('rotor.template_draft');
@@ -86,7 +87,7 @@ function buildRecipeRotorDraft(db, recipeIdValue) {
         WHERE deleted_at IS NULL
     `).all();
     return {
-        ...buildRotorRecipeDraft({ recipe, template, variant, parts }),
+        ...buildRotorRecipeDraft({ recipe: hydrateCatalogRow(db, 'recipe', recipe), template: hydrateCatalogRow(db, 'template', template), variant, parts: hydrateCatalogRows(db, 'part', parts) }),
         recipeId,
         templateId: recipe.template_id || null,
         variantId: recipe.model_variant_id || null,
@@ -153,7 +154,7 @@ function buildTemplateRotorDraft(
         WHERE deleted_at IS NULL
     `).all();
     return {
-        ...buildRotorTemplateDraft({ template, variant, parts }),
+        ...buildRotorTemplateDraft({ template: hydrateCatalogRow(db, 'template', template), variant, parts: hydrateCatalogRows(db, 'part', parts) }),
         templateId,
         variantId,
     };

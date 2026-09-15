@@ -1,5 +1,6 @@
 const { catalogSourceHash: hash } = require('./catalogSources.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
+const { bearingCodeOf } = require('./catalogSpec.cjs');
 const { buildNamingCandidates } = require('./catalogNamingCandidates.cjs');
 const { calculateRecipeCost } = require('./costEngine.cjs');
 
@@ -72,7 +73,7 @@ function resolveReference(catalogs, reference) {
         return { status: 'resolved_id', candidateIds: [wantedId] };
     }
     if (!reference.model) return { status: 'unstructured', candidateIds: [] };
-    let candidates = rows.filter(row => names(row).includes(reference.model));
+    let candidates = rows.filter(row => names(row).includes(reference.model) || reference.category === '轴承' && row.category === '轴承' && bearingCodeOf(row) === bearingCodeOf({ model: reference.model }));
     if (reference.supplier) candidates = candidates.filter(row => row.supplier === reference.supplier);
     if (reference.category) candidates = candidates.filter(row => row.category === reference.category);
     if (reference.targetType === 'coil') {
@@ -114,6 +115,20 @@ function auditCatalogReferences(db, options = {}) {
             counts[source.table] = { scanned: bounded.length, active: bounded.filter(row => !inactive(row, source.type)).length };
         }
         let referenceLimitReported = false;
+        const profiles = tables.has('catalog_identity_profiles') ? db.prepare('SELECT * FROM catalog_identity_profiles').all() : [];
+        const bindings = tables.has('catalog_reference_bindings') ? db.prepare('SELECT * FROM catalog_reference_bindings WHERE deleted_at IS NULL').all() : [];
+        const shellBindings = tables.has('catalog_template_shell_bindings') ? db.prepare('SELECT * FROM catalog_template_shell_bindings').all() : [];
+        function resolvedBinding(source, row, path, sourceHash, reference) {
+            const bound = bindings.find(item => item.source_type === source.type && item.source_id === row.id && item.source_path === path
+                && item.source_hash === sourceHash && item.source_version === `sha256:${sourceHash}`);
+            const profile = bound && profiles.find(item => item.id === bound.target_profile_id && item.spec_revision === bound.target_spec_revision);
+            const key = { part: 'part_id', coil: 'coil_id', template: 'template_id', recipe: 'recipe_id', modelVariant: 'model_variant_id' }[reference.targetType];
+            const id = profile && key && profile[key];
+            if (!id || reference.targetId != null && positiveId(reference.targetId) !== id) return null;
+            const target = catalogs.get(reference.targetType)?.find(item => item.id === id);
+            if (!target || inactive(target, reference.targetType) || reference.supplier && reference.supplier !== target.supplier) return null;
+            return { status: 'resolved_binding', candidateIds: [id] };
+        }
         const add = (source, row, path, reference, sourceHash, status) => {
             if (references.length >= limits.maxReferences) {
                 if (!referenceLimitReported) errors.push({ code: 'REFERENCE_LIMIT' });
@@ -125,7 +140,7 @@ function auditCatalogReferences(db, options = {}) {
                 path, sourceHash, ...reference,
                 ...(status ? { status, candidateIds: [] }
                     : incompleteCatalogs.has(reference.targetType) ? { status: 'catalog_incomplete', candidateIds: [] }
-                        : resolveReference(catalogs, reference)),
+                        : resolvedBinding(source, row, path, sourceHash, reference) || resolveReference(catalogs, reference)),
             });
         };
         const scan = (source, row, value, path, sourceHash, depth = 0) => {
@@ -201,7 +216,8 @@ function auditCatalogReferences(db, options = {}) {
                     if (row[key] != null && row[key] !== '') add(source, row, `/${key}`, { targetType, targetId: row[key], model: '' }, sourceHash);
                 }
                 if (source.type === 'template' && row.cost_mode === 'bundle') {
-                    add(source, row, '/shell_model', { targetType: 'part', model: text(row.shell_model), category: '泵壳' }, sourceHash);
+                    const shell = shellBindings.find(binding => binding.template_id === row.id);
+                    add(source, row, '/shell_model', { targetType: 'part', targetId: shell?.shell_part_id ?? null, model: shell ? '' : text(row.shell_model), category: '泵壳' }, sourceHash);
                 }
                 if (source.type === 'drawing' && row.linked_pump_model) {
                     add(source, row, '/linked_pump_model', { targetType: 'recipe', model: row.linked_pump_model }, sourceHash, 'unstructured');
@@ -262,7 +278,7 @@ function auditCatalogReferences(db, options = {}) {
         };
         return {
             version: 1, capabilityId: CAPABILITY_ID, complete: errors.length === 0,
-            allReferencesResolved: errors.length === 0 && references.every(ref => ['resolved_id', 'resolved_legacy', 'non_inventory'].includes(ref.status)),
+            allReferencesResolved: errors.length === 0 && references.every(ref => ['resolved_id', 'resolved_legacy', 'resolved_binding', 'non_inventory'].includes(ref.status)),
             schemaVersion: db.pragma('user_version', { simple: true }), limits, counts, summary,
             coverage: { sourceTables: SOURCES.map(source => source.table), mode: 'declared_fields_and_nested_json', migrationApproved: false },
             references, sourceHashes, businessBaseline, baselineSha256: hash(businessBaseline), errors,

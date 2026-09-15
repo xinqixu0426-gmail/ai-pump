@@ -1108,7 +1108,7 @@ test('关键 API 集成契约：订单准备总览只计算一次平衡计划且
     const helper = readUtf8('api/services/activeOrderReadiness.cjs');
     const route = sliceBetween(source, "router.get('/readiness-overview'", "router.get('/:id/readiness-plan'");
 
-    assert.match(helper, /const plans = buildBalancedOrderPlans\(records, parts/);
+    assert.match(helper, /const plans = buildBalancedOrderPlans\(hydrateCatalogRows\(database, \'order\', records\), parts/);
     assert.equal((helper.match(/const plans = buildBalancedOrderPlans\(/g) || []).length, 1);
     assert.match(helper, /records\.map/);
     assert.match(helper, /buildOrderReadiness/);

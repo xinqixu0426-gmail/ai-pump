@@ -1,6 +1,6 @@
+const { selectWirePart } = require('./catalogSpec.cjs');
 const {
     createPartPriceGetter,
-    configuredWireModel,
     lengthPricedPartSubtotal,
     buildRecipeCostDraft,
     calculateCompleteCableCost,
@@ -303,13 +303,14 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         error.code = 'COIL_CONFIGURATION_UNPRICED';
         throw error;
     }
-    const cableModel = configuredWireModel('电缆', recipeData.cable_wire, resolvedWire);
+    const savedCable = parsedParts.find(part => managedPartType(part) === 'cable');
+    const savedFloat = parsedParts.find(part => managedPartType(part) === 'float');
     const cableCatalogPart = cableChanged && toBool(recipeData.has_cable)
-        ? resolveCatalogPartIdentity(partsCatalog, { model: cableModel }, { field: 'cableWire' })
+        ? selectWirePart(partsCatalog, '电缆线', recipeData.cable_wire || resolvedWire, '', sameText(recipeData.cable_wire, row.cable_wire) ? savedCable?.partId : undefined)
         : null;
     const cableOverridePart = cableCatalogPart
         ? calculateCompleteCableCost({
-            model: cableModel,
+            model: cableCatalogPart.model,
             supplier: cableCatalogPart.supplier,
             cableLength: recipeData.cable_length,
             cableAccessoryType: recipeData.cable_accessory_type,
@@ -330,10 +331,11 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
         ? Number(nextCapacitorPart.price || 0)
         : managedTotals.capacitor;
     const floatOverridePart = floatChanged && toBool(recipeData.has_float)
-        ? resolveCatalogPartIdentity(partsCatalog, {
-            model: configuredWireModel('浮球', recipeData.float_wire, resolvedWire),
-        }, { field: 'floatWire' })
+        ? selectWirePart(partsCatalog, '浮球', recipeData.float_wire || resolvedWire, '', sameText(recipeData.float_wire, row.float_wire) ? savedFloat?.partId : undefined)
         : null;
+    if ((cableChanged && toBool(recipeData.has_cable) && !cableCatalogPart) || (floatChanged && toBool(recipeData.has_float) && !floatOverridePart)) {
+        throw Object.assign(new Error('横截面积没有对应的导线零件'), { code: 'WIRE_SPEC_NOT_FOUND', statusCode: 422 });
+    }
     const floatOverridePrice = floatOverridePart
         ? Number(floatOverridePart.price || 0)
             + getFloatAccessoryDelta(getSetting, recipeData.float_accessory_type)
@@ -431,7 +433,7 @@ function calculateRecipeCostPreview(row, overrides = {}, dependencies = {}) {
     if (!floatChanged) {
         snapshotParts.push(...pricedParts.filter(part => managedPartType(part) === 'float'));
     } else if (toBool(recipeData.has_float)) {
-        const floatModel = configuredWireModel('浮球', recipeData.float_wire, resolvedWire);
+        const floatModel = String(floatOverridePart?.model || '');
         snapshotParts.push({
             partId: partIdOf(floatOverridePart),
             model: floatModel,

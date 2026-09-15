@@ -52,7 +52,7 @@ function inspectBindings(db, input) {
         const matches = report.references.filter(ref => ref.sourceType === selection.sourceType
             && ref.sourceId === selection.sourceId && ref.path === selection.path && ref.sourceHash === selection.sourceHash);
         const reference = matches[0];
-        if (matches.length !== 1 || !['resolved_id', 'resolved_legacy'].includes(reference.status)
+        if (matches.length !== 1 || !['resolved_id', 'resolved_legacy', 'resolved_binding'].includes(reference.status)
             || reference.targetType !== selection.targetType || reference.candidateIds.length !== 1
             || reference.candidateIds[0] !== selection.targetId) {
             fail('catalog_binding_unresolved', '来源已变化或引用不能唯一核实，请重新盘点');

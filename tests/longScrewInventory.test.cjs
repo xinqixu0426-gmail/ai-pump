@@ -15,6 +15,18 @@ const pricingCatalog = [
     },
 ];
 
+test('长螺丝来源不猜选其他供应商，规范名称换长度保留材质', () => {
+    const catalog = [pricingCatalog[0], { ...pricingCatalog[0], supplier: '另一供应商' }];
+    const input = { variant: { barrel_length: 200, long_screw_extra_length: 10 },
+        template: { partsJson: JSON.stringify([{ model: '长螺杆螺丝-6*170-201', name: '不锈钢长螺丝', qty: 4 }]) }, partsCatalog: catalog };
+    assert.throws(() => buildLongScrewInventoryParts(input), error => error.code === 'SCREW_PRICING_AMBIGUOUS');
+    input.template.partsJson = JSON.stringify([{ model: '长螺杆螺丝-6*170-201', name: '不锈钢长螺丝', supplier: '螺丝供应商', qty: 4 }]);
+    const parts = buildLongScrewInventoryParts(input);
+    assert.equal(parts[0].model, '长螺杆螺丝-6*210-201');
+    assert.equal(parts[0].supplier, '螺丝供应商');
+    assert.equal(parts[0].price, 0.69);
+});
+
 test('型号变体保存可推导需要沉淀到零件库的长螺丝规格', () => {
     const parts = buildLongScrewInventoryParts({
         variant: {

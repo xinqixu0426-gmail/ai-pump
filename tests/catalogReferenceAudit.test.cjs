@@ -100,7 +100,7 @@ test('候选名只使用已明确的旧规格，不补轴承代号、油封类�
     for (const part of [
         { category: '油封', model: '14*28' },
         { category: '油封', model: '14*28*38' },
-        { category: '浮球', model: '浮球-线径0.55' },
+        { category: '浮球', model: '浮球-线径未知' },
         { category: '电缆线', model: '电缆-线径0' },
         { category: '电缆线', model: '未知线径0.55' },
         { category: '泵壳', model: 'v1100-2' },

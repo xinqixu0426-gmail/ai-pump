@@ -87,10 +87,12 @@ if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('usd_cny_ra
     db.prepare('INSERT INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)').run('usd_cny_rate', '0', new Date().toISOString());
 }
 
+const { hydrateCatalogRow, hydrateCatalogRows, catalogSnapshot } = require('./services/catalogLiveReferences.cjs');
 // ── Row Adapters ──
 
 function partRow(r) {
     if (!r) return r;
+    r = hydrateCatalogRow(db, 'part', r);
     return {
         id: r.id, Id: r.id, naming: readPartNaming(r), model: r.model, category: r.category, subcategory: r.subcategory || '', price: r.price,
         supplier: r.supplier, stock: r.stock, remark: r.remark || '', notes: r.remark || '',
@@ -100,11 +102,14 @@ function partRow(r) {
 }
 function recipeRow(r) {
     if (!r) return r;
+    const snapshot = catalogSnapshot(r);
+    r = hydrateCatalogRow(db, 'recipe', r);
     const surfaceTreatmentMode = r.surface_treatment_mode || (r.painting_wage != null ? 'painting' : 'none');
     const surfaceTreatmentCost = r.surface_treatment_cost != null
         ? r.surface_treatment_cost
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
+        snapshotPartsJson: snapshot.parts_json,
         id: r.id, Id: r.id, name: r.name, spec: r.spec,
         partsJson: (() => {
             try {
@@ -143,9 +148,12 @@ function recipeRow(r) {
 }
 function templateRow(r) {
     if (!r) return r;
+    const snapshot = catalogSnapshot(r);
+    r = hydrateCatalogRow(db, 'template', r);
     return {
+        snapshotPartsJson: snapshot.parts_json, snapshotShellComponentsJson: snapshot.shell_components_json,
         id: r.id, Id: r.id, shellModel: r.shell_model, description: r.description || '',
-        partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
+        shellPartId: r.shell_part_id || null, partsJson: r.parts_json || '[]', rotorParamsJson: r.rotor_params_json || '{}',
         shellComponentsJson: r.shell_components_json || '[]',
         configurationPolicyJson: r.configuration_policy_json || null,
         assemblyWage: r.assembly_wage || 0, packingWage: r.packing_wage || 0,
@@ -161,6 +169,7 @@ function templateRow(r) {
 }
 function modelVariantRow(r) {
     if (!r) return r;
+    r = hydrateCatalogRow(db, 'modelVariant', r);
     return {
         id: r.id,
         Id: r.id,
@@ -188,7 +197,10 @@ function modelVariantRow(r) {
 }
 function orderRow(r) {
     if (!r) return r;
+    const snapshot = catalogSnapshot(r);
+    r = hydrateCatalogRow(db, 'order', r);
     return {
+        snapshotItemsJson: snapshot.items_json, snapshotPurchaseListJson: snapshot.purchase_list_json,
         id: r.id, Id: r.id, customerId: r.customer_id || null,
         customerName: r.customer_name, contractNo: r.contract_no,
         remark: r.remark, status: r.status, itemsJson: r.items_json,
@@ -247,7 +259,10 @@ function customerRow(r) {
 }
 function quotationRow(r) {
     if (!r) return r;
+    const snapshot = catalogSnapshot(r);
+    r = hydrateCatalogRow(db, 'quotation', r);
     return {
+        snapshotItemsJson: snapshot.items_json,
         id: r.id, Id: r.id, customerId: r.customer_id, status: r.status, itemsJson: r.items_json,
         totalCost: r.total_cost, totalPrice: r.total_price, remark: r.remark,
         convertedOrderId: r.converted_order_id || null, convertedAt: r.converted_at || null,
@@ -551,15 +566,15 @@ function statorVariantRow(r) {
 }
 
 // ── 数据访问层 ──
-function dbGetAllParts() { return db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all().map(partRow); }
-function dbGetAllRecipes() { return db.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all().map(recipeRow); }
-function dbGetAllOrders() { return db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all().map(orderRow); }
+function dbGetAllParts() { return hydrateCatalogRows(db, 'part', db.prepare('SELECT * FROM parts WHERE deleted_at IS NULL').all()).map(partRow); }
+function dbGetAllRecipes() { return hydrateCatalogRows(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE deleted_at IS NULL').all()).map(recipeRow); }
+function dbGetAllOrders() { return hydrateCatalogRows(db, 'order', db.prepare('SELECT * FROM orders WHERE deleted_at IS NULL').all()).map(orderRow); }
 function dbGetAllCoils() { return db.prepare('SELECT * FROM coils').all().map(coilRow); }
 function dbGetAllStatorVariants() { return db.prepare('SELECT * FROM stator_variants ORDER BY diameter_mm, material, slot_type').all().map(statorVariantRow); }
-function dbGetAllTemplates() { return db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all().map(templateRow); }
-function dbGetAllModelVariants() { return db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all().map(modelVariantRow); }
+function dbGetAllTemplates() { return hydrateCatalogRows(db, 'template', db.prepare('SELECT * FROM pump_shell_templates ORDER BY shell_model').all()).map(templateRow); }
+function dbGetAllModelVariants() { return hydrateCatalogRows(db, 'modelVariant', db.prepare('SELECT * FROM pump_model_variants WHERE deleted_at IS NULL ORDER BY model_name').all()).map(modelVariantRow); }
 function dbGetAllCustomers() { return db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY id DESC').all().map(customerRow); }
-function dbGetAllQuotations() { return db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all().map(quotationRow); }
+function dbGetAllQuotations() { return hydrateCatalogRows(db, 'quotation', db.prepare('SELECT * FROM quotations WHERE deleted_at IS NULL ORDER BY id DESC').all()).map(quotationRow); }
 function dbGetAllRecipeTechnicalFiles() {
     return db.prepare(`
         SELECT id, recipe_id, file_id, original_name, mime_type, file_size, file_sha256,

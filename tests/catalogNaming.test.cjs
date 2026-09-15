@@ -19,7 +19,7 @@ test('所有类别规则可以通过相同结构化规格入口生成名称，�
 
 test('规格输入变更改变输入指纹，纯空白与型号大小写规范化不改变指纹', () => {
     const first = generateCatalogName({ ruleId: 'bearing', spec: { code: ' 6202zz ' } });
-    assert.equal(first.name, '轴承-6202ZZ');
+    assert.equal(first.name, '轴承-202ZZ');
     assert.equal(first.namingInputFingerprint, generateCatalogName({ ruleId: 'bearing', spec: { code: '6202ZZ' } }).namingInputFingerprint);
     assert.notEqual(first.namingInputFingerprint, generateCatalogName({ ruleId: 'bearing', spec: { code: '6203ZZ' } }).namingInputFingerprint);
     assert.equal(generateCatalogName({ ruleId: 'bearing', spec: { code: '202' } }).name, '轴承-202');
@@ -60,5 +60,5 @@ test('线圈片数不标作叠长，预览不签发写确认或声明完成改�
 test('电缆只能使用横截面积，浮球保留独立的规格含义', () => {
     assert.equal(generateCatalogName({ ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '截面积', wireUnit: 'mm²' } }).name, '电缆-截面积0.55mm²');
     assert.throws(() => generateCatalogName({ ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }), { code: 'NAMING_SPEC_INVALID' });
-    assert.equal(generateCatalogName({ ruleId: 'float', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }).name, '浮球-直径0.55mm');
+    assert.throws(() => generateCatalogName({ ruleId: 'float', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }), { code: 'NAMING_SPEC_INVALID' });
 });

@@ -1,3 +1,5 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
+const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
     CommandExecutionError,
@@ -266,7 +268,7 @@ function autoCreateVariantLongScrews(
 
     const partsToCreate = buildLongScrewInventoryParts({
         variant,
-        template,
+        template: hydrateCatalogRow(dependencies.db, 'template', template),
         partsCatalog: partsCatalogRows(dependencies.db),
     }).filter(part => !dependencies.db.prepare(`
         SELECT id
@@ -415,6 +417,7 @@ function executeModelVariantUpdate(
                 normalized.model_name,
                 modelVariantId
             );
+            assertCatalogPhysicalUpdate(dependencies.db, 'modelVariant', current, normalized);
             const write = dependencies.safeUpdate(
                 'pump_model_variants',
                 modelVariantId,

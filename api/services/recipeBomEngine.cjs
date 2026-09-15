@@ -1,3 +1,4 @@
+const { selectWirePart, capacitorValueOf } = require('./catalogSpec.cjs');
 const {
     DEFAULT_LONG_SCREW_EXTRA_LENGTH,
     applyLongScrewRule,
@@ -166,9 +167,9 @@ function resolveCapacitorModel(partsCatalog, explicitModel, coilSnapshot) {
     const capValue = capacitorValueFromModel(coilSnapshot?.defaultCapacitor || coilSnapshot?.capacitor);
     if (capValue == null) return '';
     const caps = (partsCatalog || []).filter(part => part.category === '电容');
-    const exact = caps.find(part => part.model === `${capValue}μF`);
-    const fuzzy = exact || caps.find(part => capacitorValueFromModel(part.model) === capValue);
-    return fuzzy?.model || '';
+    const candidates = caps.filter(part => capacitorValueOf(part) === capValue);
+    if (candidates.length > 1) throw Object.assign(new Error('同容量电容有多个物料，请选择具体型号及供应商'), { code: 'CAPACITOR_SPEC_AMBIGUOUS', statusCode: 409, details: { candidates: candidates.map(part => ({ partId: partIdOf(part), model: part.model, supplier: part.supplier })) } });
+    return candidates[0]?.model || '';
 }
 
 function normalizeSelectionList(value) {
@@ -216,11 +217,15 @@ function buildRecipeBomDraft(input, context) {
                 return sum + price * lengthCmQty(component, customBarrelLength);
             }, 0))
         : 0;
+    const boundShell = template?.shellPartId == null ? null
+        : resolveCatalogPartIdentity(partsCatalog, { partId: template.shellPartId }, { field: 'template.shellPartId' });
+    if (boundShell && boundShell.category !== '泵壳') throw Object.assign(new Error('模板绑定的套件不是泵壳零件'), { code: 'TEMPLATE_SHELL_CATEGORY_MISMATCH', statusCode: 422 });
     const shellBundlePart = template && costMode === 'bundle'
         ? applyStainlessShellBundleRule({
-            model: template.shellModel,
+            ...(boundShell ? { partId: partIdOf(boundShell) } : {}),
+            model: boundShell?.model || template.shellModel,
             name: '泵壳套件',
-            supplier: '',
+            supplier: boundShell?.supplier || '',
             qty: 1,
             snapshotPrice: baseShellPrice,
             baseSnapshotPrice: baseShellPrice,
@@ -357,11 +362,13 @@ function buildRecipeBomDraft(input, context) {
     });
 
     if (toBool(input.hasFloat)) {
-        const model = wireModel('浮球', input.floatWire || coilSnapshot?.wireGauge || '');
+        const wire = input.floatWire || coilSnapshot?.wireGauge || '';
+        const selectedFloat = selectWirePart(partsCatalog, '浮球', wire, '', input.floatPartId);
+        const model = selectedFloat?.model || wireModel('浮球', wire);
         const accessoryType = input.floatAccessoryType || 'standard';
-        const matchedFloat = requireStablePartIdentity
+        const matchedFloat = selectedFloat || (requireStablePartIdentity
             ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'floatWire' })
-            : null;
+            : null);
         const basePrice = matchedFloat
             ? Number(matchedFloat.price || 0)
             : getPriceByModelAndSupplier(partsCatalog, model, '');
@@ -380,10 +387,12 @@ function buildRecipeBomDraft(input, context) {
     }
 
     if (toBool(input.hasCable)) {
-        const model = configuredWireModel('电缆', input.cableWire || coilSnapshot?.wireGauge, '');
-        const matchedCable = requireStablePartIdentity
+        const wire = input.cableWire || coilSnapshot?.wireGauge || '';
+        const selectedCable = selectWirePart(partsCatalog, '电缆线', wire, '', input.cablePartId);
+        const model = selectedCable?.model || configuredWireModel('电缆', wire, '');
+        const matchedCable = selectedCable || (requireStablePartIdentity
             ? resolveCatalogPartIdentity(partsCatalog, { model }, { field: 'cableWire' })
-            : null;
+            : null);
         bomParts.push({
             ...calculateCompleteCableCost({
                 model,

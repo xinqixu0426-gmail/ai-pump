@@ -658,6 +658,14 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
         riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
     }),
+    'catalog.rename': defineBusinessCapability({
+        capabilityId: 'catalog.rename', displayName: '按规格规范名称', domain: 'catalog',
+        inputSchema: 'POST /api/catalog/rename-preview { entityType, entityId, naming, samePhysicalItem: true, expectedUpdatedAt }; POST /api/catalog/rename { confirmationToken, idempotencyKey }',
+        outputSchema: 'CommandReceipt<{entityType, entityId, currentName, bindingIds}>',
+        sourceOfTruth: 'catalog_master_records+audited_reference_bindings+immutable_physical_profile', riskLevel: 'high',
+        supportsPreview: true, previewPath: '/api/catalog/rename-preview', callers: Object.freeze(['web', 'internal']),
+        concurrencyControl: 'confirmationToken_bound_source_and_catalog_hash',
+    }),
     'catalog.bind_references': defineBusinessCapability({
         capabilityId: 'catalog.bind_references', displayName: '绑定历史物料引用', domain: 'catalog',
         inputSchema: 'POST /api/catalog/reference-bindings-preview { bindings[] }; POST /api/catalog/reference-bindings { confirmationToken, idempotencyKey? }',
@@ -683,7 +691,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'catalog.naming_rules': defineQueryCapability({
         capabilityId: 'catalog.naming_rules', domain: 'catalog',
-        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 2, cable requires cross-section mm²',
+        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 3, cable/float require cross-section mm², bearing uses catalog shorthand',
         sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
     'catalog.name_preview': definePreviewCapability({

@@ -47,6 +47,9 @@ function applyRecipeBaseline(recipe, input, catalog) {
     const base = buildCurrentRecipeBomInput(recipe, catalog);
     const provided = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
     const result = { ...base, ...provided };
+    for (const [wire, id] of [['floatWire', 'floatPartId'], ['cableWire', 'cablePartId']]) {
+        if (provided[wire] !== undefined && String(provided[wire]) !== String(base[wire]) && provided[id] === undefined) delete result[id];
+    }
     // A changed coil cannot inherit the old scheme identity, sheet-specific weight or family.
     if (['coilSpec', 'coilSheets', 'coilMaterial', 'coilSlotType', 'coilId'].some(key =>
         provided[key] != null && String(provided[key]) !== String(base[key]))) {

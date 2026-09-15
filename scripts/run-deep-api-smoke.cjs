@@ -1351,7 +1351,7 @@ async function testSavedPurchaseNameViews(databasePath) {
     let partId;
     let orderId;
     try {
-        partId = Number(fixture.prepare('INSERT INTO parts (model, supplier, stock, price) VALUES (?, ?, 0, 3)').run(`${unique}-新名`, unique).lastInsertRowid);
+        partId = Number(fixture.prepare("INSERT INTO parts (model, supplier, stock, price, updated_at) VALUES (?, ?, 0, 3, '2026-09-15T00:00:00.000Z')").run(`${unique}-旧名`, unique).lastInsertRowid);
         const items = JSON.stringify([{ qty: 2, partsJson: JSON.stringify([{ partId, model: `${unique}-旧名`, supplier: unique, qty: 1 }]) }]);
         const purchase = JSON.stringify([{ id: 'retained-purchase-row', partId, model: `${unique}-旧名`, supplier: unique,
             inventoryType: 'part', plannedQty: 2, orderedQty: 1, receivedQty: 1, stockedQty: 0,
@@ -1359,6 +1359,11 @@ async function testSavedPurchaseNameViews(databasePath) {
         }]);
         orderId = Number(fixture.prepare("INSERT INTO orders (customer_name, contract_no, status, items_json, purchase_list_json) VALUES (?, ?, '采购中', ?, ?)").run(unique, unique, items, purchase).lastInsertRowid);
         const before = fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+        const renamePreview = (await request('现存采购物料正式规格改名预览', 'POST', '/api/catalog/rename-preview', { entityType: 'part', entityId: partId, naming: { ruleId: 'custom-part', spec: { kind: unique, specification: '新名' } }, samePhysicalItem: true, expectedUpdatedAt: '2026-09-15T00:00:00.000Z' })).payload.data;
+        const renameInput = { confirmationToken: renamePreview.confirmationToken, idempotencyKey: renamePreview.suggestedIdempotencyKey };
+        const renamed = (await request('有采购引用物料正式改名保留 ID', 'POST', '/api/catalog/rename', renameInput)).payload.data;
+        assert(renamed.entityId === partId && renamed.currentName === `${unique}-新名` && renamed.auditIds.length > 0, '规格改名回执不完整');
+        assert((await request('有采购引用物料正式改名幂等重放', 'POST', '/api/catalog/rename', renameInput)).payload.data.idempotentReplay, '改名未幂等');
         const detail = (await request('订单详情采购行按保存 ID 显示现名', 'GET', `/api/orders/${orderId}`)).payload.data;
         const row = JSON.parse(detail.purchaseListJson)[0];
         assert(row.model === `${unique}-新名` && row.id === 'retained-purchase-row', '详情现名或采购行 ID 不正确');
@@ -1368,19 +1373,25 @@ async function testSavedPurchaseNameViews(databasePath) {
         const overview = (await request('采购总览使用保存 ID 对应现名', 'GET', `/api/orders/purchase-overview?supplier=${encodeURIComponent(unique)}`)).payload.data;
         assert(overview.tasks.some(task => task.model === row.model && task.orderedQty === 1 && task.receivedQty === 1), '采购总览名称或进度错误');
         assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(before), '采购现名查询修改了订单原始快照');
+        const draft = (await request('改名后既有采购连续入库预览', 'POST', `/api/orders/${orderId}/complete-purchase-draft`, {})).payload.data;
+        const inboundInput = { expectedUpdatedAt: draft.expectedUpdatedAt, previewHash: draft.previewHash, idempotencyKey: draft.suggestedIdempotencyKey };
+        const inbound = (await request('改名后既有采购按原物料 ID 入库', 'POST', `/api/orders/${orderId}/complete-purchase`, inboundInput)).payload.data;
+        assert(inbound.order.status === '采购完成' && fixture.prepare('SELECT stock FROM parts WHERE id = ?').get(partId).stock === 2, '改名后的入库数量或状态错误');
+        assert((await request('改名后入库幂等不重复增库存', 'POST', `/api/orders/${orderId}/complete-purchase`, inboundInput)).payload.data.idempotentReplay, '入库重试未幂等');
+        assert(fixture.prepare('SELECT stock FROM parts WHERE id = ?').get(partId).stock === 2, '重复入库增了库存');
         for (const status of ['已关闭', '已取消']) {
             fixture.prepare('UPDATE orders SET status = ? WHERE id = ?').run(status, orderId);
             const frozen = fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
             const historical = (await request(`${status}订单详情显示现名但保留采购事实`, 'GET', `/api/orders/${orderId}`)).payload.data;
             const historyRow = JSON.parse(historical.purchaseListJson)[0];
-            assert(historyRow.model === row.model && historyRow.id === 'retained-purchase-row' && historyRow.purchasePrice === 7 && historyRow.orderedQty === 1, '历史订单显示改变了采购事实');
+            assert(historyRow.model === row.model && historyRow.id === 'retained-purchase-row' && historyRow.purchasePrice === 7 && historyRow.orderedQty === JSON.parse(frozen.purchase_list_json)[0].orderedQty, '历史订单显示改变了采购事实');
             const historyList = (await request(`${status}订单列表显示现名`, 'GET', `/api/orders?contractNo=${encodeURIComponent(unique)}`)).payload.data;
             assert(JSON.parse(historyList.find(order => order.id === orderId).purchaseListJson)[0].model === row.model, '历史订单列表名称未更新');
             assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(frozen), '历史现名查询改写了订单');
         }
     } finally {
-        if (orderId) fixture.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
-        if (partId) fixture.prepare('DELETE FROM parts WHERE id = ?').run(partId);
+        if (orderId) fixture.prepare("UPDATE orders SET deleted_at = 'qa-cleanup' WHERE id = ?").run(orderId);
+        if (partId) fixture.prepare("UPDATE parts SET deleted_at = 'qa-cleanup' WHERE id = ?").run(partId);
         fixture.close();
     }
 }
@@ -1486,8 +1497,8 @@ async function testCatalogNamingSave() {
     const namedRead = (await request('规格命名列表回读', 'GET', `/api/parts?supplier=${encodeURIComponent(unique)}`)).payload.data;
     assert(namedRead.some(row => row.id === named.id && row.naming?.spec?.specification === '400*300*200'), '列表丢失命名字段');
     await request('规格命名拒绝伪造显示名', 'POST', '/api/parts', { ...namedInput, model: '手写名称', idempotencyKey: `deep:named-forged:${unique}` }, [400]);
-    await request('规格命名拒绝普通改名', 'PATCH', `/api/parts/${named.id}`, { model: '新名称', expectedUpdatedAt: named.updatedAt }, [400]);
-    await request('规格命名资料保存保护', 'POST', `/api/parts/${named.id}/save-preview`, { model: '新名称', stock: 2, expectedUpdatedAt: named.updatedAt }, [400]);
+    await request('规格命名拒绝普通改名', 'PATCH', `/api/parts/${named.id}`, { model: '新名称', expectedUpdatedAt: named.updatedAt }, [409]);
+    await request('规格命名资料保存保护', 'POST', `/api/parts/${named.id}/save-preview`, { model: '新名称', stock: 2, expectedUpdatedAt: named.updatedAt }, [409]);
 
 }
 
@@ -1848,7 +1859,7 @@ async function testCrossModuleWriteFlow(baseResources) {
         'POST',
         '/api/parts',
         {
-            model: `${unique}-SHELL-COMPONENT`,
+            naming: { ruleId: 'shell-component', spec: { kind: '组件', specification: `${unique}-SHELL-COMPONENT` } },
             category: '泵壳搭配',
             price: 8,
             supplier: '自动验收',

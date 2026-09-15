@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const { inspectRecipeInventory } = require('./recipeInventory.cjs');
 const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
@@ -65,10 +66,10 @@ function createRecipeQueries({
             WHERE category = ?
               AND deleted_at IS NULL
             ORDER BY id
-        `).all('泵壳'), template.shellModel);
+        `).all('泵壳'), template.shellModel, template.shellPartId);
         let shellMeta = null;
         try {
-            shellMeta = shellPart?.remark ? JSON.parse(shellPart.remark) : null;
+            shellMeta = shellPart?.remark ? JSON.parse(hydrateCatalogRow(db, 'part', shellPart).remark) : null;
         } catch {
             shellMeta = null;
         }
@@ -131,7 +132,7 @@ function createRecipeQueries({
             throw new RecipeQueryError('非法配方ID');
         }
         return db.transaction(() => {
-            const recipeRecord = db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId);
+            const recipeRecord = hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId));
             if (!recipeRecord) throw new RecipeQueryError('配方不存在', 404);
             let parts;
             try { parts = JSON.parse(recipeRecord.parts_json || '[]'); } catch {
@@ -149,6 +150,9 @@ function createRecipeQueries({
     }
 
     function getBomDraft(input = {}) {
+        for (const field of ['floatPartId', 'cablePartId']) {
+            if (input[field] != null && (!Number.isSafeInteger(input[field]) || input[field] <= 0)) throw new RecipeQueryError(`${field} 必须为正安全整数`, 400, 'WIRE_PART_ID_INVALID');
+        }
         const explicitBaseline = input.baseRecipeId !== undefined ? selectRecipeBaseline(listRecipes(), input, input.templateId) : null;
         const variantId = parsePositiveId(input?.modelVariantId);
         if (input?.modelVariantId != null && !variantId) {

@@ -73,9 +73,9 @@ function resolveSourceFiles(ids, availableFiles, relationRole) {
 
 function buildLiveOrder(record, accessors) {
     const order = accessors.orderRow(record);
-    const items = parseJsonArray(record.items_json);
-    const purchaseList = parseJsonArray(record.purchase_list_json);
-    const todos = parseJsonArray(record.todos_json);
+    const items = parseJsonArray(order.itemsJson ?? record.items_json);
+    const purchaseList = parseJsonArray(order.purchaseListJson ?? record.purchase_list_json);
+    const todos = parseJsonArray(order.todosJson ?? record.todos_json);
     const totals = items.reduce((result, item) => {
         const qty = Number(item.qty || 0);
         result.totalUnits += qty;

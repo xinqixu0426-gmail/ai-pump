@@ -24,10 +24,12 @@ export type RecipeFormState = {
   coilWireWeight: string;
   hasFloat: boolean;
   floatWire: string;
+  floatPartId?: string;
   floatAccessoryType: CableAccessoryType;
   hasCable: boolean;
   cableLength: string;
   cableWire: string;
+  cablePartId?: string;
   cableAccessoryType: CableAccessoryType;
   customBarrelLength: string;
   longScrewExtraLength: string;
@@ -168,10 +170,12 @@ function formFromRecipe(recipe: Recipe): RecipeFormState {
     coilWireWeight: savedCoilWireWeight(recipe),
     hasFloat: Boolean(recipe.hasFloat),
     floatWire: recipe.floatWire || '',
+    floatPartId: String(parseRecipePartsJson(recipe.partsJson).find(part => part.costRole === 'float' || /^浮球(?:-|$)/.test(part.name || ''))?.partId || ''),
     floatAccessoryType: recipe.floatAccessoryType || 'standard',
     hasCable: Boolean(recipe.hasCable),
     cableLength: recipe.cableLength ? String(recipe.cableLength) : '',
     cableWire: recipe.cableWire || '',
+    cablePartId: String(parseRecipePartsJson(recipe.partsJson).find(part => part.cableAssembly || part.costRole === 'cable')?.partId || ''),
     cableAccessoryType: recipe.cableAccessoryType || 'standard',
     customBarrelLength: recipe.customBarrelLength ? String(recipe.customBarrelLength) : '',
     longScrewExtraLength: String(recipe.longScrewExtraLength || 0),

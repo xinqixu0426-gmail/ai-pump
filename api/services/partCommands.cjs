@@ -1,3 +1,5 @@
+const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
+const { inferLegacyPartNaming } = require('./legacyPartNaming.cjs');
 const { inspectPartRename, verifyPartRename } = require('./partRenameImpact.cjs');
 const { normalizePartNaming, assertPartNamingUpdate } = require('./partNaming.cjs');
 const crypto = require('node:crypto');
@@ -149,7 +151,7 @@ function normalizePartModel(value) {
 function normalizeCreateInput(dependencies, input) {
     const fields = dependencies.extractPartFields(input || {});
     const category = String(fields.category || '其他').trim() || '其他';
-    const named = input.naming === undefined ? null : normalizePartNaming(input.naming, category, fields.model);
+    const named = normalizePartNaming(input.naming === undefined ? inferLegacyPartNaming(category, fields.model) : input.naming, category, input.naming === undefined ? undefined : fields.model);
     return {
         ...(named ? { naming: named.naming } : {}),
         model: named?.model || normalizePartModel(fields.model),
@@ -494,7 +496,7 @@ function normalizeUpdateInput(dependencies, input, current) {
         supplier: input.supplier ?? current.supplier,
         remark: input.remark ?? input.notes ?? current.remark,
     });
-    return {
+    const updates = {
         ...(input.model === undefined ? {} : { model: normalizePartModel(fields.model) }),
         ...(input.category === undefined
             ? {}
@@ -515,6 +517,8 @@ function normalizeUpdateInput(dependencies, input, current) {
             ? {}
             : { remark: String(fields.remark || '').trim() }),
     };
+    assertCatalogPhysicalUpdate(dependencies.db, 'part', current, updates);
+    return updates;
 }
 
 function versionCompatibilityWarning(partId, expectedUpdatedAt) {

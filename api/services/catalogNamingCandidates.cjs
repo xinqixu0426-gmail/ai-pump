@@ -8,8 +8,8 @@ function extractPartCandidate(row) {
     const result = { extractedSpec: {}, suggestedName: null, missingFields: [], basis: 'manual_review' };
     let match;
     if (category === '轴承' && /^\d+$/.test(name)) {
-        result.extractedSpec = { catalogCode: name };
-        result.suggestedName = `轴承-${name}`;
+        result.extractedSpec = { catalogCode: /^6[0-9]{3}$/.test(name) ? name.slice(1) : name };
+        result.suggestedName = `轴承-${result.extractedSpec.catalogCode}`;
         result.basis = 'exact_catalog_code';
     } else if (category === '电容' && (match = name.match(/^(\d+(?:\.\d+)?)μF$/))) {
         result.extractedSpec = { capacitanceUf: Number(match[1]) };
@@ -24,14 +24,14 @@ function extractPartCandidate(row) {
         result.missingFields = ['sealType', 'dimensionMeaning'];
         if (/^\d+(?:\.\d+)?\*\d+(?:\.\d+)?$/.test(name)) result.missingFields.push('thickness');
     } else if (category === '电缆线' || category === '浮球') {
-        match = name.match(category === '电缆线' ? /^电缆-线径(\d+(?:\.\d+)?)$/ : /线径(\d+(?:\.\d+)?)$/);
+        match = name.match(category === '电缆线' ? /^电缆-线径(\d+(?:\.\d+)?)$/ : /^浮球-线径(\d+(?:\.\d+)?)$/);
         if (match) result.extractedSpec = { legacyWireValue: Number(match[1]) };
-        if (match && category === '电缆线') {
+        if (match) {
             // Owner-confirmed: legacy cable values select a cross-section's per-metre price.
             result.extractedSpec = { wireValue: Number(match[1]), wireMeasure: '截面积', wireUnit: 'mm²' };
             try {
-                result.suggestedName = generateCatalogName({ ruleId: 'cable', spec: result.extractedSpec }).name;
-                result.basis = 'confirmed_cable_cross_section';
+                result.suggestedName = generateCatalogName({ ruleId: category === '电缆线' ? 'cable' : 'float', spec: result.extractedSpec }).name;
+                result.basis = 'confirmed_wire_cross_section';
             } catch (error) {
                 if (error.statusCode !== 400) throw error;
                 result.missingFields = ['validCrossSection'];
@@ -42,7 +42,7 @@ function extractPartCandidate(row) {
     } else {
         result.missingFields = ['structuredSpecification'];
     }
-    // Only the owner-confirmed cable unit is applied; other dimensional meanings remain unconfirmed.
+    // Only the owner-confirmed cable/float unit is applied; other dimensional meanings remain unconfirmed.
     return result;
 }
 

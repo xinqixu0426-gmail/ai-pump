@@ -81,6 +81,7 @@ import {
 } from '@/components/recipe/ShellCostEditor';
 import { TechnicalDataEditor } from '@/components/technical-data-editor';
 import { Button } from '@/components/ui/button';
+import { CatalogRenameDialog, type CatalogRenameTarget } from '@/components/catalog-rename-dialog';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/ui/page-header';
 import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
@@ -214,8 +215,7 @@ function wireOptions(parts: Part[], category: '浮球' | '电缆线', prefix: st
   const values = new Set<string>();
   parts.forEach((part) => {
     if (part.category !== category) return;
-    if (!part.model.startsWith(prefix)) return;
-    const value = part.model.slice(prefix.length).trim();
+    const value = ['float', 'cable'].includes(part.naming?.ruleId || '') ? String(part.naming?.spec.wireValue ?? '') : part.model.startsWith(prefix) ? part.model.slice(prefix.length).trim() : '';
     if (value) values.add(value);
   });
   return Array.from(values).sort((a, b) => Number.parseFloat(a) - Number.parseFloat(b));
@@ -346,6 +346,7 @@ export function RecipesView() {
   const [coilRecords, setCoilRecords] = useState<CoilRecord[]>([]);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [shellComponentPartsRefreshing, setShellComponentPartsRefreshing] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<CatalogRenameTarget | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<PumpShellTemplate | null>(null);
   const [templateReuseSource, setTemplateReuseSource] = useState<PumpShellTemplate | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RecipeDeleteTarget | null>(null);
@@ -720,23 +721,23 @@ export function RecipesView() {
   const cableCostReady = form.hasCable && Boolean(form.cableWire) && numberValue(form.cableLength) > 0;
   const floatCostPart = useMemo(() => {
     if (!floatCostReady) return undefined;
-    const model = `浮球-线径${normalizeWireGauge(form.floatWire)}`;
+    const model = parts.find(part => part.category === '浮球' && (!form.floatPartId || part.id === Number(form.floatPartId)) && (part.naming?.spec.wireValue != null ? String(part.naming.spec.wireValue) : part.model.replace('浮球-线径', '')) === normalizeWireGauge(form.floatWire))?.model;
     return bomDraft?.parts.find((part) => (
       part.model === model
       && String(part.name || '').includes('浮球')
       && (part.floatAccessoryType || 'standard') === form.floatAccessoryType
     ));
-  }, [bomDraft, floatCostReady, form.floatAccessoryType, form.floatWire]);
+  }, [parts, bomDraft, floatCostReady, form.floatAccessoryType, form.floatWire, form.floatPartId]);
   const cableCostPart = useMemo(() => {
     if (!cableCostReady) return undefined;
-    const model = `电缆-线径${normalizeWireGauge(form.cableWire)}`;
+    const model = parts.find(part => part.category === '电缆线' && (!form.cablePartId || part.id === Number(form.cablePartId)) && (part.naming?.spec.wireValue != null ? String(part.naming.spec.wireValue) : part.model.replace('电缆-线径', '')) === normalizeWireGauge(form.cableWire))?.model;
     return bomDraft?.parts.find((part) => (
       part.model === model
       && part.cableAssembly === true
       && Number(part.cableLength || 0) === numberValue(form.cableLength)
       && (part.cableAccessoryType || 'standard') === form.cableAccessoryType
     ));
-  }, [bomDraft, cableCostReady, form.cableAccessoryType, form.cableLength, form.cableWire]);
+  }, [parts, bomDraft, cableCostReady, form.cableAccessoryType, form.cableLength, form.cableWire, form.cablePartId]);
   const isFloatWireRecommended = Boolean(
     form.hasFloat
     && recommendedFloatWire
@@ -977,7 +978,7 @@ export function RecipesView() {
     if (!form.coilSpec || !form.coilSheets) hints.push('线圈规格或片数不完整');
     else if (!form.coilId) hints.push('未选择具体线圈方案');
     if (form.hasCable && (!form.cableWire || !form.cableLength)) hints.push('电缆横截面积（mm²）或长度不完整');
-    if (form.hasFloat && !form.floatWire) hints.push('浮球线径未填写');
+    if (form.hasFloat && !form.floatWire) hints.push('浮球横截面积未填写');
     if (bomDraftError) hints.push(bomDraftError);
     return hints;
   }, [bomDraftError, form.cableLength, form.cableWire, form.coilId, form.coilSheets, form.coilSpec, form.floatWire, form.hasCable, form.hasFloat, form.name, form.templateId]);
@@ -1137,10 +1138,12 @@ export function RecipesView() {
       const previousAutoCableWire = normalizeWireGauge(autoWireSelectionRef.current.cableWire);
       if (nextFloatWire && (!currentFloatWire || (previousAutoFloatWire && currentFloatWire === previousAutoFloatWire))) {
         patch.floatWire = nextFloatWire;
+        if (normalizeWireGauge(nextFloatWire) !== currentFloatWire) patch.floatPartId = '';
         autoWireSelectionRef.current.floatWire = nextFloatWire;
       }
       if (nextCableWire && (!currentCableWire || (previousAutoCableWire && currentCableWire === previousAutoCableWire))) {
         patch.cableWire = nextCableWire;
+        if (normalizeWireGauge(nextCableWire) !== currentCableWire) patch.cablePartId = '';
         autoWireSelectionRef.current.cableWire = nextCableWire;
       }
       return Object.keys(patch).length > 0 ? { ...current, ...patch } : current;
@@ -1940,10 +1943,12 @@ export function RecipesView() {
           coilWireWeight: form.coilWireWeight || null,
           hasFloat: form.hasFloat,
           floatWire: form.floatWire,
+          floatPartId: form.floatPartId ? Number(form.floatPartId) : undefined,
           floatAccessoryType: form.floatAccessoryType,
           hasCable: form.hasCable,
           cableLength: form.cableLength,
           cableWire: form.cableWire,
+          cablePartId: form.cablePartId ? Number(form.cablePartId) : undefined,
           cableAccessoryType: form.cableAccessoryType,
           customBarrelLength: hasStainlessBarrel ? form.customBarrelLength || null : null,
           longScrewExtraLength: hasStainlessBarrel ? form.longScrewExtraLength || 0 : 0,
@@ -2138,6 +2143,7 @@ export function RecipesView() {
         saving={saving}
         error={error}
         onOpenEdit={openEditVariant}
+        onRename={variant => setRenameTarget({ entityType: 'modelVariant', entityId: variant.id, name: variant.modelName, updatedAt: variant.updatedAt || '' })}
         onOpenClone={openCloneVariant}
         onCloseEditor={() => setVariantEditorTarget(null)}
         onSubmit={submitVariant}
@@ -2168,6 +2174,7 @@ export function RecipesView() {
       <PumpShellTemplateEditor
         open={templateDrawerOpen}
         editingTemplate={editingTemplate}
+        onRename={editingTemplate && !templateFormDirty ? () => setRenameTarget({ entityType: 'template', entityId: editingTemplate.id, name: editingTemplate.shellModel, updatedAt: editingTemplate.updatedAt || '' }) : undefined}
         reuseSource={templateReuseSource}
         templates={templates}
         form={templateForm}
@@ -2213,6 +2220,7 @@ export function RecipesView() {
       >
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="min-w-0 space-y-4">
+            {editingRecipe ? <Button type="button" disabled={recipeFormDirty} title={recipeFormDirty ? '请先保存或取消当前修改' : undefined} onClick={() => setRenameTarget({ entityType: 'recipe', entityId: editingRecipe.id, name: editingRecipe.name, updatedAt: editingRecipe.updatedAt || '' })}>按规格规范名称</Button> : null}
             <RecipeBasicSection
               form={form}
               templates={templates}
@@ -2284,6 +2292,7 @@ export function RecipesView() {
 
             <RecipeDynamicConfigSection
               form={form}
+              wireParts={parts.filter(part => ['浮球', '电缆线'].includes(part.category)).map(part => ({ ...part, wireValue: String(part.naming?.spec.wireValue ?? part.model.replace(/^(?:浮球|电缆)-线径/, '')) }))}
               floatWireOptions={floatWireOptions}
               cableWireOptions={cableWireOptions}
               recommendedFloatWire={recommendedFloatWire}
@@ -2299,11 +2308,11 @@ export function RecipesView() {
               onChange={(patch) => updateForm(patch)}
               onFloatWireChange={(floatWire) => {
                 autoWireSelectionRef.current.floatWire = '';
-                updateForm({ floatWire });
+                updateForm({ floatWire, floatPartId: '' });
               }}
               onCableWireChange={(cableWire) => {
                 autoWireSelectionRef.current.cableWire = '';
-                updateForm({ cableWire });
+                updateForm({ cableWire, cablePartId: '' });
               }}
             />
 
@@ -2464,6 +2473,7 @@ export function RecipesView() {
         getFormula={partFormulaLine}
       />
 
+      <CatalogRenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} onSaved={async () => { await load(true); setDrawerOpen(false); setTemplateDrawerOpen(false); }} />
       <ConfirmDialog
         open={recipeDiscardPromptOpen}
         title="放弃未保存的配方？"

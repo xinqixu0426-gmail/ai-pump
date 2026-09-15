@@ -1,5 +1,9 @@
 'use client';
 
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+import { previewCatalogName } from '@/lib/catalog-naming';
+import { CatalogRenameDialog, type CatalogRenameTarget } from '@/components/catalog-rename-dialog';
+
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Boxes, Calculator, ChevronDown, ChevronRight, CircleDollarSign, Pencil, Plus, RefreshCw, Save, Search, Trash2, TrendingUp, X } from 'lucide-react';
@@ -183,9 +187,22 @@ export function CoilsView() {
   const [formError, setFormError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<CatalogRenameTarget | null>(null);
+  const [generatedCoilName, setGeneratedCoilName] = useState('');
   const [editingCoil, setEditingCoil] = useState<CoilRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CoilRecord | null>(null);
   const [form, setForm] = useState<CoilFormState>(emptyForm);
+  useEffect(() => {
+    let current = true;
+    setGeneratedCoilName('');
+    if (!drawerOpen || editingCoil || !form.spec.trim() || Number(form.sheets) <= 0) return;
+    void previewCatalogName({ ruleId: 'coil', spec: {
+      statorCode: form.spec.trim(), sheets: Number(form.sheets), material: form.material,
+      slotType: form.slotType, scheme: form.schemeName.trim() || (form.schemeStatus === 'testing' ? '测试方案' : '正式方案'),
+    } }).then(name => { if (current) setGeneratedCoilName(name); })
+      .catch(() => { if (current) setGeneratedCoilName('请补齐并检查规格'); });
+    return () => { current = false; };
+  }, [drawerOpen, editingCoil, form.spec, form.sheets, form.material, form.slotType, form.schemeName, form.schemeStatus]);
   const [calcSpec, setCalcSpec] = useState('');
   const [calcMaterial, setCalcMaterial] = useState('钢带');
   const [calcSlotType, setCalcSlotType] = useState<'小眼' | '国标眼'>('小眼');
@@ -245,6 +262,8 @@ export function CoilsView() {
   useEffect(() => {
     void load();
   }, []);
+
+  useBusinessRefresh(() => load());
 
   const specOptions = useMemo(
     () => Array.from(new Set(coils.map((coil) => coil.spec).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')),
@@ -1018,9 +1037,11 @@ export function CoilsView() {
                   <option value="disabled">停用</option>
                 </Select>
               </Field>
-              <Field label="方案名称" className="md:col-span-2">
+              <Field label={editingCoil ? '方案名称' : '方案区别'} hint={editingCoil ? undefined : '填写需要区分的方案特点，系统按规格生成完整名称。'} className="md:col-span-2">
                 <Input value={form.schemeName} onChange={(event) => updateForm({ schemeName: event.target.value })} placeholder="例如 高扬程测试方案" />
               </Field>
+              {!editingCoil ? <Field label="生成名称" className="md:col-span-2"><Input value={generatedCoilName} readOnly placeholder="填写规格和片数后生成" /></Field> : null}
+              {editingCoil ? <Button type="button" disabled={formDirty} title={formDirty ? '请先保存或取消当前修改' : undefined} onClick={() => setRenameTarget({ entityType: 'coil', entityId: editingCoil.id, name: editingCoil.schemeName || '', updatedAt: editingCoil.updatedAt || '' })}>按规格规范名称</Button> : null}
               <Field label="方案编码" hint={editingCoil ? '稳定编码创建后不可修改，用于跨页面和接口绑定。' : '可留空，由系统自动生成。'}>
                 <Input value={form.schemeCode} onChange={(event) => updateForm({ schemeCode: event.target.value })} disabled={Boolean(editingCoil)} placeholder="例如 COIL-12-200-MY240" />
               </Field>
@@ -1116,6 +1137,7 @@ export function CoilsView() {
         </form>
       </SlideOver>
 
+      <CatalogRenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} onSaved={async () => { await load(); setDrawerOpen(false); }} />
       <ConfirmDialog
         open={discardPromptOpen}
         title="放弃未保存修改？"

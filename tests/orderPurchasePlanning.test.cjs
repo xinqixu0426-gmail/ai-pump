@@ -18,6 +18,7 @@ function createFixture() {
         prepare(sql) {
             return {
                 all() {
+                    if (sql.includes('sqlite_schema')) return [];
                     assert.match(sql, /FROM orders/);
                     return [record];
                 },

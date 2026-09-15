@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
@@ -117,10 +118,11 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
     } = dependencies;
     const quotationId = parsePositiveId(quotationIdValue);
     if (!quotationId) throw conversionError('quotation_id_invalid', '非法报价ID', 400);
-    const quotation = options.quotation || db.prepare(
+    let quotation = options.quotation || db.prepare(
         'SELECT * FROM quotations WHERE id = ? AND deleted_at IS NULL'
     ).get(quotationId);
     if (!quotation) throw conversionError('quotation_not_found', '报价单不存在', 404);
+    quotation = hydrateCatalogRow(db, 'quotation', quotation);
     const customer = db.prepare(
         'SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL'
     ).get(quotation.customer_id);
@@ -134,7 +136,7 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
         orderItems = quotationItems.map((item, index) => {
             const recipeId = parsePositiveId(item.baseRecipeId);
             const recipe = recipeId
-                ? db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId)
+                ? hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id = ? AND deleted_at IS NULL').get(recipeId))
                 : null;
             const unitCost = item.unitCost == null
                 ? parseNonNegativeNumber(recipe?.saved_total_cost, `quotationItems[${index}].unitCost`)
@@ -229,7 +231,7 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
         purchase_list_json: '[]',
     };
     const plan = buildBalancedOrderPlans(
-        [...activeOrders, draftOrder],
+        [...activeOrders.map(row => hydrateCatalogRow(db, 'order', row)), draftOrder],
         dbGetAllParts(),
         { coilsCatalog: dbGetAllCoils() }
     ).get(-1);

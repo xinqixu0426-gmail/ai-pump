@@ -58,7 +58,7 @@ test('无引用和名称未变不产生改名授权，生成名仍报告普通�
     assert.equal(report.referenceCount, 0);
     db.prepare('UPDATE parts SET model = ?, category = ?, naming_json = ? WHERE id = 1').run('纸箱-大', '包装',
         JSON.stringify({ ruleId: 'packaging', ruleVersion: 1, spec: { kind: '纸箱', specification: '大' } }));
-    assert.equal(queryPartRenameImpact(db, 1, { model: '任意名称' }).blockers[0].code, 'PART_NAMING_MODEL_MISMATCH');
+    assert.equal(queryPartRenameImpact(db, 1, { model: '任意名称' }).blockers[0].code, 'PART_NAMING_CHANGE_REQUIRES_REVIEW');
     const unchanged = queryPartRenameImpact(db, 1, { model: '纸箱-大' });
     assert.equal(unchanged.nameChanged, false);
     assert.deepEqual(unchanged.blockers, []);

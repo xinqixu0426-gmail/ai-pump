@@ -1,3 +1,4 @@
+const { assertCatalogPhysicalUpdate } = require('./catalogPhysicalIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
     CommandExecutionError,
@@ -260,6 +261,7 @@ function validateTemplatePartReferences(db, partsJson, componentsJson) {
                 }
             } catch (error) {
                 if (error instanceof CommandExecutionError) throw error;
+                if (error.code === 'BOM_PART_ID_SUPPLIER_MISMATCH') throw templateCommandError('template_part_supplier_mismatch', error.message, 422);
                 throw templateCommandError(error.code || 'template_part_reference_invalid', error.message, error.statusCode || 422);
             }
         }
@@ -518,6 +520,7 @@ function executeTemplateUpdate(
                     }],
                 };
             }
+            assertCatalogPhysicalUpdate(dependencies.db, 'template', current, updates);
             const write = dependencies.safeUpdate(
                 'pump_shell_templates',
                 templateId,

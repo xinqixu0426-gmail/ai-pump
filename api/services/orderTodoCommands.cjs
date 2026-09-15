@@ -1,3 +1,4 @@
+const { hydrateCatalogRow } = require('./catalogLiveReferences.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
     CommandExecutionError,
@@ -21,7 +22,7 @@ function getOrderRecord(db, orderId) {
         'SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL'
     ).get(orderId);
     if (!record) throw todoCommandError('order_not_found', '订单不存在', 404);
-    return record;
+    return hydrateCatalogRow(db, 'order', record);
 }
 
 function executeOrderTodoToggle(

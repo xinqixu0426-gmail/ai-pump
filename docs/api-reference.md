@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 247 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 249 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -121,22 +121,31 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 |---|---|---|---|
 | `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts/supportsPartCreate`。字段描述与生成器共用服务端注册表，字段类型为 text/number/choice，含中文标签、必填/可选及单位。规则集 version=2，cable 规则 version=2，其他规则保持 version=1。当前 16 条规则覆盖零件类别、线圈、模板、配方及常用配置 |
 | `POST` | `/api/catalog/name-preview` | `{ ruleId, spec }` | `catalog.name_preview`。严格 schema，拒绝未知字段、直接传入 `name/model`、字符串数字、缺项、非有限数、负数/零、错误单位、过长文本。返回 `preview=true/name/normalizedSpec/normalizedInput/ruleId/ruleVersion/entityType/category/namingInputFingerprint/changes/warnings/sourceOfTruth`。不签发写确认，不建档、不改名、不进行重名判定 |
+| `POST` | `/api/catalog/rename-preview` | `{ entityType, entityId, naming: { ruleId, spec }, samePhysicalItem: true, expectedUpdatedAt }`，严格字段 | `catalog.rename` 只读预览；实体类型 part/coil/template/recipe/modelVariant。冻结目录、原引用及实物规格，检查唯一引用与撞名；返回 preview、生成名称、引用 entries、confirmationToken、suggestedIdempotencyKey；不写库 |
+| `POST` | `/api/catalog/rename` | `{ confirmationToken, idempotencyKey }`，严格字段、两项必填 | `catalog.rename`。同主体确认和幂等键，同一事务重新验证版本及引用哈希、建立身份档案与旧引用绑定、保留 ID 修改名称。返回标准 CommandReceipt，含 entityType/entityId/currentName/bindingIds。供应商或已结构化关键规格变化拒绝，改实物需新建；库存、价格、锁定金额和原 JSON 不改。校验400、失效404、并发/撞名/歧义409、强审计失败整体回滚 |
+
 | `POST` | `/api/catalog/references/resolve` | `{ references: [{ entityType, entityId, snapshotName?, specRevision? }] }`；类型为 `part/coil/template/recipe/modelVariant`，最多100项，允许空数组 | `catalog.references_resolve`。同一只读事务按类型批量查询，按请求顺序返回 `items[{entityType,entityId,currentName,snapshotName,referenceStatus,nameRevision,specRevision,namingState}]`。现名来自目录、历史名原样保留；不按旧名称猜 ID，不修改快照。无档案旧记录仍可显示现名，修订为 null；明确要求规格修订但没有结构化档案时返回 `specification_unverified` |
 | `POST` | `/api/catalog/reference-bindings-preview` | `{ bindings: [{ sourceType, sourceId, path, sourceHash, targetType, targetId }] }`，1–100项、严格字段 | `catalog.bind_references` 预览。仅接受完整盘点中的唯一明确 ID 或唯一旧名引用；拒绝歧义、失效、非库存、伪造路径及重复位置。返回 `preview=true/entries/previewHash/confirmationToken/operationId/expiresAt/suggestedIdempotencyKey/warnings`；不写数据 |
 | `POST` | `/api/catalog/reference-bindings` | `{ confirmationToken, idempotencyKey? }`；必须显式提供 body 幂等键或标准幂等头 | `catalog.bind_references`。确认绑定会话、来源、目标及档案哈希；同一事务重验后建立 legacy 档案和引用绑定，原 JSON、名字、价格、库存与进度不变。返回标准回执，含 `bindingIds/displayOnly/auditIds/changes/businessChangeEvent/idempotentReplay`。不接受重新提交映射 |
 | `POST` | `/api/catalog/bound-names` | `{ sourceType, sourceId, afterId?, limit? }`，游标默认0，limit默认100、上限100 | `catalog.bound_names`。按绑定 ID 分页，返回 `sourceType/sourceId/sourceHash/items/nextAfterId/sourceOfTruth`。每项含 `bindingId/path/entityType/entityId/snapshotValue/currentName/referenceStatus/nameRevision/specRevision/displayOnly`；无下一页时游标为 null |
 
+正式规格改名如果改变了引用来源本身的名称，只在原事务内续接原路径值未变、原哈希/版本/规格修订仍有效的绑定；旧绑定软撤销、新绑定追加审计，原 JSON 不写回。普通业务修改仍使旧来源哈希失效，不能套用改名续接权限。改名预览 affectedResources 提供受影响业务对象名称和引用数量。
+
 绑定来源类型为 `part/coil/template/recipe/modelVariant/quotation/order/orderRevision/drawing/fileLink`，目标类型为 `part/coil/template/recipe/modelVariant`；ID 为正安全整数。`path` 为盘点输出的 JSON Pointer（含嵌套 JSON 字符串定位），`sourceHash` 为同一行投影的 SHA-256（零件采用完整行，包含命名输入；旧投影生成的 hash 必须重新盘点），`sourceVersion` 存为 `sha256:<sourceHash>`。预览同时冻结目标和档案内容，提交前有任何变化均作废；已绑定同一目标可跳过，全部已绑定返回 `catalog_binding_no_changes`，撤销或冲突绑定不允许覆盖。写入、强审计、业务事件及90天幂等回执原子提交；确认有效期默认5分钟，过期或进程重启需重新预览。正式执行仍需同会话确认凭证，幂等回执不延长确认有效期。
 
-绑定读取保留原标量 `snapshotValue`（数字 ID 不冒充名称），现名只从目标 ID 读取。来源整体内容变化返回 `stale_source`，不把旧数组位置套到新内容；此时原标量和现名均为 null。缺失/停用分别为 `missing/inactive`，规格修订变化为 `specification_changed`；旧档案未核实物理规格时为 `bound_legacy`，结构化档案无冲突时为 `resolved`。全部结果 `displayOnly=true`，不能用于采购入库或规格替换授权，也不代表业务页面已经接入。数据库错误不降级为空列表。参数非法400，来源不存在404，盘点不完整、预览过期或冲突409，意外/强审计失败500。分页遇到来源哈希变化时，调用方必须丢弃旧页重新读取。这两项新增能力仅供 Web/Internal，未开放 AI/MCP 工具。
+绑定读取保留原标量 `snapshotValue`（数字 ID 不冒充名称），现名只从目标 ID 读取。来源整体内容变化返回 `stale_source`，不把旧数组位置套到新内容；此时原标量和现名均为 null。缺失/停用分别为 `missing/inactive`，规格修订变化为 `specification_changed`；旧档案未核实物理规格时为 `bound_legacy`，结构化档案无冲突时为 `resolved`。全部结果 `displayOnly=true`，不能用于采购入库或规格替换授权，显示绑定本身不提供业务写授权；正式按规格改名建立的绑定由服务端验证并用于已有引用续接。数据库错误不降级为空列表。参数非法400，来源不存在404，盘点不完整、预览过期或冲突409，意外/强审计失败500。分页遇到来源哈希变化时，调用方必须丢弃旧页重新读取。这两项新增能力仅供 Web/Internal，未开放 AI/MCP 工具。
 
-规则字段为服务端唯一来源。轴承保留实际目录代号（不把 `202` 自行补为 `6202`）；螺丝按头型、直径、长度、材质及必要区别生成；油封必须明确机械密封/骨架油封以及内径、外径、高度或厚度；电容使用 μF；电缆已由业务确认按横截面积选择每米单价，cable 规则只接受 wireMeasure=截面积、wireUnit=mm²，wireValue 是面积；成品电缆成本=该规格每米单价×长度+配件费用，不再乘面积。只读候选解析仅将标准旧格式“电缆-线径正数”识别为此含义，不自动改库。浮球仍须明确直径 mm 或截面积 mm²，不能套用电缆确认。线圈保留定子组合代号、片数、材质、槽眼和方案区别，片数不称为叠长。模板名独立于泵壳物料名；配方内部名含系列、定子代号、片数、机筒长度和配置区别；对外型号独立保存。泵壳、组件、皮垫、配件、包装和非标件采用品名/系列、明确规格和必要区别字段。数值最多四位小数、最大 1000000，片数必须为整数；文本先去首尾空白和 NFC 规范化，代号字段仅统一 ASCII 字母大小写。
+规则字段为服务端唯一来源。轴承使用目录简称：标准 6xxx 代号去掉首位 6，6202→202、6203→203，密封后缀保留；工程出图的标准代号转换独立处理；螺丝按头型、直径、长度、材质及必要区别生成；油封必须明确机械密封/骨架油封以及内径、外径、高度或厚度；电容使用 μF；电缆已由业务确认按横截面积选择每米单价，cable 规则只接受 wireMeasure=截面积、wireUnit=mm²，wireValue 是面积；成品电缆成本=该规格每米单价×长度+配件费用，不再乘面积。只读候选解析仅将标准旧格式“电缆-线径正数”识别为此含义，不自动改库。浮球旧“线径”同样由业务确认代表横截面积，float 规则只接受截面积 mm²。线圈保留定子组合代号、片数、材质、槽眼和方案区别，片数不称为叠长。模板名独立于泵壳物料名；配方内部名含系列、定子代号、片数、机筒长度和配置区别；对外型号独立保存。泵壳、组件、皮垫、配件、包装和非标件采用品名/系列、明确规格和必要区别字段。数值最多四位小数、最大 1000000，片数必须为整数；文本先去首尾空白和 NFC 规范化，代号字段仅统一 ASCII 字母大小写。
 
-命名输入指纹来自规则 ID 与规范化命名规格；它不是完整实物规格的证明。后续保存命令必须结合线圈电压/频率/绕组等正式属性建立完整实物指纹，不能只凭名称字段判定同物。不同供应商的实体 ID 仍须分别保留。当前命名及引用能力用于后续表单和迁移接入，原建档/修改命令尚未强制消费规格对象。`resolved` 只证明读取时该 ID 存在且没有已知规格冲突，不是授权执行库存或规格变更的凭证。其余状态为 `missing/inactive/specification_changed/specification_unverified`；数据库错误返回失败，不能伪装为 missing。错误使用稳定 code、requestId，校验错误为400，未预期错误为500。
+命名输入指纹来自规则 ID 与规范化命名规格；它不是完整实物规格的证明。后续保存命令必须结合线圈电压/频率/绕组等正式属性建立完整实物指纹，不能只凭名称字段判定同物。不同供应商的实体 ID 仍须分别保留。零件新建强制经服务端生成规范名；旧调用仅在规格可完整识别时适配，否则返回 PART_NAMING_REQUIRED。普通编辑禁止更改已结构化关键规格，改名走受保护的 catalog.rename。`resolved` 只证明读取时该 ID 存在且没有已知规格冲突，不是授权执行库存或规格变更的凭证。其余状态为 `missing/inactive/specification_changed/specification_unverified`；数据库错误返回失败，不能伪装为 missing。错误使用稳定 code、requestId，校验错误为400，未预期错误为500。
 
 配方选配/包装预览保留已选 `partId`；模板固定项/组件展开同样保留明确 ID，取价使用该 ID，零价不会退回手工价。当前成本查询中带 ID 的普通物料使用对应目录记录，错误 ID 拒绝且不回退同名对象；旧名称与 ID 不一致的写入仍受原有校验约束。动态长螺丝生成另一长度时清除原规格 ID，再按目标规格走后续解析，不能带着原 ID 换实物。
 
 ## 5. 线圈 Coils
+
+新建线圈的 `schemeName` 输入用于表达方案区别，完整名称由服务端按规格俗称、片数、材质、槽眼和方案区别生成，例如 `线圈-12-140片-钢带-小眼-正式方案`；网页显示服务端生成预览，保存时重新生成。既有方案整理名称仍使用受保护改名命令，稳定 `schemeCode/coilId` 不变。
+
+长螺丝换长度保留名称中的材质和必要区别，不继承原长度的零件ID。参数化定价来源按明确供应商筛选，多个基础来源或未选供应商的歧义返回 `409 SCREW_PRICING_AMBIGUOUS`，不以最低目录价决定库存供应商。
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
@@ -197,7 +206,7 @@ AI 的 Part/Coil 当前库存数量共用 `inventoryQuantity/current/current_inv
 | `GET` | `/api/recipes` | 可选 query：`keyword`、`hasTechnicalFiles=true/false` | 经纯读 `recipeQueries` 返回配方列表；默认列表和筛选结果均返回 `technicalFileCount`，`keyword` 对成品型号（字段 `name`）和配置摘要（字段 `spec`）做模糊筛选，`hasTechnicalFiles` 按有效技术档案关联筛选。标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength/configurationPolicyJson` |
 | `GET` | `/api/recipes/:id` | 无 | 经纯读 `recipeQueries` 返回单个配方，标准字段含 `id/createdAt/updatedAt/customBarrelLength/longScrewExtraLength/configurationPolicyJson` |
 | `POST` | `/api/recipes/model-variant-draft` | `{ modelVariantId }` | 经 `recipeQueries` 根据常用配置和其关联泵壳模板生成配方表单草稿；返回 `recipeDraft, variant, template`，并恢复其 `coilId/coilSchemeFamilyCode`；不写库 |
-| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, useRecipeBaseline?, baseRecipeId?, customBarrelLength?, coilId?, coilSchemeFamilyCode?, coilSpec?, coilSheets?, coilMaterial?, coilSlotType?, coilWireWeight?, packingParts?, optionalParts?, requireStablePartIdentity? }` | 聚合模板、具体线圈方案、正式零件和系统设置并生成标准化 BOM；不写库。泵壳元数据只从唯一活动目录记录带入，多候选返回 `409 PUMP_SHELL_PART_AMBIGUOUS` 与候选 ID/供应商；模板固定件/组件及基准配方继承项按保存 ID 读取现名，校验供应商和组件/包装分类；坏 JSON、非法或失效引用返回422。新传选配和包装的明确 ID 优先于名称候选，但 ID/型号/供应商冲突仍拒绝，不允许旧名回退选中另一零件。HTTP 默认保持独立配置语义；useRecipeBaseline=true 或 baseRecipeId 启用在售配方基准，按同模板及明确线圈参数优先匹配，多个基准返回 409 RECIPE_BASELINE_AMBIGUOUS。继承未指定配置及配方人工费用，只覆盖显式字段；packingParts 按包装角色替换并保留其他辅料，空数组清空包装，qty=0 移除对应角色；optionalParts 显式提供时替换。改变线圈组合不继承旧方案 ID、线重和方案族。configurationBasis 返回基准身份、继承/覆盖字段；无基准时 configurationComplete=false，金额只代表已知配置，pricingComplete 只说明定价完整。响应同时返回 `costPreview`，由 `costEngine` 计算 `currentTotalCost/partsCost/laborCost/pricingComplete/missingParts`。包装和可选零件先绑定正式身份；简称可复用同模板现有配方的唯一一致型号，多候选返回 `409 CONFIGURED_PART_AMBIGUOUS`，未找到返回 `404 CONFIGURED_PART_NOT_FOUND`。精确片数用 `coilId` 绑定具体正式方案；没有精确片数而需要插值或外推时，用 `coilSchemeFamilyCode` 绑定同一正式计算方案系列。同组合多套正式方案且未指定 ID、也没有唯一默认时返回 `409 COIL_SCHEME_AMBIGUOUS`；跨方案族插值未指定方案系列时返回 `409 COIL_SCHEME_FAMILY_REQUIRED`。`coilSnapshot` 和线圈 BOM 行返回稳定方案及计价字段；浮球/电缆未显式给线径时可使用已绑定线圈的正式默认搭配线径。全部 BOM 行继续返回 `snapshotPrice`，计算来源使用 `formula/costSource/source`，不得由页面或 AI 另算。 |
+| `POST` | `/api/recipes/bom-draft` | `{ templateId?, modelVariantId?, useRecipeBaseline?, baseRecipeId?, customBarrelLength?, coilId?, coilSchemeFamilyCode?, coilSpec?, coilSheets?, coilMaterial?, coilSlotType?, coilWireWeight?, packingParts?, optionalParts?, floatPartId?, cablePartId?, requireStablePartIdentity? }` | 聚合模板、具体线圈方案、正式零件和系统设置并生成标准化 BOM；不写库。泵壳元数据只从唯一活动目录记录带入，多候选返回 `409 PUMP_SHELL_PART_AMBIGUOUS` 与候选 ID/供应商；模板固定件/组件及基准配方继承项按保存 ID 读取现名，校验供应商和组件/包装分类；坏 JSON、非法或失效引用返回422。新传选配和包装的明确 ID 优先于名称候选，但 ID/型号/供应商冲突仍拒绝，不允许旧名回退选中另一零件。HTTP 默认保持独立配置语义；useRecipeBaseline=true 或 baseRecipeId 启用在售配方基准，按同模板及明确线圈参数优先匹配，多个基准返回 409 RECIPE_BASELINE_AMBIGUOUS。继承未指定配置及配方人工费用，只覆盖显式字段；packingParts 按包装角色替换并保留其他辅料，空数组清空包装，qty=0 移除对应角色；optionalParts 显式提供时替换。改变线圈组合不继承旧方案 ID、线重和方案族。configurationBasis 返回基准身份、继承/覆盖字段；无基准时 configurationComplete=false，金额只代表已知配置，pricingComplete 只说明定价完整。响应同时返回 `costPreview`，由 `costEngine` 计算 `currentTotalCost/partsCost/laborCost/pricingComplete/missingParts`。包装和可选零件先绑定正式身份；简称可复用同模板现有配方的唯一一致型号，多候选返回 `409 CONFIGURED_PART_AMBIGUOUS`，未找到返回 `404 CONFIGURED_PART_NOT_FOUND`。精确片数用 `coilId` 绑定具体正式方案；没有精确片数而需要插值或外推时，用 `coilSchemeFamilyCode` 绑定同一正式计算方案系列。同组合多套正式方案且未指定 ID、也没有唯一默认时返回 `409 COIL_SCHEME_AMBIGUOUS`；跨方案族插值未指定方案系列时返回 `409 COIL_SCHEME_FAMILY_REQUIRED`。`coilSnapshot` 和线圈 BOM 行返回稳定方案及计价字段；浮球/电缆按横截面积选择；同面积多供应商必须用 floatPartId/cablePartId 绑定具体目录，ID 为正安全整数并核对类别/面积。已保存 BOM 按动态角色保留这些 ID。浮球/电缆未显式给横截面积时可使用已绑定线圈的正式默认搭配线径。全部 BOM 行继续返回 `snapshotPrice`，计算来源使用 `formula/costSource/source`，不得由页面或 AI 另算。 |
 | `POST` | `/api/recipes/cost-draft` | `{ parts, assemblyWage?, packingWage?, surfaceTreatmentMode?, surfaceTreatmentCost?, managementFee?, coilMaterial?, customBarrelLength?, longScrewExtraLength?, enableLongScrewByBarrelLength? }` | 基于配方草稿生成保存用成本快照；不写库。`enableLongScrewByBarrelLength=false` 时不会把普通固定长螺丝按机筒长度重写。配方正式保存时 `customBarrelLength` 和 `longScrewExtraLength` 都会持久化，重新编辑可恢复原值 |
 | `POST` | `/api/recipes/save-payload-draft` | `{ recipeId?, expectedUpdatedAt?, form, costDraft?, packingParts?, optionalParts?, technicalData? }`，`form.configurationPolicyJson?` | `recipes.create/recipes.update` 的正式只读预览兼保存 payload 草稿。精确片数的 `form.coilId` 与非精确片数的 `form.coilSchemeFamilyCode` 分别绑定具体方案和插值/外推系列。服务端规范化配置规则，并根据 `form + templateId/modelVariantId + packingParts/optionalParts` 重新调用权威 BOM 引擎和 `costEngine`，生成带稳定零件身份、`costRole` 和 `configurationDependencies` 的 `partsJson/savedTotalCost/savedCostDetails`；客户端 `costDraft` 仅为兼容输入，其零件、快照价、总成本和说明均不作为事实。新建时未显式传规则则复制模板规则，编辑时未传则保留当前规则。逐项检查 BOM 快照单价，普通目录零件身份缺失或多供应商歧义时返回 422。统一返回 `previewHash/changes/warnings` 和建议幂等键，不写配方、operation 或审计 |
 | `GET` | `/api/recipes/:id/inventory-status` | 无 | `recipes.inventory_status`。同一只读事务按 BOM 查询零件/线圈目录库存；返回 `recipe/items/sourceOfTruth`。每项保留 `model/snapshotName`，另返 `currentName/referenceStatus/message`；未核实库存为 null，非库存费用为 not_tracked，不执行生产或扣减 |
@@ -557,7 +566,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 77 个 AI 工具、当前 128 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 77 个 AI 工具、当前 129 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -988,3 +997,5 @@ AI 工具：
 未完成风险、整改状态和优先级不在本接口总表重复维护，统一见 [当前技术债与优化清单](./technical-debt.md)。当前接口自身存在的副作用或兼容行为已写在对应 Method/Path 行内。
 
 线圈 AI 成本预览的身份处理：未指定 coilId/schemeCode 时，即使材质和槽眼相同，也先核对全部已登记方案，保留 testing 等方案状态，不默认把一个电气方案当成全部。唯一候选以标准 ID 绑定；无现成记录且维度完整时保留插值。只读试算调用现有 `/api/coils/calculate` 的 `includeTesting=true`，不改变方案状态、配方生产绑定或库存写入规则；停用方案仍由正式 service 拒绝试算。
+
+已有业务引用的名称读取：服务端从保存的 ID 或来源哈希/规格修订仍有效的正式绑定读取现名。BOM、订单、报价与采购 JSON 返回当前名称，改名时保留 snapshotName；配方/模板另返回 snapshotPartsJson（模板还含 snapshotShellComponentsJson），订单/报价返回 snapshotItemsJson，订单还返回 snapshotPurchaseListJson，均为原始保存 JSON；数据库原 JSON 和 order_revisions 不改，金额及库存换算不随名称变化。新选料仍要求 ID/现名/供应商一致，不能以旧名称更换实物。无 ID 且未核实的歧义旧引用继续拒绝，不能猜测供应商。

@@ -200,19 +200,12 @@ function commandContext(capabilityId, suffix) {
     };
 }
 
-function seedPart(fixture, model = 'P-1', price = 10) {
-    return executePartCreate(
-        fixture.dependencies,
-        {
-            model,
-            category: '标准件',
-            subcategory: '',
-            price,
-            supplier: '供应商A',
-            stock: 5,
-        },
-        commandContext(CREATE_CAPABILITY_ID, `seed-${model}`)
-    );
+// Explicit legacy fixture: old records must remain editable/readable without
+// pretending that a new structured command created their historical names.
+function seedPart(fixture, model = 'P-1', price = 10, overrides = {}) {
+    const write = fixture.dependencies.safeInsert('parts', { model, category: '标准件', subcategory: '', price, supplier: '供应商A', stock: 5,
+        created_at: '2026-08-01T00:00:00.000Z', updated_at: '2026-08-01T00:00:00.000Z', ...overrides }, { user: 'fixture' });
+    return { part: fixture.dependencies.partRow(fixture.db.prepare('SELECT * FROM parts WHERE id = ?').get(write.lastInsertRowid)), auditId: write.auditId };
 }
 
 test('内部正式改名提交立即刷新目录；幂等重放和审计失败不污染缓存', () => {
@@ -345,7 +338,7 @@ test('规格命名拒绝伪造型号、错分类、缺规格、未开放规则�
             [{ ...namingInput(), model: '自己改的名称' }, 'PART_NAMING_MODEL_MISMATCH'],
             [{ ...namingInput(), category: '配件' }, 'PART_NAMING_CATEGORY_MISMATCH'],
             [{ ...namingInput(), naming: { ruleId: 'packaging', spec: { kind: '纸箱' } } }, 'NAMING_SPEC_INVALID'],
-            [{ category: '电容', naming: { ruleId: 'capacitor', spec: { capacitanceUf: 20 } } }, 'PART_NAMING_RULE_NOT_READY'],
+            [{ category: '电容', naming: { ruleId: 'capacitor', spec: { capacitanceUf: '20' } } }, 'NAMING_SPEC_INVALID'],
             [{ ...namingInput(), naming: null }, 'NAMING_INPUT_INVALID'],
         ];
         for (const [input, code] of invalid) {
@@ -450,7 +443,7 @@ test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删�
         assert.equal(deletePreview.preview, true);
         assert.equal(deletePreview.capabilityId, DELETE_CAPABILITY_ID);
         assert.equal(deletePreview.target.id, created.part.id);
-        assert.equal(deletePreview.target.model, input.model);
+        assert.equal(deletePreview.target.model, created.part.model);
         assert.equal(deletePreview.normalizedInput.expectedUpdatedAt, updated.part.updatedAt);
         assert.ok(deletePreview.previewHash);
         assert.equal(fixture.db.prepare('SELECT deleted_at FROM parts WHERE id = ?')
@@ -549,7 +542,7 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
             fixture.dependencies,
             {
                 model: 'IDENTITY-1',
-                category: '轴承',
+                category: '其他',
                 price: 8,
                 supplier: '供应商A',
                 stock: 0,
@@ -561,7 +554,7 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
                 fixture.dependencies,
                 {
                     model: 'identity-1',
-                    category: '油封',
+                    category: '其他',
                     price: 9,
                     supplier: '供应商a',
                     stock: 0,
@@ -575,7 +568,7 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
             fixture.dependencies,
             {
                 model: 'IDENTITY-1',
-                category: '轴承',
+                category: '其他',
                 price: 10,
                 supplier: '供应商B',
                 stock: 0,
@@ -586,21 +579,10 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
         assert.notEqual(otherSupplier.part.id, original.part.id);
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM parts WHERE model = ? COLLATE NOCASE AND deleted_at IS NULL')
-                .get('IDENTITY-1').count,
+                .get('其他-IDENTITY-1').count,
             2
         );
-        const confirmedDuplicate = executePartCreate(
-            fixture.dependencies,
-            {
-                model: 'IDENTITY-1',
-                category: '轴承',
-                price: 11,
-                supplier: '供应商A',
-                stock: 0,
-            },
-            commandContext(CREATE_CAPABILITY_ID, 'identity-confirmed-duplicate')
-        );
-        assert.notEqual(confirmedDuplicate.part.id, original.part.id);
+        assert.throws(() => executePartCreate(fixture.dependencies, { model: 'IDENTITY-1', category: '其他', price: 11, supplier: '供应商A', stock: 0 }, commandContext(CREATE_CAPABILITY_ID, 'identity-confirmed-duplicate')), { code: 'part_identity_conflict' });
     } finally {
         fixture.db.close();
     }
@@ -609,17 +591,7 @@ test('零件单项新增在正式命令事务内阻止重复身份并允许不�
 test('泵壳被模板引用时拒绝旧名称级联改写', () => {
     const fixture = createFixture();
     try {
-        const created = executePartCreate(
-            fixture.dependencies,
-            {
-                model: 'V750-DY款-圆底脚',
-                category: '泵壳',
-                price: 98,
-                supplier: '供应商A',
-                stock: 0,
-            },
-            commandContext(CREATE_CAPABILITY_ID, 'create-shell')
-        );
+        const created = seedPart(fixture, 'V750-DY款-圆底脚', 98, { category: '泵壳', supplier: '供应商A' });
         const templateId = Number(fixture.db.prepare(`
             INSERT INTO pump_shell_templates (shell_model, updated_at)
             VALUES (?, ?)
@@ -645,28 +617,8 @@ test('泵壳被模板引用时拒绝旧名称级联改写', () => {
 test('同名多供应商泵壳不能绕过模板依赖保护', () => {
     const fixture = createFixture();
     try {
-        const created = executePartCreate(
-            fixture.dependencies,
-            {
-                model: 'V750-DY款-圆底脚',
-                category: '泵壳',
-                price: 98,
-                supplier: '供应商A',
-                stock: 0,
-            },
-            commandContext(CREATE_CAPABILITY_ID, 'create-shared-shell-a')
-        );
-        executePartCreate(
-            fixture.dependencies,
-            {
-                model: 'V750-DY款-圆底脚',
-                category: '泵壳',
-                price: 99,
-                supplier: '供应商B',
-                stock: 0,
-            },
-            commandContext(CREATE_CAPABILITY_ID, 'create-shared-shell-b')
-        );
+        const created = seedPart(fixture, 'V750-DY款-圆底脚', 98, { category: '泵壳', supplier: '供应商A' });
+        seedPart(fixture, 'V750-DY款-圆底脚', 99, { category: '泵壳', supplier: '供应商B' });
         const templateId = Number(fixture.db.prepare(`
             INSERT INTO pump_shell_templates (shell_model, updated_at)
             VALUES (?, ?)
@@ -726,7 +678,7 @@ test('零件批量调价预览绑定逐项版本并支持整批幂等重放', ()
         assert.equal(replay.operationId, receipt.operationId);
         assert.equal(replayAfterDelete.idempotentReplay, true);
         assert.equal(replayAfterDelete.operationId, receipt.operationId);
-        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 3);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 1);
     } finally {
         fixture.db.close();
     }
@@ -737,28 +689,28 @@ test('零件批量新增：同型号不同供应商可建档，现有同供应�
     const fixture = createFixture();
     const subject = 'jwt:part-batch-create';
     try {
-        seedPart(fixture, 'SEAL-1', 1);
+        seedPart(fixture, '其他-SEAL-1', 1);
         const preview = buildPartBatchCreatePreview(
             fixture.dependencies,
             {
                 parts: [
                     {
                         model: 'SEAL-1',
-                        category: '油封',
+                        category: '其他',
                         price: 1,
                         supplier: '供应商A',
                         stock: 0,
                     },
                     {
                         model: 'SEAL-1',
-                        category: '油封',
+                        category: '其他',
                         price: 1.2,
                         supplier: '供应商B',
                         stock: 0,
                     },
                     {
                         model: 'SEAL-2',
-                        category: '油封',
+                        category: '其他',
                         price: 1.5,
                         supplier: '供应商A',
                         stock: 0,
@@ -800,7 +752,7 @@ test('零件批量新增：同型号不同供应商可建档，现有同供应�
         assert.equal(
             fixture.db.prepare(
                 'SELECT COUNT(*) AS count FROM parts WHERE model = ? AND deleted_at IS NULL'
-            ).get('SEAL-1').count,
+            ).get('其他-SEAL-1').count,
             2
         );
     } finally {
@@ -825,7 +777,7 @@ test('零件批量新增：预览后身份冲突或强审计缺失时整批回�
             subject
         );
         fixture.dependencies.safeInsert('parts', {
-            model: 'BATCH-A',
+            model: '其他-BATCH-A',
             category: '其他',
             subcategory: '',
             price: 1,
@@ -1037,8 +989,9 @@ test('零件新建将表单业务设置同事务提交，设置失败时不留�
             xinjie: { name: '新鑫捷附件', fee: 4 },
         });
         const input = {
-            model: 'CREATE-WITH-SETTING',
-            category: '电缆',
+            model: '电缆-截面积0.55mm²',
+            naming: { ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '截面积', wireUnit: 'mm²' } },
+            category: '电缆线',
             price: 8,
             supplier: '供应商A',
             stock: 2,
@@ -1070,7 +1023,8 @@ test('零件新建将表单业务设置同事务提交，设置失败时不留�
         };
         const failingInput = {
             ...input,
-            model: 'CREATE-WITH-SETTING-ROLLBACK',
+            model: '电缆-截面积0.75mm²',
+            naming: { ruleId: 'cable', spec: { wireValue: 0.75, wireMeasure: '截面积', wireUnit: 'mm²' } },
             businessSettings: [{
                 ...input.businessSettings[0],
                 expectedUpdatedAt: fixture.db.prepare(

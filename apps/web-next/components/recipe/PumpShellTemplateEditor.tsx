@@ -111,6 +111,7 @@ type PumpShellTemplateEditorProps = {
   form: TemplateFormState;
   formError: string | null;
   saving: boolean;
+  onRename?: () => void;
   dirty: boolean;
   missingPartCount: number;
   shellCatalogOptions: ShellCatalogOption[];
@@ -142,6 +143,7 @@ export function PumpShellTemplateEditor({
   form,
   formError,
   saving,
+  onRename,
   dirty,
   missingPartCount,
   shellCatalogOptions,
@@ -384,6 +386,7 @@ export function PumpShellTemplateEditor({
             <div className="mt-1 text-xs text-muted">泵壳套件需要选择零件库整套型号；自由搭配可输入组合名称，也可从已有泵壳型号中选择，组件逐项绑定真实零件。</div>
             <div className="mt-3 grid gap-4 md:grid-cols-2">
               <label className="block">
+                {onRename ? <Button type="button" size="sm" onClick={onRename} disabled={saving}>按规格规范名称</Button> : null}
                 <span className="text-sm font-medium text-ink">{form.costMode === 'bundle' ? '零件库泵壳型号' : '组合模板名称'}</span>
                 {form.costMode === 'bundle' ? (
                   <>
