@@ -3800,6 +3800,15 @@ const MIGRATIONS = Object.freeze([
             db.exec(CATALOG_IDENTITY_SCHEMA_SQL);
         },
     },
+    {
+        version: 84,
+        name: 'part_naming_inputs',
+        signature: 'parts-nullable-naming-json-object-v1',
+        up(db) {
+            db.exec(`ALTER TABLE parts ADD COLUMN naming_json TEXT
+                CHECK (naming_json IS NULL OR (json_valid(naming_json) AND json_type(naming_json) = 'object'))`);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

@@ -7,7 +7,7 @@ const CAPABILITY_ID = requireBusinessCapability('catalog.reference_audit').capab
 
 // Explicit source boundaries: never scan credentials, arbitrary knowledge or file blobs.
 const SOURCES = Object.freeze([
-    { type: 'part', table: 'parts', sql: 'SELECT id, model, category, subcategory, supplier, price, stock, remark, updated_at, deleted_at FROM parts ORDER BY id LIMIT ?', json: ['remark'] },
+    { type: 'part', table: 'parts', sql: 'SELECT * FROM parts ORDER BY id LIMIT ?', json: ['remark'] },
     { type: 'coil', table: 'coils', sql: 'SELECT * FROM coils ORDER BY id LIMIT ?', json: [] },
     { type: 'stator', table: 'stator_variants', sql: 'SELECT * FROM stator_variants ORDER BY id LIMIT ?', json: [] },
     { type: 'template', table: 'pump_shell_templates', sql: 'SELECT * FROM pump_shell_templates ORDER BY id LIMIT ?', json: ['parts_json', 'shell_components_json', 'rotor_params_json', 'configuration_policy_json'] },
@@ -228,7 +228,11 @@ function auditCatalogReferences(db, options = {}) {
         `).all() : [];
         if (!tables.has('system_settings')) errors.push({ code: 'SOURCE_TABLE_MISSING', table: 'system_settings' });
         const priceInputs = {
-            parts: (catalogs.get('part') || []).filter(row => !row.deleted_at),
+            // Cost inputs stay stable when additive naming/source metadata is introduced.
+            parts: (catalogs.get('part') || []).filter(row => !row.deleted_at).map(row => Object.fromEntries(
+                ['id', 'model', 'category', 'subcategory', 'supplier', 'price', 'stock', 'remark', 'updated_at', 'deleted_at']
+                    .map(key => [key, row[key]])
+            )),
             coils: catalogs.get('coil') || [], settings,
         };
         const pricesByModel = Object.create(null);

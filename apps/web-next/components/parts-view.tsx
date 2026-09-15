@@ -48,6 +48,7 @@ import {
   wireOptionsFromParts,
   wirePrefixForCategory,
 } from '@/lib/part-form-rules';
+import { getCatalogNamingRules, previewCatalogName, type CatalogNamingRule } from '@/lib/catalog-naming';
 import { money } from '@/lib/format';
 import {
   mergeUntouchedPartSettings,
@@ -82,6 +83,7 @@ const quickFilters: Array<{ value: QuickFilter; label: string }> = [
 ];
 
 type PartFormState = {
+  namingSpec: Record<string, string | number>;
   model: string;
   category: string;
   subcategory: string;
@@ -113,6 +115,7 @@ type PartFormState = {
 };
 
 const emptyForm: PartFormState = {
+  namingSpec: {},
   model: '',
   category: '',
   subcategory: '',
@@ -274,6 +277,9 @@ export function PartsView({
   const [editingPart, setEditingPart] = useState<Part | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingPartAction | null>(null);
   const [form, setForm] = useState<PartFormState>(emptyForm);
+  const [namingRules, setNamingRules] = useState<CatalogNamingRule[] | null>(null);
+  const [namingRulesError, setNamingRulesError] = useState<string | null>(null);
+  const [namingPreview, setNamingPreview] = useState<{ key: string; name: string; error?: string } | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const collapseInitializedRef = useRef(false);
@@ -314,6 +320,35 @@ export function PartsView({
     void load();
   }, []);
 
+  useEffect(() => {
+    if (!drawerOpen) return;
+    let active = true;
+    getCatalogNamingRules().then(rules => {
+      if (active) { setNamingRules(rules); setNamingRulesError(null); }
+    }).catch(error => {
+      if (active) setNamingRulesError(error instanceof Error ? error.message : '命名规则加载失败');
+    });
+    return () => { active = false; };
+  }, [drawerOpen]);
+
+  const namingRule = !editingPart ? namingRules?.find(rule => rule.supportsPartCreate && rule.category === form.category) : undefined;
+  const namingComplete = namingRule?.fields.every(field => field.optional || String(form.namingSpec[field.key] ?? '').trim());
+  const namingKey = namingRule && namingComplete ? JSON.stringify({ ruleId: namingRule.id, spec: form.namingSpec }) : '';
+  const generatedName = namingPreview?.key === namingKey ? namingPreview.name : '';
+  const namingError = namingPreview?.key === namingKey ? namingPreview.error : null;
+  useEffect(() => {
+    if (!drawerOpen || !namingKey) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      previewCatalogName(JSON.parse(namingKey)).then(name => {
+        if (active) setNamingPreview({ key: namingKey, name });
+      }).catch(error => {
+        if (active) setNamingPreview({ key: namingKey, name: '', error: error instanceof Error ? error.message : '规格预览失败' });
+      });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [drawerOpen, namingKey]);
+
   const categoryOptions = useMemo(() => {
     const all = new Set([...BUILTIN_CATEGORIES, ...parts.map((part) => part.category || '未分类')]);
     return Array.from(all).filter(Boolean).sort((a, b) => a.localeCompare(b, 'zh-CN'));
@@ -334,7 +369,7 @@ export function PartsView({
   const isPumpShellMode = form.category === '泵壳';
   const isPackagingMode = form.category === '包装';
   const wireOptions = useMemo(() => wireOptionsFromParts(parts, wirePrefix), [parts, wirePrefix]);
-  const modelPreview = finalPartModel({
+  const modelPreview = editingPart?.naming ? editingPart.model : namingRule ? generatedName : finalPartModel({
     isCapacitorMode,
     capacitorUf: form.capacitorUf,
     isWireMode,
@@ -525,6 +560,7 @@ export function PartsView({
 
       const input = {
         ...formToInput(form, finalModel, buildRemarkPayload()),
+        ...(namingRule ? { naming: { ruleId: namingRule.id, spec: form.namingSpec } } : {}),
         businessSettings,
       };
       await (editingPart ? updatePart(editingPart, input) : createPart(input));
@@ -546,9 +582,17 @@ export function PartsView({
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const continueEntry = submitter?.name === 'continueEntry' && !editingPart;
+    if (!editingPart && (!namingRules || namingRulesError)) {
+      setFormError(namingRulesError || '正在加载命名规则，请稍后保存');
+      return;
+    }
+    if (namingRule && !generatedName) {
+      setFormError(namingError || '请补齐规格并等待名称预览');
+      return;
+    }
     const errors = validatePartForm({
       category: form.category,
-      model: form.model,
+      model: namingRule ? generatedName : form.model,
       catalogUnitCost: form.catalogUnitCost,
       supplier: form.supplier,
       isCapacitorMode,
@@ -953,11 +997,13 @@ export function PartsView({
               <Field label="分类" required>
                 <Select
                   value={form.category}
+                  disabled={Boolean(editingPart?.naming)}
                   onChange={(event) => {
                     const nextCategory = event.target.value;
                     setForm((current) => ({
                       ...current,
                       category: nextCategory,
+                      namingSpec: {},
                       subcategory: nextCategory === '包装'
                         ? (current.subcategory || PACKAGING_SUBCATEGORIES[0])
                         : '',
@@ -1002,7 +1048,32 @@ export function PartsView({
               </Field>
             </div>
 
-            {isCapacitorMode ? (
+            {!editingPart && namingRulesError ? <FormError message={namingRulesError} /> : null}
+            {editingPart?.naming ? (
+              <Field label="规格生成型号" hint="名称和规格已保存。修改价格、库存、备注不会改变名称。">
+                <Input value={editingPart.model} readOnly />
+                <div className="mt-2 text-xs text-muted">{Object.entries(editingPart.naming.spec).map(([key, value]) => {
+                  const label = namingRules?.find(rule => rule.id === editingPart.naming?.ruleId)?.fields.find(field => field.key === key)?.label;
+                  return `${label || '规格'}：${value}`;
+                }).join('；')}</div>
+              </Field>
+            ) : namingRule ? (
+              <div className="space-y-4">
+                <div className="text-sm text-muted">填写规格后系统生成名称，无需记住排列格式。</div>
+                {namingRule.fields.map(field => (
+                  <Field key={field.key} label={field.label} required={!field.optional}>
+                    <Input
+                      value={String(form.namingSpec[field.key] ?? '')}
+                      maxLength={field.maxLength}
+                      required={!field.optional}
+                      onChange={event => setForm(current => ({ ...current, namingSpec: { ...current.namingSpec, [field.key]: event.target.value } }))}
+                    />
+                  </Field>
+                ))}
+                <Field label="生成型号"><Input value={generatedName} placeholder="填写规格后自动生成" readOnly /></Field>
+                {namingError ? <FormError message={namingError} /> : null}
+              </div>
+            ) : isCapacitorMode ? (
               <label className="block">
                 <span className="text-sm font-medium text-ink">电容容量</span>
                 <div className="mt-2 flex rounded-md border border-line focus-within:border-slate-400">

@@ -1,3 +1,4 @@
+const { normalizePartNaming, assertPartNamingUpdate } = require('./partNaming.cjs');
 const crypto = require('node:crypto');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const {
@@ -146,8 +147,11 @@ function normalizePartModel(value) {
 
 function normalizeCreateInput(dependencies, input) {
     const fields = dependencies.extractPartFields(input || {});
+    const category = String(fields.category || '其他').trim() || '其他';
+    const named = input.naming === undefined ? null : normalizePartNaming(input.naming, category, fields.model);
     return {
-        model: normalizePartModel(fields.model),
+        ...(named ? { naming: named.naming } : {}),
+        model: named?.model || normalizePartModel(fields.model),
         category: String(fields.category || '其他').trim() || '其他',
         subcategory: String(fields.subcategory || '').trim(),
         price: parseNonNegativeNumber(fields.price, 'price'),
@@ -305,6 +309,7 @@ function executePartBatchCreate(
             const now = new Date().toISOString();
             for (const part of parts) {
                 const write = dependencies.safeInsert('parts', {
+                    ...(part.naming ? { naming_json: JSON.stringify(normalizePartNaming(part.naming, part.category, part.model).stored) } : {}),
                     model: part.model,
                     category: part.category,
                     subcategory: part.subcategory,
@@ -479,6 +484,7 @@ function executeConfirmedPartBatchCreate(
 }
 
 function normalizeUpdateInput(dependencies, input, current) {
+    assertPartNamingUpdate(current, input, input.naming);
     const fields = dependencies.extractPartFields({
         ...input,
         category: input.category ?? current.category,
@@ -561,7 +567,7 @@ function cascadePumpShellTemplateModel(dependencies, current, updates, auditCont
 function executePartCreate(dependencies, input = {}, commandContext = {}) {
     const normalized = normalizeCreateInput(dependencies, input);
     const businessSettings = normalizePartBusinessSettings(input);
-    const duplicatePolicy = input.duplicatePolicy === 'reject' ? 'reject' : 'allow';
+    const duplicatePolicy = normalized.naming || input.duplicatePolicy === 'reject' ? 'reject' : 'allow';
     return executePersistentCommand({
         db: dependencies.db,
         ...commandContext,
@@ -581,6 +587,7 @@ function executePartCreate(dependencies, input = {}, commandContext = {}) {
             }
             const now = new Date().toISOString();
             const write = dependencies.safeInsert('parts', {
+                ...(normalized.naming ? { naming_json: JSON.stringify(normalizePartNaming(normalized.naming, normalized.category, normalized.model).stored) } : {}),
                 model: normalized.model,
                 category: normalized.category,
                 subcategory: normalized.subcategory,
@@ -668,6 +675,7 @@ function executePartUpdate(
         execute: ({ auditContext }) => {
             const record = getPartRecord(dependencies.db, partId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
+            assertPartNamingUpdate(record, updates);
             if (Object.keys(updates).length === 0 && businessSettings.length === 0) {
                 return {
                     data: { part: dependencies.partRow(record) },
@@ -1073,6 +1081,7 @@ function executePartProfileSave(
         execute: ({ auditContext }) => {
             const record = getPartRecord(dependencies.db, partId);
             assertExpectedUpdatedAt(record, expectedUpdatedAt, `零件 #${partId}`);
+            assertPartNamingUpdate(record, updates);
             inspectPartBusinessSettings(dependencies, businessSettings);
             const write = dependencies.safeUpdate('parts', partId, updates, auditContext);
             const linkedTemplates = cascadePumpShellTemplateModel(

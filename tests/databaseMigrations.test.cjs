@@ -12,6 +12,19 @@ const {
 
 const FIXED_NOW = '2026-07-25T00:00:00.000Z';
 
+test('命名输入迁移只新增可空列，保留原型号、价格、库存且不接受非对象 JSON', () => {
+    const db = new Database(':memory:');
+    try {
+        db.exec("CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, price REAL, stock REAL); INSERT INTO parts VALUES (1, '旧型号', 4.5, 9)");
+        MIGRATIONS.find(migration => migration.version === 84).up(db);
+        assert.deepEqual(db.prepare('SELECT * FROM parts').get(), { id: 1, model: '旧型号', price: 4.5, stock: 9, naming_json: null });
+        for (const value of ['[]', 'null', '123', 'broken']) {
+            assert.throws(() => db.prepare('INSERT INTO parts (naming_json) VALUES (?)').run(value));
+        }
+        assert.doesNotThrow(() => db.prepare('INSERT INTO parts (naming_json) VALUES (?)').run('{"ruleId":"packaging"}'));
+    } finally { db.close(); }
+});
+
 function openMemoryDatabase() {
     const db = new Database(':memory:');
     db.pragma('foreign_keys = ON');

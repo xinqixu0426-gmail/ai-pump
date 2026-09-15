@@ -20,10 +20,11 @@
 
 ## 当前版本
 
-代码定义的当前版本为 `83`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+代码定义的当前版本为 `84`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
+| 84 | `part_naming_inputs` | 零件新增可空 `naming_json` 对象，保存生成名称的规则版本与输入；原有记录保持 null，不回填或改名 |
 | 83 | `catalog_identity_and_snapshot_bindings` | 新增目录规格/名称版本、旧名称别名、历史快照绑定和模板泵壳绑定；仅建表，不自动回填或改名 |
 | 80 | `add_personal_assistant_memories` | 新增个人偏好记忆和修订记录，支持版本冲突检测、软删除、撤销；不修改业务数据 |
 | 81 | `accept_complete_cable_same_item_phrasing` | 成品电缆门禁接受“共同组成同一根/同一条”的等价业务表达 |
@@ -106,6 +107,7 @@
 
 ## 数据治理
 
+- `parts.naming_json` 只保存命名输入 `{ruleId,ruleVersion,spec}`，通过 Row Adapter 输出 `naming`，旧记录为 null。它不是完整实物规格档案，不增加 `catalog_identity_profiles.spec_revision`，也不将引用标记为已核实。通用零件新建可提交 `naming:{ruleId,spec}`；服务端生成 `model`，两者在原 parts 写事务中原子保存。
 - `parts.remark` 是零件目录备注的唯一数据库事实；HTTP 兼容期可同时返回旧别名 `notes`，Web 只使用 `remark`。BOM JSON 行中的 `notes` 是保存时生成的快照说明，与零件目录备注不是同一字段，不能互相覆盖。
 - `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
 - `system_settings.stainless_shaft_joint_default_cost` 保存报价和订单启用不锈钢接轴时的默认加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。该配置不新增表或迁移，不写入模板、配方或线圈基础成本；最终采用值冻结在报价/订单 JSON 快照中。

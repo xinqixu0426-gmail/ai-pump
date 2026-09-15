@@ -18,12 +18,12 @@ function legacyFixture(t) {
     return db;
 }
 
-test('迁移 83 只扩展结构，保留主数据、库存和快照，重复运行不重复初始化', t => {
+test('迁移 83/84 只扩展结构，保留主数据、库存和快照，重复运行不重复初始化', t => {
     const db = legacyFixture(t);
     const part = db.prepare('SELECT * FROM parts').all();
     const recipe = db.prepare('SELECT * FROM recipes').all();
-    assert.deepEqual(runMigrations(db).appliedVersions, [83]);
-    assert.deepEqual(db.prepare('SELECT * FROM parts').all(), part);
+    assert.deepEqual(runMigrations(db).appliedVersions, [83, 84]);
+    assert.deepEqual(db.prepare('SELECT * FROM parts').all(), part.map(row => ({ ...row, naming_json: null })));
     assert.deepEqual(db.prepare('SELECT * FROM recipes').all(), recipe);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM catalog_identity_profiles').get().n, 0);
     assert.deepEqual(runMigrations(db).appliedVersions, []);
@@ -39,7 +39,7 @@ test('迁移中断回滚新表及版本记录，恢复后可重试', t => {
     assert.equal(db.pragma('user_version', { simple: true }), 82);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'catalog_identity_profiles'").get().n, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations WHERE version = 83').get().n, 0);
-    assert.deepEqual(runMigrations(db).appliedVersions, [83]);
+    assert.deepEqual(runMigrations(db).appliedVersions, [83, 84]);
 });
 
 test('类型化外键、唯一身份、合法 JSON 和同一快照位置唯一绑定由数据库约束保护', t => {

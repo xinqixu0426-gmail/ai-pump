@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 
 const SOURCE_QUERIES = Object.freeze({
-    part: 'SELECT id, model, category, subcategory, supplier, price, stock, remark, updated_at, deleted_at FROM parts WHERE id = ?',
+    part: 'SELECT * FROM parts WHERE id = ?',
     coil: 'SELECT * FROM coils WHERE id = ?',
     stator: 'SELECT * FROM stator_variants WHERE id = ?',
     template: 'SELECT * FROM pump_shell_templates WHERE id = ?',

@@ -67,6 +67,18 @@ test('零件客户端适配：规范 remark 优先，只有旧 notes 时仍可�
     assert.equal(client.rowToPart({ id: 3, price: 5 }).catalogUnitCost, 5);
 });
 
+test('零件客户端发送和回读命名规格，旧记录保持未规范化', async () => {
+    const naming = { ruleId: 'packaging', spec: { kind: '纸箱', specification: '400*300*200' } };
+    const savedNaming = { ...naming, ruleVersion: 1 };
+    const { client, calls } = loadClient([{
+        success: true, data: { id: 17, model: '纸箱-400*300*200', category: '包装', naming: savedNaming },
+    }]);
+    const part = await client.createPart(input({ model: '纸箱-400*300*200', category: '包装', naming }));
+    assert.deepEqual(JSON.parse(calls[0].options.body).naming, naming);
+    assert.deepEqual(part.naming, savedNaming);
+    assert.equal(client.rowToPart({ id: 1, model: '旧名称' }).naming, null);
+});
+
 test('零件客户端适配：单项创建发送规范 API 字段并返回规范页面模型', async () => {
     const { client, calls } = loadClient([{
         success: true,

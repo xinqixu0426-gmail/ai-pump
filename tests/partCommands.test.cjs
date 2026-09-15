@@ -58,6 +58,7 @@ function createFixture() {
         CREATE TABLE parts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model TEXT,
+            naming_json TEXT,
             category TEXT,
             subcategory TEXT DEFAULT '',
             price REAL,
@@ -210,6 +211,83 @@ function seedPart(fixture, model = 'P-1', price = 10) {
         commandContext(CREATE_CAPABILITY_ID, `seed-${model}`)
     );
 }
+
+const namingInput = () => ({ category: '包装', supplier: '甲', stock: 3, price: 8,
+    naming: { ruleId: 'packaging', spec: { kind: ' 纸箱 ', specification: '400*300*200', variant: '' } } });
+
+test('规格命名新增生成型号、保存命名输入、幂等并拒绝同供应商重复', () => {
+    const { db, dependencies } = createFixture();
+    try {
+        const input = namingInput();
+        const context = commandContext(CREATE_CAPABILITY_ID, 'named-create');
+        const created = executePartCreate(dependencies, input, context);
+        assert.equal(created.part.model, '纸箱-400*300*200');
+        const stored = db.prepare('SELECT * FROM parts WHERE id = ?').get(created.part.id);
+        assert.deepEqual(JSON.parse(stored.naming_json), { ruleId: 'packaging', ruleVersion: 1, spec: { kind: '纸箱', specification: '400*300*200' } });
+        assert.equal(stored.stock, 3);
+        assert.equal(stored.price, 8);
+        assert.equal(executePartCreate(dependencies, input, context).idempotentReplay, true);
+        assert.throws(() => executePartCreate(dependencies, { ...input, duplicatePolicy: 'allow' }, commandContext(CREATE_CAPABILITY_ID, 'duplicate-named')), { code: 'part_identity_conflict' });
+        executePartCreate(dependencies, { ...input, supplier: '乙' }, commandContext(CREATE_CAPABILITY_ID, 'other-supplier'));
+        assert.equal(db.prepare('SELECT count(*) n FROM parts').get().n, 2);
+    } finally { db.close(); }
+});
+
+test('规格命名拒绝伪造型号、错分类、缺规格、未开放规则，失败不落库', () => {
+    const { db, dependencies } = createFixture();
+    try {
+        const invalid = [
+            [{ ...namingInput(), model: '自己改的名称' }, 'PART_NAMING_MODEL_MISMATCH'],
+            [{ ...namingInput(), category: '配件' }, 'PART_NAMING_CATEGORY_MISMATCH'],
+            [{ ...namingInput(), naming: { ruleId: 'packaging', spec: { kind: '纸箱' } } }, 'NAMING_SPEC_INVALID'],
+            [{ category: '电容', naming: { ruleId: 'capacitor', spec: { capacitanceUf: 20 } } }, 'PART_NAMING_RULE_NOT_READY'],
+            [{ ...namingInput(), naming: null }, 'NAMING_INPUT_INVALID'],
+        ];
+        for (const [input, code] of invalid) {
+            assert.throws(() => executePartCreate(dependencies, input, commandContext(CREATE_CAPABILITY_ID, code)), { code });
+        }
+        assert.equal(db.prepare('SELECT count(*) n FROM parts').get().n, 0);
+        assert.equal(db.prepare('SELECT count(*) n FROM audit_log').get().n, 0);
+        assert.equal(db.prepare('SELECT count(*) n FROM api_operations').get().n, 0);
+    } finally { db.close(); }
+});
+
+test('普通 PATCH 和资料保存不能绕过规格名称保护，价格库存可正常保存', () => {
+    const { db, dependencies } = createFixture();
+    try {
+        const part = executePartCreate(dependencies, namingInput(), commandContext(CREATE_CAPABILITY_ID, 'named-update')).part;
+        for (const updates of [{ model: '手写名称' }, { category: '皮垫' }, { naming: null }, { naming: { ruleId: 'packaging', spec: { kind: '纸箱', specification: '别的规格' } } }]) {
+            assert.throws(() => executePartUpdate(dependencies, part.id, updates, commandContext(UPDATE_CAPABILITY_ID, JSON.stringify(updates))));
+            assert.throws(() => buildPartProfileSavePreview(dependencies, part.id, { ...updates, stock: 4, expectedUpdatedAt: part.updatedAt }, 'test'));
+        }
+        const preview = buildPartProfileSavePreview(dependencies, part.id, { model: part.model, price: 9, stock: 4, expectedUpdatedAt: part.updatedAt }, 'test');
+        const receipt = executeConfirmedPartProfileSave(dependencies, part.id, { confirmationToken: preview.confirmationToken }, commandContext(PROFILE_SAVE_CAPABILITY_ID, 'named-profile'), 'test');
+        assert.equal(receipt.part.model, part.model);
+        assert.equal(receipt.part.price, 9);
+        assert.equal(receipt.part.stock, 4);
+        assert.ok(db.prepare('SELECT naming_json FROM parts WHERE id = ?').get(part.id).naming_json);
+        const legacy = seedPart({ db, dependencies }).part;
+        assert.throws(() => executePartUpdate(dependencies, legacy.id, { naming: namingInput().naming }, commandContext(UPDATE_CAPABILITY_ID, 'legacy-adopt')), { code: 'PART_NAMING_ADOPTION_REQUIRED' });
+    } finally { db.close(); }
+});
+
+test('批量命名沿用冻结预览，不采纳执行时替换规格，审计失败全部回滚', () => {
+    const { db, dependencies } = createFixture();
+    try {
+        const subject = 'named-batch';
+        const preview = buildPartBatchCreatePreview(dependencies, { parts: [namingInput()] }, subject);
+        const receipt = executeConfirmedPartBatchCreate(dependencies, { confirmationToken: preview.confirmationToken, parts: [{ model: '伪造' }] }, commandContext(BATCH_CREATE_CAPABILITY_ID, 'named-batch'), subject);
+        assert.equal(receipt.parts[0].model, '纸箱-400*300*200');
+        assert.ok(db.prepare('SELECT naming_json FROM parts WHERE id = ?').get(receipt.parts[0].id).naming_json);
+        const countBefore = db.prepare('SELECT count(*) n FROM audit_log').get().n;
+        assert.throws(() => executePartCreate({ ...dependencies, safeInsert(...args) {
+            dependencies.safeInsert(...args);
+            throw new Error('模拟审计失败');
+        } }, { ...namingInput(), supplier: '丙' }, commandContext(CREATE_CAPABILITY_ID, 'named-rollback')), /模拟审计失败/);
+        assert.equal(db.prepare('SELECT count(*) n FROM parts').get().n, 1);
+        assert.equal(db.prepare('SELECT count(*) n FROM audit_log').get().n, countBefore);
+    } finally { db.close(); }
+});
 
 test('零件 CRUD 使用持久幂等、资源版本和强审计并保持软删除', () => {
     const fixture = createFixture();

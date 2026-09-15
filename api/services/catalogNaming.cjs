@@ -5,6 +5,8 @@ const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const RULES_CAPABILITY_ID = requireBusinessCapability('catalog.naming_rules').capabilityId;
 const PREVIEW_CAPABILITY_ID = requireBusinessCapability('catalog.name_preview').capabilityId;
 const RULE_VERSION = 1;
+// Only categories without name-reconstructing dimensional selectors can save these names.
+const PART_CREATE_NAMING_RULES = new Set(['gasket', 'accessory', 'packaging', 'custom-part']);
 const text = (key, label, optional = false, uppercase = false) => ({ key, label, type: 'text', optional, uppercase, maxLength: 64 });
 const number = (key, label, unit = '', integer = false) => ({ key, label, type: 'number', unit, integer });
 const choice = (key, label, values, optional = false) => ({ key, label, type: 'choice', values, optional });
@@ -66,7 +68,7 @@ const RULES = new Map(DEFINITIONS.map(definition => [definition.id, {
 const REQUEST_SCHEMA = z.object({ ruleId: z.string().min(1).max(40), spec: z.record(z.unknown()) }).strict();
 
 function getNamingRules() {
-    return { version: RULE_VERSION, sourceOfTruth: RULES_CAPABILITY_ID, rules: structuredClone(DEFINITIONS) };
+    return { version: RULE_VERSION, sourceOfTruth: RULES_CAPABILITY_ID, rules: structuredClone(DEFINITIONS).map(rule => ({ ...rule, supportsPartCreate: PART_CREATE_NAMING_RULES.has(rule.id) })) };
 }
 
 function generateCatalogName(input) {
@@ -102,4 +104,4 @@ function previewCatalogName(input) {
         warnings: [{ code: 'NAMING_PREVIEW_ONLY', message: '仅预览名称；不代表已核实实物规格、排除重名或完成引用迁移。' }] };
 }
 
-module.exports = { getNamingRules, generateCatalogName, previewCatalogName };
+module.exports = { PART_CREATE_NAMING_RULES, getNamingRules, generateCatalogName, previewCatalogName };

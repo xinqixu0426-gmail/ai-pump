@@ -67,7 +67,7 @@ const MCP_COIL_PROFILE_FIXTURE = Object.freeze({
 function readScope(args) {
     const scopeArg = args.find(arg => arg.startsWith('--scope='));
     const scope = String(scopeArg?.slice('--scope='.length) || 'all').trim().toLowerCase();
-    if (!['all', 'mcp'].includes(scope)) {
+    if (!['all', 'mcp', 'catalog'].includes(scope)) {
         throw new Error(`未知深度验收范围: ${scope || '(empty)'}`);
     }
     return scope;
@@ -1325,6 +1325,23 @@ async function createBundleTemplate(unique, suffix = '') {
         bundleNote: '自动验收',
         idempotencyKey: `deep:template-create:${unique}${suffix}`,
     })).payload.data;
+}
+
+async function testCatalogNamingSave() {
+    const unique = `NAMING-${Date.now()}`;
+    const namedInput = { category: '包装', supplier: unique, price: 6, stock: 2,
+        naming: { ruleId: 'packaging', spec: { kind: '纸箱', specification: '400*300*200' } },
+        idempotencyKey: `deep:named-part:${unique}` };
+    const named = (await request('规格命名正式新增', 'POST', '/api/parts', namedInput)).payload.data;
+    assert(named.model === '纸箱-400*300*200' && named.naming?.ruleVersion === 1, '未持久保存命名输入');
+    const namedReplay = (await request('规格命名新增幂等重放', 'POST', '/api/parts', namedInput)).payload.data;
+    assert(namedReplay.idempotentReplay === true && namedReplay.id === named.id, '命名新增重放错误');
+    const namedRead = (await request('规格命名列表回读', 'GET', `/api/parts?supplier=${encodeURIComponent(unique)}`)).payload.data;
+    assert(namedRead.some(row => row.id === named.id && row.naming?.spec?.specification === '400*300*200'), '列表丢失命名字段');
+    await request('规格命名拒绝伪造显示名', 'POST', '/api/parts', { ...namedInput, model: '手写名称', idempotencyKey: `deep:named-forged:${unique}` }, [400]);
+    await request('规格命名拒绝普通改名', 'PATCH', `/api/parts/${named.id}`, { model: '新名称', expectedUpdatedAt: named.updatedAt }, [400]);
+    await request('规格命名资料保存保护', 'POST', `/api/parts/${named.id}/save-preview`, { model: '新名称', stock: 2, expectedUpdatedAt: named.updatedAt }, [400]);
+
 }
 
 async function testCrossModuleWriteFlow(baseResources) {
@@ -3798,8 +3815,14 @@ async function run() {
         cookie = (login.response.headers.get('set-cookie') || '').split(';')[0];
         assert(cookie.startsWith('token='), '登录未返回 token Cookie');
         await request('登录状态', 'GET', '/api/auth/check');
-        mcpExpectedCoilProfile = await waitForMcpCoilProfileStable();
-        await testMcpReadOnlyFlows();
+        if (DEEP_API_SCOPE !== 'mcp') await testCatalogNamingSave();
+        if (DEEP_API_SCOPE !== 'catalog') {
+            mcpExpectedCoilProfile = await waitForMcpCoilProfileStable();
+            await testMcpReadOnlyFlows();
+        } else {
+            await testCoreGetEndpointsDoNotWrite(path.join(temp, 'pump.db'));
+            await testCatalogReferenceBindings(path.join(temp, 'pump.db'));
+        }
         if (DEEP_API_SCOPE === 'all') {
             const legacyConfirmation = await request(
                 'AI旧确认参数不能直接执行',

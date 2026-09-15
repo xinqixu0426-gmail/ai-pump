@@ -1,3 +1,4 @@
+const { readPartNaming } = require('./services/partNaming.cjs');
 /**
  * 数据库初始化 + 共享辅助函数
  */
@@ -90,7 +91,7 @@ if (!db.prepare('SELECT key FROM system_settings WHERE key = ?').get('usd_cny_ra
 function partRow(r) {
     if (!r) return r;
     return {
-        id: r.id, Id: r.id, model: r.model, category: r.category, subcategory: r.subcategory || '', price: r.price,
+        id: r.id, Id: r.id, naming: readPartNaming(r), model: r.model, category: r.category, subcategory: r.subcategory || '', price: r.price,
         supplier: r.supplier, stock: r.stock, remark: r.remark || '', notes: r.remark || '',
         createdAt: r.created_at, updatedAt: r.updated_at,
         CreatedAt: r.created_at, UpdatedAt: r.updated_at

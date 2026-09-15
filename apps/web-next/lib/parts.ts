@@ -1,7 +1,9 @@
+import type { CatalogNamingInput, SavedCatalogNaming } from './catalog-naming';
 import type { ApiResponse } from './api';
 import { createIdempotencyKey, proxyRequest } from './api';
 
 export type Part = {
+  naming?: SavedCatalogNaming | null;
   id: number;
   model: string;
   category: string;
@@ -15,6 +17,7 @@ export type Part = {
 };
 
 export type PartInput = {
+  naming?: CatalogNamingInput;
   model: string;
   category: string;
   subcategory?: string;
@@ -33,6 +36,7 @@ export type PartBusinessSettingUpdate = {
 };
 
 type PartRow = {
+  naming?: SavedCatalogNaming | null;
   id?: number;
   Id?: number;
   model?: string;
@@ -78,6 +82,7 @@ export function rowToPart(row: PartRow): Part {
   const id = row.id ?? row.Id ?? 0;
   return {
     id,
+    naming: row.naming ?? null,
     model: row.model || '',
     category: row.category || '未分类',
     subcategory: row.subcategory || '',
@@ -120,7 +125,7 @@ export async function createPart(input: PartInput): Promise<Part> {
 
 export type PartBatchCreateInput = Pick<
   PartInput,
-  'model' | 'category' | 'subcategory' | 'catalogUnitCost' | 'supplier' | 'stock' | 'remark'
+  'model' | 'category' | 'subcategory' | 'catalogUnitCost' | 'supplier' | 'stock' | 'remark' | 'naming'
 >;
 
 export type PartBatchCreatePreview = {
@@ -152,7 +157,7 @@ export async function previewPartBatchCreate(
   parts: PartBatchCreateInput[]
 ): Promise<PartBatchCreatePreview> {
   const result = await proxyRequest<ApiResponse<Omit<PartBatchCreatePreview, 'parts' | 'skippedExisting'> & {
-    parts: PartRow[];
+    parts: Array<Omit<PartRow, 'naming'> & { naming?: CatalogNamingInput }>;
     skippedExisting: PartRow[];
   }>>('/api/parts/batch-create-preview', {
     method: 'POST',
@@ -164,6 +169,7 @@ export async function previewPartBatchCreate(
   return {
     ...result.data,
     parts: result.data.parts.map((row) => ({
+      ...(row.naming ? { naming: { ruleId: row.naming.ruleId, spec: row.naming.spec } } : {}),
       model: row.model || '',
       category: row.category || '未分类',
       subcategory: row.subcategory || '',

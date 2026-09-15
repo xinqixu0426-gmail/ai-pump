@@ -106,20 +106,24 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
 
+零件命名输入：`POST /api/parts` 和批量新增的每项可传 `naming:{ruleId,spec}`，此时 `model` 可省略；若提供，必须精确等于服务端生成名（忽略首尾空白），分类必须与规则一致。当前开放 `gasket/accessory/packaging/custom-part`（皮垫/配件/包装/其他），由规则的 `supportsPartCreate` 标记。缺项、未知字段、错误分类、手写不同型号及未开放规则返回400；同型号同供应商即使 `duplicatePolicy=allow` 仍返回409。批量预览冻结规范化规格，执行不采用客户端重新提交的规格。单条和批量新建均在既有强审计、operation、事件事务中保存，不增加独立写入口。
+
+零件列表及命令响应增加 `naming:null|{ruleId,ruleVersion,spec}`；既有零件保持 null，命名输入不证明完整实物规格。Web 新建上述四类时要求填写品名/明确规格/可选必要区别，自动预览型号，保存后回读。已有生成名的普通 PATCH 和资料整单保存不允许更换型号、类别或命名规格；价格、库存和备注仍走原正式命令。旧零件提交 naming 返回409，等待后续受保护的规范化流程。未带 naming 的旧调用仍兼容原型号，不代表所有入口已强制命名；其他类别和 AI 自然语言命名录入尚未接入。
+
 ### 4.1 目录命名与引用
 
 只读盘点额外输出 `costBaseline`：固定本次事务读取的零件目录价、线圈记录及 `cable_accessories/float_accessory_delta/management_fee` 白名单设置和输入哈希，以正式 `costEngine` 计算 `saved_bom_current_catalog_prices` 场景。该场景只计算保存 BOM 的配件参考成本，不冒充重新展开配置、刷新线圈价格后的完整整泵成本；每个配方保留 calculated/missing_prices/failed/incomplete_inputs 状态，输入不完整或计算失败不输出伪零值。订单基线保留原 `itemsJson/purchaseListJson` 及采购回执，以便对比采购行身份、进度和预留输入。
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts`。字段描述与生成器共用服务端注册表，字段类型为 text/number/choice，含中文标签、必填/可选及单位。当前 16 条规则覆盖零件类别、线圈、模板、配方及常用配置 |
+| `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts/supportsPartCreate`。字段描述与生成器共用服务端注册表，字段类型为 text/number/choice，含中文标签、必填/可选及单位。当前 16 条规则覆盖零件类别、线圈、模板、配方及常用配置 |
 | `POST` | `/api/catalog/name-preview` | `{ ruleId, spec }` | `catalog.name_preview`。严格 schema，拒绝未知字段、直接传入 `name/model`、字符串数字、缺项、非有限数、负数/零、错误单位、过长文本。返回 `preview=true/name/normalizedSpec/normalizedInput/ruleId/ruleVersion/entityType/category/namingInputFingerprint/changes/warnings/sourceOfTruth`。不签发写确认，不建档、不改名、不进行重名判定 |
 | `POST` | `/api/catalog/references/resolve` | `{ references: [{ entityType, entityId, snapshotName?, specRevision? }] }`；类型为 `part/coil/template/recipe/modelVariant`，最多100项，允许空数组 | `catalog.references_resolve`。同一只读事务按类型批量查询，按请求顺序返回 `items[{entityType,entityId,currentName,snapshotName,referenceStatus,nameRevision,specRevision,namingState}]`。现名来自目录、历史名原样保留；不按旧名称猜 ID，不修改快照。无档案旧记录仍可显示现名，修订为 null；明确要求规格修订但没有结构化档案时返回 `specification_unverified` |
 | `POST` | `/api/catalog/reference-bindings-preview` | `{ bindings: [{ sourceType, sourceId, path, sourceHash, targetType, targetId }] }`，1–100项、严格字段 | `catalog.bind_references` 预览。仅接受完整盘点中的唯一明确 ID 或唯一旧名引用；拒绝歧义、失效、非库存、伪造路径及重复位置。返回 `preview=true/entries/previewHash/confirmationToken/operationId/expiresAt/suggestedIdempotencyKey/warnings`；不写数据 |
 | `POST` | `/api/catalog/reference-bindings` | `{ confirmationToken, idempotencyKey? }`；必须显式提供 body 幂等键或标准幂等头 | `catalog.bind_references`。确认绑定会话、来源、目标及档案哈希；同一事务重验后建立 legacy 档案和引用绑定，原 JSON、名字、价格、库存与进度不变。返回标准回执，含 `bindingIds/displayOnly/auditIds/changes/businessChangeEvent/idempotentReplay`。不接受重新提交映射 |
 | `POST` | `/api/catalog/bound-names` | `{ sourceType, sourceId, afterId?, limit? }`，游标默认0，limit默认100、上限100 | `catalog.bound_names`。按绑定 ID 分页，返回 `sourceType/sourceId/sourceHash/items/nextAfterId/sourceOfTruth`。每项含 `bindingId/path/entityType/entityId/snapshotValue/currentName/referenceStatus/nameRevision/specRevision/displayOnly`；无下一页时游标为 null |
 
-绑定来源类型为 `part/coil/template/recipe/modelVariant/quotation/order/orderRevision/drawing/fileLink`，目标类型为 `part/coil/template/recipe/modelVariant`；ID 为正安全整数。`path` 为盘点输出的 JSON Pointer（含嵌套 JSON 字符串定位），`sourceHash` 为同一行投影的 SHA-256，`sourceVersion` 存为 `sha256:<sourceHash>`。预览同时冻结目标和档案内容，提交前有任何变化均作废；已绑定同一目标可跳过，全部已绑定返回 `catalog_binding_no_changes`，撤销或冲突绑定不允许覆盖。写入、强审计、业务事件及90天幂等回执原子提交；确认有效期默认5分钟，过期或进程重启需重新预览。正式执行仍需同会话确认凭证，幂等回执不延长确认有效期。
+绑定来源类型为 `part/coil/template/recipe/modelVariant/quotation/order/orderRevision/drawing/fileLink`，目标类型为 `part/coil/template/recipe/modelVariant`；ID 为正安全整数。`path` 为盘点输出的 JSON Pointer（含嵌套 JSON 字符串定位），`sourceHash` 为同一行投影的 SHA-256（零件采用完整行，包含命名输入；旧投影生成的 hash 必须重新盘点），`sourceVersion` 存为 `sha256:<sourceHash>`。预览同时冻结目标和档案内容，提交前有任何变化均作废；已绑定同一目标可跳过，全部已绑定返回 `catalog_binding_no_changes`，撤销或冲突绑定不允许覆盖。写入、强审计、业务事件及90天幂等回执原子提交；确认有效期默认5分钟，过期或进程重启需重新预览。正式执行仍需同会话确认凭证，幂等回执不延长确认有效期。
 
 绑定读取保留原标量 `snapshotValue`（数字 ID 不冒充名称），现名只从目标 ID 读取。来源整体内容变化返回 `stale_source`，不把旧数组位置套到新内容；此时原标量和现名均为 null。缺失/停用分别为 `missing/inactive`，规格修订变化为 `specification_changed`；旧档案未核实物理规格时为 `bound_legacy`，结构化档案无冲突时为 `resolved`。全部结果 `displayOnly=true`，不能用于采购入库或规格替换授权，也不代表业务页面已经接入。数据库错误不降级为空列表。参数非法400，来源不存在404，盘点不完整、预览过期或冲突409，意外/强审计失败500。分页遇到来源哈希变化时，调用方必须丢弃旧页重新读取。这两项新增能力仅供 Web/Internal，未开放 AI/MCP 工具。
 
