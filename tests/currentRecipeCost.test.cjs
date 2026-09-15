@@ -293,3 +293,42 @@ test('配方当前成本黄金样本保持列表和编辑器共用口径', () =>
         assert.equal(result.currentTotalCost, sample.expected, sample.name);
     }
 });
+
+test('当日成本按保存 ID 读取现名和目录价，原快照不改写', () => {
+    const recipe = { id: 90, partsJson: JSON.stringify([{ partId: 91, model: '旧件', supplier: '甲', qty: 2 }]) };
+    const before = structuredClone(recipe);
+    const partsByModel = {
+        '现件': [{ id: 91, model: '现件', supplier: '甲', category: '配件', price: 7 }],
+        '旧件': [{ id: 92, model: '旧件', supplier: '甲', category: '配件', price: 99 }],
+    };
+    const result = buildCurrentRecipeCostBasis(recipe, { partsByModel, calculateRecipeCost });
+    assert.equal(result.parts[0].model, '现件');
+    assert.equal(result.partialPartsCost, 14);
+    assert.deepEqual(recipe, before);
+    for (const part of [{ partId: 999, model: '旧件' }, { partId: true, model: '旧件' }, { partId: 91, model: '旧件', supplier: '乙' }]) {
+        assert.throws(() => buildCurrentRecipeCostBasis({ ...recipe, partsJson: JSON.stringify([part]) }, { partsByModel, calculateRecipeCost }));
+    }
+    for (const partsJson of ['broken', '{}', '[null]', '[[]]']) {
+        assert.throws(() => buildCurrentRecipeCostBasis({ ...recipe, partsJson }, { partsByModel, calculateRecipeCost }), { code: 'SAVED_PART_REFERENCES_INVALID' });
+    }
+});
+
+test('重建 BOM 前选配和包装保存引用均读取现名，坏引用不能伪装为空配方', () => {
+    const partsByModel = {
+        '新件': [{ id: 1, model: '新件', supplier: '甲', category: '配件', price: 5 }],
+        '新纸箱': [{ id: 2, model: '新纸箱', supplier: '乙', category: '包装', price: 8 }],
+    };
+    const recipe = {
+        extraPartsJson: '[{"partId":1,"model":"旧件","qty":2}]',
+        packingPartsJson: '[{"partId":2,"model":"旧纸箱","qty":1}]',
+    };
+    const before = structuredClone(recipe);
+    const buildBomDraft = input => {
+        assert.equal(input.optionalParts[0].model, '新件');
+        assert.equal(input.packingParts[0].model, '新纸箱');
+        return { parts: [...input.optionalParts, ...input.packingParts] };
+    };
+    assert.equal(buildCurrentRecipeCostBasis(recipe, { partsByModel, calculateRecipeCost, buildBomDraft }).partialPartsCost, 18);
+    assert.deepEqual(recipe, before);
+    assert.throws(() => buildCurrentRecipeCostBasis({ ...recipe, packingPartsJson: '[{"partId":1,"model":"旧件"}]' }, { partsByModel, calculateRecipeCost, buildBomDraft }), { code: 'SAVED_PART_REFERENCES_INVALID' });
+});

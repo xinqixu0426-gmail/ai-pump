@@ -446,3 +446,17 @@ test('BOM baseline is opt-in for API callers, inherits recipe wages and returns 
         assert.throws(() => f.queries.getBomDraft({ baseRecipeId: 999 }), e => e.code === 'RECIPE_BASELINE_NOT_FOUND');
     } finally { f.db.close(); }
 });
+
+test('BOM 查询明确 ID 不被同名目录覆盖，失效或冲突 ID 不回退名称猜选', () => {
+    const fixture = createFixture();
+    try {
+        fixture.listedParts.push({ id: 60, model: '6201', supplier: '乙', category: '配件' });
+        fixture.queries.getBomDraft({ optionalParts: [{ partId: 60, model: '6201', qty: 1 }] });
+        assert.equal(fixture.bomCalls.at(-1).input.optionalParts[0].partId, 60);
+        for (const selection of [
+            { partId: 999, model: '6201' }, { partId: true, model: '6201' },
+            { partId: 60, model: '旧称' }, { partId: 60, model: '6201', supplier: '甲' },
+        ]) assert.throws(() => fixture.queries.getBomDraft({ optionalParts: [selection] }));
+        assert.throws(() => fixture.queries.getBomDraft({ packingParts: [{ partId: 60, model: '6201' }] }), { code: 'BOM_PART_CATEGORY_MISMATCH' });
+    } finally { fixture.db.close(); }
+});

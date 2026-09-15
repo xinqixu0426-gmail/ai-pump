@@ -548,3 +548,19 @@ test('模板固定项及套件组件保留正式 ID，参考价来自该 ID（�
         partsJson: JSON.stringify([{ partId: 999, model: '同名件', name: '固定用途' }]),
     } }), error => error.code === 'BOM_PART_ID_NOT_FOUND');
 });
+
+test('模板保存 ID 现名用于 BOM；新传选择项仍严格验证型号，不开放历史名写入', () => {
+    const catalog = [{ id: 1, model: '现组件', category: '泵壳搭配', supplier: '甲', price: 7 }];
+    const savedTemplate = { costMode: 'components', partsJson: '[]', shellComponentsJson: JSON.stringify([
+        { partId: 1, model: '旧组件', supplier: '甲', name: '组件', qty: 2 },
+    ]) };
+    const before = structuredClone(savedTemplate);
+    const result = buildRecipeBomDraft({}, { partsCatalog: catalog, template: savedTemplate });
+    assert.equal(result.parts[0].model, '现组件');
+    assert.equal(result.parts[0].partId, 1);
+    assert.equal(result.parts[0].snapshotPrice, 7);
+    assert.deepEqual(savedTemplate, before);
+    assert.throws(() => buildRecipeBomDraft({ optionalParts: [{ partId: 1, model: '旧组件' }] }, { partsCatalog: catalog }), { code: 'BOM_PART_ID_MODEL_MISMATCH' });
+    assert.throws(() => buildRecipeBomDraft({}, { partsCatalog: catalog, template: { ...savedTemplate, partsJson: '[null]' } }), { code: 'SAVED_PART_REFERENCES_INVALID' });
+    assert.throws(() => buildRecipeBomDraft({}, { partsCatalog: catalog, template: { ...savedTemplate, shellComponentsJson: '[{"partId":1,"model":"旧组件","supplier":"乙","included":false}]' } }), { code: 'BOM_PART_ID_SUPPLIER_MISMATCH' });
+});

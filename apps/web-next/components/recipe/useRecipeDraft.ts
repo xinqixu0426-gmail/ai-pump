@@ -126,7 +126,7 @@ function parseSelections(value?: string, packaging = false): RecipeSelectionRow[
       .filter((part) => part?.model)
       .map((part) => ({
         id: nextDraftSelectionId(),
-        ...(Number(part.partId) > 0 ? { partId: Number(part.partId) } : {}),
+        ...(part.partId != null ? { partId: part.partId } : {}),
         model: String(part.model || ''),
         supplier: String(part.supplier || ''),
         qty: String(part.qty || 1),

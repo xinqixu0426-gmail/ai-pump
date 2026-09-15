@@ -29,10 +29,17 @@ const {
     buildCurrentRecipeCostFailure,
     calculateCurrentRecipeCost,
 } = require('./currentRecipeCost.cjs');
+const { requireBusinessCapability } = require('../capabilities/registry.cjs');
+requireBusinessCapability('recipes.current_costs');
+requireBusinessCapability('cost.recipe_difference');
 
 const RECOVERABLE_CURRENT_RECIPE_COST_CODES = new Set([
     'COIL_SCHEME_AMBIGUOUS',
     'COIL_SCHEME_FAMILY_REQUIRED',
+    'SAVED_PART_REFERENCES_INVALID',
+    'BOM_PART_ID_INVALID',
+    'BOM_PART_ID_NOT_FOUND',
+    'BOM_PART_ID_SUPPLIER_MISMATCH',
 ]);
 
 function isRecoverableCurrentRecipeCostError(error) {
@@ -462,10 +469,10 @@ function createCostQueries({
         calculateOverhead,
         calculatePacking,
         calculateParts,
-        getCurrentRecipeCosts,
+        getCurrentRecipeCosts: db.transaction(getCurrentRecipeCosts).deferred,
         getRecipeCostById,
         getRecipeCostByName,
-        getRecipeDifference,
+        getRecipeDifference: db.transaction(getRecipeDifference).deferred,
         previewRecipeCost,
     };
 }

@@ -631,6 +631,19 @@ function definePreviewCapability(definition) {
 }
 
 const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
+    'recipes.current_costs': defineQueryCapability({
+        capabilityId: 'recipes.current_costs', domain: 'recipes',
+        inputSchema: 'GET /api/recipes/current-costs', outputSchema: 'CurrentRecipeCosts with per-recipe calculationError and incomplete costs',
+        sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'internal']),
+    }),
+    'cost.recipe_difference': defineQueryCapability({
+        capabilityId: 'cost.recipe_difference', domain: 'cost',
+        inputSchema: 'POST /api/cost/recipe-difference { leftRecipeId?, leftRecipeName?, rightRecipeId?, rightRecipeName?, limit? }',
+        outputSchema: 'CurrentRecipeCostDifference with current cost details',
+        sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
     'catalog.bind_references': defineBusinessCapability({
         capabilityId: 'catalog.bind_references', displayName: '绑定历史物料引用', domain: 'catalog',
         inputSchema: 'POST /api/catalog/reference-bindings-preview { bindings[] }; POST /api/catalog/reference-bindings { confirmationToken, idempotencyKey? }',
@@ -2021,7 +2034,7 @@ function domainsByCapabilityName() {
 
 function sourceOfTruthFor(name, domains) {
     const overrides = {
-        build_recipe_bom_draft: 'recipeBomEngine',
+        build_recipe_bom_draft: 'recipeBomEngine+saved_template_ids+current_catalog',
         get_recipe_detail: 'recipeServiceAndCostEngine',
         preview_pump_shell_cost: 'recipeBomEngineAndCostEngine',
         get_order_knowledge_package: 'orderService',

@@ -43,8 +43,8 @@ function mergePackingSelection(baseline, patches) {
     return [...baseline.filter(part => !replaced.has(keys(part))), ...patches.filter(part => part.qty == null || Number(part.qty) !== 0)];
 }
 
-function applyRecipeBaseline(recipe, input) {
-    const base = buildCurrentRecipeBomInput(recipe);
+function applyRecipeBaseline(recipe, input, catalog) {
+    const base = buildCurrentRecipeBomInput(recipe, catalog);
     const provided = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
     const result = { ...base, ...provided };
     // A changed coil cannot inherit the old scheme identity, sheet-specific weight or family.

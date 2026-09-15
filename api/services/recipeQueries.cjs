@@ -1,4 +1,5 @@
 const { inspectRecipeInventory } = require('./recipeInventory.cjs');
+const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const INVENTORY_CAPABILITY_ID = requireBusinessCapability('recipes.inventory_status').capabilityId;
 const { selectRecipeBaseline, applyRecipeBaseline } = require('./recipeConfigurationBaseline.cjs');
@@ -219,21 +220,32 @@ function createRecipeQueries({
                 'RECIPE_BOM_CONFIGURATION_REQUIRED'
             );
         }
+        const partsCatalog = listParts();
         const useRecipeBaseline = normalizeOptionalBoolean(input.useRecipeBaseline, 'useRecipeBaseline') === true || input.baseRecipeId !== undefined;
         let baselineRecipe = null, configurationBasis = null;
         if (useRecipeBaseline && template) {
             if (variant) throw new RecipeQueryError('基准配方与常用预设不能同时指定', 400, 'RECIPE_BASELINE_VARIANT_CONFLICT');
             baselineRecipe = selectRecipeBaseline(listRecipes(), input, templateId);
             if (baselineRecipe) {
-                const applied = applyRecipeBaseline(baselineRecipe, input);
+                const applied = applyRecipeBaseline(baselineRecipe, input, partsCatalog);
                 input = applied.input;
                 configurationBasis = applied.basis;
             } else configurationBasis = { source: 'template', configurationComplete: false, note: '没有匹配的在售配方，仅计算明确传入的配置；未指定配套项尚未确认，不能作为完整成品成本。' };
         }
-        const partsCatalog = listParts();
         const normalizeConfiguredParts = (value, field, recipeField) => {
             const selections = parseJsonArray(value);
             return selections.map((selection) => {
+                if (selection?.partId != null && selection.costSource !== 'manual') {
+                    const matched = resolveCatalogPartIdentity(partsCatalog, selection, { field });
+                    const supplier = String(selection.supplier || '').trim();
+                    if (supplier && supplier !== String(matched.supplier || '').trim()) {
+                        throw new RecipeQueryError(`${field} 的供应商与零件 ID 不一致`, 422, 'BOM_PART_ID_SUPPLIER_MISMATCH');
+                    }
+                    if (recipeField === 'packingPartsJson' && matched.category !== '包装') {
+                        throw new RecipeQueryError('包装引用必须属于包装分类', 422, 'BOM_PART_CATEGORY_MISMATCH');
+                    }
+                    return { ...selection, model: matched.model, supplier: matched.supplier || '', resolutionSource: 'catalog_id' };
+                }
                 const query = String(selection?.model || '').trim();
                 if (!query) return selection;
                 const supplier = String(selection?.supplier || '').trim();

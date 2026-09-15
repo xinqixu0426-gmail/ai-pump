@@ -121,7 +121,7 @@ export function packingOptionKey(option: Pick<RecipePackingOption, 'partId' | 'm
 
 export function packingPartFromOption(option: RecipePackingOption): RecipePackingPart {
   return {
-    ...(option.partId ? { partId: option.partId } : {}),
+    ...(option.partId != null ? { partId: option.partId } : {}),
     model: option.model,
     supplier: option.supplier,
     qty: 1,

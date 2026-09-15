@@ -11,6 +11,7 @@ const {
     calculateCompleteCableCost,
 } = require('./costEngine.cjs');
 const { normalizeBomRoles } = require('./bomRoles.cjs');
+const { currentSavedParts } = require('./savedPartReferences.cjs');
 const {
     bindStableBomPartIdentities,
     partIdOf,
@@ -198,18 +199,12 @@ function buildRecipeBomDraft(input, context) {
     const coilMaterial = input.coilMaterial ?? variant?.coilMaterial ?? DEFAULT_COIL_MATERIAL;
     const coilSlotType = input.coilSlotType ?? variant?.coilSlotType ?? '小眼';
     const costMode = template?.costMode || 'components';
-    const bindSelectedPart = part => {
-        if (part.partId == null || part.included === false) return part;
-        const matched = resolveCatalogPartIdentity(partsCatalog, part);
-        return { ...part, model: matched.model, supplier: matched.supplier || '' };
-    };
-    const shellComponents = normalizeSelectionList(template?.shellComponentsJson).map(bindSelectedPart);
+    const shellComponents = currentSavedParts(template?.shellComponentsJson, partsCatalog, '模板组件', '泵壳搭配');
     const hasStainlessStretchBarrelComponent = shellComponents.some(component => component?.included !== false && isStainlessStretchBarrelComponent(component));
     const shouldApplyLongScrewRule = costMode === 'components'
         ? hasStainlessStretchBarrelComponent
         : shellMeta?.isStainless === true;
-    const templateParts = normalizeSelectionList(template?.partsJson)
-        .map(bindSelectedPart)
+    const templateParts = currentSavedParts(template?.partsJson, partsCatalog, '模板固定件')
         .map(part => shouldApplyLongScrewRule ? applyLongScrewRule(part, customBarrelLength, longScrewExtraLength) : part);
 
     const baseShellPrice = template

@@ -68,6 +68,8 @@ function createFixture(options = {}) {
         name: row.name,
         spec: row.spec,
         partsJson: row.parts_json,
+        extraPartsJson: row.extra_parts_json,
+        packingPartsJson: row.packing_parts_json,
         coilSpec: row.coil_spec,
         coilSheets: row.coil_sheets,
         coilMaterial: row.coil_material,
@@ -117,6 +119,7 @@ function createFixture(options = {}) {
         }),
         recipeRow,
         buildBomDraft: (_input, recipe) => {
+            if (options.assertReadTransaction) assert.equal(db.inTransaction, true);
             if (Number(recipe.id) === Number(options.unexpectedFailureRecipeId)) {
                 throw new Error('模拟数据库或编程错误');
             }
@@ -432,4 +435,20 @@ test('成本差异解释通过注入的正式配方和成本依赖完成', () =>
     } finally {
         fixture.db.close();
     }
+});
+
+test('当日成本在单一只读事务核对保存引用，坏包装只阻塞对应配方', () => {
+    const fixture = createFixture({ assertReadTransaction: true });
+    try {
+        fixture.db.prepare('UPDATE recipes SET packing_parts_json = ? WHERE id = 1').run('[null]');
+        const before = fixture.db.prepare('SELECT total_changes() n').get().n;
+        const result = fixture.queries.getCurrentRecipeCosts();
+        assert.equal(result.items[0].calculationError.code, 'SAVED_PART_REFERENCES_INVALID');
+        assert.equal(result.items[0].currentTotalCost, null);
+        assert.equal(result.items[1].currentTotalCost, 21);
+        assert.equal(fixture.db.prepare('SELECT total_changes() n').get().n, before);
+        fixture.db.prepare('UPDATE recipes SET packing_parts_json = ? WHERE id = 1').run('[]');
+        fixture.queries.getRecipeDifference({ leftRecipeId: 1, rightRecipeId: 2 });
+        assert.equal(fixture.db.inTransaction, false);
+    } finally { fixture.db.close(); }
 });

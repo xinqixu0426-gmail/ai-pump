@@ -1,17 +1,14 @@
 const { roundMoney } = require('./costEngine.cjs');
 const { calculateCoilCost } = require('./coilCost.cjs');
+const { currentSavedParts, parseSavedParts } = require('./savedPartReferences.cjs');
 
 function parseParts(value) {
-    if (Array.isArray(value)) return value;
-    try {
-        const parsed = JSON.parse(value || '[]');
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
+    return parseSavedParts(value, '配方物料');
 }
 
-function buildCurrentRecipeBomInput(recipe) {
+function buildCurrentRecipeBomInput(recipe, catalog) {
+    const selections = (value, field, category) => catalog
+        ? currentSavedParts(value, catalog, field, category) : parseParts(value);
     return {
         templateId: recipe.templateId ?? null,
         modelVariantId: recipe.modelVariantId ?? null,
@@ -24,7 +21,7 @@ function buildCurrentRecipeBomInput(recipe) {
         coilMaterial: recipe.coilMaterial || '钢带',
         coilSlotType: recipe.coilSlotType || '小眼',
         coilWireWeight: recipe.coilWireWeight ?? null,
-        optionalParts: parseParts(recipe.extraPartsJson),
+        optionalParts: selections(recipe.extraPartsJson, '配方选配件'),
         hasFloat: Boolean(recipe.hasFloat),
         floatWire: recipe.floatWire || '',
         floatAccessoryType: recipe.floatAccessoryType || 'standard',
@@ -32,7 +29,7 @@ function buildCurrentRecipeBomInput(recipe) {
         cableLength: recipe.cableLength || 0,
         cableWire: recipe.cableWire || '',
         cableAccessoryType: recipe.cableAccessoryType || 'standard',
-        packingParts: parseParts(recipe.packingPartsJson),
+        packingParts: selections(recipe.packingPartsJson, '配方包装', '包装'),
     };
 }
 
@@ -122,12 +119,13 @@ function buildCurrentRecipeCostBasis(recipe, dependencies = {}) {
     } = dependencies;
     if (typeof calculateRecipeCost !== 'function') throw new Error('calculateRecipeCost dependency is required');
 
+    const catalog = Object.values(partsByModel).flat();
     const currentBom = typeof buildBomDraft === 'function'
-        ? buildBomDraft(buildCurrentRecipeBomInput(recipe), recipe)
+        ? buildBomDraft(buildCurrentRecipeBomInput(recipe, catalog), recipe)
         : null;
     const sourceParts = Array.isArray(currentBom?.parts)
         ? currentBom.parts
-        : parseParts(recipe.partsJson);
+        : currentSavedParts(recipe.partsJson, catalog, '配方 BOM');
     const parts = refreshCoilSnapshot(sourceParts, recipe, coils);
     const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
     const partialPartsCost = roundMoney(Number(partsResult.totalCost || 0));
