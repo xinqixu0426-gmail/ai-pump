@@ -239,6 +239,30 @@ function context(suffix) {
     };
 }
 
+test('保存 BOM 的供应商漂移在重建入库计划时拒绝，旧预览不能继续入库', () => {
+    const { db, dependencies } = createFixture();
+    try {
+        const items = JSON.parse(db.prepare('SELECT items_json FROM orders WHERE id = 3').get().items_json);
+        const parts = JSON.parse(items[0].partsJson);
+        parts[0].partId = 1;
+        items[0].partsJson = JSON.stringify(parts);
+        db.prepare('UPDATE orders SET items_json = ? WHERE id = 3').run(JSON.stringify(items));
+        const draft = buildCompletePurchaseDraft(dependencies, 3);
+        db.prepare('UPDATE parts SET supplier = ? WHERE id = 1').run('供应商B');
+        const beforeOrder = db.prepare('SELECT * FROM orders WHERE id = 3').get();
+        assert.throws(() => buildCompletePurchaseDraft(dependencies, 3), { code: 'PURCHASE_PART_SUPPLIER_CHANGED' });
+        assert.throws(() => executeCompletePurchase(dependencies, {
+            orderId: 3, expectedUpdatedAt: FIXED_UPDATED_AT, previewHash: draft.previewHash,
+        }, context('supplier-drift')), { code: 'PURCHASE_PART_SUPPLIER_CHANGED' });
+        assert.equal(db.prepare('SELECT stock FROM parts WHERE id = 1').get().stock, 0);
+        assert.equal(db.prepare('SELECT stock FROM coils WHERE id = 2').get().stock, 0);
+        assert.deepEqual(db.prepare('SELECT * FROM orders WHERE id = 3').get(), beforeOrder);
+        assert.equal(db.prepare('SELECT count(*) n FROM api_operations').get().n, 0);
+        assert.equal(db.prepare('SELECT count(*) n FROM audit_log').get().n, 0);
+        assert.equal(db.prepare('SELECT count(*) n FROM coil_stock_movements').get().n, 0);
+    } finally { db.close(); }
+});
+
 test('采购一键入库草稿聚合正式库存事实、版本和幂等键且保持只读', () => {
     const fixture = createFixture();
     try {

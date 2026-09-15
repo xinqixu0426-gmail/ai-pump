@@ -3,7 +3,7 @@ const { findScrewPricingPart, isLongScrewPart } = require('./costEngine.cjs');
 const { collapseLegacyCableParts } = require('./cableAccessory.cjs');
 const { mergePurchasePlanItem } = require('./orderWorkflow.cjs');
 const { resolveCatalogPartIdentity, resolveSavedCatalogPartIdentity } = require('./bomPartIdentity.cjs');
-const { isPurchaseCoil: isCoilAssemblyPart, catalogId, positiveFactor, purchaseConfiguration, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
+const { assertPurchasePartSupplier, isPurchaseCoil: isCoilAssemblyPart, catalogId, positiveFactor, purchaseConfiguration, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows } = require('./purchaseIdentity.cjs');
 const { isPackagingEstimatePart } = require('./packagingEstimate.cjs');
 const { isRotorProcessPart } = require('./rotorShaftJoint.cjs');
 
@@ -22,7 +22,9 @@ function parsePartsJson(partsJson) {
 
 function resolveInventoryPart(part, supplier, partsCatalog, resolveIdentity = resolveCatalogPartIdentity) {
     try {
-        return resolveIdentity(partsCatalog, { ...part, supplier });
+        const matched = resolveIdentity(partsCatalog, { ...part, supplier });
+        assertPurchasePartSupplier({ ...part, supplier }, matched);
+        return matched;
     } catch (error) {
         if (part.partId == null && ['BOM_PART_IDENTITY_NOT_FOUND', 'BOM_PART_IDENTITY_AMBIGUOUS'].includes(error.code)) return null;
         throw error;
@@ -96,6 +98,7 @@ function buildPurchaseList(items, partsCatalog, options = {}, resolvePart = reso
         for (const part of collapseLegacyCableParts(parsePartsJson(item.partsJson))) {
             if (isPackagingEstimatePart(part)) continue;
             if (isRotorProcessPart(part)) continue;
+            purchaseStockIdentity(part);
             const model = String(part.model || '').trim();
             if (!model) continue;
             const completeCable = isCompleteCablePart(part);

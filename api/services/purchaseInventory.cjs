@@ -1,6 +1,6 @@
 const { adjustCoilStock } = require('./coilInventory.cjs');
 const { purchaseToInventoryQty } = require('./orderWorkflow.cjs');
-const { catalogId, positiveFactor, purchaseStockIdentity, purchaseIdentityError } = require('./purchaseIdentity.cjs');
+const { assertPurchasePartSupplier, catalogId, positiveFactor, purchaseStockIdentity, purchaseIdentityError } = require('./purchaseIdentity.cjs');
 
 function purchaseInventoryType(item) {
     if (item?.inventoryType === 'none') return 'none';
@@ -46,11 +46,14 @@ function inspectPurchaseInventory(dependencies, item, purchaseQty) {
     const partId = catalogId(item.partId);
     if (!partId) throw new Error(`采购项「${item.model}」没有对应零件，无法入库`);
     const part = db.prepare(
-        'SELECT id, model, stock FROM parts WHERE id = ? AND deleted_at IS NULL'
+        'SELECT id, model, supplier, stock FROM parts WHERE id = ? AND deleted_at IS NULL'
     ).get(partId);
     if (!part || String(part.model || '') !== String(item.model || '')) {
         throw purchaseIdentityError('PURCHASE_PART_IDENTITY_CHANGED', `采购项「${item.model}」对应零件不存在或已变化`);
     }
+    // supplier identifies the saved catalog reference; actualSupplier is a
+    // separate purchasing fact and must not select a different stock record.
+    assertPurchasePartSupplier(item, part);
     positiveFactor(item.stockQtyPerUnit);
     const inventoryAddQty = purchaseToInventoryQty(item, purchaseQty);
     return {

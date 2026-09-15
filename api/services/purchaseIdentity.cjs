@@ -26,10 +26,19 @@ function purchaseIdentity(model, supplier = '', partId) {
     const id = catalogId(partId);
     return id ? `part:${id}` : `model:${JSON.stringify([text(model), text(supplier)])}`;
 }
+function assertPurchasePartSupplier(item, part) {
+    const supplier = text(item.supplier);
+    if (supplier && supplier !== text(part.supplier)) {
+        throw purchaseIdentityError('PURCHASE_PART_SUPPLIER_CHANGED', `采购项「${item.model}」的目录供应商已变化，请核对物料引用`);
+    }
+}
 function purchaseStockIdentity(item) {
     const coilId = catalogId(item.coilId);
     const partId = catalogId(item.partId);
     if (coilId && partId) throw purchaseIdentityError('PURCHASE_ID_INVALID', '采购项不能同时指向零件和线圈库存');
+    if ((partId && isPurchaseCoil(item)) || (coilId && item.inventoryType === 'part')) {
+        throw purchaseIdentityError('PURCHASE_INVENTORY_TYPE_MISMATCH', '采购项的库存类型与物料 ID 不一致，请核对原采购项');
+    }
     if (isPurchaseCoil(item)) {
         return coilId ? `coil:${coilId}` : `coil-model:${JSON.stringify([text(item.model), text(item.material || '钢带'), text(item.slotType || '小眼')])}`;
     }
@@ -114,6 +123,6 @@ function uniquePurchaseRowIndex(rows, input) {
     return indexes[0] ?? -1;
 }
 
-module.exports = { isPurchaseCoil, catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity,
+module.exports = { assertPurchasePartSupplier, isPurchaseCoil, catalogId, positiveFactor, purchaseIdentityError, purchaseIdentity, purchaseStockIdentity,
     purchaseConfiguration, purchaseRowIdentity, purchaseRowId, matchPurchasePlanRows, isLegacyMeterRow,
     purchaseRowMatches, uniquePurchaseRowIndex };

@@ -46,3 +46,35 @@ test('小于一米的成品电缆按实际换算量入库，零增量不产生�
     applyPurchaseInventory(deps, item, 0);
     assert.equal(deps.writes, 1);
 });
+
+test('供应商漂移在预览和执行均被拒绝，实际供货商不改变库存归属', t => {
+    const deps = fixture(t);
+    deps.db.prepare('UPDATE parts SET supplier = ? WHERE id = ?').run('甲', 1);
+    const item = { partId: 1, model: '电缆', supplier: ' 甲 ', actualSupplier: '乙', stockQtyPerUnit: 1 };
+    assert.equal(inspectPurchaseInventory(deps, item, 1).stockAfter, 4);
+    deps.db.prepare('UPDATE parts SET supplier = ? WHERE id = ?').run('丙', 1);
+    for (const invoke of [inspectPurchaseInventory, applyPurchaseInventory]) {
+        assert.throws(() => invoke(deps, item, 1), { code: 'PURCHASE_PART_SUPPLIER_CHANGED' });
+    }
+    assert.equal(deps.writes, 0);
+    assert.equal(deps.db.prepare('SELECT stock FROM parts WHERE id = ?').get(1).stock, 3);
+    // Legacy references without supplier still require exact ID + model.
+    assert.equal(inspectPurchaseInventory(deps, { ...item, supplier: '' }, 1).resourceId, 1);
+});
+
+test('零件/线圈类型冲突不能进入另一种库存，预览和执行一致拒绝', t => {
+    const deps = fixture(t);
+    const rows = [
+        { partId: 1, inventoryType: 'coil' },
+        { partId: 1, costRole: 'coil' },
+        { partId: 1, costSource: 'coil' },
+        { partId: 1, name: '线圈转子' },
+        { coilId: 1, inventoryType: 'part' },
+    ];
+    for (const row of rows) {
+        for (const invoke of [inspectPurchaseInventory, applyPurchaseInventory]) {
+            assert.throws(() => invoke(deps, { ...row, model: '电缆' }, 1), { code: 'PURCHASE_INVENTORY_TYPE_MISMATCH' });
+        }
+    }
+    assert.equal(deps.writes, 0);
+});

@@ -307,18 +307,17 @@ test('指定供应商不存在时不得借用同型号其他供应商的库存�
     assert.equal(item.referencePriceSource, 'none');
 });
 
-test('BOM 已绑定 partId 时以稳定身份为准并使用当前目录供应商', () => {
+test('BOM 已绑定 partId 仍拒绝明确供应商漂移，未声明供应商可按 ID 读取', () => {
     const catalog = [
         { Id: 10, model: '轴承X', supplier: '供应商A-新', stock: 8, price: 1 },
         { Id: 11, model: '轴承X', supplier: '供应商B', stock: 6, price: 1.2 },
     ];
-    const [item] = buildPurchaseList([{
-        qty: 1,
-        partsJson: JSON.stringify([
-            { partId: 10, model: '轴承X', supplier: '供应商A-旧', qty: 2 },
-        ]),
-    }], catalog);
-
+    const makeItems = supplier => [{ qty: 1, partsJson: JSON.stringify([
+        { partId: 10, model: '轴承X', supplier, qty: 2 },
+    ]) }];
+    assert.throws(() => buildPurchaseList(makeItems('供应商A-旧'), catalog),
+        { code: 'PURCHASE_PART_SUPPLIER_CHANGED' });
+    const [item] = buildPurchaseList(makeItems(''), catalog);
     assert.equal(item.partId, 10);
     assert.equal(item.supplier, '供应商A-新');
     assert.equal(item.currentStock, 8);

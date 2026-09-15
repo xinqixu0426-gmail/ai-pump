@@ -10,6 +10,20 @@ const cable = (length, accessory = 'standard') => ({ partId: 1, model: '电缆-0
     name: '成品电缆', cableAssembly: true, cableLength: length, cableAccessoryType: accessory, qty: 1 });
 const items = parts => [{ qty: 3, partsJson: JSON.stringify(parts) }];
 
+test('采购计划规范化之前拒绝供应商和类型冲突，不能用目录字段覆盖冲突证据', () => {
+    assert.throws(() => buildPurchaseList(items([{ ...cable(2), supplier: '乙' }]), catalog),
+        { code: 'PURCHASE_PART_SUPPLIER_CHANGED' });
+    for (const part of [
+        { ...cable(2), inventoryType: 'coil' },
+        { ...cable(2), coilId: 2 },
+        { model: '120-30', inventoryType: 'part', coilId: 2, qty: 1 },
+    ]) {
+        assert.throws(() => buildPurchaseList(items([part]), catalog), error =>
+            ['PURCHASE_ID_INVALID', 'PURCHASE_INVENTORY_TYPE_MISMATCH'].includes(error.code));
+    }
+    assert.equal(buildPurchaseList(items([{ ...cable(2), actualSupplier: '乙' }]), catalog)[0].partId, 1);
+});
+
 test('同一基础电缆的长度和接头配置不丢行、不合并，库存仍按共同物料预留', () => {
     const result = buildPurchaseList(items([cable(2), cable(3), cable(2, 'xinjie')]), catalog);
     assert.equal(result.length, 3);
