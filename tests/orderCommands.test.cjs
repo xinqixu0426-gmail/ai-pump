@@ -13,6 +13,7 @@ const {
     executeOrderDelete,
     executeOrderStatus,
     executeOrderUpdate,
+    normalizeOrderItems,
 } = require('../api/services/orderCommands.cjs');
 const { createCostQueries } = require('../api/services/costQueries.cjs');
 const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
@@ -339,6 +340,21 @@ function insertPendingOrder(fixture) {
         FIXED_UPDATED_AT
     ).lastInsertRowid);
 }
+
+test('订单同配方保留对外型号，换配方不继承旧型号且拒绝客户端覆盖', () => {
+    const fixture = createFixture();
+    try {
+        const input = { ...draftInput().items[0], id: 'same-row', externalModel: '客户端改写' };
+        const existing = { ...input, externalModel: '合同原型号', unitCost: 5 };
+        const options = { existingItems: [existing] };
+        assert.equal(normalizeOrderItems(fixture.dependencies, [input], options).items[0].externalModel, '合同原型号');
+        const changed = normalizeOrderItems(fixture.dependencies, [{ ...input, recipeId: 2 }], options).items[0];
+        assert.equal(changed.externalModel, '可配置水泵');
+        assert.equal(normalizeOrderItems(fixture.dependencies, [input]).items[0].externalModel, '测试水泵');
+    } finally {
+        fixture.db.close();
+    }
+});
 
 test('订单保存草稿返回正式建单能力元数据且保持只读', () => {
     const fixture = createFixture();

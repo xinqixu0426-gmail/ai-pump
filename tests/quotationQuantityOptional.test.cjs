@@ -74,6 +74,22 @@ function fixture() {
     };
 }
 
+test('新报价按配方档案保留对外型号，客户端同名字段不能覆盖', () => {
+    const dependencies = fixture();
+    try {
+        dependencies.db.exec('CREATE TABLE parts(id INTEGER PRIMARY KEY); CREATE TABLE coils(id INTEGER PRIMARY KEY); CREATE TABLE pump_shell_templates(id INTEGER PRIMARY KEY); CREATE TABLE pump_model_variants(id INTEGER PRIMARY KEY);');
+        dependencies.db.exec(require('../api/database/catalogSchema.cjs').CATALOG_IDENTITY_SCHEMA_SQL);
+        dependencies.db.prepare('INSERT INTO catalog_identity_profiles(recipe_id,external_model,created_at,updated_at) VALUES(?,?,?,?)')
+            .run(2, '原厂-QDX750', '2026-09-15T00:00:00.000Z', '2026-09-15T00:00:00.000Z');
+        const draft = buildQuotationSavePayloadDraft(dependencies, {
+            customerId: 1, status: '报价中', items: [{ ...item(2), externalModel: '客户端改写型号' }],
+        });
+        const saved = JSON.parse(draft.itemsJson)[0];
+        assert.equal(saved.externalModel, '原厂-QDX750');
+        assert.equal(saved.unitCost, 10); assert.equal(saved.qty, 2);
+    } finally { dependencies.db.close(); }
+});
+
 function item(qty) {
     return {
         id: 'quotation-item-1',

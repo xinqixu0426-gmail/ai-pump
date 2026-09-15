@@ -79,6 +79,7 @@ function normalizeQuotationItems(dependencies, items) {
             return {
                 id: String(item.id || `quotation-item-${Date.now()}-${index}`),
                 baseRecipeId: recipeId,
+                externalModel: String(configured.recipe.external_model || recipe.name || ''),
                 baseRecipeName: String(
                     item.baseRecipeName || recipe.name || '未命名产品'
                 ),

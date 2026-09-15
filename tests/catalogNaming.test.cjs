@@ -62,3 +62,12 @@ test('电缆只能使用横截面积，浮球保留独立的规格含义', () =>
     assert.throws(() => generateCatalogName({ ruleId: 'cable', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }), { code: 'NAMING_SPEC_INVALID' });
     assert.throws(() => generateCatalogName({ ruleId: 'float', spec: { wireValue: 0.55, wireMeasure: '直径', wireUnit: 'mm' } }), { code: 'NAMING_SPEC_INVALID' });
 });
+
+test('配方机筒长度只在明确提供时写入，缺失不猜测，非法值不当作省略', () => {
+    const spec = { series: 'V750', statorCode: '12', sheets: 140, configuration: '普通' };
+    const result = generateCatalogName({ ruleId: 'recipe', spec });
+    assert.equal(result.name, '水泵-V750-12-140片-普通');
+    assert.equal(result.ruleVersion, 2);
+    assert.equal(generateCatalogName({ ruleId: 'recipe', spec: { ...spec, barrelLengthMm: 175 } }).name, '水泵-V750-12-140片-筒175mm-普通');
+    for (const value of [0, -1, null, '', '175', Infinity]) assert.throws(() => generateCatalogName({ ruleId: 'recipe', spec: { ...spec, barrelLengthMm: value } }), { code: 'NAMING_SPEC_INVALID' });
+});

@@ -691,7 +691,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'catalog.naming_rules': defineQueryCapability({
         capabilityId: 'catalog.naming_rules', domain: 'catalog',
-        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 3, cable/float require cross-section mm², bearing uses catalog shorthand',
+        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 4, recipe barrel length optional, cable/float cross-section mm², bearing catalog shorthand',
         sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
     'catalog.name_preview': definePreviewCapability({
@@ -1235,7 +1235,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         capabilityId: 'recipes.list',
         domain: 'recipe',
         inputSchema: 'GET /api/recipes?keyword?&hasTechnicalFiles?',
-        outputSchema: 'Recipe[] including technicalFileCount',
+        outputSchema: 'Recipe[] including technicalFileCount and readonly externalModel preserved by protected rename',
         sourceOfTruth: 'recipes+recipe_technical_files',
         riskLevel: 'low',
         callers: Object.freeze(['web', 'ai', 'internal']),

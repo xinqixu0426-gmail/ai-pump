@@ -19,6 +19,7 @@ export type OrderItem = {
   id: string;
   recipeId?: number;
   recipeName: string;
+  externalModel?: string;
   spec?: string;
   qty: number;
   unitCost: number;

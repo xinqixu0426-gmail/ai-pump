@@ -99,6 +99,7 @@ export type SurfaceTreatmentMode = 'none' | 'painting' | 'electrophoresis' | 'el
 export type Recipe = {
   id: number;
   name: string;
+  externalModel?: string;
   spec: string;
   partsJson: string;
   savedTotalCost?: number;
@@ -387,6 +388,7 @@ export function rowToRecipe(row: RecipeRow): Recipe {
   return {
     id: rowId(row),
     name: row.name || '',
+    externalModel: row.externalModel,
     spec: row.spec || '',
     partsJson: row.partsJson || '[]',
     savedTotalCost: Number(row.savedTotalCost) || 0,

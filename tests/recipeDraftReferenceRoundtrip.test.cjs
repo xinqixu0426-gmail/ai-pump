@@ -3,6 +3,22 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('../apps/web-next/node_modules/typescript');
 
+test('配方读取适配保留独立对外型号，旧响应不伪造型号', () => {
+    const exports = {};
+    const code = ts.transpileModule(fs.readFileSync('apps/web-next/lib/recipes.ts', 'utf8'), {
+        compilerOptions: { module: ts.ModuleKind.CommonJS },
+    }).outputText;
+    new Function('exports', 'require', code)(exports, name => {
+        assert.equal(name, './api');
+        return {};
+    });
+    const row = { id: 4, name: '水泵-V750-12-140片-普通', externalModel: 'v750-普通', partsJson: '[]' };
+    const recipe = exports.rowToRecipe(row);
+    assert.equal(recipe.name, row.name);
+    assert.equal(recipe.externalModel, row.externalModel);
+    assert.equal(exports.rowToRecipe({ id: 4, name: row.name }).externalModel, undefined);
+});
+
 function fixture() {
     const states = [];
     const dependencies = {

@@ -110,7 +110,7 @@ function recipeRow(r) {
         : (r.painting_wage != null ? r.painting_wage : 0);
     return {
         snapshotPartsJson: snapshot.parts_json,
-        id: r.id, Id: r.id, name: r.name, spec: r.spec,
+        id: r.id, Id: r.id, name: r.name, externalModel: r.external_model, spec: r.spec,
         partsJson: (() => {
             try {
                 return JSON.stringify(collapseLegacyCableParts(JSON.parse(r.parts_json || '[]')));

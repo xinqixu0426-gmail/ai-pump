@@ -150,6 +150,7 @@ function normalizeOrderItems(dependencies, items, options = {}) {
                 id: String(item.id || `order-item-${recipeId}-${index}`),
                 recipeId,
                 recipeName: String(recipe.name || '未命名产品'),
+                externalModel: String((Number(existingItem?.recipeId) === recipeId && existingItem?.externalModel) || recipe.external_model || recipe.name || ''),
                 spec: String(recipe.spec || ''),
                 qty: parsePositiveNumber(
                     item.qty,

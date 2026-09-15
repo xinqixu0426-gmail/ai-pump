@@ -180,6 +180,7 @@ function buildQuotationOrderDraft(dependencies, quotationIdValue, options = {}) 
                 id: quotationItemId,
                 recipeId: recipe?.id || recipeId || undefined,
                 recipeName: item.baseRecipeName || recipe?.name || '未命名产品',
+                externalModel: item.externalModel || item.baseRecipeName || recipe?.external_model || recipe?.name || '',
                 spec: item.spec || recipe?.spec || '',
                 qty,
                 unitCost: roundMoney(unitCost),

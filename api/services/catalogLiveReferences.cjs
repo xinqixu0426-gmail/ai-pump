@@ -97,6 +97,10 @@ function hydrateCatalogRow(db, type, source, suppliedContext) {
         return copy;
     }
     const row = { ...source };
+    if (type === 'recipe') {
+        const profile = context.profiles.find(item => item.recipe_id === source.id);
+        row.external_model = profile?.external_model || original.name;
+    }
     for (const key of JSON_FIELDS[type] || []) {
         if (source[key] == null || source[key] === '') continue;
         let parsed;

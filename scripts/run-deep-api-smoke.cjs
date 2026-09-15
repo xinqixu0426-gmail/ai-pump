@@ -1245,7 +1245,8 @@ async function testResourceDetails(resources) {
         recipesWithTechnicalFiles.every(item => Number(item.technicalFileCount) > 0),
         '有技术档案的配方筛选返回了无有效档案的配方'
     );
-    await request('配方详情', 'GET', `/api/recipes/${recipe.id}`);
+    const recipeDetail = (await request('配方详情及只读对外型号', 'GET', `/api/recipes/${recipe.id}`)).payload.data;
+    assert(typeof recipeDetail.externalModel === 'string' && recipeDetail.externalModel.length > 0, '配方详情缺少对外型号');
     const inventoryStatus = (await request(
         '配方库存状态',
         'GET',

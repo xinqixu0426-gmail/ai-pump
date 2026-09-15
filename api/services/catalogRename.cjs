@@ -105,6 +105,7 @@ function executeCatalogRename(dependencies, value, context, subject) {
             const oldProfile = db.prepare(`SELECT * FROM catalog_identity_profiles WHERE ${descriptor.profile} = ?`).get(fresh.entityId);
             const profileFields = { naming_state: 'structured', rule_id: fresh.generated.ruleId, rule_version: fresh.generated.ruleVersion,
                 spec_json: JSON.stringify({ naming: { ruleId: fresh.generated.ruleId, spec: fresh.generated.normalizedSpec }, physical: fresh.physical }),
+                ...(fresh.entityType === 'recipe' ? { external_model: oldProfile?.external_model || fresh.previousName } : {}),
                 spec_fingerprint: requestHash(fresh.physical), name_revision: (oldProfile?.name_revision || 0) + 1 };
             let profileId = oldProfile?.id;
             if (profileId) update('catalog_identity_profiles', profileId, profileFields);

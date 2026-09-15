@@ -143,6 +143,7 @@ export function RecipeDetailPanel({
             <div>
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Recipe Detail</div>
               <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">{recipe.name || '未命名配方'}</h2>
+              {recipe.externalModel ? <div className="mt-1 break-words text-sm text-muted">对外型号：{recipe.externalModel}</div> : null}
               <div className="mt-1 text-sm text-muted">{recipe.spec || '无规格'}</div>
             </div>
             <button

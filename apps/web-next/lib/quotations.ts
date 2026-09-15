@@ -22,6 +22,7 @@ export type QuotationItem = {
   id?: string;
   baseRecipeId?: number | '';
   baseRecipeName?: string;
+  externalModel?: string;
   spec?: string;
   qty?: number | null;
   overrides?: QuotationItemOverrides;

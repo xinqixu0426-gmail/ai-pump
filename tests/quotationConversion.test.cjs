@@ -220,7 +220,11 @@ function createFixture() {
 test('报价转订单保留报价保存时的客户配置快照', () => {
     const fixture = createFixture();
     try {
+        const items = JSON.parse(fixture.db.prepare('SELECT items_json FROM quotations WHERE id=3').get().items_json);
+        items[0].externalModel = '报价时原厂型号';
+        fixture.db.prepare('UPDATE quotations SET items_json=? WHERE id=3').run(JSON.stringify(items));
         const draft = buildQuotationOrderDraft(fixture.dependencies, 3);
+        assert.equal(draft.items[0].externalModel, '报价时原厂型号');
         assert.equal(draft.items[0].configurationOverrides.cableLength, 20);
         assert.equal(draft.items[0].configurationSnapshot.hasFloat, false);
         assert.equal(draft.items[0].snapshotSource, 'quotation');

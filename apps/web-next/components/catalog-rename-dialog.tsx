@@ -64,7 +64,12 @@ export function CatalogRenameDialog({ target, onClose, onSaved }: { target: Targ
       <div className="grid gap-4 sm:grid-cols-2">
         {rule?.fields.filter(field => field.values?.length !== 1).map(field => <Field key={field.key} label={`${field.label}${field.unit ? `（${field.unit}）` : ''}`} required={!field.optional}>
           {field.type === 'choice' ? <Select value={String(spec[field.key] ?? '')} onChange={event => setSpec(current => ({ ...current, [field.key]: event.target.value }))} disabled={busy}><option value="">请选择</option>{field.values?.map(value => <option key={value}>{value}</option>)}</Select>
-            : <Input value={spec[field.key] ?? ''} type={field.type === 'number' ? 'number' : 'text'} onChange={event => setSpec(current => ({ ...current, [field.key]: field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value }))} disabled={busy} />}
+            : <Input value={spec[field.key] ?? ''} type={field.type === 'number' ? 'number' : 'text'} onChange={event => setSpec(current => {
+              const next = { ...current };
+              if (field.optional && event.target.value === '') delete next[field.key];
+              else next[field.key] = field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value;
+              return next;
+            })} disabled={busy} />}
         </Field>)}
       </div>
       <div className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm">生成名称：{name || '请补齐规格'}</div>

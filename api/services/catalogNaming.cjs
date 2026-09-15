@@ -5,7 +5,7 @@ const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const RULES_CAPABILITY_ID = requireBusinessCapability('catalog.naming_rules').capabilityId;
 const PREVIEW_CAPABILITY_ID = requireBusinessCapability('catalog.name_preview').capabilityId;
 const RULE_VERSION = 1;
-const RULESET_VERSION = 3;
+const RULESET_VERSION = 4;
 // All supported part categories share the formal server generator.
 const PART_CREATE_NAMING_RULES = new Set(['bearing', 'capacitor', 'screw', 'seal', 'shell', 'shell-component', 'float', 'cable', 'gasket', 'accessory', 'packaging', 'custom-part']);
 const text = (key, label, optional = false, uppercase = false) => ({ key, label, type: 'text', optional, uppercase, maxLength: 64 });
@@ -32,7 +32,7 @@ const DEFINITIONS = [
     })),
     { id: 'coil', entityType: 'coil', fields: [text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), choice('material', '材质', ['钢带', '冷轧']), choice('slotType', '槽眼', ['小眼', '国标眼']), text('scheme', '方案区别')], nameParts: ['线圈', field('statorCode'), field('sheets', '片'), field('material'), field('slotType'), field('scheme')] },
     { id: 'template', entityType: 'template', fields: [text('series', '系列', false, true), text('configuration', '结构或套件规格'), variant], nameParts: ['模板', field('series'), field('configuration'), field('variant')] },
-    { id: 'recipe', entityType: 'recipe', fields: [text('series', '系列', false, true), text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), number('barrelLengthMm', '机筒长度', 'mm'), text('configuration', '配置区别')], nameParts: ['水泵', field('series'), field('statorCode'), field('sheets', '片'), { ...field('barrelLengthMm', 'mm'), prefix: '筒' }, field('configuration')] },
+    { id: 'recipe', version: 2, entityType: 'recipe', fields: [text('series', '系列', false, true), text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), { ...number('barrelLengthMm', '机筒长度', 'mm'), optional: true }, text('configuration', '配置区别')], nameParts: ['水泵', field('series'), field('statorCode'), field('sheets', '片'), { ...field('barrelLengthMm', 'mm'), prefix: '筒' }, field('configuration')] },
     { id: 'model-variant', entityType: 'modelVariant', fields: [text('series', '系列', false, true), text('configuration', '配置区别')], nameParts: ['配置', field('series'), field('configuration')] },
 ].map(definition => ({ entityType: 'part', category: null, version: RULE_VERSION, ...definition }));
 
@@ -57,7 +57,9 @@ function schemaForField(descriptor) {
             .pipe(z.string().min(1).max(descriptor.maxLength).refine(value => !/[\u0000-\u001f\u007f]/u.test(value), '不得包含控制字符'))
             .transform(value => descriptor.uppercase ? value.replace(/[a-z]/g, character => character.toUpperCase()) : value);
     }
-    return descriptor.optional ? z.preprocess(value => typeof value === 'string' && !value.trim() ? undefined : value, schema.optional()) : schema;
+    if (!descriptor.optional) return schema;
+    return descriptor.type === 'number' ? schema.optional()
+        : z.preprocess(value => typeof value === 'string' && !value.trim() ? undefined : value, schema.optional());
 }
 
 const RULES = new Map(DEFINITIONS.map(definition => [definition.id, {

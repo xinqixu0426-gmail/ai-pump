@@ -119,7 +119,7 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts/supportsPartCreate`。字段描述与生成器共用服务端注册表，字段类型为 text/number/choice，含中文标签、必填/可选及单位。规则集 version=2，cable 规则 version=2，其他规则保持 version=1。当前 16 条规则覆盖零件类别、线圈、模板、配方及常用配置 |
+| `GET` | `/api/catalog/naming-rules` | 无 | `catalog.naming_rules`。返回 `version/sourceOfTruth/rules`；每条规则包含稳定 `id/entityType/category/version/fields/nameParts/supportsPartCreate`。字段描述与生成器共用服务端注册表，类型为 text/number/choice，含标签、必填/可选及单位。规则集 version=4；bearing/cable/float/recipe 规则 version=2，其余规则 version=1。配方 barrelLengthMm 可省略，提供时必须为正数。当前16条规则覆盖零件、线圈、模板、配方及常用配置 |
 | `POST` | `/api/catalog/name-preview` | `{ ruleId, spec }` | `catalog.name_preview`。严格 schema，拒绝未知字段、直接传入 `name/model`、字符串数字、缺项、非有限数、负数/零、错误单位、过长文本。返回 `preview=true/name/normalizedSpec/normalizedInput/ruleId/ruleVersion/entityType/category/namingInputFingerprint/changes/warnings/sourceOfTruth`。不签发写确认，不建档、不改名、不进行重名判定 |
 | `POST` | `/api/catalog/rename-preview` | `{ entityType, entityId, naming: { ruleId, spec }, samePhysicalItem: true, expectedUpdatedAt }`，严格字段 | `catalog.rename` 只读预览；实体类型 part/coil/template/recipe/modelVariant。冻结目录、原引用及实物规格，检查唯一引用与撞名；返回 preview、生成名称、引用 entries、confirmationToken、suggestedIdempotencyKey；不写库 |
 | `POST` | `/api/catalog/rename` | `{ confirmationToken, idempotencyKey }`，严格字段、两项必填 | `catalog.rename`。同主体确认和幂等键，同一事务重新验证版本及引用哈希、建立身份档案与旧引用绑定、保留 ID 修改名称。返回标准 CommandReceipt，含 entityType/entityId/currentName/bindingIds。供应商或已结构化关键规格变化拒绝，改实物需新建；库存、价格、锁定金额和原 JSON 不改。校验400、失效404、并发/撞名/歧义409、强审计失败整体回滚 |
@@ -130,6 +130,8 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 | `POST` | `/api/catalog/bound-names` | `{ sourceType, sourceId, afterId?, limit? }`，游标默认0，limit默认100、上限100 | `catalog.bound_names`。按绑定 ID 分页，返回 `sourceType/sourceId/sourceHash/items/nextAfterId/sourceOfTruth`。每项含 `bindingId/path/entityType/entityId/snapshotValue/currentName/referenceStatus/nameRevision/specRevision/displayOnly`；无下一页时游标为 null |
 
 正式规格改名如果改变了引用来源本身的名称，只在原事务内续接原路径值未变、原哈希/版本/规格修订仍有效的绑定；旧绑定软撤销、新绑定追加审计，原 JSON 不写回。普通业务修改仍使旧来源哈希失效，不能套用改名续接权限。改名预览 affectedResources 提供受影响业务对象名称和引用数量。
+
+配方名称只在明确提供机筒长度时包含“筒…mm”，缺失时省略，不推测普通泵壳长度。安全改名首次保留当时的成品型号于命名档案 `external_model`，后续改名不覆盖。配方 DTO 增加只读 `externalModel`，未规范旧记录返回原名称；详情同时展示规范名称与对外型号。新报价、订单明细保存服务端取值的 `externalModel`，报价转单沿用报价保存值；不回写既有单据的客户型号、价格或正文，不接受客户端以该字段改动目录对外型号。
 
 绑定来源类型为 `part/coil/template/recipe/modelVariant/quotation/order/orderRevision/drawing/fileLink`，目标类型为 `part/coil/template/recipe/modelVariant`；ID 为正安全整数。`path` 为盘点输出的 JSON Pointer（含嵌套 JSON 字符串定位），`sourceHash` 为同一行投影的 SHA-256（零件采用完整行，包含命名输入；旧投影生成的 hash 必须重新盘点），`sourceVersion` 存为 `sha256:<sourceHash>`。预览同时冻结目标和档案内容，提交前有任何变化均作废；已绑定同一目标可跳过，全部已绑定返回 `catalog_binding_no_changes`，撤销或冲突绑定不允许覆盖。写入、强审计、业务事件及90天幂等回执原子提交；确认有效期默认5分钟，过期或进程重启需重新预览。正式执行仍需同会话确认凭证，幂等回执不延长确认有效期。
 

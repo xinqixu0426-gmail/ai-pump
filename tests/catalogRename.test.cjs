@@ -30,6 +30,21 @@ function fixture(t) {
   const apply=(p,deps=dependencies)=>executeCatalogRename(deps,{confirmationToken:p.confirmationToken,idempotencyKey:p.suggestedIdempotencyKey},{actorKey:'tester',idempotencyKey:p.suggestedIdempotencyKey,requestId:'rename-test'},'tester');
   return {db,dependencies,preview,apply};
 }
+
+test('缺少机筒长度的配方可规范名称，首次对外型号保存后连续改名仍保留', t => {
+  const { db, preview, apply } = fixture(t);
+  const naming = { ruleId: 'recipe', spec: { series: 'V750', statorCode: '12', sheets: 140, configuration: '普通' } };
+  const input = () => ({ entityType: 'recipe', entityId: 1, naming, expectedUpdatedAt: db.prepare('SELECT updated_at FROM recipes WHERE id=1').get().updated_at });
+  const original = db.prepare('SELECT * FROM recipes WHERE id=1').get();
+  apply(preview(input()));
+  let row = hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id=1').get());
+  assert.equal(row.name, '水泵-V750-12-140片-普通'); assert.equal(row.external_model, '配方');
+  assert.equal(row.parts_json, original.parts_json);
+  apply(preview(input()));
+  row = hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id=1').get());
+  assert.equal(row.external_model, '配方');
+  assert.equal(db.prepare('SELECT external_model FROM catalog_identity_profiles WHERE recipe_id=1').get().external_model, '配方');
+});
 test('正式规格改名在完整引用链读取现名，原快照和锁定金额不变，幂等不重复提交',t=>{
   const {db,preview,apply}=fixture(t); const before=db.prepare('SELECT * FROM orders').get(); const p=preview();
   assert.equal(p.currentName,'轴承-203'); assert.equal(db.prepare('SELECT count(*) n FROM audit_log').get().n,0);
