@@ -1412,7 +1412,7 @@ export function RecipesView() {
       setTemplateForm((current) => ({
         ...current,
         partRows: current.partRows.map((row) => row.id === target.rowId
-          ? { ...row, model: part.model, supplier: part.supplier }
+          ? { ...row, partId: part.id, model: part.model, supplier: part.supplier }
           : row),
       }));
     } else if (target.kind === 'recipe-optional' && target.rowId) {
@@ -1467,14 +1467,14 @@ export function RecipesView() {
             next = {
               ...next,
               componentRows: next.componentRows.map((row) => row.id === candidate.rowId
-                ? { ...row, model: part.model, supplier: part.supplier, unitCost: part.catalogUnitCost }
+                ? { ...row, partId: part.id, model: part.model, supplier: part.supplier, unitCost: part.catalogUnitCost }
                 : row),
             };
           } else if (candidate.targetKind === 'template-fixed' && candidate.rowId) {
             next = {
               ...next,
               partRows: next.partRows.map((row) => row.id === candidate.rowId
-                ? { ...row, model: part.model, supplier: part.supplier }
+                ? { ...row, partId: part.id, model: part.model, supplier: part.supplier }
                 : row),
             };
           }

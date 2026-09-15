@@ -10,6 +10,7 @@ import { money } from '@/lib/format';
 import type { ShellComponentInput, SubassemblyContentInput } from '@/lib/recipes';
 
 export type ShellComponentRow = {
+  partId?: number;
   name?: string;
   model?: string;
   supplier?: string;
@@ -180,6 +181,7 @@ export function ShellCostEditor({
     try {
       const result = await onCreateCatalogPart({ model, supplier, catalogUnitCost });
       updateComponentRow(row.id, {
+        partId: result.part.id,
         model: result.part.model,
         supplier: result.part.supplier,
         unitCost: result.part.catalogUnitCost,
@@ -232,6 +234,10 @@ export function ShellCostEditor({
       if (patch.supplier !== undefined && patch.model === undefined && patch.unitCost === undefined) {
         const exact = findCatalogPart(catalogParts, String(next.model || ''), String(patch.supplier || ''));
         next.unitCost = exact ? Number(exact.catalogUnitCost || 0) : 0;
+      }
+      if ((patch.model !== undefined || patch.supplier !== undefined) && patch.partId === undefined) {
+        const matches = catalogParts.filter((part) => part.model === next.model && part.supplier === next.supplier);
+        next.partId = matches.length === 1 ? matches[0].id : undefined;
       }
       if (patch.name !== undefined) {
         if (row.componentType === 'subassembly') return next;

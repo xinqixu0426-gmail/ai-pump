@@ -3,6 +3,7 @@ const {
     CommandExecutionError,
     executePersistentCommand,
 } = require('./commandExecution.cjs');
+const { resolveCatalogPartIdentity } = require('./bomPartIdentity.cjs');
 const { standardBusinessChange } = require('./businessChanges.cjs');
 const {
     assertExpectedUpdatedAt,
@@ -168,6 +169,7 @@ function normalizeShellComponentsJsonValue(value) {
         }
         const included = component?.included !== false;
         const normalized = {
+            ...(component?.partId != null ? { partId: component.partId } : {}),
             name: String(component?.name || '').trim(),
             model: String(component?.model || '').trim(),
             supplier: String(component?.supplier || '').trim(),
@@ -238,6 +240,29 @@ function validateShellComponents(db, costMode, componentsJson) {
             `自由搭配组件「${invalid.name || '未命名组件'}」的零件型号只能选择“${SHELL_COMPONENT_CATEGORY}”类别中的零件`,
             400
         );
+    }
+}
+
+function validateTemplatePartReferences(db, partsJson, componentsJson) {
+    const groups = [JSON.parse(partsJson || '[]'), JSON.parse(componentsJson || '[]')];
+    if (!groups.some(rows => rows.some(row => row?.partId != null))) return;
+    const catalog = db.prepare('SELECT id, model, supplier, category FROM parts WHERE deleted_at IS NULL').all();
+    for (const [groupIndex, rows] of groups.entries()) {
+        for (const [index, row] of rows.entries()) {
+            if (row?.partId == null) continue;
+            try {
+                const part = resolveCatalogPartIdentity(catalog, row, { field: `模板引用[${groupIndex}][${index}]` });
+                if (String(row.supplier || '').trim() && String(row.supplier).trim() !== String(part.supplier || '').trim()) {
+                    throw templateCommandError('template_part_supplier_mismatch', '模板零件 ID 与供应商不一致', 422);
+                }
+                if (groupIndex === 1 && part.category !== SHELL_COMPONENT_CATEGORY) {
+                    throw templateCommandError('template_component_category_mismatch', '自由搭配组件 ID 必须引用泵壳搭配零件', 422);
+                }
+            } catch (error) {
+                if (error instanceof CommandExecutionError) throw error;
+                throw templateCommandError(error.code || 'template_part_reference_invalid', error.message, error.statusCode || 422);
+            }
+        }
     }
 }
 
@@ -407,6 +432,7 @@ function executeTemplateCreate(dependencies, input = {}, commandContext = {}) {
                 normalized.cost_mode,
                 normalized.shell_components_json
             );
+            validateTemplatePartReferences(dependencies.db, normalized.parts_json, normalized.shell_components_json);
             const now = new Date().toISOString();
             const write = dependencies.safeInsert('pump_shell_templates', {
                 ...normalized,
@@ -478,6 +504,7 @@ function executeTemplateUpdate(
                 updates.cost_mode ?? current.cost_mode,
                 updates.shell_components_json ?? current.shell_components_json
             );
+            validateTemplatePartReferences(dependencies.db, updates.parts_json ?? current.parts_json, updates.shell_components_json ?? current.shell_components_json);
             if (Object.keys(updates).length === 0) {
                 return {
                     data: { template: dependencies.templateRow(current) },
@@ -593,4 +620,5 @@ module.exports = {
     normalizeSurfaceTreatmentMode,
     templateBodyToDb,
     validateShellComponents,
+    validateTemplatePartReferences,
 };

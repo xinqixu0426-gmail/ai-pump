@@ -912,7 +912,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'templates.create': defineBusinessCapability({
         capabilityId: 'templates.create',
         domain: 'recipe',
-        inputSchema: 'POST /api/templates TemplateInput(configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
+        inputSchema: 'POST /api/templates TemplateInput(partsJson[].partId?, shellComponentsJson[].partId?, configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
         outputSchema: 'CommandReceipt<TemplateCreateResult>',
         sourceOfTruth: 'pump_shell_templates+partsCatalog',
         riskLevel: 'medium',
@@ -923,7 +923,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'templates.update': defineBusinessCapability({
         capabilityId: 'templates.update',
         domain: 'recipe',
-        inputSchema: 'PATCH /api/templates/:id TemplatePatch(configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
+        inputSchema: 'PATCH /api/templates/:id TemplatePatch(partsJson[].partId?, shellComponentsJson[].partId?, configurationPolicyJson?, shellComponentsJson.subassemblyContents[].referenceUnitPrice?)',
         outputSchema: 'CommandReceipt<TemplateUpdateResult>',
         sourceOfTruth: 'pump_shell_templates+partsCatalog',
         riskLevel: 'high',

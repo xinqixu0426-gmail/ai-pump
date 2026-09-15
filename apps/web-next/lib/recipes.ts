@@ -158,6 +158,7 @@ export type PumpShellTemplate = {
 };
 
 export type TemplatePartInput = {
+  partId?: number;
   name: string;
   model: string;
   qty: number;
@@ -172,6 +173,7 @@ export type SubassemblyContentInput = {
 };
 
 export type ShellComponentInput = {
+  partId?: number;
   name: string;
   model?: string;
   supplier?: string;

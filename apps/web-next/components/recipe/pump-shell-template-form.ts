@@ -20,6 +20,7 @@ import type {
 } from '@/lib/recipes';
 
 type TemplatePartRow = {
+  partId?: number;
   name?: string;
   model?: string;
   supplier?: string;
@@ -103,6 +104,7 @@ export function parseTemplateJsonArray<T>(value?: string): T[] {
 export function templateFormFromTemplate(template: PumpShellTemplate): TemplateFormState {
   const partRows = parseTemplateJsonArray<TemplatePartRow>(template.partsJson).map((part) => ({
     id: nextSelectionId(),
+    ...(part.partId != null ? { partId: part.partId } : {}),
     name: part.name || '',
     model: part.model || '',
     qty: Number(part.qty || 1),
@@ -115,6 +117,7 @@ export function templateFormFromTemplate(template: PumpShellTemplate): TemplateF
     const isSubassembly = isSubassemblyComponent(component);
     return {
       id: nextSelectionId(),
+      ...(component.partId != null ? { partId: component.partId } : {}),
       name: isBarrelComponentName(component.name || '')
         ? normalizeBarrelComponentName(component.name || '', isStainlessBarrel)
         : component.name || '',
@@ -201,6 +204,7 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
   const partsPayload: TemplatePartInput[] = form.partRows
     .filter((row) => row.name.trim() && row.model.trim())
     .map((row) => ({
+      ...(row.partId != null ? { partId: row.partId } : {}),
       name: row.name.trim(),
       model: row.model.trim(),
       supplier: row.supplier?.trim() || '',
@@ -213,6 +217,7 @@ export function templateFormToInput(form: TemplateFormState): TemplateInput {
           const isStainlessBarrel = row.componentType === 'stainlessStretchBarrel';
           const isSubassembly = row.componentType === 'subassembly';
           return {
+            ...(row.partId != null ? { partId: row.partId } : {}),
             name: row.name.trim(),
             model: row.model?.trim() || '',
             supplier: row.supplier?.trim() || '',

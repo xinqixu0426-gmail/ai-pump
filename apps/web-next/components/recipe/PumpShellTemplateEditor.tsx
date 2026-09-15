@@ -229,6 +229,11 @@ export function PumpShellTemplateEditor({
             templatePartCategoryForName(next.name) || undefined
           );
         }
+        if (patch.name !== undefined || patch.model !== undefined || patch.supplier !== undefined) {
+          const matches = templatePartCatalogForName(partCatalog, next.name).filter((part) =>
+            part.model === next.model && part.supplier === next.supplier);
+          next.partId = matches.length === 1 ? matches[0].id : undefined;
+        }
         return next;
       }),
     }));
