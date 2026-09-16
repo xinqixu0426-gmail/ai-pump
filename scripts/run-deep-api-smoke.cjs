@@ -961,11 +961,21 @@ function readGetPuritySnapshot(databasePath) {
 }
 
 async function testCatalogReferenceBindings(databasePath) {
-    const inspectDb = new Database(databasePath, { readonly: true });
+    // databasePath is the isolated backup, never the production source. Supply
+    // our own unbound legacy reference so fully migrated catalogs also pass.
+    const inspectDb = new Database(databasePath);
+    let fixturePartId;
+    let fixtureRecipeId;
     try {
+        const unique = `BINDING-QA-${Date.now()}`;
+        inspectDb.transaction(() => {
+            fixturePartId = Number(inspectDb.prepare('INSERT INTO parts(model,supplier,price,stock) VALUES(?,?,3,9)').run(unique, unique).lastInsertRowid);
+            fixtureRecipeId = Number(inspectDb.prepare('INSERT INTO recipes(name,parts_json) VALUES(?,?)').run(unique,
+                JSON.stringify([{ model: unique, supplier: unique, quantity: 2 }])).lastInsertRowid);
+        })();
         const report = auditCatalogReferences(inspectDb);
         assert(report.complete, '绑定验收盘点不完整');
-        const reference = report.references.find(ref => ref.sourceType === 'recipe' && ref.targetType === 'part'
+        const reference = report.references.find(ref => ref.sourceType === 'recipe' && ref.sourceId === fixtureRecipeId && ref.targetType === 'part'
             && ['resolved_id', 'resolved_legacy'].includes(ref.status) && ref.candidateIds.length === 1);
         assert(reference, '缺少可核实的历史配方引用');
         const sourceInput = { sourceType: reference.sourceType, sourceId: reference.sourceId };
@@ -989,7 +999,11 @@ async function testCatalogReferenceBindings(databasePath) {
         assert(JSON.stringify(readCatalogSource(inspectDb, reference.sourceType, reference.sourceId)) === JSON.stringify(sourceBefore), '绑定改写了配方快照');
         assert(JSON.stringify(readCatalogSource(inspectDb, 'part', reference.candidateIds[0])) === JSON.stringify(targetBefore), '绑定修改了物料事实');
         await request('绑定读取拒绝超限分页', 'POST', '/api/catalog/bound-names', { ...sourceInput, limit: 101 }, [400]);
-    } finally { inspectDb.close(); }
+    } finally {
+        if (fixtureRecipeId) inspectDb.prepare("UPDATE recipes SET deleted_at='qa-cleanup' WHERE id=?").run(fixtureRecipeId);
+        if (fixturePartId) inspectDb.prepare("UPDATE parts SET deleted_at='qa-cleanup' WHERE id=?").run(fixturePartId);
+        inspectDb.close();
+    }
 }
 
 async function testCoreGetEndpointsDoNotWrite(databasePath) {
