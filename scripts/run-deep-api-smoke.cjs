@@ -995,7 +995,7 @@ async function testCatalogReferenceBindings(databasePath) {
 async function testCoreGetEndpointsDoNotWrite(databasePath) {
     const before = readGetPuritySnapshot(databasePath);
     const orders = (await request('GET纯度-订单列表', 'GET', '/api/orders')).payload.data;
-    const orderId = before.orders[0]?.id;
+    const orderId = orders[0]?.id;
     if (orderId) await request('GET纯度-订单详情', 'GET', `/api/orders/${orderId}`);
     await request('GET纯度-报价列表', 'GET', '/api/quotations');
     const activeQuotations = (await request(
