@@ -60,11 +60,11 @@ test('事务内读取自己的修改，回滚/嵌套保存点不污染提交后�
 test('其他连接提交自动失效；读事务遵守自身快照且不污染外部最新视图', t => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'parts-cache-'));
     const filename = path.join(dir, 'catalog.db');
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     const { db, cache } = fixture(t, filename);
     db.pragma('journal_mode = WAL');
     const writer = new Database(filename);
     t.after(() => writer.close());
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
     const original = cache.read();
     writer.prepare('UPDATE parts SET model = ? WHERE id = ?').run('外部现名', 1);
     assert.notEqual(cache.read(), original);

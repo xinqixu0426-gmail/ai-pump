@@ -207,7 +207,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 有精确片数正式方案时以 `coilId` 保存具体记录；无精确片数时以 `coilSchemeFamilyCode` 保存明确系列，并只在同一定子组合、同系列的计算计价正式方案间插值或外推，供应商套件价不参与。
 - 匹配不跨标准直径、材质或槽眼，测试/停用方案不参与正式成本。
 - `12` 是 `120mm` 的俗称；两者按同一标准直径匹配。
-- 线圈页提供实时市场指标、同定子组合自动带入和计算方案组合批量改单价；套件价方案保持独立。
+- 线圈页提供每日市场指标、同定子组合自动带入和计算方案组合批量改单价；线圈与行情独立加载，行情失败不阻塞列表；套件价方案保持独立。
 - 铜价每天 15:00 BJT 自动检查，仅在计算方案的基数或成本变化时刷新线圈；套件价方案不变化。铝线价格基数和美元汇率可在市场指标中手动同步。
 
 ### 电缆与包装
@@ -291,7 +291,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 运行健康 | `/api/health`、`/api/health/live`、`/api/health/ready` | 独立公开路由；提供存活、就绪、版本和后台任务状态 |
 | 零件 | `/api/parts`、`/api/parts/prices-preview`、`/api/parts/prices`、`/api/parts/batch-stock-preview`、`/api/parts/batch-stock` | CRUD、批量调价、库存预览与确认执行；价格与库存分别使用独立正式命令 |
 | 线圈 | `/api/coils`、`/api/coils/calculate` | CRUD、多正式方案与唯一默认、方案元数据、两种计价、成本查询与库存流水；精确成本优先按 `coilId/schemeCode`，多候选无唯一默认时拒绝猜测，插值限定 `schemeFamilyCode`；已有库存或流水的方案禁止删除 |
-| 市场指标 | `/api/market-indicators` | 只读查询外部实时铜价、铝价、美元汇率及数据库已采用值；手动同步通过同域 maintenance API 原子提交 |
+| 市场指标 | `/api/market-indicators` | 只读查询每日铜价、铝价、美元汇率快照及数据库已采用值；标明时间和过期状态；手动同步通过同域 maintenance API 原子提交 |
 | 模板 | `/api/templates` | Query/Command 分层；`templateQueries` 只读聚合模板、零件目录、关联配方、默认配方和成本草稿，`templateCommands` 执行 CRUD |
 | 常用配置预设（历史路径） | `/api/model-variants` | 历史兼容 CRUD；保存时可自动沉淀长螺丝规格，写入使用持久幂等、资源版本、事务回执和强审计 |
 | 配方 | `/api/recipes` | Query/Preview、CRUD、BOM 草稿、保存成本快照、成本与覆盖试算 |
@@ -322,7 +322,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 最终表结构以 `api/database/schema.cjs` 为唯一权威来源；版本化迁移、校验和和历史库升级规则见 [`database-schema.md`](database-schema.md)。
 - 数据库启动时生成独立 `startup` 备份（保留 5 份），每天 03:00 BJT 生成 `daily` 备份（保留 30 份）；发布前 `release` 快照绑定 Git commit 和 Schema，恢复前自动生成 `safety` 快照。完整流程见 [database-backup-recovery.md](./database-backup-recovery.md)。
 - 审计日志在成功备份后清理超过 365 天的记录，可通过 `AUDIT_RETENTION_DAYS` 调整，设为 `0` 禁用。
-- 铜价启动时立即检查，此后每天 15:00 BJT 检查；只更新计算计价方案，供应商套件价保持不变；数值未变化时不重写线圈，也不新增审计日志。
+- 行情每天 15:00 BJT 获取，启动时只补齐当天未尝试的获取；铜/铝/汇率共享持久化每日快照，页面刷新不抓取外部行情。失败或重启不在当天重复获取，保留旧行情并标注日期；旧行情不能用于改价。自动同步只更新计算计价方案铜价，供应商套件价不变；数值未变化时不重写线圈。
 - 铝线价格基数和美元汇率可通过市场指标同步接口手动写入系统设置；当前定时任务只自动同步铜价。
 
 ## 6. 转子出图

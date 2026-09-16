@@ -91,9 +91,7 @@ const MCP_POTENTIALLY_DESTRUCTIVE_TOOL_NAMES = Object.freeze([
 ]);
 
 // 只有会访问管理域外实时数据源的工具才标记为 open world；该标注仅供 MCP 客户端决策。
-const MCP_OPEN_WORLD_TOOL_NAMES = Object.freeze([
-    'get_copper_price',
-]);
+const MCP_OPEN_WORLD_TOOL_NAMES = Object.freeze([]);
 
 const toolsByName = new Map(AI_TOOLS.map(tool => [tool?.function?.name, tool]));
 

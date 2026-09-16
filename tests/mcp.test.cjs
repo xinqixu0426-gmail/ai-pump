@@ -137,7 +137,7 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
             tool.name
         );
     }
-    assert.deepEqual(MCP_OPEN_WORLD_TOOL_NAMES, ['get_copper_price']);
+    assert.deepEqual(MCP_OPEN_WORLD_TOOL_NAMES, []);
 
     const orderDetailSchema = listed.find(tool => tool.name === 'get_order_detail').inputSchema;
     assert.equal(orderDetailSchema.additionalProperties, false);

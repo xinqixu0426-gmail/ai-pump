@@ -762,6 +762,20 @@ function safeInsert(table, values, options = {}) {
 }
 
 function safeUpdate(table, id, updates, options = {}) {
+    const { SOURCE_TYPES, retainCatalogBindings } = require('./services/catalogBindingContinuity.cjs');
+    const sourceType = SOURCE_TYPES[table];
+    if (!sourceType) return writeSafeUpdate(table, id, updates, options);
+    return db.transaction(() => {
+        const { readCatalogSource } = require('./services/catalogSources.cjs');
+        const before = readCatalogSource(db, sourceType, id);
+        const result = writeSafeUpdate(table, id, updates, options);
+        if (!result.changes) return result;
+        const retained = retainCatalogBindings({ db, safeInsert, safeUpdate }, sourceType, before, options);
+        return { ...result, bindingAuditIds: retained.auditIds, bindingIds: retained.bindingIds };
+    })();
+}
+
+function writeSafeUpdate(table, id, updates, options = {}) {
     if (!SAFE_TABLES.has(table)) throw new Error(`safeUpdate: 非法表名 "${table}"`);
     const sets = [];
     const vals = [];

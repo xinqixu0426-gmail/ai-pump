@@ -321,6 +321,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         assert.match(capability.idempotency, /persistent/);
         assert.ok([
             'not_applicable',
+            'persistent_BJT_daily_attempt_and_single_flight_snapshot',
             'expectedUpdatedAt',
             'expectedUpdatedAt+previewHash_bound_live_readiness',
             'expectedUpdatedAt+previewHash_bound_inventory',

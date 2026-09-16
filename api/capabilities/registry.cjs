@@ -1043,13 +1043,13 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         operation: 'maintenance',
         inputSchema: 'POST /api/copper-price/update',
         outputSchema: 'CommandReceipt<CopperPriceSyncResult>',
-        sourceOfTruth: 'externalCopperMarket+coils.copper_base+coils.cost',
+        sourceOfTruth: 'dailyMarketSnapshot+coils.copper_base+coils.cost',
         riskLevel: 'high',
         requiresConfirmation: false,
         supportsPreview: false,
-        concurrencyControl: 'external_snapshot_at_execution_time',
+        concurrencyControl: 'persistent_BJT_daily_attempt_and_single_flight_snapshot',
         transactionality:
-            'external_fetch_before_atomic_coil_audit_and_operation_commit',
+            'daily_cache_maintenance_then_atomic_coil_audit_and_operation_commit',
         timeoutMs: 25_000,
     }),
     'market.sync_indicators': defineBusinessCapability({
@@ -1060,13 +1060,13 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         inputSchema: 'POST /api/market-indicators/update',
         outputSchema: 'CommandReceipt<MarketIndicatorSyncResult>',
         sourceOfTruth:
-            'externalMetalAndExchangeMarkets+coils+system_settings',
+            'dailyMarketSnapshot+coils+system_settings',
         riskLevel: 'high',
         requiresConfirmation: false,
         supportsPreview: false,
-        concurrencyControl: 'external_snapshot_at_execution_time',
+        concurrencyControl: 'persistent_BJT_daily_attempt_and_single_flight_snapshot',
         transactionality:
-            'external_fetch_before_atomic_coils_settings_audit_and_operation_commit',
+            'daily_cache_maintenance_then_atomic_coils_settings_audit_and_operation_commit',
         timeoutMs: 25_000,
     }),
     'orders.requirements.save_draft': defineBusinessCapability({

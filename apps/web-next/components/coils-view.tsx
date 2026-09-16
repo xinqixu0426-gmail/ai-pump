@@ -181,6 +181,9 @@ export function CoilsView() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [marketIndicators, setMarketIndicators] = useState<MarketIndicators | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const coilLoadSequence = useRef(0);
+  const marketLoadSequence = useRef(0);
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketUpdating, setMarketUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -241,26 +244,27 @@ export function CoilsView() {
   });
 
   async function load(force = false) {
+    const sequence = ++coilLoadSequence.current;
     setError(null);
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const [coilRows, indicatorData] = await Promise.all([
-        getAllCoils(),
-        getMarketIndicators().catch(() => null),
-      ]);
+      const coilRows = await getAllCoils();
+      if (sequence !== coilLoadSequence.current) return;
       setCoils(coilRows);
-      if (indicatorData) setMarketIndicators(indicatorData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '线圈数据加载失败');
+      if (sequence === coilLoadSequence.current) setError(err instanceof Error ? err.message : '线圈数据加载失败');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (sequence === coilLoadSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }
 
   useEffect(() => {
     void load();
+    void refreshMarketIndicators();
   }, []);
 
   useBusinessRefresh(() => load());
@@ -437,25 +441,27 @@ export function CoilsView() {
   }
 
   async function refreshMarketIndicators() {
+    const sequence = ++marketLoadSequence.current;
     setMarketLoading(true);
-    setError(null);
+    setMarketError(null);
     try {
-      setMarketIndicators(await getMarketIndicators());
+      const indicators = await getMarketIndicators();
+      if (sequence === marketLoadSequence.current) setMarketIndicators(indicators);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '市场指标加载失败');
+      if (sequence === marketLoadSequence.current) setMarketError(err instanceof Error ? err.message : '市场指标加载失败');
     } finally {
-      setMarketLoading(false);
+      if (sequence === marketLoadSequence.current) setMarketLoading(false);
     }
   }
 
   async function syncMarketIndicators() {
     setMarketUpdating(true);
-    setError(null);
+    setMarketError(null);
     try {
       await updateMarketIndicators();
-      await load(true);
+      await Promise.all([load(true), refreshMarketIndicators()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '市场指标同步失败');
+      setMarketError(err instanceof Error ? err.message : '市场指标同步失败');
     } finally {
       setMarketUpdating(false);
     }
@@ -623,10 +629,12 @@ export function CoilsView() {
             <CircleDollarSign size={18} />
           </div>
           <div>
-            <div className="text-sm font-semibold text-ink">实时市场指标</div>
-            <div className="mt-1 text-xs text-muted">同步后只更新计算计价方案采用的铜价；供应商套件价保持不变。</div>
+            <div className="text-sm font-semibold text-ink">每日市场指标</div>
+            <div className="mt-1 text-xs text-muted">每天获取一次，刷新只读取已保存行情。同步后只更新计算计价方案采用的铜价；供应商套件价保持不变。</div>
+            {marketIndicators?.fetchedAt ? <div className="mt-1 text-xs text-muted">行情时间：{new Date(marketIndicators.fetchedAt).toLocaleString('zh-CN')}{marketIndicators.stale ? ' · 非今日行情' : ''}</div> : null}
           </div>
         </div>
+        {marketError || marketIndicators?.lastError ? <InlineNotice tone="warning">{marketError || marketIndicators?.lastError}{marketIndicators ? '；保留上次成功行情，未自动改价。' : ''}</InlineNotice> : null}
         {marketIndicators ? (
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-md border border-amber-200 bg-white/70 p-3">
@@ -656,7 +664,7 @@ export function CoilsView() {
           </div>
         ) : (
           <div className="rounded-md border border-amber-200 bg-white/70 p-3 text-sm text-muted">
-            {marketLoading ? '市场指标加载中...' : '市场指标暂不可用，可稍后刷新。'}
+            {marketLoading ? '市场指标加载中...' : '尚无可用行情，请等待每日更新；线圈列表可正常使用。'}
           </div>
         )}
         <div className="flex flex-wrap justify-end gap-2 border-t border-amber-200 pt-3">

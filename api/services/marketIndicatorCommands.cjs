@@ -190,7 +190,7 @@ function executeCopperPriceSync(
                     fetchedAt: snapshot.fetchedAt,
                     trigger,
                     sourceOfTruth:
-                        'externalCopperMarket+coils.copper_base+coils.cost',
+                        'dailyMarketSnapshot+coils.copper_base+coils.cost',
                     sources: snapshot.sources,
                 },
                 resource: {
@@ -267,7 +267,7 @@ function executeMarketIndicatorsSync(
                     fetchedAt: snapshot.fetchedAt,
                     trigger,
                     sourceOfTruth:
-                        'externalMetalAndExchangeMarkets+coils+system_settings',
+                        'dailyMarketSnapshot+coils+system_settings',
                     sources: snapshot.sources,
                 },
                 resource: {

@@ -1375,6 +1375,7 @@ async function testSavedPurchaseNameViews(databasePath) {
     const unique = `SAVED-PURCHASE-${Date.now()}`;
     let partId;
     let orderId;
+    let legacyOrderId;
     try {
         partId = Number(fixture.prepare("INSERT INTO parts (model, supplier, stock, price, updated_at) VALUES (?, ?, 0, 3, '2026-09-15T00:00:00.000Z')").run(`${unique}-旧名`, unique).lastInsertRowid);
         const items = JSON.stringify([{ qty: 2, partsJson: JSON.stringify([{ partId, model: `${unique}-旧名`, supplier: unique, qty: 1 }]) }]);
@@ -1384,11 +1385,22 @@ async function testSavedPurchaseNameViews(databasePath) {
         }]);
         orderId = Number(fixture.prepare("INSERT INTO orders (customer_name, contract_no, status, items_json, purchase_list_json) VALUES (?, ?, '采购中', ?, ?)").run(unique, unique, items, purchase).lastInsertRowid);
         const before = fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+        const legacyBom = JSON.stringify([{ model: `${unique}-旧名`, supplier: unique, qty: 1 }]);
+        legacyOrderId = Number(fixture.prepare("INSERT INTO orders(customer_name,status,items_json,purchase_list_json,todos_json) VALUES(?, '已关闭', ?, ?, ?)").run(unique,
+            JSON.stringify([{ partsJson: legacyBom }]), legacyBom, JSON.stringify([{ id: 'continuity-todo', done: false }])).lastInsertRowid);
         const renamePreview = (await request('现存采购物料正式规格改名预览', 'POST', '/api/catalog/rename-preview', { entityType: 'part', entityId: partId, naming: { ruleId: 'custom-part', spec: { kind: unique, specification: '新名' } }, samePhysicalItem: true, expectedUpdatedAt: '2026-09-15T00:00:00.000Z' })).payload.data;
         const renameInput = { confirmationToken: renamePreview.confirmationToken, idempotencyKey: renamePreview.suggestedIdempotencyKey };
         const renamed = (await request('有采购引用物料正式改名保留 ID', 'POST', '/api/catalog/rename', renameInput)).payload.data;
         assert(renamed.entityId === partId && renamed.currentName === `${unique}-新名` && renamed.auditIds.length > 0, '规格改名回执不完整');
         assert((await request('有采购引用物料正式改名幂等重放', 'POST', '/api/catalog/rename', renameInput)).payload.data.idempotentReplay, '改名未幂等');
+        const todoInput = { todoId: 'continuity-todo', done: true, idempotencyKey: `catalog-continuity-${legacyOrderId}` };
+        await request('无ID旧引用改名后正式切换订单待办', 'POST', `/api/orders/${legacyOrderId}/todos/toggle`, todoInput);
+        const legacyDetail = (await request('待办更新后旧引用仍显示正式现名和物料ID', 'GET', `/api/orders/${legacyOrderId}`)).payload.data;
+        const legacyRow = JSON.parse(legacyDetail.purchaseListJson)[0];
+        assert(legacyRow.model === `${unique}-新名` && legacyRow.partId === partId, '普通更新丢失改名引用绑定');
+        assert(JSON.parse(JSON.parse(legacyDetail.itemsJson)[0].partsJson)[0].partId === partId, '嵌套BOM未续接');
+        assert(fixture.prepare('SELECT purchase_list_json FROM orders WHERE id=?').get(legacyOrderId).purchase_list_json === legacyBom, '续接改写原业务快照');
+        assert((await request('待办续接幂等重放', 'POST', `/api/orders/${legacyOrderId}/todos/toggle`, todoInput)).payload.data.idempotentReplay, '待办续接重复执行');
         const detail = (await request('订单详情采购行按保存 ID 显示现名', 'GET', `/api/orders/${orderId}`)).payload.data;
         const row = JSON.parse(detail.purchaseListJson)[0];
         assert(row.model === `${unique}-新名` && row.id === 'retained-purchase-row', '详情现名或采购行 ID 不正确');
@@ -1415,6 +1427,7 @@ async function testSavedPurchaseNameViews(databasePath) {
             assert(JSON.stringify(fixture.prepare('SELECT * FROM orders WHERE id = ?').get(orderId)) === JSON.stringify(frozen), '历史现名查询改写了订单');
         }
     } finally {
+        if (legacyOrderId) fixture.prepare("UPDATE orders SET deleted_at = 'qa-cleanup' WHERE id = ?").run(legacyOrderId);
         if (orderId) fixture.prepare("UPDATE orders SET deleted_at = 'qa-cleanup' WHERE id = ?").run(orderId);
         if (partId) fixture.prepare("UPDATE parts SET deleted_at = 'qa-cleanup' WHERE id = ?").run(partId);
         fixture.close();

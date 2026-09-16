@@ -171,6 +171,9 @@ export type MarketIndicators = {
     sourceDate?: string | null;
   };
   fetchedAt?: string;
+  stale?: boolean;
+  lastAttemptAt?: string | null;
+  lastError?: string | null;
   asOf?: string;
   sourceOfTruth?: string;
   sources?: Record<string, string>;

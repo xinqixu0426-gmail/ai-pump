@@ -6,10 +6,10 @@ const {
     executeMarketIndicatorsSync,
 } = require('./marketIndicatorCommands.cjs');
 const {
-    fetchCopperPrice,
     fetchMarketSnapshot,
     MARKET_SOURCES,
 } = require('./marketData.cjs');
+const { createDailyMarketSnapshot } = require('./dailyMarketSnapshot.cjs');
 
 const PROCESS_RUN_ID = crypto.randomUUID();
 
@@ -44,6 +44,12 @@ function settingValue(getSetting, key) {
 }
 
 function createMarketSyncService(dependencies) {
+    const clock = dependencies.now || (() => new Date());
+    const dailySnapshot = createDailyMarketSnapshot({
+        ...dependencies,
+        dateKey: bjtDateKey,
+        fetchSnapshot: now => fetchMarketSnapshot(dependencies.fetchWithPolicy, now),
+    });
     const commandDependencies = {
         db: dependencies.db,
         safeUpdate: dependencies.safeUpdate,
@@ -51,25 +57,25 @@ function createMarketSyncService(dependencies) {
     };
 
     async function getCopperPrice() {
-        const price = await fetchCopperPrice(
-            dependencies.fetchWithPolicy
-        );
+        const state = dailySnapshot.requireSnapshot(clock());
+        const price = state.snapshot.copperPricePerTon;
         const coils = dependencies.dbGetAllCoils();
         return {
             livePrice: price,
             livePricePerKg: (price / 1000).toFixed(2),
             dbPrice: coils.length > 0 ? coils[0].copperBase : null,
             lastUpdate: coils[0]?.UpdatedAt || null,
-            sourceOfTruth: 'externalCopperMarket+coils.copper_base',
+            sourceOfTruth: 'dailyMarketSnapshot+coils.copper_base',
             source: MARKET_SOURCES.copper,
-            asOf: new Date().toISOString(),
+            asOf: state.snapshot.fetchedAt,
+            stale: state.stale,
+            lastError: state.lastError || null,
         };
     }
 
     async function getMarketIndicators() {
-        const snapshot = await fetchMarketSnapshot(
-            dependencies.fetchWithPolicy
-        );
+        const state = dailySnapshot.requireSnapshot(clock());
+        const snapshot = state.snapshot;
         const coils = dependencies.dbGetAllCoils();
         const dbCopperPrice =
             coils.length > 0 ? coils[0].copperBase : null;
@@ -110,8 +116,11 @@ function createMarketSyncService(dependencies) {
             fetchedAt: snapshot.fetchedAt,
             asOf: snapshot.fetchedAt,
             sourceOfTruth:
-                'externalMetalAndExchangeMarkets+coils+system_settings',
+                'dailyMarketSnapshot+coils+system_settings',
             sources: snapshot.sources,
+            stale: state.stale,
+            lastAttemptAt: state.startedAt || null,
+            lastError: state.lastError || null,
         };
     }
 
@@ -120,15 +129,8 @@ function createMarketSyncService(dependencies) {
         trigger = 'manual',
         now = new Date(),
     } = {}) {
-        const snapshot = {
-            copperPricePerTon: await fetchCopperPrice(
-                dependencies.fetchWithPolicy
-            ),
-            fetchedAt: new Date(now).toISOString(),
-            sources: {
-                copper: MARKET_SOURCES.copper,
-            },
-        };
+        await dailySnapshot.refresh(now);
+        const snapshot = dailySnapshot.requireSnapshot(now, true).snapshot;
         const context = commandContext || systemCommandContext(
             COPPER_SYNC_CAPABILITY_ID,
             trigger,
@@ -154,10 +156,8 @@ function createMarketSyncService(dependencies) {
         trigger = 'manual',
         now = new Date(),
     } = {}) {
-        const snapshot = await fetchMarketSnapshot(
-            dependencies.fetchWithPolicy,
-            now
-        );
+        await dailySnapshot.refresh(now);
+        const snapshot = dailySnapshot.requireSnapshot(now, true).snapshot;
         const context = commandContext || systemCommandContext(
             INDICATOR_SYNC_CAPABILITY_ID,
             trigger,

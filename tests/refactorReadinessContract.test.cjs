@@ -1684,7 +1684,7 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     const db = readUtf8('api/db.cjs');
     const docsReadme = readUtf8('docs/README.md');
 
-    assert.match(coilsView, /实时市场指标/);
+    assert.match(coilsView, /每日市场指标/);
     assert.match(coilsView, /同步市场指标/);
     assert.match(coilsView, /refreshMarketIndicators/);
     assert.match(coilsView, /syncMarketIndicators/);
@@ -1733,7 +1733,7 @@ test('Next UI 契约：线圈页移除材质默认单价并保留定子组合批
     for (const label of ['绕组技术参数', '主线线径', '主线数据', '副线线径', '副线数据']) {
         assert.match(coilsView, new RegExp(label));
     }
-    assert.match(docsReadme, /实时市场指标/);
+    assert.match(docsReadme, /每日市场指标/);
     assert.doesNotMatch(docsReadme, /材质默认单价配置/);
     assert.match(docsReadme, /组合批量改单价/);
 });

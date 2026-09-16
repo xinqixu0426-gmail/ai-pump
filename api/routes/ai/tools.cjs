@@ -56,7 +56,7 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_copper_price',
-            description: '获取实时铜价（元/吨、元/千克）',
+            description: '读取每日铜价快照（元/吨、元/千克），以 asOf 标明行情时间，stale=true 表示非今日行情，不冒充实时行情',
             parameters: { type: 'object', properties: {} }
         }
     },

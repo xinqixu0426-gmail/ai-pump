@@ -2,7 +2,7 @@ const { z } = require('zod');
 const { physicalSpecification } = require('./catalogPhysicalIdentity.cjs');
 const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const { RESOURCES, loadCatalogLiveContext, validBindingTarget } = require('./catalogLiveReferences.cjs');
-const { readCatalogSource, catalogSourceHash, readSnapshotPointer } = require('./catalogSources.cjs');
+const { readCatalogSource } = require('./catalogSources.cjs');
 const { auditCatalogReferences } = require('./catalogReferenceAudit.cjs');
 const { generateCatalogName } = require('./catalogNaming.cjs');
 const { requestHash, CommandExecutionError, executePersistentCommand } = require('./commandExecution.cjs');
@@ -106,7 +106,11 @@ function executeCatalogRename(dependencies, value, context, subject) {
             if (requestHash(fresh) !== requestHash(confirmation.input.inspected)) fail('CATALOG_RENAME_PREVIEW_STALE', '目录或引用在预览后变化，请重新预览');
             const descriptor = RESOURCES[fresh.entityType]; const now = new Date().toISOString(); const auditIds = []; const bindingIds = [];
             const insert = (table, fields) => { const write = safeInsert(table, fields, auditContext); auditIds.push(write.auditId); return Number(write.lastInsertRowid); };
-            const update = (table, id, fields) => { const write = safeUpdate(table, id, fields, auditContext); auditIds.push(write.auditId); };
+            const update = (table, id, fields) => {
+                const write = safeUpdate(table, id, fields, auditContext);
+                auditIds.push(write.auditId, ...(write.bindingAuditIds || []));
+                bindingIds.push(...(write.bindingIds || []));
+            };
             const oldProfile = db.prepare(`SELECT * FROM catalog_identity_profiles WHERE ${descriptor.profile} = ?`).get(fresh.entityId);
             const profileFields = { naming_state: 'structured', rule_id: fresh.generated.ruleId, rule_version: fresh.generated.ruleVersion,
                 spec_json: JSON.stringify({ naming: { ruleId: fresh.generated.ruleId, spec: fresh.generated.normalizedSpec }, physical: fresh.physical }),
@@ -129,20 +133,9 @@ function executeCatalogRename(dependencies, value, context, subject) {
             const previousSource = readCatalogSource(db, fresh.entityType, fresh.entityId);
             update(descriptor.table, fresh.entityId, { [descriptor.name]: fresh.currentName,
                 ...(fresh.entityType === 'part' ? { naming_json: JSON.stringify({ ruleId: fresh.generated.ruleId, ruleVersion: fresh.generated.ruleVersion, spec: fresh.generated.normalizedSpec }) } : {}) });
-            const nextSource = readCatalogSource(db, fresh.entityType, fresh.entityId);
-            const previousHash = catalogSourceHash(previousSource); const nextHash = catalogSourceHash(nextSource);
-            if (previousHash !== nextHash) {
-                const retained = db.prepare('SELECT * FROM catalog_reference_bindings WHERE source_type = ? AND source_id = ? AND source_hash = ? AND deleted_at IS NULL').all(fresh.entityType, fresh.entityId, previousHash);
-                for (const binding of retained) {
-                    const profile = db.prepare('SELECT * FROM catalog_identity_profiles WHERE id = ?').get(binding.target_profile_id);
-                    if (binding.source_version !== `sha256:${previousHash}` || !profile || profile.spec_revision !== binding.target_spec_revision) continue;
-                    const before = readSnapshotPointer(previousSource, binding.source_path); const after = readSnapshotPointer(nextSource, binding.source_path);
-                    if (!before.found || !after.found || JSON.stringify(before.value) !== JSON.stringify(after.value)) continue;
-                    update('catalog_reference_bindings', binding.id, { deleted_at: now });
-                    bindingIds.push(insert('catalog_reference_bindings', { source_type: binding.source_type, source_id: binding.source_id, source_path: binding.source_path,
-                        source_hash: nextHash, source_version: `sha256:${nextHash}`, target_profile_id: binding.target_profile_id, target_spec_revision: binding.target_spec_revision, created_at: now, updated_at: now }));
-                }
-            }
+            const retained = require('./catalogBindingContinuity.cjs').retainCatalogBindings(dependencies, fresh.entityType, previousSource, auditContext);
+            auditIds.push(...retained.auditIds);
+            bindingIds.push(...retained.bindingIds);
             return { data: { entityType: fresh.entityType, entityId: fresh.entityId, currentName: fresh.currentName, bindingIds },
                 resource: { type: fresh.entityType, ids: [fresh.entityId] }, changes: [{ resourceType: fresh.entityType, resourceId: fresh.entityId, field: 'name', from: fresh.previousName, to: fresh.currentName }],
                 auditIds, requiredAuditCount: auditIds.length };

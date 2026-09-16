@@ -328,7 +328,7 @@ High/Critical 命令必须先 Preview，再由服务端签发 `confirmationToken
 ## 9. 数据库和审计
 
 - 正式业务新增必须使用 `safeInsert()`。
-- 所有动态更新必须使用 `safeUpdate()`。
+- 所有动态更新必须使用 `safeUpdate()`。已有目录引用绑定的来源更新必须在同一事务内续接仍有效且引用对象未改变的绑定；不能以同名推断对象替换，续接失败必须回滚来源更新。
 - 删除使用 `softDelete()`；明确没有软删除字段时才使用 `hardDelete()`。
 - 禁止动态拼接表名、列名、SET 或 WHERE。
 - 跨资源操作必须由 service 持有事务，route 和 AI executor 不得自行拼装多次写入。
