@@ -25,6 +25,7 @@ const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
 const { createInternalFetch, getJson, postJson } = require('../routes/ai/internalApiClient.cjs');
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
+const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
 const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
@@ -218,6 +219,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             allTools,
             restoredCandidateCall
         );
+        // Reuse catalog relevance detection for evidence requirements across providers.
+        // The cloud tool directory and read permissions remain unchanged.
+        const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } }).length > 0;
         const allowed = new Set(tools.map(tool => tool.function.name));
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
@@ -264,13 +268,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             } else if (round === 0 && restoredCandidateCall) {
                 answer = { content: '', tool_calls: [restoredCandidateCall] };
             } else {
-                const requireLocalTool = offered.length && isLocalAssistantMode(runtimeEnv) && !toolResults.length;
+                const requireBusinessTool = offered.length && requiresBusinessQuery && !toolResults.length;
                 emit('status', {
                     status: 'generating',
                     message: toolResults.length ? '正在整理查询结果...' : '模型生成中...',
                 });
                 const providerStartedAt = Date.now();
-                const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && ((evidenceReminder && !toolResults.length) || requireLocalTool) ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: runtimeEnv, providerPreference: input.providerPreference, dbAccessors: input.dbAccessors, signal: input.signal });
+                const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && ((evidenceReminder && !toolResults.length) || requireBusinessTool) ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: runtimeEnv, providerPreference: input.providerPreference, dbAccessors: input.dbAccessors, signal: input.signal });
                 if (input.stream) {
                     const streamDirectReply = tools.length === 0 && offered.length === 0 && toolResults.length === 0;
                     const streamed = await readAiProviderStream(response, {
@@ -300,7 +304,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             const proposed = answer.tool_calls || [];
             if (!proposed.length) {
                 finalContent = String(answer.content || '');
-                if (useLocalToolShortlist && tools.length > 0 && toolResults.length === 0) {
+                if (requiresBusinessQuery && tools.length > 0 && toolResults.length === 0) {
                     if (!businessQueryRepair && round < MAX_TOOL_ROUNDS - 1) {
                         businessQueryRepair = true;
                         finalContent = '';

@@ -1107,3 +1107,52 @@ test('task presentation restores configured BOM conditions omitted by the model 
     }
     assert.match(result.finalContent, /配方基准「v550-tokoy」/);
 });
+
+test('cloud providers refresh current catalog and order facts instead of repeating historical prose', async () => {
+    for (const provider of ['deepseek', 'kimi']) {
+        for (const [question, tool, args] of [
+            ['仅查询零件ID 143的当前名称和库存', 'search_parts', { keyword: '新版零件' }],
+            ['查询V750配方当前名称', 'get_all_recipes', { keyword: 'V750' }],
+            ['查询最近订单当前状态', 'get_recent_orders', {}],
+        ]) {
+            const executed = [];
+            const result = await runAiAssistant({ ...input(question), messages: [
+                { role: 'user', content: question },
+                { role: 'assistant', content: '历史名称是旧版，库存7，状态待采购。' },
+                { role: 'user', content: question },
+            ], env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' }, providerPreference: provider }, fixture([
+                (messages, options) => {
+                    assert.equal(options.toolChoice, 'required');
+                    assert.equal(options.tools.length, assistantReadTools().length);
+                    return { content: '当前名称是旧版，库存7，状态待采购。' };
+                },
+                { tool_calls: [call(tool, args)] },
+                { content: '已按本轮正式结果查询：新版，库存9，状态采购完成。' },
+            ], { executeToolCall: async name => { executed.push(name); return verified({ name: '新版', stock: 9, status: '采购完成' }); } }));
+            assert.deepEqual(executed, [tool]);
+            assert.doesNotMatch(result.finalContent, /当前名称是旧版/);
+            assert.equal(result.toolResults.length, 1);
+        }
+    }
+});
+
+test('cloud skipped queries fail safely while greetings and proposed writes need no read', async () => {
+    for (const provider of ['deepseek', 'kimi']) {
+        const result = await runAiAssistant({ ...input('查询零件的当前名称和库存'), providerPreference: provider }, fixture([
+            { content: '当前仍是旧名称，库存7。' },
+            { content: '无需重新查询，库存7。' },
+        ]));
+        assert.equal(result.telemetry.outcome, 'failed_evidence');
+        assert.match(result.finalContent, /没有可验证/);
+        assert.doesNotMatch(result.finalContent, /库存7/);
+        const greeting = await runAiAssistant({ ...input('你好'), providerPreference: provider }, fixture([
+            (messages, options) => { assert.equal(options.toolChoice, undefined); return { content: '你好。' }; },
+        ]));
+        assert.equal(greeting.finalContent, '你好。');
+        const proposed = await runAiAssistant({ ...input('新增零件X，价格10元'), providerPreference: provider }, fixture([
+            (messages, options) => { assert.equal(options.toolChoice, undefined); return { content: '理解拟定价格10元，本次没有新增。' }; },
+        ]));
+        assert.equal(proposed.toolResults.length, 0);
+        assert.match(proposed.finalContent, /没有新增/);
+    }
+});
