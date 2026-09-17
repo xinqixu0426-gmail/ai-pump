@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { selectInputValueOnFocus } from '@/components/ui/field';
 import { moveActiveOptionIndex } from '@/components/recipe/editable-value-select-state';
@@ -42,6 +43,8 @@ export function EditableValueSelect({
   const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   const optionRefs = useRef<Array<HTMLDivElement | null>>([]);
   const normalizedOptions = useMemo(() => options.map((option) => (
     typeof option === 'string' ? { value: option, label: option } : option
@@ -70,7 +73,7 @@ export function EditableValueSelect({
   useEffect(() => {
     if (!open) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      if (!rootRef.current?.contains(event.target as Node) && !listboxRef.current?.contains(event.target as Node)) {
         setOpen(false);
         setActiveOptionIndex(-1);
       }
@@ -78,6 +81,27 @@ export function EditableValueSelect({
     document.addEventListener('mousedown', closeOnOutsideClick);
     return () => document.removeEventListener('mousedown', closeOnOutsideClick);
   }, [open]);
+
+  useEffect(() => {
+    if (!listboxOpen) { setPosition(null); return; }
+    const updatePosition = () => {
+      const rect = inputRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const below = window.innerHeight - rect.bottom - 12;
+      const above = rect.top - 12;
+      const upwards = below < Math.min(256, normalizedOptions.length * 32 + 8) && above > below;
+      const maxHeight = Math.max(0, Math.min(256, upwards ? above : below));
+      const width = Math.min(Math.max(144, rect.width), window.innerWidth - 16);
+      setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: upwards ? rect.top - 4 - Math.min(maxHeight, normalizedOptions.length * 32 + 8) : rect.bottom + 4, width, maxHeight });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [listboxOpen, normalizedOptions.length]);
 
   useEffect(() => {
     if (!listboxOpen || !activeOptionIsValid) return;
@@ -163,8 +187,8 @@ export function EditableValueSelect({
       >
         <ChevronDown size={15} />
       </button>
-      {listboxOpen ? (
-        <div id={listboxId} role="listbox" aria-label={`${ariaLabel}候选`} className="absolute z-30 mt-1 max-h-64 w-full min-w-36 overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
+      {listboxOpen && position ? createPortal(
+        <div ref={listboxRef} id={listboxId} role="listbox" aria-label={`${ariaLabel}候选`} style={position} className="fixed z-[160] overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
           {normalizedOptions.map((option, index) => (
             <div
               ref={(element) => {
@@ -177,12 +201,12 @@ export function EditableValueSelect({
               onMouseEnter={() => setActiveOptionIndex(index)}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectOption(index)}
-              className={`flex h-8 w-full cursor-pointer items-center px-3 text-left text-sm tabular-nums text-ink ${activeOptionIndex === index ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+              className={`flex min-h-8 w-full cursor-pointer items-center break-words px-3 py-1 text-left text-sm tabular-nums text-ink ${activeOptionIndex === index ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
             >
               {option.label}
             </div>
           ))}
-        </div>
+        </div>, document.body
       ) : null}
     </div>
   );
