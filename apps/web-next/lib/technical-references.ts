@@ -83,7 +83,10 @@ function addReference(refs: TechnicalReferenceField[], id: string, label: string
 
 export function findShellMetaForTemplate(template: PumpShellTemplate | null | undefined, parts: Part[]): PumpShellMeta | null {
   if (!template) return null;
-  const shellPart = findShellPartForTemplate(template.shellModel, parts);
+  // Bound identity is authoritative; template and part names can differ.
+  const shellPart = template.shellPartId
+    ? parts.find((part) => part.id === template.shellPartId && part.category === '泵壳')
+    : findShellPartForTemplate(template.shellModel, parts);
   if (!shellPart?.remark) return null;
   try {
     const parsed = JSON.parse(shellPart.remark);
