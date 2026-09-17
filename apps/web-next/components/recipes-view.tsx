@@ -1241,6 +1241,7 @@ export function RecipesView() {
     if (!Number.isInteger(templateId) || templateId <= 0) {
       updateForm({
         templateId: nextTemplateId,
+        ...(!editingRecipe ? { name: '' } : {}),
         variantId: '',
         customBarrelLength: '',
         longScrewExtraLength: '0',
@@ -1266,6 +1267,7 @@ export function RecipesView() {
       if (requestId !== templateDraftRequestRef.current) return;
       updateForm({
         templateId: String(recipeDraft.templateId),
+        ...(!editingRecipe ? { name: (nextTemplate?.shellModel || parts.find(part => part.id === nextTemplate?.shellPartId)?.model || '').replace(/^(?:模板|泵壳|水泵)[-－\s]*/, '') } : {}),
         variantId: '',
         ...(!nextHasStainlessBarrel ? { customBarrelLength: '', longScrewExtraLength: '0' } : {}),
         impellerModel: '',
@@ -1947,7 +1949,7 @@ export function RecipesView() {
         recipeId: editingRecipe?.id,
         expectedUpdatedAt: editingRecipe?.updatedAt,
         form: {
-          naming: form.naming,
+          naming: editingRecipe ? form.naming : { ruleId: 'recipe', spec: { displayName: form.name.trim() } },
           externalModel: form.externalModel,
           name: form.name,
           spec: form.spec,

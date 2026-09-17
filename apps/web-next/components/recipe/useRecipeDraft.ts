@@ -1,8 +1,8 @@
 'use client';
 
-import { previewCatalogName, type CatalogNamingInput } from '@/lib/catalog-naming';
+import { type CatalogNamingInput } from '@/lib/catalog-naming';
 
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useState, type Dispatch, type SetStateAction } from 'react';
 import type { RecipeSelectionRow } from '@/components/recipe/RecipeDataTable';
 import {
   parseRecipePartsJson,
@@ -210,25 +210,6 @@ export function useRecipeDraft(): UseRecipeDraftResult {
   const [form, setForm] = useState<RecipeFormState>(createEmptyRecipeForm);
   const [optionalParts, setOptionalParts] = useState<RecipeSelectionRow[]>([]);
   const [packingParts, setPackingParts] = useState<RecipeSelectionRow[]>([]);
-
-  const namingSpec: Record<string, string | number> = { ...(form.naming?.spec || {}), statorCode: form.coilSpec, sheets: Number(form.coilSheets || 0) };
-  delete namingSpec.barrelLengthMm;
-  if (form.customBarrelLength) namingSpec.barrelLengthMm = Number(form.customBarrelLength);
-  const namingSignature = form.naming ? JSON.stringify({ ruleId: 'recipe', spec: namingSpec }) : '';
-  useEffect(() => {
-    if (editingRecipe || !namingSignature) return;
-    let active = true;
-    const naming: CatalogNamingInput = JSON.parse(namingSignature);
-    setForm(current => current.name ? { ...current, name: '' } : current);
-    const timer = setTimeout(() => {
-      previewCatalogName(naming).then(name => {
-        if (active) setForm(current => ({ ...current, naming, name, namingError: undefined }));
-      }).catch(error => {
-        if (active) setForm(current => ({ ...current, name: '', namingError: error.message }));
-      });
-    }, 250);
-    return () => { active = false; clearTimeout(timer); };
-  }, [namingSignature, editingRecipe]);
 
   const updateForm = useCallback((patch: Partial<RecipeFormState>) => {
     setForm((current) => ({ ...current, ...patch }));

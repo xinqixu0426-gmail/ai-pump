@@ -691,7 +691,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     }),
     'catalog.naming_rules': defineQueryCapability({
         capabilityId: 'catalog.naming_rules', domain: 'catalog',
-        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 4, recipe barrel length optional, cable/float cross-section mm², bearing catalog shorthand',
+        inputSchema: 'GET /api/catalog/naming-rules', outputSchema: 'CatalogNamingRulesV1; ruleset version 5, recipe displayName or legacy series/configuration without pump prefix, barrel length optional, cable/float cross-section mm², bearing catalog shorthand',
         sourceOfTruth: 'server_catalog_naming_rules', riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
     'catalog.name_preview': definePreviewCapability({

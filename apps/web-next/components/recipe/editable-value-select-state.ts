@@ -1,3 +1,12 @@
+export function filterEditableOptions<T extends { value: string; label: string }>(options: T[], query: string): T[] {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return options;
+  return options.filter(option => {
+    const text = `${option.value} ${option.label}`.toLocaleLowerCase();
+    return terms.every(term => text.includes(term));
+  });
+}
+
 export function moveActiveOptionIndex({
   currentIndex,
   optionCount,

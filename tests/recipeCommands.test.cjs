@@ -319,11 +319,11 @@ test('配方创建绑定预览、持久幂等和强审计并保持完整资源�
         const first = executeRecipeCreate(fixture.dependencies, draft, context);
         const replay = executeRecipeCreate(fixture.dependencies, draft, context);
 
-        assert.equal(first.recipe.name, '水泵-V750-12-140片-普通');
+        assert.equal(first.recipe.name, 'V750-12-140片-普通');
         assert.equal(first.recipe.spec, 'V1');
         assert.deepEqual(
             fixture.db.prepare('SELECT name, spec FROM recipes WHERE id = ?').get(first.recipe.id),
-            { name: '水泵-V750-12-140片-普通', spec: 'V1' }
+            { name: 'V750-12-140片-普通', spec: 'V1' }
         );
         assert.equal(first.recipe.savedTotalCost, 7);
         assert.equal(first.recipe.coilWireWeight, 0.45);
@@ -525,7 +525,7 @@ test('配方更新版本冲突时不写业务表、审计或 operation', () => {
         assert.equal(
             fixture.db.prepare('SELECT name FROM recipes WHERE id = ?')
                 .get(created.recipe.id).name,
-            '水泵-V750-12-140片-普通'
+            'V750-12-140片-普通'
         );
         assert.equal(
             fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count,

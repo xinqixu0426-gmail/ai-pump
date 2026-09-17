@@ -43,33 +43,20 @@ export function RecipeEditor({
 }: RecipeEditorProps) {
   const [activeSectionId, setActiveSectionId] = useState('');
   const wasOpenRef = useRef(false);
-  const previousDoneRef = useRef(new Map<string, boolean>());
 
   useEffect(() => {
-    const currentDone = new Map(steps.map((step) => [step.id, step.done]));
     if (!open) {
       wasOpenRef.current = false;
-      previousDoneRef.current = currentDone;
       return;
     }
     if (!wasOpenRef.current) {
       wasOpenRef.current = true;
       setActiveSectionId(steps.find((step) => !step.done)?.id || steps[0]?.id || '');
-      previousDoneRef.current = currentDone;
       return;
     }
 
-    const currentIndex = steps.findIndex((step) => step.id === activeSectionId);
-    const currentStep = steps[currentIndex];
-    const justCompleted = currentStep?.done === true
-      && previousDoneRef.current.get(activeSectionId) === false;
-    if (justCompleted) {
-      const nextStep = steps.slice(currentIndex + 1).find((step) => !step.done)
-        || steps.find((step) => !step.done);
-      if (nextStep) setActiveSectionId(nextStep.id);
-    }
-    previousDoneRef.current = currentDone;
-  }, [activeSectionId, open, steps]);
+    // Completion updates badges only; ongoing input must not change sections.
+  }, [open, steps]);
 
   function openStep(sectionId: string) {
     setActiveSectionId(sectionId);

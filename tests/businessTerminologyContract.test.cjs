@@ -56,7 +56,8 @@ test('业务命名契约：配方、预设、成本和报价使用统一界面�
 
     assert.match(recipeBasic, /成品型号/);
     assert.match(recipeBasic, /配置摘要/);
-    assert.doesNotMatch(recipeBasic, />配方名称<|>规格</);
+    assert.match(recipeBasic, />配方名称</);
+    assert.doesNotMatch(recipeBasic, />规格</);
     assert.match(variantPanel, /常用配置预设/);
     assert.match(variantPanel, /预设名称/);
     assert.doesNotMatch(variantPanel, />Variant</);

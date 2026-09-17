@@ -1,6 +1,7 @@
 const { requestHash, CommandExecutionError } = require('./commandExecution.cjs');
 function physicalSpecification(type, row, naming) {
     const spec = { ...naming.spec }; delete spec.variant;
+    delete spec.displayName;
     // Capture all persisted engineering/configuration fields, excluding prices,
     // stock, timestamps, labels and naming metadata. No claim that naming alone proves identity.
     const excluded = new Set(['id', 'model', 'name', 'shell_model', 'scheme_name', 'model_name', 'spec', 'description', 'note', 'remark',

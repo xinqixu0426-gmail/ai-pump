@@ -38,7 +38,7 @@ test('缺少机筒长度的配方可规范名称，首次对外型号保存后�
   const original = db.prepare('SELECT * FROM recipes WHERE id=1').get();
   apply(preview(input()));
   let row = hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id=1').get());
-  assert.equal(row.name, '水泵-V750-12-140片-普通'); assert.equal(row.external_model, '配方');
+  assert.equal(row.name, 'V750-12-140片-普通'); assert.equal(row.external_model, '配方');
   assert.equal(row.parts_json, original.parts_json);
   apply(preview(input()));
   row = hydrateCatalogRow(db, 'recipe', db.prepare('SELECT * FROM recipes WHERE id=1').get());

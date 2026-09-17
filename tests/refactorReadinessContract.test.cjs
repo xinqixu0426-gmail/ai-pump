@@ -1376,7 +1376,9 @@ test('Next UI 契约：配方编辑必须按泵壳、线圈和选配顺序分区
     assert.match(recipeBasicSection, /1\. 泵壳与产品/);
     assert.match(recipeBasicSection, /成品型号/);
     assert.match(recipeBasicSection, /配置摘要/);
-    assert.doesNotMatch(recipeBasicSection, /配方名称/);
+    assert.match(recipeBasicSection, /配方名称/);
+    assert.match(recipeBasicSection, /onChange=\{event => onChange\(\{ name: event\.target\.value \}\)\}/);
+    assert.ok(recipeBasicSection.indexOf('先选择模板') < recipeBasicSection.indexOf('配方名称'));
     assert.match(recipeBasicSection, /泵壳模板/);
     assert.match(recipeCoilSection, /2\. 线圈转子/);
     assert.match(recipeDynamicConfigSection, /3\. 浮球与电缆/);
@@ -2799,7 +2801,8 @@ test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖
     const optionalPackingSection = readUtf8('apps/web-next/components/recipe/RecipeOptionalPackingSection.tsx');
     const inlinePartDialog = readUtf8('apps/web-next/components/recipe/InlinePartCreateDialog.tsx');
 
-    assert.match(editableValueSelect, /onKeyUp=\{\(event\) => \{[\s\S]*event\.key === 'Backspace' \|\| event\.key === 'Delete'/);
+    assert.match(editableValueSelect, /setSearchQuery\(event\.target\.value\)/);
+    assert.doesNotMatch(editableValueSelect, /onKeyUp=/);
     assert.match(editableValueSelect, /event\.key === 'ArrowDown' \|\| event\.key === 'ArrowUp'/);
     assert.match(editableValueSelect, /event\.key === 'Enter' && listboxOpen && activeOptionIsValid/);
     assert.match(editableValueSelect, /if \(listboxOpen\) \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);/);
@@ -2825,7 +2828,7 @@ test('Next UI 契约：模板与配方候选输入可连续删除且不再依赖
     assert.match(shellCostEditor, /shell-component-model-options-/);
 });
 
-test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中补齐零件', () => {
+test('Next UI 契约：配方五步流保持录入分区、支持手动状态跳转和集中补齐零件', () => {
     const recipesView = readUtf8('apps/web-next/components/recipes-view.tsx');
     const recipeEditor = readUtf8('apps/web-next/components/recipe/RecipeEditor.tsx');
     const recipeSection = readUtf8('apps/web-next/components/recipe/RecipeSection.tsx');
@@ -2851,7 +2854,9 @@ test('Next UI 契约：配方五步流支持自动前进、状态跳转和集中
     assert.match(recipeSection, /RecipeSectionFlowProvider/);
     assert.match(recipeSection, /useRecipeSectionFlow/);
     assert.match(recipeEditor, /steps\.find\(\(step\) => !step\.done\)/);
-    assert.match(recipeEditor, /justCompleted/);
+    assert.doesNotMatch(recipeEditor, /justCompleted|previousDoneRef|setActiveSectionId\(nextStep/);
+    assert.match(recipeEditor, /if \(!wasOpenRef\.current\)/);
+    assert.match(recipeEditor, /setActiveSectionId\(sectionId\)/);
     assert.match(recipeEditor, /scrollIntoView/);
     assert.match(costSummary, /sectionFlow\?\.onActiveSectionChange\(step\.id\)/);
 

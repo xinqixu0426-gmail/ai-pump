@@ -35,7 +35,7 @@ test('三类新建统一生成规范名称、身份档案和强审计；模板�
     const variant = executeModelVariantCreate(deps, { naming: { ruleId: 'model-variant', spec: { series: 'V750', configuration: '普通' } }, modelName: '任意名称', templateId: template.template.id }, context('variant'));
     assert.equal(variant.variant.modelName, '配置-V750-普通');
     const recipe = executeRecipeCreate(deps, { naming: { ruleId: 'recipe', spec: { series: 'V750', configuration: '普通' } }, name: '原厂750', externalModel: '原厂-QDX750', coilSpec: '12', coilSheets: 140, coilId, customBarrelLength: 180, partsJson: JSON.stringify([{ partId, model: '普通配件', supplier: '甲', qty: 1, snapshotPrice: 5 }]) }, { ...context('recipe'), capabilityId: 'recipes.create' });
-    assert.equal(recipe.recipe.name, '水泵-V750-12-140片-筒180mm-普通');
+    assert.equal(recipe.recipe.name, 'V750-12-140片-筒180mm-普通');
     assert.equal(recipe.recipe.externalModel, '原厂-QDX750');
     assert.equal(deps.db.prepare("SELECT COUNT(*) n FROM catalog_identity_profiles WHERE naming_state='structured'").get().n, 3);
     assert.throws(() => executeTemplateUpdate(deps, template.template.id, { shellModel: '绕过改名', expectedUpdatedAt: template.template.updatedAt }, context('rename-bypass')), error => error.code === 'CATALOG_RENAME_COMMAND_REQUIRED');
@@ -57,6 +57,16 @@ test('缺命名、错误规则、虚构机筒规格与身份档案写入失败�
         assert.throws(() => executeTemplateCreate(brokenDeps, { ...templateInput, naming: { ruleId: 'template', spec: { series: 'V750', configuration: `缺审计${table}` } } }, context(`audit:${table}`)), error => error.code === 'command_audit_required');
         assert.deepEqual(counts(), before);
     }
+});
+
+test('配方可保存模板带入后编辑的短名称，保存参数仍固化在命名身份档案', () => {
+    const result = executeRecipeCreate(deps, { naming: { ruleId: 'recipe', spec: { displayName: 'V750-马来西亚' } }, name: 'V750-马来西亚', coilSpec: '12', coilSheets: 140, coilId, customBarrelLength: 180, partsJson: JSON.stringify([{ partId, model: '普通配件', supplier: '甲', qty: 1, snapshotPrice: 5 }]) }, { ...context('recipe-short-name'), capabilityId: 'recipes.create' });
+    assert.equal(result.recipe.name, 'V750-马来西亚');
+    const profile = deps.db.prepare('SELECT spec_json FROM catalog_identity_profiles WHERE recipe_id = ?').get(result.recipe.id);
+    const spec = JSON.parse(profile.spec_json).naming.spec;
+    assert.equal(spec.statorCode, '12');
+    assert.equal(spec.sheets, 140);
+    assert.equal(spec.barrelLengthMm, 180);
 });
 
 test('默认轴承按具体ID存储，歧义/停用/类别及型号冲突拒绝', () => {

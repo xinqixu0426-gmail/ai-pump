@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 import { selectInputValueOnFocus } from '@/components/ui/field';
-import { moveActiveOptionIndex } from '@/components/recipe/editable-value-select-state';
+import { filterEditableOptions, moveActiveOptionIndex } from '@/components/recipe/editable-value-select-state';
 
 type EditableValueSelectProps = {
   value: string;
@@ -40,25 +40,31 @@ export function EditableValueSelect({
   selectOnFirstFocus = false,
 }: EditableValueSelectProps) {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [draftValue, setDraftValue] = useState<string | null>(null);
   const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   const optionRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const normalizedOptions = useMemo(() => options.map((option) => (
+  const allOptions = useMemo(() => options.map((option) => (
     typeof option === 'string' ? { value: option, label: option } : option
   )), [options]);
-  const listboxOpen = open && !disabled && normalizedOptions.length > 0;
+  const normalizedOptions = useMemo(() => filterEditableOptions(allOptions, searchQuery), [allOptions, searchQuery]);
+  const listboxOpen = open && !disabled && allOptions.length > 0;
   const activeOptionIsValid = activeOptionIndex >= 0 && activeOptionIndex < normalizedOptions.length;
 
   function closeListbox() {
     setOpen(false);
+    setSearchQuery('');
+    setDraftValue(null);
     setActiveOptionIndex(-1);
   }
 
   function openListbox() {
-    if (disabled || normalizedOptions.length === 0) return;
+    if (disabled || allOptions.length === 0) return;
+    if (!open) setSearchQuery('');
     setOpen(true);
     setActiveOptionIndex(-1);
   }
@@ -74,13 +80,16 @@ export function EditableValueSelect({
     if (!open) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (!rootRef.current?.contains(event.target as Node) && !listboxRef.current?.contains(event.target as Node)) {
+        if (draftValue !== null) onChange(draftValue);
         setOpen(false);
+        setSearchQuery('');
+        setDraftValue(null);
         setActiveOptionIndex(-1);
       }
     };
     document.addEventListener('mousedown', closeOnOutsideClick);
     return () => document.removeEventListener('mousedown', closeOnOutsideClick);
-  }, [open]);
+  }, [open, draftValue, onChange]);
 
   useEffect(() => {
     if (!listboxOpen) { setPosition(null); return; }
@@ -89,10 +98,11 @@ export function EditableValueSelect({
       if (!rect) return;
       const below = window.innerHeight - rect.bottom - 12;
       const above = rect.top - 12;
-      const upwards = below < Math.min(256, normalizedOptions.length * 32 + 8) && above > below;
+      const desiredHeight = Math.min(256, Math.max(1, normalizedOptions.length) * 32 + 8);
+      const upwards = below < desiredHeight && above > below;
       const maxHeight = Math.max(0, Math.min(256, upwards ? above : below));
       const width = Math.min(Math.max(144, rect.width), window.innerWidth - 16);
-      setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: upwards ? rect.top - 4 - Math.min(maxHeight, normalizedOptions.length * 32 + 8) : rect.bottom + 4, width, maxHeight });
+      setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: upwards ? rect.top - 4 - Math.min(maxHeight, desiredHeight) : rect.bottom + 4, width, maxHeight });
     };
     updatePosition();
     window.addEventListener('resize', updatePosition);
@@ -113,18 +123,27 @@ export function EditableValueSelect({
       ref={rootRef}
       className={rootClassName}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeListbox();
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (draftValue !== null) onChange(draftValue);
+          closeListbox();
+        }
       }}
     >
       <input
         ref={inputRef}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={draftValue ?? value}
+        onChange={(event) => {
+          setSearchQuery(event.target.value);
+          setActiveOptionIndex(-1);
+          setOpen(true);
+          if (inputType === 'number') onChange(event.target.value);
+          else setDraftValue(event.target.value);
+        }}
         onFocus={(event) => {
           if (selectOnFirstFocus) selectInputValueOnFocus(event);
           openListbox();
         }}
-        onClick={openListbox}
+        onClick={() => { if (!open) { setSearchQuery(''); openListbox(); } }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             if (listboxOpen) {
@@ -152,10 +171,11 @@ export function EditableValueSelect({
           if (event.key === 'Enter' && listboxOpen && activeOptionIsValid) {
             event.preventDefault();
             selectOption(activeOptionIndex);
+          } else if (event.key === 'Enter' && draftValue !== null) {
+            event.preventDefault();
+            onChange(draftValue);
+            closeListbox();
           }
-        }}
-        onKeyUp={(event) => {
-          if (event.key === 'Backspace' || event.key === 'Delete') closeListbox();
         }}
         type={inputType}
         inputMode={inputMode}
@@ -189,6 +209,7 @@ export function EditableValueSelect({
       </button>
       {listboxOpen && position ? createPortal(
         <div ref={listboxRef} id={listboxId} role="listbox" aria-label={`${ariaLabel}候选`} style={position} className="fixed z-[160] overflow-y-auto rounded-md border border-line bg-white py-1 shadow-panel">
+          {normalizedOptions.length === 0 ? <div role="status" className="px-3 py-2 text-xs text-muted">未找到匹配项，可继续输入自定义型号</div> : null}
           {normalizedOptions.map((option, index) => (
             <div
               ref={(element) => {

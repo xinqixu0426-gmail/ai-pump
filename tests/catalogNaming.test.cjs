@@ -7,6 +7,7 @@ test('所有类别规则可以通过相同结构化规格入口生成名称，�
         const spec = Object.fromEntries(rule.fields.filter(field => !field.optional).map(field => [field.key,
             field.type === 'choice' ? field.values[0] : field.type === 'number' ? field.key === 'outerDiameterMm' ? 28 : 12 : '样例规格',
         ]));
+        if (rule.id === 'recipe') spec.displayName = '样例配方';
         const result = generateCatalogName({ ruleId: rule.id, spec });
         const reversed = generateCatalogName({ ruleId: rule.id, spec: Object.fromEntries(Object.entries(spec).reverse()) });
         assert.deepEqual(result, reversed);
@@ -66,8 +67,16 @@ test('电缆只能使用横截面积，浮球保留独立的规格含义', () =>
 test('配方机筒长度只在明确提供时写入，缺失不猜测，非法值不当作省略', () => {
     const spec = { series: 'V750', statorCode: '12', sheets: 140, configuration: '普通' };
     const result = generateCatalogName({ ruleId: 'recipe', spec });
-    assert.equal(result.name, '水泵-V750-12-140片-普通');
-    assert.equal(result.ruleVersion, 2);
-    assert.equal(generateCatalogName({ ruleId: 'recipe', spec: { ...spec, barrelLengthMm: 175 } }).name, '水泵-V750-12-140片-筒175mm-普通');
+    assert.equal(result.name, 'V750-12-140片-普通');
+    assert.equal(result.ruleVersion, 3);
+    assert.equal(generateCatalogName({ ruleId: 'recipe', spec: { ...spec, barrelLengthMm: 175 } }).name, 'V750-12-140片-筒175mm-普通');
     for (const value of [0, -1, null, '', '175', Infinity]) assert.throws(() => generateCatalogName({ ruleId: 'recipe', spec: { ...spec, barrelLengthMm: value } }), { code: 'NAMING_SPEC_INVALID' });
+});
+
+test('配方支持可编辑短名称，不拼接前缀或工程参数，非法名称拒绝', () => {
+    const base = { statorCode: '12', sheets: 140 };
+    assert.equal(generateCatalogName({ ruleId: 'recipe', spec: { ...base, displayName: '  V750-马来西亚  ' } }).name, 'V750-马来西亚');
+    for (const displayName of ['', ' ', 'a'.repeat(181), '坏\u0000名称']) {
+        assert.throws(() => generateCatalogName({ ruleId: 'recipe', spec: { ...base, displayName } }), { code: 'NAMING_SPEC_INVALID' });
+    }
 });

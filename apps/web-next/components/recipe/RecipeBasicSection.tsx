@@ -1,6 +1,5 @@
 'use client';
 
-import { CatalogCreateNaming } from '@/components/catalog-create-naming';
 import type { CatalogNamingInput } from '@/lib/catalog-naming';
 import { ChevronDown, CircleHelp } from 'lucide-react';
 import { TemplateMatchSummary } from '@/components/recipe/TemplateMatchSummary';
@@ -76,16 +75,24 @@ export function RecipeBasicSection({
       badgeTone={complete ? 'green' : 'amber'}
     >
       <div className="space-y-3">
-        {creating ? <CatalogCreateNaming ruleId="recipe" naming={form.naming} name={form.name} previewEnabled={false} previewError={form.namingError} lockedSpec={{ statorCode: form.coilSpec || '', sheets: Number(form.coilSheets || 0), barrelLengthMm: form.customBarrelLength ? Number(form.customBarrelLength) : undefined }} onChange={(naming, name) => onChange({ naming, name })} /> : null}
+        <label className="block min-w-0">
+          <span className="text-xs font-medium text-muted">泵壳模板</span>
+          <select value={form.templateId} onChange={(event) => void onTemplateChange(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-slate-400">
+            <option value="">先选择模板</option>
+            {templates.map(template => <option key={template.id} value={String(template.id)}>{template.shellModel}</option>)}
+          </select>
+        </label>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block md:col-span-2">
-            <span className="text-xs font-medium text-muted">系统名称</span>
+            <span className="text-xs font-medium text-muted">配方名称</span>
             <input
               value={form.name}
-              readOnly
-              aria-label="系统生成的成品名称"
+              readOnly={!creating}
+              disabled={creating && !form.templateId}
+              onChange={event => onChange({ name: event.target.value })}
+              aria-label="配方名称"
               className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-              placeholder="例如：1500W 不锈钢泵"
+              placeholder="选择模板后自动带入，可修改"
             />
           </label>
 
@@ -98,22 +105,6 @@ export function RecipeBasicSection({
               className="mt-1 h-9 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
               placeholder="可选，用于补充关键配置"
             />
-          </label>
-        </div>
-
-        <div>
-          <label className="block min-w-0">
-            <span className="text-xs font-medium text-muted">泵壳模板</span>
-            <select
-              value={form.templateId}
-              onChange={(event) => void onTemplateChange(event.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
-            >
-              <option value="">选择模板</option>
-              {templates.map((template) => (
-                <option key={template.id} value={String(template.id)}>{template.shellModel}</option>
-              ))}
-            </select>
           </label>
         </div>
 

@@ -5,7 +5,7 @@ const { requireBusinessCapability } = require('../capabilities/registry.cjs');
 const RULES_CAPABILITY_ID = requireBusinessCapability('catalog.naming_rules').capabilityId;
 const PREVIEW_CAPABILITY_ID = requireBusinessCapability('catalog.name_preview').capabilityId;
 const RULE_VERSION = 1;
-const RULESET_VERSION = 4;
+const RULESET_VERSION = 5;
 // All supported part categories share the formal server generator.
 const PART_CREATE_NAMING_RULES = new Set(['bearing', 'capacitor', 'screw', 'seal', 'shell', 'shell-component', 'float', 'cable', 'gasket', 'accessory', 'packaging', 'custom-part']);
 const text = (key, label, optional = false, uppercase = false) => ({ key, label, type: 'text', optional, uppercase, maxLength: 64 });
@@ -32,7 +32,7 @@ const DEFINITIONS = [
     })),
     { id: 'coil', entityType: 'coil', fields: [text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), choice('material', '材质', ['钢带', '冷轧']), choice('slotType', '槽眼', ['小眼', '国标眼']), text('scheme', '方案区别')], nameParts: ['线圈', field('statorCode'), field('sheets', '片'), field('material'), field('slotType'), field('scheme')] },
     { id: 'template', entityType: 'template', fields: [text('series', '系列', false, true), text('configuration', '结构或套件规格'), variant], nameParts: ['模板', field('series'), field('configuration'), field('variant')] },
-    { id: 'recipe', version: 2, entityType: 'recipe', fields: [text('series', '系列', false, true), text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), { ...number('barrelLengthMm', '机筒长度', 'mm'), optional: true }, text('configuration', '配置区别')], nameParts: ['水泵', field('series'), field('statorCode'), field('sheets', '片'), { ...field('barrelLengthMm', 'mm'), prefix: '筒' }, field('configuration')] },
+    { id: 'recipe', version: 3, entityType: 'recipe', fields: [{ ...text('displayName', '配方名称', true), maxLength: 180 }, text('series', '系列', true, true), text('statorCode', '定子组合代号', false, true), number('sheets', '片数', '片', true), { ...number('barrelLengthMm', '机筒长度', 'mm'), optional: true }, text('configuration', '配置区别', true)], nameParts: [field('series'), field('statorCode'), field('sheets', '片'), { ...field('barrelLengthMm', 'mm'), prefix: '筒' }, field('configuration')] },
     { id: 'model-variant', entityType: 'modelVariant', fields: [text('series', '系列', false, true), text('configuration', '配置区别')], nameParts: ['配置', field('series'), field('configuration')] },
 ].map(definition => ({ entityType: 'part', category: null, version: RULE_VERSION, ...definition }));
 
@@ -80,6 +80,9 @@ function generateCatalogName(input) {
     const parsed = rule.schema.safeParse(request.data.spec);
     if (!parsed.success) throw namingError('NAMING_SPEC_INVALID', '请补齐并检查命名规格', parsed.error.issues);
     const spec = Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value !== undefined));
+    if (rule.definition.id === 'recipe' && !spec.displayName && (!spec.series || !spec.configuration)) {
+        throw namingError('NAMING_SPEC_INVALID', '请填写配方名称，或填写系列和配置区别');
+    }
     if (rule.definition.id === 'bearing' && /^6[0-9]{3}(?:ZZ|2RS|RS|Z)?$/.test(spec.code)) spec.code = spec.code.slice(1);
     if (spec.wireMeasure && (spec.wireMeasure === '直径' ? spec.wireUnit !== 'mm' : spec.wireUnit !== 'mm²')) {
         throw namingError('NAMING_WIRE_UNIT_MISMATCH', '直径使用 mm，截面积使用 mm²；不能自动换算旧线径');
@@ -87,7 +90,7 @@ function generateCatalogName(input) {
     if (spec.innerDiameterMm != null && spec.outerDiameterMm <= spec.innerDiameterMm) {
         throw namingError('NAMING_DIMENSIONS_INVALID', '外径必须大于内径');
     }
-    const name = rule.definition.nameParts.map(part => {
+    const name = rule.definition.id === 'recipe' && spec.displayName ? spec.displayName : rule.definition.nameParts.map(part => {
         if (typeof part === 'string') return part;
         const values = part.fields.map(key => spec[key]).filter(value => value != null);
         return values.length ? `${part.prefix || ''}${values.join(part.separator ?? '')}${part.suffix || ''}` : '';
