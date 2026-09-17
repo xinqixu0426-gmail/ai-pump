@@ -340,6 +340,20 @@ export function RecipesView() {
   const [recipeAnalysisLoading, setRecipeAnalysisLoading] = useState(false);
   const [analysisSaveGateOpen, setAnalysisSaveGateOpen] = useState(false);
   const [templateMatchDialogOpen, setTemplateMatchDialogOpen] = useState(false);
+  const [missingCostWarning, setMissingCostWarning] = useState<string | null>(null);
+  const shownMissingCostWarnings = useRef(new Set<string>());
+  const missingCostError = [bomDraftError, formError].find(message => message && /零件.*不存在|未匹配到正式零件/.test(message)) || null;
+  useEffect(() => {
+    if (!drawerOpen) {
+      shownMissingCostWarnings.current.clear();
+      setMissingCostWarning(null);
+      return;
+    }
+    if (missingCostError && !shownMissingCostWarnings.current.has(missingCostError)) {
+      shownMissingCostWarnings.current.add(missingCostError);
+      setMissingCostWarning(missingCostError);
+    }
+  }, [drawerOpen, missingCostError]);
   const [bomDetailsOpen, setBomDetailsOpen] = useState(false);
   const [variantEditorTarget, setVariantEditorTarget] = useState<ModelVariantEditorTarget>(null);
   const [coilSpecs, setCoilSpecs] = useState<CoilSpecOption[]>([]);
@@ -2476,6 +2490,17 @@ export function RecipesView() {
         getSubtotal={recipePartSubtotal}
         getSourceLabel={partCostSourceLabel}
         getFormula={partFormulaLine}
+      />
+
+      <ConfirmDialog
+        open={Boolean(missingCostWarning)}
+        title="缺少零件，成本尚未完整计算"
+        description={`${missingCostWarning || ''}。请先选择零件库中已有的规格，或到零件库补建对应规格后刷新。`}
+        confirmLabel="知道了"
+        cancelLabel="关闭提示"
+        onConfirm={() => setMissingCostWarning(null)}
+        onClose={() => setMissingCostWarning(null)}
+        layer="top"
       />
 
       <CatalogRenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} onSaved={async () => { await load(true); setDrawerOpen(false); setTemplateDrawerOpen(false); }} />
