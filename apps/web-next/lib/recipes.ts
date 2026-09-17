@@ -10,6 +10,9 @@ function createIdempotencyKey(prefix: string): string {
 }
 
 export type RecipePart = {
+  material?: string;
+  slotType?: string;
+  wireWeight?: number | null;
   partId?: number;
   coilId?: number;
   costRole?: string;

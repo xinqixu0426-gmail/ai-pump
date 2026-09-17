@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
-import { CircleAlert, RefreshCw, X } from 'lucide-react';
+import { Fragment, useMemo } from 'react';
+import { CircleAlert, Printer, RefreshCw, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { RecipePrintSheet } from './RecipePrintSheet';
 import { SlideOver } from '@/components/motion/slide-over';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { money } from '@/lib/format';
@@ -16,6 +18,7 @@ import {
   type RecipeInventoryStatusResult,
 } from '@/lib/recipes';
 import { getTechnicalDataEntries, parseTechnicalDataJson } from '@/lib/technical-data';
+import { groupBomRows, recipeFeeRows, recipePartModel } from './recipe-detail-presentation';
 
 type RecipeDetailPanelProps = {
   recipe: Recipe | null;
@@ -96,6 +99,8 @@ export function RecipeDetailPanel({
       };
     });
   }, [currentCost, parts]);
+  const bomGroups = useMemo(() => groupBomRows(partCompareRows), [partCompareRows]);
+  const fees = useMemo(() => recipe ? recipeFeeRows(recipe) : [], [recipe]);
 
   const savedTotal = recipe ? getRecipeSavedTotal(recipe) : null;
   const currentCostComplete = currentSummary?.costComplete !== false;
@@ -146,6 +151,8 @@ export function RecipeDetailPanel({
               {recipe.externalModel ? <div className="mt-1 break-words text-sm text-muted">对外型号：{recipe.externalModel}</div> : null}
               <div className="mt-1 text-sm text-muted">{recipe.spec || '无规格'}</div>
             </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => window.print()}><Printer size={16} />打印配方</Button>
             <button
               type="button"
               aria-label="关闭"
@@ -154,6 +161,7 @@ export function RecipeDetailPanel({
             >
               <X size={16} />
             </button>
+            </div>
           </div>
 
           <div className="flex-1 space-y-5 p-5">
@@ -205,33 +213,6 @@ export function RecipeDetailPanel({
               </div>
             ) : null}
 
-            <section className="rounded-panel border border-line">
-              <div className="border-b border-line p-4 text-sm font-semibold text-ink">关键参数</div>
-              <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
-                <div className="text-muted">线圈：<span className="text-ink">{[recipe.coilSpec, recipe.coilSheets ? `${recipe.coilSheets}片` : '', recipe.coilMaterial, recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-'}</span></div>
-                <div className="text-muted">
-                  机筒长度：<span className={barrelLength.value ? 'text-ink' : 'text-amber-700'}>
-                    {barrelLength.value ? `${barrelLength.value} mm` : '未记录，请在编辑配方中补录'}
-                  </span>
-                  {barrelLength.source === 'bom' ? <span className="ml-1 text-xs text-muted">（来自 BOM 快照）</span> : null}
-                </div>
-                <div className="text-muted">叶轮：<span className="text-ink">{[recipe.impellerModel, recipe.impellerThickness ? `${recipe.impellerThickness}厚` : '', recipe.impellerDiameter ? `直径${recipe.impellerDiameter}` : '', recipe.impellerBladeCount ? `${recipe.impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
-                <div className="text-muted">动态配置：<span className="text-ink">{[recipe.hasFloat ? `浮球 ${recipe.floatWire || '-'}` : '', recipe.hasCable ? `电缆 ${recipe.cableWire || '-'} ${recipe.cableLength || 0}m` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
-              </div>
-            </section>
-
-            {technicalEntries.length > 0 ? (
-              <section className="rounded-panel border border-line">
-                <div className="border-b border-line p-4 text-sm font-semibold text-ink">技术参数</div>
-                <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
-                  {technicalEntries.map((entry) => (
-                    <div key={entry.id} className="text-muted">
-                      {entry.label || '参数'}：<span className="text-ink">{entry.value || '-'}</span>{entry.unit ? ` ${entry.unit}` : ''}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
             <section className="rounded-panel border border-line">
               <div className="flex items-center justify-between gap-3 border-b border-line p-4">
@@ -260,9 +241,9 @@ export function RecipeDetailPanel({
                       <div className="mt-1 font-semibold text-ink">{signedMoney(bomSummary.difference)}</div>
                     </div>
                   </div>
-                  <div className="max-h-80 overflow-auto">
-                    <table className="min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
-                    <thead className="sticky top-0 bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left text-sm">
+                    <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
                       <tr>
                         <th className="border-b border-line px-4 py-3">名称</th>
                         <th className="border-b border-line px-4 py-3">型号</th>
@@ -277,12 +258,19 @@ export function RecipeDetailPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {partCompareRows.map((row, index) => {
+                      {bomGroups.map((group) => (
+                        <Fragment key={group.category}>
+                          {!group.category.startsWith('single-') ? (
+                            <tr className="bg-slate-50"><th colSpan={10} className="border-b border-line px-4 py-2 text-ink">{group.category}</th></tr>
+                          ) : null}
+                      {group.rows.map((row, index) => {
                         const part = row.part;
                         return (
                           <tr key={`${part.model}-${part.supplier || ''}-${index}`} className="transition-colors duration-150 hover:bg-slate-50">
-                            <td className="border-b border-line px-4 py-3 font-medium text-ink">{part.name || part.model || '-'}</td>
-                            <td className="border-b border-line px-4 py-3 text-muted">{part.model || '-'}</td>
+                            <td className={`border-b border-line py-3 pr-4 font-medium text-ink ${group.category.startsWith('single-') ? 'pl-4' : 'pl-8'}`}>
+                              {part.name || part.model || '-'}{!group.category.startsWith('single-') ? <span className="ml-1 font-normal text-muted">× {row.qty}</span> : null}
+                            </td>
+                            <td className="border-b border-line px-4 py-3 text-muted">{recipePartModel(part, recipe)}</td>
                             <td className="border-b border-line px-4 py-3 text-muted">{part.supplier || '-'}</td>
                             <td className="border-b border-line px-4 py-3 text-right text-muted">
                               {part.cableAssembly ? `1 根 / ${part.cableLength || part.inventoryQty || 0}m` : row.qty || 1}
@@ -298,8 +286,10 @@ export function RecipeDetailPanel({
                           </tr>
                         );
                       })}
+                        </Fragment>
+                      ))}
                     </tbody>
-                    <tfoot className="sticky bottom-0 bg-slate-50 font-semibold text-ink">
+                    <tfoot className="bg-slate-50 font-semibold text-ink">
                       <tr>
                         <td colSpan={3} className="border-t border-line px-4 py-3">合计（{parts.length} 项）</td>
                         <td className="border-t border-line px-4 py-3 text-right">{bomSummary.totalQty}</td>
@@ -315,12 +305,45 @@ export function RecipeDetailPanel({
                   </div>
                 </>
               )}
+              <div className="border-y border-line p-4 text-sm font-semibold text-ink">人工、表面处理与管理费用</div>
+              <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                {fees.map((fee) => <div key={fee.name} className="rounded-md bg-slate-50 p-3"><div className="text-xs text-muted">{fee.name}{fee.process ? ` · ${fee.process}` : ''}</div><div className="mt-1 font-semibold text-ink">{fee.amount != null ? money(fee.amount) : '未记录'}</div></div>)}
+              </div>
+              <div className="border-t border-line px-4 py-3 text-sm text-muted">保存完整成本：<span className="font-semibold text-ink">{savedTotal != null ? money(savedTotal) : '未记录'}</span>（包含上述物料及费用，以保存成本为准）</div>
             </section>
 
             <section className="rounded-panel border border-line">
-              <div className="flex items-center justify-between gap-3 border-b border-line p-4">
+              <div className="border-b border-line p-4 text-sm font-semibold text-ink">关键参数</div>
+              <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
+                <div className="text-muted">线圈：<span className="text-ink">{[recipe.coilSpec, recipe.coilSheets ? `${recipe.coilSheets}片` : '', recipe.coilMaterial, recipe.coilSlotType || '小眼'].filter(Boolean).join(' / ') || '-'}</span></div>
+                <div className="text-muted">
+                  机筒长度：<span className={barrelLength.value ? 'text-ink' : 'text-amber-700'}>
+                    {barrelLength.value ? `${barrelLength.value} mm` : '未记录，请在编辑配方中补录'}
+                  </span>
+                  {barrelLength.source === 'bom' ? <span className="ml-1 text-xs text-muted">（来自 BOM 快照）</span> : null}
+                </div>
+                <div className="text-muted">叶轮：<span className="text-ink">{[recipe.impellerModel, recipe.impellerThickness ? `${recipe.impellerThickness}厚` : '', recipe.impellerDiameter ? `直径${recipe.impellerDiameter}` : '', recipe.impellerBladeCount ? `${recipe.impellerBladeCount}片` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
+                <div className="text-muted">动态配置：<span className="text-ink">{[recipe.hasFloat ? `浮球 ${recipe.floatWire || '-'}` : '', recipe.hasCable ? `电缆 ${recipe.cableWire || '-'} ${recipe.cableLength || 0}m` : ''].filter(Boolean).join(' / ') || '-'}</span></div>
+              </div>
+            </section>
+
+            {technicalEntries.length > 0 ? (
+              <section className="rounded-panel border border-line">
+                <div className="border-b border-line p-4 text-sm font-semibold text-ink">技术参数</div>
+                <div className="grid gap-3 p-4 text-sm md:grid-cols-2">
+                  {technicalEntries.map((entry) => (
+                    <div key={entry.id} className="text-muted">
+                      {entry.label || '参数'}：<span className="text-ink">{entry.value || '-'}</span>{entry.unit ? ` ${entry.unit}` : ''}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            <details key={recipe.id} className="rounded-panel border border-line">
+              <summary className="cursor-pointer p-4 text-sm font-semibold text-ink">配件与线圈库存 <span className="ml-2 font-normal text-muted">点击展开</span></summary>
+              <div className="flex items-center justify-between gap-3 border-y border-line px-4 py-2">
                 <div>
-                  <div className="text-sm font-semibold text-ink">配件与线圈库存</div>
                   <div className="mt-1 text-xs text-muted">分别读取零件库和线圈库存</div>
                 </div>
                 <button
@@ -372,8 +395,9 @@ export function RecipeDetailPanel({
                   <div className="py-4 text-sm text-muted">正在读取库存状态...</div>
                 )}
               </div>
-            </section>
+            </details>
           </div>
+          <RecipePrintSheet recipe={recipe} templateName={templateName} groups={bomGroups} savedTotal={savedTotal} barrelLength={barrelLength.value} technicalEntries={technicalEntries} />
         </div>
       ) : null}
     </SlideOver>
