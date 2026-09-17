@@ -88,7 +88,7 @@ function buildBomPreviewInput(
   if (!canPreview) return null;
 
   return {
-    templateId: Number(form.templateId),
+    templateId: form.templateId ? Number(form.templateId) : null,
     modelVariantId: form.variantId ? Number(form.variantId) : null,
     coilId: form.coilId ? Number(form.coilId) : null,
     coilSchemeFamilyCode: form.coilSchemeFamilyCode,
@@ -141,10 +141,12 @@ export function useBomPreview({
     coilWireWeight,
     hasFloat,
     floatWire,
+    floatPartId,
     floatAccessoryType,
     hasCable,
     cableLength,
     cableWire,
+    cablePartId,
     cableAccessoryType,
   } = form;
   const input = useMemo(() => buildBomPreviewInput(
@@ -162,10 +164,12 @@ export function useBomPreview({
       coilWireWeight,
       hasFloat,
       floatWire,
+      floatPartId,
       floatAccessoryType,
       hasCable,
       cableLength,
       cableWire,
+      cablePartId,
       cableAccessoryType,
     },
     optionalParts,
@@ -185,10 +189,12 @@ export function useBomPreview({
     coilWireWeight,
     hasFloat,
     floatWire,
+    floatPartId,
     floatAccessoryType,
     hasCable,
     cableLength,
     cableWire,
+    cablePartId,
     cableAccessoryType,
     hasStainlessBarrel,
     optionalParts,

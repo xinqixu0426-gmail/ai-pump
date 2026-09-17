@@ -1444,6 +1444,19 @@ test('Next UI 契约：浮球和电缆参数完成后展示后端 BOM 成本', (
     const recipeCostDisplay = readUtf8('apps/web-next/components/recipe/recipe-cost-display.ts');
 
     assert.match(recipeDynamicConfigSection, /DynamicConfigCostRow/);
+    assert.match(recipeDynamicConfigSection, /error && !loading/);
+    assert.match(recipesView, /costError=\{bomDraftError\}/);
+    assert.match(recipesView, /costDisplayRefreshing = bomDraftLoading \|\| bomDraftStale/);
+    assert.doesNotMatch(recipesView, /const model = parts.find\(part => part.category === '(浮球|电缆线)'/);
+    const dynamicPreviewHook = readUtf8('apps/web-next/components/recipe/useBomPreview.ts');
+    assert.equal((dynamicPreviewHook.match(/^\s+floatPartId,$/gm) || []).length, 3);
+    assert.equal((dynamicPreviewHook.match(/^\s+cablePartId,$/gm) || []).length, 3);
+    assert.match(dynamicPreviewHook, /templateId: form.templateId \? Number\(form.templateId\) : null/);
+    const cableCalculator = readUtf8('apps/web-next/components/recipe/CableCostCalculator.tsx');
+    assert.match(cableCalculator, /previewRecipeBomDraft\(\{ hasCable: true, cablePartId: selected.id/);
+    assert.doesNotMatch(cableCalculator, /templateId|createRecipe|fetch\(/);
+    assert.match(cableCalculator, /cancelled = true/);
+    assert.match(cableCalculator, /pricingComplete === false/);
     assert.match(recipeDynamicConfigSection, /label="浮球成本"/);
     assert.match(recipeDynamicConfigSection, /label="成品电缆成本"/);
     assert.match(recipesView, /floatCostPart=\{displayedCosts\.floatCostPart\}/);

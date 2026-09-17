@@ -1,4 +1,5 @@
 'use client';
+import { CableCostCalculator } from '@/components/recipe/CableCostCalculator';
 
 import { patchRecipeSelectionIdentity } from '@/lib/recipe-selection-identity';
 
@@ -728,6 +729,7 @@ export function RecipesView() {
     coil.id === Number(form.coilId)
   )) || null, [coilSchemeOptions, form.coilId]);
   const floatWireOptions = useMemo(() => wireOptions(parts, '浮球', '浮球-线径'), [parts]);
+  const [cableCalculatorOpen, setCableCalculatorOpen] = useState(false);
   const cableWireOptions = useMemo(() => wireOptions(parts, '电缆线', '电缆-线径'), [parts]);
   const recommendedFloatWire = matchWireOption(floatWireOptions, bomDraft?.coilSnapshot?.wireGauge);
   const recommendedCableWire = matchWireOption(cableWireOptions, bomDraft?.coilSnapshot?.wireGauge);
@@ -735,23 +737,21 @@ export function RecipesView() {
   const cableCostReady = form.hasCable && Boolean(form.cableWire) && numberValue(form.cableLength) > 0;
   const floatCostPart = useMemo(() => {
     if (!floatCostReady) return undefined;
-    const model = parts.find(part => part.category === '浮球' && (!form.floatPartId || part.id === Number(form.floatPartId)) && (part.naming?.spec.wireValue != null ? String(part.naming.spec.wireValue) : part.model.replace('浮球-线径', '')) === normalizeWireGauge(form.floatWire))?.model;
     return bomDraft?.parts.find((part) => (
-      part.model === model
-      && String(part.name || '').includes('浮球')
+      (part.costRole === 'float' || String(part.name || '').includes('浮球'))
+      && (!form.floatPartId || part.partId === Number(form.floatPartId))
       && (part.floatAccessoryType || 'standard') === form.floatAccessoryType
     ));
-  }, [parts, bomDraft, floatCostReady, form.floatAccessoryType, form.floatWire, form.floatPartId]);
+  }, [bomDraft, floatCostReady, form.floatAccessoryType, form.floatPartId]);
   const cableCostPart = useMemo(() => {
     if (!cableCostReady) return undefined;
-    const model = parts.find(part => part.category === '电缆线' && (!form.cablePartId || part.id === Number(form.cablePartId)) && (part.naming?.spec.wireValue != null ? String(part.naming.spec.wireValue) : part.model.replace('电缆-线径', '')) === normalizeWireGauge(form.cableWire))?.model;
     return bomDraft?.parts.find((part) => (
-      part.model === model
-      && part.cableAssembly === true
+      part.cableAssembly === true
+      && (!form.cablePartId || part.partId === Number(form.cablePartId))
       && Number(part.cableLength || 0) === numberValue(form.cableLength)
       && (part.cableAccessoryType || 'standard') === form.cableAccessoryType
     ));
-  }, [parts, bomDraft, cableCostReady, form.cableAccessoryType, form.cableLength, form.cableWire, form.cablePartId]);
+  }, [bomDraft, cableCostReady, form.cableAccessoryType, form.cableLength, form.cablePartId]);
   const isFloatWireRecommended = Boolean(
     form.hasFloat
     && recommendedFloatWire
@@ -951,7 +951,7 @@ export function RecipesView() {
     relatedBomPartsCost,
     surfaceTreatmentPreviewCost,
   ]);
-  const costDisplayRefreshing = Boolean(bomDraft && (bomDraftLoading || bomDraftStale));
+  const costDisplayRefreshing = bomDraftLoading || bomDraftStale;
   const displayedCosts = costDisplayRefreshing && costDisplaySnapshot
     ? costDisplaySnapshot
     : {
@@ -2049,10 +2049,12 @@ export function RecipesView() {
           <Button variant="primary" onClick={() => setProductCreationOpen(true)} disabled={saving} icon={<Plus size={15} />}>
             新建产品
           </Button>
+          <Button onClick={() => setCableCalculatorOpen(true)}>电缆试算</Button>
           </>
         )}
       />
 
+      <CableCostCalculator open={cableCalculatorOpen} onClose={() => setCableCalculatorOpen(false)} parts={parts} />
       <FadePanel delay={0.01} className="flex flex-col gap-3 rounded-panel border border-line bg-white p-3 shadow-panel md:flex-row md:items-center md:justify-between">
         <div className="grid w-full gap-2 sm:grid-cols-2 md:w-auto" role="group" aria-label="配方功能区">
           <button
@@ -2324,6 +2326,7 @@ export function RecipesView() {
               floatCostReady={displayedCosts.floatCostReady}
               cableCostReady={displayedCosts.cableCostReady}
               costLoading={costDisplayRefreshing}
+              costError={bomDraftError}
               floatCostPart={displayedCosts.floatCostPart}
               cableCostPart={displayedCosts.cableCostPart}
               onChange={(patch) => updateForm(patch)}

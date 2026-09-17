@@ -32,6 +32,7 @@ type RecipeDynamicConfigSectionProps = {
   floatCostReady: boolean;
   cableCostReady: boolean;
   costLoading: boolean;
+  costError?: string | null;
   floatCostPart?: RecipePart;
   cableCostPart?: RecipePart;
   onChange: (patch: Partial<RecipeDynamicFields>) => void;
@@ -57,15 +58,19 @@ function DynamicConfigCostRow({
   ready,
   loading,
   part,
+  error,
 }: {
   label: string;
   ready: boolean;
   loading: boolean;
   part?: RecipePart;
+  error?: string | null;
 }) {
   const amount = recipePartSubtotal(part);
   const unpriced = Boolean(part) && Number(part?.snapshotPrice || 0) <= 0;
-  const note = loading && ready && part
+  const note = error && !loading
+    ? error
+    : loading && ready && part
     ? '正在更新，暂显上次结果'
     : loading
       ? '首次计算中'
@@ -103,6 +108,7 @@ export function RecipeDynamicConfigSection({
   floatCostReady,
   cableCostReady,
   costLoading,
+  costError,
   floatCostPart,
   cableCostPart,
   onChange,
@@ -169,7 +175,7 @@ export function RecipeDynamicConfigSection({
             </label>
           </div>
           {form.hasFloat ? (
-            <DynamicConfigCostRow label="浮球成本" ready={floatCostReady} loading={costLoading} part={floatCostPart} />
+            <DynamicConfigCostRow label="浮球成本" ready={floatCostReady} loading={costLoading} part={floatCostPart} error={costError} />
           ) : null}
         </div>
 
@@ -229,7 +235,7 @@ export function RecipeDynamicConfigSection({
             </label>
           </div>
           {form.hasCable ? (
-            <DynamicConfigCostRow label="成品电缆成本" ready={cableCostReady} loading={costLoading} part={cableCostPart} />
+            <DynamicConfigCostRow label="成品电缆成本" ready={cableCostReady} loading={costLoading} part={cableCostPart} error={costError} />
           ) : null}
         </div>
       </div>
