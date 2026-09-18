@@ -693,3 +693,97 @@ relation now has a formal bounded authoritative read with explicit set-level com
 legacy-reference handling. P8R is still **branch-only**: production is untouched (`master @ 24106a1b`),
 nothing is pushed, the canary flag remains default OFF, no production `.env` was modified, and every change
 is confined to the phase branch. Deployment and the P9 legacy-cleanup gate remain supervisor decisions.
+
+## 17. ONT-P8L Bounded Legacy Relation Repair (local convergence)
+
+Supervisor ruling A + B. The legacy local-mode `coil <-> recipes` repair used to demand the COMPLETE
+unfiltered recipe catalogue; on a real-sized database that AI tool result is **120,990 bytes against a
+96 KB budget**, so the model received a truncated catalogue and could answer incompletely. It is now an
+explicit bounded state machine:
+
+```text
+NONE -> COIL_ID_DISCOVERY -> BOUNDED_REVERSE_READ -> DONE
+Max software repair steps = 2      Max legacy model-prompted repair rounds = 1
+```
+
+Invariants enforced, and pinned by `tests/ontologyLegacyRelationRepair.test.cjs`:
+
+- step 2 is eligible only after step 1 produced a VERIFIED canonical coil id (execution evidence, single
+  row, positive integer). Zero candidates, several candidates, an unverified receipt or a failed step 1 all
+  refuse the second hop: the turn continues with the evidence it has and never guesses a root;
+- step 2's only argument is that canonical id, read from the step-1 receipt. Verified by a negative
+  control: a question naming 12-200 against a receipt for coil 501 still plans `{coilId:501}`;
+- the whole-recipe aggregate can never be demanded again. `requiredCoilRecipeToolCall` returns `null` for
+  it, so a reintroduced demand degrades to a model round instead of silently reading the catalogue;
+- the two bounds are independent on purpose: software steps are free (no provider call) while model rounds
+  keep the historical one-shot bound. Gating both behind one flag previously produced a **+3 provider-call
+  regression** (coil-explicit 4 -> 7);
+- the planned step is added to `allowed` only, never to `offered`, so this repair cannot widen what the
+  model may choose.
+
+### 17.1 Shortlist (Supervisor ruling B)
+
+The coil<->recipe relation shortlist is now `search_coils` + `get_recipes_by_coil` + `get_recipe_detail`.
+The first attempt was the literal minimal subset, removing the aggregate only, and it **broke the legacy
+FORWARD direction**: that branch historically held exactly two tools, so removing the aggregate left the
+model with nothing able to read which coil a recipe uses (measured: forward canonical targets became empty
+in the API fixture). Ruling B replaced it with bounded readers for both directions.
+
+### 17.2 Evidence
+
+| Gate | Result |
+| --- | --- |
+| aggregate reads on coil-relation cases | 18 -> **0** |
+| provider calls | 0 change across all 28 corpus cases, and lower after ruling B (3/4 -> 2); never higher |
+| bounded projection size, real DB | 86-134 B against the aggregate 120,990 B |
+| large fixture | aggregate > 128 KB and refused at the 96 KB budget; bounded page < 8 KB; a page with more rows reports PARTIAL and only the drained set reports COMPLETE |
+| negatives (absent coil, ambiguous coil, unrelated question, write request) | no second hop generated; write request still confirmation-card only |
+| ontology / full regression / API contract / deep API / web build | 388/388, 2534/2534, 26/26, PASS, PASS |
+| DeepSeek real-DB regression | 14/14 done, reverse 4/4, forward 3/4, 0 errors, 0 payload-limit failures, business DB unchanged (delta 0) |
+| Frozen Legacy Oracle V1 | **unmodified** (git diff 0 lines); Oracle V2 added as the current baseline |
+
+Oracle V2 deliberately keeps `sourceCommit` pointing at the P6 baseline commit, because that field is what
+the canary suite resolves `git show <commit>:<file>` against. Recording the generating commit there silently
+turned "compare against the frozen baseline" into "compare against my own changes". The generating commit is
+recorded separately as `generatedFromCommit`.
+
+### 17.3 Sanctioned semantic change to the OFF baseline
+
+After ruling B, when a question carries no coil shorthand or other unambiguous identity, the legacy side can
+only certify NOTHING: the bounded repair refuses to pick a root out of several candidates. The ontology route
+still certifies the correct target. For `coil ID 501 is used by which recipes`, the ontology route certifies
+`301` and complete while legacy certifies nothing.
+
+That is the designed fail-safe rather than a defect, but it changes what an OFF baseline means: not "legacy
+always answers" but "legacy does not guess". The tests therefore assert "the ontology route must certify the
+correct target; legacy must certify the correct target or nothing, never a wrong target" instead of "both
+sides must agree".
+
+### 17.4 The one gate that is still open
+
+The Supervisor requires a real LOCAL-model acceptance before it will lift the production freeze:
+`AI_PROVIDER=local`, actual provider local, cloud fallback 0, 8 relation cases x 2 rounds, both directions
+8/8. The local model is deployed in a **different work LAN** and is not reachable from this development
+network (verified: `192.168.31.111:8080` accepts TCP but every HTTP request fails with ECONNRESET).
+
+This gate is therefore reported as **PENDING, not passed**. No substitution was used to fake it. Pointing
+`LOCAL_AI_BASE_URL` at DeepSeek would have exercised the repaired code path with a real model but mislabelled
+the provider, and that was rejected as dishonest.
+
+When the machine is on that LAN the run is one command each for the two phases:
+
+```text
+node logs/p8l-local-acceptance.cjs --phase baseline --rounds 2
+node logs/p8l-local-acceptance.cjs --phase on --rounds 2        # with the canary flag enabled
+```
+
+That harness preflights rather than assumes: it refuses to run unless `AI_PROVIDER` resolves to the LOCAL
+provider and the endpoint answers, so a cloud run can never be reported as a local acceptance. Required
+numbers: reverse 8/8, forward 8/8, cloud fallback 0, aggregate calls 0, payload-limit failures 0,
+unauthorized writes 0, business DB unchanged with a zero `total_changes` delta.
+
+### 17.5 Status
+
+Supervisor ruling on this phase: **FREEZE**. Production stays frozen until the local acceptance above has
+been run and reported. Production is untouched (`master @ 24106a1b`), nothing is pushed, the canary flag is
+default OFF, no production `.env` was modified, and every change is confined to the phase branch.
