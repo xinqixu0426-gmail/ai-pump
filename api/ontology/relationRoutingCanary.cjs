@@ -30,7 +30,14 @@ const requiredReadsByRelation = deepFreeze({
 // Union of every declared read, used for catalogue validation and capability auditing.
 const requiredReads = deepFreeze([sourceCollectionRead, rootIdentityRead, coilCatalogueRead]);
 const optionalCapabilities = deepFreeze([]);
-const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil', providerModes: ['local', 'local-first'],
+const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
+    // ONT-P7: `deepseek` is promoted to production eligibility for this family after the P6D real-AI
+    // gate passed 16/16 positive correct with 0 wrong bindings, 0 writes and 0 ontology-induced
+    // provider calls. Unvalidated providers (kimi) stay excluded.
+    providerModes: ['local', 'local-first', 'deepseek'],
+    // The local tool shortlist is a local-model optimisation. Only those providers require it; the
+    // promoted cloud provider is eligible without it, which is what production DeepSeek configures.
+    shortlistRequiredProviderModes: ['local', 'local-first'],
     discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: { coil: 'search_coils', recipe: 'get_all_recipes' } },
     completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
     shortlist: ['get_all_recipes', 'search_coils'],
@@ -93,9 +100,23 @@ function classifyCoilRecipeLegacyIntentV1(userText, binding) {
     if (matches.length && (hasCoil || hasRecipe || binding?.status === 'BOUND')) return 'PURE_RELATION_QUERY';
     return 'OTHER';
 }
+/**
+ * The provider mode the canary reasons about. `local`/`local-first` are kept verbatim because they
+ * gate the local shortlist; anything else (including the deployment's `auto`) is resolved to the
+ * provider that will actually serve the request, otherwise a promoted provider configured as `auto`
+ * could never become eligible.
+ */
+function effectiveProviderMode(env) {
+    const declared = String(env?.AI_PROVIDER || '').trim().toLowerCase();
+    if (declared === 'local' || declared === 'local-first') return declared;
+    try {
+        const resolved = require('../services/aiProviderRegistry.cjs').resolveAiProviderConfig(env).provider;
+        return String(resolved || declared).trim().toLowerCase();
+    } catch { return declared; }
+}
 function prepareRouting(input = {}, dependencies = {}) {
     const started = performance.now();
-    const mode = String(input.env?.AI_PROVIDER || '').trim().toLowerCase();
+    const mode = effectiveProviderMode(input.env);
     const binding = bindRelation({ ontologyVersion: 1, userText: input.userText,
         verifiedToolResults: input.trustedToolResults || [], trustedSession: input.trustedSession,
         subject: input.subject, conversationId: input.conversationId });
@@ -103,7 +124,8 @@ function prepareRouting(input = {}, dependencies = {}) {
     const definition = ontology.relations.find(r => r.relationId === binding.relationId);
     const profile = profiles.find(p => p.sourceId === definition?.sourceId);
     const eligible = semanticClass === 'PURE_RELATION_QUERY' && binding.status === 'BOUND'
-        && profile?.providerModes.includes(mode) && input.shortlistEnabled === true
+        && profile?.providerModes.includes(mode)
+        && (profile?.shortlistRequiredProviderModes.includes(mode) ? input.shortlistEnabled === true : true)
         && ['CANONICAL_DIRECT', 'DETERMINISTIC_DERIVED'].includes(definition.authority)
         && definition.fromType === binding.root.entityType && definition.toType === binding.targetEntityType;
     const record = { version: 1, canaryEnabled: true, semanticClass, eligible: Boolean(eligible),

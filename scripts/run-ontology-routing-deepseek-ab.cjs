@@ -10,15 +10,12 @@
  *   B = Ontology routing = the real canary's routing decision applied to the same request
  *                          against the same real DeepSeek model.
  *
- * Isolation — production eligibility is NOT widened:
- *   The canary admits only `local` / `local-first` (plus an enabled local shortlist). DeepSeek
- *   is deliberately outside that predicate and this harness does not change it. To observe the
- *   counterfactual "what if the canary routed this DeepSeek request", side B installs a
- *   process-local `require.cache` overlay that delegates to the REAL canary module and lifts
- *   only those two gates. No file on disk changes; the decision itself (semantic class, binding,
- *   relation/direction, profile, requirements, argument policies) is the authentic one. The
- *   overlay relabels `providerMode` back to the true provider so telemetry is not falsified.
- *   `assertProductionEligibilityUnchanged()` re-reads the untouched module from disk.
+ * Isolation — ONT-P7 promoted `deepseek`:
+ *   After P7 the canary admits `local`, `local-first` and `deepseek` for this family on disk, so side B
+ *   exercises the genuine production eligibility with no harness overlay. `local`/`local-first` still
+ *   require the local shortlist; the promoted cloud provider does not, which is what production
+ *   DeepSeek configures. `assertProductionEligibilityPromoted()` re-reads the untouched module from disk
+ *   and asserts the exact promoted set, so an unvalidated provider cannot be smuggled in.
  *
  * Provider contract: requested = deepseek, actual = deepseek, fallback count must be 0.
  *
@@ -58,7 +55,7 @@ const CORPUS_ARTIFACTS = [
 const GATE_CONDITIONS = ['preflightOk', 'requestedProviderDeepseek', 'actualProviderDeepseek', 'noFallbackForced',
     'corpusHashUnchanged', 'allCasesCompleted', 'zeroWrongBinding', 'zeroUnauthorizedTool', 'zeroWrite',
     'zeroOntologyInducedProviderCalls', 'zeroCanonicalRegression', 'zeroAnswerFactRegression',
-    'ontologyCorrectnessNotRegressed', 'fixturesUnchanged', 'productionEligibilityUnchanged'];
+    'ontologyCorrectnessNotRegressed', 'fixturesUnchanged', 'productionEligibilityPromoted'];
 
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const stable = value => Array.isArray(value) ? value.map(stable)
@@ -141,33 +138,15 @@ async function preflight({ env }) {
 }
 
 const CANARY_PATH = () => require.resolve('../api/ontology/relationRoutingCanary.cjs');
-
-/** Re-reads the untouched module from disk to prove production eligibility was not widened. */
-function assertProductionEligibilityUnchanged() {
-    const real = require(CANARY_PATH());
-    return real.profiles.every(p => equal(p.providerModes, ['local', 'local-first']));
-}
+const PROMOTED_PROVIDER_MODES = ['local', 'local-first', 'deepseek'];
 
 /**
- * Process-local require.cache overlay. Delegates to the real canary and lifts only the
- * provider-mode and shortlist gates; relabels providerMode to the true provider.
+ * Re-reads the untouched module from disk and asserts the exact promoted provider set, so this gate
+ * can never be satisfied by silently widening eligibility to an unvalidated provider.
  */
-function installCounterfactualOverlay(trueProvider) {
-    const target = CANARY_PATH();
-    const real = require(target);
-    const shim = Object.create(null);
-    Object.assign(shim, real);
-    shim.prepareRouting = (input = {}, dependencies = {}) => {
-        const state = real.prepareRouting({ ...input, env: { ...(input.env || {}), AI_PROVIDER: 'local-first' },
-            shortlistEnabled: true }, dependencies);
-        if (state?.record) {
-            state.record.providerMode = trueProvider;
-            state.record.counterfactualEligibilityOverride = true;
-        }
-        return state;
-    };
-    require.cache[target] = { id: target, filename: target, loaded: true, exports: shim, children: [], paths: [] };
-    return () => { delete require.cache[target]; };
+function assertProductionEligibilityPromoted() {
+    const real = require(CANARY_PATH());
+    return real.profiles.every(p => equal(p.providerModes, PROMOTED_PROVIDER_MODES));
 }
 
 function baseManifest({ repoRoot, rounds, hashes, corpusHash }) {
@@ -176,7 +155,7 @@ function baseManifest({ repoRoot, rounds, hashes, corpusHash }) {
         gate: 'ONT-P6D',
         scope: { relationFamily: RELATION_FAMILY, provider: 'deepseek', canaryFlag: CANARY_FLAG,
             sideA: 'legacy routing (canary OFF, production DeepSeek behaviour)',
-            sideB: 'ontology canary routing decision (counterfactual, harness-only overlay)' },
+            sideB: 'ontology canary routing decision (native ONT-P7 production eligibility)' },
         branch: gitValue(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot),
         commit: gitValue(['rev-parse', 'HEAD'], repoRoot),
         generatedAt: null,
@@ -263,7 +242,7 @@ function summarize(raw, manifest) {
     conditions.zeroAnswerFactRegression = m.businessFactAnswerRegressions === 0;
     conditions.ontologyCorrectnessNotRegressed = m.ontologyPositiveCorrect >= m.legacyPositiveCorrect;
     conditions.fixturesUnchanged = raw.baseFixtureUnchanged === true && raw.ambiguousFixtureUnchanged === true;
-    conditions.productionEligibilityUnchanged = raw.productionEligibilityUnchanged === true;
+    conditions.productionEligibilityPromoted = raw.productionEligibilityPromoted === true;
     return conditions;
 }
 
@@ -380,7 +359,6 @@ async function main() {
                 unauthorizedToolCalls: 0, writeAttempts: 0 };
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(Object.assign(Error('CASE_TIMEOUT'), { code: 'CONTROLLED_TIMEOUT' })), CASE_TIMEOUT_MS);
-            const overlay = side === 'B' ? installCounterfactualOverlay('deepseek') : null;
             try {
                 const result = await runAiAssistant({
                     messages: [{ role: 'user', content: c.userText }], confirmationSubject: subject, conversationId,
@@ -431,7 +409,6 @@ async function main() {
                 entry.errorCode = safeCode(error.code, 'REAL_RUNTIME_FAILURE');
             } finally {
                 clearTimeout(timer);
-                if (overlay) overlay();
             }
             raw.cases.push(entry);
             console.log(`  ${caseId} completed=${entry.completed} tools=${entry.tools.map(t => t.name).join('>') || '-'} calls=${entry.modelCalls} fallbacks=${entry.fallbacks}`);
@@ -495,7 +472,7 @@ async function main() {
             }
         }
 
-        raw.productionEligibilityUnchanged = assertProductionEligibilityUnchanged();
+        raw.productionEligibilityPromoted = assertProductionEligibilityPromoted();
         manifest.pairedRoundsCompleted = rounds;
         manifest.fallbackCount = raw.cases.reduce((n, c) => n + (c.fallbacks || 0), 0);
         const conditions = summarize(raw, manifest);
@@ -524,5 +501,5 @@ async function main() {
 
 if (require.main === module) main().catch(error => { console.error('P6D_DEEPSEEK_GATE_SETUP_FAILED', error?.message || ''); process.exitCode = 1; });
 
-module.exports = { resolveProvider, preflight, baseManifest, summarize, installCounterfactualOverlay,
-    assertProductionEligibilityUnchanged, GATE_CONDITIONS, EXPECTED_CORPUS_HASH };
+module.exports = { resolveProvider, preflight, baseManifest, summarize,
+    assertProductionEligibilityPromoted, PROMOTED_PROVIDER_MODES, GATE_CONDITIONS, EXPECTED_CORPUS_HASH };

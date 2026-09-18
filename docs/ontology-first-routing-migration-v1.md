@@ -1,11 +1,12 @@
-# First Relation Routing Migration V1 — ONT-P6R / ONT-P6D
+# First Relation Routing Migration V1 — ONT-P6R / P6D / P7
 
 **Gates are tracked separately and must never be merged into one PASS.**
 
 | Gate | Scope | Status |
 | --- | --- | --- |
 | Deterministic Canary Gate | Frozen Legacy Oracle, 28-case corpus, OFF/ON equivalence, dependency trap, non-eligible fallback, evidence isolation | **PASS** |
-| DeepSeek Real-AI Canary Gate (ONT-P6D / P6D-R1) | Real DeepSeek provider, paired A/B over the frozen corpus, harness-isolated ontology routing decision | **PASS** |
+| DeepSeek Real-AI Canary Gate (ONT-P6D / P6D-R1) | Real DeepSeek provider, paired A/B over the frozen corpus | **PASS** |
+| DeepSeek Authoritative Routing Promotion (ONT-P7) | Production provider eligibility + real `POST /api/ai/chat` SSE OFF/ON gate + rollback | **PASS** |
 | Local Provider Gate (strict local) | `AI_PROVIDER=local`, real local model host | **DEFERRED — LOCAL PROVIDER NOT CURRENTLY REQUIRED** |
 
 **Local Provider Gate: DEFERRED.** Reason: the local model host (`192.168.31.111`) sits on another LAN — this workstation's wired NIC is disconnected and only a different subnet is reachable, so the strict-local gate cannot execute from here. It is **not** a blocker for Ontology V1 on the current DeepSeek path, and it was never reported as PASS. Re-enabling local/local-first later requires re-running the original strict-local gate.
@@ -265,3 +266,91 @@ case. Neither was a provider, safety or evidence failure. §13.1 and §13.2 reco
 expected values were not relaxed to match either defect.
 
 DeepSeek gate requirements: `ONT_SHADOW_CONFIG_ROOT=<config checkout> node scripts/run-ontology-routing-deepseek-ab.cjs --rounds=2`. `--only=<caseId>` narrows the corpus for a cheap wiring smoke test and writes only to `logs/`, never over the committed manifest.
+
+## 14. DeepSeek Authoritative Routing Promotion (ONT-P7)
+
+P7 turns the validated `recipe <-> coil` canary into a production-capable routing path behind the
+existing default-OFF flag. It adds no entity, no relation family and deletes no legacy code.
+
+### 14.1 Provider eligibility
+
+`recipe_coil` `providerModes` is now `['local', 'local-first', 'deepseek']`. Two gates had to be opened,
+not one:
+
+- `deepseek` was absent from `providerModes`;
+- eligibility also required `shortlistEnabled`, which is a **local-model** optimisation and is therefore
+  false under production DeepSeek configuration. The profile now declares
+  `shortlistRequiredProviderModes: ['local', 'local-first']`, so only the local providers require it.
+
+`AI_PROVIDER=auto` — the actual deployment value — previously left the canary permanently ineligible
+because it reasoned about the literal string. The canary now resolves `auto` to the provider that will
+actually serve the request (`effectiveProviderMode`), keeping `local`/`local-first` verbatim because they
+gate the shortlist. Unvalidated providers (`kimi`) stay outside.
+
+The flag remains `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false` by default, asserted against
+`.env.example` in the test suite, and no code path enables it implicitly.
+
+### 14.2 Authoritative path and fallbacks
+
+When the flag is ON and a request is eligible, ontology routing is the authoritative relation router:
+relation intent, the required formal reads and completion are decided by the canary profile, the reads go
+through the unchanged Tool validation/executor and Business APIs, and the model only synthesises the
+answer. Legacy detector/repair are not run for those requests (`legacyDetectorCalls = 0`,
+`legacyRepairCalls = 0`) — there is no double-run of legacy routing.
+
+Every other path resolves to legacy: flag OFF, non-eligible question, missing/ambiguous canonical root,
+unsupported relation, and an ontology-internal failure before the reads (explicit
+`ONTOLOGY_CANARY_FALLBACK`). A failed required formal query is never reported as a relational success —
+with no verified evidence, the canonical target is not asserted.
+
+### 14.3 HTTP/SSE runtime gate
+
+`scripts/run-ontology-routing-http-runtime.cjs` drives the real `POST /api/ai/chat` SSE endpoint on an
+isolated temporary database (business surface restricted to GET plus the existing read-only previews), with
+real DeepSeek, and compares flag OFF against flag ON over a new corpus
+(`tests/helpers/ontologyHttpRuntimeCorpus.cjs`, 12 positive / 12 negative). Positives are two-turn
+conversations because the canary binds only from server-owned verified receipts already present in the same
+assistant session: the seed turn establishes the canonical receipt, the question turn is the request under
+test. Routing is observed through the production telemetry span (`ontology_relation_routing_canary`), not a
+test-only hook.
+
+Result (`docs/ontology-p7-http-runtime-gate.json`), all sixteen conditions met:
+
+| Metric | Value |
+| --- | ---: |
+| Positive / negative cases | 12 / 12 |
+| Provider seen | `deepseek` only, fallbacks 0 |
+| Eligible ON → ontology authoritative | 7 (of 12 positives) |
+| Non-eligible routed by ontology | **0** (10 legacy + 2 protected-command-channel) |
+| Wrong root / relation / direction | 0 / 0 / 0 |
+| Unauthorized tools / writes | 0 / 0 |
+| Legacy detector / repair calls under eligible ON | 0 / 0 |
+| Ontology-induced provider calls | **0** |
+| Provider calls OFF vs ON | 56 vs 47 |
+| Tool calls OFF vs ON | 49 vs 46 |
+| Business-fact answer regressions | **0** |
+| Canonical mismatches / unexplained | 2 / **0** (both explained: legacy wrong, ontology right) |
+
+Rollback was exercised inside the same process: with the flag ON the question turn reports
+`ONTOLOGY_RELATION_BINDING`, and after flipping the flag to false the same corpus reports
+`NON_RELATION_SPECIALIZED_PATH`. No restart, no DB change, no schema migration.
+
+The frozen P6 28-case corpus was re-run unchanged (hash
+`1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8`) and still passes: ontology 16/16
+positive correct vs legacy 12/16, 0 wrong bindings, 0 writes, 0 explanation-free mismatches, 0
+ontology-induced provider calls, 111 vs 126 provider calls.
+
+### 14.4 Known coverage gap
+
+Eligibility is deliberately recall-limited, not widened for the gate. On the HTTP corpus only 5–7 of 12
+positives became eligible across runs, for two reasons that are both by design: (a) the canary binds only
+from a prior-turn canonical receipt, and (b) some owner phrasings fall outside the frozen P4 binding
+grammar. Non-eligible requests fall back to legacy safely, so this is a recall limitation rather than a
+safety or correctness gap. Widening binding grammar or discovery is out of P7 scope and would need its own
+authorisation. Seed turns in the corpus were revised to be answerable from the formal catalogue; the
+question turns under test were not tuned.
+
+P7 conclusion: `recipe_coil` ontology routing is **PRODUCTION-CAPABLE BEHIND A DEFAULT-OFF FLAG**. Legacy
+removal is explicitly not authorised here and belongs to a separate P8.
+
+P7 requirements: `ONT_SHADOW_CONFIG_ROOT=<config checkout> node scripts/run-ontology-routing-http-runtime.cjs` (add `--only=<caseId>` for a cheap wiring smoke test, which writes only to `logs/`).

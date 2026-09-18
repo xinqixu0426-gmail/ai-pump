@@ -56,11 +56,20 @@ test('P6R default/OFF retains legacy sequence and repair with explicit legacy ma
         assert.deepEqual(r.signature.executed.map(t => t.name), ['get_all_recipes', 'search_coils']);
     }
 });
-test('P6R provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
+test('P6R/P7 provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
     const c = cases[0];
-    for (const mode of ['deepseek', 'kimi', 'auto']) assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: mode } }).record.eligible, false);
+    // ONT-P7 promoted `deepseek` for this family; unvalidated providers stay outside.
+    assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'deepseek' } }).record.eligible, true);
+    assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'kimi' } }).record.eligible, false);
     assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'local-first' } }).record.eligible, true);
+    // The local shortlist is required only for the local providers; the promoted cloud provider is
+    // eligible without it, which is exactly what production DeepSeek configures.
     assert.equal(prepareRouting({ ...inputFor(c), shortlistEnabled: false }).record.eligible, false);
+    assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'deepseek' }, shortlistEnabled: false }).record.eligible, true);
+    // `auto` is resolved to the provider that will actually serve the request, so a promoted provider
+    // configured as `auto` can still become eligible.
+    assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'auto', DEEPSEEK_API_KEY: 'probe' } }).record.eligible, true);
+    assert.equal(prepareRouting({ ...inputFor(c), env: { AI_PROVIDER: 'auto', DEEPSEEK_API_KEY: 'probe' } }).record.providerMode, 'deepseek');
     const fresh = await runCase(c, 'true', runAiAssistant, { seed: false });
     assert.equal(fresh.records[0].routingSource, 'CANARY_NOT_ELIGIBLE');
     const client = await runCase(c, 'true', runAiAssistant, { seed: false,
