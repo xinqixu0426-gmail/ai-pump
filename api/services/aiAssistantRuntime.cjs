@@ -772,4 +772,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     }
 }
 
-module.exports = { runAiAssistant, assistantReadTools, requiredCoilRecipeToolCall, MAX_TOOL_CALLS, MAX_TOOL_ROUNDS };
+module.exports = { runAiAssistant, assistantReadTools, requiredCoilRecipeToolCall, MAX_TOOL_CALLS, MAX_TOOL_ROUNDS,
+    // ONT-P8L: exported for the bounded-repair regression suite. These are the state machine's pure parts.
+    LEGACY_RELATION_REPAIR_STATES, MAX_SOFTWARE_REPAIR_STEPS, MAX_LEGACY_MODEL_REPAIR_ROUNDS,
+    legacyRelationMissingTools, nextLegacyRelationRepairState, verifiedCanonicalCoilId, legacyRelationRepairCall };
