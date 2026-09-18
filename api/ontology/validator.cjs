@@ -107,7 +107,8 @@ function validateOntology(contract) {
             : mapping.disposition === 'ADAPTER_REQUIRED' && relations.has(mapping.ontologyRelationId), 'ONTOLOGY_MAPPING_INVALID');
         mapped.add(mapping.existingRelationId);
     }
-    check(mapped.size === 7, 'ONTOLOGY_MAPPING_COUNT_INVALID');
+    // ONT-P8R added one canonical reverse read (`coil.recipes`), so eight existing readers are mapped.
+    check(mapped.size === 8, 'ONTOLOGY_MAPPING_COUNT_INVALID');
     return Object.freeze({ version: 1, entityCount: 7, relationFamilyCount: 6, directionalRelationDefinitionCount: 12, authorityAFamilies: 4, authorityBFamilies: 2, inversePairs: 6, runtimeEnabled: false });
 }
 

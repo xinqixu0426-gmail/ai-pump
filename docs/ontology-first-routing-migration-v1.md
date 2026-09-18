@@ -498,3 +498,91 @@ The promotion therefore remains **PRODUCTION-CAPABLE BEHIND A DEFAULT-OFF FLAG**
 production is untouched (`master @ 24106a1b`), the branch is not pushed, legacy code is not removed, and the
 canary flag is at its default OFF with the local environment restored byte-identically. Deployment requires
 supervisor authorisation, and P9's legacy-cleanup entry gate is still unmet.
+
+## 16. ONT-P8R Bounded Reverse Read — closing the inverse-direction root cause
+
+§15 left exactly one open item: the inverse direction (`coil -> recipes`) had no deliverable read. This
+section closes it. P8R does **not** deploy anything; it removes the reason deployment was unsafe.
+
+### 16.1 What was missing
+
+`coil -> recipes` is the `recipe_coil` family's inverse direction. Its only evidence was the COMPLETE
+unfiltered recipe collection (`get_all_recipes`), whose payload on the real database is **121,038 bytes**
+against the runtime's per-result budget of **96 KB** (`enforceAiToolResultBudget(name, result, toolResults,
+96 * 1024)` → `AI_QUERY_RESULT_TOO_LARGE`). So the canary could never obtain its own evidence for that
+direction, revoked itself (`ONTOLOGY_CANARY_FALLBACK`) and handed the read surface back to legacy. §15
+already measured that neither dropping the requirement nor adding a repair round was better than legacy.
+
+The capability was also missing at the data layer in a second sense: ONT-P2 already resolved the relation
+canonically (`FK_PLANS.recipe_coil`, keyset plan over `recipes.coil_id`), but that path is internal to the
+ontology resolver and had no formal, bounded, AI-reachable read. The fix is therefore a thin **adapter** over
+existing deterministic logic, not a new business rule.
+
+### 16.2 What was added
+
+| Layer | Addition | Note |
+| --- | --- | --- |
+| Relation read contract | relation `coil.recipes` (`root: coil`, `result: recipe`, semantics `CURRENT_RECIPE_COIL_REFERENCES`) | caller submits only `relation/rootId/pageSize/afterId`; SQL stays server-side |
+| Relation read service | bounded keyset branch + `ROOT_SQL.coil`, `deleted_at IS NULL`, `id DESC` | verified-empty vs `RELATION_NOT_FOUND` are distinguished |
+| HTTP route | the existing `createRelationReadRouter({db})` is now mounted at `/api/relations` in `api.cjs` | mounted **after** the authenticated `/api` section; `x-internal-secret` covers internal AI calls; not publicly reachable |
+| AI capability | `recipes.by_coil` (read/query, `callers: ['ai','internal']`) + registry lists + executor `query` | registered in `DOMAIN_CAPABILITY_NAMES`, display names, executor names, formal ids, live sets |
+| AI tool | `get_recipes_by_coil({coilId, limit?, afterId?})` | re-validates the HTTP payload with `validateResult` from the same contract; refuses a payload that fails it |
+| Ontology contract | `relationReadMapping` entry `coil.recipes -> coil.used_by_recipe` (`ADAPTER_REQUIRED`), validator reader count 7 → 8 | the canonical-only adapter is the identity restriction; no legacy fallback exists to strip |
+| Canary profile | `coil.used_by_recipe` required reads = `[get_recipes_by_coil{root_id}, search_coils{root_identity}]`; per-direction `shortlistByRelation` | `rootId` comes from the already-bound canonical coil root, so no extra discovery round |
+| Shadow projection | `claimsBoundedInverseRead` / `isCanonicalInverseRead` in `bindingCurrentFacts.cjs` | a complete page IS the authoritative membership; a claiming read with non-canonical ids sets `canonical=false` |
+| Legacy surface | `EXPLICIT_ONLY_TOOL_NAMES` in `aiToolShortlist.cjs` | keeps the legacy auto-shortlist byte-identical; see §16.4 |
+
+### 16.3 Evidence
+
+Reader, against the real development database (read-only):
+
+| Coil root | Bounded result | Bytes | Legacy aggregate |
+| --- | --- | --- | --- |
+| coil 1 (12-120) | 2 recipes: `V12-120-DY-ml`, `v550-tokoy` | 782 | 121,317 |
+| coil 2 (12-140) | 3 recipes: `V750-大脚板-2寸`, `v750-tokoy-`, `v750-tokoy` | 865 | 121,317 |
+| coil 3 (12-160) | 1 recipe: `V1100-2寸` | 703 | 121,317 |
+| **coil 5 (12-200)** | **1 recipe: `800直出水切割泵`** | **714** | 121,317 |
+| coil 6 (12-220) | 1 recipe: `v1500-DY-ml` | 704 | 121,317 |
+| coil 99 (absent) | `404 RELATION_NOT_FOUND` | — | — |
+
+This is ~150× smaller than the aggregate, ~135× below the 96 KB budget, and it answers the exact case
+(`12-200` → `800直出水切割泵`) that failed on **both** paths in §15.5.
+
+Executed through the real AI tool executor: `{coilId:5}` → recipe 7 `800直出水切割泵`; `{coilId:2,limit:1}`
+→ `hasMore=true, nextAfterId=5`; `{coilId:99}` → `RELATION_NOT_FOUND`; `{}`/`{coilId:0}` →
+`INVALID_AI_TOOL_INPUT`. Evidence is `POST /api/relations/read` with no payload in the receipt.
+
+Tests (each assertion is a bounded, falsifiable claim):
+
+- `tests/ontologyBoundedReverseRead.test.cjs` **8/8** — contract strictness (caller SQL/filter keys rejected),
+  bounds and keyset pagination, verified-empty vs not-found, route mounting through a real Express server,
+  tool refusal of a missing root id, the inverse-membership certification matrix (8 incomplete variants,
+  wrong root, conflicting snapshots, repeated reads, non-canonical ids), the permanent large-fixture
+  regression (400 referencing recipes → aggregate still refused by the budget, bounded page delivered at
+  < 4 KB), and behavioural equivalence of the shared routing stub.
+- Ontology P1–P7 focused suite **371/371**.
+- Frozen P6 corpus hash unchanged:
+  `1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8`
+  (`tests/helpers/ontologyRoutingCorpus.cjs`, LF-canonical, compared by both P6D and P7 gate scripts).
+
+### 16.4 Two behavioural changes P8R had to make, and why they are safe
+
+1. **The canary offers a per-direction tool list.** Surfacing the new tool changed the locally scored legacy
+   shortcut: scoring is score-then-index ordered under a `maxTools` cap, so adding any recipe-domain read tool
+   silently displaced an existing entry and broke the frozen P6 `recipe-write` shortlist. Fixed by making the
+   tool *explicit-demand only* (`EXPLICIT_ONLY_TOOL_NAMES`) so the legacy auto-shortlist is unchanged, and by
+   declaring the canary's offered surface per direction — which is what the reads already were.
+2. **The test fixture server had to parse JSON.** `tests/helpers/runOntologyRoutingApiFixture.cjs` served GET
+   only; the new read is a POST. It now parses JSON and exposes exactly one write-shaped path
+   (`POST /api/relations/read`) while every other non-GET stays refused.
+
+Neither change touches prompts, the answer composer, the binder, the capability graph, DB schema, business
+WRITE APIs, dependencies, or any legacy code path.
+
+### 16.5 Status
+
+The inverse direction is no longer dependent on a read the runtime cannot deliver, and the `coil -> recipes`
+relation now has a formal bounded authoritative read on both the canary path and the legacy path. P8R is
+still **branch-only**: production is untouched (`master @ 24106a1b`), nothing is pushed, the canary flag
+remains default OFF, no production `.env` was modified, and every change is confined to the phase branch.
+Deployment and the P9 legacy-cleanup gate remain supervisor decisions.

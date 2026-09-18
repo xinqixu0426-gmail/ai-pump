@@ -119,8 +119,10 @@ test('P7 required reads are planned identically across promoted providers', () =
         for (const c of positives) {
             const state = withProvider(c, provider);
             const calls = requiredReadCalls(state, [], c.userText).map(call => call.function.name).sort();
+            // ONT-P8R: the coil direction's required read is the bounded canonical reverse read, which
+            // is provider-independent, so every promoted provider plans the same reads.
             const expected = c.root.entityType === 'coil'
-                ? ['get_all_recipes', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
+                ? ['get_recipes_by_coil', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
             assert.deepEqual(calls, [...expected].sort(), `${provider} ${c.caseId}`);
         }
     }

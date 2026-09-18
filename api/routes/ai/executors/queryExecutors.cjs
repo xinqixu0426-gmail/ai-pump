@@ -15,6 +15,10 @@ const {
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
 const { canonicalApiResource } = require('./formalResource.cjs');
+const {
+    MAX_PAGE_SIZE,
+    validateResult: validateRelationResult,
+} = require('../../../services/relationReadContract.cjs');
 
 function parseJsonArray(value) {
     if (Array.isArray(value)) return value;
@@ -195,6 +199,72 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 count: data.length,
                 filters,
                 queryReceipt: buildQueryReceipt(filters, data.length),
+                data,
+            };
+        }
+
+        case 'get_recipes_by_coil': {
+            // ONT-P8R: canonical bounded reverse read. Answers "which recipes use this coil" from the
+            // recipes.coil_id foreign key with keyset pagination instead of paging the whole recipe
+            // aggregate, which exceeds the AI tool-result budget on a real-sized database.
+            if (!Number.isSafeInteger(args.coilId) || args.coilId < 1) {
+                return {
+                    success: false,
+                    code: 'RELATION_REQUEST_INVALID',
+                    error: '缺少有效的线圈方案ID（coilId），请先用 search_coils 取得正式线圈方案ID',
+                };
+            }
+            const input = { version: 1, relation: 'coil.recipes', rootId: args.coilId };
+            if (args.limit !== undefined) {
+                if (!Number.isSafeInteger(args.limit) || args.limit < 1) {
+                    return { success: false, code: 'RELATION_REQUEST_INVALID', error: 'limit 必须是正整数' };
+                }
+                input.pageSize = Math.min(args.limit, MAX_PAGE_SIZE);
+            }
+            if (args.afterId !== undefined) {
+                if (!Number.isSafeInteger(args.afterId) || args.afterId < 1) {
+                    return { success: false, code: 'RELATION_REQUEST_INVALID', error: 'afterId 必须是正整数分页游标' };
+                }
+                input.afterId = args.afterId;
+            }
+            let page;
+            try {
+                page = await postJson(internalFetch, '/api/relations/read', input, '线圈反查配方读取失败');
+            } catch (error) {
+                return {
+                    success: false,
+                    code: error?.code || 'RELATION_READ_FAILED',
+                    error: error?.statusCode === 404
+                        ? `未找到该线圈方案（coilId=${args.coilId}）`
+                        : '线圈反查配方读取失败',
+                };
+            }
+            let verified;
+            try {
+                verified = validateRelationResult(input, page);
+            } catch {
+                // Never forward a payload that does not satisfy the relation read contract.
+                return {
+                    success: false,
+                    code: 'RELATION_EVIDENCE_INVALID',
+                    error: '线圈反查结果未通过关联读取契约校验，已拒绝采用',
+                };
+            }
+            const data = verified.items.map(item => ({
+                recipeId: Number(item.canonicalId),
+                recipeName: item.display.name,
+            }));
+            return {
+                success: true,
+                count: data.length,
+                relation: verified.relation,
+                semantics: verified.semantics,
+                rootCoilId: args.coilId,
+                totalCount: verified.totalCount,
+                hasMore: verified.hasMore,
+                nextAfterId: verified.pageBoundary?.nextAfterId ?? null,
+                queryId: verified.queryId,
+                asOf: verified.asOf,
                 data,
             };
         }

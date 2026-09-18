@@ -611,6 +611,12 @@ async function verifyMcpReadOnlyFlow(client, transport, label, expectedProtocolV
         );
         const allCoilsResult = await call('search_coils');
         const coil = mcpDataArray(allCoilsResult).find(item => item.schemeStatus === 'official') || null;
+        // ONT-P8R: the bounded canonical reverse read must be exercised over MCP too. It is rooted at a
+        // real registered coil, so an absent catalogue falls back to the documented not-found path.
+        const coilId = Number(coil?.id || 999999999);
+        await call('get_recipes_by_coil', { coilId }, coilId === 999999999
+            ? { allowedErrorCodes: ['RELATION_NOT_FOUND'] }
+            : {});
 
         const recipesResult = await call('get_all_recipes');
         const recipes = mcpDataArray(recipesResult);

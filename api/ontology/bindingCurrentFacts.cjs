@@ -19,6 +19,42 @@ function targets(row, projection) {
     return references.filter(p => !projection.excludeNonPart || (p.name !== '线圈转子' && shouldRequireCatalogIdentity(p)))
         .map(p => Number.isSafeInteger(p[projection.targetId]) && p[projection.targetId] > 0 ? String(p[projection.targetId]) : null);
 }
+/**
+ * A payload that CLAIMS to be the bounded canonical reverse read for this root. A claim with
+ * non-canonical item identities must not be silently ignored: it contradicts canonicality and has to
+ * be reported, while a claim that is merely incomplete must never be read as membership.
+ */
+function claimsBoundedInverseRead(entry, binding, relation, projection) {
+    const result = entry?.result;
+    return entry?.name === 'get_recipes_by_coil'
+        && relation.toType === projection.from
+        && binding.root?.entityType === relation.fromType
+        && result?.relation === 'coil.recipes'
+        && result?.semantics === 'CURRENT_RECIPE_COIL_REFERENCES'
+        && Number.isSafeInteger(result?.rootCoilId)
+        && String(result.rootCoilId) === String(binding.root.canonicalId);
+}
+/**
+ * A bounded canonical reverse read certifies inverse membership by itself when ALL of the following
+ * hold: the server answered the `coil.recipes` relation under the canonical relation read contract,
+ * the page is complete (`hasMore === false` and the count matches), it is rooted at exactly the bound
+ * canonical root, and it carries verified formal API evidence for `POST /api/relations/read`.
+ * Anything else — a filtered page, a truncated page, another root, or unverified evidence — is not
+ * proof of membership and must leave the observation incomplete.
+ */
+function isCanonicalInverseRead(entry, binding, relation, projection) {
+    const result = entry?.result;
+    return claimsBoundedInverseRead(entry, binding, relation, projection)
+        && result?.success !== false
+        && result?.hasMore === false
+        && Number.isSafeInteger(result?.totalCount)
+        && result.totalCount === result.count
+        && Array.isArray(result?.data)
+        && result.data.every(item => Number.isSafeInteger(item?.recipeId) && item.recipeId > 0)
+        && result.executionEvidence?.verified === true
+        && result.executionEvidence.kind === 'formal_api_query'
+        && result.executionEvidence.calls?.some(call => call.method === 'POST' && call.path === '/api/relations/read');
+}
 function currentFactsForBinding(binding, toolResults = []) {
     const relation = ontology.relations.find(r => r.relationId === binding.relationId);
     const projection = projections[relation.sourceId];
@@ -42,6 +78,30 @@ function currentFactsForBinding(binding, toolResults = []) {
     // filtered list. Certification is keyed on the semantic source snapshot, not on raw invocation
     // count: repeated reads of the same authoritative collection are complete + complete = complete,
     // while materially different collections must not be resolved by silently taking the last one.
+    //
+    // ONT-P8R: the bounded canonical reverse read (`get_recipes_by_coil`) resolves the same inverse
+    // membership directly from the `recipes.coil_id` foreign key inside a formal read transaction, so
+    // one complete page IS the authoritative answer. This replaces scanning a whole source collection
+    // whose payload exceeds the AI tool-result budget on a real-sized database.
+    // An authoritative read for this root that carries non-canonical item identities contradicts
+    // canonicality outright; it must be reported rather than ignored.
+    if (toolResults.filter(t => claimsBoundedInverseRead(t, binding, relation, projection))
+        .some(t => Array.isArray(t.result.data) && t.result.data.some(item => !Number.isSafeInteger(item?.recipeId) || item.recipeId <= 0))) {
+        context.canonical = false;
+        return context;
+    }
+    const inverseReads = toolResults.filter(t => isCanonicalInverseRead(t, binding, relation, projection));
+    if (inverseReads.length) {
+        const snapshot = read => [...new Set(read.result.data.map(item => String(item.recipeId)))]
+            .sort((a, b) => Number(a) - Number(b)).join(',');
+        if (new Set(inverseReads.map(snapshot)).size > 1) return context;
+        const ids = [...new Set(inverseReads[0].result.data.map(item => String(item.recipeId)))];
+        if (ids.some(id => !canonicalId(id))) { context.canonical = false; return context; }
+        context.canonicalTargetIds = ids;
+        context.complete = true;
+        context.canonical = true;
+        return context;
+    }
     const isCompleteRead = t => t?.result?.success !== false && Array.isArray(t.result?.data)
         && t.result.count === t.result.data.length
         && t.result.filters && Object.values(t.result.filters).every(v => v === '' || v === null)

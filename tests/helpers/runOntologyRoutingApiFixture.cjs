@@ -10,10 +10,17 @@ async function main() {
         Object.assign(process.env, { NODE_ENV: 'test', NODE_TEST_CONTEXT: 'ontology-routing-api-fixture',
             PUMP_TEST_DATABASE_PATH: filename, KNOWLEDGE_AUTO_SYNC_ENABLED: 'false', KNOWLEDGE_VECTOR_ENABLED: 'false' });
         const app = require('express')();
-        app.use((req, res, next) => req.method === 'GET' ? next() : res.status(403).json({ success: false }));
+        db = require('../../api/db.cjs').db;
+        // ONT-P8R: the canary's coil-rooted direction now reads the bounded canonical reverse relation
+        // (`POST /api/relations/read`), so the fixture server must parse JSON bodies and expose exactly
+        // that one write-shaped route while every other non-GET request stays refused.
+        app.use(require('express').json());
+        app.use((req, res, next) => req.method === 'GET' || req.path === '/api/relations/read'
+            ? next() : res.status(403).json({ success: false }));
         for (const name of ['coils', 'recipes']) app.use(`/api/${name}`, require(`../../api/routes/${name}.cjs`));
+        app.use('/api/relations', require('../../api/routes/relationRead.cjs').createRelationReadRouter({ db }));
         server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
-        process.env.PORT = String(server.address().port); db = require('../../api/db.cjs').db;
+        process.env.PORT = String(server.address().port);
         const { executeToolCall } = require('../../api/routes/ai/executor.cjs');
         const { runAiAssistant } = require('../../api/services/aiAssistantRuntime.cjs');
         const { beginAssistantSession } = require('../../api/services/aiAssistantSession.cjs');

@@ -99,7 +99,7 @@ test('ONT-P1: existing relationRead mappings cover all seven IDs without equatin
             assert.equal(relation.toType, existing.result);
         }
     }
-    assert.equal(ontology.relationReadMapping.filter(m => m.disposition === 'ADAPTER_REQUIRED').length, 4);
+    assert.equal(ontology.relationReadMapping.filter(m => m.disposition === 'ADAPTER_REQUIRED').length, 5);
     assert.equal(ontology.relationReadMapping.filter(m => m.disposition === 'EXCLUDED').length, 3);
 });
 
@@ -188,7 +188,18 @@ test('ONT-P1/P3/P6R: only authorized observer and private flagged canary import 
         }
     }
     scan(path.join(root, 'api'));
-    assert.doesNotMatch(fs.readFileSync(path.join(root, 'api.cjs'), 'utf8'), /require\s*\([^\n]*(?:ontology|relationRead)/);
+    const entry = fs.readFileSync(path.join(root, 'api.cjs'), 'utf8');
+    assert.doesNotMatch(entry, /require\s*\([^\n]*ontology/u);
+    // ONT-P8R mounts exactly one canonical relation read route. It must stay the only relation-reader
+    // import in the app entry, and it must sit behind the authenticated `/api` section so the bounded
+    // reverse read is never publicly reachable.
+    assert.deepEqual([...entry.matchAll(/require\s*\(\s*['"]([^'"]*relationRead[^'"]*)['"]\s*\)/gu)].map(m => m[1]),
+        ['./api/routes/relationRead.cjs']);
+    const mountAt = entry.indexOf("app.use('/api/relations'");
+    const authenticatedAt = entry.indexOf("req.headers['x-internal-secret']");
+    assert.ok(mountAt > 0, 'the canonical relation read route must be mounted');
+    assert.ok(authenticatedAt > 0 && mountAt > authenticatedAt,
+        'the canonical relation read route must be mounted after the authenticated /api section');
     for (const file of ['contract.cjs', 'sources.cjs', 'validator.cjs']) {
         const text = fs.readFileSync(path.join(root, 'api', 'ontology', file), 'utf8');
         assert.doesNotMatch(text, /require\s*\(\s*['"](?:[^'"]*(?:services|routes|db|sqlite|express)|node:fs)/, file);

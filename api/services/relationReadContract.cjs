@@ -6,6 +6,10 @@ const RELATIONS=Object.freeze({
  'order.lines':{root:'order',result:'orderLine',semantics:'SAVED_ORDER_LINES_NOT_CURRENT_PRODUCTS'},
  'recipe.parts':{root:'recipe',result:'part',semantics:'SAVED_BOM_PART_REFERENCES'},
  'part.recipes':{root:'part',result:'recipe',semantics:'SAVED_BOM_PART_REFERENCES'},
+ // ONT-P8R: bounded canonical reverse read. Answers "which recipes reference this coil" from the
+ // recipes.coil_id foreign key with keyset pagination, so the answer never requires reading the whole
+ // recipe aggregate (which exceeds the AI tool-result budget on a real-sized database).
+ 'coil.recipes':{root:'coil',result:'recipe',semantics:'CURRENT_RECIPE_COIL_REFERENCES'},
  'parts.stock':{root:null,result:'part',semantics:'CURRENT_CATALOG_STOCK'},
  'part.facts':{root:'part',result:'part',semantics:'CURRENT_STOCK_AND_CATALOG_UNIT_PRICE'},
 });

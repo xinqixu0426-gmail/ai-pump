@@ -24,6 +24,35 @@ function fixture(filename = ':memory:') {
 const canonicalRoots = { customer: 1, order: 101, recipe: 301, part: 601, coil: 501, template: 401, quotation: 701 };
 const formal = (path, data) => ({ success: true, ...data,
     executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path }] } });
+/**
+ * ONT-P8R bounded canonical reverse read result, shaped exactly like the real `get_recipes_by_coil`
+ * executor result (`POST /api/relations/read`, canonical relation read contract).
+ */
+const boundedReverseRead = (coilId, recipeIds, overrides = {}) => ({ success: true,
+    count: recipeIds.length, relation: 'coil.recipes', semantics: 'CURRENT_RECIPE_COIL_REFERENCES',
+    rootCoilId: coilId, totalCount: recipeIds.length, hasMore: false, nextAfterId: null,
+    data: recipeIds.map(id => ({ recipeId: id, recipeName: `Shadow配方${id}` })),
+    executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/relations/read' }] },
+    ...overrides });
+/**
+ * The frozen routing corpus stubs `executeToolCall` by tool name and cannot know the tool P8R added,
+ * so tests that run the canary inject this equivalent stub instead: identical behaviour for every
+ * pre-existing tool, plus the bounded reverse read. `onExecuted` records what actually ran so the
+ * read-only and sanctioned-capability constraints can still be asserted.
+ */
+function routingExecuteToolCall(onExecuted, reverseByCoil = { 501: [301] }) {
+    // Deferred require: `ontologyBindingCorpus.cjs` already requires this module, so a top-level
+    // require here would form a load-time cycle.
+    const { toolFor } = require('./ontologyBindingCorpus.cjs');
+    return async (name, args, options) => {
+        if (options.allowWrite !== false) throw Error('WRITE_ACCESS');
+        onExecuted.push({ name, args });
+        if (name === 'get_recipes_by_coil') return boundedReverseRead(Number(args.coilId), reverseByCoil[Number(args.coilId)] || []);
+        if (name === 'get_all_recipes') return toolFor('recipe').result;
+        if (name === 'search_coils') return toolFor('coil').result;
+        return formal('/api/coils/cost-preview', { data: [], count: 0, totalCost: 100 });
+    };
+}
 const recipeDetail = (id = 301, parts = [{ partId: 601, model: 'Shadow零件甲', supplier: '供应甲' }]) => ({
     name: 'get_recipe_detail', args: { recipeName: 'Shadow配方甲' },
     result: formal(`/api/recipes/${id}`, { recipe: { id, name: 'Shadow配方甲', parts } }) });
@@ -81,4 +110,5 @@ function deterministicCorpus() {
         ['first-eligible-after-missing-root', '', [rootMissing, quote], 'MATCH'],
     ];
 }
-module.exports = { fixture, canonicalRoots, formal, recipeDetail, realCorpus, deterministicCorpus };
+module.exports = { fixture, canonicalRoots, formal, recipeDetail, realCorpus, deterministicCorpus,
+    boundedReverseRead, routingExecuteToolCall };

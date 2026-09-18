@@ -307,7 +307,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 | 业务变更 | `/api/business-changes` | 跨订单、报价、采购、零件、配方、模板、线圈、客户、常用配置预设、质量规则、转子档案、业务设置、文件、知识资料和工作流的追加型业务历史；结构化精确查询并投影到知识/向量检索 |
 | 设置 | `/api/settings/:key`、`/api/settings/runtime` | `settingsQueries` 只读提供业务白名单、公开运行快照和 AI 连接探测；两类写入都使用幂等、版本、事务回执和强审计，运行配置提交成功后才应用进程环境 |
 | AI | `/api/ai` | 对话、工具调用、会话和评测；统一 Provider 支持本地优先的局域网 OpenAI 兼容模型以及 DeepSeek/Kimi，模型流解析与工具消息协议由独立 service 统一 |
-| 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 48 个只读工具，包含模板、报价完整详情和统一业务变更历史；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
+| 通用 MCP | `/mcp` | 远程无状态 Streamable HTTP；默认向 Hermes、Codex 等兼容 Agent 提供 49 个只读工具，包含模板、报价完整详情和统一业务变更历史；显式授权的 2026 客户端只可额外使用其逐工具 allowlist 中带原生人工确认的命令；全部仍由 executor 调用正式 API |
 
 配方、订单、模板和常用配置预设的写接口仍接受部分历史 snake_case 入参，但所有 Web 调用必须使用 camelCase。转子历史接口标准输出 camelCase。
 

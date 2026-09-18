@@ -202,6 +202,22 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_recipes_by_coil',
+            description: '按一个已知线圈方案的ID反查当前引用它的配方（成品型号），结果有界分页，返回该线圈被哪些配方使用。用户问“这个线圈/定子被哪些配方用”“12-200 对应哪些成品”时使用；先用 search_coils 拿到线圈方案ID，再调用本工具。这是反查权威入口，禁止用 get_all_recipes 全量列表代替。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    coilId: { type: 'integer', minimum: 1, description: '线圈方案ID，先由 search_coils 获得' },
+                    limit: { type: 'integer', minimum: 1, maximum: 50, description: '返回条数上限（可选，默认 20）' },
+                    afterId: { type: 'integer', minimum: 1, description: '分页游标：上一页最后一条配方ID（可选）' }
+                },
+                required: ['coilId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_recipe_detail',
             description: '读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。',
             parameters: {

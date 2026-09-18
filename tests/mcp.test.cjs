@@ -110,7 +110,7 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         ))
         .map(capability => capability.toolName);
 
-    assert.equal(listed.length, 48);
+    assert.equal(listed.length, 49);
     assert.deepEqual(listed.map(tool => tool.name), MCP_READ_ONLY_TOOL_NAMES);
     assert.deepEqual(
         new Set(listed.map(tool => tool.name)),

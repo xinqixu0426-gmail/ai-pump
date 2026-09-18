@@ -9,6 +9,7 @@ const ROOT_SQL={
  order:'SELECT id,contract_no AS name,customer_id AS customerId,customer_name AS customerName,items_json AS lines FROM orders WHERE id=? AND deleted_at IS NULL',
  recipe:'SELECT id,name,parts_json AS partsJson FROM recipes WHERE id=? AND deleted_at IS NULL',
  part:'SELECT id,model AS name,supplier,stock,price FROM parts WHERE id=? AND deleted_at IS NULL',
+ coil:'SELECT id,scheme_name AS name,spec,sheets FROM coils WHERE id=?',
 };
 function createRelationReadService({db,canonicalOnly=false}){
  const one=(rows)=>{if(!rows.length)C.fail('RELATION_NOT_FOUND');if(rows.length!==1)C.fail('RELATION_AMBIGUOUS');return rows[0];};
@@ -114,6 +115,12 @@ function createRelationReadService({db,canonicalOnly=false}){
      if(found)matched.push(recipe);
     }
     total=matched.length;rows=matched.filter(r=>q.afterId===undefined||r.id<q.afterId).slice(0,q.pageSize+1).map(r=>item('recipe',r));
+   }else if(q.relation==='coil.recipes'){
+    // Canonical-only reverse membership over the recipes.coil_id foreign key. Bounded by keyset
+    // pagination; totalCount is an exact COUNT, so a page is never presented as the whole relation.
+    total=db.prepare('SELECT COUNT(*) AS n FROM recipes WHERE coil_id=:rootId AND deleted_at IS NULL').get(params).n;
+    rows=db.prepare('SELECT id,name FROM recipes WHERE coil_id=:rootId AND deleted_at IS NULL AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit')
+     .all(params).map(r=>item('recipe',r));
    }else if(q.relation==='parts.stock'){
     const predicates={low:'COALESCE(stock,0)>0 AND COALESCE(stock,0)<=:threshold',out:'COALESCE(stock,0)<=0',attention:'COALESCE(stock,0)<=:threshold',ok:'COALESCE(stock,0)>:threshold'};
     const where='deleted_at IS NULL AND '+predicates[q.stockStatus],p={...params,threshold:LOW_STOCK_MAX};

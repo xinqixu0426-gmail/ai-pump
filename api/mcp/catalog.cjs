@@ -12,6 +12,7 @@ const MCP_READ_ONLY_TOOL_NAMES = Object.freeze([
     'search_templates',
     'get_template_detail',
     'get_all_recipes',
+    'get_recipes_by_coil',
     'get_recipe_detail',
     'get_recipe_technical_files',
     'build_recipe_bom_draft',

@@ -113,8 +113,16 @@ function toolScore(tool, domains, userText) {
     return score;
 }
 
+// ONT-P8R: relation reverse reads are offered on explicit demand only. They are planned by name by
+// the ontology canary shortlist and remain in the full read catalogue used by cloud providers, but
+// they must never enter the locally scored auto-shortlist: scoring is score-then-index ordered, so
+// merely adding a new recipe-domain read tool silently displaces an existing entry under the
+// `maxTools` cap and changes legacy local behaviour.
+const EXPLICIT_ONLY_TOOL_NAMES = Object.freeze(new Set(['get_recipes_by_coil']));
+
 function readTools() {
     return AI_TOOLS.filter(tool => {
+        if (EXPLICIT_ONLY_TOOL_NAMES.has(tool.function.name)) return false;
         const capability = getAiCapability(tool.function.name);
         return capability?.access === 'read'
             && ['query', 'preview'].includes(capability.operation)
@@ -176,6 +184,7 @@ function selectLocalAssistantTools(userText, options = {}) {
         allTools.length
     );
     const candidates = allTools
+        .filter(tool => !EXPLICIT_ONLY_TOOL_NAMES.has(tool.function.name))
         .map((tool, index) => ({ tool, index, score: toolScore(tool, domains, userText) }))
         .filter(item => item.score > 0)
         .sort((left, right) => right.score - left.score || left.index - right.index);

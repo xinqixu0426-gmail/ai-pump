@@ -13,18 +13,19 @@ const { deepFreeze } = require('./sources.cjs');
 // ONT-P8: reads are declared PER DIRECTION because the deliverable payload differs enormously.
 //  - `recipe -> coil`: the root recipe is already canonically known, so ONE bounded detail read
 //    (`get_recipe_detail{recipeId}`) certifies the forward projection, plus the small coil catalogue.
-//  - `coil -> recipes`: inverse membership needs the COMPLETE unfiltered recipe collection
-//    (`projections.recipe_coil` reads `recipe.coilId`). On this database that payload is 121 KB against
-//    a 96 KB per-result budget, so the runtime refuses it and revokes the canary for the turn
-//    (ONTOLOGY_CANARY_FALLBACK), handing the read surface back to legacy. The read is still REQUIRED
-//    rather than optional: measured on real data, dropping the requirement made the model answer from
-//    the coil read alone without ever fetching the collection, which was strictly worse than legacy.
-//    Adding a repair round instead is not available either — the promotion gate requires zero
-//    ontology-induced provider calls. Closing this properly needs a bounded/aggregate collection read,
-//    i.e. a Tool schema change, which is outside this phase.
+//  - `coil -> recipes`: ONT-P8R replaced the COMPLETE unfiltered recipe collection
+//    (`get_all_recipes`, whose `projections.recipe_coil` payload is 121 KB on this database against a
+//    96 KB per-result budget) with the bounded canonical reverse read `get_recipes_by_coil`, which
+//    walks the `recipes.coil_id` foreign key with keyset pagination and returns ~700-900 bytes
+//    (measured: coil 5 -> 1 row, 714 bytes; coil 2 -> 3 rows, 865 bytes). Its `rootId` comes from the
+//    already-bound canonical coil root, so it needs no extra discovery round.
+//    History: at ONT-P8 the required collection read always exceeded the budget, so the runtime
+//    refused it and revoked the canary for the turn (ONTOLOGY_CANARY_FALLBACK), and both dropping the
+//    requirement and adding a repair round measured worse than legacy because the model then answered
+//    from the coil read alone.
 //  - arguments for the root read come from already-verified server context (`root_identity` /
-//    `root_detail`), never from the user's wording.
-const sourceCollectionRead = deepFreeze({ capability: 'get_all_recipes', argumentPolicy: 'empty', omitArguments: ['keyword'] });
+//    `root_detail` / `root_id`), never from the user's wording.
+const byCoilRecipeRead = deepFreeze({ capability: 'get_recipes_by_coil', argumentPolicy: 'root_id' });
 const rootIdentityRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'root_identity' });
 // The coil catalogue is small and deliverable; it supplies the coil identities the answer composer's
 // winding suffix and the P3 observer rely on.
@@ -32,11 +33,11 @@ const coilCatalogueRead = deepFreeze({ capability: 'search_coils', argumentPolic
 // Bounded root read for a recipe-rooted question: one recipe, not the whole catalogue.
 const recipeDetailRead = deepFreeze({ capability: 'get_recipe_detail', argumentPolicy: 'root_detail' });
 const requiredReadsByRelation = deepFreeze({
-    'coil.used_by_recipe': [sourceCollectionRead, rootIdentityRead],
+    'coil.used_by_recipe': [byCoilRecipeRead, rootIdentityRead],
     'recipe.uses_coil': [recipeDetailRead, coilCatalogueRead],
 });
 // Union of every declared read, used for catalogue validation and capability auditing.
-const requiredReads = deepFreeze([sourceCollectionRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
+const requiredReads = deepFreeze([byCoilRecipeRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
 const optionalCapabilities = deepFreeze([]);
 const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     // ONT-P7: `deepseek` is promoted to production eligibility for this family after the P6D real-AI
@@ -48,7 +49,15 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     shortlistRequiredProviderModes: ['local', 'local-first'],
     discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: { coil: 'search_coils', recipe: 'get_all_recipes' } },
     completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
-    shortlist: ['get_all_recipes', 'search_coils', 'get_recipe_detail'],
+    shortlist: ['get_all_recipes', 'search_coils', 'get_recipe_detail', 'get_recipes_by_coil'],
+    // ONT-P8R: the offered surface is per direction, for the same reason the required reads are. A
+    // coil-rooted question is now answered by the bounded reverse read, so it is offered first and the
+    // 121 KB whole-collection read is no longer the model's default first move. The recipe-rooted
+    // direction keeps the order P6D/P7 measured, so its promotion evidence still describes this code.
+    shortlistByRelation: deepFreeze({
+        'coil.used_by_recipe': ['get_recipes_by_coil', 'search_coils', 'get_all_recipes', 'get_recipe_detail'],
+        'recipe.uses_coil': ['get_all_recipes', 'search_coils', 'get_recipe_detail'],
+    }),
     requiredReads,
     requiredReadsByRelation,
     optionalCapabilities,
@@ -56,7 +65,7 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     requirements: requiredReads,
     // These are existing compatibility messages, not new instructions to the model.
     completionMessage: '正在补齐线圈与配方关联查询...',
-    repairPrompt: '上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：{missing}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。',
+    repairPrompt: '上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：{missing}。请立即调用缺少的正式工具；已知线圈方案ID时用 get_recipes_by_coil 反查使用它的配方，需要完整配方列表时才用 get_all_recipes，不要把线圈简写当作配方名称关键词。',
     failureMessage: '线圈与配方的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
 }]);
 
@@ -68,7 +77,7 @@ function requiredReadsFor(state) {
 /**
  * Arguments for the root reads, derived from the bound canonical root and already-verified server
  * context — never from the user's wording. A recipe root only needs its own id (bounded detail read);
- * a coil root needs its own catalogue identity.
+ * a coil root needs its own id for the bounded reverse read plus its own catalogue identity.
  */
 function rootReadArguments(binding, trustedToolResults = []) {
     const out = {};
@@ -80,6 +89,8 @@ function rootReadArguments(binding, trustedToolResults = []) {
         return out;
     }
     if (root.entityType !== 'coil') return out;
+    const coilId = Number(root.canonicalId);
+    if (Number.isSafeInteger(coilId) && coilId > 0) out.get_recipes_by_coil = { coilId };
     const rows = verifiedRows(trustedToolResults);
     const row = rows.find(r => r.entityType === 'coil' && r.canonicalId === root.canonicalId)?.row;
     if (!row || typeof row !== 'object') return out;
@@ -161,7 +172,8 @@ function prepareRouting(input = {}, dependencies = {}) {
             || getAiCapability(r.capability)?.operation !== 'query')) throw Error('READ_PROFILE_UNAVAILABLE');
         dependencies.validateProfile?.(profile);
         record.durationMs = performance.now() - started;
-        const tools = profile.shortlist.map(name => catalog.find(t => t.function.name === name)).filter(Boolean);
+        const offered = profile.shortlistByRelation?.[binding.relationId] || profile.shortlist;
+        const tools = offered.map(name => catalog.find(t => t.function.name === name)).filter(Boolean);
         if (!tools.length) throw Error('READ_PROFILE_UNAVAILABLE');
         return { record, binding, profile, tools,
             rootReadArguments: rootReadArguments(binding, input.trustedToolResults || []),
@@ -187,7 +199,8 @@ function completionCalls(state, missing, userText) {
         const rule = requiredReadsFor(state).find(r => r.capability === name);
         let args;
         if (rule?.argumentPolicy === 'empty') args = {};
-        else if (rule?.argumentPolicy === 'root_identity' || rule?.argumentPolicy === 'root_detail') args = state.rootReadArguments?.[name];
+        else if (rule?.argumentPolicy === 'root_identity' || rule?.argumentPolicy === 'root_detail'
+            || rule?.argumentPolicy === 'root_id') args = state.rootReadArguments?.[name];
         else if (rule?.argumentPolicy === 'explicit_numeric_pair') {
             const pair = String(userText || '').match(/(\d+)\s*[-—~]\s*(\d+)/u);
             if (pair) args = { spec: pair[1], sheets: Number(pair[2]) };

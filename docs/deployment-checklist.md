@@ -30,7 +30,7 @@
 - 版本标签：`pump-ai-v1.0.0`，包版本 `1.0.0`。以标签对应提交为冻结源码，后续修复使用新的版本标签，不移动本标签。
 - 2026-09-07 用户明确确认 Windows 本地人工验收通过。本次为源码审计、清理与冻结；未发布新版至 Mac Mini，未修改或重启生产 Legacy。
 - 本次最终验证：全量测试 1848/1848、API 契约 26/26、隔离深度 API 437/437；完整 lint 与生产构建通过；后端和 Web 依赖审计各 0 个已知漏洞。深度 API 中的 401/502/503 为失败路径测试，整体退出码 0。
-- 审计核对默认聊天/内部调用进入新工具循环、正式 API 事实来源、48 个只读工具、写工具拒绝、会话隔离、记忆回执和迁移 80、上下文预算及保留明细路径。清理后修正一处未使用导入，未另行扩大功能。
+- 审计核对默认聊天/内部调用进入新工具循环、正式 API 事实来源、49 个只读工具、写工具拒绝、会话隔离、记忆回执和迁移 80、上下文预算及保留明细路径。清理后修正一处未使用导入，未另行扩大功能。
 - V1 包含当前已实现的跨业务只读查询、正式成本比较、自然语言明确记忆保存/修改/删除/撤销。自由指代记忆、记忆管理界面和本人确认业务写入属于后续能力；复杂长链调查仍受轮次及上下文预算限制，不能保证所有自然语言问题都得到完整答案。
 - 旧框架运行代码和阶段脚本已撤除；历史报告保留，包括 M-24 原因未明偶发故障与原始 29/30，未改写为全绿。未启用业务写操作、P17 或 P16-N。
 - 清理前的全部 Git 引用、未提交源码备份，以及临时输出、过渡脚本和重规划草稿归档在本机 `C:\Users\Dan\Documents\pump-v1-release-archive\2026-09-07`。冻结验证原始日志已移到该归档目录的 `final-folder-cleanup/output/v1-freeze/`，不进入发布源码。
@@ -165,7 +165,7 @@ mcp_servers:
     connect_timeout: 15
 ```
 
-不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 48 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 49 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
 
 ## 3. 重启服务
 

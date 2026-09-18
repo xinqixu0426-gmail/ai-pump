@@ -7,6 +7,7 @@ const { prepareRouting, requiredReadCalls } = router;
 const { runAiAssistant, assistantReadTools } = require('../api/services/aiAssistantRuntime.cjs');
 const { currentFactsForBinding } = require('../api/ontology/bindingCurrentFacts.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
+const { routingExecuteToolCall } = require('./helpers/ontologyShadowFixture.cjs');
 
 /**
  * ONT-P6D-R1 — deterministic completion enforcement.
@@ -28,10 +29,10 @@ test('P6D-R1 required reads are planned deterministically from verified context,
         assert.equal(state.record.eligible, true, `eligible for ${c.caseId}`);
         const calls = requiredReadCalls(state, [], c.userText);
         // Reads are declared per direction: a recipe root needs a bounded detail read plus the small coil
-        // catalogue, while a coil root additionally needs the complete collection read for inverse
-        // membership (which the runtime refuses on a real-sized database, so it revokes to legacy).
+        // catalogue, while a coil root needs the bounded canonical reverse read (ONT-P8R) plus its own
+        // identity read. Neither direction needs the whole recipe collection.
         const expectedReads = c.root.entityType === 'coil'
-            ? ['get_all_recipes', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
+            ? ['get_recipes_by_coil', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
         assert.deepEqual(calls.map(call => call.function.name).sort(), [...expectedReads].sort(),
             `planned reads for ${c.caseId}`);
         const coilCall = calls.find(call => call.function.name === 'search_coils');
@@ -73,9 +74,12 @@ test('P6D-R1 ontology adds no provider calls across the frozen positive corpus',
 test('P6D-R1 exact P6D regression: coil-explicit reaches the same canonical target as legacy', async () => {
     // In the P6D DeepSeek run this case produced `A canonical target = [301]` and `B canonical
     // target = []`. The expected value stays [301]; it must never be relaxed to match the bug.
+    // ONT-P8R: the ON side needs the extended executor stub because the frozen corpus executor cannot
+    // know the bounded reverse read the coil direction now plans.
     const c = cases.find(entry => entry.caseId === 'coil-explicit');
     const off = await runCase(c, 'false', runAiAssistant);
-    const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true });
+    const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true,
+        dependencies: { executeToolCall: routingExecuteToolCall([]) } });
     const state = prepareRouting(routingInput(c));
     const offFacts = currentFactsForBinding(state.binding, off.result.toolResults);
     const onFacts = currentFactsForBinding(state.binding, on.result.toolResults);
@@ -88,27 +92,46 @@ test('P6D-R1 exact P6D regression: coil-explicit reaches the same canonical targ
 
 test('P6D-R1 the planned reads actually execute through the read-only executor and carry evidence', async () => {
     const c = positives[0];
-    const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true });
+    const executed = [];
+    const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true,
+        dependencies: { executeToolCall: routingExecuteToolCall(executed) } });
+    const state = prepareRouting(routingInput(c));
+    const planned = router.requiredReadsFor(state).map(read => read.capability);
     const executedNames = on.result.toolResults.map(entry => entry.name);
-    assert.ok(executedNames.includes('get_all_recipes'));
-    assert.ok(executedNames.includes('search_coils'));
-    for (const entry of on.result.toolResults) {
-        assert.equal(entry.result?.success !== false, true);
-        assert.equal(entry.result.executionEvidence?.verified, true);
-        assert.equal(entry.result.executionEvidence.kind, 'formal_api_query');
+    for (const name of planned) assert.ok(executedNames.includes(name), `planned read ${name} must execute`);
+    // Only the deterministic planned reads must carry verified evidence: a model-initiated call that
+    // the tool refuses for a missing identifier is a legitimate refusal, not missing evidence. The
+    // planned call for a capability is the one that actually carried arguments.
+    for (const name of planned) {
+        assert.ok(on.result.toolResults.some(entry => entry.name === name && entry.args !== undefined
+            && entry.result?.success !== false && entry.result?.executionEvidence?.verified === true
+            && entry.result.executionEvidence.kind === 'formal_api_query'),
+        `planned read ${name} must execute with verified formal evidence`);
     }
+    // The read-only executor guard is re-asserted against the calls that actually ran.
+    assert.deepEqual(executed.map(entry => entry.name).filter(name => planned.includes(name)).sort(), [...planned].sort());
 });
 
+/**
+ * ONT-P8 a canary read the runtime cannot deliver revokes the canary and restores the legacy surface.
+ * The failure is injected on whichever read the bound direction actually plans, so this guard keeps
+ * covering any future read that the runtime cannot deliver — including the ONT-P8R bounded reverse read.
+ */
+const failingPlannedRead = name => async (tool, args, options) => (tool === name
+    ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
+    : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } });
+const undeliverableReadFor = c => {
+    const state = prepareRouting(routingInput(c));
+    assert.equal(state.record.eligible, true);
+    return router.requiredReadsFor(state)[0].capability;
+};
+
 test('P8 a canary read the runtime cannot deliver revokes the canary and restores the legacy surface', async () => {
-    // Real-sized databases make an unfiltered catalogue read exceed the per-result budget, so the
-    // runtime returns AI_QUERY_RESULT_TOO_LARGE for it. A canary that cannot obtain its own evidence
-    // must hand the turn back to legacy instead of constraining the model to its own profile.
     const c = positives[0];
+    const failing = undeliverableReadFor(c);
     const on = await runCase(c, 'true', runAiAssistant, { mode: 'deepseek',
-        dependencies: { executeToolCall: async name => (name === 'get_all_recipes'
-            ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
-            : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
-                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } }) } });
+        dependencies: { executeToolCall: failingPlannedRead(failing) } });
     assert.equal(on.records[0].routingSource, 'ONTOLOGY_CANARY_FALLBACK');
     assert.equal(on.records[0].fallback, true);
     assert.equal(on.records[0].fallbackReason, 'AI_QUERY_RESULT_TOO_LARGE');
@@ -121,12 +144,10 @@ test('P8 a canary read the runtime cannot deliver revokes the canary and restore
 
 test('P8 a revoked canary pre-read does not become an extra model planning round', async () => {
     const c = positives[0];
+    const failing = undeliverableReadFor(c);
     const legacy = await runCase(c, 'false', runAiAssistant, { mode: 'deepseek' });
     const revoked = await runCase(c, 'true', runAiAssistant, { mode: 'deepseek',
-        dependencies: { executeToolCall: async name => (name === 'get_all_recipes'
-            ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
-            : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
-                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } }) } });
+        dependencies: { executeToolCall: failingPlannedRead(failing) } });
     assert.ok(revoked.signature.modelCalls <= legacy.signature.modelCalls + 1,
         `revoked canary added provider calls (${revoked.signature.modelCalls} vs legacy ${legacy.signature.modelCalls})`);
 });

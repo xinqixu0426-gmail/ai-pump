@@ -20,6 +20,16 @@ const inputFor = c => ({ userText: c.userText, env: { AI_PROVIDER: 'local' }, sh
  */
 const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.capability)
     .concat(router.profiles.flatMap(profile => profile.shortlist)));
+/**
+ * ONT-P8R: the canary's inverse direction now plans the bounded canonical reverse read
+ * (`get_recipes_by_coil`) instead of the whole recipe collection. The frozen routing corpus stubs
+ * `executeToolCall` by tool name and cannot know the new tool, so this test injects the shared
+ * equivalent stub (frozen behaviour for every existing tool, plus the reverse read). The frozen
+ * corpus file itself is unchanged.
+ */
+const { routingExecuteToolCall } = require('./helpers/ontologyShadowFixture.cjs');
+const onExecuted = [];
+const onExecuteToolCall = routingExecuteToolCall(onExecuted);
 function assertOntologyEquivalence(on, off, c) {
     if (c.category === 'negative') { assert.deepEqual(on.signature, off.signature); return; }
     assert.ok(on.signature.modelCalls <= off.signature.modelCalls,
@@ -37,8 +47,20 @@ for (const c of cases) {
         const off = await runCase(c, 'false', runAiAssistant);
         assert.deepEqual(off.signature, oracle.cases.find(r => r.caseId === c.caseId && r).signature ||
             Object.fromEntries(Object.entries(oracle.cases.find(r => r.caseId === c.caseId)).filter(([key]) => key !== 'caseId')));
-        const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: c.category === 'positive' });
+        onExecuted.length = 0;
+        // Only eligible positives get the extended executor stub. Non-eligible requests must keep the
+        // frozen corpus executor so their OFF/ON signatures stay byte-identical to the oracle.
+        const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: c.category === 'positive',
+            ...(c.category === 'positive' ? { dependencies: { executeToolCall: onExecuteToolCall } } : {}) });
         assertOntologyEquivalence(on, off, c);
+        if (c.category === 'positive') {
+            // `signature.executed` is empty because this test injects its own executor stub, so the
+            // read-only constraint is re-asserted here against the calls that actually ran.
+            assert.ok(onExecuted.length > 0, 'the canary must execute its planned reads in software');
+            for (const entry of onExecuted) {
+                assert.ok(sanctionedCapabilities.has(entry.name), `unexpected ontology tool ${entry.name}`);
+            }
+        }
         assert.equal(on.records.length, 1);
         assert.equal(on.records[0].fallback, false);
         if (c.category === 'positive') {
@@ -109,11 +131,26 @@ test('P6R routing telemetry is low-sensitive and survives a failing exporter', a
 });
 test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dependency changes', () => {
     const { execFileSync } = require('node:child_process');
+    // ONT-P8R sanctions exactly one tool-catalog change: the bounded reverse read. It is verified below
+    // as a pure single insertion so no other catalog edit, prompt edit or schema edit can hide in it.
     for (const file of ['api/ontology/relationBinder.cjs', 'api/ontology/bindingMetadata.cjs', 'api/services/aiCapabilityGraphV3.cjs',
         'api/services/aiAssistantAnswer.cjs', 'api/services/aiEvidenceBundle.cjs', 'api/services/aiResponsePresenter.cjs',
-        'api/routes/ai/tools.cjs', 'package.json', 'package-lock.json']) {
+        'package.json', 'package-lock.json']) {
         assert.equal(fs.readFileSync(path.resolve(file), 'utf8').replace(/\r\n/g, '\n'), execFileSync('git', ['show', `${oracle.sourceCommit}:${file}`], { encoding: 'utf8' }).replace(/\r\n/g, '\n'));
     }
+    const normalize = value => value.replace(/\r\n/g, '\n');
+    const toolsNow = normalize(fs.readFileSync(path.resolve('api/routes/ai/tools.cjs'), 'utf8'));
+    const toolsBefore = normalize(execFileSync('git', ['show', `${oracle.sourceCommit}:api/routes/ai/tools.cjs`], { encoding: 'utf8' }));
+    const marker = "    {\n        type: 'function',\n        function: {\n            name: 'get_recipe_detail',";
+    const at = toolsNow.indexOf(marker), was = toolsBefore.indexOf(marker);
+    assert.ok(at > 0 && was > 0, 'the recipe-detail anchor must still exist in the tool catalog');
+    // The sanctioned insertion sits immediately before the anchor, so the anchor's pre-change offset is
+    // the cut point and the length delta is exactly the inserted block.
+    const inserted = toolsNow.slice(was, at);
+    assert.equal(toolsNow.slice(0, was) + toolsNow.slice(at), toolsBefore,
+        'the tool catalog may only change by one contiguous insertion');
+    assert.equal((inserted.match(/name: '/gu) || []).length, 1, 'exactly one tool may be added');
+    assert.ok(inserted.includes("name: 'get_recipes_by_coil'"), 'the sanctioned addition is the bounded reverse read');
     const runtime = fs.readFileSync(path.resolve('api/services/aiAssistantRuntime.cjs'), 'utf8');
     const previous = execFileSync('git', ['show', `${oracle.sourceCommit}:api/services/aiAssistantRuntime.cjs`], { encoding: 'utf8' });
     for (const pattern of [/const SYSTEM_PROMPT = `[\s\S]+?`;/u, /const LOCAL_RESPONSE_PROMPT = '[^\n]+/u])
@@ -154,9 +191,14 @@ test('P6R canary and P3/P4/P5 observers coexist without extra business calls, re
             record: r => { oneHop = r; }, recordBinding: r => { binding = r; },
             traversal: { record: r => { traversal = r; finish(); } } } };
         const off = await runCase(cases[0], 'false', runAiAssistant);
-        const onBaseline = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true });
+        // ONT-P8R: both ON sides use the extended executor stub so the comparison stays apples-to-apples;
+        // the frozen corpus executor cannot know the new bounded reverse read.
+        onExecuted.length = 0;
+        const onBaseline = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true,
+            dependencies: { executeToolCall: onExecuteToolCall } });
         const on = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true,
-            env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: 'true', AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED: 'true', AI_ONTOLOGY_2HOP_SHADOW_ENABLED: 'true' }, dependencies: deps });
+            env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: 'true', AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED: 'true', AI_ONTOLOGY_2HOP_SHADOW_ENABLED: 'true' },
+            dependencies: { ...deps, executeToolCall: onExecuteToolCall } });
         await Promise.race([done, new Promise((_, reject) => { const timer = setTimeout(() => reject(Error('SHADOW_TIMEOUT')), 3000); timer.unref(); })]);
         assert.equal(oneHop.comparison.status, 'MATCH'); assert.equal(binding.status, 'BOUND');
         assert.equal(traversal.executed, false);
