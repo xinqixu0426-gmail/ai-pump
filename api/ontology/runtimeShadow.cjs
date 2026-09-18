@@ -30,7 +30,7 @@ function resolveInWorker(context, databasePath, timeoutMs = TIMEOUT_MS) {
         } catch { finish({ success: false, status: 'TECHNICAL_FAILURE', code: 'SHADOW_WORKER_FAILURE' }); }
     });
 }
-async function observeShadow({ userText, toolResults, requestId, bindingEnabled = false, trustedSession, subject, conversationId }, dependencies = {}) {
+async function observeShadow({ userText, toolResults, requestId, bindingEnabled = false, traversalEnabled = false, trustedSession, subject, conversationId }, dependencies = {}) {
     let context;
     try { context = selectShadowContext(userText, toolResults); } catch { context = null; }
     if (bindingEnabled) {
@@ -61,6 +61,11 @@ async function observeShadow({ userText, toolResults, requestId, bindingEnabled 
     // Metadata only goes to the existing privacy-filtered instrumentation. IDs remain in local controlled sinks.
     try { await (dependencies.observeSpan || withOntologyShadowSpan)(record, isEligible); } catch { /* Observation must fail open. */ }
     try { dependencies.record?.(record); } catch { /* Sink must fail open. */ }
+    // Independent layer: never await or replace the completed P3/P4 observation.
+    if (bindingEnabled && traversalEnabled) {
+        try { void require('./traversalShadow.cjs').observeTraversalShadow({ userText, toolResults, requestId,
+            trustedSession, subject, conversationId }, dependencies.traversal).catch(() => {}); } catch { /* Fail open. */ }
+    }
     return record;
 }
 module.exports = { MAX_HOP, MAX_SHADOW_RELATIONS_PER_REQUEST, TIMEOUT_MS, resolveInWorker, observeShadow,

@@ -45,6 +45,8 @@ The observer checks the first actual formal context, which can differ from the r
 
 P4 adds independently disabled child flag `AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED=false`. With the parent ON and child OFF, this P3 selection remains unchanged. Child ON can add deterministic root/direction binding from existing verified contexts; an existing complete canonical P3 comparison is always retained. Otherwise a bound direction can supply one shadow observation, with current facts projected separately from verified results. No extra model/tool call, prompt, user answer or evidence influence is introduced. Binding intent is not a relation fact and may be BOUND while target comparison is incomplete. See [Ontology Relation Binding V1](ontology-relation-binding-v1.md) for provenance, ambiguity, metrics, final real-corpus comparison and P5 gates.
 
+P5 independently disabled child `AI_ONTOLOGY_2HOP_SHADOW_ENABLED=false` adds a separate explicit two-hop observer only when the parent and binding switches are both ON. It runs after recording this one-hop observation and never replaces or changes its MATCH semantics or one-hop budget. See [Bounded 2-Hop Traversal Shadow V1](ontology-traversal-shadow-v1.md).
+
 ## OntologyShadowComparisonV1
 
 The deeply frozen contract is exported by `shadowContract.cjs` as `OntologyShadowComparisonV1` / `ShadowContractVersion=1`, with `ontologyVersion=1`:

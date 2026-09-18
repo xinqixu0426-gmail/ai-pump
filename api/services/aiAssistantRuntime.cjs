@@ -508,6 +508,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     void require('../ontology/runtimeShadow.cjs').observeShadow({
                         userText: latest.content, toolResults, requestId: input.requestId,
                         bindingEnabled,
+                        traversalEnabled: bindingEnabled && String((runtimeEnv || process.env).AI_ONTOLOGY_2HOP_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true',
                         ...(bindingEnabled && session.previous?.toolResults ? { subject: input.confirmationSubject, conversationId: input.conversationId,
                             trustedSession: { subject: input.confirmationSubject, conversationId: input.conversationId,
                                 observedAt: started, toolResults: session.previous.toolResults } } : {}),

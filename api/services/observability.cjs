@@ -835,6 +835,19 @@ function emitSyntheticSmokeSpan() {
   };
 }
 
+function withOntologyTraversalSpan(record) {
+  return withObservedSpan({ name: 'ontology_traversal_shadow', kind: 'CHAIN', attributes: {
+    'pump.ai.ontology.traversal.hops': 2,
+    'pump.ai.ontology.traversal.path_id': record.binding?.pathId || 'none',
+    'pump.ai.ontology.traversal.root_entity_type': record.binding?.root?.entityType || 'none',
+    'pump.ai.ontology.traversal.intermediate_count': record.traversal?.intermediateCount || 0,
+    'pump.ai.ontology.traversal.target_count': record.traversal?.targetCount || 0,
+    'pump.ai.ontology.traversal.status': record.traversal?.status || (record.executed ? 'TECHNICAL_FAILURE' : record.binding?.status || 'TECHNICAL_FAILURE'),
+    'pump.ai.ontology.traversal.complete': record.traversal?.complete === true,
+    'pump.ai.ontology.traversal.duration_ms': record.traversal?.timing.durationMs || 0,
+  } }, async () => undefined);
+}
+
 function withOntologyBindingSpan(binding) {
   return withObservedSpan({ name: 'ontology_relation_binding', kind: 'CHAIN', attributes: {
     'pump.ai.ontology.binding.status': binding.status,
@@ -896,6 +909,7 @@ module.exports = {
   withModelSpan,
   withOntologyShadowSpan,
   withOntologyBindingSpan,
+  withOntologyTraversalSpan,
   withRoutingSpan,
   withToolSpan,
   withVerificationSpan,

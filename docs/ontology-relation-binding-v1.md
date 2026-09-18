@@ -54,6 +54,8 @@ An existing complete canonical P3 comparison is always retained, even if the bin
 
 Binding telemetry uses `ontology_relation_binding` with `pump.ai.ontology.binding.{status,relation_id,root_entity_type,source,shadow_eligible}`. No complete user text, payload, names or canonical IDs are exported. Controlled synthetic fixture IDs are retained only in local acceptance reports.
 
+P5 adds a separately disabled path-binding/traversal layer (`AI_ONTOLOGY_2HOP_SHADOW_ENABLED=false`), requiring both existing switches. It does not alter this single-direction binder, contract or comparison selection. See [Bounded 2-Hop Traversal Shadow V1](ontology-traversal-shadow-v1.md).
+
 ## Metrics
 
 Bindable opportunities require a supported intent and an available unique verified canonical root. Successfully bound counts unique root + directional relation bindings. Structurally unbindable cases include absent canonical paths, ambiguous inputs and unsupported relations; they are not counted as deterministic implementation failures. Binding does not imply comparability: current target IDs or completeness may still be absent.

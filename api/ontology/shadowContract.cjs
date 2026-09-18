@@ -72,4 +72,4 @@ function compareShadow(current, resolved, { requestId, ontologyMs = 0 } = {}) {
             extraInOntology: extra, classifications },
         timing: { ontologyMs: Number.isFinite(ontologyMs) ? Math.max(0, ontologyMs) : 0 } });
 }
-module.exports = { OntologyShadowComparisonV1, ShadowContractVersion, ShadowFlag, MAX_TARGETS, statuses, compareShadow, ids };
+module.exports = { OntologyShadowComparisonV1, ShadowContractVersion, ShadowFlag, MAX_TARGETS, statuses, compareShadow, ids, safeRequestId };

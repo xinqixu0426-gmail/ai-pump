@@ -114,4 +114,4 @@ function bindRelation(input = {}) {
         bindingEvidence: [{ kind: selected.source, capability: /^[a-z0-9_]{1,64}$/.test(selected.capability) ? selected.capability : null }],
         bindingSource: [selected.source, 'ontology_intent_metadata'], confidenceClass: 'deterministic', shadowEligible: true });
 }
-module.exports = deepFreeze({ bindRelation, verifiedRows, mentionMatches });
+module.exports = deepFreeze({ bindRelation, verifiedRows, mentionMatches, receiptRows });
