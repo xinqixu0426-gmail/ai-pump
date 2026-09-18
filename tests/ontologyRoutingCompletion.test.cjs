@@ -27,7 +27,11 @@ test('P6D-R1 required reads are planned deterministically from verified context,
         const state = prepareRouting(routingInput(c));
         assert.equal(state.record.eligible, true, `eligible for ${c.caseId}`);
         const calls = requiredReadCalls(state, [], c.userText);
-        assert.deepEqual(calls.map(call => call.function.name).sort(), ['get_all_recipes', 'search_coils'],
+        // Reads are declared per direction: a recipe root needs only its own bounded detail read, while
+        // a coil root needs the complete unfiltered recipe collection for inverse membership.
+        const expectedReads = c.root.entityType === 'coil'
+            ? ['get_all_recipes', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
+        assert.deepEqual(calls.map(call => call.function.name).sort(), [...expectedReads].sort(),
             `planned reads for ${c.caseId}`);
         const coilCall = calls.find(call => call.function.name === 'search_coils');
         const args = JSON.parse(coilCall.function.arguments);
@@ -36,9 +40,12 @@ test('P6D-R1 required reads are planned deterministically from verified context,
             // planned even when the question carries no `规格-片数` shorthand.
             assert.ok(Object.keys(args).length > 0, `root identity read must be derivable for ${c.caseId}`);
         } else {
-            // A recipe root cannot know the target coil's identity before reading the collection, so
-            // the coil catalogue read is planned with no invented filter arguments.
+            // A recipe root cannot know the target coil's identity before reading, so the coil catalogue
+            // read is planned with no invented filter arguments, while the recipe read stays bounded.
             assert.deepEqual(args, {}, `recipe root must not invent coil filters for ${c.caseId}`);
+            const detail = calls.find(call => call.function.name === 'get_recipe_detail');
+            assert.deepEqual(JSON.parse(detail.function.arguments), { recipeId: Number(c.root.canonicalId) },
+                `recipe root read must be bounded to the bound recipe for ${c.caseId}`);
         }
     }
 });

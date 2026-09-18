@@ -13,16 +13,20 @@ const inputFor = c => ({ userText: c.userText, env: { AI_PROVIDER: 'local' }, sh
 /**
  * ON no longer mirrors OFF's model-driven sequencing: for an eligible positive request the canary
  * plans its required formal reads in software before the first model call, so the ordered call list
- * legitimately differs. The invariants that must still hold are that ontology adds no provider call,
- * executes only reads legacy also executes, and yields the same answer. Non-eligible requests keep
- * the unchanged legacy path and must still match exactly.
+ * legitimately differs, and it may legitimately perform extra formal reads that legacy did not make
+ * (guaranteeing evidence is the point). The invariants that must still hold are that ontology adds no
+ * provider call, executes only capabilities the profile itself sanctions, and yields the same answer.
+ * Non-eligible requests keep the unchanged legacy path and must still match exactly.
  */
+const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.capability)
+    .concat(router.profiles.flatMap(profile => profile.shortlist)));
 function assertOntologyEquivalence(on, off, c) {
     if (c.category === 'negative') { assert.deepEqual(on.signature, off.signature); return; }
     assert.ok(on.signature.modelCalls <= off.signature.modelCalls,
         `ontology must not add provider calls (on=${on.signature.modelCalls} off=${off.signature.modelCalls})`);
-    const offNames = off.signature.executed.map(entry => entry.name);
-    for (const entry of on.signature.executed) assert.ok(offNames.includes(entry.name), `unexpected ontology tool ${entry.name}`);
+    for (const entry of on.signature.executed) {
+        assert.ok(sanctionedCapabilities.has(entry.name), `unexpected ontology tool ${entry.name}`);
+    }
     assert.deepEqual(on.signature.finalContent, off.signature.finalContent);
 }
 for (const c of cases) {

@@ -9,26 +9,30 @@ const { getAiCapability } = require('../capabilities/registry.cjs');
 const { deepFreeze } = require('./sources.cjs');
 // Deterministic formal reads that certify the relation AND keep answer/observation parity with the
 // legacy pair. Planning them is software work and must never cost a model round.
-//  - the unfiltered recipe collection is the source of truth for BOTH directions
-//    (`projections.recipe_coil` reads `recipe.coilId`);
-//  - when the ROOT is a coil, its own catalogue read supplies the root row that the coil-identity
-//    answer suffix and the P3 shadow observer rely on. Its arguments come from already-verified
-//    server context (`root_identity`), never from the user's wording.
-//  - when the ROOT is a recipe, the coil read is not plannable up front (target coil ids are only
-//    known after reading the collection), so it is not required and must not force a repair round.
+//
+// ONT-P8: reads are declared PER DIRECTION because the deliverable payload differs enormously.
+//  - `recipe -> coil`: the root recipe is already canonically known, so ONE bounded detail read
+//    (`get_recipe_detail{recipeId}`) certifies the forward projection. Reading the whole catalogue
+//    here was wasteful and, on a real-sized database, undeliverable.
+//  - `coil -> recipes`: inverse membership genuinely needs the complete unfiltered recipe collection
+//    (`projections.recipe_coil` reads `recipe.coilId`), which cannot be bounded with the current tool
+//    schema. On a large catalogue that read exceeds the runtime's per-result budget, so the runtime
+//    revokes the canary for that turn and hands the read surface back to legacy.
+//  - arguments for the root read come from already-verified server context (`root_identity` /
+//    `root_detail`), never from the user's wording.
 const sourceCollectionRead = deepFreeze({ capability: 'get_all_recipes', argumentPolicy: 'empty', omitArguments: ['keyword'] });
 const rootIdentityRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'root_identity' });
-// A recipe root cannot plan a coil read from server context (target coil ids are only known after
-// reading the collection), so the coil catalogue is read instead. This keeps the answer-composer's
-// winding-identity suffix and the P3 observer at parity with the legacy pair; it is a formal
-// read-only query, and extra formal reads are explicitly acceptable when required for evidence.
+// The coil catalogue is small and deliverable; it supplies the coil identities the answer composer's
+// winding suffix and the P3 observer rely on.
 const coilCatalogueRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'empty' });
+// Bounded root read for a recipe-rooted question: one recipe, not the whole catalogue.
+const recipeDetailRead = deepFreeze({ capability: 'get_recipe_detail', argumentPolicy: 'root_detail' });
 const requiredReadsByRelation = deepFreeze({
     'coil.used_by_recipe': [sourceCollectionRead, rootIdentityRead],
-    'recipe.uses_coil': [sourceCollectionRead, coilCatalogueRead],
+    'recipe.uses_coil': [recipeDetailRead, coilCatalogueRead],
 });
 // Union of every declared read, used for catalogue validation and capability auditing.
-const requiredReads = deepFreeze([sourceCollectionRead, rootIdentityRead, coilCatalogueRead]);
+const requiredReads = deepFreeze([sourceCollectionRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
 const optionalCapabilities = deepFreeze([]);
 const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     // ONT-P7: `deepseek` is promoted to production eligibility for this family after the P6D real-AI
@@ -40,7 +44,7 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     shortlistRequiredProviderModes: ['local', 'local-first'],
     discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: { coil: 'search_coils', recipe: 'get_all_recipes' } },
     completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
-    shortlist: ['get_all_recipes', 'search_coils'],
+    shortlist: ['get_all_recipes', 'search_coils', 'get_recipe_detail'],
     requiredReads,
     requiredReadsByRelation,
     optionalCapabilities,
@@ -58,20 +62,26 @@ function requiredReadsFor(state) {
 }
 
 /**
- * Arguments for a `root_identity` read, derived only from already-verified server context.
- * Returns null when the root row cannot identify its own catalogue read; the caller then degrades
- * to the existing completion path instead of inventing arguments.
+ * Arguments for the root reads, derived from the bound canonical root and already-verified server
+ * context — never from the user's wording. A recipe root only needs its own id (bounded detail read);
+ * a coil root needs its own catalogue identity.
  */
 function rootReadArguments(binding, trustedToolResults = []) {
-    const rows = verifiedRows(trustedToolResults);
-    const row = rows.find(r => r.entityType === binding?.root?.entityType && r.canonicalId === binding?.root?.canonicalId)?.row;
-    if (!row || typeof row !== 'object') return {};
     const out = {};
-    if (binding.root.entityType === 'coil') {
-        if (typeof row.schemeCode === 'string' && row.schemeCode.trim()) out.search_coils = { schemeCode: row.schemeCode.trim() };
-        else if (String(row.spec || '').trim() && Number.isSafeInteger(row.sheets) && row.sheets > 0)
-            out.search_coils = { spec: String(row.spec).trim(), sheets: row.sheets };
+    const root = binding?.root;
+    if (!root) return out;
+    if (root.entityType === 'recipe') {
+        const recipeId = Number(root.canonicalId);
+        if (Number.isSafeInteger(recipeId) && recipeId > 0) out.get_recipe_detail = { recipeId };
+        return out;
     }
+    if (root.entityType !== 'coil') return out;
+    const rows = verifiedRows(trustedToolResults);
+    const row = rows.find(r => r.entityType === 'coil' && r.canonicalId === root.canonicalId)?.row;
+    if (!row || typeof row !== 'object') return out;
+    if (typeof row.schemeCode === 'string' && row.schemeCode.trim()) out.search_coils = { schemeCode: row.schemeCode.trim() };
+    else if (String(row.spec || '').trim() && Number.isSafeInteger(row.sheets) && row.sheets > 0)
+        out.search_coils = { spec: String(row.spec).trim(), sheets: row.sheets };
     return out;
 }
 const semanticRules = deepFreeze([
@@ -168,7 +178,7 @@ function completionCalls(state, missing, userText) {
         const rule = requiredReadsFor(state).find(r => r.capability === name);
         let args;
         if (rule?.argumentPolicy === 'empty') args = {};
-        else if (rule?.argumentPolicy === 'root_identity') args = state.rootReadArguments?.[name];
+        else if (rule?.argumentPolicy === 'root_identity' || rule?.argumentPolicy === 'root_detail') args = state.rootReadArguments?.[name];
         else if (rule?.argumentPolicy === 'explicit_numeric_pair') {
             const pair = String(userText || '').match(/(\d+)\s*[-—~]\s*(\d+)/u);
             if (pair) args = { spec: pair[1], sheets: Number(pair[2]) };

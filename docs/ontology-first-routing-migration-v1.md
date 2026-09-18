@@ -407,15 +407,51 @@ Measured effect on the same local acceptance corpus:
 | Business writes / DB change | 0 | 0 |
 | Errors | 0 | 0 |
 
-### 15.3 Status
+### 15.3 Per-direction required reads (option 1)
 
-The mitigation removes the systematic budget blow-up, but **parity is not yet complete**: one case
-(`12-120 线圈用在哪些配方`) still answers more conservatively than legacy, because the failed pre-read remains
-visible in the turn's transcript and the model declines to retry with a filter. Closing that gap requires a
-design decision that is deliberately **not** taken here — the canary should not issue an undeliverable read
-at all, which means either a bounded source-collection read or dropping the source-collection read from the
-required set and letting the model fetch data as legacy does.
+The revocation above removes the systematic blow-up but not its cause: the canary still *issued* a read it
+could not use. Reads are therefore declared **per direction**, because the deliverable payload differs by
+an order of magnitude:
 
-Consequently ONT-P8 is **REWORK**: the deployment was not started, production is untouched
-(`master @ 24106a1b`), the branch was not pushed, legacy code was not removed, and the canary flag is back
-to its default OFF with the local environment restored byte-identically.
+| Direction | Required reads | Why |
+| --- | --- | --- |
+| `recipe -> coil` | `get_recipe_detail{recipeId: <bound root>}` + `search_coils` (catalogue, ~9 KB) | The root recipe is already canonical, so ONE bounded detail read certifies the forward projection. Reading the whole catalogue here was unnecessary and, on a real-sized database, undeliverable. |
+| `coil -> recipes` | `get_all_recipes` (unfiltered) + `search_coils` (root identity) | Inverse membership genuinely needs the complete unfiltered collection (`projections.recipe_coil` reads `recipe.coilId`), which cannot be bounded with the current tool schema. On a large catalogue this exceeds the per-result budget, so §15.2's revocation hands the turn back to legacy. |
+
+The recipe-root arguments come from the bound canonical root (`root_detail`), never from the user's wording.
+`get_recipe_detail` joins the canary shortlist so the planned call passes the unchanged allowlist, schema,
+grounding, read-only-executor and execution-evidence guards.
+
+No Tool schema, Business API or DB change was needed: the bounded read already existed, it simply was not
+being used for this direction.
+
+### 15.4 Final acceptance result
+
+Local, real-data, real-DeepSeek acceptance over the same eight-case corpus (four two-turn relation cases
+plus cost, stock, ambiguous and write-protection):
+
+| Relation case | OFF | ON before fix | ON after fix |
+| --- | --- | --- | --- |
+| 12-120 线圈用在哪些配方 | ✅ 2/2 | ❌ 0/2 | ✅ **2/2** |
+| v750-tokoy 用的是哪个线圈 | ✅ | ✅ 1/2 | ✅ **2/2** |
+| 12-140 线圈被哪些配方使用 | ✅ | ❌ 0/1 | ✅ **1/1** |
+| V1100-2寸 配的什么绕组 | ✅ | ❌ 0/2 | ✅ **2/2** |
+| **relation cases correct** | **4/4** | 1/4 | **4/4** |
+
+Non-relation behaviour is unchanged: cost, stock and ambiguous questions stay on the legacy path
+(`toolsBeforeModel=false`), and the write request still only produces a confirmation card. Across every
+acceptance phase the business database was byte-identical afterwards (`total_changes` delta 0).
+
+Verification: ontology P1–P7 focused **371/371**, full regression **2517/2517**, API contract 26/26, web
+build PASS.
+
+### 15.5 Status
+
+Both causes are closed: the canary no longer issues an undeliverable read for recipe-rooted questions, and
+for the inverse direction it revokes itself and behaves exactly like legacy when the collection cannot be
+delivered. ON now matches legacy correctness on the real-data acceptance corpus.
+
+The promotion therefore remains **PRODUCTION-CAPABLE BEHIND A DEFAULT-OFF FLAG**, still undeployed:
+production is untouched (`master @ 24106a1b`), the branch is not pushed, legacy code is not removed, and
+the canary flag is at its default OFF with the local environment restored byte-identically. Deployment
+still requires supervisor authorisation, and P9's legacy-cleanup entry gate is still unmet.

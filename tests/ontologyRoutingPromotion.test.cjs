@@ -119,7 +119,9 @@ test('P7 required reads are planned identically across promoted providers', () =
         for (const c of positives) {
             const state = withProvider(c, provider);
             const calls = requiredReadCalls(state, [], c.userText).map(call => call.function.name).sort();
-            assert.deepEqual(calls, ['get_all_recipes', 'search_coils'], `${provider} ${c.caseId}`);
+            const expected = c.root.entityType === 'coil'
+                ? ['get_all_recipes', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
+            assert.deepEqual(calls, [...expected].sort(), `${provider} ${c.caseId}`);
         }
     }
 });

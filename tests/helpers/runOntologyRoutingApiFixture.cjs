@@ -17,7 +17,11 @@ async function main() {
         const { executeToolCall } = require('../../api/routes/ai/executor.cjs');
         const { runAiAssistant } = require('../../api/services/aiAssistantRuntime.cjs');
         const { beginAssistantSession } = require('../../api/services/aiAssistantSession.cjs');
-        const { prepareRouting } = require('../../api/ontology/relationRoutingCanary.cjs');
+        const router = require('../../api/ontology/relationRoutingCanary.cjs');
+const { prepareRouting } = router;
+// The canary may legitimately perform extra formal reads that legacy did not make; the invariant is
+// that it only executes capabilities its own profile sanctions.
+const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.capability).concat(router.profiles.flatMap(profile => profile.shortlist)));
         const { currentFactsForBinding } = require('../../api/ontology/bindingCurrentFacts.cjs');
         const { cases, runCase } = require('./ontologyRoutingCorpus.cjs');
         const baseline = db.serialize(), changes = db.prepare('SELECT total_changes() n').get().n;
@@ -53,7 +57,7 @@ async function main() {
                     assert.deepEqual(observed.canonicalTargets, off.canonicalTargets);
                     assert.deepEqual(observed.answer, off.answer);
                     assert.ok(observed.calls <= off.calls, `ontology added provider calls (${observed.calls} > ${off.calls})`);
-                    for (const name of observed.toolNames) assert.ok(off.toolNames.includes(name), `unexpected ontology tool ${name}`);
+                    for (const name of observed.toolNames) assert.ok(sanctionedCapabilities.has(name), `unexpected ontology tool ${name}`);
                 }
             }
         }
