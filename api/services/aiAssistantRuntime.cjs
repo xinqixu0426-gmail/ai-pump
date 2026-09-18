@@ -238,6 +238,16 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             relationId: null, direction: null, providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other',
             routingSource: coilRecipeRelationQuery ? 'LEGACY_RELATION_SPECIAL_CASE' : 'NON_RELATION_SPECIALIZED_PATH',
             fallback: false, legacyDetectorUsed: true, legacyRepairUsed: false, durationMs: 0 } };
+        // Relation evidence planning is software work, not model work. Once P4 binding has produced a
+        // canonical root and direction, the canary profile already knows its required formal reads, so
+        // they are queued for deterministic execution before the first model call. They still pass the
+        // unchanged per-call guards below (allowlist, schema, identifier grounding, read-only executor,
+        // execution evidence), and the model is only asked to synthesise the final answer.
+        if (ontologyRelationRouting) {
+            requiredRelationCalls = relationRouter.requiredReadCalls(relationRouting, [], latest.content);
+            relationRouting.record.deterministicReadCalls = requiredRelationCalls.length;
+            relationRouting.record.completionRepairRounds = 0;
+        }
         const shortlistedTools = ontologyRelationRouting ? relationRouting.tools : useLocalToolShortlist
             ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv })
             : allTools;
@@ -350,8 +360,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     : [];
                 if (missingRelationTools.length) {
                     if (!(ontologyRelationRouting ? relationExecutionRepair : relationQueryRepair) && offered.length && round < MAX_TOOL_ROUNDS - 1) {
-                        if (ontologyRelationRouting) relationExecutionRepair = true;
-                        else {
+                        if (ontologyRelationRouting) {
+                            relationExecutionRepair = true;
+                            // Observable evidence of ontology-induced completion work. Required reads are
+                            // planned in software, so this must stay 0 for an eligible request.
+                            relationRouting.record.completionRepairRounds = (relationRouting.record.completionRepairRounds || 0) + 1;
+                        } else {
                             relationQueryRepair = true;
                             if (relationRouting) relationRouting.record.legacyRepairUsed = true;
                         }
@@ -362,7 +376,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                             .filter(Boolean);
                         if (deterministicCalls.length === missingRelationTools.length) {
                             requiredRelationCalls = deterministicCalls;
+                            if (ontologyRelationRouting) relationRouting.record.completionExecutedCalls = deterministicCalls.length;
                         } else {
+                            // Only this branch costs a provider call, so it is the metric that must stay 0.
+                            if (ontologyRelationRouting) relationRouting.record.completionModelRounds = (relationRouting.record.completionModelRounds || 0) + 1;
                             current.push({ role: 'system', content: ontologyRelationRouting ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
                         }
                         continue;

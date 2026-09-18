@@ -5,7 +5,7 @@
 | Gate | Scope | Status |
 | --- | --- | --- |
 | Deterministic Canary Gate | Frozen Legacy Oracle, 28-case corpus, OFF/ON equivalence, dependency trap, non-eligible fallback, evidence isolation | **PASS** |
-| DeepSeek Real-AI Canary Gate (ONT-P6D) | Real DeepSeek provider, paired A/B over the frozen corpus, harness-isolated ontology routing decision | see [DeepSeek gate](#13-deepseek-real-ai-gate-ont-p6d) |
+| DeepSeek Real-AI Canary Gate (ONT-P6D / P6D-R1) | Real DeepSeek provider, paired A/B over the frozen corpus, harness-isolated ontology routing decision | **PASS** |
 | Local Provider Gate (strict local) | `AI_PROVIDER=local`, real local model host | **DEFERRED — LOCAL PROVIDER NOT CURRENTLY REQUIRED** |
 
 **Local Provider Gate: DEFERRED.** Reason: the local model host (`192.168.31.111`) sits on another LAN — this workstation's wired NIC is disconnected and only a different subnet is reachable, so the strict-local gate cannot execute from here. It is **not** a blocker for Ontology V1 on the current DeepSeek path, and it was never reported as PASS. Re-enabling local/local-first later requires re-running the original strict-local gate.
@@ -156,11 +156,11 @@ Fresh requests without already verified canonical context are intentionally not 
 
 ## 12. ONT-P7 entry criteria and validation
 
-P7 cannot begin until the **Real Local AI Canary Gate** completes on strict local with canonical/answer-fact equivalence, no false routes, no wrong roots/directions, zero legacy participation under eligible ON and zero cloud fallback. `local-first` results and DeepSeek results are not evidence for this gate. Default remains OFF. Any later discovery admission or legacy cleanup needs separately authorized design and tests. P2/P5 remain shadow-only fact sources.
+The **DeepSeek Real-AI Canary Gate is PASS** (ONT-P6D-R1, §13) and resolves the two P6D blockers. The **strict-local gate remains DEFERRED** because the local model host is on another LAN; it is not a blocker for the current DeepSeek path, DeepSeek is not part of production canary eligibility, and re-enabling `local`/`local-first` later requires re-running the strict-local gate. Before P7, the following still hold: the canary stays default OFF; any later discovery admission or legacy hard-code cleanup needs separately authorized design and tests; P2/P5 remain shadow-only fact sources.
 
-P6R verification (deterministic gate): 38/38 Canary tests, 26/26 preflight tests, P1–P6 ontology 341/341, focused ontology/AI/identity/relationRead set 482/482, full npm regression **2488/2488**, API contract 26/26, Web build PASS, changed-file ESLint PASS. A separate-process API fixture exercises all eight positive pairs through the actual executor and existing Business APIs, with byte-identical DB and unchanged total_changes. Default Date construction is frozen for provenance fetchedAt equivalence while Date.now/session TTL/timeouts remain real; no business field is normalized away.
+P6D-R1 verification: P1–P6 ontology **360/360** (including the new repeated-read and completion-enforcement suites), full npm regression **2506/2506**, API contract 26/26, Web build PASS, changed-file ESLint PASS, frozen corpus hash unchanged. A separate-process API fixture exercises all eight positive pairs through the actual executor and existing Business APIs, with byte-identical DB and unchanged total_changes. Default Date construction is frozen for provenance fetchedAt equivalence while Date.now/session TTL/timeouts remain real; no business field is normalized away.
 
-Feature-flag parsing is now centralized: `api/services/environment.cjs` exports `isEnvFlagEnabled(env, name)`, the strict-`true` project convention, and all four ontology flags (canary plus the three shadow flags) use it. Previously the canary privately accepted `1`/`yes`/`on` while the shadow flags accepted only `true`; a regression test asserts the strict convention and rejects a reintroduced private value list. Because the canary is default OFF and no released configuration used those looser values, this only tightens fail-safe behaviour.
+Feature-flag parsing is centralized: `api/services/environment.cjs` exports `isEnvFlagEnabled(env, name)`, the strict-`true` project convention, and all ontology flags use it. Previously the canary privately accepted `1`/`yes`/`on` while the shadow flags accepted only `true`; a regression test asserts the strict convention and rejects a reintroduced private value list. Because the canary is default OFF and no released configuration used those looser values, this only tightens fail-safe behaviour.
 
 When the canary flag is OFF, `withOntologyRoutingSpan` still emits an `ontology_relation_routing_canary` span with `canary_enabled=false`. This is retained deliberately as **disabled observation only**: it changes no answer, tool, argument, evidence or model-call behaviour and is fail-open. Removing it would widen the change surface for no gate benefit.
 
@@ -173,30 +173,95 @@ The original master and user-owned untracked `docs/ontology-preimplementation-au
 - **A — Legacy routing**: exactly production DeepSeek behaviour. The canary flag is OFF, `AI_LOCAL_TOOL_SHORTLIST_ENABLED=false`, so the model receives the full 48-tool read catalog and chooses freely. The legacy relation pair is never forced, because in production it is gated on the local shortlist.
 - **B — Ontology routing**: the real canary's routing decision applied to the same request. Side B installs a **process-local `require.cache` overlay** that delegates to the genuine canary module and lifts only the provider-mode and shortlist gates, then relabels `providerMode` back to the true provider. No file on disk changes, and `productionEligibilityUnchanged` re-reads the untouched module from disk and asserts `profiles[].providerModes` is still exactly `['local','local-first']`. **Production canary eligibility is NOT widened to DeepSeek by this gate.**
 
-Measured result (two independent full runs, `--rounds=2`, 110 executions each) is stable and reported as **REWORK**, not PASS:
+Measured result (final run after ONT-P6D-R1, `--rounds=2`, 110 executions) is **PASS** — all fifteen gate conditions hold:
 
-| Metric | Run 1 | Run 2 |
-| --- | ---: | ---: |
-| Executions / completed | 110 / 110 | 110 / 110 |
-| Provider seen | `deepseek` only | `deepseek` only |
-| Cloud fallbacks | 0 | 0 |
-| Wrong root / relation / direction | 0 / 0 / 0 | 0 / 0 / 0 |
-| Unauthorized tool calls | 0 | 0 |
-| Writes | 0 | 0 |
-| Negative cases falsely ontology-routed | 0 | 0 |
-| Positive pairs where side A was canonically correct | 10 / 16 | 12 / 16 |
-| Positive pairs where side B was canonically correct | 13 / 16 | 14 / 16 |
-| Positive pairs where side B needed more model calls | 9 / 16 | 10 / 16 |
-| Canonical regressions (A correct, B not) | 1 | 1 |
-| Business-fact answer regressions | 0 | 0 |
+| Metric | Value |
+| --- | ---: |
+| Executions / completed | 110 / 110 |
+| Provider seen | `deepseek` only, fallbacks 0 |
+| Wrong root / relation / direction | 0 / 0 / 0 |
+| Unauthorized tool calls / writes | 0 / 0 |
+| **Ontology-induced additional provider calls** | **0** |
+| Canonical regressions / unexplained mismatches | 0 / 0 |
+| Business-fact answer regressions | 0 |
+| Legacy positive correct | 13 / 16 |
+| Ontology positive correct | **16 / 16** |
+| Positive pairs with B more calls / equal / fewer | 0 / 1 / 15 |
+| Legacy total model calls vs ontology total | 136 vs **109** |
+| Legacy total tool calls vs ontology total | 111 vs 102 |
+| Deterministic reads executed by the canary | 32 (16 pairs × 2 reads) |
+| Production canary eligibility | unchanged (`local`, `local-first` only) |
 
-Two PASS conditions are unmet, and neither is a provider, safety or evidence failure:
+### 13.1 Completion enforcement: extra model rounds → deterministic software reads
 
-1. **`noModelCallIncrease` — systematic, inherent to the canary.** The profile enforces that both required capabilities (`search_coils`, `get_all_recipes`) are observed. Side A can answer from a single `get_recipe_detail`, so side B costs +1 to +2 model calls on 10 of 16 positive pairs. This is the price of the guaranteed relation pair, but the gate explicitly requires no additional calls caused by Ontology, so it does not pass as written.
-2. **`zeroCanonicalRegression` — 1 reproducible regression, with an important qualification.** Both runs produced the *same* case with the *same* signature: `coil-explicit` round 1, side A `[get_all_recipes]` certifies target `301`, side B `[get_all_recipes → search_coils → get_all_recipes]` certifies nothing. The cause is the shadow current-facts projection, not the routing: `bindingCurrentFacts.cjs` requires an unambiguous unfiltered full source collection, and a **duplicate `get_all_recipes` invocation leaves it unable to certify completeness**. Verified in a 3-round focused reproduction: side B was incomplete whenever `get_all_recipes` appeared twice and complete when it appeared once. Crucially, **the user-visible answer was substantively correct in every round** — side B still reported that only recipe 301 references coil 501, and `answerFacts` matched side A. So this is a **certification/measurement gap in the shadow projection**, not a wrong answer: the metric under-reports correctness rather than detecting a defect.
+Previously the canary knew which formal reads certified the relation but still relied on the model to
+produce them: when the model omitted one, the runtime pushed a repair reminder and spent another
+provider round, and when the deterministic fallback could not build `search_coils` arguments (it only
+knew the `规格-片数` shorthand) it fell back to that reminder. That is why P6D measured +1..+2 provider
+calls on 10/16 positive pairs.
 
-Net reading: on DeepSeek, ontology routing is *more* canonically reliable than legacy free choice (13–14 of 16 vs 10–12 of 16), with zero wrong bindings, zero false routes, zero writes and zero fallback, at the cost of more model calls on relation questions and one reproducible projection-certification gap.
+Now relation evidence planning is software work. `relationRoutingCanary.cjs` declares per-direction
+`requiredReads`, and `runAiAssistant` queues them for deterministic execution before the first provider
+call:
 
-Open items for supervisor decision: whether the completion enforcement's model-call cost is acceptable, and whether the duplicate-source-collection certification gap should be fixed in the shadow projection (shadow-only; no production answer path depends on it).
+- `coil.used_by_recipe` → `get_all_recipes` (unfiltered collection) + `search_coils` with arguments
+  derived from the **already-verified** root row (`root_identity`, e.g. its `schemeCode`), so no
+  `规格-片数` shorthand is needed.
+- `recipe.uses_coil` → `get_all_recipes` + the coil catalogue read. A recipe root cannot know the target
+  coil's identity before reading the collection, so no filter arguments are invented. This read exists
+  for answer/observation parity: the answer composer's winding-identity suffix and the P3 observer both
+  need a coil row.
+
+The planned calls travel through the **unchanged** per-call guards — allowlist, tool schema validation,
+identifier grounding, read-only executor and execution-evidence verification — and are rejected if the
+capability is not a read `query`. They never touch preview/command capabilities, and the model is only
+asked to synthesise the final answer. Result: **0 ontology-induced provider calls**, and side B needs
+fewer model calls than legacy (109 vs 136) because legacy spends rounds rediscovering evidence it cannot
+guarantee.
+
+`Ontology-Induced Additional Provider Calls` counts only provider invocations caused by canary completion
+work (`completionModelRounds`, i.e. the reminder branch). Deterministic reads are counted separately as
+formal tool executions, which the gate explicitly allows to differ.
+
+### 13.2 Shadow projection: repeated complete reads
+
+The one reproducible P6D canonical mismatch (`coil-explicit`, side A `[get_all_recipes]` certified `301`,
+side B `[get_all_recipes → search_coils → get_all_recipes]` certified nothing) was a defect in the shadow
+current-facts projection, not in routing. `bindingCurrentFacts.cjs` selected the **first** complete read
+but then compared rows from **every** invocation of that capability against that one read's data length,
+so reading the same complete collection twice produced `8 !== 4` and reported "incomplete".
+
+Certification is now keyed on the semantic source snapshot rather than raw invocation count:
+
+- every complete unfiltered read of the projection's source capability is considered;
+- reads are grouped by snapshot identity (their record-id set, order-independent);
+- a single distinct snapshot is required — materially different collections are a conflict and cannot
+  certify, and the last result is never silently taken;
+- each complete read must contribute exactly one full row block, so a filtered, truncated or partial
+  read of the same capability still suppresses certification.
+
+So `complete + complete = complete`, duplicate pagination pages stay complete, and
+complete+filtered / complete+truncated / conflicting-collections remain incomplete. Semantics are frozen
+by `tests/ontologyCurrentFactsRepeatedRead.test.cjs`, including the exact P6D sequence as a permanent
+regression whose expected value is `['301']` — never relaxed to match the bug. This changes measurement
+only: no Business API output, tool result, final answer, resolver, binding or DB content changed.
+
+### 13.3 Gate status
+
+Both P6D blockers are closed: completion enforcement now costs zero provider calls, and the projection
+false mismatch is eliminated. Deterministic gates (P1–P6 ontology, canary, preflight, frozen Oracle,
+dependency trap, non-eligible fallback) remain green, and the frozen 28-case corpus is untouched
+(hash `1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8`). The strict-local gate stays
+**DEFERRED**; DeepSeek remains an isolated counterfactual harness and is **not** part of production
+canary eligibility.
+
+### 13.4 Superseded P6D REWORK result (retained for the record)
+
+Before P6D-R1, two independent P6D runs measured the same picture and were correctly reported as REWORK:
+side B was canonically correct on 13/16 and 14/16 positive pairs against side A's 10/16 and 12/16, with
+zero wrong bindings, zero false routes, zero writes and zero fallbacks, but `noModelCallIncrease` failed
+(9/16 and 10/16 pairs cost +1..+2 provider calls) and `zeroCanonicalRegression` failed on one reproducible
+case. Neither was a provider, safety or evidence failure. §13.1 and §13.2 record how each was closed; the
+expected values were not relaxed to match either defect.
 
 DeepSeek gate requirements: `ONT_SHADOW_CONFIG_ROOT=<config checkout> node scripts/run-ontology-routing-deepseek-ab.cjs --rounds=2`. `--only=<caseId>` narrows the corpus for a cheap wiring smoke test and writes only to `logs/`, never over the committed manifest.

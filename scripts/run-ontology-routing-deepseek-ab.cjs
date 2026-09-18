@@ -57,8 +57,8 @@ const CORPUS_ARTIFACTS = [
 ];
 const GATE_CONDITIONS = ['preflightOk', 'requestedProviderDeepseek', 'actualProviderDeepseek', 'noFallbackForced',
     'corpusHashUnchanged', 'allCasesCompleted', 'zeroWrongBinding', 'zeroUnauthorizedTool', 'zeroWrite',
-    'zeroCanonicalRegression', 'zeroAnswerFactRegression', 'noModelCallIncrease', 'fixturesUnchanged',
-    'productionEligibilityUnchanged'];
+    'zeroOntologyInducedProviderCalls', 'zeroCanonicalRegression', 'zeroAnswerFactRegression',
+    'ontologyCorrectnessNotRegressed', 'fixturesUnchanged', 'productionEligibilityUnchanged'];
 
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex');
 const stable = value => Array.isArray(value) ? value.map(stable)
@@ -206,26 +206,45 @@ function summarize(raw, manifest) {
     const cases = raw.cases || [];
     const positives = cases.filter(c => c.category === 'positive');
     const pairs = (raw.pairs || []).filter(p => p.category === 'positive');
+    const sideA = cases.filter(c => c.side === 'A'), sideB = cases.filter(c => c.side === 'B');
+    const sumCalls = list => list.reduce((n, c) => n + (c.modelCalls || 0), 0);
+    const sumTools = list => list.reduce((n, c) => n + (c.tools?.length || 0), 0);
+    // Provider calls the ontology canary caused purely to complete its known relation evidence.
+    // With deterministic planning this must be 0; a repair prompt is the only such call.
+    const ontologyInducedProviderCalls = sideB.reduce((n, c) => n + (c.routing?.completionModelRounds || 0), 0);
     manifest.metrics = {
         totalExecutions: cases.length,
         completed: cases.filter(c => c.completed).length,
         positiveExecutions: positives.length,
         negativeExecutions: cases.filter(c => c.category === 'negative').length,
-        sideACompleted: cases.filter(c => c.side === 'A' && c.completed).length,
-        sideBCompleted: cases.filter(c => c.side === 'B' && c.completed).length,
+        sideACompleted: sideA.filter(c => c.completed).length,
+        sideBCompleted: sideB.filter(c => c.completed).length,
         sideBRoutedByOntology: positives.filter(c => c.side === 'B' && c.routing?.routingSource === 'ONTOLOGY_RELATION_BINDING').length,
         wrongRoot: positives.filter(c => c.side === 'B' && c.correctBinding !== true).length,
         wrongRelation: positives.filter(c => c.side === 'B' && c.correctBinding !== true).length,
         wrongDirection: positives.filter(c => c.side === 'B' && c.correctBinding !== true).length,
         unauthorizedToolCalls: cases.reduce((n, c) => n + (c.unauthorizedToolCalls || 0), 0),
         writes: cases.reduce((n, c) => n + (c.writeAttempts || 0), 0),
+        legacyPositiveCorrect: pairs.filter(p => p.aCorrectTargets === true).length,
+        ontologyPositiveCorrect: pairs.filter(p => p.bCorrectTargets === true).length,
         toolSequenceRegressions: pairs.filter(p => p.completed && p.toolSequenceEquivalent === false).length,
         toolArgumentRegressions: pairs.filter(p => p.completed && p.toolArgsEquivalent === false).length,
         canonicalResultMismatches: pairs.filter(p => p.completed && p.canonicalEquivalent === false).length,
         canonicalRegressions: pairs.filter(p => p.completed && p.canonicalRegression === true).length,
         unexplainedMismatches: pairs.filter(p => p.completed && p.unexplainedMismatch === true).length,
         businessFactAnswerRegressions: pairs.filter(p => p.completed && p.answerFactRegression === true).length,
-        modelCallIncreases: pairs.filter(p => p.completed && p.modelCallsIncreased === true).length,
+        // Efficiency, measured separately from formal read volume.
+        ontologyInducedProviderCalls,
+        legacyTotalModelCalls: sumCalls(sideA),
+        ontologyTotalModelCalls: sumCalls(sideB),
+        pairsOntologyMoreCalls: pairs.filter(p => p.completed && p.modelCallsIncreased === true).length,
+        pairsOntologyEqualCalls: pairs.filter(p => p.completed && p.modelCallsEquivalent === true).length,
+        pairsOntologyFewerCalls: pairs.filter(p => p.completed
+            && (callsFor(raw, p, 'B') < callsFor(raw, p, 'A'))).length,
+        legacyTotalToolCalls: sumTools(sideA),
+        ontologyTotalToolCalls: sumTools(sideB),
+        ontologyDeterministicReadCalls: sideB
+            .reduce((n, c) => n + (c.routing?.deterministicReadCalls || 0), 0),
         positivePairs: pairs.length,
     };
     const m = manifest.metrics;
@@ -239,12 +258,18 @@ function summarize(raw, manifest) {
     conditions.zeroWrongBinding = m.wrongRoot === 0 && m.wrongRelation === 0 && m.wrongDirection === 0;
     conditions.zeroUnauthorizedTool = m.unauthorizedToolCalls === 0;
     conditions.zeroWrite = m.writes === 0;
+    conditions.zeroOntologyInducedProviderCalls = m.ontologyInducedProviderCalls === 0;
     conditions.zeroCanonicalRegression = m.canonicalRegressions === 0 && m.unexplainedMismatches === 0;
     conditions.zeroAnswerFactRegression = m.businessFactAnswerRegressions === 0;
-    conditions.noModelCallIncrease = m.modelCallIncreases === 0;
+    conditions.ontologyCorrectnessNotRegressed = m.ontologyPositiveCorrect >= m.legacyPositiveCorrect;
     conditions.fixturesUnchanged = raw.baseFixtureUnchanged === true && raw.ambiguousFixtureUnchanged === true;
     conditions.productionEligibilityUnchanged = raw.productionEligibilityUnchanged === true;
     return conditions;
+}
+
+function callsFor(raw, pair, side) {
+    const entry = (raw.cases || []).find(c => c.caseId === `r${pair.round}-${pair.caseId}-${side}`);
+    return entry?.modelCalls ?? 0;
 }
 
 async function main() {

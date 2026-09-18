@@ -4,20 +4,69 @@ const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { ontology } = require('./contract.cjs');
 const { relationMetadata, policy } = require('./bindingMetadata.cjs');
-const { bindRelation } = require('./relationBinder.cjs');
+const { bindRelation, verifiedRows } = require('./relationBinder.cjs');
 const { getAiCapability } = require('../capabilities/registry.cjs');
 const { deepFreeze } = require('./sources.cjs');
+// Deterministic formal reads that certify the relation AND keep answer/observation parity with the
+// legacy pair. Planning them is software work and must never cost a model round.
+//  - the unfiltered recipe collection is the source of truth for BOTH directions
+//    (`projections.recipe_coil` reads `recipe.coilId`);
+//  - when the ROOT is a coil, its own catalogue read supplies the root row that the coil-identity
+//    answer suffix and the P3 shadow observer rely on. Its arguments come from already-verified
+//    server context (`root_identity`), never from the user's wording.
+//  - when the ROOT is a recipe, the coil read is not plannable up front (target coil ids are only
+//    known after reading the collection), so it is not required and must not force a repair round.
+const sourceCollectionRead = deepFreeze({ capability: 'get_all_recipes', argumentPolicy: 'empty', omitArguments: ['keyword'] });
+const rootIdentityRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'root_identity' });
+// A recipe root cannot plan a coil read from server context (target coil ids are only known after
+// reading the collection), so the coil catalogue is read instead. This keeps the answer-composer's
+// winding-identity suffix and the P3 observer at parity with the legacy pair; it is a formal
+// read-only query, and extra formal reads are explicitly acceptable when required for evidence.
+const coilCatalogueRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'empty' });
+const requiredReadsByRelation = deepFreeze({
+    'coil.used_by_recipe': [sourceCollectionRead, rootIdentityRead],
+    'recipe.uses_coil': [sourceCollectionRead, coilCatalogueRead],
+});
+// Union of every declared read, used for catalogue validation and capability auditing.
+const requiredReads = deepFreeze([sourceCollectionRead, rootIdentityRead, coilCatalogueRead]);
+const optionalCapabilities = deepFreeze([]);
 const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil', providerModes: ['local', 'local-first'],
     discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: { coil: 'search_coils', recipe: 'get_all_recipes' } },
-    completionRequirements: 'OBSERVED_CAPABILITY_COMPATIBILITY',
+    completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
     shortlist: ['get_all_recipes', 'search_coils'],
-    requirements: [{ capability: 'search_coils', argumentPolicy: 'explicit_numeric_pair' },
-        { capability: 'get_all_recipes', argumentPolicy: 'empty', omitArguments: ['keyword'] }],
+    requiredReads,
+    requiredReadsByRelation,
+    optionalCapabilities,
+    // Retained as the declared completion-enforcement list; identical to requiredReads by construction.
+    requirements: requiredReads,
     // These are existing compatibility messages, not new instructions to the model.
     completionMessage: '正在补齐线圈与配方关联查询...',
     repairPrompt: '上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：{missing}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。',
     failureMessage: '线圈与配方的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
 }]);
+
+/** The deterministic reads that apply to this request's bound direction. */
+function requiredReadsFor(state) {
+    return state.profile.requiredReadsByRelation[state.binding?.relationId] || [sourceCollectionRead];
+}
+
+/**
+ * Arguments for a `root_identity` read, derived only from already-verified server context.
+ * Returns null when the root row cannot identify its own catalogue read; the caller then degrades
+ * to the existing completion path instead of inventing arguments.
+ */
+function rootReadArguments(binding, trustedToolResults = []) {
+    const rows = verifiedRows(trustedToolResults);
+    const row = rows.find(r => r.entityType === binding?.root?.entityType && r.canonicalId === binding?.root?.canonicalId)?.row;
+    if (!row || typeof row !== 'object') return {};
+    const out = {};
+    if (binding.root.entityType === 'coil') {
+        if (typeof row.schemeCode === 'string' && row.schemeCode.trim()) out.search_coils = { schemeCode: row.schemeCode.trim() };
+        else if (String(row.spec || '').trim() && Number.isSafeInteger(row.sheets) && row.sheets > 0)
+            out.search_coils = { spec: String(row.spec).trim(), sheets: row.sheets };
+    }
+    return out;
+}
 const semanticRules = deepFreeze([
     ['WRITE_OR_COMMAND', '(?:修改|删除|新增|创建|保存|绑定|取消|更新|设置)', 'command'],
     ['BOM_CONFIGURATION_QUERY', '(?:BOM|物料清单|构建|试算)', 'configuration'],
@@ -68,11 +117,13 @@ function prepareRouting(input = {}, dependencies = {}) {
     try {
         const catalog = input.tools || [];
         const names = new Set(catalog.map(t => t.function.name));
-        if (profile.requirements.some(r => !names.has(r.capability) || getAiCapability(r.capability)?.access !== 'read'
+        const declared = [...profile.requiredReads, ...profile.optionalCapabilities];
+        if (declared.some(r => !names.has(r.capability) || getAiCapability(r.capability)?.access !== 'read'
             || getAiCapability(r.capability)?.operation !== 'query')) throw Error('READ_PROFILE_UNAVAILABLE');
         dependencies.validateProfile?.(profile);
         record.durationMs = performance.now() - started;
         return { record, binding, profile, tools: profile.shortlist.map(name => catalog.find(t => t.function.name === name)),
+            rootReadArguments: rootReadArguments(binding, input.trustedToolResults || []),
             sourceEntityType: definition.fromType, targetEntityType: definition.toType };
     } catch {
         record.routingSource = 'ONTOLOGY_CANARY_FALLBACK'; record.fallback = true; record.legacyDetectorUsed = true;
@@ -80,17 +131,23 @@ function prepareRouting(input = {}, dependencies = {}) {
         return { record, binding, profile: null };
     }
 }
+/** Required reads the canary must guarantee before the model is asked to answer. */
+function requiredReadCalls(state, toolResults = [], userText = '') {
+    return completionCalls(state, missingCapabilities(state, toolResults), userText);
+}
 function missingCapabilities(state, toolResults) {
-    // Preserve the legacy completion rule (attempted tools). Evidence still independently verifies results.
+    // Only the deterministic required reads are enforced. Optional capabilities are offered to the
+    // model but never trigger completion repair, so they cannot add a provider call.
     const completed = new Set(toolResults.map(t => t.name));
-    return state.profile.requirements.filter(r => !completed.has(r.capability)).map(r => r.capability);
+    return requiredReadsFor(state).filter(r => !completed.has(r.capability)).map(r => r.capability);
 }
 function completionCalls(state, missing, userText) {
     return missing.map(name => {
-        const rule = state.profile.requirements.find(r => r.capability === name);
+        const rule = requiredReadsFor(state).find(r => r.capability === name);
         let args;
-        if (rule.argumentPolicy === 'empty') args = {};
-        else if (rule.argumentPolicy === 'explicit_numeric_pair') {
+        if (rule?.argumentPolicy === 'empty') args = {};
+        else if (rule?.argumentPolicy === 'root_identity') args = state.rootReadArguments?.[name];
+        else if (rule?.argumentPolicy === 'explicit_numeric_pair') {
             const pair = String(userText || '').match(/(\d+)\s*[-—~]\s*(\d+)/u);
             if (pair) args = { spec: pair[1], sheets: Number(pair[2]) };
         }
@@ -99,7 +156,9 @@ function completionCalls(state, missing, userText) {
     }).filter(Boolean);
 }
 function normalizeArguments(state, name, args) {
-    for (const key of state.profile.requirements.find(r => r.capability === name)?.omitArguments || []) delete args[key];
+    const declared = [...requiredReadsFor(state), ...state.profile.optionalCapabilities];
+    for (const key of declared.find(r => r.capability === name)?.omitArguments || []) delete args[key];
     return args;
 }
-module.exports = { profiles, classifyCoilRecipeLegacyIntentV1, prepareRouting, missingCapabilities, completionCalls, normalizeArguments };
+module.exports = { profiles, requiredReads, optionalCapabilities, classifyCoilRecipeLegacyIntentV1, prepareRouting,
+    rootReadArguments, requiredReadsFor, missingCapabilities, requiredReadCalls, completionCalls, normalizeArguments };

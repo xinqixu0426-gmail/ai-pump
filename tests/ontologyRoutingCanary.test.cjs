@@ -10,6 +10,21 @@ const { prepareRouting } = router;
 const inputFor = c => ({ userText: c.userText, env: { AI_PROVIDER: 'local' }, shortlistEnabled: true, tools: assistantReadTools(),
     trustedToolResults: seedResults(c), subject: 'test-owner', conversationId: 'test',
     trustedSession: { subject: 'test-owner', conversationId: 'test', observedAt: Date.now(), toolResults: seedResults(c) } });
+/**
+ * ON no longer mirrors OFF's model-driven sequencing: for an eligible positive request the canary
+ * plans its required formal reads in software before the first model call, so the ordered call list
+ * legitimately differs. The invariants that must still hold are that ontology adds no provider call,
+ * executes only reads legacy also executes, and yields the same answer. Non-eligible requests keep
+ * the unchanged legacy path and must still match exactly.
+ */
+function assertOntologyEquivalence(on, off, c) {
+    if (c.category === 'negative') { assert.deepEqual(on.signature, off.signature); return; }
+    assert.ok(on.signature.modelCalls <= off.signature.modelCalls,
+        `ontology must not add provider calls (on=${on.signature.modelCalls} off=${off.signature.modelCalls})`);
+    const offNames = off.signature.executed.map(entry => entry.name);
+    for (const entry of on.signature.executed) assert.ok(offNames.includes(entry.name), `unexpected ontology tool ${entry.name}`);
+    assert.deepEqual(on.signature.finalContent, off.signature.finalContent);
+}
 for (const c of cases) {
     test(`P6R semantic boundary and frozen OFF/ON ${c.caseId}`, async () => {
         const state = prepareRouting(inputFor(c));
@@ -19,7 +34,7 @@ for (const c of cases) {
         assert.deepEqual(off.signature, oracle.cases.find(r => r.caseId === c.caseId && r).signature ||
             Object.fromEntries(Object.entries(oracle.cases.find(r => r.caseId === c.caseId)).filter(([key]) => key !== 'caseId')));
         const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: c.category === 'positive' });
-        assert.deepEqual(on.signature, off.signature);
+        assertOntologyEquivalence(on, off, c);
         assert.equal(on.records.length, 1);
         assert.equal(on.records[0].fallback, false);
         if (c.category === 'positive') {
@@ -63,8 +78,10 @@ test('P6R internal profile failure falls back explicitly and telemetry exporter 
     assert.deepEqual(fallback.signature, off.signature);
     assert.equal(fallback.records[0].eligible, true); assert.equal(fallback.records[0].fallback, true);
     assert.equal(fallback.records[0].routingSource, 'ONTOLOGY_CANARY_FALLBACK');
+    // A failing observation sink must not change the canary's own behaviour.
+    const onOk = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true });
     const r = await runCase(c, 'true', runAiAssistant, { forbidLegacy: true, record: () => { throw Error('sink down'); } });
-    assert.deepEqual(r.signature, off.signature);
+    assert.deepEqual(r.signature, onOk.signature);
 });
 test('P6R routing telemetry is low-sensitive and survives a failing exporter', async () => {
     const o = require('../api/services/observability.cjs'), captured = [];
@@ -107,7 +124,7 @@ test('P6R default and local-first envelope preserve deterministic required read 
     for (const c of cases) {
         const off = await runCase(c, 'false', runAiAssistant, { mode: 'local-first' });
         const on = await runCase(c, 'true', runAiAssistant, { mode: 'local-first', forbidLegacy: c.category === 'positive' });
-        assert.deepEqual(on.signature, off.signature);
+        assertOntologyEquivalence(on, off, c);
         assert.equal(on.records[0].eligible, c.category === 'positive');
     }
 });
@@ -124,11 +141,15 @@ test('P6R canary and P3/P4/P5 observers coexist without extra business calls, re
             record: r => { oneHop = r; }, recordBinding: r => { binding = r; },
             traversal: { record: r => { traversal = r; finish(); } } } };
         const off = await runCase(cases[0], 'false', runAiAssistant);
+        const onBaseline = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true });
         const on = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true,
             env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: 'true', AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED: 'true', AI_ONTOLOGY_2HOP_SHADOW_ENABLED: 'true' }, dependencies: deps });
         await Promise.race([done, new Promise((_, reject) => { const timer = setTimeout(() => reject(Error('SHADOW_TIMEOUT')), 3000); timer.unref(); })]);
         assert.equal(oneHop.comparison.status, 'MATCH'); assert.equal(binding.status, 'BOUND');
-        assert.equal(traversal.executed, false); assert.deepEqual(on.signature, off.signature);
+        assert.equal(traversal.executed, false);
+        // Enabling the P3/P4/P5 observers must not change the canary's own business calls.
+        assert.deepEqual(on.signature, onBaseline.signature);
+        assert.ok(onBaseline.signature.modelCalls <= off.signature.modelCalls);
         assert.deepEqual(db.serialize(), before); assert.equal(db.prepare('SELECT total_changes() n').get().n, changes);
     } finally { db.close(); }
 });

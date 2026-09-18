@@ -38,16 +38,28 @@ function currentFactsForBinding(binding, toolResults = []) {
         context.canonicalTargetIds = facts[0]; context.complete = true; context.canonical = true;
         return context;
     }
-    // Inverse membership needs a verified unfiltered full source collection, never one detail or a filtered list.
-    const list = toolResults.find(t => t?.result?.success !== false && t.result?.count === t.result?.data?.length
+    // Inverse membership needs a verified unfiltered full source collection, never one detail or a
+    // filtered list. Certification is keyed on the semantic source snapshot, not on raw invocation
+    // count: repeated reads of the same authoritative collection are complete + complete = complete,
+    // while materially different collections must not be resolved by silently taking the last one.
+    const isCompleteRead = t => t?.result?.success !== false && Array.isArray(t.result?.data)
+        && t.result.count === t.result.data.length
         && t.result.filters && Object.values(t.result.filters).every(v => v === '' || v === null)
         && t.result.executionEvidence?.verified && t.result.executionEvidence.kind === 'formal_api_query'
         && entityMetadata[projection.from].resources.some(resource => resource.tool === t.name && resource.field === 'data'
-            && t.result.executionEvidence.calls?.some(c => c.method === 'GET' && new RegExp(`^/api/${resource.path}(?:\\?|$)`).test(c.path))));
-    if (!list) return context;
-    const sourceRows = rows.filter(r => r.entityType === projection.from && r.capability === list.name);
-    if (sourceRows.length !== list.result.data.length) return context;
-    for (const source of sourceRows) {
+            && t.result.executionEvidence.calls?.some(c => c.method === 'GET' && new RegExp(`^/api/${resource.path}(?:\\?|$)`).test(c.path)));
+    const reads = toolResults.filter(isCompleteRead);
+    if (!reads.length) return context;
+    // One snapshot identity per distinct source collection, independent of read order.
+    const signature = read => read.result.data.map(record => record?.id).filter(id => id !== undefined)
+        .map(String).sort((a, b) => Number(a) - Number(b)).join(',');
+    if (new Set(reads.map(signature)).size > 1) return context;
+    const capability = reads[0].name, pageSize = reads[0].result.data.length;
+    const sourceRows = rows.filter(r => r.entityType === projection.from && r.capability === capability);
+    // Each complete read contributes exactly one full row block. Any surplus or shortfall means some
+    // other read of this capability was filtered, truncated or partial, so membership cannot be proven.
+    if (pageSize * reads.length !== sourceRows.length) return context;
+    for (const source of sourceRows.slice(0, pageSize)) {
         try {
             const references = targets(source.row, projection);
             if (references.some(v => !canonicalId(v))) { context.canonical = false; return context; }

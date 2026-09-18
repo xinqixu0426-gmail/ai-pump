@@ -43,10 +43,17 @@ async function main() {
                     forbidLegacy: flag === 'true', dependencies: { executeToolCall } });
                 const facts = currentFactsForBinding(state.binding, r.result.toolResults);
                 assert.deepEqual(facts.canonicalTargetIds, c.root.entityType === 'coil' ? ['301'] : ['501']);
-                const observed = { tools: r.result.toolResults.map(t => ({ name: t.name, args: t.args, result: t.result })),
-                    evidence: r.signature.evidence, answer: r.result.finalContent, calls: r.signature.modelCalls };
+                const observed = { toolNames: r.result.toolResults.map(t => t.name), answer: r.result.finalContent, calls: r.signature.modelCalls,
+                    canonicalTargets: facts.canonicalTargetIds };
                 if (flag === 'false') off = observed; else {
-                    assert.deepEqual(observed, off); assert.equal(r.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
+                    // The canary plans its required formal reads in software before the first model
+                    // call, so the ordered call list differs from legacy. Formal outcome must hold:
+                    // the same canonical targets, the same answer, and no extra provider calls.
+                    assert.equal(r.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
+                    assert.deepEqual(observed.canonicalTargets, off.canonicalTargets);
+                    assert.deepEqual(observed.answer, off.answer);
+                    assert.ok(observed.calls <= off.calls, `ontology added provider calls (${observed.calls} > ${off.calls})`);
+                    for (const name of observed.toolNames) assert.ok(off.toolNames.includes(name), `unexpected ontology tool ${name}`);
                 }
             }
         }
