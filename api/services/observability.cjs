@@ -858,6 +858,19 @@ function withOntologyBindingSpan(binding) {
   } }, async () => undefined);
 }
 
+function withOntologyRoutingSpan(record) {
+  return withObservedSpan({ name: 'ontology_relation_routing_canary', kind: 'CHAIN', attributes: {
+    'pump.ai.ontology.routing.canary_enabled': record.canaryEnabled,
+    'pump.ai.ontology.routing.eligible': record.eligible,
+    'pump.ai.ontology.routing.relation_id': record.relationId || 'none',
+    'pump.ai.ontology.routing.direction': record.direction || 'none',
+    'pump.ai.ontology.routing.provider_mode': record.providerMode,
+    'pump.ai.ontology.routing.source': record.routingSource,
+    'pump.ai.ontology.routing.fallback': record.fallback,
+    'pump.ai.ontology.routing.duration_ms': record.durationMs,
+  } }, async () => undefined);
+}
+
 function withOntologyShadowSpan(record, eligible) {
   return withObservedSpan({
     name: 'ontology_relation_shadow', kind: 'CHAIN',
@@ -910,6 +923,7 @@ module.exports = {
   withOntologyShadowSpan,
   withOntologyBindingSpan,
   withOntologyTraversalSpan,
+  withOntologyRoutingSpan,
   withRoutingSpan,
   withToolSpan,
   withVerificationSpan,

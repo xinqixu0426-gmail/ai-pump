@@ -171,6 +171,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     let completionReview = false;
     let businessQueryRepair = false;
     let relationQueryRepair = false;
+    let relationExecutionRepair = false;
+    let relationRouting = null;
+    let relationRouter = null;
     let requiredRelationCalls = [];
     let finishQueries = false;
     let memoryPrefix = '', savedMemoryState = null;
@@ -209,9 +212,31 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const allTools = assistantReadTools();
         const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
         const coilComparisonPairs = coilCostComparisonPairs(latest.content);
-        const coilRecipeRelationQuery = useLocalToolShortlist
-            && isCoilRecipeRelationQuery(latest.content);
-        const shortlistedTools = useLocalToolShortlist
+        if (['1', 'true', 'yes', 'on'].includes(String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED || '').trim().toLowerCase())) {
+            try {
+                relationRouter = require('../ontology/relationRoutingCanary.cjs');
+                relationRouting = relationRouter.prepareRouting({ userText: latest.content, env: runtimeEnv || process.env,
+                    tools: allTools, shortlistEnabled: useLocalToolShortlist,
+                    // Server-owned, owner-scoped, unexpired receipts only; never client history.
+                    trustedToolResults: session.previous?.toolResults || [], subject: input.confirmationSubject,
+                    conversationId: input.conversationId,
+                    trustedSession: session.previous ? { subject: input.confirmationSubject, conversationId: input.conversationId,
+                        observedAt: started, toolResults: session.previous.toolResults || [] } : undefined,
+                }, dependencies.ontologyRouting);
+            } catch {
+                relationRouting = { profile: null, record: { version: 1, canaryEnabled: true, eligible: false,
+                    routingSource: 'ONTOLOGY_CANARY_FALLBACK', fallback: true, legacyDetectorUsed: true, legacyRepairUsed: false,
+                    providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other', durationMs: 0 } };
+            }
+        }
+        const ontologyRelationRouting = Boolean(relationRouting?.profile);
+        const coilRecipeRelationQuery = !ontologyRelationRouting && useLocalToolShortlist
+            && (dependencies.legacyRelationDetector || isCoilRecipeRelationQuery)(latest.content);
+        if (!relationRouting) relationRouting = { profile: null, record: { version: 1, canaryEnabled: false, eligible: false,
+            relationId: null, direction: null, providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other',
+            routingSource: coilRecipeRelationQuery ? 'LEGACY_RELATION_SPECIAL_CASE' : 'NON_RELATION_SPECIALIZED_PATH',
+            fallback: false, legacyDetectorUsed: true, legacyRepairUsed: false, durationMs: 0 } };
+        const shortlistedTools = ontologyRelationRouting ? relationRouting.tools : useLocalToolShortlist
             ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv })
             : allTools;
         const tools = includeRestoredCandidateTool(
@@ -221,7 +246,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         );
         // Reuse catalog relevance detection for evidence requirements across providers.
         // The cloud tool directory and read permissions remain unchanged.
-        const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } }).length > 0;
+        const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
         const allowed = new Set(tools.map(tool => tool.function.name));
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
@@ -316,28 +341,32 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     finalContent = '模型未执行必要的正式业务查询，本轮没有可验证的结论。请重试。';
                     break;
                 }
-                const missingRelationTools = coilRecipeRelationQuery
+                const missingRelationTools = ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
                     ? ['search_coils', 'get_all_recipes'].filter(name => (
                         !toolResults.some(item => item.name === name)
                     ))
                     : [];
                 if (missingRelationTools.length) {
-                    if (!relationQueryRepair && offered.length && round < MAX_TOOL_ROUNDS - 1) {
-                        relationQueryRepair = true;
+                    if (!(ontologyRelationRouting ? relationExecutionRepair : relationQueryRepair) && offered.length && round < MAX_TOOL_ROUNDS - 1) {
+                        if (ontologyRelationRouting) relationExecutionRepair = true;
+                        else {
+                            relationQueryRepair = true;
+                            if (relationRouting) relationRouting.record.legacyRepairUsed = true;
+                        }
                         finalContent = '';
-                        emit('status', { status: 'analyzing', message: '正在补齐线圈与配方关联查询...' });
-                        const deterministicCalls = missingRelationTools
-                            .map(name => requiredCoilRecipeToolCall(name, latest.content))
+                        emit('status', { status: 'analyzing', message: ontologyRelationRouting ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
+                        const deterministicCalls = ontologyRelationRouting ? relationRouter.completionCalls(relationRouting, missingRelationTools, latest.content) : missingRelationTools
+                            .map(name => (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, latest.content))
                             .filter(Boolean);
                         if (deterministicCalls.length === missingRelationTools.length) {
                             requiredRelationCalls = deterministicCalls;
                         } else {
-                            current.push({ role: 'system', content: `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
+                            current.push({ role: 'system', content: ontologyRelationRouting ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
                         }
                         continue;
                     }
                     outcome = 'failed_evidence';
-                    finalContent = `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
+                    finalContent = ontologyRelationRouting ? relationRouting.profile.failureMessage.replace('{missing}', missingRelationTools.join('、')) : `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
                     break;
                 }
                 const pendingClarification = toolResults.some(item => item.result?.requiresClarification || item.result?.data?.requiresVariantSelection);
@@ -426,7 +455,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                             ? [...messages, { role: 'user', content: session.previous.pendingQuestion }]
                             : messages
                     );
-                    if (coilRecipeRelationQuery && name === 'get_all_recipes') {
+                    if (ontologyRelationRouting) relationRouter.normalizeArguments(relationRouting, name, proposedArgs);
+                    else if (coilRecipeRelationQuery && name === 'get_all_recipes') {
                         delete proposedArgs.keyword;
                     }
                     if (name === 'search_coils' && proposedArgs.schemeStatus === undefined && /(?:正式|档案|已设置)/u.test(latest.content)) proposedArgs.schemeStatus = 'official';
@@ -500,6 +530,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (toolResults.length) emit('detail', { detailType: toolResults.length === 1 ? toolResults[0].name : 'multi_tool', toolResults });
         emit('done', {});
         session.finish({ memory: session.previous?.memory, ...savedMemoryState, pendingQuestion: completionReview && pendingPreview(toolResults) ? (savedMemoryState ? session.previous.pendingQuestion : latest.content) : null, question: savedMemoryState ? session.previous.pendingQuestion : latest.content, toolResults: toolResults.filter(item => hasVerifiedExecution(item.result)), answer: finalContent });
+        // Private low-sensitivity observation; neither sink nor exporter can affect the response.
+        try { dependencies.ontologyRouting?.record?.({ ...relationRouting.record }); } catch { /* Fail open. */ }
+        try { void require('./observability.cjs').withOntologyRoutingSpan(relationRouting.record).catch(() => {}); } catch { /* Fail open. */ }
         const usage = usages.filter(Boolean).length ? Object.fromEntries(['promptTokens', 'completionTokens', 'totalTokens'].map(key => [key, usages.some(item => item?.[key] != null) ? usages.reduce((sum, item) => sum + (item?.[key] || 0), 0) : null])) : null;
         if (String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true') {
             setImmediate(() => {

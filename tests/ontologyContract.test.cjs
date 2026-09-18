@@ -169,7 +169,7 @@ for (const [name, mutate] of invalid) {
     });
 }
 
-test('ONT-P1/P3: only the authorized observer imports ontology; no tool/public exposure', () => {
+test('ONT-P1/P3/P6R: only authorized observer and private flagged canary import ontology; no tool/public exposure', () => {
     function scan(directory) {
         for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
             const file = path.join(directory, entry.name);
@@ -180,6 +180,9 @@ test('ONT-P1/P3: only the authorized observer imports ontology; no tool/public e
                 if (file === path.join(root, 'api', 'services', 'aiAssistantRuntime.cjs')) {
                     assert.match(text, /require\('\.\.\/ontology\/runtimeShadow\.cjs'\)\.observeShadow/);
                     assert.doesNotMatch(text, /ontology\/(?:resolver|contract)\.cjs/);
+                    assert.match(text, /AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED/);
+                    const imports = [...text.matchAll(/require\s*\(\s*['"]([^'"]*ontology\/[^'"]+)['"]\)/g)].map(m => m[1]);
+                    assert.deepEqual(imports.sort(), ['../ontology/relationRoutingCanary.cjs', '../ontology/runtimeShadow.cjs']);
                 } else assert.doesNotMatch(text, /require\s*\(\s*['"][^'"]*(?:\/ontology\/|ontology\/contract)/, file);
             }
         }
