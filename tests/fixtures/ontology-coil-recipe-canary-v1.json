@@ -1,0 +1,296 @@
+{
+  "version": 1,
+  "ontologyVersion": 1,
+  "name": "P6_COIL_RECIPE_FROZEN_CORPUS",
+  "startCommit": "1664b8beebe9528c00e12142d7ac2afe67f60189",
+  "purpose": "Preflight characterization; canary not implemented",
+  "cases": [
+    {
+      "caseId": "coil-short",
+      "category": "positive",
+      "userText": "12-120线圈用在哪些配方？",
+      "relationId": "coil.used_by_recipe",
+      "root": {
+        "entityType": "coil",
+        "canonicalId": "501"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "coil-explicit",
+      "category": "positive",
+      "userText": "线圈ID 501被哪些配方使用？",
+      "relationId": "coil.used_by_recipe",
+      "root": {
+        "entityType": "coil",
+        "canonicalId": "501"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "coil-name",
+      "category": "positive",
+      "userText": "Shadow线圈甲装在哪些产品里？",
+      "relationId": "coil.used_by_recipe",
+      "root": {
+        "entityType": "coil",
+        "canonicalId": "501"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "coil-pronoun",
+      "category": "positive",
+      "userText": "这个线圈用在哪些配方？",
+      "relationId": "coil.used_by_recipe",
+      "root": {
+        "entityType": "coil",
+        "canonicalId": "501"
+      },
+      "sessionType": "coil",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "recipe-name",
+      "category": "positive",
+      "userText": "Shadow配方甲使用哪个线圈？",
+      "relationId": "recipe.uses_coil",
+      "root": {
+        "entityType": "recipe",
+        "canonicalId": "301"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "recipe-explicit",
+      "category": "positive",
+      "userText": "配方ID 301配的什么绕组？",
+      "relationId": "recipe.uses_coil",
+      "root": {
+        "entityType": "recipe",
+        "canonicalId": "301"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "recipe-pronoun",
+      "category": "positive",
+      "userText": "这个配方使用哪个线圈？",
+      "relationId": "recipe.uses_coil",
+      "root": {
+        "entityType": "recipe",
+        "canonicalId": "301"
+      },
+      "sessionType": "recipe",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "recipe-boss",
+      "category": "positive",
+      "userText": "Shadow配方甲的绕组是什么？",
+      "relationId": "recipe.uses_coil",
+      "root": {
+        "entityType": "recipe",
+        "canonicalId": "301"
+      },
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "coil-cost",
+      "category": "negative",
+      "userText": "12-120线圈成本多少？",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "calculate_coil_cost"
+      ]
+    },
+    {
+      "caseId": "coil-stock",
+      "category": "negative",
+      "userText": "12-120线圈库存多少？",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "search_coils",
+        "search_factory_knowledge",
+        "search_parts"
+      ]
+    },
+    {
+      "caseId": "recipe-cost",
+      "category": "negative",
+      "userText": "Shadow配方甲成本多少？",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "preview_recipe_cost",
+        "get_all_recipes",
+        "build_recipe_bom_draft",
+        "search_templates",
+        "preview_pump_shell_cost",
+        "compare_recipes"
+      ]
+    },
+    {
+      "caseId": "cost-compare",
+      "category": "negative",
+      "userText": "比较12-120线圈和13-120线圈成本",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "calculate_coil_cost"
+      ]
+    },
+    {
+      "caseId": "coil-write",
+      "category": "negative",
+      "userText": "修改12-120线圈",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "recipe-write",
+      "category": "negative",
+      "userText": "修改Shadow配方甲",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "get_recipe_technical_files",
+        "get_all_recipes",
+        "analyze_recipe_configuration",
+        "get_recipe_detail",
+        "get_template_detail",
+        "search_templates"
+      ]
+    },
+    {
+      "caseId": "similar",
+      "category": "negative",
+      "userText": "有没有类似线圈？",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "semantic",
+      "category": "negative",
+      "userText": "Shadow线圈甲相关的配方有哪些？",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "two-coils",
+      "category": "negative",
+      "userText": "12-120线圈和13-120线圈用在哪些配方？",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "two-recipes",
+      "category": "negative",
+      "userText": "Shadow配方甲和Shadow配方乙使用哪个线圈？",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "ambiguous-root",
+      "category": "negative",
+      "userText": "12-120线圈用在哪些配方？",
+      "ambiguousType": "coil",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "unsupported",
+      "category": "negative",
+      "userText": "Shadow线圈甲影响哪些订单？",
+      "legacyDetector": false,
+      "legacyShortlist": [
+        "search_coils",
+        "get_recent_orders"
+      ]
+    },
+    {
+      "caseId": "mixed-recipe-coil-cost",
+      "category": "negative",
+      "userText": "查询Shadow配方甲的线圈成本",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "mixed-recipe-coil-stock",
+      "category": "negative",
+      "userText": "查询Shadow配方甲使用的线圈库存",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    },
+    {
+      "caseId": "mixed-cost-compare-relation",
+      "category": "negative",
+      "userText": "比较12-120线圈和13-120线圈成本，哪些配方在用",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "calculate_coil_cost"
+      ]
+    },
+    {
+      "caseId": "mixed-write-relation",
+      "category": "negative",
+      "userText": "修改Shadow配方甲使用的线圈",
+      "legacyDetector": true,
+      "legacyShortlist": [
+        "get_all_recipes",
+        "search_coils"
+      ]
+    }
+  ]
+}
