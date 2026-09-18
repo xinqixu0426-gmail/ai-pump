@@ -504,8 +504,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true') {
             setImmediate(() => {
                 try {
+                    const bindingEnabled = String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true';
                     void require('../ontology/runtimeShadow.cjs').observeShadow({
                         userText: latest.content, toolResults, requestId: input.requestId,
+                        bindingEnabled,
+                        ...(bindingEnabled && session.previous?.toolResults ? { subject: input.confirmationSubject, conversationId: input.conversationId,
+                            trustedSession: { subject: input.confirmationSubject, conversationId: input.conversationId,
+                                observedAt: started, toolResults: session.previous.toolResults } } : {}),
                     }, dependencies.ontologyShadow).catch(() => {});
                 } catch { /* Shadow never affects the completed authoritative answer. */ }
             });

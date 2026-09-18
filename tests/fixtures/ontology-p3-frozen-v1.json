@@ -1,0 +1,498 @@
+{
+  "version": 1,
+  "startCommit": "44d740d45097bb5143fe932686a3aca9d4a12171",
+  "total": 30,
+  "previousEligible": 14,
+  "previousCompared": 12,
+  "fullHistoricalToolReceiptsAvailable": false,
+  "runs": [
+    {
+      "run": 1,
+      "sha256": "332b6c18983f95d7651f7366af89c4acd292e10492478a68a8e8e81739b74dcc",
+      "cases": [
+        {
+          "caseId": "recipe-part",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "modelCalls": 4,
+          "outcome": "completed",
+          "question": "Shadow配方甲的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-empty",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow空配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-legacy",
+          "eligible": true,
+          "status": "CURRENT_PATH_NOT_CANONICAL",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow旧配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-ambiguous",
+          "eligible": true,
+          "status": "CURRENT_PATH_NOT_CANONICAL",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "modelCalls": 4,
+          "outcome": "completed",
+          "question": "Shadow歧义配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-missing",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "search_factory_knowledge"
+          ],
+          "modelCalls": 3,
+          "outcome": "partial",
+          "question": "Shadow不存在配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "coil-recipe",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "coil.used_by_recipe",
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "get_all_recipes",
+            "search_factory_knowledge",
+            "get_all_recipes"
+          ],
+          "modelCalls": 4,
+          "outcome": "partial",
+          "question": "12-120线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "coil-empty",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "coil.used_by_recipe",
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "search_factory_knowledge",
+            "get_all_recipes",
+            "get_all_recipes"
+          ],
+          "modelCalls": 4,
+          "outcome": "partial",
+          "question": "13-120线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "coil-missing",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "search_factory_knowledge"
+          ],
+          "modelCalls": 2,
+          "outcome": "partial",
+          "question": "99-999线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "order-customer",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "order.belongs_to_customer",
+          "classifications": [],
+          "toolNames": [
+            "get_order_detail"
+          ],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "查询订单SHADOW-101详情，属于哪个客户？"
+        },
+        {
+          "caseId": "order-recipe",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_order_detail"
+          ],
+          "modelCalls": 2,
+          "outcome": "partial",
+          "question": "订单SHADOW-101包含哪些配方？"
+        },
+        {
+          "caseId": "customer-order",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_customer_history"
+          ],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow客户甲有哪些订单？"
+        },
+        {
+          "caseId": "customer-quotation",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_customer_history"
+          ],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "Shadow客户甲有哪些报价？"
+        },
+        {
+          "caseId": "quotation-customer",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "quotation.belongs_to_customer",
+          "classifications": [],
+          "toolNames": [
+            "get_quotation_detail"
+          ],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "查询报价ID 701详情，它属于哪个客户？"
+        },
+        {
+          "caseId": "recipe-template",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_template_detail"
+          ],
+          "modelCalls": 4,
+          "outcome": "completed",
+          "question": "Shadow配方甲使用哪个泵壳模板？"
+        },
+        {
+          "caseId": "template-recipe",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_templates",
+            "get_all_recipes",
+            "get_template_detail"
+          ],
+          "modelCalls": 4,
+          "outcome": "completed",
+          "question": "Shadow模板甲被哪些配方使用？"
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "sha256": "be7d624359d85d2cb2b6ef08a3e520907e540303c800f71b1a996b2f7235f27e",
+      "cases": [
+        {
+          "caseId": "recipe-part",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "failedTools": [],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow配方甲的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-empty",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "failedTools": [],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow空配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-legacy",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "get_recipe_detail"
+          ],
+          "failedTools": [
+            {
+              "name": "get_recipe_detail",
+              "code": "AI_RESOURCE_AMBIGUOUS"
+            }
+          ],
+          "modelCalls": 2,
+          "outcome": "partial",
+          "question": "Shadow旧配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-ambiguous",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "search_parts",
+            "search_templates",
+            "search_coils",
+            "get_recipe_detail",
+            "get_recipe_detail"
+          ],
+          "failedTools": [
+            {
+              "name": "get_recipe_detail",
+              "code": "internal_api_request_failed"
+            },
+            {
+              "name": "get_recipe_detail",
+              "code": "internal_api_request_failed"
+            }
+          ],
+          "modelCalls": 6,
+          "outcome": "partial",
+          "question": "Shadow歧义配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "recipe-missing",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_all_recipes",
+            "search_parts",
+            "search_templates",
+            "search_coils",
+            "get_recipe_detail",
+            "get_recipe_detail",
+            "get_recipe_detail",
+            "get_recipe_detail"
+          ],
+          "failedTools": [],
+          "modelCalls": 4,
+          "outcome": "completed",
+          "question": "Shadow不存在配方的配件明细有哪些？"
+        },
+        {
+          "caseId": "coil-recipe",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "search_factory_knowledge",
+            "get_all_recipes",
+            "get_all_recipes"
+          ],
+          "failedTools": [
+            {
+              "name": "search_factory_knowledge",
+              "code": "INTERNAL_API_PROTOCOL_FAILURE"
+            }
+          ],
+          "modelCalls": 4,
+          "outcome": "partial",
+          "question": "12-120线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "coil-empty",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "get_all_recipes"
+          ],
+          "failedTools": [],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "13-120线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "coil-missing",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_coils",
+            "get_all_recipes"
+          ],
+          "failedTools": [],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "99-999线圈被哪些配方使用？"
+        },
+        {
+          "caseId": "order-customer",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "order.belongs_to_customer",
+          "classifications": [],
+          "toolNames": [
+            "get_order_detail"
+          ],
+          "failedTools": [],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "查询订单SHADOW-101详情，属于哪个客户？"
+        },
+        {
+          "caseId": "order-recipe",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "get_order_detail"
+          ],
+          "failedTools": [
+            {
+              "name": "get_order_detail"
+            }
+          ],
+          "modelCalls": 3,
+          "outcome": "partial",
+          "question": "订单SHADOW-101包含哪些配方？"
+        },
+        {
+          "caseId": "customer-order",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_customer_history"
+          ],
+          "failedTools": [],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "Shadow客户甲有哪些订单？"
+        },
+        {
+          "caseId": "customer-quotation",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_customer_history"
+          ],
+          "failedTools": [],
+          "modelCalls": 3,
+          "outcome": "completed",
+          "question": "Shadow客户甲有哪些报价？"
+        },
+        {
+          "caseId": "quotation-customer",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "quotation.belongs_to_customer",
+          "classifications": [],
+          "toolNames": [
+            "get_quotation_detail"
+          ],
+          "failedTools": [],
+          "modelCalls": 2,
+          "outcome": "completed",
+          "question": "查询报价ID 701详情，它属于哪个客户？"
+        },
+        {
+          "caseId": "recipe-template",
+          "eligible": true,
+          "status": "MATCH",
+          "relationId": "recipe.contains_part",
+          "classifications": [],
+          "toolNames": [
+            "get_recipe_detail",
+            "get_recipe_detail"
+          ],
+          "failedTools": [
+            {
+              "name": "get_recipe_detail",
+              "code": "AI_RESOURCE_AMBIGUOUS"
+            }
+          ],
+          "modelCalls": 3,
+          "outcome": "partial",
+          "question": "Shadow配方甲使用哪个泵壳模板？"
+        },
+        {
+          "caseId": "template-recipe",
+          "eligible": false,
+          "status": "NOT_ELIGIBLE",
+          "relationId": null,
+          "classifications": [],
+          "toolNames": [
+            "search_templates",
+            "get_all_recipes",
+            "search_factory_knowledge"
+          ],
+          "failedTools": [
+            {
+              "name": "search_factory_knowledge",
+              "code": "INTERNAL_API_PROTOCOL_FAILURE"
+            }
+          ],
+          "modelCalls": 4,
+          "outcome": "partial",
+          "question": "Shadow模板甲被哪些配方使用？"
+        }
+      ]
+    }
+  ]
+}

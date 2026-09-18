@@ -178,11 +178,11 @@ test('P3 real worker reads physically readonly DB and independently terminates o
 
 test('P3 real assistant OFF/ON has identical answer, provider messages/tools, calls, arguments and evidence', async () => {
     const { runAiAssistant } = require('../api/services/aiAssistantRuntime.cjs');
-    async function run(flag, failShadow = false) {
+    async function run(flag, failShadow = false, bindingFlag = 'false') {
         const messages = [], options = [], executions = [], records = [];
         let modelCalls = 0, reads = 0;
         const result = await runAiAssistant({ messages: [{ role: 'user', content: 'Shadow配方甲的配件明细有哪些？' }],
-            requestId: 'shadow-equivalence', env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: flag } }, {
+            requestId: 'shadow-equivalence', env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: flag, AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED: bindingFlag } }, {
             loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
             fetchAiProvider: async (m, o) => {
                 messages.push(structuredClone(m)); options.push(structuredClone(o.tools));
@@ -214,4 +214,9 @@ test('P3 real assistant OFF/ON has identical answer, provider messages/tools, ca
     assert.deepEqual(failed.result.toolResults, off.result.toolResults);
     assert.deepEqual(failed.messages, off.messages); assert.deepEqual(failed.executions, off.executions);
     assert.equal(failed.modelCalls, off.modelCalls);
+    const bindingOn = await run('true', false, 'true');
+    assert.equal(bindingOn.result.finalContent, on.result.finalContent);
+    assert.deepEqual(bindingOn.messages, on.messages); assert.deepEqual(bindingOn.options, on.options);
+    assert.deepEqual(bindingOn.executions, on.executions); assert.deepEqual(bindingOn.result.toolResults, on.result.toolResults);
+    assert.equal(bindingOn.modelCalls, on.modelCalls);
 });

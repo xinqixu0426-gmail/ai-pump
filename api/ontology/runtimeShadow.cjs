@@ -30,9 +30,22 @@ function resolveInWorker(context, databasePath, timeoutMs = TIMEOUT_MS) {
         } catch { finish({ success: false, status: 'TECHNICAL_FAILURE', code: 'SHADOW_WORKER_FAILURE' }); }
     });
 }
-async function observeShadow({ userText, toolResults, requestId }, dependencies = {}) {
+async function observeShadow({ userText, toolResults, requestId, bindingEnabled = false, trustedSession, subject, conversationId }, dependencies = {}) {
     let context;
     try { context = selectShadowContext(userText, toolResults); } catch { context = null; }
+    if (bindingEnabled) {
+        try {
+            const binding = require('./relationBinder.cjs').bindRelation({ ontologyVersion: 1, userText,
+                verifiedToolResults: toolResults, trustedSession, subject, conversationId });
+            try { await require('../services/observability.cjs').withOntologyBindingSpan(binding); } catch { /* Fail open. */ }
+            try { dependencies.recordBinding?.(binding); } catch { /* Fail open. */ }
+            if (binding.status === 'BOUND') {
+                const candidate = require('./bindingCurrentFacts.cjs').currentFactsForBinding(binding, toolResults);
+                // A new intent must never replace an existing complete canonical P3 comparison.
+                if (!eligible(context) || context.complete !== true || context.canonical !== true) context = candidate;
+            }
+        } catch { /* Binder failure preserves P3 observation. */ }
+    }
     const isEligible = eligible(context);
     const started = performance.now();
     let resolved;

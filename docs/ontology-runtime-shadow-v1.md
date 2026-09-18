@@ -41,6 +41,10 @@ Legacy target references may still have an eligible canonical root/relation, all
 
 The observer checks the first actual formal context, which can differ from the relation or entity requested in natural language if current AI chose a different query. A MATCH proves those observed current facts agree with P2; it does not prove the original user question was answered or the requested missing entity exists. P3 does not change current selection behavior to increase eligibility.
 
+## P4 optional intent binding observation
+
+P4 adds independently disabled child flag `AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED=false`. With the parent ON and child OFF, this P3 selection remains unchanged. Child ON can add deterministic root/direction binding from existing verified contexts; an existing complete canonical P3 comparison is always retained. Otherwise a bound direction can supply one shadow observation, with current facts projected separately from verified results. No extra model/tool call, prompt, user answer or evidence influence is introduced. Binding intent is not a relation fact and may be BOUND while target comparison is incomplete. See [Ontology Relation Binding V1](ontology-relation-binding-v1.md) for provenance, ambiguity, metrics, final real-corpus comparison and P5 gates.
+
 ## OntologyShadowComparisonV1
 
 The deeply frozen contract is exported by `shadowContract.cjs` as `OntologyShadowComparisonV1` / `ShadowContractVersion=1`, with `ontologyVersion=1`:
