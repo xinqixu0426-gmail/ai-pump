@@ -656,6 +656,9 @@ never read for this relation at all. The two `recipe -> coil` OFF failures (R5, 
 for `get_all_recipes`, receiving a truncated catalogue, and answering from it — the pre-existing legacy
 weakness that ON removes by planning bounded `get_recipe_detail` reads in software.
 
+Read the OFF columns with the §16.9 caveat: OFF is no longer a pure "unchanged legacy" baseline, because
+this version also adds the bounded reverse read that legacy itself can now use.
+
 Bounds observed: bounded projection max **134 B** across the corpus (real database, five coils, one to
 three recipes each); `tooLarge` errors **0** in every phase; write request produced the confirmation card
 only.
@@ -664,7 +667,26 @@ Verification: ontology P1–P7 focused plus the new P8R suite **386/386**, full 
 contract 26/26, deep API PASS, web build PASS. Frozen artefacts unchanged: P6 corpus hash
 `1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8`, legacy oracle fixture unmodified.
 
-### 16.8 Status
+### 16.8 口径修正：canary=false 不等于"零行为变化"
+
+P8R 之后必须按这个事实判断生产验收，不能再说 canary 关闭就等于整个版本无行为变化：
+
+```text
+Canary=false  →  Ontology routing 不接管该请求
+              但  本版本仍新增了 bounded reverse-read 能力（get_recipes_by_coil），
+                  Legacy AI 也可能在完整工具目录下使用它
+```
+
+证据：OFF 相位的反向方向是 **4/4 正确、0 超限失败**，包括此前两个方向都会失败的 `12-200`。这个改善来自新能力本身，不是来自 routing，因此**必须记为 Legacy 能力改善，不能伪装成 Ontology 收益**。反过来，正向方向的 2/4 才是 canary 关闭时的真实 legacy 水平。
+
+对应的验收口径：
+
+| 相位 | 该相位真正在测的东西 |
+| --- | --- |
+| canary OFF | legacy 能力基线（已含 bounded reverse read 带来的改善）+ 全部安全不变量 |
+| canary ON | ontology routing 是否在不增加 provider call、不产生错误 root/relation/direction 的前提下与 legacy 事实一致 |
+
+### 16.9 Status
 
 The inverse direction is no longer dependent on a read the runtime cannot deliver, and the `coil -> recipes`
 relation now has a formal bounded authoritative read with explicit set-level completeness and documented
