@@ -354,3 +354,68 @@ P7 conclusion: `recipe_coil` ontology routing is **PRODUCTION-CAPABLE BEHIND A D
 removal is explicitly not authorised here and belongs to a separate P8.
 
 P7 requirements: `ONT_SHADOW_CONFIG_ROOT=<config checkout> node scripts/run-ontology-routing-http-runtime.cjs` (add `--only=<caseId>` for a cheap wiring smoke test, which writes only to `logs/`).
+
+## 15. ONT-P8 production canary acceptance — defect found, mitigation landed
+
+P8 moved the promotion to a real acceptance run. The deterministic gates all passed and the deployment
+itself was never started: a **local, real-data acceptance** (same code, real database, real DeepSeek, real
+`POST /api/ai/chat` SSE) found a production-blocking defect before anything reached the Mac Mini.
+
+### 15.1 Defect
+
+With the canary ON, three of four relation questions degraded from a correct answer to "无法确认", while the
+same questions answered correctly with the canary OFF on the same data.
+
+Root cause, measured against the real database:
+
+- the runtime caps a single read tool result at **96 KB** (`enforceAiToolResultBudget(..., 96 * 1024)`), and
+  additionally caps the cumulative synthesis evidence per turn;
+- the canary's required source-collection read was an **unfiltered `get_all_recipes` (`omitArguments:
+  ['keyword']`)**;
+- on this database that payload is **121,038 bytes → always rejected** as `AI_QUERY_RESULT_TOO_LARGE`;
+- a *filtered* read (43 KB) is deliverable, which is how the legacy path succeeded.
+
+So the canary was requiring a read the runtime can never deliver. The model, constrained to the two-tool
+profile and shown a failed catalogue read, thrashed on further filtered retries until the cumulative budget
+was exhausted, and finally answered "cannot confirm".
+
+The frozen P6D/P7 gates could not catch this because their fixture database has four recipes — the payload
+never approaches the cap. Real-data acceptance exists precisely for this class of defect.
+
+### 15.2 Mitigation
+
+A canary-queued read that the runtime cannot deliver now **revokes the canary for that turn**:
+
+- `canaryRevoked` is distinct from `canaryActive` (an inactive canary must still keep the legacy repair
+  path; a revoked one must stop constraining the turn at all);
+- the turn's read surface is handed back to the legacy tool set, and the allowlist is extended to match, so
+  the model works with exactly what the deployment had before the canary existed;
+- the routing record reports `ONTOLOGY_CANARY_FALLBACK` with `fallbackReason` (for example
+  `AI_QUERY_RESULT_TOO_LARGE`), keeping the failure visible in telemetry;
+- the legacy tool set is computed lazily and memoised, so an eligible canary turn still never consults the
+  legacy shortlist or detector while it governs the turn (the dependency trap stays valid).
+
+Regression tests: `tests/ontologyRoutingCompletion.test.cjs` covers revocation, the restored surface, the
+recorded fallback reason, and that a revoked pre-read does not become an extra model planning round.
+
+Measured effect on the same local acceptance corpus:
+
+| Metric | Before fix | After fix |
+| --- | ---: | ---: |
+| Relation cases answered correctly (ON) | 1 / 4 | **3 / 4** |
+| Relation cases answered correctly (OFF) | 4 / 4 | 4 / 4 |
+| Business writes / DB change | 0 | 0 |
+| Errors | 0 | 0 |
+
+### 15.3 Status
+
+The mitigation removes the systematic budget blow-up, but **parity is not yet complete**: one case
+(`12-120 线圈用在哪些配方`) still answers more conservatively than legacy, because the failed pre-read remains
+visible in the turn's transcript and the model declines to retry with a filter. Closing that gap requires a
+design decision that is deliberately **not** taken here — the canary should not issue an undeliverable read
+at all, which means either a bounded source-collection read or dropping the source-collection read from the
+required set and letting the model fetch data as legacy does.
+
+Consequently ONT-P8 is **REWORK**: the deployment was not started, production is untouched
+(`master @ 24106a1b`), the branch was not pushed, legacy code was not removed, and the canary flag is back
+to its default OFF with the local environment restored byte-identically.

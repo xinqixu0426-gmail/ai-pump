@@ -238,28 +238,46 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             relationId: null, direction: null, providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other',
             routingSource: coilRecipeRelationQuery ? 'LEGACY_RELATION_SPECIAL_CASE' : 'NON_RELATION_SPECIALIZED_PATH',
             fallback: false, legacyDetectorUsed: true, legacyRepairUsed: false, durationMs: 0 } };
+        // The legacy read surface, kept available so a canary that cannot obtain its own evidence can
+        // hand the turn back to exactly the behaviour the deployment had before the canary existed.
+        // Computed lazily and memoised: an eligible canary turn must not consult the legacy shortlist or
+        // detector at all while it is governing the turn.
+        let legacyToolsCache = null;
+        const legacyTools = () => {
+            if (!legacyToolsCache) {
+                legacyToolsCache = includeRestoredCandidateTool(
+                    useLocalToolShortlist ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv }) : allTools,
+                    allTools,
+                    restoredCandidateCall
+                );
+            }
+            return legacyToolsCache;
+        };
         // Relation evidence planning is software work, not model work. Once P4 binding has produced a
         // canonical root and direction, the canary profile already knows its required formal reads, so
         // they are queued for deterministic execution before the first model call. They still pass the
         // unchanged per-call guards below (allowlist, schema, identifier grounding, read-only executor,
         // execution evidence), and the model is only asked to synthesise the final answer.
+        const canaryCallIds = new Set();
         if (ontologyRelationRouting) {
             requiredRelationCalls = relationRouter.requiredReadCalls(relationRouting, [], latest.content);
+            for (const call of requiredRelationCalls) canaryCallIds.add(call.id);
             relationRouting.record.deterministicReadCalls = requiredRelationCalls.length;
             relationRouting.record.completionRepairRounds = 0;
         }
-        const shortlistedTools = ontologyRelationRouting ? relationRouting.tools : useLocalToolShortlist
-            ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv })
-            : allTools;
-        const tools = includeRestoredCandidateTool(
-            shortlistedTools,
-            allTools,
-            restoredCandidateCall
-        );
+        // `canaryActive` can be revoked mid-turn: a required read the runtime cannot deliver (for example
+        // an unfiltered catalogue read that exceeds the per-result budget on a real-sized database) must
+        // never leave the turn worse than legacy.
+        let canaryActive = ontologyRelationRouting;
+        // Distinct from `canaryActive`: an inactive canary (flag OFF, or not eligible) must still keep the
+        // legacy relation repair path, whereas a revoked one must stop constraining the turn entirely.
+        let canaryRevoked = false;
+        const tools = ontologyRelationRouting ? relationRouting.tools : legacyTools();
+        let offeredTools = tools;
         // Reuse catalog relevance detection for evidence requirements across providers.
         // The cloud tool directory and read permissions remain unchanged.
         const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
-        const allowed = new Set(tools.map(tool => tool.function.name));
+        const allowed = new Set(offeredTools.map(tool => tool.function.name));
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
             ? [messages.at(-1)]
@@ -280,7 +298,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         }));
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
-            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : tools;
+            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : offeredTools;
             if (!offered.length) current.push({ role: 'system', content: '本轮查询阶段已结束，没有可调用工具。现在只用已取得的正式结果回答用户原问题；已核实不存在或查询范围为空的部分明确说明，尚未核实的部分说明缺失。不要继续规划查询，不输出工具协议，也不要把下一步查询写成已经完成。' });
             if (estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) offered = compactToolDescriptions(offered);
             if (toolResults.length && estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) {
@@ -353,7 +371,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     finalContent = '模型未执行必要的正式业务查询，本轮没有可验证的结论。请重试。';
                     break;
                 }
-                const missingRelationTools = ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
+                const missingRelationTools = canaryRevoked ? [] : ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
                     ? ['search_coils', 'get_all_recipes'].filter(name => (
                         !toolResults.some(item => item.name === name)
                     ))
@@ -370,8 +388,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                             if (relationRouting) relationRouting.record.legacyRepairUsed = true;
                         }
                         finalContent = '';
-                        emit('status', { status: 'analyzing', message: ontologyRelationRouting ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
-                        const deterministicCalls = ontologyRelationRouting ? relationRouter.completionCalls(relationRouting, missingRelationTools, latest.content) : missingRelationTools
+                        emit('status', { status: 'analyzing', message: canaryActive ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
+                        const deterministicCalls = canaryActive ? relationRouter.completionCalls(relationRouting, missingRelationTools, latest.content) : missingRelationTools
                             .map(name => (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, latest.content))
                             .filter(Boolean);
                         if (deterministicCalls.length === missingRelationTools.length) {
@@ -380,12 +398,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         } else {
                             // Only this branch costs a provider call, so it is the metric that must stay 0.
                             if (ontologyRelationRouting) relationRouting.record.completionModelRounds = (relationRouting.record.completionModelRounds || 0) + 1;
-                            current.push({ role: 'system', content: ontologyRelationRouting ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
+                            current.push({ role: 'system', content: canaryActive ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
                         }
                         continue;
                     }
                     outcome = 'failed_evidence';
-                    finalContent = ontologyRelationRouting ? relationRouting.profile.failureMessage.replace('{missing}', missingRelationTools.join('、')) : `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
+                    finalContent = canaryActive ? relationRouting.profile.failureMessage.replace('{missing}', missingRelationTools.join('、')) : `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
                     break;
                 }
                 const pendingClarification = toolResults.some(item => item.result?.requiresClarification || item.result?.data?.requiresVariantSelection);
@@ -474,7 +492,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                             ? [...messages, { role: 'user', content: session.previous.pendingQuestion }]
                             : messages
                     );
-                    if (ontologyRelationRouting) relationRouter.normalizeArguments(relationRouting, name, proposedArgs);
+                    if (canaryActive) relationRouter.normalizeArguments(relationRouting, name, proposedArgs);
                     else if (coilRecipeRelationQuery && name === 'get_all_recipes') {
                         delete proposedArgs.keyword;
                     }
@@ -506,6 +524,20 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     };
                 }
                 abortIfNeeded(input.signal);
+                // A canary-queued read that the runtime could not deliver — for example an unfiltered
+                // catalogue read above the per-result budget on a real-sized database — must not leave the
+                // turn worse than legacy. Revoke the canary and hand the read surface back: the model then
+                // works with exactly the tools the deployment had before the canary existed, while the
+                // failed formal read stays visible and truthful in the transcript.
+                if (canaryActive && canaryCallIds.has(call.id) && result?.success === false) {
+                    canaryRevoked = true;
+                    canaryActive = false;
+                    offeredTools = legacyTools();
+                    for (const tool of legacyTools()) allowed.add(tool.function.name);
+                    relationRouting.record.routingSource = 'ONTOLOGY_CANARY_FALLBACK';
+                    relationRouting.record.fallback = true;
+                    relationRouting.record.fallbackReason = result.code || 'REQUIRED_READ_UNAVAILABLE';
+                }
                 toolResults.push({ name, args, result });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });

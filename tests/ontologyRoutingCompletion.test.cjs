@@ -90,3 +90,35 @@ test('P6D-R1 the planned reads actually execute through the read-only executor a
         assert.equal(entry.result.executionEvidence.kind, 'formal_api_query');
     }
 });
+
+test('P8 a canary read the runtime cannot deliver revokes the canary and restores the legacy surface', async () => {
+    // Real-sized databases make an unfiltered catalogue read exceed the per-result budget, so the
+    // runtime returns AI_QUERY_RESULT_TOO_LARGE for it. A canary that cannot obtain its own evidence
+    // must hand the turn back to legacy instead of constraining the model to its own profile.
+    const c = positives[0];
+    const on = await runCase(c, 'true', runAiAssistant, { mode: 'deepseek',
+        dependencies: { executeToolCall: async name => (name === 'get_all_recipes'
+            ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
+            : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
+                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } }) } });
+    assert.equal(on.records[0].routingSource, 'ONTOLOGY_CANARY_FALLBACK');
+    assert.equal(on.records[0].fallback, true);
+    assert.equal(on.records[0].fallbackReason, 'AI_QUERY_RESULT_TOO_LARGE');
+    assert.equal(on.records[0].eligible, true);
+    // The read surface is handed back: the model is no longer limited to the two-tool canary profile.
+    const firstCatalog = on.signature.catalogs[0] || [];
+    assert.ok(firstCatalog.length > 2, `expected the legacy surface, got ${firstCatalog.length} tools`);
+    assert.equal(typeof on.signature.finalContent, 'string');
+});
+
+test('P8 a revoked canary pre-read does not become an extra model planning round', async () => {
+    const c = positives[0];
+    const legacy = await runCase(c, 'false', runAiAssistant, { mode: 'deepseek' });
+    const revoked = await runCase(c, 'true', runAiAssistant, { mode: 'deepseek',
+        dependencies: { executeToolCall: async name => (name === 'get_all_recipes'
+            ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
+            : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
+                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } }) } });
+    assert.ok(revoked.signature.modelCalls <= legacy.signature.modelCalls + 1,
+        `revoked canary added provider calls (${revoked.signature.modelCalls} vs legacy ${legacy.signature.modelCalls})`);
+});
