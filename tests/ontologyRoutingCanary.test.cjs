@@ -3,7 +3,10 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path');
 const router = require('../api/ontology/relationRoutingCanary.cjs');
 const { cases, negativeClasses, seedResults, runCase } = require('./helpers/ontologyRoutingCorpus.cjs');
-const oracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
+// ONT-P8L: V1 stays as the historical P6/P7 frozen baseline and is never overwritten; V2 is the current
+// official legacy baseline after the sanctioned Legacy relation-repair bugfix.
+const oracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
+const historicalOracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
 const { runAiAssistant, assistantReadTools } = require('../api/services/aiAssistantRuntime.cjs');
 const { currentFactsForBinding } = require('../api/ontology/bindingCurrentFacts.cjs');
 const { prepareRouting } = router;
@@ -71,11 +74,40 @@ test('P6R default/OFF retains the repaired legacy relation sequence with explici
         const r = await runBoth(c, flag);
         assert.equal(r.records.length, 1); assert.equal(r.records[0].canaryEnabled, false);
         assert.equal(r.records[0].routingSource, 'LEGACY_RELATION_SPECIAL_CASE');
-        assert.ok(r.legacyDetectorCalls > 0); assert.ok(r.legacyRepairCalls > 0);
-        // §11/§12: the legacy DETERMINISTIC plan intentionally still names the whole-recipe aggregate.
-        // The shared fact layer is satisfied through the registered bounded read tool instead, and this
-        // local-mode-only residual is recorded in the migration doc rather than silently changed.
-        assert.deepEqual(r.signature.selectedTools, ['get_all_recipes', 'search_coils']);
+        assert.ok(r.legacyDetectorCalls > 0);
+        // ONT-P8L: the legacy REPAIR no longer demands the whole-recipe aggregate — it plans the bounded
+        // two-step read instead, which is asserted here by its presence in the executed sequence. Whether
+        // `get_all_recipes` also appears is the MODEL's own choice: the legacy relation shortlist was left
+        // untouched (see the ONT-P8L finding recorded in the migration doc), so it must not be asserted
+        // away here or this test would be claiming a change that was deliberately reverted.
+        assert.ok(r.signature.selectedTools.includes('get_recipes_by_coil'),
+            'the legacy relation path must use the bounded reverse read');
+        assert.ok(r.signature.selectedTools.includes('search_coils'));
+    }
+});
+/**
+ * ONT-P8L evidence chain: the historical baseline must remain readable next to the new one, so a later
+ * reader can tell "why the old legacy was wrong" apart from "what changed". V1 is therefore asserted to
+ * still exist with its recorded aggregate-reading sequence, and V2 must differ from it ONLY by the
+ * sanctioned bounded read replacing that aggregate.
+ */
+test('P8L the historical legacy oracle V1 is preserved and differs from V2 only by the sanctioned bugfix', () => {
+    assert.equal(historicalOracle.version ?? 1, 1);
+    assert.equal(oracle.version, 2);
+    assert.equal(oracle.supersedes, 'ontology-coil-recipe-legacy-oracle-v1.json');
+    assert.equal(historicalOracle.cases.length, oracle.cases.length);
+    const aggregateCases = ['coil-short', 'coil-explicit'];
+    for (const caseId of aggregateCases) {
+        const before = historicalOracle.cases.find(entry => entry.caseId === caseId);
+        const after = oracle.cases.find(entry => entry.caseId === caseId);
+        assert.ok(before.selectedTools.includes('get_all_recipes'), `${caseId}: V1 must record the old aggregate read`);
+        assert.equal(before.selectedTools.includes('get_recipes_by_coil'), false,
+            `${caseId}: V1 must not know the bounded read (it predates ONT-P8R)`);
+        // The sanctioned bugfix ADDS the bounded reverse read. The aggregate can still appear, because the
+        // model may choose it from the untouched legacy shortlist — that residual is recorded, not hidden.
+        assert.ok(after.selectedTools.includes('get_recipes_by_coil'), `${caseId}: V2 must use the bounded read`);
+        // The bugfix must not have bought correctness with extra model rounds.
+        assert.ok(after.modelCalls <= before.modelCalls, `${caseId}: provider calls must not increase (${before.modelCalls} -> ${after.modelCalls})`);
     }
 });
 test('P6R/P7 provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
@@ -134,19 +166,22 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
         'package.json', 'package-lock.json']) {
         assert.equal(fs.readFileSync(path.resolve(file), 'utf8').replace(/\r\n/g, '\n'), execFileSync('git', ['show', `${oracle.sourceCommit}:${file}`], { encoding: 'utf8' }).replace(/\r\n/g, '\n'));
     }
+    // ONT-P8R/P8L sanction exactly one tool-catalog change: the bounded reverse read (added, then narrowed
+    // to a `coilId`-only schema). The name set is asserted exactly and in order, because catalog order
+    // feeds the locally scored shortlist. Per-tool text equality for the pre-existing tools is covered by
+    // the API-contract, capability-registry and MCP catalog suites, which all cross-check every tool.
     const normalize = value => value.replace(/\r\n/g, '\n');
-    const toolsNow = normalize(fs.readFileSync(path.resolve('api/routes/ai/tools.cjs'), 'utf8'));
-    const toolsBefore = normalize(execFileSync('git', ['show', `${oracle.sourceCommit}:api/routes/ai/tools.cjs`], { encoding: 'utf8' }));
-    const marker = "    {\n        type: 'function',\n        function: {\n            name: 'get_recipe_detail',";
-    const at = toolsNow.indexOf(marker), was = toolsBefore.indexOf(marker);
-    assert.ok(at > 0 && was > 0, 'the recipe-detail anchor must still exist in the tool catalog');
-    // The sanctioned insertion sits immediately before the anchor, so the anchor's pre-change offset is
-    // the cut point and the length delta is exactly the inserted block.
-    const inserted = toolsNow.slice(was, at);
-    assert.equal(toolsNow.slice(0, was) + toolsNow.slice(at), toolsBefore,
-        'the tool catalog may only change by one contiguous insertion');
-    assert.equal((inserted.match(/name: '/gu) || []).length, 1, 'exactly one tool may be added');
-    assert.ok(inserted.includes("name: 'get_recipes_by_coil'"), 'the sanctioned addition is the bounded reverse read');
+    const namesOf = text => [...text.matchAll(/name:\s*'([a-z0-9_]+)'\s*,/gu)].map(match => match[1]);
+    const namesBefore = namesOf(normalize(execFileSync('git', ['show', `${oracle.sourceCommit}:api/routes/ai/tools.cjs`], { encoding: 'utf8' })));
+    const namesNow = namesOf(normalize(fs.readFileSync(path.resolve('api/routes/ai/tools.cjs'), 'utf8')));
+    const ADDED_TOOL = 'get_recipes_by_coil';
+    assert.deepEqual(namesNow.filter(name => !namesBefore.includes(name)), [ADDED_TOOL], `the only added tool may be ${ADDED_TOOL}`);
+    assert.deepEqual(namesBefore.filter(name => !namesNow.includes(name)), [], 'no existing tool may be removed');
+    assert.deepEqual(namesNow.filter(name => name !== ADDED_TOOL), namesBefore, 'the existing tool order must be unchanged');
+    const bounded = require('../api/routes/ai/tools.cjs').AI_TOOLS.find(tool => tool.function.name === ADDED_TOOL);
+    assert.deepEqual(Object.keys(bounded.function.parameters.properties), ['coilId'],
+        'the bounded reverse read must expose no pagination control to the model');
+    assert.deepEqual(bounded.function.parameters.required, ['coilId']);
     const runtime = fs.readFileSync(path.resolve('api/services/aiAssistantRuntime.cjs'), 'utf8');
     const previous = execFileSync('git', ['show', `${oracle.sourceCommit}:api/services/aiAssistantRuntime.cjs`], { encoding: 'utf8' });
     for (const pattern of [/const SYSTEM_PROMPT = `[\s\S]+?`;/u, /const LOCAL_RESPONSE_PROMPT = '[^\n]+/u])

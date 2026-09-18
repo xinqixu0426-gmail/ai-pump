@@ -353,36 +353,45 @@ test('local business turn excludes historical assistant prose and retries a skip
             return { content: '无需查询，没有配方。' };
         },
         { tool_calls: [call('search_coils', { spec: '12', sheets: 200 })] },
-        { tool_calls: [call('get_all_recipes', { keyword: '12-200' })] },
         { content: '12-200线圈当前用于Q12-200配方。' },
     ], {
         executeToolCall: async (name, args) => {
             executed.push({ name, args });
             return name === 'search_coils'
-                ? verified([{ schemeCode: 'COIL-200', spec: '12', sheets: 200 }])
-                : verified([{ id: 8, name: 'Q12-200', coilSpec: '12', coilSheets: 200 }]);
+                ? verified([{ id: 20, schemeCode: 'COIL-200', spec: '12', sheets: 200 }])
+                : verified([{ recipeId: 8, recipeName: 'Q12-200' }]);
         },
     }));
-    assert.deepEqual(providerCalls[0], ['get_all_recipes', 'search_coils']);
-    assert.equal(result.toolResults.length, 2);
-    assert.equal(executed.find(item => item.name === 'get_all_recipes').args.keyword, undefined);
+    // ONT-P8L (ruling B): bounded readers for both directions replace the whole-recipe aggregate.
+    assert.deepEqual(providerCalls[0], ['search_coils', 'get_recipes_by_coil', 'get_recipe_detail']);
+    // The relation is completed in software: the coil identity read is followed by the bounded reverse read
+    // whose ONLY argument is the canonical id taken from the step-1 receipt. No extra model round is spent
+    // asking the model to fetch the evidence again.
+    assert.deepEqual(executed.map(item => item.name), ['search_coils', 'get_recipes_by_coil']);
+    assert.deepEqual(executed[1].args, { coilId: 20 });
     assert.match(result.finalContent, /Q12-200/);
 });
 
 test('local coil recipe relation requires both formal sides before answering', async () => {
+    const executed = [];
     const result = await runAiAssistant({
         ...input('12-200的线圈都做了哪些配方'),
         env: { AI_PROVIDER: 'local' },
     }, fixture([
-        { tool_calls: [call('get_all_recipes', { keyword: '12-200' })] },
-        { content: '配方名称没有匹配，要继续查线圈吗？' },
+        { tool_calls: [call('search_coils', { spec: '12', sheets: 200 })] },
         { content: '12-200线圈用于Q12-200配方。' },
     ], {
-        executeToolCall: async name => name === 'search_coils'
-            ? verified([{ id: 20, spec: '12', sheets: 200 }])
-            : verified([{ id: 8, name: 'Q12-200', coilId: 20, coilSpec: '12', coilSheets: 200 }]),
+        executeToolCall: async (name, args) => {
+            executed.push({ name, args });
+            return name === 'search_coils'
+                ? verified([{ id: 20, spec: '12', sheets: 200 }])
+                : verified([{ recipeId: 8, recipeName: 'Q12-200' }]);
+        },
     }));
-    assert.deepEqual(result.toolResults.map(item => item.name), ['get_all_recipes', 'search_coils']);
+    // Both formal sides are satisfied by the deterministic chain, and the bounded read never reads the
+    // whole recipe catalogue.
+    assert.deepEqual(result.toolResults.map(item => item.name), ['search_coils', 'get_recipes_by_coil']);
+    assert.equal(executed.some(item => item.name === 'get_all_recipes'), false);
     assert.match(result.finalContent, /Q12-200/);
 });
 

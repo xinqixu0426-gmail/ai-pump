@@ -24,8 +24,12 @@ test('本地工具短名单按业务问题选择强匹配工具和必要目录',
     assert.deepEqual(names('V1600-3”-12-180 模板字段是否有测试报告'), ['get_recipe_technical_files']);
     assert.equal(names('切割杂草用的泵壳和明确标注的切割专用配件')[0], 'search_factory_knowledge');
     assert.deepEqual(names('V750-大脚板-2寸的壳，做12-120片，带浮球，木箱，需要珍珠棉，成本多少'), ['build_recipe_bom_draft']);
-    assert.deepEqual(names('12-200的线圈都做了哪些配方'), ['get_all_recipes', 'search_coils']);
-    assert.deepEqual(names('查一下12-120的线圈做的配方'), ['get_all_recipes', 'search_coils']);
+    // ONT-P8L (Supervisor ruling B): the coil<->recipe relation shortlist offers bounded readers for both
+    // directions instead of the whole-recipe aggregate, whose tool result is 120,990 bytes against a 96 KB
+    // budget on a real-sized database. The old branch had no other recipe-reading tool, so removing the
+    // aggregate alone broke the forward direction.
+    assert.deepEqual(names('12-200的线圈都做了哪些配方'), ['search_coils', 'get_recipes_by_coil', 'get_recipe_detail']);
+    assert.deepEqual(names('查一下12-120的线圈做的配方'), ['search_coils', 'get_recipes_by_coil', 'get_recipe_detail']);
     assert.deepEqual(names('对比 12-120 与 12-140 的成本'), ['calculate_coil_cost']);
     assert.deepEqual(names('对比 12-120 与 12-140 线圈的成本'), ['calculate_coil_cost']);
 });

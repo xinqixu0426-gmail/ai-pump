@@ -121,8 +121,11 @@ function toolScore(tool, domains, userText) {
 const EXPLICIT_ONLY_TOOL_NAMES = Object.freeze(new Set(['get_recipes_by_coil']));
 
 function readTools() {
+    // NOTE (ONT-P8L): the explicit-only filter is deliberately NOT applied here. It belongs to the
+    // auto-scored candidate path below, which is what must stay byte-identical for legacy behaviour.
+    // Filtering it out of the default pool too made the sanctioned coil<->recipe shortlist unable to find
+    // the bounded reader, so that list silently degraded to ['search_coils','get_recipe_detail'].
     return AI_TOOLS.filter(tool => {
-        if (EXPLICIT_ONLY_TOOL_NAMES.has(tool.function.name)) return false;
         const capability = getAiCapability(tool.function.name);
         return capability?.access === 'read'
             && ['query', 'preview'].includes(capability.operation)
@@ -168,7 +171,15 @@ function selectLocalAssistantTools(userText, options = {}) {
             .filter(Boolean);
     }
     if (isCoilRecipeRelationQuery(userText)) {
-        return ['get_all_recipes', 'search_coils']
+        // ONT-P8L (Supervisor ruling B). The coil<->recipe relation shortlist used to offer the whole
+        // recipe aggregate first; on a real-sized database its tool result is 120,990 bytes against a 96 KB
+        // budget, so a model that picked it got a truncated catalogue and could answer incompletely.
+        // It is replaced by bounded readers for BOTH directions, because the old branch had no other
+        // recipe-reading tool at all and removing the aggregate alone broke the forward direction:
+        //   search_coils       -> canonical coil identity
+        //   get_recipes_by_coil-> coil -> recipes (bounded, set-complete)
+        //   get_recipe_detail  -> recipe -> coil (bounded detail read)
+        return ['search_coils', 'get_recipes_by_coil', 'get_recipe_detail']
             .map(name => allTools.find(tool => tool.function.name === name))
             .filter(Boolean);
     }

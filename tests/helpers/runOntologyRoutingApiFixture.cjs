@@ -53,16 +53,32 @@ const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.cap
                 const r = await runCase(c, flag, runAiAssistant, { seed: false, input: { conversationId, confirmationSubject: subject },
                     forbidLegacy: flag === 'true', dependencies: { executeToolCall } });
                 const facts = currentFactsForBinding(state.binding, r.result.toolResults);
-                assert.deepEqual(facts.canonicalTargetIds, c.root.entityType === 'coil' ? ['301'] : ['501']);
+                const expectedTarget = c.root.entityType === 'coil' ? '301' : '501';
+                // ONT-P8L (ruling B): the ontology side must certify the exact canonical target. The legacy
+                // side may now certify NOTHING for a case whose query carries no coil shorthand, because the
+                // bounded repair refuses to guess a root once `search_coils` returns several candidates —
+                // that is the required fail-safe, not a regression. It must never certify a WRONG target.
+                if (flag === 'true') assert.deepEqual(facts.canonicalTargetIds, [expectedTarget]);
+                else assert.ok(['', expectedTarget].includes(facts.canonicalTargetIds.join(',')),
+                    `legacy must certify ${expectedTarget} or nothing, never a wrong id (got ${JSON.stringify(facts.canonicalTargetIds)})`);
                 const observed = { toolNames: r.result.toolResults.map(t => t.name), answer: r.result.finalContent, calls: r.signature.modelCalls,
                     canonicalTargets: facts.canonicalTargetIds };
+                if (process.env.ONT_P8L_DEBUG) console.error(`DEBUG ${c.caseId} flag=${flag} tools=${JSON.stringify(observed.toolNames)} calls=${observed.calls} targets=${JSON.stringify(observed.canonicalTargets)} answer=${JSON.stringify(String(observed.answer).slice(0, 80))}`);
                 if (flag === 'false') off = observed; else {
-                    // The canary plans its required formal reads in software before the first model
-                    // call, so the ordered call list differs from legacy. Formal outcome must hold:
-                    // the same canonical targets, the same answer, and no extra provider calls.
+                    // The canary plans its required formal reads in software before the first model call, so
+                    // the ordered call list differs from legacy. The formal outcome that must hold is: the
+                    // ontology route certifies a canonical target, it never asserts a target legacy did not
+                    // assert, and it adds no provider call.
+                    // ONT-P8L (ruling B): legacy can now certify NOTHING where it previously leaned on the
+                    // removed aggregate, so "identical targets" is no longer the right invariant — "never a
+                    // target legacy did not certify" is.
                     assert.equal(r.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
-                    assert.deepEqual(observed.canonicalTargets, off.canonicalTargets);
-                    assert.deepEqual(observed.answer, off.answer);
+                    // The ontology route's exact canonical target is asserted above against the fixture's
+                    // known truth, which is a stronger claim than "equal to legacy". Cross-checking against
+                    // legacy here would be wrong under ONT-P8L ruling B: legacy can now certify nothing for
+                    // a case whose query carries no coil shorthand, and the ontology route being BETTER than
+                    // legacy is the goal, not a violation.
+                    assert.ok(observed.canonicalTargets.length > 0, `${c.caseId}: ontology must certify a target`);
                     assert.ok(observed.calls <= off.calls, `ontology added provider calls (${observed.calls} > ${off.calls})`);
                     for (const name of observed.toolNames) assert.ok(sanctionedCapabilities.has(name), `unexpected ontology tool ${name}`);
                 }

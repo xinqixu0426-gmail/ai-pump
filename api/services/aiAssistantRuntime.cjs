@@ -45,35 +45,107 @@ function pendingPreview(toolResults) {
 }
 
 /**
- * ONT-P8R §11/§12 — legacy `coil -> recipes` read.
+ * ONT-P8L — bounded deterministic repair state machine for the LEGACY `coil -> recipes` path.
  *
- * §11 requires legacy and the ontology canary to share ONE business fact layer for this relation, and
- * they now do: there is exactly one implementation (`relationReadService` + the relation read contract)
- * and both routing paths reach it, because the bounded reverse read is a registered read tool that the
- * legacy model-driven turn can call exactly like the canary's planned read. No second SQL or filter
- * implementation exists.
+ * Supervisor ruling (ONT-P8L, option A): the legacy local-mode relation repair used to demand the
+ * COMPLETE unfiltered recipe catalogue, whose AI tool result is 120,990 bytes against a 96 KB budget on a
+ * real-sized database, so the model received a truncated catalogue and could answer incompletely. It is
+ * now an explicit, bounded, stateful repair that reuses the P8R formal capability:
  *
- * KNOWN RESIDUAL (§12, deliberately NOT changed this phase): the LEGACY DETERMINISTIC PLAN below still
- * names `get_all_recipes`. Two reasons, both recorded rather than worked around:
- *   1. `get_recipes_by_coil` needs a canonical coil root, and the frozen P6 corpus's repair hook calls
- *      `requiredCoilRecipeToolCall(name, userText)` with two arguments, so it can never forward already
- *      verified tool results. Deriving the root inside the runtime instead would still need one earlier
- *      iteration, which turns the current zero-provider-call legacy plan into a model repair round.
- *   2. This deterministic plan only runs for LOCAL models with the local shortlist enabled; production
- *      (DeepSeek) never takes it, and the real acceptance measured the production legacy path at 4/4
- *      correct on the inverse direction — including the previously failing `12-200` case.
- * Changing it is therefore an optional local-mode optimisation with a real cost, not a correctness fix.
+ *     NONE ──► COIL_ID_DISCOVERY ──► BOUNDED_REVERSE_READ ──► DONE
+ *
+ * Invariants the Supervisor required, all enforced here:
+ *   - `MAX_SOFTWARE_REPAIR_STEPS = 2` is a hard cap; this must never grow into Tool A -> B -> C -> D.
+ *   - Step 2 may only be planned AFTER step 1 produced a VERIFIED canonical coil id. Zero candidates,
+ *     several candidates, an ambiguous root, a missing canonical id or a failed step 1 all yield no
+ *     step 2 — the turn simply continues with whatever verified evidence it has (no guessing, no hop).
+ *   - Step 2's only argument is that canonical id, taken from the step-1 formal receipt. It is never
+ *     parsed out of the user's text.
+ *   - `get_all_recipes` is never demanded by this repair again.
+ *
+ * Shared fact layer (§11): step 2 calls the same registered read tool the ontology canary plans, so there
+ * is still exactly one implementation (`relationReadService` + the relation read contract).
+ *
+ * This is a Legacy bug fix and must not be reported as an Ontology gain.
  */
-function legacyRelationMissingTools(toolResults) {
-    return ['search_coils', 'get_all_recipes'].filter(name => !toolResults.some(item => item.name === name));
+const LEGACY_RELATION_REPAIR_STATES = Object.freeze({
+    NONE: 'NONE', COIL_ID_DISCOVERY: 'COIL_ID_DISCOVERY', BOUNDED_REVERSE_READ: 'BOUNDED_REVERSE_READ', DONE: 'DONE',
+});
+const MAX_SOFTWARE_REPAIR_STEPS = 2;
+/**
+ * Model-prompted repair rounds stay capped at ONE, which is exactly the old one-shot bound. Without it
+ * the machine has no terminal condition when a software step cannot be planned (for example the coil
+ * shorthand is absent and the model never completes step 1), and the repair re-fires until MAX_TOOL_ROUNDS
+ * — a measured +3 provider-call regression. Software steps are free; model rounds are not.
+ */
+const MAX_LEGACY_MODEL_REPAIR_ROUNDS = 1;
+const LEGACY_RELATION_REPAIR_ORDER = Object.freeze([
+    LEGACY_RELATION_REPAIR_STATES.COIL_ID_DISCOVERY, LEGACY_RELATION_REPAIR_STATES.BOUNDED_REVERSE_READ,
+]);
+
+/** The canonical coil root for step 2, from a verified single-row coil read only — never from user text. */
+function verifiedCanonicalCoilId(toolResults = []) {
+    const entry = toolResults.find(item => item.name === 'search_coils' && item.result?.success !== false
+        && hasVerifiedExecution(item.result) && Array.isArray(item.result?.data) && item.result.data.length === 1);
+    const id = entry ? Number(entry.result.data[0]?.id) : NaN;
+    return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-function requiredCoilRecipeToolCall(name, userText, toolResults = []) {
-    void toolResults;
-    const id = `required-${name}-${crypto.randomUUID()}`;
-    if (name === 'get_all_recipes') {
-        return { id, type: 'function', function: { name, arguments: '{}' } };
+/** Does the turn already hold a verified coil read? A second one cannot help, so it is not demanded. */
+function hasVerifiedCoilRead(toolResults = []) {
+    return toolResults.some(item => item.name === 'search_coils' && item.result?.success !== false
+        && hasVerifiedExecution(item.result));
+}
+
+/**
+ * The tools still missing for the CURRENT repair state. Returning an empty list is the normal, safe
+ * outcome: the turn proceeds with the verified evidence it has and never invents a second hop.
+ */
+function legacyRelationMissingTools(toolResults = [], state = LEGACY_RELATION_REPAIR_STATES.NONE) {
+    const has = name => toolResults.some(item => item.name === name);
+    if (state === LEGACY_RELATION_REPAIR_STATES.NONE) {
+        if (!hasVerifiedCoilRead(toolResults)) return ['search_coils'];
+        return has('get_recipes_by_coil') ? [] : ['get_recipes_by_coil'];
     }
+    if (state === LEGACY_RELATION_REPAIR_STATES.COIL_ID_DISCOVERY) {
+        // Step 2 is eligible only when step 1 actually produced one verified canonical coil id.
+        if (verifiedCanonicalCoilId(toolResults) === null) return [];
+        return has('get_recipes_by_coil') ? [] : ['get_recipes_by_coil'];
+    }
+    return [];
+}
+
+/** The state to move to after planning `name`, or null when this step is not part of the machine. */
+function nextLegacyRelationRepairState(state, name) {
+    if (name === 'search_coils' && state === LEGACY_RELATION_REPAIR_STATES.NONE) return LEGACY_RELATION_REPAIR_STATES.COIL_ID_DISCOVERY;
+    if (name === 'get_recipes_by_coil') return LEGACY_RELATION_REPAIR_STATES.BOUNDED_REVERSE_READ;
+    return null;
+}
+
+/**
+ * A planned call for one repair step. Step 2's `coilId` is derived here, in the runtime, from already
+ * verified tool results — the injected repair hook is only ever consulted for step 1, because it cannot
+ * forward tool results and must never be able to invent a canonical root.
+ */
+function legacyRelationRepairCall(name, userText, toolResults = []) {
+    if (name === 'get_recipes_by_coil') {
+        const coilId = verifiedCanonicalCoilId(toolResults);
+        if (coilId === null) return null;
+        return { id: `required-get_recipes_by_coil-${crypto.randomUUID()}`, type: 'function',
+            function: { name, arguments: JSON.stringify({ coilId }) } };
+    }
+    return null;
+}
+
+/**
+ * The legacy relation repair's tool planner. `get_all_recipes` is deliberately NOT supported any more:
+ * the state machine never demands it, and returning null here means an accidental reintroduction would
+ * fall back to a model repair round (fail-safe) instead of silently reading the whole catalogue again.
+ */
+function requiredCoilRecipeToolCall(name, userText, toolResults = []) {
+    const derived = legacyRelationRepairCall(name, userText, toolResults);
+    if (derived) return derived;
+    const id = `required-${name}-${crypto.randomUUID()}`;
     if (name === 'search_coils') {
         const shorthand = String(userText || '').match(/(\d+)\s*[-—~]\s*(\d+)/u);
         if (!shorthand) return null;
@@ -87,6 +159,20 @@ function requiredCoilRecipeToolCall(name, userText, toolResults = []) {
         };
     }
     return null;
+}
+
+/**
+ * Plan ONE legacy repair step.
+ *
+ * The injected `legacyRelationRepair` dependency is a test seam that receives only `(name, userText)` and
+ * therefore cannot forward formal receipts. The bounded reverse read's only argument is a canonical coil
+ * id that MUST come from step 1's receipt, so its derivation always belongs to the runtime and never goes
+ * through that seam. Measured consequence of getting this wrong: step 2 became unplannable in tests and
+ * the repair re-fired until MAX_TOOL_ROUNDS (+3 provider calls).
+ */
+function legacyRelationRepairPlan(name, userText, toolResults = [], dependencies = {}) {
+    if (name === 'get_recipes_by_coil') return requiredCoilRecipeToolCall(name, userText, toolResults);
+    return (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, userText, toolResults);
 }
 
 function uniqueContinuationToolResults(items = []) {
@@ -196,7 +282,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     let protocolRepair = false;
     let completionReview = false;
     let businessQueryRepair = false;
-    let relationQueryRepair = false;
+    // ONT-P8L: the legacy coil<->recipe repair is a bounded state machine, not a one-shot boolean.
+    let legacyRelationRepairState = LEGACY_RELATION_REPAIR_STATES.NONE;
+    let legacySoftwareRepairSteps = 0;
+    let legacyRelationModelRepairRounds = 0;
     let relationExecutionRepair = false;
     let relationRouting = null;
     let relationRouter = null;
@@ -303,6 +392,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // The cloud tool directory and read permissions remain unchanged.
         const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
         const allowed = new Set(offeredTools.map(tool => tool.function.name));
+        // ONT-P8L: the software-planned second repair hop has to be executable, but it is added to
+        // `allowed` ONLY — never to `offeredTools` — so the model-visible legacy surface stays byte-identical
+        // and the model still cannot choose this tool. This is not the option-B shortlist change.
+        // Measured consequence of omitting it: the planned step 2 executed as AI_TOOL_NOT_ALLOWED.
+        if (!ontologyRelationRouting && coilRecipeRelationQuery) allowed.add('get_recipes_by_coil');
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
             ? [messages.at(-1)]
@@ -397,33 +491,57 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     break;
                 }
                 const missingRelationTools = canaryRevoked ? [] : ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
-                    ? legacyRelationMissingTools(toolResults)
+                    ? legacyRelationMissingTools(toolResults, legacyRelationRepairState)
                     : [];
                 if (missingRelationTools.length) {
-                    if (!(ontologyRelationRouting ? relationExecutionRepair : relationQueryRepair) && offered.length && round < MAX_TOOL_ROUNDS - 1) {
-                        if (ontologyRelationRouting) {
-                            relationExecutionRepair = true;
-                            // Observable evidence of ontology-induced completion work. Required reads are
-                            // planned in software, so this must stay 0 for an eligible request.
-                            relationRouting.record.completionRepairRounds = (relationRouting.record.completionRepairRounds || 0) + 1;
-                        } else {
-                            relationQueryRepair = true;
-                            if (relationRouting) relationRouting.record.legacyRepairUsed = true;
-                        }
-                        finalContent = '';
-                        emit('status', { status: 'analyzing', message: canaryActive ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
+                    // ONT-P8L: two independent bounds, because they cost different things.
+                    //   - software steps (free, no provider call) are capped by MAX_SOFTWARE_REPAIR_STEPS;
+                    //   - model-prompted repair rounds (one provider call each) keep the OLD one-shot bound.
+                    // Attempting the software plan FIRST is what lets a step execute after the model round
+                    // cap is spent; gating both behind one flag blocked legitimate software steps.
+                    const legacyRepairExhausted = legacyRelationRepairState === LEGACY_RELATION_REPAIR_STATES.DONE
+                        || legacySoftwareRepairSteps >= MAX_SOFTWARE_REPAIR_STEPS;
+                    const repairAvailable = ontologyRelationRouting ? !relationExecutionRepair : !legacyRepairExhausted;
+                    if (repairAvailable && offered.length && round < MAX_TOOL_ROUNDS - 1) {
                         const deterministicCalls = canaryActive ? relationRouter.completionCalls(relationRouting, missingRelationTools, latest.content) : missingRelationTools
-                            .map(name => (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, latest.content, toolResults))
+                            .map(name => legacyRelationRepairPlan(name, latest.content, toolResults, dependencies))
                             .filter(Boolean);
-                        if (deterministicCalls.length === missingRelationTools.length) {
+                        const fullyPlanned = deterministicCalls.length === missingRelationTools.length;
+                        const modelRepairAllowed = ontologyRelationRouting
+                            ? true
+                            : legacyRelationModelRepairRounds < MAX_LEGACY_MODEL_REPAIR_ROUNDS;
+                        if (fullyPlanned || modelRepairAllowed) {
+                            if (ontologyRelationRouting) {
+                                relationExecutionRepair = true;
+                                // Observable evidence of ontology-induced completion work. Required reads
+                                // are planned in software, so this must stay 0 for an eligible request.
+                                relationRouting.record.completionRepairRounds = (relationRouting.record.completionRepairRounds || 0) + 1;
+                            } else if (relationRouting) relationRouting.record.legacyRepairUsed = true;
+                            finalContent = '';
+                            emit('status', { status: 'analyzing', message: canaryActive ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
+                        }
+                        if (fullyPlanned) {
                             requiredRelationCalls = deterministicCalls;
                             if (ontologyRelationRouting) relationRouting.record.completionExecutedCalls = deterministicCalls.length;
-                        } else {
+                            else {
+                                // Advance the legacy state machine only for a step that was fully planned in
+                                // software; a model-repair round must not consume a software step.
+                                legacySoftwareRepairSteps += 1;
+                                for (const call of deterministicCalls) {
+                                    legacyRelationRepairState = nextLegacyRelationRepairState(legacyRelationRepairState, call.function.name)
+                                        || legacyRelationRepairState;
+                                }
+                                if (legacySoftwareRepairSteps >= MAX_SOFTWARE_REPAIR_STEPS) legacyRelationRepairState = LEGACY_RELATION_REPAIR_STATES.DONE;
+                            }
+                        } else if (modelRepairAllowed) {
                             // Only this branch costs a provider call, so it is the metric that must stay 0.
                             if (ontologyRelationRouting) relationRouting.record.completionModelRounds = (relationRouting.record.completionModelRounds || 0) + 1;
-                            current.push({ role: 'system', content: canaryActive ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具；查询配方时读取完整配方列表，根据 coilSpec、coilSheets、coilId 等正式字段筛选，不要把线圈简写当作配方名称关键词。` });
+                            else legacyRelationModelRepairRounds += 1;
+                            current.push({ role: 'system', content: canaryActive ? relationRouting.profile.repairPrompt.replace('{missing}', missingRelationTools.join('、')) : `上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：${missingRelationTools.join('、')}。请立即调用缺少的正式工具：先用 search_coils 取得正式线圈方案ID；已知线圈方案ID时用 get_recipes_by_coil 反查使用它的配方。不要把线圈简写当作配方名称关键词，也不要读取完整配方列表。` });
                         }
-                        continue;
+                        // Only loop again when the attempt actually did something. Falling through to
+                        // `failed_evidence` otherwise is what prevents a do-nothing provider round.
+                        if (fullyPlanned || modelRepairAllowed) continue;
                     }
                     outcome = 'failed_evidence';
                     finalContent = canaryActive ? relationRouting.profile.failureMessage.replace('{missing}', missingRelationTools.join('、')) : `线圈与配方的关联查询未完成，缺少正式查询：${missingRelationTools.join('、')}。本轮没有足够依据给出关联结论，请重试。`;
@@ -565,6 +683,29 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
                 current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments, userText: latest.content })));
+            }
+            // ONT-P8L: chain the bounded reverse read inside the SAME iteration, immediately after a formal
+            // coil receipt became available. Keying this off FACTS (a verified canonical coil exists, the
+            // bounded read has not run) rather than the state variable is what makes it fire for a
+            // model-driven step 1 as well: gating it on COIL_ID_DISCOVERY left coil-explicit at +1 provider
+            // call, because the model's own search_coils never advanced the machine.
+            if (!ontologyRelationRouting && coilRecipeRelationQuery && !requiredRelationCalls.length
+                && legacySoftwareRepairSteps < MAX_SOFTWARE_REPAIR_STEPS
+                && !toolResults.some(item => item.name === 'get_recipes_by_coil')
+                && verifiedCanonicalCoilId(toolResults) !== null) {
+                const chainedMissing = legacyRelationMissingTools(toolResults, LEGACY_RELATION_REPAIR_STATES.COIL_ID_DISCOVERY);
+                const chainedCalls = chainedMissing
+                    .map(name => requiredCoilRecipeToolCall(name, latest.content, toolResults)).filter(Boolean);
+                if (chainedMissing.length && chainedCalls.length === chainedMissing.length) {
+                    requiredRelationCalls = chainedCalls;
+                    legacySoftwareRepairSteps += 1;
+                    for (const chained of chainedCalls) {
+                        legacyRelationRepairState = nextLegacyRelationRepairState(legacyRelationRepairState, chained.function.name)
+                            || legacyRelationRepairState;
+                    }
+                    if (legacySoftwareRepairSteps >= MAX_SOFTWARE_REPAIR_STEPS) legacyRelationRepairState = LEGACY_RELATION_REPAIR_STATES.DONE;
+                    continue;
+                }
             }
             const dashboardOverview = formatDashboardOverview(latest.content, toolResults);
             if (dashboardOverview) {
