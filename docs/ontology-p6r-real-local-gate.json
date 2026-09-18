@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "gate": "ONT-P6R",
+  "scope": {
+    "relationFamily": "recipe_coil",
+    "provider": "local",
+    "canaryFlag": "AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED"
+  },
+  "branch": "codex/ont-p1-thin-contract",
+  "commit": "6d9abde6f75e14388669cc9975797a1b6e803efc",
+  "generatedAt": "2026-09-18T10:42:24.760Z",
+  "requestedProvider": "local",
+  "actualProvider": null,
+  "model": "/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf",
+  "fallbackUsed": null,
+  "cloudFallbackCount": null,
+  "corpusVersion": "P6R frozen 28-case (8 positive / 20 negative)",
+  "corpusHash": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+  "artifactHashes": {
+    "tests/helpers/ontologyRoutingCorpus.cjs": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+    "tests/fixtures/ontology-coil-recipe-canary-v1.json": "9f303845284e05e40cfdec90c02c81d32eaa559ec5786ec7a6de6b6ea11df3b7",
+    "tests/fixtures/ontology-coil-recipe-legacy-oracle-v1.json": "6c3bfe19d1e79d9decdd8d8eba6ce68af8339ea1e5112ef2a7c39c64a6927a0d",
+    "api/ontology/relationRoutingCanary.cjs": "78811a452000208615679de43b87e069ae5cb380e812752dc91513e096e412f9",
+    "api/ontology/bindingMetadata.cjs": "678bb8c01447f161d2997f9cc2fb0baba338e4b6dd774a105509537b18aae6ec"
+  },
+  "pairedRoundsPlanned": 2,
+  "pairedRoundsCompleted": 0,
+  "deterministicGate": "PASS (see docs/ontology-first-routing-migration-v1.md)",
+  "realLocalAiGate": "BLOCKED",
+  "preflight": {
+    "baseUrl": "http://192.168.31.111:8080/v1",
+    "modelsEndpoint": false,
+    "modelsHttpStatus": null,
+    "servedModelIds": [],
+    "minimalChat": null,
+    "minimalToolCall": null,
+    "requestedProvider": "local",
+    "actualProvider": null,
+    "fallbackUsed": null,
+    "httpError": "ECONNRESET"
+  },
+  "metrics": {},
+  "gatePassConditions": {
+    "preflightOk": false,
+    "actualProviderLocal": false,
+    "cloudFallbackCountZero": false,
+    "allCasesCompleted": false,
+    "eligibleRoutedByOntology": false,
+    "eligibleLegacyNotUsed": false,
+    "zeroWrongBinding": false,
+    "zeroNegativeFalseRoute": false,
+    "zeroCanonicalMismatch": false,
+    "zeroAnswerFactRegression": false,
+    "zeroModelCallIncrease": false,
+    "fixturesUnchanged": false
+  },
+  "resultClassification": "BLOCKED",
+  "primaryBlocker": "ECONNRESET",
+  "databaseUnchanged": null
+}

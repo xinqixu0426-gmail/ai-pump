@@ -21,6 +21,7 @@ const { buildFactoryAiRulesPrompt } = require('./factoryAiRules.cjs');
 const { estimateTextTokens, estimateAiMessagesTokens, resolveAiTokenBudgets, normalizeProviderUsage } = require('./aiTokenBudget.cjs');
 const { modelResultView, previousContext, compactToolDescriptions, answerOnlyMessages } = require('./aiAssistantContext.cjs');
 const { normalizeAiPageContext, buildAiPageContextNote } = require('./aiPageContext.cjs');
+const { isEnvFlagEnabled } = require('./environment.cjs');
 const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
 const { createInternalFetch, getJson, postJson } = require('../routes/ai/internalApiClient.cjs');
@@ -212,7 +213,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const allTools = assistantReadTools();
         const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
         const coilComparisonPairs = coilCostComparisonPairs(latest.content);
-        if (['1', 'true', 'yes', 'on'].includes(String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED || '').trim().toLowerCase())) {
+        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED')) {
             try {
                 relationRouter = require('../ontology/relationRoutingCanary.cjs');
                 relationRouting = relationRouter.prepareRouting({ userText: latest.content, env: runtimeEnv || process.env,
@@ -225,6 +226,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 }, dependencies.ontologyRouting);
             } catch {
                 relationRouting = { profile: null, record: { version: 1, canaryEnabled: true, eligible: false,
+                    relationId: null, direction: null,
                     routingSource: 'ONTOLOGY_CANARY_FALLBACK', fallback: true, legacyDetectorUsed: true, legacyRepairUsed: false,
                     providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other', durationMs: 0 } };
             }
@@ -534,14 +536,14 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         try { dependencies.ontologyRouting?.record?.({ ...relationRouting.record }); } catch { /* Fail open. */ }
         try { void require('./observability.cjs').withOntologyRoutingSpan(relationRouting.record).catch(() => {}); } catch { /* Fail open. */ }
         const usage = usages.filter(Boolean).length ? Object.fromEntries(['promptTokens', 'completionTokens', 'totalTokens'].map(key => [key, usages.some(item => item?.[key] != null) ? usages.reduce((sum, item) => sum + (item?.[key] || 0), 0) : null])) : null;
-        if (String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true') {
+        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_SHADOW_ENABLED')) {
             setImmediate(() => {
                 try {
-                    const bindingEnabled = String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true';
+                    const bindingEnabled = isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED');
                     void require('../ontology/runtimeShadow.cjs').observeShadow({
                         userText: latest.content, toolResults, requestId: input.requestId,
                         bindingEnabled,
-                        traversalEnabled: bindingEnabled && String((runtimeEnv || process.env).AI_ONTOLOGY_2HOP_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true',
+                        traversalEnabled: bindingEnabled && isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_2HOP_SHADOW_ENABLED'),
                         ...(bindingEnabled && session.previous?.toolResults ? { subject: input.confirmationSubject, conversationId: input.conversationId,
                             trustedSession: { subject: input.confirmationSubject, conversationId: input.conversationId,
                                 observedAt: started, toolResults: session.previous.toolResults } } : {}),

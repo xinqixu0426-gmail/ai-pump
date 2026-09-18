@@ -55,13 +55,23 @@ function configuredEnv(env, canonicalName, legacyName) {
     return { name: legacyName, value: env[legacyName] };
 }
 
+/**
+ * Canonical boolean feature-flag parser.
+ * Project convention is a strict `true` (case-insensitive, trimmed). Feature flags must
+ * not each invent their own accepted value set; a looser parser silently turns an
+ * unexpected value into an enabled experiment.
+ */
+function isEnvFlagEnabled(env, name) {
+    return String((env || {})[name] || '').trim().toLowerCase() === 'true';
+}
+
 function isMcpEnabled(env = process.env) {
     const configured = configuredEnv(env, 'MCP_ENABLED', 'HERMES_MCP_ENABLED');
-    return String(configured.value || '').trim().toLowerCase() === 'true';
+    return isEnvFlagEnabled(env, configured.name);
 }
 
 function isMcpWriteEnabled(env = process.env) {
-    return String(env.MCP_WRITE_ENABLED || '').trim().toLowerCase() === 'true';
+    return isEnvFlagEnabled(env, 'MCP_WRITE_ENABLED');
 }
 
 function getMcpWriteClientIds(env = process.env) {
@@ -335,6 +345,7 @@ function assertProductionEnvironment(env = process.env) {
 module.exports = {
     REQUIRED_PRODUCTION_ENV,
     isProductionEnvironment,
+    isEnvFlagEnabled,
     getServerPort,
     getInternalApiTimeoutMs,
     getMcpAllowedHosts,

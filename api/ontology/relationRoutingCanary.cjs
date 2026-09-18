@@ -1,6 +1,7 @@
 'use strict';
 // P6R migration adapter. Profiles describe existing reads, never business edges.
 const crypto = require('node:crypto');
+const { performance } = require('node:perf_hooks');
 const { ontology } = require('./contract.cjs');
 const { relationMetadata, policy } = require('./bindingMetadata.cjs');
 const { bindRelation } = require('./relationBinder.cjs');

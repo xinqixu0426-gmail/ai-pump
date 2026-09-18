@@ -1,8 +1,31 @@
 # First Relation Routing Migration V1 — ONT-P6R
 
-**Status: BLOCKED at the real local/local-first A/B gate.** The pure-relation canary is implemented, default OFF, with deterministic equivalence verified. The configured local endpoint returned `ECONNRESET` in two independent readiness probes (fetch and direct native HTTP). No completed real local corpus run, or DeepSeek substitute, is claimed.
+**Two gates are tracked separately and must never be merged into one PASS.**
+
+| Gate | Scope | Status |
+| --- | --- | --- |
+| Deterministic Canary Gate | Frozen Legacy Oracle, 28-case corpus, OFF/ON equivalence, dependency trap, non-eligible fallback, evidence isolation | **PASS** |
+| Real Local AI Canary Gate | Strict-local (`AI_PROVIDER=local`) paired A/B on the same corpus against the real local model | **BLOCKED** |
+
+**Real Local AI Canary Gate status: BLOCKED — `LOCAL_PROVIDER_UNHEALTHY`.** The canary is implemented, default OFF, with deterministic equivalence verified. The configured local endpoint (`http://192.168.31.111:8080/v1`, resolved from current runtime config, never hardcoded) accepts TCP but resets every HTTP request. No real local corpus run is claimed, and DeepSeek is explicitly not accepted as a substitute baseline.
+
+Gate provenance and the current failure evidence are committed in the lightweight manifest
+[`ontology-p6r-real-local-gate.json`](./ontology-p6r-real-local-gate.json): corpus hash, artifact hashes,
+requested/actual provider, preflight result, fallback count and classification. Full raw per-case evidence
+stays in the gitignored `logs/ontology-p6r-real-local-raw.json`; the committed manifest is sufficient to
+prove what was and was not run. `commit` records the branch HEAD at execution time; the authoritative
+record of exactly which code was probed is `artifactHashes`.
 
 P6 remains an audit/semantic-decomposition result, committed at `31cac79170802f508c7e904258770b31fd186737`; it was REWORK before a Canary existed, not a failed Canary implementation. Its 24-case frozen corpus and preflight tests are retained unchanged. P6R continues `codex/ont-p1-thin-contract`, without rollback, merge, push or deployment.
+
+## 0. Formal gate runner and preserved exploratory runner
+
+ONT-P6 scope is the `recipe <-> coil` Controlled Routing Canary only. P6 does **not** remove legacy hard-code: `isCoilRecipeRelationQuery`, the legacy shortlist, legacy relation repair and `requiredCoilRecipeToolCall` are all retained and remain authoritative while the canary flag is OFF. P6 only has to show that `Legacy OFF` and `Ontology Canary ON` are safely equivalent for the same real model requests.
+
+- **`scripts/run-ontology-routing-real-local-ab.cjs` — the formal, tracked gate.** Strict local only: `AI_PROVIDER=local` is forced, `local-first` is not a gate mode, and any reported fallback invalidates the whole run as `CLOUD_FALLBACK_PRESENT`. A fail-closed preflight (`/v1/models`, one minimal chat completion, one minimal tool-call request using the project's real registered read tool schema) runs before any corpus work; when the local provider is unhealthy the run exits `2`, executes **zero** corpus cases and writes the BLOCKED manifest rather than a gate result.
+- **`scripts/run-ontology-routing-real-ab.cjs` — preserved exploratory evidence, superseded.** Untracked when it produced its 72-execution run, SHA-256 `8194e3a48c24b29fe1a227ac42a65c45386fd797894b2b0d2e27280d8699f04f`. It hardcoded `local-first`, required a cloud API key and asserted a DeepSeek fallback chain (`fallbackChainVerified`), so it structurally could never establish a local baseline — its 194 cloud fallbacks are exactly why its own `primaryBlocker` was `REAL_AI_EQUIVALENCE_GATE_NOT_MET`. It is retained unmodified as historical evidence and is **not** a gate. No formal gate may depend on an untracked script.
+
+Legacy hard-code removal/convergence is a later phase and is out of scope here.
 
 ## 1. P6 REWORK root cause and existing hard-code
 
@@ -102,15 +125,26 @@ Both local and local-first deterministic envelopes were checked. Per envelope: 8
 
 An isolated dependency trap replaces legacy shortlist/detector with throwing functions; all 8 eligible positives still complete. Legacy repair is also a throwing dependency for these tests. This proves the marker is not a label attached after legacy selection.
 
-## 9. Real AI A/B and environmental blocker
+## 9. Real Local AI Canary Gate and current blocker
 
-Required schedule: the same 8 pure positives OFF/ON for two rounds, and 20 negatives OFF/ON for at least one round, on real local/local-first. Compare actual canonical roots/directions/targets, required tools/model budget and answer business facts (not only string equality). Context seeds must use actual verified formal reads identically on both sides and be counted separately.
+Required schedule: the same 8 pure positives OFF/ON for two paired rounds, and the 20 negatives OFF/ON for at least one round, all on **strict local**. Compare actual canonical roots/directions/targets, required tools, model budget and answer business facts — not natural-language wording, which legitimately varies between real runs. Context seeds must come from actual verified formal reads, identically on both sides, and are counted separately.
 
-Completed real corpus runs: **0**. Two independent probes of the currently configured local `/models` endpoint returned ECONNRESET. Since local and local-first share that local endpoint, cloud fallback cannot stand in for a successful local baseline. No endpoint, model setting, database or secret was modified.
+Gate pass conditions are recorded explicitly in the manifest's `gatePassConditions`: preflight OK, actual provider `local`, zero cloud fallback, every case completed, every eligible positive routed by `ONTOLOGY_RELATION_BINDING`, zero legacy detector/repair participation under eligible ON, zero wrong binding, zero negative false route, zero canonical/tool-sequence/tool-argument mismatch, zero answer-fact regression, zero model-call increase, and unchanged fixture database bytes. A non-zero cloud fallback count forces `CLOUD_FALLBACK_PRESENT` and cannot pass.
 
-Reproduce readiness from this worktree with `ONT_SHADOW_CONFIG_ROOT` pointing to the existing config checkout, then `node scripts/check-ontology-routing-local-provider.cjs`. The report is `logs/ont-p6r-local-provider-readiness.json`; READY_FOR_REAL_AI_AB means only connectivity, not acceptance. Credentials remain in process memory and are never emitted.
+**Completed valid real local corpus runs: 0.** The committed manifest records the strict-local preflight result for this run: `modelsEndpoint=false`, `httpError=ECONNRESET`, `actualProvider=null`, `pairedRoundsCompleted=0`, `resultClassification=BLOCKED`, `primaryBlocker=ECONNRESET`. The runner executed zero corpus cases, by design.
 
-The real A/B gate is unfulfilled, so the overall status is BLOCKED despite successful deterministic validation. Restoring local connectivity is required before any PASS/promotion decision.
+Independent network diagnosis of the blocker (2026-09-18):
+
+- Config-resolved endpoint `192.168.31.111:8080/v1` (from current runtime config; not assumed).
+- ICMP to the host fails; TCP to port 8080 connects, but every HTTP request is reset by the peer.
+- TCP also "connects" on ports that cannot be open (9, 12345, 54321, 65000), and the same pattern applies to the known-good production host on that subnet, while a real LAN host correctly refuses a closed port. The `192.168.31.0/24` path from this workstation is currently accepting all TCP and forwarding nothing, so TCP reachability is not evidence that the model host is up.
+- No SSH access to `192.168.31.111` is configured on this workstation, so the model service itself could not be inspected or restarted from here.
+
+This is `LOCAL_PROVIDER_UNHEALTHY` at the environment level. No Ontology semantics, binding rule, canonical identity rule, Legacy Oracle, business Tool, business API, endpoint, model setting, database or secret was modified to work around it.
+
+Reproduce readiness from this worktree with `ONT_SHADOW_CONFIG_ROOT` pointing to the existing config checkout, then `node scripts/check-ontology-routing-local-provider.cjs` (connectivity only) and `node scripts/run-ontology-routing-real-local-ab.cjs --rounds=2` (the gate itself). Credentials remain in process memory and are never emitted.
+
+The real gate is unfulfilled, so the overall status is **BLOCKED** despite successful deterministic validation. Restoring local connectivity is required before any PASS/promotion decision.
 
 ## 10. P3/P4/P5 shadow coexistence and safety
 
@@ -122,12 +156,16 @@ No routing observation triggers business execution, writes or recursive model ca
 
 All six legacy sites are retained for OFF/current/fallback. Costs, comparisons, inventory and configuration retain their existing ownership; legacy mixed-semantic defects remain outside this stage's narrow routing migration.
 
-Fresh requests without already verified canonical context are intentionally not Canary opportunities in this implementation. Ambiguous/rootless/unsupported requests remain rejected. Real local model behavior, latency and answer-fact stability remain unverified due to connectivity; deterministic success cannot establish that gate. Local-first real acceptance must distinguish successful local execution from a cloud fallback.
+Fresh requests without already verified canonical context are intentionally not Canary opportunities in this implementation. Ambiguous/rootless/unsupported requests remain rejected. Real local model behavior, latency and answer-fact stability remain unverified due to connectivity; deterministic success cannot establish that gate. A `local-first` run that fell back to a cloud model is not evidence about the local model, and the formal gate therefore refuses to score it.
 
 ## 12. ONT-P7 entry criteria and validation
 
-P7 cannot begin until actual local/local-first frozen A/B completes with canonical/answer-fact equivalence, no false routes, no wrong roots/directions, no unexpected fallback and no eligible legacy participation. Default remains OFF. Any later discovery admission or cleanup needs separately authorized design and tests. P2/P5 remain shadow-only fact sources.
+P7 cannot begin until the **Real Local AI Canary Gate** completes on strict local with canonical/answer-fact equivalence, no false routes, no wrong roots/directions, zero legacy participation under eligible ON and zero cloud fallback. `local-first` results and DeepSeek results are not evidence for this gate. Default remains OFF. Any later discovery admission or legacy cleanup needs separately authorized design and tests. P2/P5 remain shadow-only fact sources.
 
-P6R verification: 37/37 Canary tests and 568/568 focused ontology/AI/identity/relationRead/observability/API tests PASS; Web build PASS. Full npm regression 2487/2487 and API contract 26/26 PASS; ESLint, strict UTF-8/JSON and whitespace checks PASS. A separate-process API fixture exercises all eight positive pairs through the actual executor and existing Business APIs, with byte-identical DB and unchanged total_changes. Default Date construction is frozen for provenance fetchedAt equivalence while Date.now/session TTL/timeouts remain real; no business field is normalized away. Initial checks found JSON undefined-field/Windows newline differences in test comparisons; those test defects were corrected without relaxing business gates.
+P6R verification (deterministic gate): 38/38 Canary tests, 26/26 preflight tests, P1–P6 ontology 341/341, focused ontology/AI/identity/relationRead set 482/482, full npm regression **2488/2488**, API contract 26/26, Web build PASS, changed-file ESLint PASS. A separate-process API fixture exercises all eight positive pairs through the actual executor and existing Business APIs, with byte-identical DB and unchanged total_changes. Default Date construction is frozen for provenance fetchedAt equivalence while Date.now/session TTL/timeouts remain real; no business field is normalized away.
+
+Feature-flag parsing is now centralized: `api/services/environment.cjs` exports `isEnvFlagEnabled(env, name)`, the strict-`true` project convention, and all four ontology flags (canary plus the three shadow flags) use it. Previously the canary privately accepted `1`/`yes`/`on` while the shadow flags accepted only `true`; a regression test asserts the strict convention and rejects a reintroduced private value list. Because the canary is default OFF and no released configuration used those looser values, this only tightens fail-safe behaviour.
+
+When the canary flag is OFF, `withOntologyRoutingSpan` still emits an `ontology_relation_routing_canary` span with `canary_enabled=false`. This is retained deliberately as **disabled observation only**: it changes no answer, tool, argument, evidence or model-call behaviour and is fail-open. Removing it would widen the change surface for no gate benefit.
 
 The original master and user-owned untracked `docs/ontology-preimplementation-audit.md` are preserved; SHA-256 is `8930a71e60b28fb9238c34d31b0c813e56ef5b89ec1d72f6ccc05b8fbbb2151b`. No production configuration changes, merge, push or deployment.

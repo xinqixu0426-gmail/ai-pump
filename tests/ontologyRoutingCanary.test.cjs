@@ -135,3 +135,22 @@ test('P6R canary and P3/P4/P5 observers coexist without extra business calls, re
 test('P6R all eight pure positives preserve actual executor/API facts and evidence with zero DB writes', () => {
     require('node:child_process').execFileSync(process.execPath, [path.resolve('tests/helpers/runOntologyRoutingApiFixture.cjs')], { stdio: 'pipe', timeout: 30000 });
 });
+test('P6R feature flags use the single project parser and only a strict true enables the canary', async () => {
+    const { isEnvFlagEnabled } = require('../api/services/environment.cjs');
+    // The shared parser is the project convention and is shared with the existing MCP flags.
+    assert.equal(require('../api/services/environment.cjs').isEnvFlagEnabled({ X: 'true' }, 'X'), true);
+    for (const value of ['1', 'yes', 'on', 'TRUE ', 'true']) {
+        assert.equal(isEnvFlagEnabled({ X: value }, 'X'), value.trim().toLowerCase() === 'true', `parser mismatch for ${JSON.stringify(value)}`);
+    }
+    // A canary flag value that only the old private list accepted must not enable routing.
+    for (const flag of ['1', 'yes', 'on']) {
+        const r = await runCase(cases[0], flag, runAiAssistant);
+        assert.equal(r.records[0].canaryEnabled, false, `canary must stay OFF for ${flag}`);
+        assert.equal(r.records[0].routingSource, 'LEGACY_RELATION_SPECIAL_CASE');
+    }
+    // The runtime must not reintroduce a private accepted-value list.
+    const runtime = fs.readFileSync(path.resolve('api/services/aiAssistantRuntime.cjs'), 'utf8');
+    assert.match(runtime, /isEnvFlagEnabled\(/u);
+    assert.doesNotMatch(runtime, /\['1',\s*'true',\s*'yes',\s*'on'\]/u);
+    assert.doesNotMatch(runtime, /AI_ONTOLOGY_[A-Z0-9_]+[^\n]*\)\s*\.trim\(\)\s*\.toLowerCase\(\)\s*===\s*'true'/u);
+});
