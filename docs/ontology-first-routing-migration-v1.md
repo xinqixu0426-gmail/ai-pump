@@ -1,20 +1,16 @@
-# First Relation Routing Migration V1 — ONT-P6R
+# First Relation Routing Migration V1 — ONT-P6R / ONT-P6D
 
-**Two gates are tracked separately and must never be merged into one PASS.**
+**Gates are tracked separately and must never be merged into one PASS.**
 
 | Gate | Scope | Status |
 | --- | --- | --- |
 | Deterministic Canary Gate | Frozen Legacy Oracle, 28-case corpus, OFF/ON equivalence, dependency trap, non-eligible fallback, evidence isolation | **PASS** |
-| Real Local AI Canary Gate | Strict-local (`AI_PROVIDER=local`) paired A/B on the same corpus against the real local model | **BLOCKED** |
+| DeepSeek Real-AI Canary Gate (ONT-P6D) | Real DeepSeek provider, paired A/B over the frozen corpus, harness-isolated ontology routing decision | see [DeepSeek gate](#13-deepseek-real-ai-gate-ont-p6d) |
+| Local Provider Gate (strict local) | `AI_PROVIDER=local`, real local model host | **DEFERRED — LOCAL PROVIDER NOT CURRENTLY REQUIRED** |
 
-**Real Local AI Canary Gate status: BLOCKED — `LOCAL_PROVIDER_UNHEALTHY`.** The canary is implemented, default OFF, with deterministic equivalence verified. The configured local endpoint (`http://192.168.31.111:8080/v1`, resolved from current runtime config, never hardcoded) accepts TCP but resets every HTTP request. No real local corpus run is claimed, and DeepSeek is explicitly not accepted as a substitute baseline.
+**Local Provider Gate: DEFERRED.** Reason: the local model host (`192.168.31.111`) sits on another LAN — this workstation's wired NIC is disconnected and only a different subnet is reachable, so the strict-local gate cannot execute from here. It is **not** a blocker for Ontology V1 on the current DeepSeek path, and it was never reported as PASS. Re-enabling local/local-first later requires re-running the original strict-local gate.
 
-Gate provenance and the current failure evidence are committed in the lightweight manifest
-[`ontology-p6r-real-local-gate.json`](./ontology-p6r-real-local-gate.json): corpus hash, artifact hashes,
-requested/actual provider, preflight result, fallback count and classification. Full raw per-case evidence
-stays in the gitignored `logs/ontology-p6r-real-local-raw.json`; the committed manifest is sufficient to
-prove what was and was not run. `commit` records the branch HEAD at execution time; the authoritative
-record of exactly which code was probed is `artifactHashes`.
+Gate provenance is committed per gate: [`ontology-p6r-real-local-gate.json`](./ontology-p6r-real-local-gate.json) (strict-local, BLOCKED evidence) and [`ontology-p6d-deepseek-gate.json`](./ontology-p6d-deepseek-gate.json) (DeepSeek). Full raw per-case evidence stays in the gitignored `logs/`; the committed manifests are sufficient to prove what was and was not run. `commit` records the branch HEAD at execution time; the authoritative record of exactly which code was probed is `artifactHashes`.
 
 P6 remains an audit/semantic-decomposition result, committed at `31cac79170802f508c7e904258770b31fd186737`; it was REWORK before a Canary existed, not a failed Canary implementation. Its 24-case frozen corpus and preflight tests are retained unchanged. P6R continues `codex/ont-p1-thin-contract`, without rollback, merge, push or deployment.
 
@@ -169,3 +165,38 @@ Feature-flag parsing is now centralized: `api/services/environment.cjs` exports 
 When the canary flag is OFF, `withOntologyRoutingSpan` still emits an `ontology_relation_routing_canary` span with `canary_enabled=false`. This is retained deliberately as **disabled observation only**: it changes no answer, tool, argument, evidence or model-call behaviour and is fail-open. Removing it would widen the change surface for no gate benefit.
 
 The original master and user-owned untracked `docs/ontology-preimplementation-audit.md` are preserved; SHA-256 is `8930a71e60b28fb9238c34d31b0c813e56ef5b89ec1d72f6ccc05b8fbbb2151b`. No production configuration changes, merge, push or deployment.
+
+## 13. DeepSeek Real-AI Gate (ONT-P6D)
+
+`scripts/run-ontology-routing-deepseek-ab.cjs` runs the same frozen 28-case corpus against the **real DeepSeek provider** (requested = actual = `deepseek`, cloud fallback count 0 required; any fallback invalidates the run). Both sides use the same corpus, model, runtime config, fixture database and prompt baseline:
+
+- **A — Legacy routing**: exactly production DeepSeek behaviour. The canary flag is OFF, `AI_LOCAL_TOOL_SHORTLIST_ENABLED=false`, so the model receives the full 48-tool read catalog and chooses freely. The legacy relation pair is never forced, because in production it is gated on the local shortlist.
+- **B — Ontology routing**: the real canary's routing decision applied to the same request. Side B installs a **process-local `require.cache` overlay** that delegates to the genuine canary module and lifts only the provider-mode and shortlist gates, then relabels `providerMode` back to the true provider. No file on disk changes, and `productionEligibilityUnchanged` re-reads the untouched module from disk and asserts `profiles[].providerModes` is still exactly `['local','local-first']`. **Production canary eligibility is NOT widened to DeepSeek by this gate.**
+
+Measured result (two independent full runs, `--rounds=2`, 110 executions each) is stable and reported as **REWORK**, not PASS:
+
+| Metric | Run 1 | Run 2 |
+| --- | ---: | ---: |
+| Executions / completed | 110 / 110 | 110 / 110 |
+| Provider seen | `deepseek` only | `deepseek` only |
+| Cloud fallbacks | 0 | 0 |
+| Wrong root / relation / direction | 0 / 0 / 0 | 0 / 0 / 0 |
+| Unauthorized tool calls | 0 | 0 |
+| Writes | 0 | 0 |
+| Negative cases falsely ontology-routed | 0 | 0 |
+| Positive pairs where side A was canonically correct | 10 / 16 | 12 / 16 |
+| Positive pairs where side B was canonically correct | 13 / 16 | 14 / 16 |
+| Positive pairs where side B needed more model calls | 9 / 16 | 10 / 16 |
+| Canonical regressions (A correct, B not) | 1 | 1 |
+| Business-fact answer regressions | 0 | 0 |
+
+Two PASS conditions are unmet, and neither is a provider, safety or evidence failure:
+
+1. **`noModelCallIncrease` — systematic, inherent to the canary.** The profile enforces that both required capabilities (`search_coils`, `get_all_recipes`) are observed. Side A can answer from a single `get_recipe_detail`, so side B costs +1 to +2 model calls on 10 of 16 positive pairs. This is the price of the guaranteed relation pair, but the gate explicitly requires no additional calls caused by Ontology, so it does not pass as written.
+2. **`zeroCanonicalRegression` — 1 reproducible regression, with an important qualification.** Both runs produced the *same* case with the *same* signature: `coil-explicit` round 1, side A `[get_all_recipes]` certifies target `301`, side B `[get_all_recipes → search_coils → get_all_recipes]` certifies nothing. The cause is the shadow current-facts projection, not the routing: `bindingCurrentFacts.cjs` requires an unambiguous unfiltered full source collection, and a **duplicate `get_all_recipes` invocation leaves it unable to certify completeness**. Verified in a 3-round focused reproduction: side B was incomplete whenever `get_all_recipes` appeared twice and complete when it appeared once. Crucially, **the user-visible answer was substantively correct in every round** — side B still reported that only recipe 301 references coil 501, and `answerFacts` matched side A. So this is a **certification/measurement gap in the shadow projection**, not a wrong answer: the metric under-reports correctness rather than detecting a defect.
+
+Net reading: on DeepSeek, ontology routing is *more* canonically reliable than legacy free choice (13–14 of 16 vs 10–12 of 16), with zero wrong bindings, zero false routes, zero writes and zero fallback, at the cost of more model calls on relation questions and one reproducible projection-certification gap.
+
+Open items for supervisor decision: whether the completion enforcement's model-call cost is acceptable, and whether the duplicate-source-collection certification gap should be fixed in the shadow projection (shadow-only; no production answer path depends on it).
+
+DeepSeek gate requirements: `ONT_SHADOW_CONFIG_ROOT=<config checkout> node scripts/run-ontology-routing-deepseek-ab.cjs --rounds=2`. `--only=<caseId>` narrows the corpus for a cheap wiring smoke test and writes only to `logs/`, never over the committed manifest.

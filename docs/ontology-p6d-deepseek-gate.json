@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "gate": "ONT-P6D",
+  "scope": {
+    "relationFamily": "recipe_coil",
+    "provider": "deepseek",
+    "canaryFlag": "AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED",
+    "sideA": "legacy routing (canary OFF, production DeepSeek behaviour)",
+    "sideB": "ontology canary routing decision (counterfactual, harness-only overlay)"
+  },
+  "branch": "codex/ont-p1-thin-contract",
+  "commit": "ea8ace10af537a4396eeda217357fb568e4ee59c",
+  "generatedAt": "2026-09-18T11:39:59.176Z",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "corpusVersion": "P6R frozen 28-case (8 positive / 20 negative)",
+  "corpusHash": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+  "expectedCorpusHash": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+  "artifactHashes": {
+    "tests/helpers/ontologyRoutingCorpus.cjs": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+    "tests/fixtures/ontology-coil-recipe-canary-v1.json": "9f303845284e05e40cfdec90c02c81d32eaa559ec5786ec7a6de6b6ea11df3b7",
+    "tests/fixtures/ontology-coil-recipe-legacy-oracle-v1.json": "6c3bfe19d1e79d9decdd8d8eba6ce68af8339ea1e5112ef2a7c39c64a6927a0d",
+    "api/ontology/relationRoutingCanary.cjs": "78811a452000208615679de43b87e069ae5cb380e812752dc91513e096e412f9",
+    "api/ontology/bindingMetadata.cjs": "678bb8c01447f161d2997f9cc2fb0baba338e4b6dd774a105509537b18aae6ec"
+  },
+  "pairedRoundsPlanned": 2,
+  "pairedRoundsCompleted": 2,
+  "deterministicGate": "PASS (see docs/ontology-first-routing-migration-v1.md)",
+  "localProviderGate": "DEFERRED — local model host is on another LAN and is not required for the DeepSeek validation path",
+  "resultClassification": "REWORK",
+  "primaryBlocker": "GATE_CONDITION_UNMET:zeroCanonicalRegression,noModelCallIncrease",
+  "preflight": {
+    "requestedProvider": "deepseek",
+    "minimalChat": {
+      "responded": true,
+      "reportedModel": "deepseek-flash"
+    },
+    "minimalToolCall": {
+      "supported": true,
+      "toolName": "get_all_recipes"
+    },
+    "actualProvider": "deepseek",
+    "actualModel": "deepseek-flash",
+    "fallbackUsed": false,
+    "requestCount": 2,
+    "ok": true
+  },
+  "metrics": {
+    "totalExecutions": 110,
+    "completed": 110,
+    "positiveExecutions": 32,
+    "negativeExecutions": 78,
+    "sideACompleted": 55,
+    "sideBCompleted": 55,
+    "sideBRoutedByOntology": 16,
+    "wrongRoot": 0,
+    "wrongRelation": 0,
+    "wrongDirection": 0,
+    "unauthorizedToolCalls": 0,
+    "writes": 0,
+    "toolSequenceRegressions": 13,
+    "toolArgumentRegressions": 15,
+    "canonicalResultMismatches": 4,
+    "canonicalRegressions": 1,
+    "unexplainedMismatches": 1,
+    "businessFactAnswerRegressions": 0,
+    "modelCallIncreases": 10,
+    "positivePairs": 16
+  },
+  "gatePassConditions": {
+    "preflightOk": true,
+    "requestedProviderDeepseek": true,
+    "actualProviderDeepseek": true,
+    "noFallbackForced": true,
+    "corpusHashUnchanged": true,
+    "allCasesCompleted": true,
+    "zeroWrongBinding": true,
+    "zeroUnauthorizedTool": true,
+    "zeroWrite": true,
+    "zeroCanonicalRegression": false,
+    "zeroAnswerFactRegression": true,
+    "noModelCallIncrease": false,
+    "fixturesUnchanged": true,
+    "productionEligibilityUnchanged": true
+  },
+  "databaseUnchanged": true,
+  "subsetRun": false
+}
