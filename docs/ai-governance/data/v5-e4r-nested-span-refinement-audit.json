@@ -1,0 +1,5260 @@
+{
+  "version": 1,
+  "audit": "P15R-E-B2-F-A",
+  "simulationOnly": true,
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 0,
+          "eligibleNestedCount": 0,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 17,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 0,
+          "eligibleNestedCount": 0,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 17,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 0,
+          "eligibleNestedCount": 0,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 17,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "currentSuccess": false,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 31,
+          "eligibleNestedCount": 30,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 11,
+            "B": 1,
+            "C": 25,
+            "D": 1
+          }
+        },
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 18,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 8,
+            "B": 1,
+            "C": 14,
+            "D": 1
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "currentSuccess": false,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 31,
+          "eligibleNestedCount": 30,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 11,
+            "B": 1,
+            "C": 25,
+            "D": 1
+          }
+        },
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 18,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 8,
+            "B": 1,
+            "C": 14,
+            "D": 1
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "currentSuccess": false,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 31,
+          "eligibleNestedCount": 30,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 11,
+            "B": 1,
+            "C": 25,
+            "D": 1
+          }
+        },
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 18,
+          "eligibleNestedCount": 18,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 8,
+            "B": 1,
+            "C": 14,
+            "D": 1
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "AMBIGUOUS",
+          "nestedSpanCount": 20,
+          "eligibleNestedCount": 20,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 33,
+          "eligibleNestedCount": 32,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "AMBIGUOUS",
+          "nestedSpanCount": 20,
+          "eligibleNestedCount": 20,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 33,
+          "eligibleNestedCount": 32,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_002",
+          "lookupStatus": "AMBIGUOUS",
+          "nestedSpanCount": 20,
+          "eligibleNestedCount": 20,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 33,
+          "eligibleNestedCount": 32,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "currentSuccess": true,
+      "parentSpanCount": 2,
+      "perParentNotFoundTrigger": true,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "parents": [
+        {
+          "parentSpanRef": "sp_005",
+          "lookupStatus": "RESOLVED",
+          "nestedSpanCount": 5,
+          "eligibleNestedCount": 5,
+          "expectedNested": false,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        },
+        {
+          "parentSpanRef": "sp_001",
+          "lookupStatus": "NOT_FOUND",
+          "nestedSpanCount": 27,
+          "eligibleNestedCount": 26,
+          "expectedNested": true,
+          "expectedRanks": {
+            "A": 0,
+            "B": 0,
+            "C": 0,
+            "D": 0
+          }
+        }
+      ]
+    }
+  ],
+  "simulations": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 7,
+      "unknownLookupEvidenceCount": 7,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 3,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 7,
+      "unknownLookupEvidenceCount": 7,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 3,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 7,
+      "unknownLookupEvidenceCount": 7,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 2,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 1,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 3,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 4,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": false,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 5,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 1,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 3,
+      "unknownLookupEvidenceCount": 2,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "parentSpanCount": 2,
+      "nestedSpanCount": 30,
+      "expectedNested": true,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": true,
+      "refinementTrigger": true,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 5,
+      "unknownLookupEvidenceCount": 4,
+      "safeReasonCodes": [
+        "ALL_ORIGINAL_LOOKUPS_COMPLETE_NOT_FOUND",
+        "FIXED_PREFIX_PER_PARENT",
+        "DEDUPE_BEFORE_LOOKUP",
+        "SIMULATION_ONLY"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "A",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "B",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "C",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 1,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 2,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 3,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "parentSpanCount": 0,
+      "nestedSpanCount": 0,
+      "expectedNested": null,
+      "structuralStrategy": "D",
+      "nestedK": 4,
+      "expectedRecall": null,
+      "refinementTrigger": false,
+      "successPathAffected": false,
+      "estimatedAdditionalLookupCount": 0,
+      "unknownLookupEvidenceCount": 0,
+      "safeReasonCodes": [
+        "EXISTING_AUTHORITY_PRESERVED",
+        "NO_REFINEMENT"
+      ]
+    }
+  ],
+  "summary": {
+    "A": {
+      "1": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 2,
+          "max": 2
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 12,
+          "max": 12
+        },
+        "unknownLookupEvidenceCount": 6
+      },
+      "2": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 4,
+          "max": 4
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 24,
+          "max": 24
+        },
+        "unknownLookupEvidenceCount": 12
+      },
+      "3": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 5,
+          "max": 5
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 30,
+          "max": 30
+        },
+        "unknownLookupEvidenceCount": 15
+      },
+      "4": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 7,
+          "max": 7
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 42,
+          "max": 42
+        },
+        "unknownLookupEvidenceCount": 21
+      }
+    },
+    "B": {
+      "1": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 6,
+          "max": 6
+        },
+        "unknownLookupEvidenceCount": 0
+      },
+      "2": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 2,
+          "max": 2
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 12,
+          "max": 12
+        },
+        "unknownLookupEvidenceCount": 3
+      },
+      "3": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 3,
+          "max": 3
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 18,
+          "max": 18
+        },
+        "unknownLookupEvidenceCount": 6
+      },
+      "4": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 5,
+          "max": 5
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 30,
+          "max": 30
+        },
+        "unknownLookupEvidenceCount": 12
+      }
+    },
+    "C": {
+      "1": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 6,
+          "max": 6
+        },
+        "unknownLookupEvidenceCount": 3
+      },
+      "2": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 3,
+          "max": 3
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 18,
+          "max": 18
+        },
+        "unknownLookupEvidenceCount": 9
+      },
+      "3": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 4,
+          "max": 4
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 24,
+          "max": 24
+        },
+        "unknownLookupEvidenceCount": 12
+      },
+      "4": {
+        "exactRecall": 0,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 5,
+          "max": 5
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 30,
+          "max": 30
+        },
+        "unknownLookupEvidenceCount": 15
+      }
+    },
+    "D": {
+      "1": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 1,
+          "max": 1
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 6,
+          "max": 6
+        },
+        "unknownLookupEvidenceCount": 0
+      },
+      "2": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 3,
+          "max": 3
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 18,
+          "max": 18
+        },
+        "unknownLookupEvidenceCount": 6
+      },
+      "3": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 5,
+          "max": 5
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 30,
+          "max": 30
+        },
+        "unknownLookupEvidenceCount": 12
+      },
+      "4": {
+        "exactRecall": 3,
+        "exactFailures": 3,
+        "additionalLookups": {
+          "median": 0,
+          "p95": 5,
+          "max": 5
+        },
+        "additionalTypedAttempts": {
+          "median": 0,
+          "p95": 30,
+          "max": 30
+        },
+        "unknownLookupEvidenceCount": 12
+      }
+    }
+  },
+  "triggerAudit": {
+    "literalPerParentSuccessfulPathsTriggered": 12,
+    "guardedSuccessfulPathsTriggered": 0,
+    "guardedFailurePathsTriggered": 3
+  },
+  "nestedCountsTriggeredParents": {
+    "median": 24.5,
+    "p95": 31,
+    "max": 31
+  },
+  "safety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    },
+    "frozenHashesMatch": true,
+    "modelCalls": 0,
+    "businessApiCalls": 0,
+    "toolCalls": 0,
+    "writes": 0,
+    "privacySentinelPass": true
+  }
+}

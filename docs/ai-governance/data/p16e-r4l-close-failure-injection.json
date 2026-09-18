@@ -1,0 +1,303 @@
+{
+  "paths": [
+    {
+      "id": "RISK_UNAVAILABLE",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "EXCEPTION",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "TIMEOUT",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "INVALID_CONTRACT",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNKNOWN_MODE",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNEXPECTED_FIELD",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "MALFORMED_RESPONSE",
+      "repeat": 0,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "RISK_UNAVAILABLE",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "EXCEPTION",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "TIMEOUT",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "INVALID_CONTRACT",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNKNOWN_MODE",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNEXPECTED_FIELD",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "MALFORMED_RESPONSE",
+      "repeat": 1,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "RISK_UNAVAILABLE",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "EXCEPTION",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "TIMEOUT",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "INVALID_CONTRACT",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNKNOWN_MODE",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "UNEXPECTED_FIELD",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "MALFORMED_RESPONSE",
+      "repeat": 2,
+      "outcomeClass": "SAFE_AVAILABILITY_FALLBACK",
+      "eligible": false,
+      "counts": {
+        "interpreter": 0,
+        "resolver": 0,
+        "readTool": 0,
+        "answerModel": 0,
+        "businessAnswer": 0
+      },
+      "pass": true
+    }
+  ],
+  "distinctFailurePaths": 7,
+  "repeats": 3,
+  "attempts": 21,
+  "unsafeAdmissions": 0,
+  "pass": true
+}

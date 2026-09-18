@@ -1,0 +1,654 @@
+{
+  "version": 1,
+  "certificationAudit": {
+    "status": "PARTIAL",
+    "p16BReady": false,
+    "bindingReferenceContract": "OPTIONAL_SOFTWARE_ONLY_BINDING_REFS_V1",
+    "bindingRefKind": "schemeCode",
+    "bindingAuthority": "FORMAL_COILS_SCHEME_CODE",
+    "toolSelectionCorrect": 15,
+    "validatedArguments": 15,
+    "executionSuccess": 15,
+    "resultMatch": 15,
+    "resultMismatch": 0,
+    "resultNotComparable": 0,
+    "evidenceValid": 15,
+    "verificationPass": 15,
+    "coilFullyVerified": 3,
+    "r02WrongToolExcluded": 3,
+    "performanceGate": "FAIL",
+    "performanceDataset": "docs/ai-governance/data/v5-f1b-performance-certification.json",
+    "performanceD95OverheadPercent": [10.569901710592067, 8.155696498693853, 10.5794185217424],
+    "fixturePreflightToolCalls": 13,
+    "fixturePreflightApiReads": 14,
+    "performanceToolCalls": 825,
+    "performanceApiReads": 825,
+    "totalStageToolExecutions": 853,
+    "totalStageV5ApiReads": 890,
+    "formalComparatorOnlyApiCalls": 18,
+    "writes": 0,
+    "allowWriteEnablingCalls": 0,
+    "businessMutations": 0,
+    "productionRouting": 0,
+    "userVisibleV5Responses": 0,
+    "trace": { "formalSpans": 99, "toolSpans": 15, "orphan": 0, "invalidParent": 0, "crossRequest": 0, "allFormalTracesPresent": true },
+    "privacy": { "bindingValues": 0, "toolArgValues": 0, "toolResultValues": 0, "rawEntity": 0, "canonicalId": 0, "businessValues": 0, "promptResponse": 0, "pii": 0, "secret": 0 },
+    "tests": { "apiAndBindingFocused": "12/12", "apiContract": "26/26", "combinedV5": "295/295", "fullRegression": "2081/2082", "knownFailure": "MISSING_GUARDIAN_CONFIG", "build": "PASS", "deepApi": "NOT_RUN_WRITE_TOOL_WORKLOAD_OUT_OF_SCOPE" },
+    "reasonCodes": ["REAL_CONTROLLED_PERFORMANCE_P95_EXCEEDS_GATE", "NO_POST_EVAL_TUNING"]
+  },
+  "formalEvaluationRuns": 1,
+  "frozenPaths": 15,
+  "executionApplicable": 15,
+  "preEvalHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "bcc4cd86b9ddb4381dc66168715693fdedf6ef4fc02884327fffcb5c6c6538a9",
+    "api/services/ai-v5/shadowMirror.cjs": "9dc57e35ee35f46cb71bc23949d5cdd19d8aae674088e4fe4cc7521ec1451889",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/certify-v5-f1b-performance.cjs": "afde873fbd7296ecc73203694abf8cb846683db2e769c18602e2aad9a89ca7da",
+    "tests/aiV5CoilReadBinding.test.cjs": "dc56de3d6747597d41fd923759134e4d518289d72ff4990a084bfcc2d4581b97",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionShadow.cjs": "b1e241f4cff3eb29483145e37690b10cd5440649934f63d6655c57612a43bdb1",
+    "api/services/ai-v5/verification.cjs": "0090441bacf822fb880fc0fbd69588f523bffeee3e208e766d1c22e2d8d9427a",
+    "api/services/ai-v5/evidenceRequirements.cjs": "2616dda0c7d1f1a24a385bb642f3b989ec86c168ac9301bc30215114dbc34a54",
+    "api/routes/ai/executor.cjs": "f8e1f3be69d0caa80bfd75f126d46bb698d32b1daea22df7a8eec4373fb0fe3b",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/executors/businessExecutors.cjs": "2adf553bb6dec7f6958f70415a4330624bfc2ca27d5d1796136e7a54c2162ef8",
+    "scripts/run-ai-v5f1-read-execution.cjs": "0bc7877fb2b93c0ffc394988940dc9922452f07ebf34fe123f819a94fe13089a",
+    "tests/aiV5ReadExecutionShadow.test.cjs": "9d43c25c2bd838b11f4ad1059575f89f9fc63973d7d313aece70fc1d86db23ad"
+  },
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "schemeCode"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 17.3136999999997,
+      "traceId": "cc1e49ba317b20e279cf0f09628f3c54",
+      "shadowTaskId": "f1-4930a548-310a-4b66-9900-3150a1b67263"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "schemeCode"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 13.552200000000084,
+      "traceId": "722a1304ee70afa76ffc9de7b0026e63",
+      "shadowTaskId": "f1-7c3009f1-a020-4b00-892e-c8f1aba36012"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "schemeCode"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 3.930699999999888,
+      "traceId": "42af7ce5bc0c44b67f518703d44fec2e",
+      "shadowTaskId": "f1-a434a117-7b9a-4d6a-ba92-c1d5e1ee0950"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "recipeId"
+      ],
+      "argumentTypeSignature": [
+        "number"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 3,
+      "toolCalls": 1,
+      "toolReadCalls": 2,
+      "durationMs": 26.44640000000072,
+      "traceId": "37d1f38cef6f823429e36fe20b6e1b9b",
+      "shadowTaskId": "f1-edbdc9c6-0f9f-490d-a504-79ae7a44a799"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "recipeId"
+      ],
+      "argumentTypeSignature": [
+        "number"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 3,
+      "toolCalls": 1,
+      "toolReadCalls": 2,
+      "durationMs": 29.109300000000076,
+      "traceId": "07e4193575aa877fdbe4355335698d36",
+      "shadowTaskId": "f1-769295a0-ed24-4963-96b8-f08cdd86f12a"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "recipeId"
+      ],
+      "argumentTypeSignature": [
+        "number"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 3,
+      "toolCalls": 1,
+      "toolReadCalls": 2,
+      "durationMs": 33.669700000000375,
+      "traceId": "32c5932b82ebd6261ff5b15f76116bd6",
+      "shadowTaskId": "f1-b3527356-38db-4c09-ba51-64a5916ddd2a"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 4.136800000000221,
+      "traceId": "b56089282f0e4d482753817a6fcf56cf",
+      "shadowTaskId": "f1-23fd4084-8409-4dac-8987-f64b21f9f634"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 12.814300000000003,
+      "traceId": "f46e8da06807e267c0750cb86ffbcf8f",
+      "shadowTaskId": "f1-47e39631-dd16-43b1-b48b-058dea9ab785"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 2,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 5.562400000000707,
+      "traceId": "db270cc9390d80041c7abbfc36c1b427",
+      "shadowTaskId": "f1-7d451a38-e3df-4a1d-b4c8-3251cc16494e"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 2.73070000000007,
+      "traceId": "f0b1a1877dbe4dbae216acde6dd821e4",
+      "shadowTaskId": "f1-3cbe8358-b3aa-4bd7-b676-a32c0806d342"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 2.4149000000015803,
+      "traceId": "2b4e9841a57056902d382b464fba038f",
+      "shadowTaskId": "f1-c6328552-923b-49e6-8b2a-707660a7910f"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 4.1314000000020314,
+      "traceId": "1196c804ae20e3839aca2c4ae158b9ab",
+      "shadowTaskId": "f1-039d96a1-e714-496f-9ee0-29c820a5f3a9"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 3.782200000001467,
+      "traceId": "cf93083d056c754bbc4ed4ed62f3abb7",
+      "shadowTaskId": "f1-420852bd-a56b-4917-ac1f-480b7f048754"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 2.6088999999992666,
+      "traceId": "c1868901d365159e573e128b9300682e",
+      "shadowTaskId": "f1-07353a85-45c6-4510-bb44-8b1568384aec"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "executionApplicable": true,
+      "capabilityMatch": true,
+      "toolSelectionStatus": "UNIQUE",
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "argumentKeySignature": [
+        "keyword"
+      ],
+      "argumentTypeSignature": [
+        "string"
+      ],
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceStatus": "VALID",
+      "verificationStatus": "PASS",
+      "evidenceCount": 1,
+      "writeBlocked": false,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ],
+      "modelCalls": 1,
+      "lookupCalls": 2,
+      "toolCalls": 1,
+      "toolReadCalls": 1,
+      "durationMs": 3.320499999997992,
+      "traceId": "ffc32dd71196c30ab84118ac3afaf926",
+      "shadowTaskId": "f1-70769a77-a094-49cd-b4b3-b20fc6315eb4"
+    }
+  ],
+  "fixtureMode": "EXISTING_BUSINESS_ROUTES_ISOLATED_QUERY_ONLY_SNAPSHOT",
+  "metrics": {
+    "toolCalls": 15,
+    "modelCalls": 24,
+    "lookupCalls": 33,
+    "toolReadCalls": 18,
+    "medianCompletion": 4.136800000000221,
+    "p95Completion": 33.669700000000375
+  },
+  "fixtureSafety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "unchanged": true
+  },
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true,
+  "postEvalHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "bcc4cd86b9ddb4381dc66168715693fdedf6ef4fc02884327fffcb5c6c6538a9",
+    "api/services/ai-v5/shadowMirror.cjs": "9dc57e35ee35f46cb71bc23949d5cdd19d8aae674088e4fe4cc7521ec1451889",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "8223782e35ea827999b507275c480ee792d796cba540299c0c6eaf5cfb811f58",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "46ea401bd05e8aa5da61e6440b43f373bce12958f6cdcbfa9f619ac93a443d72",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/certify-v5-f1b-performance.cjs": "afde873fbd7296ecc73203694abf8cb846683db2e769c18602e2aad9a89ca7da",
+    "tests/aiV5CoilReadBinding.test.cjs": "dc56de3d6747597d41fd923759134e4d518289d72ff4990a084bfcc2d4581b97",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionShadow.cjs": "b1e241f4cff3eb29483145e37690b10cd5440649934f63d6655c57612a43bdb1",
+    "api/services/ai-v5/verification.cjs": "0090441bacf822fb880fc0fbd69588f523bffeee3e208e766d1c22e2d8d9427a",
+    "api/services/ai-v5/evidenceRequirements.cjs": "2616dda0c7d1f1a24a385bb642f3b989ec86c168ac9301bc30215114dbc34a54",
+    "api/routes/ai/executor.cjs": "f8e1f3be69d0caa80bfd75f126d46bb698d32b1daea22df7a8eec4373fb0fe3b",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/executors/businessExecutors.cjs": "2adf553bb6dec7f6958f70415a4330624bfc2ca27d5d1796136e7a54c2162ef8",
+    "scripts/run-ai-v5f1-read-execution.cjs": "0bc7877fb2b93c0ffc394988940dc9922452f07ebf34fe123f819a94fe13089a",
+    "tests/aiV5ReadExecutionShadow.test.cjs": "9d43c25c2bd838b11f4ad1059575f89f9fc63973d7d313aece70fc1d86db23ad"
+  },
+  "hashesMatch": true
+}

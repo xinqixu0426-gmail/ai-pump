@@ -1,0 +1,1346 @@
+{
+  "stage": "P16-M-entry",
+  "mode": "SEMANTIC_ONLY_REAL_MODEL_WITH_FROZEN_CONTROL_CONTEXT",
+  "repeats": 3,
+  "questions": 44,
+  "decisions": [
+    {
+      "id": "M-01",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 810.5941
+    },
+    {
+      "id": "M-02",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 481.8533000000001
+    },
+    {
+      "id": "M-03",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 498.365
+    },
+    {
+      "id": "M-04",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 502.0308
+    },
+    {
+      "id": "M-05",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 499.8935999999999
+    },
+    {
+      "id": "M-06",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 395.84850000000006
+    },
+    {
+      "id": "M-07",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 400.24220000000014
+    },
+    {
+      "id": "M-08",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 558.7480999999998
+    },
+    {
+      "id": "M-09",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 681.4637000000002
+    },
+    {
+      "id": "M-10",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 475.1750999999995
+    },
+    {
+      "id": "M-11",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 404.5117
+    },
+    {
+      "id": "M-12",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 477.22159999999985
+    },
+    {
+      "id": "M-13",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 539.5429999999997
+    },
+    {
+      "id": "M-14",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 475.8827000000001
+    },
+    {
+      "id": "M-15",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 484.0636999999997
+    },
+    {
+      "id": "M-16",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 410.4180000000006
+    },
+    {
+      "id": "M-17",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 422.33439999999973
+    },
+    {
+      "id": "M-18",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 487.6918999999998
+    },
+    {
+      "id": "M-19",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 457.488800000001
+    },
+    {
+      "id": "M-20",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 550.3963999999996
+    },
+    {
+      "id": "M-21",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 442.23129999999946
+    },
+    {
+      "id": "M-22",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 466.5648000000001
+    },
+    {
+      "id": "M-23",
+      "repeat": 1,
+      "correct": false,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 744.7543000000005
+    },
+    {
+      "id": "M-24",
+      "repeat": 1,
+      "correct": false,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 609.1195000000007
+    },
+    {
+      "id": "M-25",
+      "repeat": 1,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 48.275399999998626
+    },
+    {
+      "id": "M-26",
+      "repeat": 1,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 3.9531000000006316
+    },
+    {
+      "id": "M-27",
+      "repeat": 1,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.0475999999998749
+    },
+    {
+      "id": "M-28",
+      "repeat": 1,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 2.0815999999995256
+    },
+    {
+      "id": "M-29",
+      "repeat": 1,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.4814000000005763
+    },
+    {
+      "id": "M-30",
+      "repeat": 1,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.1894000000011147
+    },
+    {
+      "id": "L-0",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 457.2024999999994
+    },
+    {
+      "id": "L-1",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 391.3597000000009
+    },
+    {
+      "id": "L-2",
+      "repeat": 1,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 1093.3724000000002
+    },
+    {
+      "id": "L-3",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 729.9598000000005
+    },
+    {
+      "id": "L-4",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 518.8894
+    },
+    {
+      "id": "L-5",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 366.71100000000115
+    },
+    {
+      "id": "L-6",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 471.0475000000006
+    },
+    {
+      "id": "L-7",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 399.29249999999956
+    },
+    {
+      "id": "L-8",
+      "repeat": 1,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 911.7157000000007
+    },
+    {
+      "id": "L-9",
+      "repeat": 1,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 614.0962999999974
+    },
+    {
+      "id": "U-M-01",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1013.8328000000001
+    },
+    {
+      "id": "U-M-03",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1257.9893999999986
+    },
+    {
+      "id": "U-M-05",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1034.2543000000005
+    },
+    {
+      "id": "U-M-17",
+      "repeat": 1,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 897.9644000000008
+    },
+    {
+      "id": "M-01",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 368.97869999999966
+    },
+    {
+      "id": "M-02",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 497.9202000000005
+    },
+    {
+      "id": "M-03",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 533.1730000000025
+    },
+    {
+      "id": "M-04",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 480.5553
+    },
+    {
+      "id": "M-05",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 402.3667999999998
+    },
+    {
+      "id": "M-06",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 427.16749999999956
+    },
+    {
+      "id": "M-07",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 629.5823000000019
+    },
+    {
+      "id": "M-08",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 356.59349999999904
+    },
+    {
+      "id": "M-09",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 501.3751000000011
+    },
+    {
+      "id": "M-10",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 383.3207000000002
+    },
+    {
+      "id": "M-11",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 399.9349000000002
+    },
+    {
+      "id": "M-12",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 565.5198999999993
+    },
+    {
+      "id": "M-13",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 360.2495999999992
+    },
+    {
+      "id": "M-14",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 621.5393000000004
+    },
+    {
+      "id": "M-15",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 492.6201000000001
+    },
+    {
+      "id": "M-16",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 514.610099999998
+    },
+    {
+      "id": "M-17",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 500.09040000000095
+    },
+    {
+      "id": "M-18",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 354.61499999999796
+    },
+    {
+      "id": "M-19",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 374.55219999999827
+    },
+    {
+      "id": "M-20",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 397.5550000000003
+    },
+    {
+      "id": "M-21",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 395.6082999999999
+    },
+    {
+      "id": "M-22",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 433.46210000000065
+    },
+    {
+      "id": "M-23",
+      "repeat": 2,
+      "correct": false,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 480.11889999999767
+    },
+    {
+      "id": "M-24",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 411.4366000000009
+    },
+    {
+      "id": "M-25",
+      "repeat": 2,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.997799999997369
+    },
+    {
+      "id": "M-26",
+      "repeat": 2,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 2.9465000000054715
+    },
+    {
+      "id": "M-27",
+      "repeat": 2,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.2537999999985914
+    },
+    {
+      "id": "M-28",
+      "repeat": 2,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.8932999999960884
+    },
+    {
+      "id": "M-29",
+      "repeat": 2,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.5190000000002328
+    },
+    {
+      "id": "M-30",
+      "repeat": 2,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.0421999999962281
+    },
+    {
+      "id": "L-0",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 386.6747000000032
+    },
+    {
+      "id": "L-1",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 617.5088000000032
+    },
+    {
+      "id": "L-2",
+      "repeat": 2,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 903.1494999999995
+    },
+    {
+      "id": "L-3",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 597.0440000000017
+    },
+    {
+      "id": "L-4",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 404.45040000000154
+    },
+    {
+      "id": "L-5",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 403.7007999999987
+    },
+    {
+      "id": "L-6",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 489.25079999999434
+    },
+    {
+      "id": "L-7",
+      "repeat": 2,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 886.3839000000007
+    },
+    {
+      "id": "L-8",
+      "repeat": 2,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 1004.9737000000023
+    },
+    {
+      "id": "L-9",
+      "repeat": 2,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 511.55399999999645
+    },
+    {
+      "id": "U-M-01",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1132.840599999996
+    },
+    {
+      "id": "U-M-03",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 918.4113999999972
+    },
+    {
+      "id": "U-M-05",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 859.049500000001
+    },
+    {
+      "id": "U-M-17",
+      "repeat": 2,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1068.344100000002
+    },
+    {
+      "id": "M-01",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 402.24149999999645
+    },
+    {
+      "id": "M-02",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 861.0937999999951
+    },
+    {
+      "id": "M-03",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 415.9010999999955
+    },
+    {
+      "id": "M-04",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 510.03139999999985
+    },
+    {
+      "id": "M-05",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 528.8282000000036
+    },
+    {
+      "id": "M-06",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 543.6095999999961
+    },
+    {
+      "id": "M-07",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 539.5832999999984
+    },
+    {
+      "id": "M-08",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.recipes",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 391.5123999999996
+    },
+    {
+      "id": "M-09",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 541.9182000000001
+    },
+    {
+      "id": "M-10",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 475.8847999999998
+    },
+    {
+      "id": "M-11",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 536.9902000000002
+    },
+    {
+      "id": "M-12",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 359.00760000000446
+    },
+    {
+      "id": "M-13",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 423.7700000000041
+    },
+    {
+      "id": "M-14",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 685.8141000000032
+    },
+    {
+      "id": "M-15",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 475.57360000000335
+    },
+    {
+      "id": "M-16",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "parts.stock",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 500.62339999999676
+    },
+    {
+      "id": "M-17",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 411.38150000000314
+    },
+    {
+      "id": "M-18",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 461.1658000000025
+    },
+    {
+      "id": "M-19",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 633.6466
+    },
+    {
+      "id": "M-20",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 391.693299999999
+    },
+    {
+      "id": "M-21",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 758.0549000000028
+    },
+    {
+      "id": "M-22",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 422.89480000000185
+    },
+    {
+      "id": "M-23",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 569.9308999999994
+    },
+    {
+      "id": "M-24",
+      "repeat": 3,
+      "correct": false,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 526.6692000000039
+    },
+    {
+      "id": "M-25",
+      "repeat": 3,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 2.0688000000009197
+    },
+    {
+      "id": "M-26",
+      "repeat": 3,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 3.3066000000035274
+    },
+    {
+      "id": "M-27",
+      "repeat": 3,
+      "correct": true,
+      "operation": "continue",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 0.9417000000030384
+    },
+    {
+      "id": "M-28",
+      "repeat": 3,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.8895999999949709
+    },
+    {
+      "id": "M-29",
+      "repeat": 3,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 1.3267999999952735
+    },
+    {
+      "id": "M-30",
+      "repeat": 3,
+      "correct": true,
+      "operation": "ordinal",
+      "relation": null,
+      "modelCalls": 0,
+      "failure": null,
+      "ms": 0.7802999999985332
+    },
+    {
+      "id": "L-0",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 398.93850000000384
+    },
+    {
+      "id": "L-1",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 343.4881000000023
+    },
+    {
+      "id": "L-2",
+      "repeat": 3,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "order.lines",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 916.5011000000013
+    },
+    {
+      "id": "L-3",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 658.510000000002
+    },
+    {
+      "id": "L-4",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 477.719600000004
+    },
+    {
+      "id": "L-5",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 490.35949999999866
+    },
+    {
+      "id": "L-6",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 489.51660000000265
+    },
+    {
+      "id": "L-7",
+      "repeat": 3,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 1254.7435000000041
+    },
+    {
+      "id": "L-8",
+      "repeat": 3,
+      "correct": false,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": "ORACLE_MISMATCH",
+      "ms": 1087.7617000000027
+    },
+    {
+      "id": "L-9",
+      "repeat": 3,
+      "correct": true,
+      "operation": "NONE",
+      "relation": null,
+      "modelCalls": 1,
+      "failure": null,
+      "ms": 540.6535999999978
+    },
+    {
+      "id": "U-M-01",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "customer.orders",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1151.9075999999986
+    },
+    {
+      "id": "U-M-03",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "order.customer",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1315.7840999999971
+    },
+    {
+      "id": "U-M-05",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "recipe.parts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 785.3264999999956
+    },
+    {
+      "id": "U-M-17",
+      "repeat": 3,
+      "correct": true,
+      "operation": "investigation",
+      "relation": "part.facts",
+      "modelCalls": 2,
+      "failure": null,
+      "ms": 1164.3592999999964
+    }
+  ],
+  "retries": 0,
+  "before": {
+    "api/services/ai-v5/investigationIntent.cjs": "460af7a234a540481d7e09228b493e89a6e1a151c50005345af91d835d9cb499",
+    "api/services/ai-v5/investigationRuntime.cjs": "702629db8e82fff1e553354d39d961bd00759e1d5102edc4c64a65f5ca82b014",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/candidateRiskEnvelope.cjs": "845d253e59110360ed9355f0883c133695ac1632e1b472f5142ba8911f1e3bcc"
+  },
+  "after": {
+    "api/services/ai-v5/investigationIntent.cjs": "460af7a234a540481d7e09228b493e89a6e1a151c50005345af91d835d9cb499",
+    "api/services/ai-v5/investigationRuntime.cjs": "702629db8e82fff1e553354d39d961bd00759e1d5102edc4c64a65f5ca82b014",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/candidateRiskEnvelope.cjs": "845d253e59110360ed9355f0883c133695ac1632e1b472f5142ba8911f1e3bcc"
+  },
+  "hashMatch": true,
+  "correct": 120,
+  "status": "REWORK"
+}

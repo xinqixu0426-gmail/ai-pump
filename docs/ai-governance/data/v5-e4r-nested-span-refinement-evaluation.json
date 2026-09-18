@@ -1,0 +1,1830 @@
+{
+  "refinementSchedulerVerification": {"scope":"SYNTHETIC_FAKE_MODEL_AND_LOOKUP_REFINEMENT_TRIGGERED","concurrentRequests":10,"crossRequestContamination":0,"fakeModelCalls":20,"fakeApiCalls":30,"responseInvariant":true,"runsOff":30,"runsOn":30,"warmupEach":5,"offMedianMs":15.1148,"offP95Ms":15.7924,"onMedianMs":14.1898,"onP95Ms":15.2169,"medianOverheadPercent":-6.119829571015812,"p95OverheadPercent":-3.6441579493943,"performanceGate":"PASS"},
+  "verification": {"deterministicTests":{"focused":10,"combined":279,"fullPassed":2065,"fullTotal":2066,"knownFailure":"MISSING_GUARDIAN_CONFIG","newRegression":false,"deepApi":"NOT_RUN_PRE_EXISTING_RACE_NOT_REPAIRED"},"performance":{"runsOff":30,"runsOn":30,"warmupEach":5,"offMedianMs":15.2569,"offP95Ms":15.6646,"onMedianMs":14.8265,"onP95Ms":15.7407,"medianOverheadPercent":-2.8210186866260534,"p95OverheadPercent":0.485808766261675,"gate":"PASS","scope":"EXISTING_SYNTHETIC_ASYNC_SCHEDULER_NON_REFINEMENT_PATH"},"concurrency":{"nestedUnionRequests":10,"fullInterpreterRequests":10,"crossRequestContamination":0,"scope":"SYNTHETIC_FAKE_MODEL_FAKE_LOOKUP"},"privacyTrace":{"matchedTraces":15,"spans":114,"missing":0,"orphan":0,"invalidParent":0,"crossRequestContamination":0,"rawSourceSentinelLeakage":0,"secretSentinelLeakage":0,"forbiddenAttributes":0,"scope":"CURRENT_FORMAL_DATASET_AND_MATCHED_PHOENIX_TRACES"},"p16Ready":true},
+  "version": 1,
+  "architectureVersion": 3,
+  "priorInfrastructureAbortedRuns": 0,
+  "formalRealEvaluationRuns": 1,
+  "v4TrajectorySource": "FROZEN_P06_ARTIFACT_NO_V4_MODEL_RERUN",
+  "preEvalHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "eb72f51499aad58b38912dbd4d96774d9834887535435d6f304f704c07ab95ea",
+    "api/services/ai-v5/shadowMirror.cjs": "344f43a3676acce471aabbb52d27def4dbf365c6a0b9d1a2bac423b8d2092e7b",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "5b12ae3f759cd22af03ba8e1588f24032f2ce6ff4fe0da12d5d7e711d795c694",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "7e5450eec4057f86835b67c9aeefc4e60d6bd88eefb3d12b0614c5740cae9084",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527"
+  },
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "inputFingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 617.1046999999999,
+      "lookupDurationMs": 26.28189999999995,
+      "stage2DurationMs": 352.43129999999996,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "bc96c5d3105ee2d5d5e329b050b4fb07f962f36b2827e3d8278b45f76051e6fe",
+      "selectedClassRef": "tc_004",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "b5f0f2aad1ba1bb87a27f63ce0098e97",
+      "shadowTaskId": "v3-7ff5459f-9d50-4fe8-981d-b8a02b559442",
+      "completionMs": 1005.6325999999999,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "e4d92b2104a3f354ed581946cfc9b16e864c1ad538bde8b22bb6e90d15f5e1ec",
+      "finalSignature": "454e6b9e023ab55a2564416d1824d04349afe37be950e6fa908802fe4a4b728d"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "inputFingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 509.5742,
+      "lookupDurationMs": 5.727399999999761,
+      "stage2DurationMs": 337.5105999999996,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "bc96c5d3105ee2d5d5e329b050b4fb07f962f36b2827e3d8278b45f76051e6fe",
+      "selectedClassRef": "tc_004",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "96df6fc781b636de2f5eda70723effb9",
+      "shadowTaskId": "v3-53c75e25-8a67-4cb3-b77a-b5fbfe38e5f3",
+      "completionMs": 854.6817999999998,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "e4d92b2104a3f354ed581946cfc9b16e864c1ad538bde8b22bb6e90d15f5e1ec",
+      "finalSignature": "454e6b9e023ab55a2564416d1824d04349afe37be950e6fa908802fe4a4b728d"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "inputFingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 357.1129000000001,
+      "lookupDurationMs": 5.367600000000039,
+      "stage2DurationMs": 353.40729999999985,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "bc96c5d3105ee2d5d5e329b050b4fb07f962f36b2827e3d8278b45f76051e6fe",
+      "selectedClassRef": "tc_004",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "585fae6196869eebb77c7af37a5adab7",
+      "shadowTaskId": "v3-5a4000df-3ba8-42ae-a7a2-fd3412d2cf1f",
+      "completionMs": 718.4081999999999,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "e4d92b2104a3f354ed581946cfc9b16e864c1ad538bde8b22bb6e90d15f5e1ec",
+      "finalSignature": "454e6b9e023ab55a2564416d1824d04349afe37be950e6fa908802fe4a4b728d"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "inputFingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 3,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localClassCount": 4,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 497.09040000000005,
+      "lookupDurationMs": 8.690500000000156,
+      "stage2DurationMs": 582.6460000000002,
+      "spanRefs": [
+        "sp_001",
+        "sp_002"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 3,
+      "refinementTriggered": true,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 2,
+      "nestedSelectedCount": 1,
+      "nestedSpanRefs": [
+        "sp_006"
+      ],
+      "nestedResolverCalls": 1,
+      "nestedLookupStatuses": [
+        "RESOLVED"
+      ],
+      "lookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "34fb5c25b997cf72afbac7bc268ed6d86ccd720da16cadc671ef18675d2d93cb",
+      "selectedClassRef": "tc_024",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": true,
+      "originalSuccessfulPath": false,
+      "spanMatch": false,
+      "top1Match": false,
+      "expectedSpanRecallAt2": false,
+      "expectedSpanRank": 0,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "b830d2ca2d27820f5cc19227e93e8f5d",
+      "shadowTaskId": "v3-b3e5204e-9499-437e-a05f-640eb0b45c22",
+      "completionMs": 1091.2462,
+      "stage1Signature": "7f72ff0970b67766db23c691dcb118f0f8f48b354fa247ebb5d215286156abac",
+      "stage2Signature": "6a62b32cb933c3082d5ebd9fc0b40cdf98d6941e230350dd00f1e93de82c481c",
+      "finalSignature": "3d97908e521cbe4969068953cd7957ba4a38404bdf9aa2d15e65c23e0b8d30ac"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "inputFingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 3,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localClassCount": 4,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 542.0468000000001,
+      "lookupDurationMs": 15.078999999999724,
+      "stage2DurationMs": 347.9288000000006,
+      "spanRefs": [
+        "sp_001",
+        "sp_002"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 3,
+      "refinementTriggered": true,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 2,
+      "nestedSelectedCount": 1,
+      "nestedSpanRefs": [
+        "sp_006"
+      ],
+      "nestedResolverCalls": 1,
+      "nestedLookupStatuses": [
+        "RESOLVED"
+      ],
+      "lookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "34fb5c25b997cf72afbac7bc268ed6d86ccd720da16cadc671ef18675d2d93cb",
+      "selectedClassRef": "tc_024",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": true,
+      "originalSuccessfulPath": false,
+      "spanMatch": false,
+      "top1Match": false,
+      "expectedSpanRecallAt2": false,
+      "expectedSpanRank": 0,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "4b78a9ceb463fc892eca35a3f5b4a0de",
+      "shadowTaskId": "v3-d4f02fea-f767-47ce-85d9-8244637f7a34",
+      "completionMs": 910.0558000000001,
+      "stage1Signature": "7f72ff0970b67766db23c691dcb118f0f8f48b354fa247ebb5d215286156abac",
+      "stage2Signature": "6a62b32cb933c3082d5ebd9fc0b40cdf98d6941e230350dd00f1e93de82c481c",
+      "finalSignature": "3d97908e521cbe4969068953cd7957ba4a38404bdf9aa2d15e65c23e0b8d30ac"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "inputFingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 3,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localClassCount": 4,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 417.52849999999944,
+      "lookupDurationMs": 4.9823999999998705,
+      "stage2DurationMs": 515.5504000000001,
+      "spanRefs": [
+        "sp_001",
+        "sp_002"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 3,
+      "refinementTriggered": true,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 2,
+      "nestedSelectedCount": 1,
+      "nestedSpanRefs": [
+        "sp_006"
+      ],
+      "nestedResolverCalls": 1,
+      "nestedLookupStatuses": [
+        "RESOLVED"
+      ],
+      "lookupStatuses": [
+        "NOT_FOUND",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "34fb5c25b997cf72afbac7bc268ed6d86ccd720da16cadc671ef18675d2d93cb",
+      "selectedClassRef": "tc_024",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": true,
+      "originalSuccessfulPath": false,
+      "spanMatch": false,
+      "top1Match": false,
+      "expectedSpanRecallAt2": false,
+      "expectedSpanRank": 0,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "1964e4c452cf61a4044c0e9f7da06c56",
+      "shadowTaskId": "v3-1dcccfc7-407b-4e49-bb2b-daec80c7b014",
+      "completionMs": 941.0036,
+      "stage1Signature": "7f72ff0970b67766db23c691dcb118f0f8f48b354fa247ebb5d215286156abac",
+      "stage2Signature": "6a62b32cb933c3082d5ebd9fc0b40cdf98d6941e230350dd00f1e93de82c481c",
+      "finalSignature": "3d97908e521cbe4969068953cd7957ba4a38404bdf9aa2d15e65c23e0b8d30ac"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "inputFingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "AMBIGUOUS",
+      "complete": true,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 425.6091000000006,
+      "lookupDurationMs": 3.1505999999999403,
+      "stage2DurationMs": 340.47109999999975,
+      "spanRefs": [
+        "sp_002",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "373078df048a842ae397a2383fa96b8d8d09bfe453e40f1115f79de22c181bbf",
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 2,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "4effa50d0975155a95f2d3a433e4b95e",
+      "shadowTaskId": "v3-d882bdbc-6fda-48cc-95de-6040c5791188",
+      "completionMs": 771.5882000000001,
+      "stage1Signature": "4021f66d38a489afd215f052d568e81e4bc573901306e4b25d413ebe89c99ad0",
+      "stage2Signature": "9a2d3e96b3f8808b5e3e5e2f57fb7b5aecd2a2ff1d56723c8b9dc495c5469489",
+      "finalSignature": "d8a0c7a7b1db65e062840b700d80d1bcc69ca5ee981fa615a4d011d1c25f680f"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "inputFingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "AMBIGUOUS",
+      "complete": true,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 487.52009999999973,
+      "lookupDurationMs": 5.808399999999892,
+      "stage2DurationMs": 369.5504000000001,
+      "spanRefs": [
+        "sp_002",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "373078df048a842ae397a2383fa96b8d8d09bfe453e40f1115f79de22c181bbf",
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 2,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "b89690feb6ff75362e0a50407b0245c7",
+      "shadowTaskId": "v3-8203c5ff-8615-4d8e-9194-09f95ea08e3d",
+      "completionMs": 865.0338999999994,
+      "stage1Signature": "4021f66d38a489afd215f052d568e81e4bc573901306e4b25d413ebe89c99ad0",
+      "stage2Signature": "9a2d3e96b3f8808b5e3e5e2f57fb7b5aecd2a2ff1d56723c8b9dc495c5469489",
+      "finalSignature": "d8a0c7a7b1db65e062840b700d80d1bcc69ca5ee981fa615a4d011d1c25f680f"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "inputFingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "VALID",
+      "stage1Calls": 1,
+      "stage2Calls": 1,
+      "businessApiCalls": 2,
+      "lookupStatus": "AMBIGUOUS",
+      "complete": true,
+      "candidateCount": 2,
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localClassCount": 2,
+      "localSelectionMode": "MODEL_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 507.04909999999927,
+      "lookupDurationMs": 11.620899999999892,
+      "stage2DurationMs": 373.4410000000007,
+      "spanRefs": [
+        "sp_002",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "AMBIGUOUS",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "stage2InputFingerprint": "373078df048a842ae397a2383fa96b8d8d09bfe453e40f1115f79de22c181bbf",
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 2,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": true,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "c5292d1a9c183de8efadad6d84cf03ee",
+      "shadowTaskId": "v3-4df35cae-1767-4a6e-9c4f-977d0ff14852",
+      "completionMs": 895.6894999999995,
+      "stage1Signature": "4021f66d38a489afd215f052d568e81e4bc573901306e4b25d413ebe89c99ad0",
+      "stage2Signature": "9a2d3e96b3f8808b5e3e5e2f57fb7b5aecd2a2ff1d56723c8b9dc495c5469489",
+      "finalSignature": "d8a0c7a7b1db65e062840b700d80d1bcc69ca5ee981fa615a4d011d1c25f680f"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 628.0187999999998,
+      "lookupDurationMs": 4.332699999999022,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "ed13fd789d89bb52e5b6b72a0b9feee7",
+      "shadowTaskId": "v3-1d45e865-1de7-4a99-b3d6-68995c74c734",
+      "completionMs": 634.5690999999988,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 391.52050000000054,
+      "lookupDurationMs": 18.056000000000495,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": true,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "9eda2380dfc2c7bd6bb458558a11d67c",
+      "shadowTaskId": "v3-1aafcddb-fd35-412b-b6fa-31db659e5ebb",
+      "completionMs": 411.54649999999856,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 446.33200000000033,
+      "lookupDurationMs": 2.8924000000006345,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "13f971af6fffd624bd452182a5a928ee",
+      "shadowTaskId": "v3-cbcd5961-7add-404a-bc3b-6df485753388",
+      "completionMs": 451.3279000000002,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 360.262999999999,
+      "lookupDurationMs": 2.9494999999988067,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": true,
+      "overallComparison": "V5_BLOCKS_V4_FAILURE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "7830ac209f91cfe341dced4c7ccd3d45",
+      "shadowTaskId": "v3-f62d2d15-174b-4f64-bebc-f7cc6f9678e0",
+      "completionMs": 364.15430000000015,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 375.8855000000003,
+      "lookupDurationMs": 13.300600000000486,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "4d2cd1fa04f04f7f2ef3f6b03173e56f",
+      "shadowTaskId": "v3-468356ec-2434-4ff9-8cd1-14236dd4fd2e",
+      "completionMs": 391.1088,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "inputFingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "architectureVersion": 3,
+      "stage1Status": "VALID",
+      "stage2Status": "NOT_RUN",
+      "stage1Calls": 1,
+      "stage2Calls": 0,
+      "businessApiCalls": 2,
+      "lookupStatus": "RESOLVED",
+      "complete": true,
+      "candidateCount": 1,
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localClassCount": 1,
+      "localSelectionMode": "DETERMINISTIC_SELECT",
+      "finalEntityStatus": "FINAL_ENTITY_RESOLVED",
+      "stage1DurationMs": 563.0648000000001,
+      "lookupDurationMs": 5.9328999999997905,
+      "stage2DurationMs": null,
+      "spanRefs": [
+        "sp_005",
+        "sp_001"
+      ],
+      "selectedSpanCount": 2,
+      "resolverCalls": 2,
+      "refinementTriggered": false,
+      "originalResolverCalls": 2,
+      "originalLookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "nestedParentCount": 0,
+      "nestedSelectedCount": 0,
+      "nestedSpanRefs": [],
+      "nestedResolverCalls": 0,
+      "nestedLookupStatuses": [],
+      "lookupStatuses": [
+        "RESOLVED",
+        "NOT_FOUND"
+      ],
+      "candidateUnionDeduplications": 0,
+      "selectedClassRef": "tc_002",
+      "expectedSpanRecovered": true,
+      "nestedExpectedSpanSelected": false,
+      "originalSuccessfulPath": true,
+      "spanMatch": true,
+      "top1Match": true,
+      "expectedSpanRecallAt2": true,
+      "expectedSpanRank": 1,
+      "candidateUnionComplete": true,
+      "candidateUnionCount": 1,
+      "finalEntityTypeMatch": true,
+      "candidateCoverage": true,
+      "expectedClassSurvives": true,
+      "taskClassMatch": true,
+      "finalEntityUnique": true,
+      "finalEntityCorrect": true,
+      "domainMatch": true,
+      "operationMatch": true,
+      "entityTypeMatch": true,
+      "capabilityMatch": true,
+      "expectedToolExposed": true,
+      "wrongToolExcluded": true,
+      "r02": false,
+      "overallComparison": "AGREE",
+      "reasonCodes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED"
+      ],
+      "traceId": "681c9758391867febef9fddfcfde2690",
+      "shadowTaskId": "v3-1ec8beda-abd3-45aa-b8ed-14596d4b16c3",
+      "completionMs": 571.1287999999986,
+      "stage1Signature": "d1387606ce9c3fe609f89b378a7d8ee7effa26ec6512f2af626fecb9d7d7e2ab",
+      "stage2Signature": "c1a20ad33dfc81c71142f66a88cdd8216bcfb972f84d07c7f72019d0bdf063a9",
+      "finalSignature": "2598ff9ea65fc0a6ba24e54b97110b47abee68aef30ed8f252ff42ca6641eaa2"
+    }
+  ],
+  "metrics": {
+    "refinement": {"expectedSpanRecall":{"correct":15,"total":15},"triggered":3,"originalSuccessfulPaths":12,"successfulPathsTriggered":0,"originalResolverCalls":30,"nestedResolverCalls":3,"maxLookupsPerPath":3,"lookupBudgetViolations":0,"nestedInfrastructureErrors":0,"refinementMedianMs":941.0036,"nonRefinementMedianMs":634.5690999999988},
+    "paths": 15,
+    "spanMatch": {
+      "correct": 12,
+      "total": 15,
+      "rate": 0.8
+    },
+    "candidateCoverage": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "expectedClassSurvives": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "taskClassMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "finalEntityUnique": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "finalEntityCorrect": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "domainMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "operationMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "entityTypeMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "capabilityMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "expectedToolExposed": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "sourceGroups": {
+      "spanMatch": {
+        "correct": 4,
+        "total": 5,
+        "rate": 0.8
+      },
+      "candidateCoverage": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "expectedClassSurvives": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "taskClassMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "finalEntityUnique": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "finalEntityCorrect": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "domainMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "operationMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "entityTypeMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "capabilityMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "expectedToolExposed": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      }
+    },
+    "inputFingerprints": {
+      "spanMatch": {
+        "correct": 3,
+        "total": 4,
+        "rate": 0.75
+      },
+      "candidateCoverage": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "expectedClassSurvives": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "taskClassMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "finalEntityUnique": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "finalEntityCorrect": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "domainMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "operationMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "entityTypeMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "capabilityMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "expectedToolExposed": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      }
+    },
+    "stage1Valid": 15,
+    "stage1Invalid": 0,
+    "stage1Noncompliance": 0,
+    "stage2Valid": 9,
+    "stage2Invalid": 0,
+    "stage2Noncompliance": 0,
+    "localIntentAccuracy": {
+      "correct": 9,
+      "total": 9,
+      "rate": 1
+    },
+    "stage1Consistency": {
+      "correct": 4,
+      "total": 4,
+      "rate": 1
+    },
+    "stage2Consistency": {
+      "correct": 3,
+      "total": 3,
+      "rate": 1
+    },
+    "finalConsistency": {
+      "correct": 4,
+      "total": 4,
+      "rate": 1
+    },
+    "lookupComplete": 15,
+    "initialUnique": 12,
+    "initialAmbiguous": 3,
+    "notFound": 0,
+    "resolverErrors": 0,
+    "falseUnique": 0,
+    "medianLocalClasses": 2,
+    "maxLocalClasses": 4,
+    "singleton": 6,
+    "stage2Applicable": 9,
+    "stage1Calls": 15,
+    "stage2Calls": 9,
+    "totalModelCalls": 24,
+    "maxModelCalls": 2,
+    "businessApiCalls": 33,
+    "comparisons": {
+      "AGREE": 9,
+      "V5_FALSE_BLOCK": 0,
+      "V5_BLOCKS_V4_FAILURE": 6,
+      "V5_INSUFFICIENT_DATA": 0
+    },
+    "special": {
+      "COIL": {
+        "paths": 3,
+        "spanMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "candidateCoverage": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedClassSurvives": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "taskClassMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityUnique": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityCorrect": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "domainMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "operationMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "entityTypeMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "capabilityMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedToolExposed": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "falseBlocks": 0
+      },
+      "FLATBLADE": {
+        "paths": 3,
+        "spanMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "candidateCoverage": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedClassSurvives": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "taskClassMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityUnique": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityCorrect": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "domainMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "operationMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "entityTypeMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "capabilityMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedToolExposed": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "falseBlocks": 0
+      },
+      "EXACT": {
+        "paths": 3,
+        "spanMatch": {
+          "correct": 0,
+          "total": 3,
+          "rate": 0
+        },
+        "candidateCoverage": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedClassSurvives": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "taskClassMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityUnique": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "finalEntityCorrect": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "domainMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "operationMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "entityTypeMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "capabilityMatch": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "expectedToolExposed": {
+          "correct": 3,
+          "total": 3,
+          "rate": 1
+        },
+        "falseBlocks": 0
+      }
+    },
+    "r02WrongToolExclusion": {
+      "correct": 3,
+      "total": 3,
+      "rate": 1
+    },
+    "latency": {
+      "completionMs": {
+        "median": 771.5882000000001,
+        "p95": 1091.2462
+      },
+      "stage1DurationMs": {
+        "median": 487.52009999999973,
+        "p95": 628.0187999999998
+      },
+      "lookupDurationMs": {
+        "median": 5.808399999999892,
+        "p95": 26.28189999999995
+      },
+      "stage2DurationMs": {
+        "median": 353.40729999999985,
+        "p95": 582.6460000000002
+      }
+    },
+    "top1": {
+      "correct": 12,
+      "total": 15,
+      "rate": 0.8
+    },
+    "recallAt2": {
+      "correct": 12,
+      "total": 15,
+      "rate": 0.8
+    },
+    "resolverCalls": 33,
+    "deduplications": 0,
+    "maxResolverCalls": 3,
+    "bothNotFound": 3,
+    "oneNotFoundOneHit": 12,
+    "bothHit": 0,
+    "unionMedian": 1,
+    "unionMax": 2
+  },
+  "postEvalHashes": {
+    "spanSelectorPrompt": "31f2eae3709637752cdf72f6dee0b89927bb318e35ebfa37c23cd2e443b47bf7",
+    "localIntentPrompt": "22b9587af9df57e64c071047eda0a13028c11f910fa7ad42aa560b953d7ef44a",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "api/services/ai-v5/nestedSpanRefinement.cjs": "870d6f434e33370be2eec28d70278f26f6138045b4290c8c1e4304d151b50002",
+    "api/services/ai-v5/candidateUnion.cjs": "6400dd84318a6832a37223f21b0719849bf338cb1e48f0ad5d643ca2e721f930",
+    "api/services/ai-v5/twoStageModel.cjs": "129962b67500a852eeec99fd543527de62bd663151309f79dd1dd1f0133084ea",
+    "api/services/ai-v5/sourceSpanSelector.cjs": "8bc6b857b6cb7e7b33847921d6006096d63df7d88d01f48844528b730f63aa58",
+    "api/services/ai-v5/sourceSpanSelectionContract.cjs": "53b49e38ebd6528ae809641985d7162bd5d544b6a8d0f835b02a9ead0a121eb8",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/localTaskClassCatalog.cjs": "7ac106cda7b4e96ed4d4782dd5eace1283934f2f2ba89131d7651b7f5819c6bb",
+    "api/services/ai-v5/localIntentSelector.cjs": "f5c6dc20db7dcd4c38bc4db1464b6f03e3bb4ea8a52c1575482037b2485a3dd2",
+    "api/services/ai-v5/localIntentContract.cjs": "caa65be298ef02a0df2ad3f53b7b093fba7a8c5c82176e70128a59b1b5968fe1",
+    "api/services/ai-v5/entityFinalization.cjs": "bad2f68112c9d9bb4609efb047161f4413961579d726c894ba008fe33f7a93b5",
+    "api/services/ai-v5/candidateSetTwoStageInterpreter.cjs": "f3501db913b01734fb540a0da39a37c96ee6718464382a75735746b7bab1b15d",
+    "api/services/ai-v5/independentShadow.cjs": "eb72f51499aad58b38912dbd4d96774d9834887535435d6f304f704c07ab95ea",
+    "api/services/ai-v5/shadowMirror.cjs": "344f43a3676acce471aabbb52d27def4dbf365c6a0b9d1a2bac423b8d2092e7b",
+    "api/services/ai-v5/typeIndependentEntityResolver.cjs": "5b12ae3f759cd22af03ba8e1588f24032f2ce6ff4fe0da12d5d7e711d795c694",
+    "api/services/ai-v5/sourceSpanCatalog.cjs": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "api/services/ai-v5/sourceAnchoredEntity.cjs": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "api/services/ai-v5/taskClassCatalog.cjs": "641b3b128f3c41b8234fafe24e51634c83a273024b23ca1304b80e9aa11df8af",
+    "api/services/ai-v5/taskClassSemantics.cjs": "ded104cc27a09eb81221a6f2f651b8fd4a26ee99d3e40569e018444bcc6b73dc",
+    "api/services/ai-v5/capabilityRegistry.cjs": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/services/ai-v5/taskInterpreterInput.cjs": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "api/services/ai-v5/taskInterpretationContract.cjs": "847373f86c3f1b09573c8abf3efe194e6687b0978aa82f37fcdec15939bcbfd9",
+    "api/services/ai-v5/contracts.cjs": "c1321632367e8f0ace9c065c65d5d6216b0f5a515eaf6f1fc735195e16ce3449",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/controlledRuntime.cjs": "2c475ff9fc4a07fa7e63291251b5a007f29f0648838e45d6b8e94c44fb7a37ca",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "scripts/run-ai-v5e4r-top2-preflight.cjs": "cfb9dd60313b36524e3b88c036c91c784fc0afc23fdc906342a685255d13d0e6",
+    "scripts/run-ai-v5e4r-top2-infrastructure.cjs": "d0c6b8f0ed1e71afc7f488476718a0b26de9163cd554b3526a247a59b4c06013",
+    "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs": "29873fe16b208c26b1184c0838d439822b9ffba03b8dfa2e26d3834d09213060",
+    "tests/aiV5NestedSpanRefinement.test.cjs": "ee1ae8e01d5848241f4a83ce89f10cccd9d88b9fb9c7efbb18dc50a5aa9518b1",
+    "docs/ai-governance/v5-bounded-nested-span-refinement-v1.md": "f8bc01787e466ff99841310db369357c6ddb903f16fef353be395b4d634fdaee",
+    "scripts/run-ai-v5e4r-top2-evaluation.cjs": "eda1b3f9331cd5722b4ac8925fb295b13cbf1263fa62a4ad21cc4d573ab2c837",
+    "api/services/entityLookupService.cjs": "7e5450eec4057f86835b67c9aeefc4e60d6bd88eefb3d12b0614c5740cae9084",
+    "api/routes/entityLookup.cjs": "8afa5f1cc33cb1aeb685e26505f0a90ffb0c7f3316d751168d0aa519813e32fe",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "api/services/observability.cjs": "b3195bf6a6ad5d9801028225bec62870e2d5065e971ff24f8415c8478a9e594b",
+    "scripts/run-ai-v5e4r-two-stage-evaluation.cjs": "0eb5de6db88ae35405d2995c8ce0db6fd19cf05d9e8b7186f04ceae856a1fe6f",
+    "scripts/lib/v5TwoStageEvaluationControl.cjs": "dbb2d617b20826e5fe8317e5cbb740735d05c9ac55531e8f52f13cfc9916348a",
+    "scripts/run-ai-v5e4r-two-stage-json-preflight.cjs": "740b2ca5cdbea9ebdfd048148226cca8519917a014f3eb9a9ab9ff1af87bb875",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "185423ccc78878f57c4c58e09b9292bb4fbc0a857c86f376113c6586b3626527"
+  },
+  "hashesMatch": true,
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true
+}

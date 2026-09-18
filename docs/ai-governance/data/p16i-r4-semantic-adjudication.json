@@ -1,0 +1,177 @@
+{
+  "sourceArtifact": "docs/ai-governance/data/p16i-r4-semantic-certification.json",
+  "sourceHash": "f778b65c22dd84f3f13c951ca3cbeed1825bec909289e783d7e9fb764439ffc1",
+  "correction": "HARNESS_EXPECTED_TASK_CLASS_UNDEFINED_USE_FROZEN_EXPECTED_CLASS",
+  "originalArtifactModified": false,
+  "modelCalls": 0,
+  "apiCalls": 0,
+  "productionChangesAfterEvaluation": false,
+  "paths": [
+    {
+      "caseId": "P06-COIL-001-LEGACY",
+      "expectedSemantic": "tc_004",
+      "selectedSemantic": "tc_004",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-COIL-001-V4I",
+      "expectedSemantic": "tc_004",
+      "selectedSemantic": "tc_004",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-COIL-001-V4R3",
+      "expectedSemantic": "tc_004",
+      "selectedSemantic": "tc_004",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-EXACT-001-LEGACY",
+      "expectedSemantic": "tc_024",
+      "selectedSemantic": "tc_024",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-EXACT-001-V4I",
+      "expectedSemantic": "tc_024",
+      "selectedSemantic": "tc_024",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-EXACT-001-V4R3",
+      "expectedSemantic": "tc_024",
+      "selectedSemantic": "tc_024",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-FLATBLADE-001-LEGACY",
+      "expectedSemantic": "tc_028",
+      "selectedSemantic": "tc_028",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-FLATBLADE-001-V4I",
+      "expectedSemantic": "tc_028",
+      "selectedSemantic": "tc_028",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-FLATBLADE-001-V4R3",
+      "expectedSemantic": "tc_028",
+      "selectedSemantic": "tc_028",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-INVENTORY-001-LEGACY",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-INVENTORY-001-V4I",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-INVENTORY-001-V4R3",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-SIMPLE-001-LEGACY",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-SIMPLE-001-V4I",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    },
+    {
+      "caseId": "P06-SIMPLE-001-V4R3",
+      "expectedSemantic": "tc_002",
+      "selectedSemantic": "tc_002",
+      "taskClassMatch": true,
+      "factMatch": true,
+      "capabilityMatch": true,
+      "finalEntityTypeMatch": true,
+      "executionIsUniqueRead": true,
+      "unchangedRecordedSafety": true
+    }
+  ],
+  "pass": true
+}

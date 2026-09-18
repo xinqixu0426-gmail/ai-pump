@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "project": "pump-ai-v5e3-shadow",
+  "generated_from": "P06_SAFE_STRUCTURAL_REAL_REPLAY_CORPUS",
+  "cases": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_suite": "R4-B / Coil Stable Identity",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "AGREE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "791b75d53a3b1edbf0b31d67c0b30014",
+      "shadowTaskId": "v5-shadow-P06-COIL-001-LEGACY"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_suite": "R4-B / Coil Stable Identity",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "1bead1baf036e86db9cd7aa43d11b8e9",
+      "shadowTaskId": "v5-shadow-P06-COIL-001-V4I"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_suite": "R4-B / Coil Stable Identity",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "103403aedbfd5ff8ee6c864b9049434b",
+      "shadowTaskId": "v5-shadow-P06-COIL-001-V4R3"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_suite": "R4-B / Exact Entity Identity",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "V5_BLOCKS_V4_FAILURE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "AGREE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "A01",
+      "actual_root_cause_class": "A01",
+      "safe_reason_codes": [
+        "ENTITY_IDENTITY_SHAPE_NOT_PRESERVED",
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "c539dd03c31812891867683c2ca167ef",
+      "shadowTaskId": "v5-shadow-P06-EXACT-001-LEGACY"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_suite": "R4-B / Exact Entity Identity",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "V5_BLOCKS_V4_FAILURE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "V5_BLOCKS_V4_FAILURE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "A01",
+      "actual_root_cause_class": "A01",
+      "safe_reason_codes": [
+        "ENTITY_IDENTITY_SHAPE_NOT_PRESERVED",
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "ARGUMENTS_NOT_VALIDATED",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "13c19428648979514589ee65562d08ee",
+      "shadowTaskId": "v5-shadow-P06-EXACT-001-V4I"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_suite": "R4-B / Exact Entity Identity",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "V5_BLOCKS_V4_FAILURE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "C02",
+      "actual_root_cause_class": "A01",
+      "safe_reason_codes": [
+        "ENTITY_IDENTITY_SHAPE_NOT_PRESERVED",
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "083ffe90a2149922425b97d0d4c98869",
+      "shadowTaskId": "v5-shadow-P06-EXACT-001-V4R3"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_suite": "R4-B / 800 flat blade",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "AGREE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "C02",
+      "actual_root_cause_class": "C02",
+      "safe_reason_codes": [
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "a24a04dddd96efe8f73d07119773257b",
+      "shadowTaskId": "v5-shadow-P06-FLATBLADE-001-LEGACY"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_suite": "R4-B / 800 flat blade",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "C02",
+      "actual_root_cause_class": "C02",
+      "safe_reason_codes": [
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "49e0f86ef1ded07050f413d1d0c038e3",
+      "shadowTaskId": "v5-shadow-P06-FLATBLADE-001-V4I"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_suite": "R4-B / 800 flat blade",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "V5_BLOCKS_V4_FAILURE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "R02",
+      "actual_root_cause_class": "C02",
+      "safe_reason_codes": [
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "ARGUMENTS_NOT_VALIDATED",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "a926901693c336d559c84ec679640f66",
+      "shadowTaskId": "v5-shadow-P06-FLATBLADE-001-V4R3"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_suite": "R4-B / Inventory Numeric Facts",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "AGREE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "818229151f4dfa8184851c3499aff004",
+      "shadowTaskId": "v5-shadow-P06-INVENTORY-001-LEGACY"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_suite": "R4-B / Inventory Numeric Facts",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "R02",
+      "actual_root_cause_class": "R02",
+      "safe_reason_codes": [
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "b29ee3437827ab10a5a250decaeaba2e",
+      "shadowTaskId": "v5-shadow-P06-INVENTORY-001-V4I"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_suite": "R4-B / Inventory Numeric Facts",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "4c08111decee401cec663699ff4789ff",
+      "shadowTaskId": "v5-shadow-P06-INVENTORY-001-V4R3"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_suite": "R4-B / success control",
+      "v4_result": "PASS",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "AGREE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "AGREE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "AGREE"
+      },
+      "overall_comparison": "AGREE",
+      "root_cause_class": "R02",
+      "actual_root_cause_class": "NONE",
+      "safe_reason_codes": [],
+      "trace_id": "55ae1a09795c458b1c5ef261f3f19f2d",
+      "shadowTaskId": "v5-shadow-P06-SIMPLE-001-LEGACY"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_suite": "R4-B / success control",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "AGREE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "R02",
+      "safe_reason_codes": [
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "fc55b375fe7fd3906da54cdf5dbf4b9c",
+      "shadowTaskId": "v5-shadow-P06-SIMPLE-001-V4I"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_suite": "R4-B / success control",
+      "v4_result": "FAIL",
+      "layer_comparisons": {
+        "entityComparison": "NOT_APPLICABLE",
+        "capabilityComparison": "V5_BLOCKS_V4_FAILURE",
+        "toolExposureComparison": "AGREE",
+        "argumentComparison": "V5_BLOCKS_V4_FAILURE",
+        "stateComparison": "V5_BLOCKS_V4_FAILURE",
+        "policyComparison": "AGREE",
+        "verificationComparison": "NOT_APPLICABLE"
+      },
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "root_cause_class": "NONE",
+      "actual_root_cause_class": "R02",
+      "safe_reason_codes": [
+        "ACTUAL_TOOL_OUTSIDE_INTENDED_CAPABILITY",
+        "ARGUMENTS_NOT_VALIDATED",
+        "INVALID_TERMINAL_STATE"
+      ],
+      "trace_id": "d48f194b917db0a0436c340d7166fb46",
+      "shadowTaskId": "v5-shadow-P06-SIMPLE-001-V4R3"
+    }
+  ],
+  "metrics": {
+    "attempted": 15,
+    "valid": 15,
+    "failedPaths": 9,
+    "successControls": 6,
+    "comparable": 15,
+    "falseBlocks": 0,
+    "blockedFailures": 9,
+    "agree": 6,
+    "agreeDeferred": 0,
+    "insufficient": 0,
+    "notComparable": 0,
+    "shadowError": 0,
+    "c02Total": 3,
+    "c02Comparable": 3,
+    "r02Total": 3,
+    "r02Comparable": 3,
+    "a01Total": 2,
+    "a01Comparable": 2,
+    "overallComparableRate": 1,
+    "projectionAvailability": {
+      "entityFactsAvailable": 1,
+      "capabilityFactsAvailable": 1,
+      "argumentFactsAvailable": 1,
+      "stateFactsAvailable": 1,
+      "verificationFactsAvailable": 0.3333333333333333
+    },
+    "v5ModelCalls": 0,
+    "v5ToolCalls": 0,
+    "v5BusinessApiCalls": 0,
+    "v5Writes": 0
+  }
+}

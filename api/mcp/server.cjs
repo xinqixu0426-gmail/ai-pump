@@ -1,0 +1,204 @@
+const {
+    McpServer,
+    fromJsonSchema,
+} = require('@modelcontextprotocol/server');
+const { createLogger } = require('../logger.cjs');
+const { executeToolCall } = require('../routes/ai/executor.cjs');
+const { hasVerifiedExecution } = require('../services/aiExecutionEvidence.cjs');
+const {
+    getMcpMaxResultBytes,
+} = require('../services/environment.cjs');
+const {
+    listMcpTools,
+    requireMcpCapability,
+} = require('./catalog.cjs');
+const {
+    executeMcpWriteTool,
+    verifyMcpRequestState,
+} = require('./write.cjs');
+
+const mcpLogger = createLogger('mcp');
+
+function errorResult(code, message) {
+    const payload = { success: false, code, error: message };
+    return {
+        isError: true,
+        content: [{ type: 'text', text: JSON.stringify(payload) }],
+        structuredContent: payload,
+    };
+}
+
+function publicExecutionResult(result, capability) {
+    const { executionEvidence, ...businessResult } = result;
+    return {
+        ...businessResult,
+        mcp: {
+            capabilityId: capability.capabilityId,
+            operation: capability.operation,
+            sourceOfTruth: capability.sourceOfTruth,
+            dataMode: capability.dataMode,
+            verified: executionEvidence?.verified === true,
+            fetchedAt: new Date().toISOString(),
+        },
+    };
+}
+
+function serializeMcpResult(payload, maxResultBytes) {
+    const serialized = JSON.stringify(payload);
+    if (Buffer.byteLength(serialized, 'utf8') > maxResultBytes) {
+        return errorResult(
+            'mcp_result_too_large',
+            '查询结果超过 MCP 返回上限，请增加筛选条件或缩小 limit'
+        );
+    }
+    return {
+        content: [{ type: 'text', text: serialized }],
+        structuredContent: payload,
+    };
+}
+
+function classifyMcpToolResponse(response) {
+    if (response?.resultType === 'input_required') {
+        return { level: 'info', outcome: 'confirmation_required', errorCode: null };
+    }
+    if (response?.isError !== true) {
+        return { level: 'info', outcome: 'success', errorCode: null };
+    }
+    const payload = response?.structuredContent;
+    if (payload?.success === false && payload?.mcp?.verified === true) {
+        return {
+            level: 'info',
+            outcome: 'verified_negative',
+            errorCode: payload.code || null,
+        };
+    }
+    return {
+        level: 'warn',
+        outcome: 'error',
+        errorCode: payload?.code || null,
+    };
+}
+
+async function executeMcpTool(name, args, options = {}) {
+    let capability;
+    try {
+        ({ capability } = requireMcpCapability(name));
+    } catch (error) {
+        return errorResult(error.code || 'mcp_tool_not_allowed', error.message);
+    }
+
+    const execute = options.executeToolCall || executeToolCall;
+    const verifyEvidence = options.hasVerifiedExecution || hasVerifiedExecution;
+    let result;
+    try {
+        result = await execute(name, args || {}, {
+            allowWrite: false,
+            caller: `mcp:${options.clientId || 'unknown'}`,
+        });
+    } catch (error) {
+        return errorResult(error.code || 'mcp_tool_execution_failed', error.message);
+    }
+
+    if (result?.requiresConfirmation) {
+        return errorResult(
+            'mcp_write_capability_rejected',
+            'MCP 只读目录禁止写操作和确认令牌签发'
+        );
+    }
+    if (!verifyEvidence(result)) {
+        return errorResult(
+            'mcp_execution_evidence_missing',
+            result?.error || '正式业务 API 执行证据缺失，不能返回业务事实'
+        );
+    }
+
+    const payload = publicExecutionResult(result, capability);
+    const maxResultBytes = options.maxResultBytes
+        || getMcpMaxResultBytes(options.env || process.env);
+    const response = serializeMcpResult(payload, maxResultBytes);
+    if (result.success === false) response.isError = true;
+    return response;
+}
+
+function createMcpProtocolServer(options = {}) {
+    const authorizedWriteTools = options.protocolEra === 'modern'
+        && options.scopes?.includes('mcp:write') === true
+        && Array.isArray(options.writeTools)
+        ? options.writeTools
+        : [];
+    const includeWrite = authorizedWriteTools.length > 0;
+    const server = new McpServer(
+        { name: 'pump-factory-mcp', version: '2.0.0' },
+        {
+            instructions: [
+                '使用已列出的工具读取水泵工厂正式事实。',
+                includeWrite
+                    ? '写工具只会在服务身份具备 mcp:write 时出现，且必须由 MCP 客户端展示原生人工确认，Agent 文字不能代替确认。'
+                    : '当前服务身份只有只读权限，不支持写操作。',
+                '不得把知识候选当作实时库存、价格、成本或订单事实。',
+                '工具失败或未找到时如实报告，不得根据历史消息补写业务数据。',
+            ].join(''),
+            cacheHints: {
+                'tools/list': { ttlMs: 300000, cacheScope: 'private' },
+                'server/discover': { ttlMs: 300000, cacheScope: 'private' },
+            },
+            requestState: {
+                verify: verifyMcpRequestState,
+            },
+        }
+    );
+
+    for (const tool of listMcpTools({ writeToolNames: authorizedWriteTools })) {
+        const registered = requireMcpCapability(tool.name, {
+            allowWrite: authorizedWriteTools.includes(tool.name),
+        });
+        server.registerTool(
+            tool.name,
+            {
+                title: tool.title,
+                description: tool.description,
+                inputSchema: fromJsonSchema(tool.inputSchema),
+                outputSchema: fromJsonSchema(tool.outputSchema),
+                annotations: tool.annotations,
+                _meta: {
+                    'com.pump-factory/capability-id': registered.capability.capabilityId,
+                },
+            },
+            async (args, ctx) => {
+                const startedAt = Date.now();
+                const response = registered.write
+                    ? await executeMcpWriteTool(tool.name, args, ctx, options)
+                    : await executeMcpTool(tool.name, args, options);
+                const classification = classifyMcpToolResponse(response);
+                const meta = {
+                    requestId: options.requestId || null,
+                    actor: options.actor || 'mcp:unknown',
+                    clientId: options.clientId || null,
+                    protocolEra: options.protocolEra || null,
+                    toolName: tool.name,
+                    success: response.isError !== true,
+                    outcome: classification.outcome,
+                    errorCode: classification.errorCode,
+                    durationMs: Date.now() - startedAt,
+                };
+                if (classification.level === 'warn') mcpLogger.warn('MCP 工具调用失败', meta);
+                else mcpLogger.info('MCP 工具调用完成', meta);
+                return response;
+            }
+        );
+    }
+
+    return server;
+}
+
+module.exports = {
+    classifyMcpToolResponse,
+    createMcpProtocolServer,
+    errorResult,
+    executeMcpTool,
+    publicExecutionResult,
+    serializeMcpResult,
+};
+
+module.exports.createHermesMcpProtocolServer = createMcpProtocolServer;
+module.exports.executeHermesMcpTool = executeMcpTool;

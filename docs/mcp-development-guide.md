@@ -1,0 +1,303 @@
+# 通用 MCP 开发与发布流程
+
+本文是本项目 MCP 层的实施基线。协议事实以 MCP 官方规范和官方 TypeScript SDK 为准；业务事实仍以 capability registry、正式 API 和 `docs/api-contract.md` 为准。
+
+## 1. 兼容目标
+
+| 客户端类型 | 协议路径 | 服务端行为 |
+|---|---|---|
+| 2026-07-28 及后续兼容客户端 | 先 `server/discover`，每个请求携带协议/客户端/能力 `_meta` | 官方 SDK v2 modern 无状态处理；校验标准 MCP 头与信封 |
+| Hermes 等 2025 Streamable HTTP 客户端 | `initialize` → `notifications/initialized` → 普通请求 | 同一 server factory 的 `legacy: stateless` 回退；可使用全部只读工具，因无交互回路而安全拒绝写确认 |
+| 不受控第三方多租户 | 暂不支持 | 先实现 MCP OAuth 2.1 Resource Server、Protected Resource Metadata、audience/scope，再开放 |
+
+`serverInfo` 和客户端自报名称仅用于兼容/日志显示，不能决定授权身份。授权身份只来自服务端验证过的 service token。
+
+## 2. 标准开发流程
+
+1. **规范与影响面**：确认目标协议版本、旧客户端兼容期、调用方和传输方式；先读 `docs/api-contract.md`、`docs/api-sop.md`。
+2. **能力登记**：工具必须先存在于 AI capability registry 和唯一 `AI_TOOLS` schema。MCP 只维护显式允许列表，不复制业务实现。
+3. **Schema**：`inputSchema` 直接复用唯一 AI schema；公开 `outputSchema`；结果同时返回 `structuredContent` 和等价文本 JSON。
+4. **执行链**：`tools/call` 只委托统一 executor → internal API client → 正式 API；没有 `aiExecutionEvidence` 不得返回业务事实。
+5. **安全**：默认关闭；Host/Origin 校验、每 Agent 独立 token、恒定时间比较、限流、结果大小上限、脱敏日志。写能力还必须默认关闭，同时按服务身份和工具名授予最小权限；目录与执行层分别校验同一逐工具 allowlist，再使用 MCP 原生 form elicitation，并以 HMAC 状态绑定主体、工具、参数和有效期。禁止 token passthrough，禁止使用 `INTERNAL_SECRET`。
+6. **协议实现**：使用官方 SDK；一个 server factory 同时服务 modern/legacy，避免能力漂移；无状态服务不签发 `Mcp-Session-Id`。
+7. **测试**：目录安全单测、输入/输出 schema、读写 scope、确认拒绝/篡改/过期/重放、证据门、认证/限流/Origin、超大结果；再用旧版客户端和当前客户端各做一次真实 HTTP 发现与调用。
+8. **一致性**：运行官方 conformance 中与本服务声明能力相符的 `server-initialize`、`ping`、`tools-list`、`dns-rebinding-protection`。完整 active suite需要测试专用图片/音频/资源/Prompt 夹具，不得把缺少未声明能力误判为产品失败，也不得因 CLI 返回码为 0 把失败摘要误判为通过。
+9. **文档与发布**：同步 `api-reference`、部署清单、`.env.example`；先保持默认关闭。发布后先验收每个身份的发现、只读调用、401 和审计身份。只有明确接受写风险后才设置 `MCP_WRITE_ENABLED=true`、`MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS`，并使用支持 form elicitation 的 2026 客户端做一笔白名单内、可回滚的写入验收。
+
+## 3. 本项目门禁
+
+日常开发先运行本地 MCP 专项门禁：
+
+```bash
+npm run verify:mcp-local
+```
+
+该命令依次执行 MCP 协议/安全单测、官方 conformance 场景，并从本地
+`pump.db` 只读备份出临时数据库，启动隔离 API 后通过真实 HTTP 让 Hermes
+兼容的 2025 客户端和通用 2026 客户端分别发现并调用全部 48 个只读工具。
+隔离验收同时覆盖未授权请求、畸形 JSON、请求体上限、已验证业务负结果、
+数据库完整性和外键检查；2026 客户端还使用独立测试身份完成一次
+`sync_factory_knowledge` 正式 Preview → form elicitation → Command → operation/audit
+回执闭环。所有写入只发生在临时数据库副本，完成后停止子进程并清理临时目录，
+不修改源数据库。
+隔离 API 显式设置 `NODE_TEST_CONTEXT`，因此不启动报价过期、启动铜价同步、自动知识同步或管理待办
+生命周期后台任务；验收中的每一条数据库变化都只能来自当前 MCP 调用，避免把后台维护尾写误判为工具副作用。
+为容纳两个客户端在一分钟内连续执行 90 次只读工具调用及写验收，隔离进程把测试限流设为
+600；该值不会写入环境文件，也不改变生产默认的每分钟 60 次限制。
+
+涉及 MCP 写目录、确认协议、executor 或正式 command 时，还必须运行完整的 18 工具写入矩阵：
+
+```bash
+npm run verify:mcp-write-local
+```
+
+该门禁先把 `api/mcp/catalog.cjs` 的 18 个正式写工具与验收清单做严格集合比对，并把本轮之前已完成人工验收的 9 项作为测试基线；批次候选 9 项按订单与报价转单、文件归档、转子出图三个场景汇总，两组必须无重复、无遗漏。物理打印保留为非 MCP 的正式 HTTP/AI 能力，在设备集成完成并重新审计前不得加入 MCP 目录。该分组不推断实时生产 allowlist，生产权限仍由部署后认证目录验证。快速矩阵逐工具验证
+`mcp:write` scope、逐工具 allowlist、只预览不写、HMAC 状态及主体/参数绑定、form elicitation 明确接受、
+正式执行证据、确认层重放、拒绝后无副作用。矩阵通过后，`scripts/run-mcp-write-local-e2e.cjs`
+创建全新临时 SQLite 和随机 localhost 端口，使用真实 2025/2026 MCP 客户端；2026 写客户端只取一次目录快照，让全部 18 个工具逐一经过
+MCP form elicitation → 正式 executor/API → 持久化 operation/audit → Query/数据库回读；同时真实调用 2025
+只读工具、尝试并拒绝其隐藏写工具。`create_order/adjust_part_stock/batch_update_prices/sync_factory_knowledge`
+会把同一份 2026 `requestState + inputResponses` 再提交一次，核对 `idempotentReplay=true`、原 operation/audit
+不变且数据库零新增；批次候选 9 项还逐一走原生拒绝，并以前后全库逻辑摘要、受控外部文件树及命令替身计数核对零副作用，三个场景分别给出成功、拒绝和清理状态。订单、库存、配方和文件各有一个真实失败样本，核对失败回执与零副作用；打印通过 MCP 目录与执行层负向测试保证始终不可调用。
+`delete_recipe` 会删除同轮创建的临时配方，核对正式删除 Preview、版本绑定、operation/audit、详情 404、
+列表数量精确减一、其他配方与零件目录不变；`delete_part` 会删除同轮批量创建并完成库存和价格验收的临时零件，核对正式删除 Preview、唯一目标、版本与哈希绑定、operation/audit、目录不可见和其他零件不变。
+报价转订单会核对客户、来源说明和明细，转子出图会核对完成任务的 `jobId/PDF`。报价、订单、配方、零件、
+线圈、文件和知识都只写临时库；FreeCAD 由进程替身拦截，未知外部命令 fail-closed，并回读异步终态；
+`print_rotor_drawing` 只验证不在 MCP 目录且执行层直接拒绝，不启动任何打印后端。测试不会读取生产 MCP token、连接 Mac Mini、
+修改正式数据库或调用物理打印机。综合报告写入 `logs/mcp-write-local-latest.json`，逐工具证据写入
+`logs/mcp-write-local-e2e-latest.json`。该结果证明本地协议和业务组合链路，不等于批准生产写入；
+生产写授权不因本地通过而改变，直到负责人明确批准。生产批量灰度仍须使用专用数据；报价转单默认只验拒绝，物理打印不属于 MCP 灰度范围。
+
+Windows Node 24 当前可能在官方 conformance CLI 已完整输出“0 failed、0 warnings”
+后，于进程退出阶段触发 `UV_HANDLE_CLOSING` 断言。测试脚本只在 Windows、
+成功摘要完整、没有 `FAILURE`、且断言是输出末尾唯一退出异常时将其记为明确的
+CLI 兼容警告；任何场景失败、摘要缺失或其他非零退出仍使门禁失败。该问题对应
+Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判定。
+
+生产性能排查以 API 日志中的 `MCP 工具调用完成.durationMs` 为服务端耗时依据。
+如果 Agent 界面显示 20–40 秒，而相同 `requestId/toolName` 的服务端耗时只有数毫秒，
+延迟发生在客户端模型规划、连续多工具选择或最终回答生成阶段，不应通过缓存或改写
+正式业务 Query 掩盖。只有服务端 `durationMs` 本身持续超标时，才进入 MCP/API 性能优化。
+
+生产发布在公网 ready 通过后自动运行：
+
+```bash
+npm run verify:mcp-prod-read
+```
+
+该命令从进程环境的 `MCP_VERIFY_TOKEN` 或正式 `.env` 中已有的
+`MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它在同一个 MCP 连接中先复用
+三个正式成本场景，再覆盖库存/物料、配方/模板、客户/报价、订单/采购、
+管理/质量、工厂知识、转子出图历史和统一业务变更的 18 个代表性只读工具，其中 `preview_recipe_cost`
+分别执行无覆盖和覆盖两次，因此共 18 次代表调用。每次调用都必须返回
+`mcp.verified=true`、能力 ID、正式数据源和数据模式；`get_recipe_detail` 还必须没有
+大小写不敏感的重复键，且 `currentCost.currentTotalCost` 与 `compare_recipes` 同一配方的
+`currentFullCost` 一致；无覆盖的 `preview_recipe_cost` 也必须返回同一口径，覆盖试算必须返回
+`currentTotalCost/costBasis=overridePreview`、等值 `unitCost` 废弃别名及迁移说明；
+`compare_recipes` 和 `explain_cost_change` 都必须是 `dataMode=live`。目录验收固定要求 48 个只读工具完整且
+`readOnlyHint=true`；若验收身份已获得生产写灰度，只允许额外出现该 `clientId` 在
+`MCP_WRITE_TOOL_ALLOWLISTS` 中的写工具，并要求 `readOnlyHint=false`，任何未知或越权工具都会使门禁失败。
+使用显式 `MCP_VERIFY_TOKEN` 时必须同步设置其真实 `MCP_VERIFY_CLIENT_ID`，否则不能核对逐工具授权。最坏 36 个请求，低于生产默认
+每分钟 60 次限制。综合结果写入 `logs/mcp-production-read-latest.json`，成本子报告仍同步到
+`logs/mcp-production-cost-latest.json`；两份报告仅记录客户端 round-trip，服务端耗时仍只以
+API 日志 `durationMs` 为准。空订单/报价/出图历史是允许的正式业务状态，不为覆盖详情而
+制造生产数据；全部 48 个只读工具和缺价失败路径继续由隔离套件覆盖。
+
+需要单独复核三个成本场景时仍可运行 `npm run verify:mcp-prod-cost`。
+
+专项门禁通过后，提交/发布前继续运行项目级门禁：
+
+```bash
+npm run verify:api-contract
+npm test
+npm run test:deep-api
+```
+
+MCP tool、executor 或 AI 证据门变化还必须运行：
+
+```bash
+npm run verify:ai-release
+```
+
+上述 MCP 专项检查是当前权威验收入口。
+
+## 4. 变更边界
+
+- V1 白名单覆盖注册表中全部已登记、无需确认的安全 Query/Preview；目录测试保证新增安全读能力不会静默遗漏，写工具、资源和 Prompt 不因客户端支持而自动开放。
+- V2 可授权写目录当前显式审核 18 个同时声明 `access=write`、`operation=command`、`supportsPreview=true` 和 `requiresConfirmation=true` 的能力。`print_rotor_drawing` 无论全局写开关、身份或 allowlist 如何设置都不属于 MCP 目录，目录层和执行层都会拒绝；其余目录内工具若配置未启用、身份不在 `MCP_WRITE_CLIENT_IDS` 或未列入该身份的 `MCP_WRITE_TOOL_ALLOWLISTS`，同样不会出现在 `tools/list`。
+- 订单产品修改和移除必须使用 `get_order_detail` 返回的稳定明细 `id` 作为 `orderItemId`。可选 `recipeName` 只用于与该 ID 交叉核对，不能单独作为写入目标，更不能使用部分名称猜测。一个确认编排包含业务动作和执行历史两条正式命令时，二者必须使用独立 operationId，并在最终回执中聚合正式 operation/audit 证据。
+- 写调用第一轮只执行正式 Preview 并签发主体绑定的短时确认；2026 客户端通过 `input_required`/form elicitation 展示给用户，明确接受后才由共享确认执行 service 调用正式 API。Agent 的文字、第二个“确认工具”或客户端自报名称都不能授权执行。
+- 多轮 `requestState` 使用官方 SDK HMAC codec，并绑定已验证服务身份和方法；客户端篡改、换身份、换参数、过期或并发重放都会拒绝。状态密钥为单进程临时密钥，服务重启后未完成确认自动失效，符合当前 Mac Mini 单进程部署；改为多实例前必须配置共享持久状态。
+- 2025 无状态客户端没有服务端到客户端 elicitation 回路，因此只读兼容不变，写工具不进入其 `tools/list`，直接调用也返回安全错误且不会执行。不能用普通 tool 参数或 Agent 文字降级绕过确认。
+- 新增工具必须同时补 capability/schema、白名单审查、正式 API 证据测试、文档和两代客户端发现测试。
+- 新增、删除或调整 MCP 写工具时必须同步更新 `scripts/mcp-write-acceptance-manifest.cjs`；清单与正式目录不一致会使 `verify:mcp-write-local` 失败，禁止只增加工具而没有隔离业务证据。
+- `MCP_SERVICE_TOKENS` 中每个 clientId/token 必须唯一。轮换某一 Agent token 不应影响其他 Agent。
+- `HERMES_MCP_*` 仅为一个兼容周期的部署别名；新部署统一使用 `MCP_*`。
+
+## 5. 身份与凭证运维
+
+MCP 身份不得再通过手工编辑生产 `.env` 维护。正式命令为：
+
+```bash
+npm run mcp:identity -- status --env-file .env
+npm run mcp:identity -- verify --env-file .env
+npm run mcp:identity -- list-backups --env-file .env
+```
+
+`add`、`rotate`、`revoke`、`approve-write`、`approve-write-batch`、`grant-write`、`revoke-write` 和 `rollback` 默认只生成脱敏计划，不修改文件。新增或轮换
+只能通过 stdin 或命名环境变量取得 token，命令显式拒绝 `--token <明文>`：
+
+```bash
+# 预览，不写文件
+node scripts/manage-mcp-identities.cjs rotate \
+  --env-file .env --client-id codex --token-stdin
+
+# 正式写入
+node scripts/manage-mcp-identities.cjs rotate \
+  --env-file .env --client-id codex --token-stdin \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+```
+
+每次正式变更先在 `backups/config/mcp-identities/` 创建完整 `.env` 安全备份；Unix/macOS
+目录权限为 `700`、文件权限为 `600`，不生成含 token、token 指纹或 token 哈希的备份元数据。
+正式写入以同目录排他 lockfile 保护“读取 → 规划 → 备份 → 原子替换”完整临界区；发现另一个身份
+变更正在执行时 fail-closed，不创建备份也不覆盖配置，回滚同样使用该锁。进程异常遗留锁时不得自动
+删除；先确认没有身份管理进程运行，并核对 `status` 与最近备份后再由运维人员清理。新配置先复用 `validateMcpConfiguration()`
+验证，再以同目录临时文件原子替换。撤销身份会同时
+删除它的 `MCP_WRITE_CLIENT_IDS` 和 `MCP_WRITE_TOOL_ALLOWLISTS` 投影；撤销最后一个写身份时
+自动关闭 `MCP_WRITE_ENABLED`，不会留下悬空写权限。
+
+`approve-write` 是把一个已完成代码审计和本地 18/18 验收、但尚未进入生产灰度集合的权威写工具
+首次开放给一个明确身份的默认入口。一个已按权威验收清单完成整批代码审计、18/18 localhost 成功路径和候选项逐项
+原生拒绝零副作用验证的固定批次，可以改用 `approve-write-batch` 一次性首次开放给一个明确身份。批量命令要求输入集合与
+`scripts/mcp-write-acceptance-manifest.cjs` 当前候选清单精确一致（顺序不限）、非空、无重复、全部属于正式写目录且均未进入任何
+生产灰度集合；任一项不符合就整批拒绝。未来批次必须先更新该具名权威验收清单及其测试，不能把任意 catalog 子集直接批量开放。
+它以一个排他锁、一份备份和一次原子替换提交完整集合，不循环执行单工具授权。单工具和批量入口分别使用独立强确认词
+`APPROVE_NEW_MCP_WRITE_TOOL`、`APPROVE_NEW_MCP_WRITE_TOOLS_BATCH`；普通配置确认词不能替代。`grant-write` 只把已经存在于当前生产灰度集合
+中的写工具授予另一个已登记身份，不能借此引入新的写工具。`revoke-write` 按身份撤销单个工具，撤销该
+身份最后一个写工具时同时把身份移出 `MCP_WRITE_CLIENT_IDS`：
+
+从 MCP 权威目录移除工具时，升级前必须先对每个已授权身份执行 `revoke-write` 清理旧 allowlist，再重启新版本。当前 `print_rotor_drawing` 属于这一迁移：正式 HTTP/AI 能力仍保留，但 MCP 配置中不得残留该名称；否则启动校验会按未知工具 fail-closed。
+
+批量正式执行强制要求 `--restart-and-verify`；缺少该参数时 CLI 在写配置前拒绝。日常从 Windows 操作时优先使用
+`mcp:identity:macmini` 包装器，由它自动补齐固定的 Mac Mini 重启和在线核验参数。
+
+```bash
+# 首次进入生产灰度：先预览，再使用独立确认词执行
+node scripts/manage-mcp-identities.cjs approve-write \
+  --env-file .env --client-id hermes --tool adjust_part_stock
+node scripts/manage-mcp-identities.cjs approve-write \
+  --env-file .env --client-id hermes --tool adjust_part_stock \
+  --apply --confirm APPROVE_NEW_MCP_WRITE_TOOL
+
+# 已完成同一批次整体审计与隔离验收后，整批首次开放；先预览，再一次原子执行
+BATCH_TOOLS=execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing
+node scripts/manage-mcp-identities.cjs approve-write-batch \
+  --env-file .env --client-id hermes \
+  --tools "$BATCH_TOOLS"
+node scripts/manage-mcp-identities.cjs approve-write-batch \
+  --env-file .env --client-id hermes \
+  --tools "$BATCH_TOOLS" \
+  --apply --confirm APPROVE_NEW_MCP_WRITE_TOOLS_BATCH \
+  --restart-and-verify --url http://127.0.0.1:3002/mcp \
+  --host xuxinqi.xin --protocol-version 2026-07-28
+
+# 已灰度工具再授权给其他身份
+node scripts/manage-mcp-identities.cjs grant-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge
+node scripts/manage-mcp-identities.cjs grant-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+node scripts/manage-mcp-identities.cjs revoke-write \
+  --env-file .env --client-id codex --tool sync_factory_knowledge \
+  --apply --confirm APPLY_MCP_IDENTITY_CHANGE
+```
+
+回滚同样默认预览，并在正式恢复前再创建一份当前状态安全备份：
+
+```bash
+node scripts/manage-mcp-identities.cjs rollback \
+  --env-file .env --latest \
+  --apply --confirm ROLLBACK_MCP_IDENTITY_CHANGE
+```
+
+Windows 日常维护 Mac Mini 使用包装命令；它在内存生成 48 字节随机 token，通过 SSH stdin
+传给服务端，不把 token 放入参数或输出。远端写入成功后才更新指定的 Windows User 环境变量，
+随后重启 API，并以 2026-07-28 官方 SDK 会话逐身份列目录。验证器从同一权威 MCP catalog 和该身份
+实际 allowlist 推导完整期望名称集合，不使用统一数量常量；因此允许 Hermes 50、其他身份 49 这类
+异构目录，也会拒绝“数量相同但名称错误”、重复工具、缺失工具或越权工具。重启或在线验证失败时，
+命令自动恢复服务端备份和原客户端环境变量：
+
+```powershell
+# 查询和在线验证
+npm run mcp:identity:macmini -- -Action status
+npm run mcp:identity:macmini -- -Action verify
+
+# 首次开放新的生产灰度写工具；必须先预览，再 Apply
+npm run mcp:identity:macmini -- -Action approve-write `
+  -ClientId hermes -Tool adjust_part_stock
+npm run mcp:identity:macmini -- -Action approve-write `
+  -ClientId hermes -Tool adjust_part_stock -Apply
+
+# 固定批次已整体通过隔离验收时，一次预览、一次 Apply、一次 API 重启和全身份核对
+$batchTools = 'execute_order_readiness_action,execute_factory_workflow_step,generate_purchase_list,create_order,add_recipe_to_order,remove_recipe_from_order,update_order_item,archive_factory_file,generate_rotor_drawing'
+npm run mcp:identity:macmini -- -Action approve-write-batch `
+  -ClientId hermes -Tools $batchTools
+npm run mcp:identity:macmini -- -Action approve-write-batch `
+  -ClientId hermes -Tools $batchTools -Apply
+
+# 将当前已灰度的写工具授权给另一个身份；同样先预览，再 Apply
+npm run mcp:identity:macmini -- -Action grant-write `
+  -ClientId codex -Tool sync_factory_knowledge
+npm run mcp:identity:macmini -- -Action grant-write `
+  -ClientId codex -Tool sync_factory_knowledge -Apply
+
+# 轮换：先预览，再显式 Apply
+npm run mcp:identity:macmini -- -Action rotate `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN
+npm run mcp:identity:macmini -- -Action rotate `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN `
+  -Apply
+
+# 已存在于客户端环境变量的 token 可用 -UseExistingToken 登记；仍不输出 token
+npm run mcp:identity:macmini -- -Action add `
+  -ClientId new-agent `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_NEW_AGENT_TOKEN `
+  -UseExistingToken -Apply
+
+# 撤销身份；提供 ClientTokenEnvVar 时同步删除 Windows User 环境变量
+npm run mcp:identity:macmini -- -Action revoke `
+  -ClientId new-agent `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_NEW_AGENT_TOKEN `
+  -Apply
+```
+
+正式回滚必须指定对应 `ClientId` 与 `ClientTokenEnvVar`。包装器从已恢复的 Mac Mini `.env`
+经 SSH 内存通道取回该身份 token，并同步恢复 Windows User 环境变量，不在终端显示凭证：
+
+```powershell
+npm run mcp:identity:macmini -- -Action list-backups
+npm run mcp:identity:macmini -- -Action rollback `
+  -BackupFile /Users/dan/pump-cost-accounting-system/backups/config/mcp-identities/<backup> `
+  -ClientId codex `
+  -ClientTokenEnvVar PUMP_FACTORY_MCP_CODEX_TOKEN `
+  -Apply
+```
+
+`approve-write` 和 `approve-write-batch` 只落实已经明确授权的生产灰度配置，不替代本指南第 3、4 节的 capability、确认、隔离
+验收和发布门禁。未完成这些前置条件时不得使用任一命令。日常增量默认每次只首次批准一个工具给一个身份；只有固定候选集已完成
+整体审计、完整 localhost 成功路径和逐工具拒绝零副作用验证，并与当前权威候选清单精确一致时，才可对一个身份使用批量入口。
+Mac Mini 批量命令在同一个远端进程和同一个配置锁内完成原子写入、一次 API 重启及所有身份精确目录核对；在线核验失败时先从该次
+唯一备份整体恢复并再次重启核验，达到终态后才释放锁，避免回滚覆盖并发身份变更。
+
+## 6. 官方依据
+
+- [MCP 2026-07-28 规范](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP 2025-06-18 Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports)
+- [MCP Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+- [MCP Elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation)
+- [TypeScript SDK v2 迁移与双协议兼容](https://ts.sdk.modelcontextprotocol.io/v2/migration/support-2026-07-28)
+- [官方 Conformance Suite](https://github.com/modelcontextprotocol/conformance)
+- [Node.js Windows fetch 退出阶段 libuv 断言](https://github.com/nodejs/node/issues/58091)

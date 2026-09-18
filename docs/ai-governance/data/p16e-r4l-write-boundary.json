@@ -1,0 +1,31 @@
+{
+  "requests": 1,
+  "contentExposed": true,
+  "outcome": {
+    "globalEnabled": true,
+    "previewOptIn": true,
+    "attempted": true,
+    "eligible": true,
+    "validationPass": true,
+    "delivered": true,
+    "exposed": true,
+    "failureClass": "NONE",
+    "readExecution": "SUCCESS",
+    "resultEquivalence": "NOT_COMPARABLE",
+    "evidenceVerification": "PASS",
+    "toolCalls": 1,
+    "contractValid": true,
+    "evidenceRefsValid": true,
+    "groundingValid": true,
+    "requiredFactCoverage": true,
+    "numericValid": true,
+    "entityValid": true,
+    "modelCalls": 1,
+    "unsupportedClaimCount": 0,
+    "internalLeakageCount": 0,
+    "durationMs": 2620.5798999999997
+  },
+  "fixtureUnchanged": true,
+  "processExit": 0,
+  "pass": false
+}

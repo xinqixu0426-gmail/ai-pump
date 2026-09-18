@@ -1,0 +1,660 @@
+{
+  "version": 1,
+  "formalAnswerEvaluationRuns": 1,
+  "applicablePaths": 15,
+  "preEvalHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "05b0055932dce986beedb8f4955d6a57046cf2006a231c0b7388666df27378ac",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "662518ac590fc2b22a0324642eb331845ab2ddb34717b0aedfe5b6757388b134",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "88bed43f9b1a0f37ce2b25513bff33eca66f15591a7ec8a9a442207dcc4bf027",
+    "runtimeHandoffCertification": "95e7eddf2bfb875924ce73d8fa8ba52a683945b5f7c1cd16fdcb38dc8ae7d145",
+    "runtimeHandoffTests": "aeb6fc9297b81266c763bdccf72ebbafe4a14694199d1c70035e038f09657aa0",
+    "api/services/ai-v5/readAnswerContract.cjs": "f0a0ba54b2e5470770c1170e22314ba20d44d089a0eec620e10fd82e3de0d726",
+    "api/services/ai-v5/readAnswerComposer.cjs": "b0d2f2cee45e7d021a5844c47c0a7b7f2d5880ffcf614f362b39752cb5c15e6c",
+    "api/services/ai-v5/readAnswerValidator.cjs": "ec78d53331353f0dad0b8c44f4a54ba257747239add24d01f4f7c90a23b4bc47",
+    "api/services/ai-v5/readAnswerNumericValidator.cjs": "97d0eeece661a52ef3274025aef29effe6d7ff302fed30febe54cf9bbd297ce2",
+    "api/services/ai-v5/readAnswerEntityValidator.cjs": "aa3affb6b97ec2ce26e7d20de323d17ca5565e9598834dc323f25edfecaa45e1",
+    "api/services/observability.cjs": "f3df6809280c585af46b0efa6a1e3d3be2e4879f8a3acef01fd2270d54d46f1d",
+    "scripts/run-ai-v5f2b-answer-formal.cjs": "8d94581204204401e618309e94824f6002d55351aeb26e5f2bfd5529ff44f7df",
+    "tests/aiV5ReadAnswer.test.cjs": "10786eff8025f4a0591455c1f6fd40028c70622e25276a1ecc952bc78aab24ba"
+  },
+  "requiredFactContract": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "requiredFactKeys": [
+        "price.current"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "requiredFactKeys": [
+        "price.current"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "requiredFactKeys": [
+        "price.current"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ]
+    }
+  ],
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 926.6667,
+      "answerDigest": "fb982e05e967318ee3ec70edf222f9a21ac32f77efd8cd83107588ea50a13e75"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1282.6237,
+      "answerDigest": "b0a004e153a932e751f72457a06d333e583bf49a3e13277522141ed47494cfd0"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 767.9940999999999,
+      "answerDigest": "006cc06e90deb11722e26ce669149ee24dc39dc95f4329018256a21537f73c0f"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1257.2446,
+      "answerDigest": "a6b7f54583965ec9de778b2b05d2c20abc2f4b77012942cf80d17a8cb3f74530"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1314.9182,
+      "answerDigest": "c7cea3b1429479d774bdabc65f0d0df5269e08b8b31863825e686584675e4e29"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1031.6961000000001,
+      "answerDigest": "7b8a4dc37f3c8d43f04ce35bc17d909f16ac1ff55bb5668423804d938e8cdc99"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1193.6987000000008,
+      "answerDigest": "874938cd5db484f9fdf2ce8ad18fe968bb88134df0f42261b2784b5948fa5b5d"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1073.423499999999,
+      "answerDigest": "803d4f17bef5b1d6f383d916928e8b7777b3b29310bb9f6096db8088511b246c"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 963.8672999999999,
+      "answerDigest": "93c942c39aa6449dfa74e915893640e22da37a4590e0f8adc9b09db7a8112d4b"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1752.6139999999996,
+      "answerDigest": "edf256164561ff044d7b048f36d44599e00a1c7d8be766a4c22384ca467c6a46"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 770.4004999999997,
+      "answerDigest": "07b482e81e61405ef1de8a392042210ca4f498f31b7458d3c2d9869b3e28f92c"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 756.8401999999987,
+      "answerDigest": "9be764aa52ba43ad4887f153b958bf1871e2a814c2fd2b80750e4a34631d9d31"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "FAIL",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 881.3678,
+      "answerDigest": "7162edc017631ae3b05098d2e488acf463231410c44330b849e77ea3abe71bbd"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 908.1850000000013,
+      "answerDigest": "e24be4cf35e9138d83548b0e4f86fbe5b06e66430621d6608d608303182b03ea"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "readExecution": "SUCCESS",
+      "resultEquivalence": "MATCH",
+      "evidenceVerification": "PASS",
+      "toolCalls": 1,
+      "priorV4Result": "PASS",
+      "contractValid": true,
+      "evidenceRefsValid": true,
+      "groundingValid": true,
+      "requiredFactCoverage": true,
+      "numericValid": true,
+      "entityValid": true,
+      "claimCount": 1,
+      "groundedClaimCount": 1,
+      "unsupportedClaimCount": 0,
+      "internalLeakageCount": 0,
+      "reasonCodes": [],
+      "status": "ANSWER_SHADOW_ACCEPTED",
+      "modelCalls": 1,
+      "modelError": false,
+      "modelTimeout": false,
+      "durationMs": 1130.0380999999998,
+      "answerDigest": "b6eabc80b1519245acf592c78af2f423adc256b72e27edec5e81e928ec9b0084"
+    }
+  ],
+  "writes": 0,
+  "allowWriteEnablingCalls": 0,
+  "businessMutationCalls": 0,
+  "productionRouting": 0,
+  "userVisibleAnswers": 0,
+  "trace": {
+    "answerSpanCount": 15,
+    "validationSpanCount": 15,
+    "orphanCount": 0,
+    "crossRequestCount": 0
+  },
+  "privacy": {
+    "sourceLeakCount": 0,
+    "businessValueFields": 0,
+    "normalLogCount": 1
+  },
+  "fixtureSafety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "unchanged": true
+  },
+  "postEvalHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "05b0055932dce986beedb8f4955d6a57046cf2006a231c0b7388666df27378ac",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "662518ac590fc2b22a0324642eb331845ab2ddb34717b0aedfe5b6757388b134",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "88bed43f9b1a0f37ce2b25513bff33eca66f15591a7ec8a9a442207dcc4bf027",
+    "runtimeHandoffCertification": "95e7eddf2bfb875924ce73d8fa8ba52a683945b5f7c1cd16fdcb38dc8ae7d145",
+    "runtimeHandoffTests": "aeb6fc9297b81266c763bdccf72ebbafe4a14694199d1c70035e038f09657aa0",
+    "api/services/ai-v5/readAnswerContract.cjs": "f0a0ba54b2e5470770c1170e22314ba20d44d089a0eec620e10fd82e3de0d726",
+    "api/services/ai-v5/readAnswerComposer.cjs": "b0d2f2cee45e7d021a5844c47c0a7b7f2d5880ffcf614f362b39752cb5c15e6c",
+    "api/services/ai-v5/readAnswerValidator.cjs": "ec78d53331353f0dad0b8c44f4a54ba257747239add24d01f4f7c90a23b4bc47",
+    "api/services/ai-v5/readAnswerNumericValidator.cjs": "97d0eeece661a52ef3274025aef29effe6d7ff302fed30febe54cf9bbd297ce2",
+    "api/services/ai-v5/readAnswerEntityValidator.cjs": "aa3affb6b97ec2ce26e7d20de323d17ca5565e9598834dc323f25edfecaa45e1",
+    "api/services/observability.cjs": "f3df6809280c585af46b0efa6a1e3d3be2e4879f8a3acef01fd2270d54d46f1d",
+    "scripts/run-ai-v5f2b-answer-formal.cjs": "8d94581204204401e618309e94824f6002d55351aeb26e5f2bfd5529ff44f7df",
+    "tests/aiV5ReadAnswer.test.cjs": "10786eff8025f4a0591455c1f6fd40028c70622e25276a1ecc952bc78aab24ba"
+  },
+  "hashesMatch": true,
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true,
+  "metrics": {
+    "recorded": 15,
+    "accepted": 15,
+    "contractValid": 15,
+    "refsValid": 15,
+    "groundingValid": 15,
+    "coverage": 15,
+    "numericValid": 15,
+    "entityValid": 15,
+    "modelCalls": 15,
+    "modelErrors": 0,
+    "modelTimeouts": 0,
+    "unsupportedClaims": 0,
+    "internalLeaks": 0
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "phase": "P15R-E-B1",
+  "status": "BLOCKED_FOR_SUPERVISOR",
+  "blocker_code": "AUTHORITATIVE_CANDIDATE_SOURCE_REQUIRES_BUSINESS_READ",
+  "ontology": {
+    "entity_type_count": 19,
+    "resolvable_entity_types": [
+      "coil",
+      "customer",
+      "order",
+      "part",
+      "recipe",
+      "template"
+    ],
+    "structural_only_entity_types": [
+      "cost_context",
+      "factory",
+      "global"
+    ],
+    "unsupported_entity_types": [
+      "business_record",
+      "drawing",
+      "file",
+      "knowledge",
+      "pump_variant",
+      "purchase",
+      "quotation",
+      "stator_variant",
+      "technical_file",
+      "workflow"
+    ]
+  },
+  "existing_boundary": {
+    "adapter_path": "api/services/ai-v5/entityResolverAdapter.cjs",
+    "typed_reducer_path": "api/services/aiEntityResolverV3.cjs#resolveFormalEntityResultV3",
+    "caller_entity_type_required": true,
+    "external_formal_result_required": true,
+    "type_independent": false,
+    "adapter_read_only": true,
+    "adapter_business_api_calls": 0,
+    "adapter_direct_db_reads": 0,
+    "adapter_writes": 0
+  },
+  "authority_source_audit": {
+    "existing_authoritative_candidate_provider_without_business_api_or_direct_db": false,
+    "production_discovery_requires_selected_tool_context": true,
+    "production_discovery_uses_tool_execution": true,
+    "production_discovery_reaches_internal_api_client": true,
+    "new_v5_business_read_dependency_required": true,
+    "new_v5_direct_db_read_alternative_forbidden": true
+  },
+  "frozen_evaluation": {
+    "frozen_paths": 15,
+    "entity_resolution_applicable_paths": 15,
+    "entity_resolution_not_applicable_paths": 0,
+    "executed_paths": 0,
+    "result": "NOT_RUN_BLOCKED_BEFORE_AUTHORITY",
+    "reason_codes": [
+      "NO_AUTHORIZED_TYPE_INDEPENDENT_CANDIDATE_SOURCE",
+      "BUSINESS_API_SCOPE_EXPANSION_REQUIRED",
+      "DIRECT_DB_READ_FORBIDDEN",
+      "FIXTURE_ONLY_RESOLUTION_NOT_AUTHORITATIVE"
+    ]
+  },
+  "safety": {
+    "real_interpreter_model_calls": 0,
+    "v5_tool_calls": 0,
+    "v5_business_api_calls": 0,
+    "v5_writes": 0,
+    "production_v5_routing": 0,
+    "production_code_changed": false,
+    "dependencies_changed": false
+  },
+  "supervisor_decision_required": {
+    "question": "Authorize a bounded read-only authoritative candidate provider for the six resolvable entity types?",
+    "permitted_options_for_future_phase": [
+      "GOVERNED_EXISTING_READ_ONLY_BUSINESS_API",
+      "SEPARATELY_APPROVED_READ_MODEL"
+    ],
+    "not_permitted": [
+      "DIRECT_SQLITE_READ",
+      "TOOL_EXECUTION_DISGUISED_AS_RESOLUTION",
+      "FIXTURE_AS_PRODUCTION_AUTHORITY",
+      "LLM_ENTITY_TYPE_GUESS"
+    ]
+  }
+}

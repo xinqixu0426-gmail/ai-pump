@@ -1,0 +1,1346 @@
+[
+  {
+    "case_id": "P06-COIL-001-LEGACY",
+    "suite": "R4-B / Coil Stable Identity",
+    "result": "PASS",
+    "expected": {
+      "path": "legacy_v3",
+      "terminal_state": "completed",
+      "primary_tool": "search_coils",
+      "allowed_tools": [
+        "search_coils"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 8,
+      "llm_call_count": 4,
+      "tools": [
+        "search_coils"
+      ],
+      "routes": [],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [
+        {
+          "status": "verified",
+          "decision": true,
+          "required_count": 1,
+          "observed_count": 1,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 1
+        }
+      ],
+      "premature_verification_count": 0
+    },
+    "trace_id": "78a1e90e680be0f19fb74d1ead1882b5",
+    "trajectory_hash": "5791fac907913e01ab4feb4b34ea9707a84efb0993b4997b3baf297d6c83b9c3",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-COIL-001-V4I",
+    "suite": "R4-B / Coil Stable Identity",
+    "result": "PASS",
+    "expected": {
+      "path": "v4_investigation",
+      "terminal_state": "completed",
+      "primary_tool": "search_coils",
+      "allowed_tools": [
+        "search_coils"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 8,
+      "llm_call_count": 4,
+      "tools": [
+        "search_coils"
+      ],
+      "routes": [
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "98e23e8f30ced9480a57734400f13e74",
+    "trajectory_hash": "6e4e3b6b4295cfb46cd0328f204b763f34da3ce3c826d75a43ea662d826a35cc",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-COIL-001-V4R3",
+    "suite": "R4-B / Coil Stable Identity",
+    "result": "PASS",
+    "expected": {
+      "path": "v4_r3",
+      "terminal_state": "completed",
+      "primary_tool": "search_coils",
+      "allowed_tools": [
+        "search_coils"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 7,
+      "llm_call_count": 3,
+      "tools": [
+        "search_coils"
+      ],
+      "routes": [
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "05dc68cbf170333bf9a5c41a974deb3f",
+    "trajectory_hash": "1604585a0f66b5257656298605ca5802eeb0cca0e0c6a39b50108294f869ff8f",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-EXACT-001-LEGACY",
+    "suite": "R4-B / Exact Entity Identity",
+    "result": "FAIL",
+    "expected": {
+      "path": "legacy_v3",
+      "terminal_state": "completed",
+      "primary_tool": "preview_recipe_cost",
+      "allowed_tools": [
+        "get_all_recipes",
+        "preview_recipe_cost"
+      ]
+    },
+    "failure_class": "A01",
+    "secondary_classes": [
+      "E04"
+    ],
+    "first_divergence": {
+      "expected_stage": "tool argument entering resolver retains frozen identity shape",
+      "actual_stage": "pump.ai.entity.normalize input shape",
+      "first_divergent_span": "pump.ai.entity.normalize",
+      "first_divergent_event": "expected length/punctuation 11/2; observed 10/1"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "running",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 10,
+      "llm_call_count": 4,
+      "tools": [
+        "get_all_recipes",
+        "preview_recipe_cost"
+      ],
+      "routes": [],
+      "entity_normalizations": [
+        {
+          "type": "recipe",
+          "input_length": 10,
+          "output_length": 9,
+          "input_punctuation_count": 1,
+          "output_punctuation_count": 0,
+          "length_delta": -1,
+          "punctuation_delta": -1,
+          "changed": true,
+          "candidate_count": null,
+          "match_type": null,
+          "exact_match": null,
+          "resolved": null,
+          "ambiguity": null,
+          "resolved_id_hash": null
+        }
+      ],
+      "entity_resolutions": [
+        {
+          "type": "recipe",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 2,
+          "match_type": "exact",
+          "exact_match": true,
+          "resolved": true,
+          "ambiguity": false,
+          "resolved_id_hash": "d4735e3a265e16eee03f5971"
+        }
+      ],
+      "verifications": [
+        {
+          "status": "verified",
+          "decision": true,
+          "required_count": 1,
+          "observed_count": 1,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 1
+        }
+      ],
+      "premature_verification_count": 0
+    },
+    "trace_id": "69b7e75cd6904c741336b95886065687",
+    "trajectory_hash": "ce72b3b65a61944296ba7ed815b02297fe61fed435f71ecdbd4e17076b1e1ff0",
+    "notes": "ROOT_CAUSE=A01; CONTRIBUTOR=E04; resolver exact-matched the identity it actually received."
+  },
+  {
+    "case_id": "P06-EXACT-001-V4I",
+    "suite": "R4-B / Exact Entity Identity",
+    "result": "FAIL",
+    "expected": {
+      "path": "v4_investigation",
+      "terminal_state": "completed",
+      "primary_tool": "preview_recipe_cost",
+      "allowed_tools": [
+        "get_all_recipes",
+        "preview_recipe_cost"
+      ]
+    },
+    "failure_class": "A01",
+    "secondary_classes": [
+      "E04",
+      "R01",
+      "V01"
+    ],
+    "first_divergence": {
+      "expected_stage": "tool argument entering resolver retains frozen identity shape",
+      "actual_stage": "pump.ai.entity.normalize input shape",
+      "first_divergent_span": "pump.ai.entity.normalize",
+      "first_divergent_event": "expected length/punctuation 11/2; observed 10/1"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "budget_exhausted",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 27,
+      "llm_call_count": 9,
+      "tools": [
+        "get_all_recipes",
+        "preview_recipe_cost",
+        "search_parts",
+        "search_coils",
+        "search_templates"
+      ],
+      "routes": [
+        {
+          "tool": "preview_recipe_cost",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_templates",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_templates",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [
+        {
+          "type": "recipe",
+          "input_length": 10,
+          "output_length": 9,
+          "input_punctuation_count": 1,
+          "output_punctuation_count": 0,
+          "length_delta": -1,
+          "punctuation_delta": -1,
+          "changed": true,
+          "candidate_count": null,
+          "match_type": null,
+          "exact_match": null,
+          "resolved": null,
+          "ambiguity": null,
+          "resolved_id_hash": null
+        }
+      ],
+      "entity_resolutions": [
+        {
+          "type": "recipe",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 2,
+          "match_type": "exact",
+          "exact_match": true,
+          "resolved": true,
+          "ambiguity": false,
+          "resolved_id_hash": "d4735e3a265e16eee03f5971"
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "c6f820d0cd76babedd318fadaadfbd75",
+    "trajectory_hash": "eee662b2e385683c7bd2f928e85afe073211127bb2e1732a4a33e38d8480655c",
+    "notes": "ROOT_CAUSE=A01; CONTRIBUTORS=E04,R01; DOWNSTREAM_SYMPTOM=V01; resolver exact-matched the identity it actually received."
+  },
+  {
+    "case_id": "P06-EXACT-001-V4R3",
+    "suite": "R4-B / Exact Entity Identity",
+    "result": "FAIL",
+    "expected": {
+      "path": "v4_r3",
+      "terminal_state": "completed",
+      "primary_tool": "preview_recipe_cost",
+      "allowed_tools": [
+        "get_all_recipes",
+        "preview_recipe_cost"
+      ]
+    },
+    "failure_class": "C02",
+    "secondary_classes": [
+      "R01",
+      "V01"
+    ],
+    "first_divergence": {
+      "expected_stage": "terminate after required evidence is satisfied",
+      "actual_stage": "pump.ai.route continued investigation",
+      "first_divergent_span": "pump.ai.route",
+      "first_divergent_event": "selected search_parts"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "budget_exhausted",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 23,
+      "llm_call_count": 9,
+      "tools": [
+        "get_all_recipes",
+        "preview_recipe_cost",
+        "search_parts"
+      ],
+      "routes": [
+        {
+          "tool": "preview_recipe_cost",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [
+        {
+          "type": "recipe",
+          "input_length": 11,
+          "output_length": 9,
+          "input_punctuation_count": 2,
+          "output_punctuation_count": 0,
+          "length_delta": -2,
+          "punctuation_delta": -2,
+          "changed": true,
+          "candidate_count": null,
+          "match_type": null,
+          "exact_match": null,
+          "resolved": null,
+          "ambiguity": null,
+          "resolved_id_hash": null
+        }
+      ],
+      "entity_resolutions": [
+        {
+          "type": "recipe",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 1,
+          "match_type": "exact",
+          "exact_match": true,
+          "resolved": true,
+          "ambiguity": false,
+          "resolved_id_hash": "2c624232cdd221771294dfbb"
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "abb4fe54022e161be13efa91a17e8484",
+    "trajectory_hash": "9f1b1dd01ae0e5c67c5ae20187dde5a391fddb144da1bb2b67796569edf5d6f1",
+    "notes": "ROOT_CAUSE=C02; CONTRIBUTOR=R01; DOWNSTREAM_SYMPTOM=V01."
+  },
+  {
+    "case_id": "P06-FLATBLADE-001-LEGACY",
+    "suite": "R4-B / 800 flat blade",
+    "result": "FAIL",
+    "expected": {
+      "path": "legacy_v3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": "C02",
+    "secondary_classes": [
+      "S01"
+    ],
+    "first_divergence": {
+      "expected_stage": "terminal_state=completed",
+      "actual_stage": "terminal_state=running",
+      "first_divergent_span": "post-verification state transition",
+      "first_divergent_event": "TERMINAL_STATE_MISMATCH"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "running",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 8,
+      "llm_call_count": 4,
+      "tools": [
+        "search_parts"
+      ],
+      "routes": [],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [
+        {
+          "status": "verified",
+          "decision": true,
+          "required_count": 1,
+          "observed_count": 1,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 1
+        }
+      ],
+      "premature_verification_count": 0
+    },
+    "trace_id": "add153dbbbdbcf799916211eacc74d1c",
+    "trajectory_hash": "bf3198c9a6b7637f2fb60ff299cbede80a27b9be591594190b9c3f9e3b38022b",
+    "notes": "ROOT_CAUSE=C02; CONTRIBUTOR=S01; tool and verifier stages completed before terminal mismatch."
+  },
+  {
+    "case_id": "P06-FLATBLADE-001-V4I",
+    "suite": "R4-B / 800 flat blade",
+    "result": "FAIL",
+    "expected": {
+      "path": "v4_investigation",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": "C02",
+    "secondary_classes": [
+      "R01",
+      "V01"
+    ],
+    "first_divergence": {
+      "expected_stage": "terminate after required evidence is satisfied",
+      "actual_stage": "pump.ai.route continued investigation",
+      "first_divergent_span": "pump.ai.route",
+      "first_divergent_event": "selected search_coils"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "budget_exhausted",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 23,
+      "llm_call_count": 9,
+      "tools": [
+        "search_parts",
+        "search_coils",
+        "search_templates"
+      ],
+      "routes": [
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_templates",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "get_all_recipes",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "a108f4704ad9f90e2f2e498992c961ee",
+    "trajectory_hash": "77bccf295edee292f3f88262dbba976ec19ae4dff6cea4b8021e96f565afab4c",
+    "notes": "ROOT_CAUSE=C02; CONTRIBUTOR=R01; DOWNSTREAM_SYMPTOM=V01."
+  },
+  {
+    "case_id": "P06-FLATBLADE-001-V4R3",
+    "suite": "R4-B / 800 flat blade",
+    "result": "FAIL",
+    "expected": {
+      "path": "v4_r3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": "R02",
+    "secondary_classes": [
+      "V01"
+    ],
+    "first_divergence": {
+      "expected_stage": "select search_parts",
+      "actual_stage": "pump.ai.route",
+      "first_divergent_span": "pump.ai.route",
+      "first_divergent_event": "selected search_templates"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "needs_clarification",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 17,
+      "llm_call_count": 6,
+      "tools": [
+        "search_templates",
+        "search_templates",
+        "search_parts"
+      ],
+      "routes": [
+        {
+          "tool": "search_templates",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_templates",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "20ec322f2e1b4a0e8f5bb9030b7f6954",
+    "trajectory_hash": "89d928086b637f92edaf4edf43549cd727daf600537565b1fe5be71c6dfbfe9c",
+    "notes": "ROOT_CAUSE=R02; verification classification is downstream evidence status, not assumed root cause."
+  },
+  {
+    "case_id": "P06-INVENTORY-001-LEGACY",
+    "suite": "R4-B / Inventory Numeric Facts",
+    "result": "PASS",
+    "expected": {
+      "path": "legacy_v3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 8,
+      "llm_call_count": 4,
+      "tools": [
+        "search_parts"
+      ],
+      "routes": [],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [
+        {
+          "status": "verified",
+          "decision": true,
+          "required_count": 1,
+          "observed_count": 1,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 1
+        }
+      ],
+      "premature_verification_count": 0
+    },
+    "trace_id": "0ed328a8f4a83bb08958c8e620d7e2ba",
+    "trajectory_hash": "bf3198c9a6b7637f2fb60ff299cbede80a27b9be591594190b9c3f9e3b38022b",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-INVENTORY-001-V4I",
+    "suite": "R4-B / Inventory Numeric Facts",
+    "result": "FAIL",
+    "expected": {
+      "path": "v4_investigation",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": "R02",
+    "secondary_classes": [
+      "V01"
+    ],
+    "first_divergence": {
+      "expected_stage": "select search_parts",
+      "actual_stage": "pump.ai.route",
+      "first_divergent_span": "pump.ai.route",
+      "first_divergent_event": "selected search_coils"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "needs_clarification",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 23,
+      "llm_call_count": 8,
+      "tools": [
+        "search_coils",
+        "search_coils",
+        "search_coils",
+        "search_coils"
+      ],
+      "routes": [
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        },
+        {
+          "tool": "search_coils",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "984239102e8b73c47cfdb394a5c55bef",
+    "trajectory_hash": "023403620037cba4ad2b6d685b842e8bc80cff92f94c6ebb11688ebbe9aca507",
+    "notes": "ROOT_CAUSE=R02; verification classification is downstream evidence status, not assumed root cause."
+  },
+  {
+    "case_id": "P06-INVENTORY-001-V4R3",
+    "suite": "R4-B / Inventory Numeric Facts",
+    "result": "PASS",
+    "expected": {
+      "path": "v4_r3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 7,
+      "llm_call_count": 3,
+      "tools": [
+        "search_parts"
+      ],
+      "routes": [
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "ef1508db892cfa143689a8a1a6c52432",
+    "trajectory_hash": "4ad4a5e4974bba98e05bc22f627cb565ccb40c7fdbdd86b1d5696f6c5f905477",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-SIMPLE-001-LEGACY",
+    "suite": "R4-B / success control",
+    "result": "FAIL",
+    "expected": {
+      "path": "legacy_v3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": "R02",
+    "secondary_classes": [
+      "V03"
+    ],
+    "first_divergence": {
+      "expected_stage": "select search_parts",
+      "actual_stage": "execute_tool",
+      "first_divergent_span": "execute_tool search_coils",
+      "first_divergent_event": "selected search_coils"
+    },
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "running",
+      "failure_code": "TERMINAL_STATE_MISMATCH",
+      "span_count": 15,
+      "llm_call_count": 7,
+      "tools": [
+        "search_coils",
+        "search_parts"
+      ],
+      "routes": [],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        },
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [
+        {
+          "status": "failed_unverified",
+          "decision": false,
+          "required_count": 1,
+          "observed_count": 2,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 2
+        },
+        {
+          "status": "failed_unverified",
+          "decision": false,
+          "required_count": 1,
+          "observed_count": 2,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 2
+        },
+        {
+          "status": "failed_unverified",
+          "decision": false,
+          "required_count": 1,
+          "observed_count": 2,
+          "missing_count": 0,
+          "before_any_tool_execution": false,
+          "tool_execution_count_before_verify": 2
+        }
+      ],
+      "premature_verification_count": 0
+    },
+    "trace_id": "a3622670d85c875f5171e2547f92f1ed",
+    "trajectory_hash": "ce8dca72645b90628c12c378b307cd91c6956467f6682e0e39806e7391f6bfc6",
+    "notes": "ROOT_CAUSE=R02; verification classification is downstream evidence status, not assumed root cause."
+  },
+  {
+    "case_id": "P06-SIMPLE-001-V4I",
+    "suite": "R4-B / success control",
+    "result": "PASS",
+    "expected": {
+      "path": "v4_investigation",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 8,
+      "llm_call_count": 4,
+      "tools": [
+        "search_parts"
+      ],
+      "routes": [
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "0228d06ba7cda7eebd36943122fbca70",
+    "trajectory_hash": "904febd0d2fc5e561398239948a542341ea5ec0e1cedde023b6d011118e78830",
+    "notes": "Oracle trajectory satisfied."
+  },
+  {
+    "case_id": "P06-SIMPLE-001-V4R3",
+    "suite": "R4-B / success control",
+    "result": "PASS",
+    "expected": {
+      "path": "v4_r3",
+      "terminal_state": "completed",
+      "primary_tool": "search_parts",
+      "allowed_tools": [
+        "search_parts"
+      ]
+    },
+    "failure_class": null,
+    "secondary_classes": [],
+    "first_divergence": null,
+    "safe_structural_metadata": {
+      "trace_valid": true,
+      "terminal_state": "completed",
+      "failure_code": null,
+      "span_count": 7,
+      "llm_call_count": 3,
+      "tools": [
+        "search_parts"
+      ],
+      "routes": [
+        {
+          "tool": "search_parts",
+          "success": true,
+          "decision": "selected"
+        }
+      ],
+      "entity_normalizations": [],
+      "entity_resolutions": [
+        {
+          "type": "unknown",
+          "input_length": null,
+          "output_length": null,
+          "input_punctuation_count": null,
+          "output_punctuation_count": null,
+          "length_delta": null,
+          "punctuation_delta": null,
+          "changed": null,
+          "candidate_count": 0,
+          "match_type": "not_applicable",
+          "exact_match": false,
+          "resolved": false,
+          "ambiguity": false,
+          "resolved_id_hash": null
+        }
+      ],
+      "verifications": [],
+      "premature_verification_count": 0
+    },
+    "trace_id": "cbc32a54557a4b33286cdb6d7b8ff60d",
+    "trajectory_hash": "4ad4a5e4974bba98e05bc22f627cb565ccb40c7fdbdd86b1d5696f6c5f905477",
+    "notes": "Oracle trajectory satisfied."
+  }
+]

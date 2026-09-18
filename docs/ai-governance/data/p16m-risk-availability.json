@@ -1,0 +1,47 @@
+{
+  "repeatCount": 5,
+  "requests": [
+    {
+      "repeat": 1,
+      "phase": "VALID",
+      "httpStatus": 200,
+      "fencedJSON": false,
+      "riskClass": "READ_SAFE",
+      "contractValid": true
+    },
+    {
+      "repeat": 2,
+      "phase": "VALID",
+      "httpStatus": 200,
+      "fencedJSON": false,
+      "riskClass": "READ_SAFE",
+      "contractValid": true
+    },
+    {
+      "repeat": 3,
+      "phase": "VALID",
+      "httpStatus": 200,
+      "fencedJSON": false,
+      "riskClass": "READ_SAFE",
+      "contractValid": true
+    },
+    {
+      "repeat": 4,
+      "phase": "VALID",
+      "httpStatus": 200,
+      "fencedJSON": false,
+      "riskClass": "READ_SAFE",
+      "contractValid": true
+    },
+    {
+      "repeat": 5,
+      "phase": "VALID",
+      "httpStatus": 200,
+      "fencedJSON": false,
+      "riskClass": "READ_SAFE",
+      "contractValid": true
+    }
+  ],
+  "productionCalls": 0,
+  "runtimeRetriesAdded": 0
+}
