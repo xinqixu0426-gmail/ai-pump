@@ -47,6 +47,8 @@ function isCanonicalInverseRead(entry, binding, relation, projection) {
     return claimsBoundedInverseRead(entry, binding, relation, projection)
         && result?.success !== false
         && result?.hasMore === false
+        && result?.complete === true
+        && result?.setCompleteness === 'COMPLETE'
         && Number.isSafeInteger(result?.totalCount)
         && result.totalCount === result.count
         && Array.isArray(result?.data)

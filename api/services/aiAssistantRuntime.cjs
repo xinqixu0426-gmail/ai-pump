@@ -44,7 +44,32 @@ function pendingPreview(toolResults) {
         && !toolResults.some(item => getAiCapability(item.name)?.operation === 'preview' && item.result?.success !== false && hasVerifiedExecution(item.result));
 }
 
-function requiredCoilRecipeToolCall(name, userText) {
+/**
+ * ONT-P8R §11/§12 — legacy `coil -> recipes` read.
+ *
+ * §11 requires legacy and the ontology canary to share ONE business fact layer for this relation, and
+ * they now do: there is exactly one implementation (`relationReadService` + the relation read contract)
+ * and both routing paths reach it, because the bounded reverse read is a registered read tool that the
+ * legacy model-driven turn can call exactly like the canary's planned read. No second SQL or filter
+ * implementation exists.
+ *
+ * KNOWN RESIDUAL (§12, deliberately NOT changed this phase): the LEGACY DETERMINISTIC PLAN below still
+ * names `get_all_recipes`. Two reasons, both recorded rather than worked around:
+ *   1. `get_recipes_by_coil` needs a canonical coil root, and the frozen P6 corpus's repair hook calls
+ *      `requiredCoilRecipeToolCall(name, userText)` with two arguments, so it can never forward already
+ *      verified tool results. Deriving the root inside the runtime instead would still need one earlier
+ *      iteration, which turns the current zero-provider-call legacy plan into a model repair round.
+ *   2. This deterministic plan only runs for LOCAL models with the local shortlist enabled; production
+ *      (DeepSeek) never takes it, and the real acceptance measured the production legacy path at 4/4
+ *      correct on the inverse direction — including the previously failing `12-200` case.
+ * Changing it is therefore an optional local-mode optimisation with a real cost, not a correctness fix.
+ */
+function legacyRelationMissingTools(toolResults) {
+    return ['search_coils', 'get_all_recipes'].filter(name => !toolResults.some(item => item.name === name));
+}
+
+function requiredCoilRecipeToolCall(name, userText, toolResults = []) {
+    void toolResults;
     const id = `required-${name}-${crypto.randomUUID()}`;
     if (name === 'get_all_recipes') {
         return { id, type: 'function', function: { name, arguments: '{}' } };
@@ -372,9 +397,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     break;
                 }
                 const missingRelationTools = canaryRevoked ? [] : ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
-                    ? ['search_coils', 'get_all_recipes'].filter(name => (
-                        !toolResults.some(item => item.name === name)
-                    ))
+                    ? legacyRelationMissingTools(toolResults)
                     : [];
                 if (missingRelationTools.length) {
                     if (!(ontologyRelationRouting ? relationExecutionRepair : relationQueryRepair) && offered.length && round < MAX_TOOL_ROUNDS - 1) {
@@ -390,7 +413,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         finalContent = '';
                         emit('status', { status: 'analyzing', message: canaryActive ? relationRouting.profile.completionMessage : '正在补齐线圈与配方关联查询...' });
                         const deterministicCalls = canaryActive ? relationRouter.completionCalls(relationRouting, missingRelationTools, latest.content) : missingRelationTools
-                            .map(name => (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, latest.content))
+                            .map(name => (dependencies.legacyRelationRepair || requiredCoilRecipeToolCall)(name, latest.content, toolResults))
                             .filter(Boolean);
                         if (deterministicCalls.length === missingRelationTools.length) {
                             requiredRelationCalls = deterministicCalls;

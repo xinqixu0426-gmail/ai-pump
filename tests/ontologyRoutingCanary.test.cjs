@@ -21,21 +21,26 @@ const inputFor = c => ({ userText: c.userText, env: { AI_PROVIDER: 'local' }, sh
 const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.capability)
     .concat(router.profiles.flatMap(profile => profile.shortlist)));
 /**
- * ONT-P8R: the canary's inverse direction now plans the bounded canonical reverse read
- * (`get_recipes_by_coil`) instead of the whole recipe collection. The frozen routing corpus stubs
- * `executeToolCall` by tool name and cannot know the new tool, so this test injects the shared
- * equivalent stub (frozen behaviour for every existing tool, plus the reverse read). The frozen
- * corpus file itself is unchanged.
+ * ONT-P8R: both the canary's inverse direction and the fixed legacy path now plan the bounded canonical
+ * reverse read (`get_recipes_by_coil`). The frozen routing corpus stubs `executeToolCall` by tool name and
+ * cannot know that tool, so every run here goes through `runRecordedCase`, which injects the shared
+ * equivalent stub AND restores `executed`/`selectedTools` from its recorder. Without that restoration the
+ * frozen signature would degrade to "nothing executed" and stop measuring anything. The frozen corpus
+ * file itself is unchanged.
  */
-const { routingExecuteToolCall } = require('./helpers/ontologyShadowFixture.cjs');
-const onExecuted = [];
-const onExecuteToolCall = routingExecuteToolCall(onExecuted);
+const { runRecordedCase } = require('./helpers/ontologyShadowFixture.cjs');
+const runBoth = (c, flag, options) => runRecordedCase(c, flag, runAiAssistant, runCase, options);
 function assertOntologyEquivalence(on, off, c) {
-    if (c.category === 'negative') { assert.deepEqual(on.signature, off.signature); return; }
+    if (c.category === 'negative') {
+        // Non-eligible requests must take the unchanged legacy path on both sides.
+        assert.deepEqual(on.signature, off.signature);
+        return;
+    }
     assert.ok(on.signature.modelCalls <= off.signature.modelCalls,
         `ontology must not add provider calls (on=${on.signature.modelCalls} off=${off.signature.modelCalls})`);
-    for (const entry of on.signature.executed) {
-        assert.ok(sanctionedCapabilities.has(entry.name), `unexpected ontology tool ${entry.name}`);
+    assert.ok(on.signature.executed.length > 0, 'the canary must execute its planned reads in software');
+    for (const entry of [...on.signature.executed, ...off.signature.executed]) {
+        assert.ok(sanctionedCapabilities.has(entry.name), `unexpected relation tool ${entry.name}`);
     }
     assert.deepEqual(on.signature.finalContent, off.signature.finalContent);
 }
@@ -44,23 +49,11 @@ for (const c of cases) {
         const state = prepareRouting(inputFor(c));
         assert.equal(state.record.semanticClass, c.category === 'positive' ? 'PURE_RELATION_QUERY' : negativeClasses[c.caseId]);
         assert.equal(state.record.eligible, c.category === 'positive');
-        const off = await runCase(c, 'false', runAiAssistant);
+        const off = await runBoth(c, 'false');
         assert.deepEqual(off.signature, oracle.cases.find(r => r.caseId === c.caseId && r).signature ||
             Object.fromEntries(Object.entries(oracle.cases.find(r => r.caseId === c.caseId)).filter(([key]) => key !== 'caseId')));
-        onExecuted.length = 0;
-        // Only eligible positives get the extended executor stub. Non-eligible requests must keep the
-        // frozen corpus executor so their OFF/ON signatures stay byte-identical to the oracle.
-        const on = await runCase(c, 'true', runAiAssistant, { forbidLegacy: c.category === 'positive',
-            ...(c.category === 'positive' ? { dependencies: { executeToolCall: onExecuteToolCall } } : {}) });
+        const on = await runBoth(c, 'true', { forbidLegacy: c.category === 'positive' });
         assertOntologyEquivalence(on, off, c);
-        if (c.category === 'positive') {
-            // `signature.executed` is empty because this test injects its own executor stub, so the
-            // read-only constraint is re-asserted here against the calls that actually ran.
-            assert.ok(onExecuted.length > 0, 'the canary must execute its planned reads in software');
-            for (const entry of onExecuted) {
-                assert.ok(sanctionedCapabilities.has(entry.name), `unexpected ontology tool ${entry.name}`);
-            }
-        }
         assert.equal(on.records.length, 1);
         assert.equal(on.records[0].fallback, false);
         if (c.category === 'positive') {
@@ -72,14 +65,17 @@ for (const c of cases) {
         } else assert.notEqual(on.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
     });
 }
-test('P6R default/OFF retains legacy sequence and repair with explicit legacy marker', async () => {
+test('P6R default/OFF retains the repaired legacy relation sequence with explicit legacy marker', async () => {
     const c = cases[0];
     for (const flag of [undefined, 'false', '0', 'off']) {
-        const r = await runCase(c, flag, runAiAssistant);
+        const r = await runBoth(c, flag);
         assert.equal(r.records.length, 1); assert.equal(r.records[0].canaryEnabled, false);
         assert.equal(r.records[0].routingSource, 'LEGACY_RELATION_SPECIAL_CASE');
         assert.ok(r.legacyDetectorCalls > 0); assert.ok(r.legacyRepairCalls > 0);
-        assert.deepEqual(r.signature.executed.map(t => t.name), ['get_all_recipes', 'search_coils']);
+        // §11/§12: the legacy DETERMINISTIC plan intentionally still names the whole-recipe aggregate.
+        // The shared fact layer is satisfied through the registered bounded read tool instead, and this
+        // local-mode-only residual is recorded in the migration doc rather than silently changed.
+        assert.deepEqual(r.signature.selectedTools, ['get_all_recipes', 'search_coils']);
     }
 });
 test('P6R/P7 provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
@@ -190,15 +186,13 @@ test('P6R canary and P3/P4/P5 observers coexist without extra business calls, re
         const deps = { ontologyShadow: { resolve: async c => resolver.resolveRelation({ ontologyVersion: 1, relationId: c.relationId, root: c.root, pageSize: 50 }),
             record: r => { oneHop = r; }, recordBinding: r => { binding = r; },
             traversal: { record: r => { traversal = r; finish(); } } } };
-        const off = await runCase(cases[0], 'false', runAiAssistant);
-        // ONT-P8R: both ON sides use the extended executor stub so the comparison stays apples-to-apples;
-        // the frozen corpus executor cannot know the new bounded reverse read.
-        onExecuted.length = 0;
-        const onBaseline = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true,
-            dependencies: { executeToolCall: onExecuteToolCall } });
-        const on = await runCase(cases[0], 'true', runAiAssistant, { forbidLegacy: true,
+        const off = await runBoth(cases[0], 'false');
+        // ONT-P8R: all three runs go through the same extended executor stub so the comparison stays
+        // apples-to-apples; the frozen corpus executor cannot know the bounded reverse read.
+        const onBaseline = await runBoth(cases[0], 'true', { forbidLegacy: true });
+        const on = await runBoth(cases[0], 'true', { forbidLegacy: true,
             env: { AI_ONTOLOGY_RELATION_SHADOW_ENABLED: 'true', AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED: 'true', AI_ONTOLOGY_2HOP_SHADOW_ENABLED: 'true' },
-            dependencies: { ...deps, executeToolCall: onExecuteToolCall } });
+            dependencies: deps });
         await Promise.race([done, new Promise((_, reject) => { const timer = setTimeout(() => reject(Error('SHADOW_TIMEOUT')), 3000); timer.unref(); })]);
         assert.equal(oneHop.comparison.status, 'MATCH'); assert.equal(binding.status, 'BOUND');
         assert.equal(traversal.executed, false);

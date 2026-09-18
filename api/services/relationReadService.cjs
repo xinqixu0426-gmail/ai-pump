@@ -9,7 +9,7 @@ const ROOT_SQL={
  order:'SELECT id,contract_no AS name,customer_id AS customerId,customer_name AS customerName,items_json AS lines FROM orders WHERE id=? AND deleted_at IS NULL',
  recipe:'SELECT id,name,parts_json AS partsJson FROM recipes WHERE id=? AND deleted_at IS NULL',
  part:'SELECT id,model AS name,supplier,stock,price FROM parts WHERE id=? AND deleted_at IS NULL',
- coil:'SELECT id,scheme_name AS name,spec,sheets FROM coils WHERE id=?',
+ coil:'SELECT id,scheme_name AS name,spec,sheets,material,slot_type AS slotType FROM coils WHERE id=?',
 };
 function createRelationReadService({db,canonicalOnly=false}){
  const one=(rows)=>{if(!rows.length)C.fail('RELATION_NOT_FOUND');if(rows.length!==1)C.fail('RELATION_AMBIGUOUS');return rows[0];};
@@ -46,12 +46,44 @@ function createRelationReadService({db,canonicalOnly=false}){
    :db.prepare("SELECT id,model AS name,supplier FROM parts WHERE model=? AND COALESCE(supplier,'')=? AND deleted_at IS NULL ORDER BY id LIMIT 2").all(model,supplier);
   return one(candidates);
  }
+ /**
+  * ONT-P8R §10 canonical completeness for the legacy coil-declaration axis. A recipe can describe its
+  * coil only through the denormalized `coil_spec`/`coil_sheets`/`coil_material`/`coil_slot_type` columns
+  * while `coil_id` is still NULL:
+  *  - a COMPLETE legacy identity (spec + sheets) equal to this coil's identity is an
+  *    AMBIGUOUS_LEGACY_REFERENCE — it plausibly uses this coil, but no canonical link can be trusted;
+  *  - a complete legacy identity that differs from this coil's is a confirmed non-match, not uncertainty;
+  *  - a partial declaration that does not already contradict this coil's spec cannot be compared at all,
+  *    so the answer is REFERENCE_INCOMPLETE rather than a confident membership list.
+  */
+ function legacyCoilReferences(root){
+  // Only `coil_spec`/`coil_sheets` carry coil identity, and `coil_sheets` defaults to 0 — so a row only
+  // declares a coil when its spec is non-empty or its sheet count is a positive number. Treating the
+  // default 0 (or the non-empty material/slot-type defaults) as a reference would make every unrelated
+  // recipe an "unconfirmed reference" and every answer permanently incomplete.
+  const unconfirmed=db.prepare(`SELECT id,name,coil_spec AS spec,coil_sheets AS sheets FROM recipes
+   WHERE coil_id IS NULL AND deleted_at IS NULL AND (COALESCE(coil_spec,'')<>'' OR COALESCE(coil_sheets,0)>0)
+   ORDER BY id DESC LIMIT ?`).all(C.SCAN_LIMIT+1);
+  if(unconfirmed.length>C.SCAN_LIMIT)C.fail('RELATION_SCAN_BOUND');
+  const rootSpec=typeof root.spec==='string'?root.spec.trim():'';
+  const rootSheets=Number.isSafeInteger(root.sheets)&&root.sheets>0?root.sheets:null;
+  const ambiguous=[],incomplete=[];
+  for(const row of unconfirmed){
+   const spec=typeof row.spec==='string'?row.spec.trim():'';
+   const sheets=Number.isSafeInteger(row.sheets)&&row.sheets>0?row.sheets:null;
+   if(spec&&sheets!==null){if(spec===rootSpec&&sheets===rootSheets)ambiguous.push(item('recipe',row));}
+   else if(spec&&rootSpec&&spec!==rootSpec){/* Names a different spec outright: not this coil. */}
+   else incomplete.push(item('recipe',row));
+  }
+  return {version:1,displayFields:['coilId','coilSpec','coilSheets'],checkedCount:unconfirmed.length,
+   ambiguous,incomplete,complete:ambiguous.length===0&&incomplete.length===0};
+ }
  function read(input){
   const q=C.request(input),contract=C.RELATIONS[q.relation];
   return db.transaction(()=>{
    const root=contract.root?db.prepare(ROOT_SQL[contract.root]).get(q.rootId):null;
    if(contract.root&&!root)C.fail('RELATION_NOT_FOUND');
-   let rows=[],total=0,excludedNonPartCount=0,referenceResolution;
+   let rows=[],total=0,excludedNonPartCount=0,referenceResolution,legacyReferences;
    const params={rootId:q.rootId,afterId:q.afterId??null,limit:q.pageSize+1};
    if(q.relation==='customer.orders'){
     if(canonicalOnly&&db.prepare('SELECT id FROM orders WHERE COALESCE(customer_id,0)=0 AND deleted_at IS NULL LIMIT 1').get())C.fail('RELATION_REFERENCE_INCOMPLETE');
@@ -121,6 +153,11 @@ function createRelationReadService({db,canonicalOnly=false}){
     total=db.prepare('SELECT COUNT(*) AS n FROM recipes WHERE coil_id=:rootId AND deleted_at IS NULL').get(params).n;
     rows=db.prepare('SELECT id,name FROM recipes WHERE coil_id=:rootId AND deleted_at IS NULL AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit')
      .all(params).map(r=>item('recipe',r));
+    // ONT-P8R §10: a recipe may declare its coil only through the legacy denormalized columns
+    // (coil_spec/coil_sheets/coil_material/coil_slot_type) while `coil_id` is still NULL. Such a recipe
+    // must never be silently reported as "does not use this coil" — it is either a plausible but
+    // unconfirmed reference to this very coil, or simply not comparable at all.
+    legacyReferences=legacyCoilReferences(root);
    }else if(q.relation==='parts.stock'){
     const predicates={low:'COALESCE(stock,0)>0 AND COALESCE(stock,0)<=:threshold',out:'COALESCE(stock,0)<=0',attention:'COALESCE(stock,0)<=:threshold',ok:'COALESCE(stock,0)>:threshold'};
     const where='deleted_at IS NULL AND '+predicates[q.stockStatus],p={...params,threshold:LOW_STOCK_MAX};
@@ -130,13 +167,21 @@ function createRelationReadService({db,canonicalOnly=false}){
     rows=[item('part',root,{stock:C.scalar(root.stock),price:C.scalar(root.price)})];total=1;
    }
    const {hasMore,items}=C.resultPage(rows,q.pageSize);
+   // §9/§10 set-level completeness. Precedence: an unconfirmable reference outranks an unfinished page,
+   // because either way the returned list must not be read as the whole relation.
+   const setCompleteness=!legacyReferences?undefined
+    :legacyReferences.ambiguous.length?'AMBIGUOUS_LEGACY_REFERENCE'
+    :legacyReferences.incomplete.length?'REFERENCE_INCOMPLETE'
+    :hasMore?'PARTIAL':'COMPLETE';
    const result={version:1,relation:q.relation,root:root?ref(contract.root,root):null,semantics:contract.semantics,
     queryId:randomUUID(),resourceType:contract.result,sort:'id_desc',pageSize:q.pageSize,returnedCount:items.length,totalCount:total,totalCountKnown:true,hasMore,items,
     pageBoundary:{afterId:q.afterId??null,nextAfterId:hasMore?Number(items.at(-1).canonicalId):null},
-    filters:{stockStatus:q.stockStatus??null},excludedNonPartCount,...(referenceResolution?{referenceResolution}:{}),complete:true,consistency:'READ_TRANSACTION_PER_PAGE',asOf:new Date().toISOString(),
+    filters:{stockStatus:q.stockStatus??null},excludedNonPartCount,...(referenceResolution?{referenceResolution}:{}),
+    ...(legacyReferences?{setCompleteness,legacyReferences}:{}),
+    complete:true,consistency:'READ_TRANSACTION_PER_PAGE',asOf:new Date().toISOString(),
     provenance:{sourceApi:'/api/relations/read',capabilityId:'relations.read',access:'query'},
     units:q.relation==='part.facts'?{stock:'CATALOG_QUANTITY_UNIT',price:'CNY_PER_CATALOG_QUANTITY_UNIT'}:q.relation==='parts.stock'?{stock:'CATALOG_QUANTITY_UNIT'}:{}};
-   if(Buffer.byteLength(JSON.stringify(result))>=C.MAX_RESULT_BYTES)C.fail('RELATION_PAYLOAD_BOUND');
+   if(Buffer.byteLength(JSON.stringify(result))>=C.MAX_RELATION_RESULT_BYTES)C.fail('RELATION_PAYLOAD_BOUND');
    return C.validateResult(q,result);
   })();
  }

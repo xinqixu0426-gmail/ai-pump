@@ -17,6 +17,7 @@ const {
 const { canonicalApiResource } = require('./formalResource.cjs');
 const {
     MAX_PAGE_SIZE,
+    MAX_RELATION_RESULT_BYTES,
     validateResult: validateRelationResult,
 } = require('../../../services/relationReadContract.cjs');
 
@@ -205,8 +206,12 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
 
         case 'get_recipes_by_coil': {
             // ONT-P8R: canonical bounded reverse read. Answers "which recipes use this coil" from the
-            // recipes.coil_id foreign key with keyset pagination instead of paging the whole recipe
-            // aggregate, which exceeds the AI tool-result budget on a real-sized database.
+            // recipes.coil_id foreign key instead of paging the whole recipe aggregate, which exceeds the
+            // AI tool-result budget on a real-sized database.
+            //
+            // §9: the SYSTEM owns pagination, not the model. A complete page is drained here, inside a
+            // bounded budget, so the model never decides when to stop and can never mistake one page for
+            // the whole relation.
             if (!Number.isSafeInteger(args.coilId) || args.coilId < 1) {
                 return {
                     success: false,
@@ -214,57 +219,80 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                     error: '缺少有效的线圈方案ID（coilId），请先用 search_coils 取得正式线圈方案ID',
                 };
             }
-            const input = { version: 1, relation: 'coil.recipes', rootId: args.coilId };
-            if (args.limit !== undefined) {
-                if (!Number.isSafeInteger(args.limit) || args.limit < 1) {
-                    return { success: false, code: 'RELATION_REQUEST_INVALID', error: 'limit 必须是正整数' };
+            const MAX_PAGES = 8;
+            const MAX_BYTES = MAX_RELATION_RESULT_BYTES;
+            const items = [];
+            let afterId, pagesFetched = 0, totalCount = 0, setCompleteness = null, legacyReferences = null;
+            let asOf = null, truncated = false;
+            for (;;) {
+                const input = { version: 1, relation: 'coil.recipes', rootId: args.coilId, pageSize: MAX_PAGE_SIZE };
+                if (afterId !== undefined) input.afterId = afterId;
+                let page;
+                try {
+                    page = await postJson(internalFetch, '/api/relations/read', input, '线圈反查配方读取失败');
+                } catch (error) {
+                    return {
+                        success: false,
+                        code: error?.code || 'RELATION_READ_FAILED',
+                        error: error?.statusCode === 404
+                            ? `未找到该线圈方案（coilId=${args.coilId}）`
+                            : '线圈反查配方读取失败',
+                    };
                 }
-                input.pageSize = Math.min(args.limit, MAX_PAGE_SIZE);
-            }
-            if (args.afterId !== undefined) {
-                if (!Number.isSafeInteger(args.afterId) || args.afterId < 1) {
-                    return { success: false, code: 'RELATION_REQUEST_INVALID', error: 'afterId 必须是正整数分页游标' };
+                let verified;
+                try {
+                    verified = validateRelationResult(input, page);
+                } catch {
+                    // Never forward a payload that does not satisfy the relation read contract.
+                    return {
+                        success: false,
+                        code: 'RELATION_EVIDENCE_INVALID',
+                        error: '线圈反查结果未通过关联读取契约校验，已拒绝采用',
+                    };
                 }
-                input.afterId = args.afterId;
+                pagesFetched += 1;
+                items.push(...verified.items);
+                totalCount = verified.totalCount;
+                setCompleteness = verified.setCompleteness;
+                legacyReferences = verified.legacyReferences;
+                asOf = verified.asOf;
+                if (!verified.hasMore) break;
+                if (pagesFetched >= MAX_PAGES || Buffer.byteLength(JSON.stringify(items), 'utf8') >= MAX_BYTES) {
+                    truncated = true;
+                    break;
+                }
+                const next = verified.pageBoundary?.nextAfterId;
+                // Keyset pagination must move strictly forward; anything else is refused as no progress.
+                if (!Number.isSafeInteger(next) || (afterId !== undefined && next >= afterId)) {
+                    truncated = true;
+                    break;
+                }
+                afterId = next;
             }
-            let page;
-            try {
-                page = await postJson(internalFetch, '/api/relations/read', input, '线圈反查配方读取失败');
-            } catch (error) {
-                return {
-                    success: false,
-                    code: error?.code || 'RELATION_READ_FAILED',
-                    error: error?.statusCode === 404
-                        ? `未找到该线圈方案（coilId=${args.coilId}）`
-                        : '线圈反查配方读取失败',
-                };
-            }
-            let verified;
-            try {
-                verified = validateRelationResult(input, page);
-            } catch {
-                // Never forward a payload that does not satisfy the relation read contract.
-                return {
-                    success: false,
-                    code: 'RELATION_EVIDENCE_INVALID',
-                    error: '线圈反查结果未通过关联读取契约校验，已拒绝采用',
-                };
-            }
-            const data = verified.items.map(item => ({
-                recipeId: Number(item.canonicalId),
-                recipeName: item.display.name,
-            }));
+            // Set-level `complete` only when the whole relation was drained inside the budget AND every
+            // reference was confirmable. An unconfirmed legacy reference is never a complete answer.
+            const complete = !truncated && setCompleteness === 'COMPLETE';
+            const data = items.map(item => ({ recipeId: Number(item.canonicalId), recipeName: item.display.name }));
+            const unconfirmed = {
+                ambiguous: (legacyReferences?.ambiguous || []).map(entry => ({ recipeId: Number(entry.canonicalId), recipeName: entry.display.name })),
+                incomplete: (legacyReferences?.incomplete || []).map(entry => ({ recipeId: Number(entry.canonicalId), recipeName: entry.display.name })),
+            };
             return {
                 success: true,
                 count: data.length,
-                relation: verified.relation,
-                semantics: verified.semantics,
+                relation: 'coil.recipes',
+                semantics: 'CURRENT_RECIPE_COIL_REFERENCES',
                 rootCoilId: args.coilId,
-                totalCount: verified.totalCount,
-                hasMore: verified.hasMore,
-                nextAfterId: verified.pageBoundary?.nextAfterId ?? null,
-                queryId: verified.queryId,
-                asOf: verified.asOf,
+                totalCount,
+                returnedCount: data.length,
+                hasMore: truncated || data.length < totalCount,
+                complete,
+                setCompleteness: truncated ? 'PARTIAL' : setCompleteness,
+                pagesFetched,
+                serializedBytes: Buffer.byteLength(JSON.stringify(data), 'utf8'),
+                unconfirmedLegacyReferences: unconfirmed,
+                queryId: null,
+                asOf,
                 data,
             };
         }

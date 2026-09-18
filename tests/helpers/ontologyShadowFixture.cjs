@@ -30,7 +30,11 @@ const formal = (path, data) => ({ success: true, ...data,
  */
 const boundedReverseRead = (coilId, recipeIds, overrides = {}) => ({ success: true,
     count: recipeIds.length, relation: 'coil.recipes', semantics: 'CURRENT_RECIPE_COIL_REFERENCES',
-    rootCoilId: coilId, totalCount: recipeIds.length, hasMore: false, nextAfterId: null,
+    rootCoilId: coilId, totalCount: recipeIds.length, returnedCount: recipeIds.length, hasMore: false,
+    // §9/§10 set-level completeness; the executor drains pages itself, so a delivered page is already the
+    // whole relation and `complete` is only true when every reference was confirmable.
+    complete: true, setCompleteness: 'COMPLETE', pagesFetched: 1,
+    serializedBytes: 0, unconfirmedLegacyReferences: { ambiguous: [], incomplete: [] },
     data: recipeIds.map(id => ({ recipeId: id, recipeName: `Shadow配方${id}` })),
     executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/relations/read' }] },
     ...overrides });
@@ -110,5 +114,26 @@ function deterministicCorpus() {
         ['first-eligible-after-missing-root', '', [rootMissing, quote], 'MATCH'],
     ];
 }
+/**
+ * `runCase` builds `signature.executed` / `selectedTools` from its own executor stub, which cannot know a
+ * tool added after the frozen corpus was written. A test that injects the extended stub must restore those
+ * two fields from its recorder, otherwise the frozen signature silently degrades to "nothing executed"
+ * and the OFF baseline stops measuring anything — which is exactly the failure this helper prevents.
+ */
+function withRecordedTools(signature, executed) {
+    return { ...signature, executed: executed.map(entry => ({ ...entry })),
+        selectedTools: executed.map(entry => entry.name) };
+}
+
+/** Run one corpus case with the extended executor stub and a signature that still records what ran. */
+async function runRecordedCase(c, flag, runAiAssistant, runCase, options = {}) {
+    const executed = [];
+    const result = await runCase(c, flag, runAiAssistant, {
+        ...options,
+        dependencies: { ...(options.dependencies || {}), executeToolCall: routingExecuteToolCall(executed) },
+    });
+    return { ...result, executed, signature: withRecordedTools(result.signature, executed) };
+}
+
 module.exports = { fixture, canonicalRoots, formal, recipeDetail, realCorpus, deterministicCorpus,
-    boundedReverseRead, routingExecuteToolCall };
+    boundedReverseRead, routingExecuteToolCall, withRecordedTools, runRecordedCase };

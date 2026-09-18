@@ -145,6 +145,81 @@ test('P8R the AI tool refuses a missing or malformed root id and never invents o
     const schema = AI_TOOLS.find(tool => tool.function.name === 'get_recipes_by_coil');
     assert.deepEqual(schema.function.parameters.required, ['coilId']);
     assert.equal(schema.function.parameters.additionalProperties, undefined);
+    // §9: the model must not own pagination, so the schema exposes no page or cursor control at all.
+    assert.deepEqual(Object.keys(schema.function.parameters.properties), ['coilId']);
+    assert.equal(schema.function.parameters.properties.limit, undefined);
+    assert.equal(schema.function.parameters.properties.afterId, undefined);
+});
+
+/** Run the real AI tool against a real HTTP fixture server over the supplied fixture database. */
+async function toolAgainst(db) {
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+    app.use((req, res, next) => req.method === 'GET' || req.path === '/api/relations/read'
+        ? next() : res.status(403).json({ success: false }));
+    app.use('/api/relations', createRelationReadRouter({ db }));
+    const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+    const previous = process.env.PORT;
+    process.env.PORT = String(server.address().port);
+    try {
+        delete require.cache[require.resolve('../api/routes/ai/executor.cjs')];
+        const { executeToolCall } = require('../api/routes/ai/executor.cjs');
+        return { run: (args) => executeToolCall('get_recipes_by_coil', args, { allowWrite: false }),
+            close: async () => { await new Promise(resolve => server.close(resolve));
+                if (previous === undefined) delete process.env.PORT; else process.env.PORT = previous; } };
+    } catch (error) { await new Promise(resolve => server.close(resolve)); throw error; }
+}
+
+test('P9R the system drains every page itself and never hands pagination to the model', async () => {
+    // §9: "不要让模型自己决定什么时候停止分页". 60 referencing recipes are 2 pages at the 50-row maximum,
+    // and one tool call must return the whole relation with complete=true and no model round.
+    const db = fixture();
+    try {
+        const insert = db.prepare('INSERT INTO recipes(id,name,coil_id,parts_json) VALUES(?,?,501,\'[]\')');
+        db.transaction(() => { for (let id = 2000; id < 2060; id += 1) insert.run(id, `Shadow批量${id}`); })();
+        const tool = await toolAgainst(db);
+        try {
+            const result = await tool.run({ coilId: 501 });
+            assert.equal(result.success, true);
+            assert.equal(result.setCompleteness, 'COMPLETE');
+            assert.equal(result.complete, true);
+            assert.equal(result.totalCount, 61);
+            assert.equal(result.count, 61, 'one call must return the whole relation, not one page');
+            assert.equal(result.hasMore, false);
+            assert.equal(result.pagesFetched, 2, 'two pages at the 50-row maximum, drained by the system');
+            assert.equal(result.data.some(item => item.recipeId === 301), true);
+            assert.equal(result.data.some(item => item.recipeId === 2059), true);
+            assert.ok(result.serializedBytes < 32 * 1024, `bounded projection must stay small, got ${result.serializedBytes}`);
+        } finally { await tool.close(); }
+    } finally { db.close(); }
+});
+
+test('P8R a coil whose legacy-only references are ambiguous is never reported as a complete answer', async () => {
+    // §10: a recipe that declares the SAME coil identity through the legacy columns but has no canonical
+    // link must surface as unconfirmed, not disappear from the answer.
+    const db = fixture();
+    try {
+        db.prepare("UPDATE recipes SET coil_spec='12', coil_sheets=120 WHERE id=303").run();
+        db.prepare("UPDATE recipes SET coil_spec='12', coil_sheets=NULL WHERE id=304").run();
+        db.prepare("UPDATE recipes SET coil_spec='12', coil_sheets=999 WHERE id=302").run();
+        const tool = await toolAgainst(db);
+        try {
+            const result = await tool.run({ coilId: 501 });
+            assert.equal(result.success, true);
+            assert.equal(result.complete, false, 'an unconfirmed legacy reference is not a complete answer');
+            assert.equal(result.setCompleteness, 'AMBIGUOUS_LEGACY_REFERENCE');
+            assert.deepEqual(result.data.map(item => item.recipeId), [301]);
+            assert.deepEqual(result.unconfirmedLegacyReferences.ambiguous.map(item => item.recipeId), [303]);
+            assert.deepEqual(result.unconfirmedLegacyReferences.incomplete.map(item => item.recipeId), [304]);
+            // A legacy declaration naming a different coil is a confirmed non-match, not uncertainty.
+            assert.equal(result.unconfirmedLegacyReferences.ambiguous.some(item => item.recipeId === 302), false);
+            // And the shadow must not certify membership from a non-COMPLETE read.
+            const facts = currentFactsForBinding(bindingFor(501), [{ name: 'get_recipes_by_coil', args: { coilId: 501 }, result }]);
+            assert.equal(facts.complete, false);
+            assert.deepEqual(facts.canonicalTargetIds, []);
+        } finally { await tool.close(); }
+    } finally { db.close(); }
 });
 
 /** Bounded page-shaped observation used to exercise the inverse-membership certification matrix. */
@@ -170,7 +245,9 @@ test('P8R inverse membership is certified only from a complete correctly-rooted 
     const incomplete = [
         ['truncated page', { hasMore: true, totalCount: 2, count: 1 }],
         ['count disagrees with total', { totalCount: 5, count: 1 }],
-        ['unknown total', { totalCountKnown: false, totalCount: undefined }],
+        ['not fully drained', { complete: false, hasMore: true, setCompleteness: 'PARTIAL' }],
+        ['ambiguous legacy reference', { complete: false, setCompleteness: 'AMBIGUOUS_LEGACY_REFERENCE' }],
+        ['incomplete legacy reference', { complete: false, setCompleteness: 'REFERENCE_INCOMPLETE' }],
         ['unverified evidence', { executionEvidence: { verified: false, kind: 'formal_api_query', calls: [] } }],
         ['wrong evidence path', { executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/coils/cost-preview' }] } }],
         ['legacy-shaped payload', { relation: 'part.recipes' }],
@@ -205,8 +282,8 @@ test('P8R the whole-collection read still exceeds the AI budget while the bounde
     const db = fixture();
     try {
         const insert = db.prepare(`INSERT INTO recipes(id,name,coil_id,template_id,parts_json) VALUES(?,?,501,401,?)`);
-        const parts = JSON.stringify(Array.from({ length: 12 }, (_, index) => ({
-            partId: 601, model: `Shadow批量零件-${index}-${'零'.repeat(24)}`, supplier: '供应甲', qty: 1 })));
+        const parts = JSON.stringify(Array.from({ length: 20 }, (_, index) => ({
+            partId: 601, model: `Shadow批量零件-${index}-${'零'.repeat(44)}`, supplier: '供应甲', qty: 1 })));
         db.transaction(() => {
             for (let id = 1000; id < 1400; id += 1) insert.run(id, `Shadow大件${id}`, parts);
         })();
@@ -214,8 +291,8 @@ test('P8R the whole-collection read still exceeds the AI budget while the bounde
             FROM recipes WHERE deleted_at IS NULL ORDER BY id DESC`).all();
         const aggregateResult = { success: true, count: aggregate.length, filters: { keyword: '', hasTechnicalFiles: null },
             data: aggregate, executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes' }] } };
-        assert.ok(Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8') > 96 * 1024,
-            'the fixture must reproduce the oversized aggregate payload');
+        assert.ok(Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8') > 128 * 1024,
+            `the fixture must reproduce an oversized aggregate payload (>128 KB), got ${Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8')}`);
         const refused = enforceAiToolResultBudget('get_all_recipes', aggregateResult, [], 96 * 1024);
         assert.equal(refused.success, false);
         assert.equal(refused.code, 'AI_QUERY_RESULT_TOO_LARGE');

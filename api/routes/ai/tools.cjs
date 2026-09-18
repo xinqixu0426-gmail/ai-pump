@@ -203,13 +203,11 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'get_recipes_by_coil',
-            description: '按一个已知线圈方案的ID反查当前引用它的配方（成品型号），结果有界分页，返回该线圈被哪些配方使用。用户问“这个线圈/定子被哪些配方用”“12-200 对应哪些成品”时使用；先用 search_coils 拿到线圈方案ID，再调用本工具。这是反查权威入口，禁止用 get_all_recipes 全量列表代替。',
+            description: '按一个已知线圈方案的ID反查当前引用它的配方（成品型号）。结果是有界的关联投影，只含 recipeId 与 recipeName，不含 BOM、成本或包装明细；分页由系统在一次调用内确定性完成，模型不需要也不要请求翻页。返回 complete=true 才表示已取回该线圈的完整配方集合；complete=false 时不得称其为“全部配方”，须说明其中含未确认的旧数据（unconfirmedLegacyReferences）或超过单次上限。用户问“这个线圈/定子被哪些配方用”“12-200 对应哪些成品”时使用；先用 search_coils 拿到线圈方案ID，再调用本工具。这是反查权威入口，禁止用 get_all_recipes 全量列表代替。',
             parameters: {
                 type: 'object',
                 properties: {
-                    coilId: { type: 'integer', minimum: 1, description: '线圈方案ID，先由 search_coils 获得' },
-                    limit: { type: 'integer', minimum: 1, maximum: 50, description: '返回条数上限（可选，默认 20）' },
-                    afterId: { type: 'integer', minimum: 1, description: '分页游标：上一页最后一条配方ID（可选）' }
+                    coilId: { type: 'integer', minimum: 1, description: '线圈方案ID，先由 search_coils 获得' }
                 },
                 required: ['coilId']
             }

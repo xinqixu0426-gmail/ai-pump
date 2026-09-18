@@ -579,10 +579,95 @@ Tests (each assertion is a bounded, falsifiable claim):
 Neither change touches prompts, the answer composer, the binder, the capability graph, DB schema, business
 WRITE APIs, dependencies, or any legacy code path.
 
-### 16.5 Status
+### 16.5 Canary inventory hardening (phase review follow-up)
+
+A second pass against the phase instruction found four gaps that the first implementation had left open.
+All four are now closed and covered by tests.
+
+1. **§9 — the system owns pagination, not the model.** The first implementation returned a single page and
+   left paging to the model. `get_recipes_by_coil` now drains the relation itself inside a bounded budget
+   (max 8 pages, 50 rows each, `< 32 KB`), and its tool schema exposes **only `coilId`** — no `limit`, no
+   `afterId`. `complete` is set-level: true only when the whole relation was drained AND every reference was
+   confirmable. A coil with 61 referencing recipes returns all 61 in ONE call with `pagesFetched=2`.
+2. **§8 — a relation-specific size bound.** `MAX_RESULT_BYTES` (256 KB) is shared with the resolver and
+   traversal aggregate budgets, so tightening it would have silently shrunk the P5 traversal budget. The
+   relation read now has its own `MAX_RELATION_RESULT_BYTES = 32 KB`, well under the 96 KB AI budget.
+3. **§10 — legacy coil references are no longer silently dropped.** `recipes` carries denormalized
+   `coil_spec`/`coil_sheets` alongside the canonical `coil_id` (real database: recipe 4 `V12-100-DY-ml` has
+   `coil_id = NULL`). The read now classifies every recipe that declares a coil only through those columns
+   and reports `setCompleteness` plus a bounded `legacyReferences` list:
+
+   | Situation | Classification |
+   | --- | --- |
+   | Complete legacy identity equal to this coil | `AMBIGUOUS_LEGACY_REFERENCE` — listed, never dropped |
+   | Complete legacy identity naming a different coil | confirmed non-match, excluded |
+   | Partial declaration that cannot be compared | `REFERENCE_INCOMPLETE` |
+   | Every reference confirmable and page drained | `COMPLETE` |
+   | More matching rows than the drain budget | `PARTIAL` |
+
+   `coil_sheets` defaults to `0` and `coil_material`/`coil_slot_type` have non-empty defaults, so "declares a
+   coil" is defined as a non-empty spec **or** a positive sheet count; treating the defaults as references
+   made every unrelated recipe look unconfirmed and every answer permanently incomplete.
+   The shadow only certifies inverse membership from a `COMPLETE` read.
+4. **§16 — the large fixture now exceeds 128 KB** (20-part BOMs, 400 recipes) instead of 96 KB.
+
+Measured on the real AI tool-result layer (not the raw HTTP response):
+
+| Path | Tool result | Budget verdict |
+| --- | --- | --- |
+| `get_all_recipes` (whole catalogue) | **120,990 B** | `AI_QUERY_RESULT_TOO_LARGE` at 96 KB |
+| `get_recipes_by_coil` (coil 5) | **644 B** | delivered, `complete=true` |
+
+### 16.6 §11/§12 shared fact layer, and the one residual it leaves
+
+§11 is satisfied: there is exactly **one** implementation of this relation (`relationReadService` + the
+relation read contract), and both routing paths reach it — the legacy model-driven turn calls the same
+registered read tool the canary plans, so no second SQL or filter implementation exists.
+
+One part of §12 was **attempted and deliberately reverted**, and is reported as a residual rather than
+worked around: the **legacy deterministic plan** for local models still names `get_all_recipes` in
+`aiAssistantRuntime.legacyRelationMissingTools`. Reasons, in order of weight:
+
+1. `get_recipes_by_coil` needs a canonical coil root. The frozen P6 corpus's repair hook calls
+   `requiredCoilRecipeToolCall(name, userText)` with two arguments, so it can never forward already-verified
+   tool results; deriving the root in the runtime instead needs one earlier iteration, which converts the
+   current zero-provider-call legacy plan into a model repair round (a provider call).
+2. That plan only runs for **local** models with the local shortlist enabled. Production DeepSeek never
+   takes it, and the real acceptance measured the production legacy path at **4/4 correct with 0
+   payload-limit failures** on the inverse direction — including the previously failing `12-200` case.
+
+So changing it is an optional local-mode optimisation with a real cost, not a correctness fix. The
+frozen legacy oracle fixture is **unchanged** (`selectedTools` for the relation cases is still
+`["get_all_recipes","search_coils"]`), and the schema/artefact hashes below are untouched.
+
+### 16.7 P8R acceptance result
+
+Real DeepSeek, real-scale database, 14 cases, three phases. The harness takes a byte copy of the database
+first and verifies the copy hash against the source; the source database is opened read-only throughout.
+
+| Phase | Relation total | `coil -> recipes` | `recipe -> coil` | reverse authoritative | max aggregate seen | payload-limit failures | done | errors | DB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| OFF (canary off) | 6/8 | **4/4** | 2/4 | 0 | 30,040 B | 0 | 14/14 | 0 | unchanged, delta 0 |
+| **ON (canary on)** | **8/8** | **4/4** | **4/4** | 3 | **0 B** | 0 | 14/14 | 0 | unchanged, delta 0 |
+| OFF rollback | 6/8 | 4/4 | 2/4 | 0 | 30,040 B | 0 | 14/14 | 0 | unchanged, delta 0 |
+
+`aggregateMax = 0 B` on the ON phase is the headline: with the canary routing, the whole-recipe aggregate is
+never read for this relation at all. The two `recipe -> coil` OFF failures (R5, R8) are the model reaching
+for `get_all_recipes`, receiving a truncated catalogue, and answering from it — the pre-existing legacy
+weakness that ON removes by planning bounded `get_recipe_detail` reads in software.
+
+Bounds observed: bounded projection max **134 B** across the corpus (real database, five coils, one to
+three recipes each); `tooLarge` errors **0** in every phase; write request produced the confirmation card
+only.
+
+Verification: ontology P1–P7 focused plus the new P8R suite **386/386**, full regression **2527/2527**, API
+contract 26/26, deep API PASS, web build PASS. Frozen artefacts unchanged: P6 corpus hash
+`1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8`, legacy oracle fixture unmodified.
+
+### 16.8 Status
 
 The inverse direction is no longer dependent on a read the runtime cannot deliver, and the `coil -> recipes`
-relation now has a formal bounded authoritative read on both the canary path and the legacy path. P8R is
-still **branch-only**: production is untouched (`master @ 24106a1b`), nothing is pushed, the canary flag
-remains default OFF, no production `.env` was modified, and every change is confined to the phase branch.
-Deployment and the P9 legacy-cleanup gate remain supervisor decisions.
+relation now has a formal bounded authoritative read with explicit set-level completeness and documented
+legacy-reference handling. P8R is still **branch-only**: production is untouched (`master @ 24106a1b`),
+nothing is pushed, the canary flag remains default OFF, no production `.env` was modified, and every change
+is confined to the phase branch. Deployment and the P9 legacy-cleanup gate remain supervisor decisions.
