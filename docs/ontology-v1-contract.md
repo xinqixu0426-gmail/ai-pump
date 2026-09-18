@@ -10,7 +10,7 @@ Start commit: `24106a1b41baa11a7a3e64e0fc78efa28121b271`.
 Branch: `codex/ont-p1-thin-contract`, isolated worktree `C:\Users\Dan\Documents\pump-ont-p1`.
 Original worktree: `master`, one user-owned untracked file `docs/ontology-preimplementation-audit.md`. Its exact UTF-8 contents were copied into this branch as the supplied P0 evidence; the original was not edited or staged. No existing tracked implementation was changed.
 
-**Supervisor status: REWORK for P0 count/scope reconciliation.** The implemented contract and tests are valid for seven entities and six relation families. P0's proposed nine families cannot all belong to its proposed seven-entity registry. Do not represent this artifact as a nine-family PASS. This phase stops for Supervisor review of the corrected relation scope; no runtime integration is authorized.
+**Supervisor status: PASS after accepting the P0 scope corrections**, as explicitly supplied in the ONT-P2 task. Entity Count = 7; Relation Family Count = 6; Directional Relation Definition Count = 12. The original P1 return was REWORK pending that decision; the accepted scope is six families, not the original nine-family proposal. No runtime integration is authorized.
 
 ## Non-goals and source-of-truth boundary
 
@@ -153,10 +153,10 @@ Counts are version-specific structural invariants. Semantic changes need explici
 
 ## Known gaps and next-phase preconditions
 
-1. Supervisor must reconcile P0's nine-family recommendation with seven permitted entity types and the purchase aggregate endpoint. Current return is REWORK rather than a claimed nine-family PASS.
+1. Supervisor accepted the six-family correction before P2. Stator_variant, technical_file, and purchase-item endpoints remain excluded; their scope must not be silently restored.
 2. Quotation has formal ID authority but lacks generic V3/V4 resolver support; adding that support is a separate reviewed change.
 3. Canonical-only adapters must reuse business services, report legacy unresolved references, and preserve existing bounds and negative-evidence distinctions. They must not relabel old mixed-authority receipts.
-4. Formal saved-ID relation readers are not implemented. Current schema evidence does not imply an available tool/API.
+4. Isolated canonical one-hop readers are described in [Ontology Relation Resolver V1](ontology-relation-resolver-v1.md). They are not available through an AI tool or HTTP API.
 5. P0's proposed two-hop/50-entity bounds are future design constraints, not an implemented traversal engine or runtime promise.
 6. Future rollout needs formal capability/schema/service/route tests and documentation under the current API SOP, pagination/token budgets, and evidence-backed end-to-end acceptance.
 7. A future semantic aid must preserve cross-domain investigation; contract completeness must not become a universal problem classifier blocking otherwise valid existing tools.

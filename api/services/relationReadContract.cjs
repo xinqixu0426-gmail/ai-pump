@@ -28,6 +28,11 @@ function request(input){
 }
 function scalar(v){if(typeof v!=='number'||!Number.isFinite(v))fail('RELATION_VALUE_INVALID');return v;}
 function text(v,optional=false){if(optional&&(v==null||v===''))return '';if(typeof v!=='string'||!v.length||v.length>160)fail('RELATION_VALUE_INVALID');return v;}
+function parsedReferences(raw){let rows;try{rows=JSON.parse(raw||'[]');}catch{fail('RELATION_SOURCE_INVALID');}
+ if(!Array.isArray(rows))fail('RELATION_SOURCE_INVALID');if(rows.length>NESTED_LIMIT)fail('RELATION_NESTED_BOUND');
+ if(rows.some(r=>!r||typeof r!=='object'||Array.isArray(r)))fail('RELATION_SOURCE_INVALID');return rows;
+}
+function resultPage(rows,pageSize){return {items:rows.slice(0,pageSize),hasMore:rows.length>pageSize};}
 function validateResult(input,p){
  const q=request(input),c=RELATIONS[q.relation],bad=()=>fail('RELATION_EVIDENCE_INVALID');
  if(!p||p.version!==1||p.relation!==q.relation||p.semantics!==c.semantics||p.resourceType!==c.result
@@ -71,4 +76,4 @@ function validateResult(input,p){
   ||Buffer.byteLength(JSON.stringify(p))>=MAX_RESULT_BYTES)bad();
  return structuredClone(p);
 }
-module.exports={RELATIONS,SCAN_LIMIT,NESTED_LIMIT,DEFAULT_PAGE_SIZE,MAX_PAGE_SIZE,MAX_RESULT_BYTES,TOOL_SCHEMA,request,validateResult,fail,scalar,text};
+module.exports={RELATIONS,SCAN_LIMIT,NESTED_LIMIT,DEFAULT_PAGE_SIZE,MAX_PAGE_SIZE,MAX_RESULT_BYTES,TOOL_SCHEMA,request,validateResult,fail,scalar,text,parsedReferences,resultPage};

@@ -71,7 +71,7 @@ function validateOntology(contract) {
             && relation.provenanceRequirement === 'FORMAL_READ_RECEIPT_WITH_SOURCE_AND_UNRESOLVED_REFERENCES', 'ONTOLOGY_IDENTITY_INVALID');
         relations.set(relation.relationId, relation);
     }
-    check(relations.size === 12, 'ONTOLOGY_RELATION_COUNT_INVALID');
+    check(relations.size === 12, 'ONTOLOGY_DIRECTIONAL_RELATION_DEFINITION_COUNT_INVALID');
     for (const relation of relations.values()) {
         const inverse = relations.get(relation.inverseRelationId);
         check(inverse && inverse.inverseRelationId === relation.relationId && inverse.fromType === relation.toType
@@ -108,7 +108,7 @@ function validateOntology(contract) {
         mapped.add(mapping.existingRelationId);
     }
     check(mapped.size === 7, 'ONTOLOGY_MAPPING_COUNT_INVALID');
-    return Object.freeze({ version: 1, entityCount: 7, relationFamilyCount: 6, directedRelationCount: 12, authorityAFamilies: 4, authorityBFamilies: 2, inversePairs: 6, runtimeEnabled: false });
+    return Object.freeze({ version: 1, entityCount: 7, relationFamilyCount: 6, directionalRelationDefinitionCount: 12, authorityAFamilies: 4, authorityBFamilies: 2, inversePairs: 6, runtimeEnabled: false });
 }
 
 module.exports = { validateOntology };

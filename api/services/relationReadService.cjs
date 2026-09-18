@@ -2,6 +2,7 @@
 const {randomUUID}=require('node:crypto');
 const C=require('./relationReadContract.cjs');
 const {LOW_STOCK_MAX}=require('./partQueries.cjs');
+const {resolveSavedCatalogPartIdentity,shouldRequireCatalogIdentity}=require('./bomPartIdentity.cjs');
 // Business-service authority only. No caller-provided SQL, table, column or predicate.
 const ROOT_SQL={
  customer:'SELECT id,name FROM customers WHERE id=? AND deleted_at IS NULL',
@@ -9,15 +10,26 @@ const ROOT_SQL={
  recipe:'SELECT id,name,parts_json AS partsJson FROM recipes WHERE id=? AND deleted_at IS NULL',
  part:'SELECT id,model AS name,supplier,stock,price FROM parts WHERE id=? AND deleted_at IS NULL',
 };
-function createRelationReadService({db}){
+function createRelationReadService({db,canonicalOnly=false}){
  const one=(rows)=>{if(!rows.length)C.fail('RELATION_NOT_FOUND');if(rows.length!==1)C.fail('RELATION_AMBIGUOUS');return rows[0];};
  const ref=(type,row)=>({resourceType:type,canonicalId:String(row.id)});
  const item=(type,row,fields={})=>({canonicalId:String(row.id),display:{name:C.text(row.name),...fields},resourceType:type});
- function parsed(raw){let rows;try{rows=JSON.parse(raw||'[]');}catch{C.fail('RELATION_SOURCE_INVALID');}
-  if(!Array.isArray(rows))C.fail('RELATION_SOURCE_INVALID');if(rows.length>C.NESTED_LIMIT)C.fail('RELATION_NESTED_BOUND');
-  if(rows.some(r=>!r||typeof r!=='object'||Array.isArray(r)))C.fail('RELATION_SOURCE_INVALID');return rows;
+ const parsed=C.parsedReferences;
+ function canonicalPartId(line){
+  if(line.name==='线圈转子'||!shouldRequireCatalogIdentity(line))return null;
+  if(line.partId==null)C.fail(line.identityStatus==='ambiguous'?'RELATION_AMBIGUOUS':'RELATION_REFERENCE_INCOMPLETE');
+  if(!Number.isSafeInteger(line.partId)||line.partId<1)C.fail('RELATION_REFERENCE_INCOMPLETE');
+  return line.partId;
  }
  function partFor(line){
+  if(canonicalOnly){
+   const id=canonicalPartId(line);if(id===null)return null;
+   if(line.supplier!==undefined&&typeof line.supplier!=='string')C.fail('RELATION_SOURCE_INVALID');
+   const record=db.prepare('SELECT id,model,supplier FROM parts WHERE id=? AND deleted_at IS NULL').get(id);
+   if(!record)C.fail('RELATION_REFERENCE_INCOMPLETE');
+   try{const p=resolveSavedCatalogPartIdentity([record],line);return {...p,name:p.model};}
+   catch(error){if(error.code?.startsWith('BOM_PART_'))C.fail('RELATION_REFERENCE_INCOMPLETE');throw error;}
+  }
   if(line.name==='线圈转子')return null; // Existing non-part role, never relabel a coil as a part.
   const model=C.text(line.model),supplier=line.supplier;
   if(supplier!==undefined&&typeof supplier!=='string')C.fail('RELATION_SOURCE_INVALID');
@@ -41,13 +53,20 @@ function createRelationReadService({db}){
    let rows=[],total=0,excludedNonPartCount=0,referenceResolution;
    const params={rootId:q.rootId,afterId:q.afterId??null,limit:q.pageSize+1};
    if(q.relation==='customer.orders'){
+    if(canonicalOnly&&db.prepare('SELECT id FROM orders WHERE COALESCE(customer_id,0)=0 AND deleted_at IS NULL LIMIT 1').get())C.fail('RELATION_REFERENCE_INCOMPLETE');
+    if(canonicalOnly){
+     total=db.prepare('SELECT COUNT(*) AS n FROM orders WHERE customer_id=? AND deleted_at IS NULL').get(root.id).n;
+     rows=db.prepare('SELECT id,contract_no AS name,status FROM orders WHERE customer_id=:rootId AND deleted_at IS NULL AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit').all(params).map(r=>item('order',r,{status:C.text(r.status)}));
+    }else{
     const duplicates=db.prepare('SELECT id FROM customers WHERE name=? AND deleted_at IS NULL LIMIT 2').all(root.name);
     const legacy=db.prepare('SELECT id FROM orders WHERE COALESCE(customer_id,0)=0 AND customer_name=? AND deleted_at IS NULL LIMIT 1').get(root.name);
     if(legacy&&duplicates.length!==1)C.fail('RELATION_AMBIGUOUS');
     const where="deleted_at IS NULL AND (customer_id=:rootId OR (COALESCE(customer_id,0)=0 AND customer_name=:name))";
     total=db.prepare('SELECT COUNT(*) AS n FROM orders WHERE '+where).get({...params,name:root.name}).n;
     rows=db.prepare('SELECT id,contract_no AS name,status FROM orders WHERE '+where+' AND (:afterId IS NULL OR id<:afterId) ORDER BY id DESC LIMIT :limit').all({...params,name:root.name}).map(r=>item('order',r,{status:C.text(r.status)}));
+    }
    }else if(q.relation==='order.customer'){
+    if(canonicalOnly&&!root.customerId)C.fail('RELATION_REFERENCE_INCOMPLETE');
     const customer=root.customerId
      ?one(db.prepare('SELECT id,name FROM customers WHERE id=? AND deleted_at IS NULL').all(root.customerId))
      :one(db.prepare('SELECT id,name FROM customers WHERE name=? AND deleted_at IS NULL ORDER BY id LIMIT 2').all(C.text(root.customerName)));
@@ -72,7 +91,12 @@ function createRelationReadService({db}){
    }else if(q.relation==='part.recipes'){
     // Candidate SQL filters exact saved references before bounded authority validation.
     // A scan overflow is unavailable, never a silently incomplete relation count.
-    const candidates=db.prepare(`SELECT id,name,parts_json AS partsJson FROM recipes r WHERE deleted_at IS NULL AND EXISTS
+    const canonicalCandidates=canonicalOnly?db.prepare('SELECT id,name,parts_json AS partsJson FROM recipes WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ?').all(C.SCAN_LIMIT+1):null;
+    if(canonicalCandidates){
+     if(canonicalCandidates.length>C.SCAN_LIMIT)C.fail('RELATION_SCAN_BOUND');
+     for(const recipe of canonicalCandidates)for(const line of parsed(recipe.partsJson))canonicalPartId(line);
+    }
+    const candidates=canonicalCandidates||db.prepare(`SELECT id,name,parts_json AS partsJson FROM recipes r WHERE deleted_at IS NULL AND EXISTS
      (SELECT 1 FROM json_each(CASE WHEN json_valid(r.parts_json) THEN r.parts_json ELSE '[]' END) j
       WHERE json_extract(j.value,'$.model')=:model OR json_extract(j.value,'$.partId')=:rootId)
      ORDER BY id DESC LIMIT :scan`).all({model:root.name,rootId:root.id,scan:C.SCAN_LIMIT+1});
@@ -83,6 +107,7 @@ function createRelationReadService({db}){
     for(const recipe of candidates){
      let found=false;
      for(const line of parsed(recipe.partsJson)){
+      if(canonicalOnly&&canonicalPartId(line)!==root.id)continue;
       if(line.model!==root.name&&line.partId!==root.id)continue;
       const p=partFor(line);if(p?.id===root.id)found=true;
      }
@@ -97,7 +122,7 @@ function createRelationReadService({db}){
    }else if(q.relation==='part.facts'){
     rows=[item('part',root,{stock:C.scalar(root.stock),price:C.scalar(root.price)})];total=1;
    }
-   const hasMore=rows.length>q.pageSize,items=rows.slice(0,q.pageSize);
+   const {hasMore,items}=C.resultPage(rows,q.pageSize);
    const result={version:1,relation:q.relation,root:root?ref(contract.root,root):null,semantics:contract.semantics,
     queryId:randomUUID(),resourceType:contract.result,sort:'id_desc',pageSize:q.pageSize,returnedCount:items.length,totalCount:total,totalCountKnown:true,hasMore,items,
     pageBoundary:{afterId:q.afterId??null,nextAfterId:hasMore?Number(items.at(-1).canonicalId):null},

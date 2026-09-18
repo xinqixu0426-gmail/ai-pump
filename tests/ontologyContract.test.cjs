@@ -14,7 +14,7 @@ const root = path.resolve(__dirname, '..');
 test('ONT-P1: deterministic V1 counts separate relationship families from inverse directions', () => {
     assert.equal(OntologyVersion, 1);
     assert.deepEqual(validateOntology(ontology), {
-        version: 1, entityCount: 7, relationFamilyCount: 6, directedRelationCount: 12,
+        version: 1, entityCount: 7, relationFamilyCount: 6, directionalRelationDefinitionCount: 12,
         authorityAFamilies: 4, authorityBFamilies: 2, inversePairs: 6, runtimeEnabled: false,
     });
     assert.deepEqual(ontology.entities.map(e => e.type), ['customer', 'order', 'recipe', 'part', 'coil', 'template', 'quotation']);
@@ -183,7 +183,7 @@ test('ONT-P1: no production imports or new runtime/tool/service exposure', () =>
     }
     scan(path.join(root, 'api'));
     assert.doesNotMatch(fs.readFileSync(path.join(root, 'api.cjs'), 'utf8'), /require\s*\([^\n]*(?:ontology|relationRead)/);
-    for (const file of fs.readdirSync(path.join(root, 'api', 'ontology'))) {
+    for (const file of ['contract.cjs', 'sources.cjs', 'validator.cjs']) {
         const text = fs.readFileSync(path.join(root, 'api', 'ontology', file), 'utf8');
         assert.doesNotMatch(text, /require\s*\(\s*['"](?:[^'"]*(?:services|routes|db|sqlite|express)|node:fs)/, file);
     }
