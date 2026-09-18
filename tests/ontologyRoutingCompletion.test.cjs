@@ -27,8 +27,9 @@ test('P6D-R1 required reads are planned deterministically from verified context,
         const state = prepareRouting(routingInput(c));
         assert.equal(state.record.eligible, true, `eligible for ${c.caseId}`);
         const calls = requiredReadCalls(state, [], c.userText);
-        // Reads are declared per direction: a recipe root needs only its own bounded detail read, while
-        // a coil root needs the complete unfiltered recipe collection for inverse membership.
+        // Reads are declared per direction: a recipe root needs a bounded detail read plus the small coil
+        // catalogue, while a coil root additionally needs the complete collection read for inverse
+        // membership (which the runtime refuses on a real-sized database, so it revokes to legacy).
         const expectedReads = c.root.entityType === 'coil'
             ? ['get_all_recipes', 'search_coils'] : ['get_recipe_detail', 'search_coils'];
         assert.deepEqual(calls.map(call => call.function.name).sort(), [...expectedReads].sort(),

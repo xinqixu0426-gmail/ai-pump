@@ -12,12 +12,16 @@ const { deepFreeze } = require('./sources.cjs');
 //
 // ONT-P8: reads are declared PER DIRECTION because the deliverable payload differs enormously.
 //  - `recipe -> coil`: the root recipe is already canonically known, so ONE bounded detail read
-//    (`get_recipe_detail{recipeId}`) certifies the forward projection. Reading the whole catalogue
-//    here was wasteful and, on a real-sized database, undeliverable.
-//  - `coil -> recipes`: inverse membership genuinely needs the complete unfiltered recipe collection
-//    (`projections.recipe_coil` reads `recipe.coilId`), which cannot be bounded with the current tool
-//    schema. On a large catalogue that read exceeds the runtime's per-result budget, so the runtime
-//    revokes the canary for that turn and hands the read surface back to legacy.
+//    (`get_recipe_detail{recipeId}`) certifies the forward projection, plus the small coil catalogue.
+//  - `coil -> recipes`: inverse membership needs the COMPLETE unfiltered recipe collection
+//    (`projections.recipe_coil` reads `recipe.coilId`). On this database that payload is 121 KB against
+//    a 96 KB per-result budget, so the runtime refuses it and revokes the canary for the turn
+//    (ONTOLOGY_CANARY_FALLBACK), handing the read surface back to legacy. The read is still REQUIRED
+//    rather than optional: measured on real data, dropping the requirement made the model answer from
+//    the coil read alone without ever fetching the collection, which was strictly worse than legacy.
+//    Adding a repair round instead is not available either — the promotion gate requires zero
+//    ontology-induced provider calls. Closing this properly needs a bounded/aggregate collection read,
+//    i.e. a Tool schema change, which is outside this phase.
 //  - arguments for the root read come from already-verified server context (`root_identity` /
 //    `root_detail`), never from the user's wording.
 const sourceCollectionRead = deepFreeze({ capability: 'get_all_recipes', argumentPolicy: 'empty', omitArguments: ['keyword'] });
@@ -56,9 +60,9 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     failureMessage: '线圈与配方的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
 }]);
 
-/** The deterministic reads that apply to this request's bound direction. */
+/** The deterministic reads that apply to this request's bound direction (none when unknown). */
 function requiredReadsFor(state) {
-    return state.profile.requiredReadsByRelation[state.binding?.relationId] || [sourceCollectionRead];
+    return state?.profile?.requiredReadsByRelation?.[state.binding?.relationId] || [];
 }
 
 /**
@@ -149,12 +153,17 @@ function prepareRouting(input = {}, dependencies = {}) {
     try {
         const catalog = input.tools || [];
         const names = new Set(catalog.map(t => t.function.name));
-        const declared = [...profile.requiredReads, ...profile.optionalCapabilities];
+        // Every capability the canary may plan or offer must be a registered read query, so a missing
+        // or non-read capability degrades to legacy instead of producing an unusable tool list.
+        const declared = [...profile.requiredReads, ...profile.optionalCapabilities,
+            ...profile.shortlist.map(name => ({ capability: name }))];
         if (declared.some(r => !names.has(r.capability) || getAiCapability(r.capability)?.access !== 'read'
             || getAiCapability(r.capability)?.operation !== 'query')) throw Error('READ_PROFILE_UNAVAILABLE');
         dependencies.validateProfile?.(profile);
         record.durationMs = performance.now() - started;
-        return { record, binding, profile, tools: profile.shortlist.map(name => catalog.find(t => t.function.name === name)),
+        const tools = profile.shortlist.map(name => catalog.find(t => t.function.name === name)).filter(Boolean);
+        if (!tools.length) throw Error('READ_PROFILE_UNAVAILABLE');
+        return { record, binding, profile, tools,
             rootReadArguments: rootReadArguments(binding, input.trustedToolResults || []),
             sourceEntityType: definition.fromType, targetEntityType: definition.toType };
     } catch {

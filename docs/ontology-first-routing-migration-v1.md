@@ -425,33 +425,76 @@ grounding, read-only-executor and execution-evidence guards.
 No Tool schema, Business API or DB change was needed: the bounded read already existed, it simply was not
 being used for this direction.
 
-### 15.4 Final acceptance result
+### 15.4 Alternative tested and rejected: dropping the undeliverable read
 
-Local, real-data, real-DeepSeek acceptance over the same eight-case corpus (four two-turn relation cases
-plus cost, stock, ambiguous and write-protection):
+Since the inverse read is undeliverable, the obvious next step was to stop *requiring* it: keep only the
+coil identity read for `coil -> recipes` and let the model fetch the collection as legacy does. **This was
+implemented, measured, and reverted** — it made the inverse direction strictly worse:
 
-| Relation case | OFF | ON before fix | ON after fix |
+| Relation case | OFF | ON requiring the read | ON without requiring it |
 | --- | --- | --- | --- |
-| 12-120 线圈用在哪些配方 | ✅ 2/2 | ❌ 0/2 | ✅ **2/2** |
-| v750-tokoy 用的是哪个线圈 | ✅ | ✅ 1/2 | ✅ **2/2** |
-| 12-140 线圈被哪些配方使用 | ✅ | ❌ 0/1 | ✅ **1/1** |
-| V1100-2寸 配的什么绕组 | ✅ | ❌ 0/2 | ✅ **2/2** |
-| **relation cases correct** | **4/4** | 1/4 | **4/4** |
+| 12-120 线圈用在哪些配方 | ✅ | ✅ | 1/2 |
+| 12-140 线圈被哪些配方使用 | ✅ | ✅ | **❌** |
+| 12-160 线圈用在哪些配方 | ✅ | ✅ | **❌** |
+| **relation cases correct** | **7/8** | 6/8 | **5/8** |
 
-Non-relation behaviour is unchanged: cost, stock and ambiguous questions stay on the legacy path
-(`toolsBeforeModel=false`), and the write request still only produces a confirmation card. Across every
-acceptance phase the business database was byte-identical afterwards (`total_changes` delta 0).
+The reason is visible in the tool traces: with no requirement, two of the inverse cases answered from
+`[search_coils]` alone and never fetched the recipe collection at all. The completion requirement is what
+makes the model actually gather the evidence.
+
+A repair round instead is not available either: the promotion gate requires **zero** ontology-induced
+provider calls, and one repair prompt per inverse question would break it.
+
+So the inverse direction keeps the requirement, and relies on §15.2's revocation to hand the turn back to
+legacy when the collection cannot be delivered. Closing it properly needs a bounded or aggregate
+collection read — a Tool schema change, outside this phase.
+
+### 15.5 Final acceptance result
+
+Local, real-data, real-DeepSeek acceptance over an extended corpus (eight two-turn relation cases covering
+both directions, plus cost, stock, ambiguous, unrelated-order, unsupported-relation and write-protection),
+repeated across five phases:
+
+| Relation case | OFF base | ON (before fix) | ON (dropped read) | ON (final) | OFF rollback |
+| --- | --- | --- | --- | --- | --- |
+| `12-120 线圈用在哪些配方` | ✅ | ✅ | 1/2 | ✅ | ✅ |
+| `12-140 线圈被哪些配方使用` | ✅ | ❌ | ❌ | ✅ | ✅ |
+| `12-160 线圈用在哪些配方` | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `12-200 线圈被哪些配方使用` | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `v750-tokoy 用的是哪个线圈` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `V1100-2寸 配的什么绕组` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `v1500-DY-ml 用的是哪个线圈` | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `800直出水切割泵 配的什么线圈` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **relation correct** | 7/8 | 6/8 | 5/8 | **8/8** | 7/8 |
+| canary-routed relation cases | 0 | 7 | 7 | 6 | 0 |
+| completed / errors | 13/14 · 1 | 13/14 · 1 | 14/14 · 0 | 14/14 · 0 | 14/14 · 0 |
+| business DB change | none | none | none | none | none |
+| writes | confirm-card only | confirm-card only | confirm-card only | confirm-card only | confirm-card only |
+
+Forward direction (`recipe -> coil`) is deterministic and stable: every run routed it through the bounded
+`get_recipe_detail{recipeId}` + coil-catalogue reads and answered correctly.
+
+Inverse direction (`coil -> recipes`) remains the variable part, and the variance is a property of the
+platform rather than of the canary: across runs the **legacy** path itself failed different inverse cases
+(R4 in the baseline, R1 and R7 in the rollback run), because the 121 KB collection read exceeds the 96 KB
+per-result budget on both paths and each side has to improvise with keyword searches.
+
+One transient fault was observed and characterised: `AI_INTENT_PLAN_INVALID` on the write request in two of
+five phases. Retrying that request three times produced the confirmation card every time, and no write ever
+occurred, so it is a fail-safe intent-parsing flake rather than a regression.
 
 Verification: ontology P1–P7 focused **371/371**, full regression **2517/2517**, API contract 26/26, web
 build PASS.
 
-### 15.5 Status
+### 15.6 Status
 
-Both causes are closed: the canary no longer issues an undeliverable read for recipe-rooted questions, and
-for the inverse direction it revokes itself and behaves exactly like legacy when the collection cannot be
-delivered. ON now matches legacy correctness on the real-data acceptance corpus.
+The forward direction is closed. The inverse direction is fail-safe and now measures at or above legacy on
+the acceptance corpus, but it is not *guaranteed* at parity: it depends on the model improvising a
+deliverable (filtered) collection read after the canary revokes itself, and on this database size the legacy
+path has the same limitation. Both paths share one root cause — the collection read cannot be delivered
+within the 96 KB per-result budget — and closing that requires a Tool schema change.
 
 The promotion therefore remains **PRODUCTION-CAPABLE BEHIND A DEFAULT-OFF FLAG**, still undeployed:
-production is untouched (`master @ 24106a1b`), the branch is not pushed, legacy code is not removed, and
-the canary flag is at its default OFF with the local environment restored byte-identically. Deployment
-still requires supervisor authorisation, and P9's legacy-cleanup entry gate is still unmet.
+production is untouched (`master @ 24106a1b`), the branch is not pushed, legacy code is not removed, and the
+canary flag is at its default OFF with the local environment restored byte-identically. Deployment requires
+supervisor authorisation, and P9's legacy-cleanup entry gate is still unmet.
