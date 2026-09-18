@@ -835,6 +835,21 @@ function emitSyntheticSmokeSpan() {
   };
 }
 
+function withOntologyShadowSpan(record, eligible) {
+  return withObservedSpan({
+    name: 'ontology_relation_shadow', kind: 'CHAIN',
+    attributes: {
+      'pump.ai.ontology.shadow.eligible': Boolean(eligible),
+      'pump.ai.ontology.shadow.relation_id': record.relationId || 'none',
+      'pump.ai.ontology.shadow.root_entity_type': record.root?.entityType || 'none',
+      'pump.ai.ontology.shadow.status': record.comparison.status,
+      'pump.ai.ontology.shadow.exact_match': record.comparison.exactCanonicalMatch,
+      'pump.ai.ontology.shadow.duration_ms': record.timing.ontologyMs,
+      ...correlationAttribute('pump.request.id', record.requestId),
+    },
+  }, async () => undefined);
+}
+
 async function resetObservabilityForTesting() {
   await safeShutdown({ logger: { warn() {} } });
   provider = null;
@@ -869,6 +884,7 @@ module.exports = {
   withEntityNormalizationSpan,
   withEntityResolutionSpan,
   withModelSpan,
+  withOntologyShadowSpan,
   withRoutingSpan,
   withToolSpan,
   withVerificationSpan,

@@ -501,6 +501,15 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         emit('done', {});
         session.finish({ memory: session.previous?.memory, ...savedMemoryState, pendingQuestion: completionReview && pendingPreview(toolResults) ? (savedMemoryState ? session.previous.pendingQuestion : latest.content) : null, question: savedMemoryState ? session.previous.pendingQuestion : latest.content, toolResults: toolResults.filter(item => hasVerifiedExecution(item.result)), answer: finalContent });
         const usage = usages.filter(Boolean).length ? Object.fromEntries(['promptTokens', 'completionTokens', 'totalTokens'].map(key => [key, usages.some(item => item?.[key] != null) ? usages.reduce((sum, item) => sum + (item?.[key] || 0), 0) : null])) : null;
+        if (String((runtimeEnv || process.env).AI_ONTOLOGY_RELATION_SHADOW_ENABLED ?? 'false').trim().toLowerCase() === 'true') {
+            setImmediate(() => {
+                try {
+                    void require('../ontology/runtimeShadow.cjs').observeShadow({
+                        userText: latest.content, toolResults, requestId: input.requestId,
+                    }, dependencies.ontologyShadow).catch(() => {});
+                } catch { /* Shadow never affects the completed authoritative answer. */ }
+            });
+        }
         return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {} } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });

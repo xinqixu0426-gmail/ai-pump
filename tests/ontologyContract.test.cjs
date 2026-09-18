@@ -169,7 +169,7 @@ for (const [name, mutate] of invalid) {
     });
 }
 
-test('ONT-P1: no production imports or new runtime/tool/service exposure', () => {
+test('ONT-P1/P3: only the authorized observer imports ontology; no tool/public exposure', () => {
     function scan(directory) {
         for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
             const file = path.join(directory, entry.name);
@@ -177,7 +177,10 @@ test('ONT-P1: no production imports or new runtime/tool/service exposure', () =>
                 if (file !== path.join(root, 'api', 'ontology')) scan(file);
             } else if (entry.name.endsWith('.cjs')) {
                 const text = fs.readFileSync(file, 'utf8');
-                assert.doesNotMatch(text, /require\s*\(\s*['"][^'"]*(?:\/ontology\/|ontology\/contract)/, file);
+                if (file === path.join(root, 'api', 'services', 'aiAssistantRuntime.cjs')) {
+                    assert.match(text, /require\('\.\.\/ontology\/runtimeShadow\.cjs'\)\.observeShadow/);
+                    assert.doesNotMatch(text, /ontology\/(?:resolver|contract)\.cjs/);
+                } else assert.doesNotMatch(text, /require\s*\(\s*['"][^'"]*(?:\/ontology\/|ontology\/contract)/, file);
             }
         }
     }

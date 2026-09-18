@@ -133,7 +133,7 @@ Reverse B reads conservatively validate a bounded source collection because ID-l
 
 ## Runtime-disabled boundary
 
-Ontology and all relation definitions still have `runtimeEnabled=false`. Only explicit internal/test construction invokes the resolver. There is no import into production chat, provider, routing, shortlist, prompt, capability registry, AI/MCP tool catalog, or a mounted HTTP route. Existing relationRead route remains unmounted. No schema/table, production data, lockfile, dependency, write API, or existing business API contract changed.
+Ontology and all relation definitions still have `runtimeEnabled=false`: they cannot direct routing, answers or evidence. ONT-P3 adds one explicitly authorized, default-OFF [observer import](./ontology-runtime-shadow-v1.md) after the assistant has completed its authoritative answer. A physically read-only worker invokes this resolver on the side. Provider, routing, shortlist, prompt, capability registry, AI/MCP tool catalog and mounted HTTP routes remain unchanged. Existing relationRead route remains unmounted. No schema/table, production data, lockfile, dependency, write API, or existing business API contract changed.
 
 ## Known gaps and ONT-P3 preconditions
 

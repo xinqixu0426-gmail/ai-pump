@@ -10,7 +10,7 @@ Start commit: `24106a1b41baa11a7a3e64e0fc78efa28121b271`.
 Branch: `codex/ont-p1-thin-contract`, isolated worktree `C:\Users\Dan\Documents\pump-ont-p1`.
 Original worktree: `master`, one user-owned untracked file `docs/ontology-preimplementation-audit.md`. Its exact UTF-8 contents were copied into this branch as the supplied P0 evidence; the original was not edited or staged. No existing tracked implementation was changed.
 
-**Supervisor status: PASS after accepting the P0 scope corrections**, as explicitly supplied in the ONT-P2 task. Entity Count = 7; Relation Family Count = 6; Directional Relation Definition Count = 12. The original P1 return was REWORK pending that decision; the accepted scope is six families, not the original nine-family proposal. No runtime integration is authorized.
+**Supervisor status: PASS after accepting the P0 scope corrections**, as explicitly supplied in the ONT-P2 task. Entity Count = 7; Relation Family Count = 6; Directional Relation Definition Count = 12. The original P1 return was REWORK pending that decision; the accepted scope is six families, not the original nine-family proposal. ONT-P3 authorizes an independently gated, default-OFF [runtime observer](./ontology-runtime-shadow-v1.md); ontology remains disabled as a routing, answer or evidence authority.
 
 ## Non-goals and source-of-truth boundary
 
