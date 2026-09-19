@@ -50,7 +50,16 @@ function recipeRows(toolResults) {
     return [...byId.values()];
 }
 function crossCatalogCandidates(toolResults) {
-    return toolResults.filter(verified).flatMap(item => Array.isArray(item.result?.crossCatalogCandidates) ? item.result.crossCatalogCandidates : []);
+    const candidates = toolResults.filter(verified).flatMap(item => Array.isArray(item.result?.crossCatalogCandidates) ? item.result.crossCatalogCandidates : []);
+    for (const item of toolResults.filter(verified)) {
+        if (item.name === 'search_parts') for (const row of [...dataRows(item), ...(Array.isArray(item.result?.parts) ? item.result.parts : [])]) candidates.push({
+            entityType: 'part', canonicalId: positiveId(row.id ?? row.Id), name: row.model || row.name || '',
+        });
+        if (item.name === 'search_templates') for (const row of dataRows(item)) candidates.push({
+            entityType: 'template', canonicalId: positiveId(row.id ?? row.Id), name: row.shellModel || row.name || '',
+        });
+    }
+    return [...new Map(candidates.filter(item => positiveId(item.canonicalId)).map(item => [`${item.entityType}:${item.canonicalId}`, item])).values()];
 }
 function catalogScopeVerified(toolResults) {
     const authoritative = name => toolResults.some(item => verified(item) && item.name === name
@@ -110,7 +119,9 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         if (['preview_recipe_cost', 'full_calculate'].includes(item.name) && data && (data.currentTotalCost != null || data.costPreview?.currentTotalCost != null || data.totalCost != null)) {
             addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: unique([positiveId(data.recipeId), canonicalId]) });
         }
-        if (item.name === 'get_recipe_detail' && item.result?.recipe?.currentCost?.currentTotalCost != null) addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [positiveId(item.result.recipe.id)] });
+        if (item.name === 'get_recipe_detail' && (item.result?.currentCost?.currentTotalCost != null || item.result?.recipe?.currentCost?.currentTotalCost != null)) {
+            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [positiveId(item.result.recipe.id)] });
+        }
         if (item.name === 'get_copper_price' && data && (data.pricePerKg != null || data.copperPrice != null || data.price != null)) addFact(facts, 'CURRENT_COPPER_PRICE_BASIS', 'VERIFIED');
     }
     if (coils.length) {
@@ -119,6 +130,10 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         addFact(facts, 'COIL_OFFICIAL_VARIANT_SET', coilEvidence.complete ? 'VERIFIED' : 'AMBIGUOUS', { canonicalIds: ids, candidateCount: coilEvidence.expectedCount });
         if (coilEvidence.complete && coils.every(row => row.cost != null || row.kitPrice != null)) addFact(facts, 'COIL_SCHEME_COST', 'VERIFIED', { canonicalIds: ids });
         if (coilEvidence.complete && coils.every(row => row.stock != null)) addFact(facts, 'COIL_VARIANT_INVENTORY', 'VERIFIED', { canonicalIds: ids });
+        const copperBases = unique(coils.map(row => row.copperBase).filter(value => value != null && Number.isFinite(Number(value))).map(String));
+        if (semantics.hypotheticalCopperPrice != null && coilEvidence.complete && copperBases.length === 1) {
+            addFact(facts, 'CURRENT_COPPER_PRICE_BASIS', 'VERIFIED', { canonicalIds: ids });
+        }
     }
     for (const item of toolResults.filter(item => verified(item) && item.name === 'calculate_coil_cost' && item.result?.data)) {
         addFact(facts, 'COIL_CANONICAL_IDENTITY', 'VERIFIED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
@@ -126,6 +141,8 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         if (semantics.wireWeight != null && item.result.data.isCustomWireWeight === true
             && Number(item.result.data.wireWeight) === Number(semantics.wireWeight)) {
             addFact(facts, 'COIL_OVERRIDE_APPLIED', 'VERIFIED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
+        } else if (semantics.wireWeight != null && item.result.data.isCustomWireWeight === false) {
+            addFact(facts, 'COIL_OVERRIDE_APPLIED', 'UNSUPPORTED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
         }
     }
     if (candidates.length || catalogScopeVerified(toolResults)) addFact(facts, 'CROSS_CATALOG_CANDIDATES', 'VERIFIED', {

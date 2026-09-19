@@ -107,15 +107,16 @@ function analyze(testCase, oracle, run) {
         facts, disclosures, claims, amounts, wrote: run.toolResults.some(item => /^(?:create|update|delete|adjust|execute|save)_/.test(item.name)),
         guessed: claims.includes('selected_variant_without_user'), complete: completeClaim, evidenceComplete: requiredEvidencePresent,
         ...(claimedCurrentAmount == null ? {} : { amountExpected: oracle.formalFacts.currentRecipeCost, amountActual: claimedCurrentAmount }),
-        answer, providerEvents: run.providerEvents, toolResults: run.toolResults };
+        answer, providerEvents: run.providerEvents, toolResults: run.toolResults, metrics: run.metrics, elapsedMs: run.elapsedMs };
 }
 
 async function streamCase(baseUrl, secret, testCase, runNumber) {
+    const startedAt = Date.now();
     const response = await fetch(`${baseUrl}/api/ai/chat`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-secret': secret },
         body: JSON.stringify({ messages: [{ role: 'user', content: testCase.question }], providerPreference: 'deepseek', conversationId: `bus-p0-${testCase.caseKey}-${runNumber}` }),
         signal: AbortSignal.timeout(Number(process.env.AI_CHAT_TIMEOUT_MS || 180000) + 15000) });
     if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-    const decoder = new TextDecoder(); let buffer = '', answer = ''; const toolResults = [], providerEvents = [];
+    const decoder = new TextDecoder(); let buffer = '', answer = ''; const toolResults = [], providerEvents = []; let metrics = null;
     for await (const chunk of response.body) {
         buffer += decoder.decode(chunk, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop() || '';
         for (const line of lines) { if (!line.startsWith('data: ')) continue; let event; try { event = JSON.parse(line.slice(6)); } catch { continue; }
@@ -123,10 +124,11 @@ async function streamCase(baseUrl, secret, testCase, runNumber) {
             if (event.type === 'tool_result') toolResults.push({ name: event.name, result: event.result });
             if (event.type === 'detail' && Array.isArray(event.toolResults)) { toolResults.length = 0; toolResults.push(...event.toolResults); }
             if (event.type === 'provider') providerEvents.push(event);
+            if (event.type === 'metrics') metrics = event;
             if (event.type === 'error') throw new Error(event.message || 'AI error');
         }
     }
-    return { answer, toolResults, providerEvents };
+    return { answer, toolResults, providerEvents, metrics, elapsedMs: Date.now() - startedAt };
 }
 
 async function main() {

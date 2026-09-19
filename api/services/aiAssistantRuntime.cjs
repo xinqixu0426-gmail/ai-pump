@@ -36,6 +36,12 @@ const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
 const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
 const { ensureTaskAnswer } = require('./aiResponsePresenter.cjs');
+const { buildBusinessSemanticFrame } = require('../business-semantics/frameBuilder.cjs');
+const { classifyQuestion: classifyBusinessQuestion } = require('../business-semantics/questionSemantics.cjs');
+const { buildBusinessEvidencePlan } = require('../business-semantics/evidencePlanner.cjs');
+const { validateBusinessSemanticFrame } = require('../business-semantics/validator.cjs');
+const { enforceSemanticAnswerBoundary } = require('../business-semantics/answerBoundary.cjs');
+const { EnforcementFlag, MAX_SEMANTIC_EVIDENCE_CALLS } = require('../business-semantics/evidencePlanContract.cjs');
 
 const { normalizeUserConfigurationOverrides } = require('./recipeConfigurationBaseline.cjs');
 
@@ -391,13 +397,24 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let offeredTools = tools;
         // Reuse catalog relevance detection for evidence requirements across providers.
         // The cloud tool directory and read permissions remain unchanged.
-        const requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
+        let requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
         const allowed = new Set(offeredTools.map(tool => tool.function.name));
         // ONT-P8L: the software-planned second repair hop has to be executable, but it is added to
         // `allowed` ONLY — never to `offeredTools` — so the model-visible legacy surface stays byte-identical
         // and the model still cannot choose this tool. This is not the option-B shortlist change.
         // Measured consequence of omitting it: the planned step 2 executed as AI_TOOL_NOT_ALLOWED.
         if (!ontologyRelationRouting && coilRecipeRelationQuery) allowed.add('get_recipes_by_coil');
+        const semanticEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, EnforcementFlag)
+            && buildBusinessSemanticFrame({ userText: latest.content, stage: 'PRE_EVIDENCE' }).question.kind !== 'OUT_OF_SCOPE';
+        // Alias authority is explicitly outside BUS-P2. Do not let the model issue variable catalogue
+        // reads that cannot resolve it; one synthesis call is still buffered and replaced by the
+        // deterministic clarification boundary.
+        if (semanticEnforcementActive && classifyBusinessQuestion(latest.content).requestedIdentity.aliasConcern) {
+            offeredTools = [];
+            requiresBusinessQuery = false;
+        }
+        if (semanticEnforcementActive) for (const name of ['get_all_recipes', 'get_recipe_detail', 'search_coils',
+            'calculate_coil_cost', 'get_copper_price', 'search_templates', 'search_parts', 'preview_recipe_cost', 'full_calculate']) allowed.add(name);
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
             ? [messages.at(-1)]
@@ -408,6 +425,24 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (persistedConversationContext) current.push({ role: 'system', content: previousContext(persistedConversationContext) });
         const seen = new Map();
         const knowledgeDocuments = new Map();
+        let semanticPlannedCallCount = 0;
+        let maxSemanticEvidencePlanBytes = 0;
+        let maxSemanticFrameBytes = 0;
+        const semanticCallMetadata = new Map();
+        let latestSemanticPlan = null;
+        const semanticToolCalls = () => {
+            if (!semanticEnforcementActive || semanticPlannedCallCount >= MAX_SEMANTIC_EVIDENCE_CALLS) return [];
+            latestSemanticPlan = buildBusinessEvidencePlan({ userText: latest.content, toolResults, plannedCallCount: semanticPlannedCallCount });
+            if (!latestSemanticPlan) return [];
+            maxSemanticEvidencePlanBytes = Math.max(maxSemanticEvidencePlanBytes, Buffer.byteLength(JSON.stringify(latestSemanticPlan)));
+            return latestSemanticPlan.execution.calls.map(item => {
+                const id = `business-semantic-evidence-${crypto.randomUUID()}`;
+                semanticCallMetadata.set(id, item);
+                semanticPlannedCallCount += 1;
+                return { id, type: 'function', function: { name: item.capability, arguments: JSON.stringify(item.arguments) } };
+            });
+        };
+        let requiredSemanticEvidenceCalls = semanticToolCalls();
         let requiredCoilComparisonCalls = coilComparisonPairs.map(pair => ({
             id: `required-calculate_coil_cost-${crypto.randomUUID()}`,
             type: 'function',
@@ -434,7 +469,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 break;
             }
             let answer;
-            if (requiredCoilComparisonCalls.length) {
+            if (requiredSemanticEvidenceCalls.length) {
+                answer = { content: '', tool_calls: requiredSemanticEvidenceCalls };
+                requiredSemanticEvidenceCalls = [];
+            } else if (requiredCoilComparisonCalls.length) {
                 answer = { content: '', tool_calls: requiredCoilComparisonCalls };
                 requiredCoilComparisonCalls = [];
             } else if (requiredRelationCalls.length) {
@@ -600,7 +638,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 }
                 break;
             }
-            if (calls + proposed.length > MAX_TOOL_CALLS || offered.length === 0) {
+            const semanticSoftwareBatch = proposed.length > 0 && proposed.every(call => semanticCallMetadata.has(call.id));
+            if (calls + proposed.length > MAX_TOOL_CALLS || (offered.length === 0 && !semanticSoftwareBatch)) {
                 if (offered.length && round < MAX_TOOL_ROUNDS - 1) {
                     finishQueries = true;
                     outcome = 'partial';
@@ -619,19 +658,17 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 const name = call.function?.name;
                 let args, result;
                 const toolStarted = Date.now();
+                const semanticMetadata = semanticCallMetadata.get(call.id);
                 try {
                     if (!allowed.has(name)) throw Object.assign(new Error('本轮只开放已登记的只读业务工具；业务修改需要本人确认，当前未启用。'), { code: 'AI_TOOL_NOT_ALLOWED' });
-                    const candidateGroundedCall = groundCandidateSelectionArgument(
-                        call,
-                        name,
-                        latest.content,
-                        continuationToolResults
-                    );
-                    const groundedCall = groundMissingTargetArgument(
-                        sanitizeModelInferredFilters(candidateGroundedCall, name, latest.content),
-                        name,
-                        explicitIdentifierFromUserText(latest.content),
-                        latest.content
+                    // Software-planned semantic calls already carry validated field-level provenance.
+                    // Passing them through model-oriented candidate/target repair can replace a verified
+                    // canonical ID with a fuzzy user phrase, violating the dependency rule.
+                    const groundedCall = semanticMetadata ? call : groundMissingTargetArgument(
+                        sanitizeModelInferredFilters(groundCandidateSelectionArgument(
+                            call, name, latest.content, continuationToolResults
+                        ), name, latest.content),
+                        name, explicitIdentifierFromUserText(latest.content), latest.content
                     );
                     const proposedArgs = normalizeExplicitCoilShorthandArgs(
                         JSON.parse(groundedCall.function.arguments || '{}'),
@@ -651,7 +688,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         && ['build_recipe_bom_draft', 'preview_recipe_cost'].includes(name)
                         ? normalizeUserConfigurationOverrides(proposedArgs, costMessages) : proposedArgs);
                     taskEnvelope = addTaskStep(taskEnvelope, name, args, getAiCapability(name));
-                    const issue = validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...continuationToolResults, ...toolResults] });
+                    // The semantic planner has already validated provenance and canonical dependencies.
+                    // The legacy guard only understands user/model-derived numbers and would reject a
+                    // verified recipe configuration (for example its coil sheet count) as "ungrounded".
+                    const issue = semanticMetadata ? null : validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...continuationToolResults, ...toolResults] });
                     if (issue) throw Object.assign(new Error(issue.error), { code: issue.code });
                     const key = `${name}:${JSON.stringify(args)}`;
                     if (seen.has(key)) result = seen.get(key);
@@ -685,7 +725,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     relationRouting.record.fallback = true;
                     relationRouting.record.fallbackReason = result.code || 'REQUIRED_READ_UNAVAILABLE';
                 }
-                toolResults.push({ name, args, result });
+                toolResults.push({ name, args, result, ...(semanticMetadata ? {
+                    planningSource: 'BUSINESS_SEMANTIC_EVIDENCE_PLAN',
+                    argumentProvenance: semanticMetadata.argumentProvenance,
+                    dependsOnFacts: semanticMetadata.dependsOnFacts,
+                } : {}) });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
                 current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments, userText: latest.content })));
@@ -712,6 +756,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     if (legacySoftwareRepairSteps >= MAX_SOFTWARE_REPAIR_STEPS) legacyRelationRepairState = LEGACY_RELATION_REPAIR_STATES.DONE;
                     continue;
                 }
+            }
+            if (semanticEnforcementActive && semanticPlannedCallCount < MAX_SEMANTIC_EVIDENCE_CALLS) {
+                requiredSemanticEvidenceCalls = semanticToolCalls();
+                if (requiredSemanticEvidenceCalls.length) continue;
             }
             const dashboardOverview = formatDashboardOverview(latest.content, toolResults);
             if (dashboardOverview) {
@@ -755,6 +803,16 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 finalContent
             );
         }
+        let postEvidenceSemanticFrame = null;
+        let semanticBoundary = null;
+        if (semanticEnforcementActive && !finalContentStreamed) {
+            postEvidenceSemanticFrame = buildBusinessSemanticFrame({ userText: latest.content, toolResults, stage: 'POST_EVIDENCE' });
+            validateBusinessSemanticFrame(postEvidenceSemanticFrame);
+            maxSemanticFrameBytes = Buffer.byteLength(JSON.stringify(postEvidenceSemanticFrame));
+            semanticBoundary = enforceSemanticAnswerBoundary({ frame: postEvidenceSemanticFrame, answer: finalContent,
+                toolResults, userText: latest.content });
+            finalContent = semanticBoundary.answer;
+        }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);
         if (!finalContentStreamed) emit('content', { content: finalContent });
@@ -789,7 +847,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 } catch { /* Semantic shadow never affects the completed authoritative answer. */ }
             });
         }
-        return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {} } };
+        return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {},
+            businessSemanticEnforcement: semanticEnforcementActive ? { plannedReads: semanticPlannedCallCount,
+                maxEvidencePlanBytes: maxSemanticEvidencePlanBytes, maxSemanticFrameBytes,
+                completenessStatus: postEvidenceSemanticFrame?.completeness?.status || null,
+                fallbackType: semanticBoundary?.fallbackType || null, replaced: semanticBoundary?.replaced || false } : null } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
         else session.cancel();
