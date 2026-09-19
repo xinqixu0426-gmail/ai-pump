@@ -38,6 +38,41 @@ function normalizeResourceQuery(value) {
     return normalizeResourceText(candidates[candidates.length - 1] || '');
 }
 
+/**
+ * 用户会用"变更描述"提问（"12-120换成12-140"、"550的重新核算"），模型有时把整句话塞进型号字段。
+ * 这句话不是任何正式名称：把它当成名称去查，只能得到"未找到配方：<整句话>"——那等于把用户的
+ * 变更意图误报成"这个对象不存在"，还会污染回答。
+ * 判定只在"所有名称形态都没命中"之后执行，所以任何原本能解析的输入行为不变。
+ */
+const INSTRUCTION_MARKERS_RE = /(?:换成|换为|改为|改成|替换|换掉|重新核算|重新算|核算|算一下|是多少|多少钱|的成本|的价格|去掉|不要|加装|减少|增加|我要找|我想找|帮我|麻烦|查一下|查询|看看|看一下|列出|有哪些|哪个|哪些|是什么|怎么样)/u;
+const INSTRUCTION_SEPARATORS_RE = /[\s，,。；;：:、]/u;
+
+function looksLikeInstructionFragment(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return false;
+    if (text.length > 40) return true;
+    if (!INSTRUCTION_MARKERS_RE.test(text)) return false;
+    // 短型号（"加装件-X"）不按句子处理；变更描述通常是完整短句或多段。
+    return text.length >= 8 || INSTRUCTION_SEPARATORS_RE.test(text);
+}
+
+const NOT_A_NAME_HINTS = Object.freeze({
+    recipe: '这是对已有配方的变更或追问，不是配方名称。请用已确认的 recipeId；已有在售配方可作基准（baseRecipeId）配合 overrides 试算，不要拿整句话去查名称。',
+    template: '这是对已有泵壳模板的变更或追问，不是模板型号。请用已确认的 templateId 读取或试算，不要拿整句话去查型号。',
+    coil: '这是对已有线圈方案的变更或追问，不是方案编码。请先用 search_coils 取得正式方案 ID，不要拿整句话去查方案名。',
+    default: '这是变更或提问描述，不是业务对象名称。请改用已确认的对象 ID 继续原目标，不要拿整句话去查名称。',
+});
+
+function notANameFailure(entityType, entityLabel, query) {
+    return {
+        code: 'AI_RESOURCE_QUERY_NOT_A_NAME',
+        entityType,
+        query,
+        error: `“${query}”是变更或提问描述，不是${entityLabel}名称`,
+        hint: NOT_A_NAME_HINTS[entityType] || NOT_A_NAME_HINTS.default,
+    };
+}
+
 function firstText(candidate, keys) {
     for (const key of keys) {
         const value = String(candidate?.[key] ?? '').trim();
@@ -181,6 +216,10 @@ function resolveUniqueResource(rows, options = {}) {
     if (matches.length === 0) {
         // 确实不存在时，用剥离噪声后的查询回答"不存在"，不把用户原话片段当实体名回显。
         const reported = candidates[candidates.length - 1] || query;
+        // 变更描述不是"不存在"：分开回答，并给出可执行的下一步。
+        if (looksLikeInstructionFragment(reported)) {
+            return notANameFailure(entityType, entityLabel, reported);
+        }
         return {
             code: 'AI_RESOURCE_NOT_FOUND',
             entityType,
@@ -360,6 +399,7 @@ module.exports = {
     bindResolutionToolCalls,
     findToolClarification,
     inferEntityType,
+    looksLikeInstructionFragment,
     normalizeResourceQuery,
     normalizeResourceText,
     normalizeResolutionContext,

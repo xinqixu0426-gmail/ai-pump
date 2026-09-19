@@ -5478,6 +5478,30 @@ test('AI executor 行为：型号简称查不到配方时补跨目录候选，�
     ]);
 });
 
+test('AI executor 行为：把变更描述当型号名查时，返回可执行提示而不是"未找到配方"', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' }] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: '12-120换成12-140',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'AI_RESOURCE_QUERY_NOT_A_NAME');
+    assert.equal(result.query, '12-120换成12-140');
+    assert.doesNotMatch(result.error, /未找到/u);
+    assert.match(result.error, /不是配方名称/u);
+    assert.match(result.hint, /overrides/u);
+    // 变更描述不是"型号简称"，不应触发跨目录探测。
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+    ]);
+});
+
 test('AI executor 行为：有覆盖的配方成本查询保持正式 overridePreview', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {

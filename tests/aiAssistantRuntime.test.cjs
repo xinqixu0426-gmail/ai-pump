@@ -1099,6 +1099,44 @@ test('an answer claiming an unsupported amount is still replaced by the formal d
     assert.match(result.finalContent, /285\.8/);
 });
 
+// 变更描述被塞进型号字段时，模型必须看到可执行提示，而不是"未找到配方：<整句话>"。
+test('a change-description name failure reaches the model as a hint, never as a verified missing target', async () => {
+    let firstToolMessage = '';
+    const executed = [];
+    const result = await runAiAssistant({
+        ...input('如果我把12-120换成12-140，成本是多少'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('preview_recipe_cost', { recipeName: '12-120换成12-140' })] },
+        (messages) => {
+            firstToolMessage = String(messages.find(message => message.role === 'tool')?.content || '');
+            return { tool_calls: [call('build_recipe_bom_draft', { baseRecipeId: 12, coilSpec: '12', coilSheets: 140 })] };
+        },
+        { content: '按在售配方基准重算，换成 12-140 后整机当前总成本 285.80 元。' },
+    ], { executeToolCall: async (name, args) => {
+        executed.push({ name, args });
+        if (name === 'preview_recipe_cost') {
+            return {
+                success: false,
+                code: 'AI_RESOURCE_QUERY_NOT_A_NAME',
+                entityType: 'recipe',
+                query: '12-120换成12-140',
+                error: '“12-120换成12-140”是变更或提问描述，不是配方名称',
+                hint: '这是对已有配方的变更或追问，不是配方名称。请用已确认的 recipeId；已有在售配方可作基准（baseRecipeId）配合 overrides 试算。',
+                executionEvidence: { verified: true, kind: 'formal_api_query_failure', calls: [{ method: 'GET', path: '/api/recipes' }] },
+            };
+        }
+        return bomPreviewResult();
+    } }));
+    assert.match(firstToolMessage, /不是配方名称/u);
+    assert.match(firstToolMessage, /overrides/u);
+    assert.doesNotMatch(firstToolMessage, /未找到配方：12-120换成12-140/u);
+    // 模型据此改用配方基准继续原目标，金额重新来自正式试算。
+    assert.deepEqual(executed.map(item => item.name), ['preview_recipe_cost', 'build_recipe_bom_draft']);
+    assert.equal(executed[1].args.baseRecipeId, 12);
+    assert.match(result.finalContent, /285\.80/);
+});
+
 // C（生产会话 58：「V750 的成本是多少」）：空手反问必须带上正式目录里真实存在的候选。
 test('a vague clarification about a model shorthand gets the verified cross-catalog candidates', async () => {
     const missing = {

@@ -108,3 +108,30 @@ test('AI 资源解析：上一轮候选的唯一绑定同样容忍结尾助词',
     assert.equal(bound.issue, null);
     assert.deepEqual(JSON.parse(bound.toolCalls[0].function.arguments), { recipeId: 3 });
 });
+
+// --- 变更描述被塞进型号字段（生产会话 58 msg 321「12-120换成12-140」、msg 329「550的重新核算」） ---
+test('AI 配方解析：变更描述不算"不存在"，给出可执行的下一步', () => {
+    for (const spoken of ['12-120换成12-140', '550的重新核算', '把12-120换成12-140成本多少']) {
+        const result = resolveUniqueRecipe(productionLikeRecipes, { recipeName: spoken });
+        assert.equal(result.code, 'AI_RESOURCE_QUERY_NOT_A_NAME', spoken);
+        assert.equal(result.entityType, 'recipe');
+        assert.match(result.error, /不是配方名称/);
+        assert.doesNotMatch(result.error, /未找到/);
+        assert.match(result.hint, /recipeId/);
+        assert.match(result.hint, /overrides/);
+    }
+});
+
+test('AI 配方解析：变更描述判定不影响任何原本能解析的名称', () => {
+    // 真正存在、名字里带"替换/加装"等字样时，先按名称解析，不会被当成变更描述。
+    const rows = [
+        { id: 21, name: '替换件-X-长型号', spec: '' },
+        { id: 22, name: '加装支架-2寸-通用', spec: '' },
+    ];
+    assert.equal(resolveUniqueRecipe(rows, { recipeName: '替换件-X-长型号' }).recipe.id, 21);
+    assert.equal(resolveUniqueRecipe(rows, { recipeName: '加装支架-2寸-通用' }).recipe.id, 22);
+    // 短型号查不到时仍是"不存在"，不被误判成变更描述。
+    const missing = resolveUniqueRecipe(rows, { recipeName: '加装件-Q' });
+    assert.equal(missing.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.match(missing.error, /未找到配方：加装件-Q$/);
+});

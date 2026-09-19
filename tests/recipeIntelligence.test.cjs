@@ -238,6 +238,11 @@ test('配方智能分析支持未保存草稿并拒绝含糊名称', () => {
         () => analyzeRecipeConfiguration({ recipeName: 'V1600的' }, { recipes, parts: [] }),
         error => /未找到配方：V1600$/.test(error.message) && !error.message.includes('V1600的')
     );
+    // 变更描述不是"不存在"，也不是含糊名称：要给出可执行提示。
+    assert.throws(
+        () => analyzeRecipeConfiguration({ recipeName: '把12-120换成12-140' }, { recipes, parts: [] }),
+        error => /不是配方名称/.test(error.message) && !/未找到/.test(error.message)
+    );
 
     const result = analyzeRecipeConfiguration({
         draft: {

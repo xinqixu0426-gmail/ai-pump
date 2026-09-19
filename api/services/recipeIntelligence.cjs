@@ -1,4 +1,4 @@
-const { stripQueryNoise } = require('./aiResourceResolutionV3.cjs');
+const { looksLikeInstructionFragment, stripQueryNoise } = require('./aiResourceResolutionV3.cjs');
 
 function loadDbAccessors() {
     return require('../db.cjs');
@@ -186,7 +186,12 @@ function resolveRecipe(input, recipes) {
     if (matches.length > 1) {
         throw inputError(`成品型号不明确，请从以下型号中选择：${matches.slice(0, 8).map(recipe => recipe.name).join('、')}`);
     }
-    throw inputError(`未找到配方：${cleanedName || input.recipeName}`);
+    // 变更描述不是"不存在"：分开回答，别把用户的变更意图说成这个配方不存在。
+    const reported = cleanedName || input.recipeName;
+    if (looksLikeInstructionFragment(reported)) {
+        throw inputError(`“${reported}”是变更或提问描述，不是配方名称；请用已确认的 recipeId 配合覆盖项试算`);
+    }
+    throw inputError(`未找到配方：${reported}`);
 }
 
 function isShellPart(part) {
