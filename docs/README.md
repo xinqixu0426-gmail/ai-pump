@@ -33,6 +33,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 | 运维 | [运行手册](./operations-runbook.md)、[发布清单](./deployment-checklist.md)、[备份恢复](./database-backup-recovery.md) | 运行、发布、备份和故障恢复 |
 | 集成 | [MCP 开发指南](mcp-development-guide.md) | 外部 Agent 接入与身份配置 |
 | AI 运行 | [私人 AI 助理](ai-assistant.md) | 当前链路、使用方法、记忆与能力边界 |
+| AI 业务规矩 | [AI 业务规矩册](./ai-business-rulebook.md) | 成本/价格口径、假设问法、身份与回答规矩，逐条标明"已强制 / 仅提示 / 未支持" |
 | AI 验收 | [AI 学习发布门禁](./ai-learning-release-gate-guide.md) | 真实 AI 回归与失败处理 |
 | 历史 | [阶段档案](archive/README.md)、[观测基线](ai-observability/trace-contract-v1.md) | 已退役方案、阶段结论和原始验证证据 |
 

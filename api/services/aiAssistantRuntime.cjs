@@ -31,6 +31,7 @@ const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, f
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
+const { enforceBusinessRules } = require('./aiBusinessRulebook.cjs');
 const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
 const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
@@ -741,6 +742,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         finalContent = appendCrossCatalogCandidates(finalContent, toolResults);
         // 同一 规格-片数 有多套正式方案时，回答不能只讲一套（12-220 = 钢带/小眼 + 冷轧/国标眼）。
         finalContent = appendMissingCoilVariants(finalContent, toolResults);
+        // 规矩册：成本/价格口径类规矩由系统确定性补齐，不靠模型自觉（见 docs/ai-business-rulebook.md）。
+        finalContent = enforceBusinessRules({
+            answer: finalContent,
+            userText: latest.content,
+            toolResults,
+        }).answer;
         if (!finalContentStreamed) {
             finalContent = ensureTaskAnswer(
                 taskEnvelope,

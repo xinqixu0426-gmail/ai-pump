@@ -37,7 +37,7 @@ Windows 本地入口为 `http://localhost:3000/ai`，登录入口为 `/login`，
 - 模板查询未取得正式预览就结束时，按工具结果触发一次完成性复核，不依赖反问措辞；可选配置不自动升级为必填。模板目录向模型只展示身份、基本配置和详情入口，避免多个完整 BOM 累积挤占试算空间，页面原始明细保持完整。模板搜索支持空白分隔多个关键词全部匹配，保留所有正式候选供消歧。模板结果提供已有 build_recipe_bom_draft 试算入口，已知配置可直接调用，由服务端返回默认口径、缺项和歧义，不必先查已有配方或猜测未指定参数；同时明确区分套件成本、人工费与零件目录单价，物料单价须另查正式零件目录。最后一轮撤下工具时同步通知模型查询结束，并把历史工具协议转换为带来源的查询数据，保留全部回执内容供最终回答，防止继续模仿调用格式。
 - 成本预览已有总价时，最终回答不能只提原材料单价或“见上文”；遗漏正式总价将回显正式汇总。模型正文中的 DSML/XML 工具协议不作为工具调用或用户答案，最多纠正一次，仍失败则明确停止并保留已核实事实。
 
-源码入口：`api/routes/ai/chat.cjs`、`api/services/aiDispatcherV3.cjs`、`aiProtectedCommandRoute.cjs`、`aiAssistantRuntime.cjs`、`aiAgentRuntimeV3.cjs`。HTTP 字段、错误与回执见 [API 总表](api-reference.md)，通用约束见 [API 契约](api-contract.md)。
+源码入口：`api/routes/ai/chat.cjs`、`api/services/aiDispatcherV3.cjs`、`aiProtectedCommandRoute.cjs`、`aiAssistantRuntime.cjs`、`aiAgentRuntimeV3.cjs`。成本与价格口径、假设问法、身份与回答方式等业务规矩统一登记在 [AI 业务规矩册](./ai-business-rulebook.md)，每条标明"已强制 / 仅提示 / 未支持"：已强制的规矩由系统确定性补齐（例如问整机成本但本轮只有线圈金额时自动补口径说明、按假设铜价提问时自动说明本轮用的是当日正式铜基价），不依赖模型自觉；仅提示的规矩没有系统保证，回答波动属已知状态。HTTP 字段、错误与回执见 [API 总表](api-reference.md)，通用约束见 [API 契约](api-contract.md)。
 
 ## 3. 长期记忆怎么用
 

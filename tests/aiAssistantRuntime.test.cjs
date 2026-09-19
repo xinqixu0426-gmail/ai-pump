@@ -1163,6 +1163,37 @@ test('an answer covering only one of several official coil variants is completed
     assert.match(result.finalContent, /请确认要采用哪一套/);
 });
 
+// 规矩册：问整机成本但本轮只有线圈级金额时，系统必须补齐口径说明（不靠模型自觉）。
+test('the rulebook appends the cost-basis note when a machine-cost question got only coil amounts', async () => {
+    const result = await runAiAssistant({
+        ...input('V550 配方的成本是多少（配 12-140 那套线圈）'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('search_coils', { spec: '12', sheets: 140 })] },
+        { content: '12-140 钢带小眼的当前成本是 116.99 元。' },
+    ], { executeToolCall: async () => verified([
+        { id: 2, spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeCode: 'COIL-0002', copperBase: 110.18, cost: 116.99 },
+    ]) }));
+
+    assert.match(result.finalContent, /116\.99 元/);
+    assert.match(result.finalContent, /口径说明：上面的金额是\*\*线圈方案成本\*\*/);
+    assert.match(result.finalContent, /整机（成品）成本要按在售配方为基准重新核算/);
+});
+
+// 规矩册：假设铜价必须说明本轮是按哪个铜价口径算的。
+test('the rulebook states the copper-price basis for a hypothetical-price question', async () => {
+    const result = await runAiAssistant({
+        ...input('如果按照铜价95算，V550的成本是多少'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('preview_recipe_cost', { recipeId: 12 })] },
+        { content: 'V550 的当前完整成本是 268.00 元。' },
+    ], { executeToolCall: async () => verified({ recipeId: 12, currentTotalCost: 268, partsCost: 247, laborCost: 21 }) }));
+
+    assert.match(result.finalContent, /268\.00 元/);
+    assert.match(result.finalContent, /\*\*不是\*\*按你假设的价格算出来的/);
+});
+
 // C（生产会话 58：「V750 的成本是多少」）：空手反问必须带上正式目录里真实存在的候选。
 test('a vague clarification about a model shorthand gets the verified cross-catalog candidates', async () => {
     const missing = {
