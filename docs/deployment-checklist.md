@@ -2,15 +2,17 @@
 
 > 更新于 2026-09-19。
 
-## 2026-09-19 旧 AI 发布用例退役 + 变更描述识别：代码已上线，最后一步验收被数据量挡住
+## 2026-09-19 旧 AI 发布用例退役 + 变更描述识别：发布全绿（MCP 验收按决定停用）
 
-- 发布提交 `90cf72e`（含 `fc29c66` 变更描述识别、`f88282f` 用例退役与迁移 86）。生产已快进拉取、重启并验证：ready=true、迁移与 `PRAGMA user_version` 均为 **86**、启动备份通过、运行 commit `90cf72e`。Mac Mini 上完整代码门禁通过：全量测试 **2564/2564**、API 契约 26/26、深度 API 490/490、lint、生产构建、依赖与环境检查。
-- 第 [7/9] 步真实 AI 发布门禁本次**通过**：报告 `status=passed`、`blocked=false`、`coreCasesRetired=true`、`retiredAt=2026-09-19`，`note` 明确写出"本轮没有可执行用例，因此不构成 AI 质量证据"（`logs/ai-release-gate-latest.json`）。退役按技术债 §2.3 的要求实施：`CORE_AI_RELEASE_CASE_KEYS` 显式置空、旧 key 移入 `RETIRED_AI_RELEASE_CASE_KEYS`、迁移 86 删除九条用例行及其运行结果。生产复核：`ai_evaluation_cases` 0 行、`ai_evaluation_results` 0 行、外键异常 0、`integrity_check=ok`，59 条运行历史保留作审计。
-- 第 [9/9] 步生产 MCP 全领域只读验收原本仍会失败，原因与本次代码无关：`verify:mcp-prod-read` 要求至少两个正式配方才能验收成本对比，生产当前只有 1 个未删除配方（`error=生产环境至少需要两个正式配方才能验收成本对比`）。随后按负责人 2026-09-19 决定**暂时停用该步骤作为发布阻断项**（负责人表示若 ontology 能满足需求，可能弃用 MCP）：`scripts/deploy-macmini-release.sh` 默认跳过并打印原因，`scripts/deploy-macmini.ps1` 新增 `-McpAcceptance disabled|enabled`（默认 `disabled`），恢复方式为 `npm run deploy:macmini -- -McpAcceptance enabled`。服务端 `/mcp`、只读工具、`verify:mcp-local`、`verify:mcp-write-local` 与手工执行该命令均不受影响。
-- 变更描述识别（生产会话 58 msg 321/329）：解析层在"所有名称形态都没命中"之后判断请求是否为变更或提问描述，是则返回 `AI_RESOURCE_QUERY_NOT_A_NAME` 与可执行提示，不再把用户整句话回显成"未找到配方：…"；模板路径（`preview_pump_shell_cost` 的 `shellModel`）同样处理，并复用同一判定与提示文案。
-- 生产真实对话复现两次：`如果我把12-120换成12-140，成本是多少` → 只查线圈方案并明确说明"以上只是线圈方案成本，整机需给出配方基准"；`替换550的重新核算` → 先定位到配方 `V550大脚板-2寸-经典款`（ID 12），再按泵壳/线圈/机筒/浮球/电缆/包装逐项澄清缺什么。两次都没有把整句话塞进型号字段（因此新分支未被真实触发，其行为由单元、executor 与运行时测试覆盖）。
+- 最终发布提交 `f91b377`（会话内依次为 `fc29c66` 变更描述识别、`f88282f` 用例退役与迁移 86、`90cf72e` 模板路径补全、`408f1bb` 停用 MCP 验收步骤、`f91b377` 恢复 deploy 包装脚本 BOM）。**本次发布 `npm run deploy:macmini` 首次整条跑通并以退出码 0 结束，用时 53 秒**：代码门禁（全量测试 2564/2564、API 契约 26/26、深度 API 490/490、lint、生产构建、依赖与环境检查）→ 重启 → ready/启动备份/运行 commit 核对 → [7/9] AI 门禁 → [8/9] 公网验收 → [9/9] 跳过 MCP 验收。生产复核：运行 `f91b377`、ready=true、迁移与 `user_version` 均为 86、外键异常 0、`logs/release-code-gate-f91b377….json` 记录代码门禁通过。
+- 第 [7/9] 步真实 AI 发布门禁通过：报告 `status=passed`、`blocked=false`、`coreCasesRetired=true`、`retiredAt=2026-09-19`，控制台同时打印"核心用例已于 2026-09-19 全部退役，本轮没有可执行的 AI 回归项；本次发布不据此声称 AI 质量证据"。退役实施见技术债 §2.3：`CORE_AI_RELEASE_CASE_KEYS` 显式置空、迁移 86 删除九条用例行及其运行结果；生产复核 `ai_evaluation_cases` 0 行、`ai_evaluation_results` 0 行、外键异常 0，59 条运行历史保留作审计。
+- 第 [9/9] 步生产 MCP 全领域只读验收按负责人 2026-09-19 决定**暂时停用**：`scripts/deploy-macmini-release.sh` 默认跳过并打印原因与恢复方式，`scripts/deploy-macmini.ps1` 新增 `-McpAcceptance disabled|enabled`（默认 `disabled`）。恢复命令 `npm run deploy:macmini -- -McpAcceptance enabled`。停用原因是该验收的成本对比场景要求至少两个正式配方，而生产只有 1 个未删除配方；负责人同时表示若 ontology 能满足需求可能弃用 MCP。服务端 `/mcp`、只读工具、`verify:mcp-local`、`verify:mcp-write-local` 与手工执行该命令均不受影响。
+- 变更描述识别（生产会话 58 msg 321/329）：解析层在所有名称形态都没命中之后判断请求是否为变更或提问描述，是则返回 `AI_RESOURCE_QUERY_NOT_A_NAME` 与可执行提示，不再把用户整句话回显成"未找到配方：…"；模板路径（`preview_pump_shell_cost` 的 `shellModel`）同样处理并复用同一判定与提示。
+- 生产真实对话复现两次：`如果我把12-120换成12-140，成本是多少` → 只查线圈方案并说明"以上只是线圈方案成本，整机需给配方基准"；`替换550的重新核算` → 先定位配方 `V550大脚板-2寸-经典款`（ID 12），再按泵壳/线圈/机筒/浮球/电缆/包装逐项澄清缺什么。两次都没有把整句话塞进型号字段（新分支未被真实触发，其行为由单元、executor 与运行时测试覆盖）。
+- **失败尝试与原因（保留真实记录）**：`408f1bb` 推送后第一次发布在本地 PowerShell 解析阶段就失败，退出码 1，生产未被改动（未拉取）。根因是编辑 `scripts/deploy-macmini.ps1` 时丢掉了文件原有的 UTF-8 BOM，Windows PowerShell 5.1 于是按系统 ANSI 代码页解析 `.ps1`，中文乱码并报 `Missing expression after ','`。修复 `f91b377` 恢复 BOM，并用 `Parser::ParseFile` 复核 0 错误。教训：本仓库的 `.ps1` 若含中文必须保留 UTF-8 BOM（另两个 `.ps1` 为纯 ASCII，无需 BOM）。
+- **需要留意的一次生产状态变化（非本次代码引起）**：服务在 08:18:22 重启时，启动自动同步按设计重建了知识库，`knowledge_entries` 从被清空状态恢复为 263 条、`knowledge_embeddings` 263 条（150 条业务变更 + 88 零件 + 14 线圈 + 5 业务规则 + 客户/质量/配方/模板各若干），后续几次重启的同步均为 success 且未再新增。知识是业务数据的可重建投影，业务数据未受影响；若确实希望知识库保持为空，需要关闭运行设置中的自动同步，而不是依赖一次性清理。
 - 顺带修掉一个既有偶发失败：隐私断言 `/301|501|601/` 会撞上运行时长毫秒数的数字片段（例如 0.301ms 里的 `301`），现在隐私断言只看非数值内容。
-- 本次未改动生产 `.env`、凭据、写权限或业务数据；退役只删除 AI 评测用例及其运行结果。
+- 本次未改动生产 `.env`、凭据、写权限或业务数据（评测用例退役除外）。
 
 ## 2026-09-19 AI 助理三处行为修复发布：代码已上线，AI 门禁仍被陈旧用例拦住
 
