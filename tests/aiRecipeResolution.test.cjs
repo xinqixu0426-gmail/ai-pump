@@ -3,6 +3,10 @@ const assert = require('node:assert/strict');
 const {
     resolveUniqueRecipe,
 } = require('../api/services/aiRecipeResolution.cjs');
+const {
+    bindResolutionToolCalls,
+    resolveUniqueResource,
+} = require('../api/services/aiResourceResolutionV3.cjs');
 
 const recipes = [
     { id: 1, name: 'v550-tokoy' },
@@ -39,4 +43,68 @@ test('AI 配方解析：显式 ID 优先并保持零匹配语义', () => {
     assert.match(missing.error, /99/);
     assert.equal(missing.entityType, 'recipe');
     assert.equal(missing.query, '99');
+});
+
+// --- A：口语片段被当成实体名（生产会话 58：「我要找V550的」→「未找到配方：V550的」） ---
+const productionLikeRecipes = [
+    { id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' },
+];
+
+test('AI 配方解析：结尾语气助词被剥离后仍能唯一绑定配方', () => {
+    for (const spoken of ['V550的', 'V550呢', 'V550吧', 'V550的？', 'V550 的 ', 'v550的', 'V550啊']) {
+        const result = resolveUniqueRecipe(productionLikeRecipes, { recipeName: spoken });
+        assert.equal(result.recipe?.id, 12, `${spoken} 应绑定配方ID 12`);
+        assert.equal(result.error, undefined, `${spoken} 不得报"未找到配方"`);
+    }
+});
+
+test('AI 配方解析：剥离助词后命中多条必须走候选澄清，而不是"未找到"', () => {
+    const result = resolveUniqueRecipe([
+        { id: 12, name: 'V550大脚板-2寸-经典款', spec: '' },
+        { id: 13, name: '水泵-V550-大脚板-2寸-12-120片-经典款', spec: '' },
+    ], { recipeName: 'V550的' });
+    assert.equal(result.code, 'AI_RESOURCE_AMBIGUOUS');
+    assert.equal(result.requiresClarification, true);
+    assert.equal(result.query, 'V550');
+    assert.match(result.error, /匹配到 2 个配方/);
+    assert.doesNotMatch(result.error, /未找到/);
+    assert.deepEqual(result.clarification.candidates.map(item => item.canonicalId), [12, 13]);
+    assert.doesNotMatch(JSON.stringify(result), /V550的/u);
+});
+
+test('AI 配方解析：确实不存在时明确说不存在，不回显口语片段', () => {
+    const missing = resolveUniqueRecipe(productionLikeRecipes, { recipeName: 'V250的' });
+    assert.equal(missing.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.equal(missing.query, 'V250');
+    assert.match(missing.error, /未找到配方：V250$/);
+    assert.doesNotMatch(JSON.stringify(missing), /V250的/u);
+});
+
+test('AI 资源解析：正式名称本身以助词结尾时，原样精确匹配优先', () => {
+    const result = resolveUniqueResource([
+        { id: 1, name: '样品的' },
+        { id: 2, name: '样品' },
+    ], { entityType: 'recipe', nameKeys: ['name'], query: '样品的' });
+    assert.equal(result.resource?.id, 1);
+    assert.equal(result.code, undefined);
+});
+
+test('AI 资源解析：上一轮候选的唯一绑定同样容忍结尾助词', () => {
+    const context = {
+        version: 3,
+        kind: 'resource_selection',
+        sourceTool: 'preview_recipe_cost',
+        entityType: 'recipe',
+        query: 'V750',
+        candidates: [
+            { index: 1, label: 'V750-出口版', description: '', canonicalId: 3, canonicalName: 'V750-出口版' },
+            { index: 2, label: 'V750 菲律宾', description: '', canonicalId: 4, canonicalName: 'V750 菲律宾' },
+        ],
+    };
+    const bound = bindResolutionToolCalls([{
+        id: 'call-1',
+        function: { name: 'preview_recipe_cost', arguments: JSON.stringify({ recipeName: 'V750-出口版的' }) },
+    }], context);
+    assert.equal(bound.issue, null);
+    assert.deepEqual(JSON.parse(bound.toolCalls[0].function.arguments), { recipeId: 3 });
 });

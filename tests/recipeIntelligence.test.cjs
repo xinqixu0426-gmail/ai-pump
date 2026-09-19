@@ -224,6 +224,21 @@ test('配方智能分析支持未保存草稿并拒绝含糊名称', () => {
         /成品型号不明确/
     );
 
+    // A：口语助词不属于正式名称，剥离后仍应按正式名称解析或不含含糊回显。
+    assert.throws(
+        () => analyzeRecipeConfiguration({ recipeName: 'V750的' }, { recipes, parts: [] }),
+        /成品型号不明确/
+    );
+    const cleaned = analyzeRecipeConfiguration(
+        { recipeName: 'V750 菲律宾的' },
+        { recipes, parts: [] }
+    );
+    assert.equal(cleaned.recipe.id, 1);
+    assert.throws(
+        () => analyzeRecipeConfiguration({ recipeName: 'V1600的' }, { recipes, parts: [] }),
+        error => /未找到配方：V1600$/.test(error.message) && !error.message.includes('V1600的')
+    );
+
     const result = analyzeRecipeConfiguration({
         draft: {
             name: '新配方草稿',

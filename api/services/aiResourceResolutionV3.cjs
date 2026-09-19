@@ -13,6 +13,31 @@ function normalizeResourceText(value) {
     return String(value || '').trim().toLocaleLowerCase('zh-CN');
 }
 
+/**
+ * 用户口语会把语气助词和标点粘在对象名后面（"V550的"、"V550 吧"、"V550呢？"）。
+ * 这些噪声不是任何正式名称的一部分：不剥离就会让一个本来能唯一命中的简称
+ * 退化成 `未找到配方：V550的`，把用户原话当成实体名回显给用户。
+ * 只剥离查询串末尾的语气助词、标点和空白，不改动名称本身的归一化。
+ */
+const QUERY_TRAILING_NOISE_RE = /(?:[的了吧呢啊吗呀嘛哦喔噢哈哪啦嘞么]|[。，、；：？！,.;:?!~～\s])+$/u;
+
+function stripQueryNoise(value) {
+    return String(value ?? '').replace(QUERY_TRAILING_NOISE_RE, '');
+}
+
+/** 查询串的候选形态，原样优先（正式名称可能真的以这些字符结尾），剥离后兜底。 */
+function queryCandidates(value) {
+    const raw = String(value ?? '').trim();
+    const stripped = stripQueryNoise(raw).trim();
+    return [...new Set([raw, stripped].filter(Boolean))];
+}
+
+/** 查询串归一化：先剥离口语噪声再归一，用于匹配用户输入而不是资源名称。 */
+function normalizeResourceQuery(value) {
+    const candidates = queryCandidates(value);
+    return normalizeResourceText(candidates[candidates.length - 1] || '');
+}
+
 function firstText(candidate, keys) {
     for (const key of keys) {
         const value = String(candidate?.[key] ?? '').trim();
@@ -131,30 +156,42 @@ function resolveUniqueResource(rows, options = {}) {
             };
     }
 
-    const normalizedQuery = normalizeResourceText(query);
-    const exactMatches = normalizedQuery
-        ? resources.filter(row => nameKeys.some(key => (
+    // 原样查询优先（正式名称可能真的以语气助词结尾），剥离口语噪声后的形态兜底。
+    const candidates = queryCandidates(query);
+    let matches = [];
+    let matchedQuery = query;
+    for (const candidate of candidates) {
+        const normalizedQuery = normalizeResourceText(candidate);
+        if (!normalizedQuery) continue;
+        const exactMatches = resources.filter(row => nameKeys.some(key => (
             normalizeResourceText(row?.[key]) === normalizedQuery
-        )))
-        : [];
-    const matches = exactMatches.length > 0
-        ? exactMatches
-        : resources.filter(row => nameKeys.some(key => (
-            normalizedQuery && normalizeResourceText(row?.[key]).includes(normalizedQuery)
         )));
+        const found = exactMatches.length > 0
+            ? exactMatches
+            : resources.filter(row => nameKeys.some(key => (
+                normalizeResourceText(row?.[key]).includes(normalizedQuery)
+            )));
+        if (found.length > 0) {
+            matches = found;
+            matchedQuery = candidate;
+            break;
+        }
+    }
 
     if (matches.length === 0) {
+        // 确实不存在时，用剥离噪声后的查询回答"不存在"，不把用户原话片段当实体名回显。
+        const reported = candidates[candidates.length - 1] || query;
         return {
             code: 'AI_RESOURCE_NOT_FOUND',
             entityType,
-            query,
-            error: `未找到${entityLabel}：${query || '-'}`,
+            query: reported,
+            error: `未找到${entityLabel}：${reported || '-'}`,
         };
     }
     if (matches.length > 1) {
         return ambiguousResourceResolution({
             entityType,
-            query,
+            query: matchedQuery,
             candidates: options.candidateView
                 ? matches.map(options.candidateView)
                 : matches,
@@ -282,7 +319,7 @@ function bindResolutionToolCalls(toolCalls = [], context) {
             return toolCall;
         }
         const explicitId = Number(args?.[fields.id]);
-        const selectedText = normalizeResourceText(args?.[fields.name]);
+        const selectedText = normalizeResourceQuery(args?.[fields.name]);
         const matches = normalized.candidates.filter(candidate => {
             if (Number.isInteger(explicitId) && explicitId > 0) {
                 return Number(candidate.canonicalId) === explicitId;
@@ -323,9 +360,12 @@ module.exports = {
     bindResolutionToolCalls,
     findToolClarification,
     inferEntityType,
+    normalizeResourceQuery,
     normalizeResourceText,
     normalizeResolutionContext,
     normalizeToolClarification,
+    queryCandidates,
     resolutionContextPrompt,
     resolveUniqueResource,
+    stripQueryNoise,
 };

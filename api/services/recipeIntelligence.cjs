@@ -1,3 +1,5 @@
+const { stripQueryNoise } = require('./aiResourceResolutionV3.cjs');
+
 function loadDbAccessors() {
     return require('../db.cjs');
 }
@@ -170,12 +172,21 @@ function resolveRecipe(input, recipes) {
     if (!requestedName) throw inputError('请提供 recipeId、recipeName 或 draft');
     const exact = recipes.find(recipe => normalize(recipe.name) === requestedName);
     if (exact) return exact;
-    const matches = recipes.filter(recipe => normalize(recipe.name).includes(requestedName));
+    // 用户口语的语气助词不属于正式名称："V550的" 必须回落到 "V550" 再匹配，否则会把
+    // 用户原话片段当作实体名回显成"未找到配方：V550的"。
+    const cleanedName = stripQueryNoise(String(input.recipeName ?? '')).trim();
+    const normalizedCleaned = normalize(cleanedName);
+    if (normalizedCleaned && normalizedCleaned !== requestedName) {
+        const cleanedExact = recipes.find(recipe => normalize(recipe.name) === normalizedCleaned);
+        if (cleanedExact) return cleanedExact;
+    }
+    const query = normalizedCleaned || requestedName;
+    const matches = recipes.filter(recipe => normalize(recipe.name).includes(query));
     if (matches.length === 1) return matches[0];
     if (matches.length > 1) {
         throw inputError(`成品型号不明确，请从以下型号中选择：${matches.slice(0, 8).map(recipe => recipe.name).join('、')}`);
     }
-    throw inputError(`未找到配方：${input.recipeName}`);
+    throw inputError(`未找到配方：${cleanedName || input.recipeName}`);
 }
 
 function isShellPart(part) {
