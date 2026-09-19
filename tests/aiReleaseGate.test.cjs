@@ -5,6 +5,10 @@ const os = require('node:os');
 const path = require('node:path');
 const {
     CORE_AI_RELEASE_CASE_KEYS,
+    RETIRED_AI_RELEASE_CASE_KEYS,
+    coreReleaseCasesRetired,
+} = require('../api/services/aiEvaluationReleasePolicy.cjs');
+const {
     assertCoreReleaseGateConfigured,
     buildReleaseGateReport,
     evaluationClientTimeoutMs,
@@ -15,8 +19,12 @@ const {
     writeReleaseGateReport,
 } = require('../scripts/run-knowledge-evaluation.cjs');
 
-function coreSystemCases(count = CORE_AI_RELEASE_CASE_KEYS.length, overrides = {}) {
-    return CORE_AI_RELEASE_CASE_KEYS.slice(0, count).map((caseKey, index) => ({
+// 2026-09-19：真实核心用例已全部退役，清单显式为空的机制测试用历史清单复核，
+// 保证"清单要求存在且可执行"这条机制本身仍被覆盖。
+const REQUIRED_CASE_KEYS = RETIRED_AI_RELEASE_CASE_KEYS;
+
+function coreSystemCases(count = REQUIRED_CASE_KEYS.length, overrides = {}) {
+    return REQUIRED_CASE_KEYS.slice(0, count).map((caseKey, index) => ({
         id: index + 1,
         caseKey,
         reviewStatus: 'approved',
@@ -119,28 +127,73 @@ test('AI 单用例诊断：runner 只向服务端请求一个 caseKey 且报告�
 });
 
 test('AI 发布门禁：核心系统检查缺失或停用时禁止跳过', () => {
+    assert.equal(coreReleaseCasesRetired(), true);
+    assert.deepEqual(CORE_AI_RELEASE_CASE_KEYS, []);
+    // 退役状态本身不要求任何用例存在。
+    assert.deepEqual(assertCoreReleaseGateConfigured({ systemCases: [] }), []);
+    // 机制仍可用显式清单复核：缺失、停用、被替换都必须 fail-closed。
     assert.equal(
-        assertCoreReleaseGateConfigured({ systemCases: coreSystemCases() }).length,
-        CORE_AI_RELEASE_CASE_KEYS.length
+        assertCoreReleaseGateConfigured({ systemCases: coreSystemCases() }, REQUIRED_CASE_KEYS).length,
+        REQUIRED_CASE_KEYS.length
     );
     assert.throws(
-        () => assertCoreReleaseGateConfigured({
-            systemCases: coreSystemCases(CORE_AI_RELEASE_CASE_KEYS.length - 1),
-        }),
+        () => assertCoreReleaseGateConfigured(
+            { systemCases: coreSystemCases(REQUIRED_CASE_KEYS.length - 1) },
+            REQUIRED_CASE_KEYS
+        ),
         /配置不完整/
     );
     const disabled = coreSystemCases();
     disabled[0] = { ...disabled[0], enabled: false };
     assert.throws(
-        () => assertCoreReleaseGateConfigured({ systemCases: disabled }),
+        () => assertCoreReleaseGateConfigured({ systemCases: disabled }, REQUIRED_CASE_KEYS),
         /不可执行 part-current-price/
     );
     const replacement = coreSystemCases();
     replacement[0] = { ...replacement[0], caseKey: 'replacement-system-case' };
     assert.throws(
-        () => assertCoreReleaseGateConfigured({ systemCases: replacement }),
+        () => assertCoreReleaseGateConfigured({ systemCases: replacement }, REQUIRED_CASE_KEYS),
         /缺少 part-current-price/
     );
+});
+
+test('AI 发布门禁：清单非空但没有可执行用例时仍然 fail-closed', async () => {
+    // 清单退役后，唯一允许"零用例通过"的情形是清单本身为空；用显式清单复核这条边界。
+    assert.throws(
+        () => assertCoreReleaseGateConfigured(
+            { systemCases: coreSystemCases(0) },
+            REQUIRED_CASE_KEYS
+        ),
+        /配置不完整/
+    );
+});
+
+test('AI 发布门禁：核心用例退役后 release 运行生成不阻断且明确标注的退役报告', async () => {
+    const requests = [];
+    const report = await main({ scope: 'release' }, {
+        authenticate: async () => {},
+        requestJson: async (method, requestPath) => {
+            requests.push({ method, requestPath });
+            if (requestPath === '/api/health') return { ready: true, runtime: { gitCommit: 'retired123' } };
+            if (requestPath === '/api/ai/evaluations/overview') {
+                return { caseStats: { enabled: 0, releaseEnabled: 0 } };
+            }
+            throw new Error(`unexpected request: ${method} ${requestPath}`);
+        },
+    });
+
+    assert.equal(report.status, 'passed');
+    assert.equal(report.blocked, false);
+    assert.equal(report.coreCasesRetired, true);
+    assert.equal(report.retiredAt, '2026-09-19');
+    assert.match(report.note, /不构成 AI 质量证据/);
+    assert.deepEqual(report.totals, { total: 0, passed: 0, failed: 0, review: 0 });
+    assert.equal(report.gitCommit, 'retired123');
+    // 退役状态不得产生任何真实 AI 查询，也不得创建运行。
+    assert.deepEqual(requests.map(item => item.requestPath), [
+        '/api/health',
+        '/api/ai/evaluations/overview',
+    ]);
 });
 
 test('AI 发布门禁：客户端时限跟随服务端总时限并预留收尾时间', () => {

@@ -11,8 +11,12 @@ const {
 } = require('../api/services/aiEvaluationCommands.cjs');
 const {
     AI_RELEASE_RUN_OWNER_KEY,
-    CORE_AI_RELEASE_CASE_KEYS,
 } = require('../api/services/aiEvaluationReleasePolicy.cjs');
+
+// 2026-09-19：真实核心用例已按负责人决定全部退役，迁移 86 会删除它们的数据行。
+// 这里为门禁机制自建一个系统用例，继续覆盖"发布门禁只跑 release_gate_enabled 用例、
+// 没有可执行用例时 fail-closed"的行为。
+const FIXTURE_SYSTEM_RELEASE_CASE_KEY = 'command-system-release-case';
 
 function createFixture(overrides = {}) {
     const db = new Database(':memory:');
@@ -25,6 +29,17 @@ function createFixture(overrides = {}) {
         ) VALUES (
             'command-fixture-case', '命令测试用例', '测试', '测试问题',
             'rules', '{}', 1, 9999, 'feedback', 'approved', 100,
+            '2026-08-03T12:00:00.000Z', '2026-08-03T12:00:00.000Z'
+        )
+    `).run();
+    db.prepare(`
+        INSERT INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, sort_order, source_type, review_status, confidence_score,
+            created_at, updated_at
+        ) VALUES (
+            '${FIXTURE_SYSTEM_RELEASE_CASE_KEY}', '命令系统门禁用例', '测试', '测试问题',
+            'rules', '{}', 1, 1, 9998, 'system', 'approved', 100,
             '2026-08-03T12:00:00.000Z', '2026-08-03T12:00:00.000Z'
         )
     `).run();
@@ -220,7 +235,11 @@ test('AI 评测命令：手动检查与发布门禁共享核心系统项并追�
         );
         assert.equal(
             release.cases.filter(item => item.sourceType === 'system').length,
-            CORE_AI_RELEASE_CASE_KEYS.length
+            1
+        );
+        assert.equal(
+            release.cases.find(item => item.sourceType === 'system').caseKey,
+            FIXTURE_SYSTEM_RELEASE_CASE_KEY
         );
         assert.equal(release.cases.filter(item => item.sourceType === 'feedback').length, 1);
         assert.equal(
@@ -229,16 +248,16 @@ test('AI 评测命令：手动检查与发布门禁共享核心系统项并追�
             AI_RELEASE_RUN_OWNER_KEY
         );
 
+        // 全部用例都不可执行时（核心清单已退役、反馈项也停用发布门禁）仍然 fail-closed。
         fixture.db.prepare(`
             UPDATE ai_evaluation_cases SET release_gate_enabled = 0
-            WHERE case_key = ?
-        `).run(CORE_AI_RELEASE_CASE_KEYS[0]);
+        `).run();
         assert.throws(() => executeStartAiEvaluationRun(
             fixture.dependencies,
             'internal',
             { scope: 'release' },
             context('ai-evaluation-scope-release-incomplete-0001')
-        ), error => error.code === 'ai_evaluation_release_cases_incomplete'
+        ), error => error.code === 'ai_evaluation_no_executable_cases'
             && error.statusCode === 409);
     } finally {
         fixture.db.close();

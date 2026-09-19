@@ -11,8 +11,12 @@ const {
 } = require('../api/services/aiEvaluations.cjs');
 const {
     AI_RELEASE_RUN_OWNER_KEY,
-    CORE_AI_RELEASE_CASE_KEYS,
+    RETIRED_AI_RELEASE_CASE_KEYS,
 } = require('../api/services/aiEvaluationReleasePolicy.cjs');
+
+// 2026-09-19：真实核心用例已按负责人决定全部退役（清单显式置空），本测试用历史清单构造
+// 自己的门禁用例，继续覆盖"清单要求的用例存在且可执行"这条机制。
+const FIXTURE_RELEASE_CASE_KEYS = RETIRED_AI_RELEASE_CASE_KEYS;
 
 function insertCoreReleaseCases(db, now = new Date().toISOString()) {
     const insert = db.prepare(`
@@ -23,7 +27,7 @@ function insertCoreReleaseCases(db, now = new Date().toISOString()) {
         ) VALUES (?, ?, '发布门禁', '返回核心通过', 'rules', ?, 1, 1,
                   'approved', 'system', ?, ?, ?)
     `);
-    CORE_AI_RELEASE_CASE_KEYS.forEach((caseKey, index) => insert.run(
+    FIXTURE_RELEASE_CASE_KEYS.forEach((caseKey, index) => insert.run(
         caseKey,
         `核心案例 ${index + 1}`,
         JSON.stringify({ requiredTerms: [['核心通过']] }),
@@ -35,7 +39,7 @@ function insertCoreReleaseCases(db, now = new Date().toISOString()) {
 
 function recordCoreReleasePasses(fixture, created) {
     for (const evaluationCase of created.cases.filter(
-        item => CORE_AI_RELEASE_CASE_KEYS.includes(item.caseKey)
+        item => FIXTURE_RELEASE_CASE_KEYS.includes(item.caseKey)
     )) {
         recordAiEvaluationResult('internal', created.run.id, {
             caseId: evaluationCase.id,
@@ -1463,8 +1467,8 @@ test('AI 评测：已停用用例的历史失败不再形成当前健康告警',
     fixture.db.prepare('UPDATE ai_evaluation_cases SET enabled = 0 WHERE id = ?').run(oldCase.id);
     fixture.db.prepare(`
         UPDATE ai_evaluation_cases SET enabled = 0
-        WHERE case_key IN (${CORE_AI_RELEASE_CASE_KEYS.map(() => '?').join(', ')})
-    `).run(...CORE_AI_RELEASE_CASE_KEYS);
+        WHERE case_key IN (${FIXTURE_RELEASE_CASE_KEYS.map(() => '?').join(', ')})
+    `).run(...FIXTURE_RELEASE_CASE_KEYS);
 
     const health = getLatestAiEvaluationHealth({ dbAccessors: fixture.accessors });
     assert.equal(health.status, 'healthy');

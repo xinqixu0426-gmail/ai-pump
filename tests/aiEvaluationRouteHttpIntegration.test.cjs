@@ -23,8 +23,10 @@ const evaluationRouter = require('../api/routes/ai/evaluations.cjs');
 const { db, stopBackupScheduler } = require('../api/db.cjs');
 const {
     AI_RELEASE_RUN_OWNER_KEY,
-    CORE_AI_RELEASE_CASE_KEYS,
 } = require('../api/services/aiEvaluationReleasePolicy.cjs');
+
+// 2026-09-19：真实核心用例已退役并由迁移 86 删除数据行，HTTP 集成测试自建一个系统用例。
+const FIXTURE_SYSTEM_RELEASE_CASE_KEY = 'http-system-release-case';
 
 let server;
 let baseUrl;
@@ -78,6 +80,20 @@ test.before(async () => {
         ) VALUES (?, ?, 'HTTP集成', '测试问题', 'rules', '{}', 1, 0, 9991,
                   'feedback', 'pending', 50, ?, ?)
     `).run('http-pending-case', 'HTTP待审案例', now, now);
+    db.prepare(`
+        INSERT OR REPLACE INTO ai_evaluation_cases (
+            case_key, title, category, question, evaluator_type, config_json,
+            enabled, release_gate_enabled, sort_order, source_type,
+            review_status, confidence_score, created_at, updated_at
+        ) VALUES (?, ?, 'HTTP集成', '测试问题', 'rules', ?, 1, 1, 9989,
+                  'system', 'approved', 100, ?, ?)
+    `).run(
+        FIXTURE_SYSTEM_RELEASE_CASE_KEY,
+        'HTTP系统门禁用例',
+        JSON.stringify({ requiredTerms: [['HTTP runner 集成回答']] }),
+        now,
+        now
+    );
 
     const app = express();
     app.use(express.json());
@@ -111,19 +127,19 @@ test.after(async () => {
 test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实路由契约', async () => {
     const anonymous = await requestJson('POST', '/api/ai/evaluations/runs', {
         authenticated: false,
-        body: { scope: 'manual', caseKey: CORE_AI_RELEASE_CASE_KEYS[0] },
+        body: { scope: 'manual', caseKey: FIXTURE_SYSTEM_RELEASE_CASE_KEY },
     });
     assert.equal(anonymous.response.status, 401);
 
     const diagnostic = await requestJson('POST', '/api/ai/evaluations/runs', {
-        body: { scope: 'manual', caseKey: CORE_AI_RELEASE_CASE_KEYS[0] },
+        body: { scope: 'manual', caseKey: FIXTURE_SYSTEM_RELEASE_CASE_KEY },
     });
     assert.equal(diagnostic.response.status, 201);
     assert.equal(diagnostic.payload.success, true);
     assert.equal(diagnostic.payload.data.capabilityId, 'ai.evaluations.runs.start');
     assert.deepEqual(
         diagnostic.payload.data.cases.map(item => item.caseKey),
-        [CORE_AI_RELEASE_CASE_KEYS[0]]
+        [FIXTURE_SYSTEM_RELEASE_CASE_KEY]
     );
     const diagnosticResult = await requestJson(
         'POST',
@@ -168,7 +184,7 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
 
     const filteredRelease = await requestJson('POST', '/api/ai/evaluations/runs', {
         internal: true,
-        body: { scope: 'release', caseKey: CORE_AI_RELEASE_CASE_KEYS[0] },
+        body: { scope: 'release', caseKey: FIXTURE_SYSTEM_RELEASE_CASE_KEY },
     });
     assert.equal(filteredRelease.response.status, 400);
     assert.equal(
@@ -176,10 +192,10 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
         'ai_evaluation_release_case_filter_forbidden'
     );
 
+    // 没有任何用例可执行时发布运行仍然 fail-closed（核心清单已退役，机制不变）。
     db.prepare(`
         UPDATE ai_evaluation_cases SET release_gate_enabled = 0
-        WHERE case_key = ?
-    `).run(CORE_AI_RELEASE_CASE_KEYS[0]);
+    `).run();
     const incompleteRelease = await requestJson('POST', '/api/ai/evaluations/runs', {
         internal: true,
         body: { scope: 'release' },
@@ -187,14 +203,14 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
     assert.equal(incompleteRelease.response.status, 409);
     assert.equal(
         incompleteRelease.payload.code,
-        'ai_evaluation_release_cases_incomplete'
+        'ai_evaluation_no_executable_cases'
     );
 
     db.prepare(`
         UPDATE ai_evaluation_cases SET enabled = 1, release_gate_enabled = 1,
             review_status = 'approved'
         WHERE case_key = ?
-    `).run(CORE_AI_RELEASE_CASE_KEYS[0]);
+    `).run(FIXTURE_SYSTEM_RELEASE_CASE_KEY);
     const release = await requestJson('POST', '/api/ai/evaluations/runs', {
         internal: true,
         body: { scope: 'release' },
@@ -230,7 +246,8 @@ test('AI 评测 HTTP：认证、单案例错误与 release 完整性使用真实
         }
     );
     assert.equal(releaseComplete.response.status, 200);
-    assert.equal(releaseComplete.payload.data.run.status, 'failed');
+    // 该用例已有结果，全部用例都有结论，因此运行完成（不再像九条用例时代只剩一条结果那样标记 failed）。
+    assert.equal(releaseComplete.payload.data.run.status, 'completed');
 });
 
 test('AI 评测 runner：真实 HTTP release 链路完成 namespace 运行', async () => {
@@ -246,7 +263,7 @@ test('AI 评测 runner：真实 HTTP release 链路完成 namespace 运行', asy
     );
     assert.equal(report.mode, 'release');
     assert.equal(report.releaseGate, true);
-    assert.equal(report.totals.total, CORE_AI_RELEASE_CASE_KEYS.length);
+    assert.equal(report.totals.total, 1);
     assert.equal(report.runId > 0, true);
     const savedRun = db.prepare(`
         SELECT owner_key, status FROM ai_evaluation_runs WHERE id = ?

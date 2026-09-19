@@ -10,6 +10,11 @@ const { selectShadowContext } = require('../api/ontology/shadowEligibility.cjs')
 const { observeShadow, resolveInWorker, MAX_HOP, MAX_SHADOW_RELATIONS_PER_REQUEST } = require('../api/ontology/runtimeShadow.cjs');
 const { createOntologyRelationResolver } = require('../api/ontology/resolver.cjs');
 const { fixture, canonicalRoots, formal, recipeDetail, deterministicCorpus } = require('./helpers/ontologyShadowFixture.cjs');
+// 隐私断言只看非数值内容：时长等毫秒数字的片段可能与实体 ID 相同，不构成隐私泄露，
+// 否则同一份代码会因为 `duration_ms` 恰好含 "301" 而偶发失败。
+const privacySurface = captured => JSON.stringify(captured, (key, value) => (
+    typeof value === 'number' ? '<number>' : value
+));
 const context = (relationId = 'recipe.contains_part', type = 'recipe', root = 301, targets = ['601']) => ({
     relationId, root: { entityType: type, canonicalId: String(root) }, canonicalTargetIds: targets,
     canonical: true, complete: true, sourceCapabilities: ['get_recipe_detail'] });
@@ -71,7 +76,7 @@ test('P3 existing privacy-filtered tracing captures metadata and survives a fail
         assert.equal(captured[0].attributes['pump.ai.ontology.shadow.eligible'], true);
         assert.equal(captured[0].attributes['pump.ai.ontology.shadow.status'], 'MATCH');
         assert.equal(captured[0].attributes['pump.ai.ontology.shadow.exact_match'], true);
-        assert.doesNotMatch(JSON.stringify(captured), /601|301|Shadow配方|canonicalTargetIds|canonicalId/);
+        assert.doesNotMatch(privacySurface(captured), /601|301|Shadow配方|canonicalTargetIds|canonicalId/);
     } finally { await o.resetObservabilityForTesting(); }
 });
 

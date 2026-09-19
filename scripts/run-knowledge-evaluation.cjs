@@ -3,8 +3,10 @@ require('dotenv').config({ quiet: true });
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+    AI_RELEASE_CORE_CASES_RETIRED_AT,
     CORE_AI_RELEASE_CASE_KEYS,
     assertCoreAiReleaseCases,
+    coreReleaseCasesRetired,
 } = require('../api/services/aiEvaluationReleasePolicy.cjs');
 
 const baseUrl = String(process.env.AI_EVAL_BASE_URL || 'http://localhost:3002').replace(/\/+$/, '');
@@ -87,6 +89,31 @@ function buildReleaseGateReport(input = {}) {
         };
     }
     const run = input.run || null;
+    if (input.retired) {
+        return {
+            schemaVersion: 1,
+            ...execution,
+            generatedAt: input.generatedAt || new Date().toISOString(),
+            status: 'passed',
+            blocked: false,
+            coreCasesRetired: true,
+            retiredAt: AI_RELEASE_CORE_CASES_RETIRED_AT,
+            note: `核心 AI 发布用例已于 ${AI_RELEASE_CORE_CASES_RETIRED_AT} 按负责人决定全部退役`
+                + '（其引用实体已随数据库清理不存在）。本轮发布门禁没有可执行用例，'
+                + '因此不构成 AI 质量证据；恢复用例必须通过 aiEvaluationReleasePolicy 的显式清单变更。',
+            baseUrl: input.baseUrl || baseUrl,
+            gitCommit: String(input.health?.runtime?.gitCommit || ''),
+            runId: null,
+            totals: {
+                total: 0,
+                passed: 0,
+                failed: 0,
+                review: 0,
+            },
+            cases: [],
+            error: '',
+        };
+    }
     const failedCount = Number(run?.failedCount || 0);
     const reviewCount = Number(run?.reviewCount || 0);
     const blocked = input.error
@@ -172,8 +199,8 @@ function resolveEvaluationAuthentication(scope, env = process.env, options = {})
     );
 }
 
-function assertCoreReleaseGateConfigured(overview) {
-    return assertCoreAiReleaseCases(overview?.systemCases);
+function assertCoreReleaseGateConfigured(overview, keys = CORE_AI_RELEASE_CASE_KEYS) {
+    return assertCoreAiReleaseCases(overview?.systemCases, keys);
 }
 
 function evaluationClientTimeoutMs(env = process.env) {
@@ -290,6 +317,16 @@ async function main(options = {}, dependencies = {}) {
     ) || 0;
     if (enabledCases === 0) {
         if (scope === 'release') {
+            // 清单被显式置空（用例已按负责人决定退役）时，发布门禁不再要求存在用例：
+            // 报告明确记录"本轮没有 AI 质量证据"，但不再用错误码阻断发布。
+            // 清单非空却一条都不可执行时仍然 fail-closed，禁止靠删数据行跳过门禁。
+            if (coreReleaseCasesRetired()) {
+                console.log(
+                    `知识库 AI 回归：核心用例已于 ${AI_RELEASE_CORE_CASES_RETIRED_AT} 全部退役，`
+                    + '本轮没有可执行的 AI 回归项；本次发布不据此声称 AI 质量证据。'
+                );
+                return buildReleaseGateReport({ health, retired: true, scope, caseKey });
+            }
             throw new Error('发布门禁没有可执行用例，禁止跳过 AI 回归');
         }
         console.log('知识库 AI 回归：没有启用用例，本次手动检查跳过');

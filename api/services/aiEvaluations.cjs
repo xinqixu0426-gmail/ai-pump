@@ -972,7 +972,13 @@ function createAiEvaluationRun(ownerKey, options = {}) {
             caseKey: options.caseKey,
         });
         if (options.scope === 'release') assertCoreAiReleaseCases(cases);
-        if (cases.length === 0) throw new Error('没有启用的知识库检查用例');
+        if (cases.length === 0) {
+            throw evaluationServiceError(
+                'ai_evaluation_no_executable_cases',
+                '没有启用的知识库检查用例',
+                409
+            );
+        }
         const now = new Date().toISOString();
         const owner = evaluationRunOwnerKey(ownerKey, options);
         const unfinished = db.prepare(`

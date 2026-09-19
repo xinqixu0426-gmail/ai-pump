@@ -227,17 +227,15 @@ test('数据库迁移：空库初始化到当前版本且重复执行无副作�
             db.prepare('SELECT reason FROM order_revisions WHERE order_id = ?').get(orderId).reason,
             '初始原因'
         );
-        const cuttingCase = db.prepare(`
-            SELECT config_json FROM ai_evaluation_cases
-            WHERE case_key = 'cutting-shell-purpose-evidence'
-        `).get();
-        const cuttingConfig = JSON.parse(cuttingCase.config_json);
-        assert.ok(cuttingConfig.requiredTerms.some(group => (
-            group.includes('未明确记录')
-            && group.includes('未记录')
-            && group.includes('不能确认')
-            && group.includes('系统未确认')
-        )));
+        // 迁移 86 之后：完整迁移结束时旧核心 AI 发布用例已退役，库里不再有系统用例。
+        // 这些用例各自的内容断言仍由下面的"按序重放"测试在退役之前覆盖。
+        assert.equal(db.prepare(`
+            SELECT COUNT(*) AS count FROM ai_evaluation_cases WHERE source_type = 'system'
+        `).get().count, 0);
+        assert.equal(db.prepare(`
+            SELECT COUNT(*) AS count FROM ai_evaluation_cases
+        `).get().count, 0);
+        assert.deepEqual(db.pragma('foreign_key_check'), []);
         const coilsSql = db.prepare(`
             SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'coils'
         `).get().sql;
@@ -588,6 +586,43 @@ test('数据库迁移：恢复缺失的系统 AI 发布回归用例且不修改�
                 review_status: 'rejected',
             }
         );
+
+        // 86：旧核心 AI 发布用例退役——删掉用例行并连同它们的运行结果，重复执行安全。
+        const retireLegacyAiReleaseCasesMigration = MIGRATIONS.find(
+            migration => migration.version === 86
+        );
+        assert.ok(retireLegacyAiReleaseCasesMigration);
+        const retiredCaseId = db.prepare(`
+            SELECT id FROM ai_evaluation_cases WHERE case_key = 'configured-template-cost'
+        `).get().id;
+        const retiredRun = db.prepare(`
+            INSERT INTO ai_evaluation_runs (
+                owner_key, status, total_count, passed_count, failed_count,
+                review_count, started_at, created_at, updated_at
+            ) VALUES ('release:internal', 'completed', 1, 1, 0, 0, ?, ?, ?)
+        `).run(FIXED_NOW, FIXED_NOW, FIXED_NOW);
+        db.prepare(`
+            INSERT INTO ai_evaluation_results (
+                run_id, case_id, status, created_at, updated_at
+            ) VALUES (?, ?, 'passed', ?, ?)
+        `).run(Number(retiredRun.lastInsertRowid), retiredCaseId, FIXED_NOW, FIXED_NOW);
+
+        retireLegacyAiReleaseCasesMigration.up(db);
+        retireLegacyAiReleaseCasesMigration.up(db);
+        assert.equal(db.prepare(`
+            SELECT COUNT(*) AS count FROM ai_evaluation_cases WHERE case_key = 'configured-template-cost'
+        `).get().count, 0);
+        assert.equal(db.prepare(`
+            SELECT COUNT(*) AS count FROM ai_evaluation_cases WHERE source_type = 'system'
+        `).get().count, 0);
+        assert.equal(db.prepare(
+            'SELECT COUNT(*) AS count FROM ai_evaluation_results'
+        ).get().count, 0);
+        // 保留用户反馈用例，且删用例后没有留下孤儿外键。
+        assert.equal(db.prepare(`
+            SELECT COUNT(*) AS count FROM ai_evaluation_cases WHERE case_key = 'feedback-preserved'
+        `).get().count, 1);
+        assert.deepEqual(db.pragma('foreign_key_check'), []);
     } finally {
         db.close();
     }

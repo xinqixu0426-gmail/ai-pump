@@ -3815,6 +3815,40 @@ const MIGRATIONS = Object.freeze([
         signature: 'pump-shell-templates-nullable-deleted-at-v1',
         up(db) { db.exec('ALTER TABLE pump_shell_templates ADD COLUMN deleted_at TEXT'); },
     },
+    {
+        version: 86,
+        name: 'retire_legacy_ai_release_cases',
+        signature: 'retire-nine-legacy-ai-release-cases-and-results-v1',
+        up(db) {
+            // 2026-09-19 负责人决定：这九条核心 AI 发布用例引用的实体在生产数据库清理后已不存在
+            // （模板与包材改名、配方删除），全部退役。清单同时已在
+            // api/services/aiEvaluationReleasePolicy.cjs 显式置空；本迁移删除数据行及这些用例名下的
+            // 运行结果，既避免孤儿外键让发布备份校验失败，也保证新环境不会重新长出这些旧用例。
+            // 用例清单在此固化，迁移语义不随服务代码变化。
+            const retiredCaseKeys = [
+                'part-current-price',
+                'coil-all-official-variants',
+                'coil-winding-profile',
+                'test-report-file-type',
+                'test-report-ignore-template-points',
+                'customer-quotation-display-order',
+                'complete-cable-semantics',
+                'cutting-shell-purpose-evidence',
+                'configured-template-cost',
+            ];
+            const placeholders = retiredCaseKeys.map(() => '?').join(', ');
+            // 先删依赖行再删用例，保持外键完整；重复执行是安全的。
+            db.prepare(`
+                DELETE FROM ai_evaluation_results
+                WHERE case_id IN (
+                    SELECT id FROM ai_evaluation_cases WHERE case_key IN (${placeholders})
+                )
+            `).run(...retiredCaseKeys);
+            db.prepare(`
+                DELETE FROM ai_evaluation_cases WHERE case_key IN (${placeholders})
+            `).run(...retiredCaseKeys);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {
