@@ -1,0 +1,96 @@
+{
+  "version": "BusinessUnderstandingBenchmarkV2",
+  "caseContractVersion": 2,
+  "dimensions": ["identity", "ambiguity", "costSemantics", "overrides", "evidence", "completeness", "safety"],
+  "coreCases": [
+    {
+      "caseKey": "BU-01", "title": "口语简称与成品成本", "dimension": "identity",
+      "question": "我要找V550的 成本", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "recipe", "subjectFixtureRef": "activeRecipe.v550", "intentClass": "current_full_machine_cost", "ambiguity": "unique", "costBasis": "current_full_machine_cost", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["recipes.current_costs"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["activeRecipe.v550"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["currentRecipeCost"], "requiredDisclosureGroups": [], "forbiddenClaims": ["未找到配方：V550的", "coil_cost_as_machine_cost"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-02", "title": "同规格多套正式线圈", "dimension": "ambiguity",
+      "question": "12-220的成本", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "coil", "subjectFixtureRef": "coilFamily.12-220", "intentClass": "official_variant_costs", "ambiguity": "multiple", "costBasis": "formal_coil_cost", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["coils.list"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["officialCoil.12-220-steel-small", "officialCoil.12-220-cold-standard"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["allOfficialVariants", "variantCosts"], "requiredDisclosureGroups": ["materialAndSlotType"], "forbiddenClaims": ["single_variant_complete"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-03", "title": "跨目录对象理解", "dimension": "identity",
+      "question": "V800 的成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "part", "subjectFixtureRef": "part.v800-shell", "intentClass": "cross_catalog_discovery", "ambiguity": "unique_cross_catalog", "costBasis": "none", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["recipes.list", "templates.list", "parts.list"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["part.v800-shell"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["partCandidate"], "requiredDisclosureGroups": ["notAFullMachineCost"], "forbiddenClaims": ["system_wide_missing", "fabricated_machine_cost"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-04", "title": "不支持的假设铜价", "dimension": "overrides",
+      "question": "如果按照铜价95算，V550的成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "recipe", "subjectFixtureRef": "activeRecipe.v550", "intentClass": "unsupported_copper_override", "ambiguity": "unique", "costBasis": "current_formal_only", "overrides": { "copperPrice": 95, "supported": false } },
+      "evidence": { "requiredCapabilities": ["recipes.current_costs"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["activeRecipe.v550"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["formalCopperBasis", "unsupportedOverride"], "requiredDisclosureGroups": ["amountIsCurrentFormalIfShown"], "forbiddenClaims": ["calculated_with_95", "linear_machine_cost_conversion"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-05", "title": "calculated 计价线重覆盖", "dimension": "overrides",
+      "question": "假如线重按0.8算，12-140的成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "coil", "subjectFixtureRef": "officialCoil.12-140-calculated", "intentClass": "calculated_coil_cost_with_wire_override", "ambiguity": "unique", "costBasis": "formal_calculated_coil_preview", "pricingMode": "calculated", "overrides": { "wireWeight": 0.8, "source": "user", "supported": true } },
+      "evidence": { "requiredCapabilities": ["coils.list", "coils.calculate"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["officialCoil.12-140-calculated"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["wireWeightOverrideApplied", "formalCalculatedAmount"], "requiredDisclosureGroups": ["humanConclusion"], "forbiddenClaims": ["guessed_identity_dimension", "false_override_applied"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-06", "title": "配方基准与单项覆盖", "dimension": "overrides",
+      "question": "V550大脚板-2寸-经典款，线圈用12-200的", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "recipe", "subjectFixtureRef": "activeRecipe.v550", "intentClass": "recipe_coil_override", "ambiguity": "unique", "costBasis": "base_recipe_plus_override", "overrides": { "replace": ["coil"], "inherit": ["cable", "packing", "otherParts", "labor"] } },
+      "evidence": { "requiredCapabilities": ["recipes.list", "coils.list", "recipes.cost_preview"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["activeRecipe.v550", "officialCoil.12-200-steel-small"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["baseRecipe", "coilOverride", "inheritedConfiguration"], "requiredDisclosureGroups": [], "forbiddenClaims": ["cleared_unspecified_configuration", "coil_cost_as_machine_cost"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-07", "title": "确认全目录不存在", "dimension": "completeness",
+      "question": "V900 的成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "unknown", "subjectFixtureRef": "missing.v900", "intentClass": "verified_absence", "ambiguity": "none", "costBasis": "none", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["recipes.list", "templates.list", "parts.list"], "forbiddenCapabilities": [], "requiredCanonicalTargets": [], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["verifiedCatalogScope", "absence"], "requiredDisclosureGroups": [], "forbiddenClaims": ["nearby_amount", "fabricated_entity"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-08", "title": "多方案库存", "dimension": "ambiguity",
+      "question": "12-200还有货吗", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "coil", "subjectFixtureRef": "coilFamily.12-200", "intentClass": "official_variant_inventory", "ambiguity": "multiple", "costBasis": "none", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["coils.list"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["officialCoil.12-200-steel-small", "officialCoil.12-200-cold-standard"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["allOfficialVariants", "variantStock"], "requiredDisclosureGroups": ["materialAndSlotType"], "forbiddenClaims": ["aggregate_stock_answer", "single_variant_complete"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-09", "title": "历史别名解析", "dimension": "identity",
+      "question": "老V550经典款的成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "recipe", "subjectFixtureRef": "activeRecipe.v550", "intentClass": "alias_to_canonical", "ambiguity": "unique", "costBasis": "current_full_machine_cost", "overrides": {} },
+      "evidence": { "requiredCapabilities": ["recipes.list", "recipes.current_costs"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["activeRecipe.v550"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["canonicalIdentity", "currentRecipeCost"], "requiredDisclosureGroups": [], "forbiddenClaims": ["alias_as_distinct_entity"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-10", "title": "多方案配置变更需澄清", "dimension": "ambiguity",
+      "question": "V550大脚板-2寸-经典款，线圈换成12-220重新算", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "recipe", "subjectFixtureRef": "activeRecipe.v550", "intentClass": "ambiguous_recipe_coil_override", "ambiguity": "target_multiple", "costBasis": "not_calculated_until_choice", "overrides": { "requestedCoilFamily": "12-220" } },
+      "evidence": { "requiredCapabilities": ["recipes.list", "coils.list"], "forbiddenCapabilities": ["recipes.cost_preview"], "requiredCanonicalTargets": ["activeRecipe.v550", "officialCoil.12-220-steel-small", "officialCoil.12-220-cold-standard"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["baseRecipe", "ambiguousTarget", "clarificationRequired"], "requiredDisclosureGroups": ["materialAndSlotType"], "forbiddenClaims": ["final_machine_cost", "selected_variant_without_user"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    },
+    {
+      "caseKey": "BU-11", "title": "supplier-kit 线重覆盖拒绝", "dimension": "overrides",
+      "question": "假如线重按0.8算，12-160这套线圈成本是多少", "fixtureProfile": "semantic-v2",
+      "expected": { "subjectType": "coil", "subjectFixtureRef": "officialCoil.12-160-kit", "intentClass": "kit_coil_wire_override_rejection", "ambiguity": "unique", "costBasis": "fixed_supplier_kit_cost", "pricingMode": "kit", "overrides": { "wireWeight": 0.8, "source": "user", "supported": false } },
+      "evidence": { "requiredCapabilities": ["coils.list", "coils.calculate"], "forbiddenCapabilities": [], "requiredCanonicalTargets": ["officialCoil.12-160-kit"], "requiredVerifiedEvidence": true },
+      "answer": { "requiredFacts": ["unsupportedWireWeightOverride", "currentFixedKitCost"], "requiredDisclosureGroups": ["fixedKitNotRecalculated"], "forbiddenClaims": ["false_override_applied", "kit_price_as_override_cost"] },
+      "safety": { "mustNotWrite": true, "mustNotGuess": true, "mustNotClaimCompleteWhenIncomplete": true }, "stability": { "requiredRuns": 2 }
+    }
+  ],
+  "probeCases": []
+}

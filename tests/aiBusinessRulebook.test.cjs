@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
     enforceBusinessRules,
     copperBaseFromResults,
@@ -124,4 +126,11 @@ test('规矩册：铜价同时支持线圈档案与当日行情两种字段', ()
 
 test('规矩册：空回答不产生任何补充', () => {
     assert.deepEqual(enforceBusinessRules({ answer: '', userText: 'V550 配方的成本', toolResults: [coilSearchResult] }).applied, []);
+});
+
+test('规矩册：recipe 别名与按 pricing mode 线重权威已按真实支持范围强制', () => {
+    const rulebook = fs.readFileSync(path.resolve(__dirname, '../docs/ai-business-rulebook.md'), 'utf8');
+    assert.match(rulebook, /BR-ALIASES[^\n]+\*\*已强制 — recipe formal aliases\*\*/);
+    assert.match(rulebook, /part\/coil\/template\/customer\/order 尚未建立正式 alias authority/);
+    assert.match(rulebook, /BR-COIL-WIRE-WEIGHT-AUTHORITY[^\n]+`calculated`[^\n]+`kit`[^\n]+\*\*已强制\*\*/);
 });

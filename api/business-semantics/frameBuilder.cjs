@@ -170,6 +170,9 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const machineHypothetical = semantics.hypotheticalCopperPrice != null && semantics.requestedType === 'recipe';
     let overrideStatus = overrideFields.length ? 'SUPPORTED_OVERRIDE' : 'NO_OVERRIDE';
     if (machineHypothetical) overrideStatus = 'UNSUPPORTED_OVERRIDE';
+    const wireWeightOverrideUnsupported = semantics.wireWeight != null
+        && facts.get('COIL_OVERRIDE_APPLIED')?.state === 'UNSUPPORTED';
+    if (wireWeightOverrideUnsupported) overrideStatus = 'UNSUPPORTED_OVERRIDE';
     const baseCoilMatches = uniqueRecipe && coils.length > 1 && coils.some(row => positiveId(row.id ?? row.Id) === positiveId(uniqueRecipe.coilId));
     if (semantics.configurationOverride && coils.length > 1 && !baseCoilMatches) overrideStatus = 'AMBIGUOUS_OVERRIDE';
     if (semantics.configurationOverride && !uniqueRecipe) overrideStatus = 'MISSING_BASE';
@@ -184,6 +187,7 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const unsupportedFacts = factList.filter(item => item.state === 'UNSUPPORTED').map(item => item.factType);
     let completenessStatus = 'NEEDS_EVIDENCE', blockers = missingFacts.slice();
     if (machineHypothetical) { completenessStatus = 'UNSUPPORTED_REQUEST'; blockers = ['UNSUPPORTED_MACHINE_HYPOTHETICAL_PRICE']; }
+    else if (wireWeightOverrideUnsupported) { completenessStatus = 'UNSUPPORTED_REQUEST'; blockers = ['UNSUPPORTED_COIL_WIRE_WEIGHT_OVERRIDE']; }
     else if (overrideStatus === 'AMBIGUOUS_OVERRIDE' || resolutionStatus === 'ALIAS_UNRESOLVED' || aliasAmbiguous) { completenessStatus = 'NEEDS_CLARIFICATION'; blockers = [overrideStatus === 'AMBIGUOUS_OVERRIDE' ? 'AMBIGUOUS_OVERRIDE' : aliasAmbiguous ? 'ALIAS_AMBIGUOUS' : 'ALIAS_UNRESOLVED']; }
     else if (resolutionStatus === 'NOT_FOUND' && verifiedFacts.includes('CROSS_CATALOG_CANDIDATES')) { completenessStatus = 'NOT_FOUND_VERIFIED'; blockers = []; }
     else if (requiredFacts.every(factType => facts.get(factType)?.state === 'VERIFIED')) { completenessStatus = 'COMPLETE'; blockers = []; }
@@ -215,7 +219,8 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         ambiguity: { status: ambiguityStatus, dimensions: coilEvidence.expectedCount > 1 ? ['spec', 'sheets', 'material', 'slotType', 'canonicalCoilId'] : [], candidateCount: coilEvidence.expectedCount },
         cost: { requestedBasis, actualBasis, requestedPriceContext: semantics.requestedPriceContext,
             actualPriceContext: actualBasis === 'UNKNOWN_COST_BASIS' ? 'UNKNOWN' : 'CURRENT_FORMAL_PRICE',
-            calculationSupport: machineHypothetical ? 'UNSUPPORTED' : requestedBasis === 'UNKNOWN_COST_BASIS' ? 'NOT_APPLICABLE' : 'SUPPORTED' },
+            calculationSupport: machineHypothetical || wireWeightOverrideUnsupported ? 'UNSUPPORTED'
+                : requestedBasis === 'UNKNOWN_COST_BASIS' ? 'NOT_APPLICABLE' : 'SUPPORTED' },
         override: { requested: overrideFields.length > 0, fields: overrideFields, supportStatus: overrideStatus,
             baseEntity: uniqueRecipe ? { entityType: 'recipe', canonicalId: positiveId(uniqueRecipe.id ?? uniqueRecipe.Id) } : null,
             inheritancePolicy: semantics.configurationOverride ? 'PRESERVE_UNMENTIONED_BASE_CONFIGURATION' : 'NOT_APPLICABLE' },

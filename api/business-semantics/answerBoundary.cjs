@@ -66,17 +66,17 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         const base = recipe(toolResults);
         return `基准配方为${base?.name || semantics.requestedIdentity.token}。${semantics.requestedIdentity.spec}-${semantics.requestedIdentity.sheets} 对应 ${coils.length} 套正式线圈方案：${coils.map(variantLabel).join('；')}。请确认材质和槽眼后再重新计算；本轮未选择任何方案，也未执行成本试算。`;
     }
+    const calculatedCoil = toolResults.find(item => verified(item) && item.name === 'calculate_coil_cost')?.result?.data;
+    if (semantics.requestedType === 'coil' && semantics.wireWeight != null && calculatedCoil
+        && (calculatedCoil.overrideStatus === 'UNSUPPORTED_FOR_PRICING_MODE' || calculatedCoil.isCustomWireWeight === false)) {
+        return `${semantics.requestedIdentity.token} 的正式方案采用${calculatedCoil.pricingMode === 'kit' ? '供应商套件价' : '不可覆盖计价模式'}，用户指定线重 ${semantics.wireWeight} 未被正式能力应用；当前正式线圈成本为 ${money(calculatedCoil.totalCost ?? calculatedCoil.cost)} 元，不能把该金额表述为线重覆盖后的结果。`;
+    }
     if (status === 'UNSUPPORTED_REQUEST') {
         const current = currentRecipeCost(toolResults), copper = copperPrice(toolResults);
         return `正式成本能力不支持按用户指定铜价 ${semantics.hypotheticalCopperPrice} 直接重算整机成本，因此未把该假设值当作正式结果。${copper == null ? '' : `当前正式铜价基准为 ${Number(copper)}。`}${current == null ? '' : `${targetRecipe?.name || semantics.requestedIdentity.token} 当前完整成本为 ${current} 元；这是当前正式口径，不是按铜价 ${semantics.hypotheticalCopperPrice} 计算。`}`;
     }
     if (status === 'NOT_FOUND_VERIFIED') {
         return `已核对配方、泵壳模板和零件三个正式目录，均未找到 ${semantics.requestedIdentity.token}，因此目前无法给出其成本。`;
-    }
-    const calculatedCoil = toolResults.find(item => verified(item) && item.name === 'calculate_coil_cost')?.result?.data;
-    if (semantics.requestedType === 'coil' && semantics.wireWeight != null && calculatedCoil
-        && (calculatedCoil.overrideStatus === 'UNSUPPORTED_FOR_PRICING_MODE' || calculatedCoil.isCustomWireWeight === false)) {
-        return `${semantics.requestedIdentity.token} 的正式方案采用${calculatedCoil.pricingMode === 'kit' ? '供应商套件价' : '不可覆盖计价模式'}，用户指定线重 ${semantics.wireWeight} 未被正式能力应用；当前正式线圈成本为 ${money(calculatedCoil.totalCost ?? calculatedCoil.cost)} 元，不能把该金额表述为线重覆盖后的结果。`;
     }
     if (status === 'NEEDS_EVIDENCE' || status === 'PARTIAL_VERIFIED') {
         const verifiedFacts = frame?.evidence?.verifiedFacts || [];
