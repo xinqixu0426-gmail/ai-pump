@@ -48,6 +48,28 @@
 
 这项债务不授权直接修改数据库列、公开路径或 capability ID；若确需迁移，必须作为独立 API 兼容任务实施。
 
+### 2.3 AI 发布门禁可信度（过时用例 + 波动 + 清单硬编码）
+
+`npm run verify:ai-release` 是发布脚本的硬阻断项之一。实测它在没有代码缺陷的情况下也会拦截发布，原因有三层，必须一起处理。
+
+**第一，用例引用的实体已不存在或已改名。** 生产数据库清理过一次，部分门禁用例仍指向旧命名：
+
+- `configured-template-cost` 需要模板 `V750-大脚板-2寸`、包材 `v550木箱` 与 `珍珠棉`；现库中分别是 `模板-V750大脚板-2寸-经典款`、`木箱-V550`、`珍珠棉-厚度2mm`，因此「正式 BOM 中匹配 0 条」必然失败。
+- `part-current-price` 需要零件 `800平刀切割泵壳`（现为 `泵壳-V800-平刀`）。该用例的设计意图是「型号不存在时必须明确说明未找到」，数据缺失本身不是缺陷，但实测 AI 连续两次都没有做到明确表态。
+
+**第二，判定对模型措辞过于敏感，同一 commit 结果会漂移。** 同一生产 commit 连续两次运行（run #60 与 run #61），9 条用例中有 4 条翻转状态：`test-report-file-type` 由失败转通过，`complete-cable-semantics` 与 `cutting-shell-purpose-evidence` 由通过转失败，总通过数 6/9 → 5/9。稳定失败只有 `part-current-price` 与 `configured-template-cost` 两条。
+
+**第三，核心用例清单硬编码在代码里，删数据行会让门禁直接拒绝执行。** `api/services/aiEvaluationReleasePolicy.cjs` 的 `CORE_AI_RELEASE_CASE_KEYS` 固定要求 9 个 `sourceType='system'` 用例 key，`assertCoreAiReleaseCases` 同时校验 key 存在、`reviewStatus='approved'`、`enabled` 与 `releaseGateEnabled`。实测直接从 `ai_evaluation_cases` 删除这 3 条会让门禁报「核心 AI 发布检查配置不完整……不可执行」，连报告都产不出来，比原本的失败更糟。因此**移除或停用任何核心用例都必须伴随一次显式、可评审的清单变更，不能靠删数据库行实现**。
+
+已处理的遗留：`feedback-6`、`feedback-7` 两条 `sourceType='feedback'` 用例的来源反馈与对应规则已被清理，成为孤儿行，且不在核心清单内、发布 scope 也不执行它们，故已删除（归档 `logs/ai-evaluation-cases-deleted-feedback-*.sql`，删除前备份 `backups/manual-purge-feedback-cases-*.db`）。
+
+完成标准：
+
+- 每条核心用例引用的实体在当前数据库中真实存在，或该用例明确以「实体不存在」为被测场景，且断言对合法措辞差异不敏感；
+- 同一 commit 连续两次 `npm run verify:ai-release` 的逐条结果一致；若仍有波动，须先收紧断言直到稳定，并在报告中量化波动来源；
+- 核心用例的增删必须通过 `CORE_AI_RELEASE_CASE_KEYS` 的显式变更并补测试，禁止直接删除数据库行；
+- 两次运行报告都留档，并与上一次生产结果对比。
+
 ## 3. P1：巨型组件瘦身
 
 ### 3.1 是否需要瘦身
