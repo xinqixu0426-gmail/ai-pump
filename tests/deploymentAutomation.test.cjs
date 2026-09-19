@@ -22,6 +22,9 @@ test('Mac Mini 一键发布：Windows 入口只部署已推送提交并通过 st
     assert.match(wrapper, /ExitCode -ne 255/);
     assert.match(wrapper, /Start-Sleep -Seconds \$RetryDelaySeconds/);
     assert.match(wrapper, /\/bin\/zsh -s/);
+    // 2026-09-19：生产 MCP 只读验收默认不参与发布阻断，可显式恢复。
+    assert.match(wrapper, /\[ValidateSet\('disabled', 'enabled'\)\]\[string\]\$McpAcceptance = 'disabled'/);
+    assert.match(wrapper, /PUMP_DEPLOY_MCP_ACCEPTANCE=\$McpAcceptance/);
 });
 
 test('Mac Mini 一键发布：备份、快进、门禁、重启和公网验收顺序固定', () => {
@@ -42,6 +45,9 @@ test('Mac Mini 一键发布：备份、快进、门禁、重启和公网验收�
     assert.match(deploy, /release-code-gate-\$new_commit\.json/);
     assert.match(deploy, /startupBackup\?\.ok !== true/);
     assert.match(deploy, /gitCommit/);
+    // MCP 只读验收只作为可选项存在：默认分支不得调用 verify:mcp-prod-read。
+    assert.match(deploy, /\$\{PUMP_DEPLOY_MCP_ACCEPTANCE:-disabled\}/);
+    assert.match(deploy, /McpAcceptance enabled/);
 });
 
 test('测试运行器：每个测试进程使用独立临时数据库而不是生产 pump.db', () => {

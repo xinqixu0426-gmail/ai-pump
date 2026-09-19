@@ -79,11 +79,14 @@ Node.js 的 Windows `fetch`/强制退出竞态，而不是放宽 MCP 场景判�
 延迟发生在客户端模型规划、连续多工具选择或最终回答生成阶段，不应通过缓存或改写
 正式业务 Query 掩盖。只有服务端 `durationMs` 本身持续超标时，才进入 MCP/API 性能优化。
 
-生产发布在公网 ready 通过后自动运行：
+生产发布原本在公网 ready 通过后自动运行该验收；**2026-09-19 起默认停用**（生产配方数不足，
+且负责人表示若 ontology 满足需求可能弃用 MCP），需要手工执行时仍可直接运行：
 
 ```bash
 npm run verify:mcp-prod-read
 ```
+
+恢复为发布自动步骤：`npm run deploy:macmini -- -McpAcceptance enabled`。
 
 该命令从进程环境的 `MCP_VERIFY_TOKEN` 或正式 `.env` 中已有的
 `MCP_SERVICE_TOKENS` 选取凭证，不输出或写入 token。它在同一个 MCP 连接中先复用

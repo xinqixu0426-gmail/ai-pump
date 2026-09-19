@@ -6,7 +6,7 @@
 
 - 发布提交 `90cf72e`（含 `fc29c66` 变更描述识别、`f88282f` 用例退役与迁移 86）。生产已快进拉取、重启并验证：ready=true、迁移与 `PRAGMA user_version` 均为 **86**、启动备份通过、运行 commit `90cf72e`。Mac Mini 上完整代码门禁通过：全量测试 **2564/2564**、API 契约 26/26、深度 API 490/490、lint、生产构建、依赖与环境检查。
 - 第 [7/9] 步真实 AI 发布门禁本次**通过**：报告 `status=passed`、`blocked=false`、`coreCasesRetired=true`、`retiredAt=2026-09-19`，`note` 明确写出"本轮没有可执行用例，因此不构成 AI 质量证据"（`logs/ai-release-gate-latest.json`）。退役按技术债 §2.3 的要求实施：`CORE_AI_RELEASE_CASE_KEYS` 显式置空、旧 key 移入 `RETIRED_AI_RELEASE_CASE_KEYS`、迁移 86 删除九条用例行及其运行结果。生产复核：`ai_evaluation_cases` 0 行、`ai_evaluation_results` 0 行、外键异常 0、`integrity_check=ok`，59 条运行历史保留作审计。
-- 第 [9/9] 步生产 MCP 全领域只读验收仍失败，原因与本次代码无关：`verify:mcp-prod-read` 要求至少两个正式配方才能验收成本对比，生产当前只有 1 个未删除配方（`error=生产环境至少需要两个正式配方才能验收成本对比`）。这是数据前置条件，属于业务决定，不能靠放宽验收绕过。
+- 第 [9/9] 步生产 MCP 全领域只读验收原本仍会失败，原因与本次代码无关：`verify:mcp-prod-read` 要求至少两个正式配方才能验收成本对比，生产当前只有 1 个未删除配方（`error=生产环境至少需要两个正式配方才能验收成本对比`）。随后按负责人 2026-09-19 决定**暂时停用该步骤作为发布阻断项**（负责人表示若 ontology 能满足需求，可能弃用 MCP）：`scripts/deploy-macmini-release.sh` 默认跳过并打印原因，`scripts/deploy-macmini.ps1` 新增 `-McpAcceptance disabled|enabled`（默认 `disabled`），恢复方式为 `npm run deploy:macmini -- -McpAcceptance enabled`。服务端 `/mcp`、只读工具、`verify:mcp-local`、`verify:mcp-write-local` 与手工执行该命令均不受影响。
 - 变更描述识别（生产会话 58 msg 321/329）：解析层在"所有名称形态都没命中"之后判断请求是否为变更或提问描述，是则返回 `AI_RESOURCE_QUERY_NOT_A_NAME` 与可执行提示，不再把用户整句话回显成"未找到配方：…"；模板路径（`preview_pump_shell_cost` 的 `shellModel`）同样处理，并复用同一判定与提示文案。
 - 生产真实对话复现两次：`如果我把12-120换成12-140，成本是多少` → 只查线圈方案并明确说明"以上只是线圈方案成本，整机需给出配方基准"；`替换550的重新核算` → 先定位到配方 `V550大脚板-2寸-经典款`（ID 12），再按泵壳/线圈/机筒/浮球/电缆/包装逐项澄清缺什么。两次都没有把整句话塞进型号字段（因此新分支未被真实触发，其行为由单元、executor 与运行时测试覆盖）。
 - 顺带修掉一个既有偶发失败：隐私断言 `/301|501|601/` 会撞上运行时长毫秒数的数字片段（例如 0.301ms 里的 `301`），现在隐私断言只看非数值内容。
@@ -234,8 +234,15 @@ LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失�
 管理看板“今日待办”的知识健康事项。模型流式连接瞬时中断会自动重试，连续
 3 次不能完成才按错误阻止验收。
 
-日常发布在公网 ready、登录页和 AI 页面通过后，还会执行
-`npm run verify:mcp-prod-read`。该门禁在单个连接内复用三个正式成本场景，并覆盖 18 个
+日常发布在公网 ready、登录页和 AI 页面通过后，原本还会执行
+`npm run verify:mcp-prod-read`。**2026-09-19 起该步骤默认停用**：生产只有 1 个未删除配方，
+而它要求至少两个正式配方才能验收成本对比，任何发布都会卡在这一步；负责人同时表示若
+ontology 能满足需求可能弃用 MCP，因此不再为它补数据或放宽验收。停用期间发布不再执行该验收，
+脚本会打印跳过原因。需要恢复时运行 `npm run deploy:macmini -- -McpAcceptance enabled`，
+或在远端设置 `PUMP_DEPLOY_MCP_ACCEPTANCE=enabled`；服务端 `/mcp`、只读工具、隔离库验收
+（`npm run verify:mcp-local`、`npm run verify:mcp-write-local`）与手工执行本命令都不受影响。
+
+该验收本身的行为（恢复后仍然适用）：在单个连接内复用三个正式成本场景，并覆盖 18 个
 代表工具及库存、配方、客户/报价、订单/采购、管理/质量、知识、出图历史和统一业务变更；逐次验证
 `mcp.verified`、能力 ID 和正式数据源，并交叉核对配方明细/无覆盖试算的当前完整成本、
 覆盖试算的 `currentTotalCost` 主字段，以及两项成本对比工具的实时数据模式。最坏 36 个请求，低于每分钟 60 次生产限流。

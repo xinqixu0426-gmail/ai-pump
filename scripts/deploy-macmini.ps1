@@ -1,9 +1,12 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$SshHost = 'macmini',
     [string]$Branch = 'master',
     [ValidateRange(1, 5)][int]$MaxSshAttempts = 3,
-    [ValidateRange(1, 60)][int]$RetryDelaySeconds = 5
+    [ValidateRange(1, 60)][int]$RetryDelaySeconds = 5,
+    # 2026-09-19 负责人决定：生产 MCP 全领域只读验收默认不参与发布阻断（生产配方数不足，
+    # 且 MCP 可能被弃用）。需要恢复该步时传 -McpAcceptance enabled。
+    [ValidateSet('disabled', 'enabled')][string]$McpAcceptance = 'disabled'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,7 +61,7 @@ try {
                 '-o', 'ServerAliveInterval=30',
                 '-o', 'ServerAliveCountMax=6',
                 $SshHost,
-                "PUMP_DEPLOY_BRANCH=$Branch /bin/zsh -s"
+                "PUMP_DEPLOY_BRANCH=$Branch PUMP_DEPLOY_MCP_ACCEPTANCE=$McpAcceptance /bin/zsh -s"
             ) `
             -RedirectStandardInput $remoteScript `
             -NoNewWindow `

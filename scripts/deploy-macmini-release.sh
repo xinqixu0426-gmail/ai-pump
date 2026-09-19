@@ -208,8 +208,18 @@ wait_for_http "公网登录页" "$PUBLIC_BASE_URL/login"
 wait_for_http "公网 AI 页面" "$PUBLIC_BASE_URL/ai"
 validate_ready_commit "$PUBLIC_BASE_URL/api/health/ready" "$new_commit"
 
-echo "[9/9] 执行生产 MCP 全领域只读验收"
-MCP_VERIFY_URL="$PUBLIC_BASE_URL/mcp" "$NPM_BIN" run verify:mcp-prod-read
+echo "[9/9] 生产 MCP 全领域只读验收"
+# 2026-09-19 负责人决定：暂时停用该验收作为发布阻断项。生产只有 1 个未删除配方，而
+# verify:mcp-prod-read 的成本对比场景要求至少 2 个正式配方，因此任何发布都会卡在这一步；
+# 负责人同时表示若 ontology 能满足需求，可能弃用 MCP，所以不再为它补数据或放宽验收。
+# 服务端 /mcp、只读工具、验收脚本与隔离库验收（verify:mcp-local / verify:mcp-write-local）
+# 保持可用；恢复本步骤：npm run deploy:macmini -- -McpAcceptance enabled
+if [[ "${PUMP_DEPLOY_MCP_ACCEPTANCE:-disabled}" == "enabled" ]]; then
+  MCP_VERIFY_URL="$PUBLIC_BASE_URL/mcp" "$NPM_BIN" run verify:mcp-prod-read
+else
+  echo "已按 2026-09-19 负责人决定跳过生产 MCP 只读验收（默认停用，不阻断发布）。"
+  echo "恢复方式：npm run deploy:macmini -- -McpAcceptance enabled"
+fi
 
 elapsed=$(( $(/bin/date +%s) - STARTED_AT ))
 echo "发布完成：commit ${new_commit[1,12]}，用时 ${elapsed} 秒。"
