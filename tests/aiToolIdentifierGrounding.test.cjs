@@ -6,8 +6,42 @@ const {
     verifiedResolvedOrderIds,
     verifiedResolvedQuotationIds,
     validateAiToolIdentifierGrounding,
+    validateGroundedIdentityValues,
     normalizeExplicitCoilShorthandArgs,
 } = require('../api/services/aiToolIdentifierGrounding.cjs');
+
+test('身份校验：材质/槽眼必须来自用户输入或本轮正式结果', () => {
+    const messages = [{ role: 'user', content: '12-220 的成本' }];
+    const coiledPart = { name: 'search_coils', result: verifiedResult({ data: [{ id: 6, material: '钢带', slotType: '小眼' }] }) };
+    // 用户没提材质槽眼、本轮也没查过 → 拒绝（否则 12-220 这类多方案会被悄悄收窄成一套）
+    assert.equal(validateGroundedIdentityValues({
+        toolName: 'calculate_coil_cost',
+        args: { spec: '12', sheets: 220, material: '钢带', slotType: '小眼' },
+        messages,
+        toolResults: [],
+    }).code, 'UNGROUNDED_IDENTITY_VALUE');
+    // 用户明说了材质槽眼 → 允许
+    assert.equal(validateGroundedIdentityValues({
+        toolName: 'calculate_coil_cost',
+        args: { spec: '12', sheets: 220, material: '钢带', slotType: '小眼' },
+        messages: [{ role: 'user', content: '12-220 钢带小眼的成本' }],
+        toolResults: [],
+    }), null);
+    // 本轮正式查询结果里带出过这些值（先查候选再计算）→ 允许
+    assert.equal(validateGroundedIdentityValues({
+        toolName: 'build_recipe_bom_draft',
+        args: { coilMaterial: '钢带', coilSlotType: '小眼' },
+        messages,
+        toolResults: [coiledPart],
+    }), null);
+    // 非只读工具不受此校验约束（写入仍由确认卡与 schema 管）
+    assert.equal(validateGroundedIdentityValues({
+        toolName: 'create_recipe',
+        args: { material: '钢带' },
+        messages,
+        toolResults: [],
+    }), null);
+});
 
 function verifiedResult(result = {}) {
     return {

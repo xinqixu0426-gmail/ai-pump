@@ -958,7 +958,8 @@ test('memory receipt survives continuation, retains the original question, and d
         { tool_calls: [call('build_recipe_bom_draft', { shellModel: '壳A', coilId: 7, coilSpec: '12', coilSheets: 120, coilMaterial: '钢带', coilSlotType: '小眼', hasFloat: true })] },
         { content: '按默认方案计算，成本25元。' },
     ], { changeMemory: async () => saved, executeToolCall: async name => name === 'search_coils'
-        ? verified([{ id: 7, spec: '12', sheets: 120, isDefault: true, schemeStatus: 'official' }])
+        // 真实 search_coils 一定返回材质/槽眼；身份校验要求它们来自用户输入或本轮正式结果。
+        ? verified([{ id: 7, spec: '12', sheets: 120, material: '钢带', slotType: '小眼', isDefault: true, schemeStatus: 'official' }])
         : verified({ costPreview: { sourceOfTruth: 'costEngine', currentTotalCost: 25, pricingComplete: true } }) }));
     assert.match(result.finalContent, /^已记入长期记忆：[\s\S]*25/);
     assert.equal(events.filter(e => e.type === 'done').length, 1);

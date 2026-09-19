@@ -15,7 +15,7 @@ const {
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
 const { canonicalApiResource } = require('./formalResource.cjs');
-const { withCrossCatalogCandidates } = require('../../../services/aiCrossCatalogCandidates.cjs');
+const { withCrossCatalogCandidates, withEmptyCatalogProbe } = require('../../../services/aiCrossCatalogCandidates.cjs');
 const { createCoilVariantLookup } = require('../../../services/coilVariantAmbiguity.cjs');
 
 // 同规格片数的其它正式方案查询（歧义提示用）。
@@ -214,13 +214,22 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             );
             const data = recipes.map(canonicalApiResource);
             const filters = { keyword, hasTechnicalFiles };
-            return {
-                success: true,
-                count: data.length,
-                filters,
-                queryReceipt: buildQueryReceipt(filters, data.length),
-                data,
-            };
+            // 型号样式关键词在配方目录零命中时，把模板/零件目录里的同名对象一并带出：
+            // 用户问的是"这个型号"，不是"这个配方"（生产实例：V800 是零件 泵壳-V800-平刀）。
+            return withEmptyCatalogProbe({
+                getJson,
+                internalFetch,
+                result: {
+                    success: true,
+                    count: data.length,
+                    filters,
+                    queryReceipt: buildQueryReceipt(filters, data.length),
+                    data,
+                },
+                token: keyword,
+                catalog: 'recipe',
+                subject: '对象',
+            });
         }
 
         case 'get_recipes_by_coil': {
@@ -538,23 +547,31 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 description: String(args.description || '').trim(),
                 limit: args.limit === undefined ? null : Number(args.limit),
             };
-            return {
-                success: true,
-                count: data.length,
-                filters,
-                queryReceipt: buildQueryReceipt(
+            // 型号在模板目录零命中时，把配方/零件目录里的同名对象一并带出（同一规则）。
+            return withEmptyCatalogProbe({
+                getJson,
+                internalFetch,
+                result: {
+                    success: true,
+                    count: data.length,
                     filters,
-                    args.limit === undefined ? data.length : null,
-                    data.length
-                ),
-                selectionBoundary: 'data 已由正式泵壳模板 API 按 filters 筛选。',
-                data,
-                sources: data.map(template => ({
-                    sourceTable: 'pump_shell_templates',
-                    sourceId: template.id,
-                    title: template.shellModel,
-                })),
-            };
+                    queryReceipt: buildQueryReceipt(
+                        filters,
+                        args.limit === undefined ? data.length : null,
+                        data.length
+                    ),
+                    selectionBoundary: 'data 已由正式泵壳模板 API 按 filters 筛选。',
+                    data,
+                    sources: data.map(template => ({
+                        sourceTable: 'pump_shell_templates',
+                        sourceId: template.id,
+                        title: template.shellModel,
+                    })),
+                },
+                token: filters.shellModel || filters.description,
+                catalog: 'template',
+                subject: '对象',
+            });
         }
 
         case 'get_template_detail': {

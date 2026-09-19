@@ -244,9 +244,83 @@ function verifiedResolvedQuotationIds(toolResults = []) {
     return ids;
 }
 
+// 线圈变体的身份字符串：材质与槽眼决定"算的是哪一套方案"（12-220 有钢带/小眼与冷轧/国标眼两套）。
+// 这些值必须来自用户输入或本轮正式查询结果，否则模型猜一个组合就能悄悄把方案收窄——
+// 而数字校验管不到它们（那条只管数字，见 GROUNDED_BUSINESS_NUMBER_FIELDS）。
+const GROUNDED_IDENTITY_FIELDS = new Set(['material', 'slotType', 'coilMaterial', 'coilSlotType']);
+// 工具入参名与正式结果字段名不同名（coilMaterial ↔ material），核对正式结果时两种都要认。
+const IDENTITY_RESULT_KEY_ALIASES = Object.freeze({
+    material: Object.freeze(['material', 'coilMaterial']),
+    coilMaterial: Object.freeze(['material', 'coilMaterial']),
+    slotType: Object.freeze(['slotType', 'coilSlotType']),
+    coilSlotType: Object.freeze(['slotType', 'coilSlotType']),
+});
+
+function normalizeIdentityText(value) {
+    return String(value ?? '').trim().toLocaleLowerCase('zh-CN');
+}
+
+function identityEntries(value, path = []) {
+    if (!value || typeof value !== 'object') return [];
+    const entries = [];
+    for (const [key, nested] of Object.entries(value)) {
+        const nextPath = [...path, key];
+        if (GROUNDED_IDENTITY_FIELDS.has(key) && typeof nested === 'string' && nested.trim()) {
+            entries.push({ field: key, path: nextPath.join('.'), value: nested.trim() });
+        }
+        if (nested && typeof nested === 'object') entries.push(...identityEntries(nested, nextPath));
+    }
+    return entries;
+}
+
+function userTextContainsIdentityValue(messages = [], value) {
+    const needle = normalizeIdentityText(value);
+    if (!needle) return false;
+    return (messages || []).some(message => (
+        message?.role === 'user'
+        && typeof message.content === 'string'
+        && normalizeIdentityText(message.content).includes(needle)
+    ));
+}
+
+function verifiedResultContainsIdentityValue(toolResults = [], field, value) {
+    const expected = normalizeIdentityText(value);
+    const keys = new Set(IDENTITY_RESULT_KEY_ALIASES[field] || [field]);
+    const visit = candidate => {
+        if (!candidate || typeof candidate !== 'object') return false;
+        if (Array.isArray(candidate)) return candidate.some(visit);
+        for (const [key, nested] of Object.entries(candidate)) {
+            if (keys.has(key) && normalizeIdentityText(nested) === expected) return true;
+            if (visit(nested)) return true;
+        }
+        return false;
+    };
+    return (toolResults || []).some(item => (
+        hasVerifiedExecution(item?.result) && visit(item.result)
+    ));
+}
+
+/** 材质/槽眼必须来自用户输入或本轮正式结果，否则拒绝该次读取（要求先查正式候选）。 */
+function validateGroundedIdentityValues(input = {}) {
+    if (getAiCapability(input.toolName)?.access !== 'read') return null;
+    for (const { field, path, value } of identityEntries(input.args)) {
+        if (userTextContainsIdentityValue(input.messages, value)) continue;
+        if (verifiedResultContainsIdentityValue(input.toolResults, field, value)) continue;
+        return {
+            code: 'UNGROUNDED_IDENTITY_VALUE',
+            error: `${path}=${value} 未出现在用户明确输入或本轮已验证的正式查询结果中，已阻止使用模型猜测的材质/槽眼。`
+                + '同一「规格-片数」可能有多套正式方案（例如 12-220 = 钢带/小眼 + 冷轧/国标眼）：'
+                + '请先用 search_coils 读取正式候选，让用户确认采用哪一套，再按该方案计算。',
+        };
+    }
+    return null;
+}
+
 function validateAiToolIdentifierGrounding(input = {}) {
     const businessNumberIssue = validateGroundedBusinessNumbers(input);
     if (businessNumberIssue) return businessNumberIssue;
+    const identityIssue = validateGroundedIdentityValues(input);
+    if (identityIssue) return identityIssue;
     if (QUOTATION_QUERY_TOOLS.has(input.toolName)) {
         const quotationId = Number(input.args?.quotationId);
         if (!Number.isSafeInteger(quotationId) || quotationId <= 0) return null;
@@ -286,8 +360,10 @@ module.exports = {
     businessNumberEntries,
     userTextContainsGroundedNumber,
     explicitCoilShorthand,
+    identityEntries,
     normalizeExplicitCoilShorthandArgs,
     validateGroundedBusinessNumbers,
+    validateGroundedIdentityValues,
     verifiedResolvedOrderIds,
     verifiedResolvedQuotationIds,
     validateAiToolIdentifierGrounding,

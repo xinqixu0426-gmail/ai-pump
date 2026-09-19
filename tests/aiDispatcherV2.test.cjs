@@ -2184,6 +2184,13 @@ test('AI V3 Agent：指定配方技术档案不存在时不得换成其他配方
                 }],
             }), { headers: { 'Content-Type': 'application/json' } });
         }
+        // 型号样式关键词在配方目录零命中时，执行器会按规则补查模板/零件目录
+        // （见 aiCrossCatalogCandidates.cjs：任何目录查不到都要查全）。本用例两边都为空。
+        if (/\/api\/(templates|parts)/.test(String(url))) {
+            return new Response(JSON.stringify({ success: true, data: [] }), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
         assert.match(String(url), /\/api\/recipes/);
         return new Response(JSON.stringify({ success: true, data: [] }), {
             headers: { 'Content-Type': 'application/json' },

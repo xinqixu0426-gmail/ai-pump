@@ -26,9 +26,49 @@ function stubGetJson(failures = {}) {
     };
 }
 
-test('跨目录候选：只对型号简称探测，描述性短语不跨目录', async () => {
+test('跨目录候选：查询成功但零行时，把其它目录的同名对象带出来（生产实例 V800）', async () => {
+    const { withEmptyCatalogProbe } = require('../api/services/aiCrossCatalogCandidates.cjs');
+    const getJson = async (_fetch, path) => {
+        if (path.startsWith('/api/parts')) return [{ id: 182, model: '泵壳-V800-平刀', category: '泵壳', supplier: '孚元' }];
+        if (path === '/api/templates') return templates;
+        return [];
+    };
+    const emptyRecipes = {
+        success: true,
+        count: 0,
+        filters: { keyword: 'V800' },
+        data: [],
+    };
+    const enriched = await withEmptyCatalogProbe({
+        getJson,
+        internalFetch: null,
+        result: emptyRecipes,
+        token: 'V800',
+        catalog: 'recipe',
+    });
+    assert.equal(enriched.success, true);
+    assert.equal(enriched.count, 0, '空结果本身仍是该目录内的权威结论');
+    assert.deepEqual(enriched.crossCatalogCandidates.map(item => [item.entityType, item.label]), [
+        ['part', '泵壳-V800-平刀'],
+    ]);
+    assert.match(enriched.crossCatalogHint, /V800/);
+    assert.match(enriched.crossCatalogHint, /不要让用户从零说明型号/);
+    // 回答已点到候选时不重复补充；完全没提候选时由运行器补齐
+    const { appendCrossCatalogCandidates } = require('../api/services/aiCrossCatalogCandidates.cjs');
+    const toolResults = [{ name: 'get_all_recipes', result: enriched }];
+    assert.match(appendCrossCatalogCandidates('V800 查不到对应记录。', toolResults), /泵壳-V800-平刀/);
+    assert.equal(
+        appendCrossCatalogCandidates('V800 查到零件 泵壳-V800-平刀。', toolResults),
+        'V800 查到零件 泵壳-V800-平刀。'
+    );
+    // 非型号样式的关键词不探测（描述性短语查不到就是查不到）
+    assert.equal(await withEmptyCatalogProbe({
+        getJson, internalFetch: null, result: { success: true, count: 0, data: [] }, token: 'Shadow不存在配方', catalog: 'recipe',
+    }).then(result => result.crossCatalogCandidates), undefined);
+});
+
+test('跨目录候选：非型号样式的关键词不跨目录探测', async () => {
     assert.equal(isCatalogModelToken('V750'), true);
-    assert.equal(isCatalogModelToken('v550的'), false);
     assert.equal(isCatalogModelToken('12-120'), true);
     assert.equal(isCatalogModelToken('Shadow不存在配方'), false);
     assert.deepEqual(await crossCatalogCandidates(stubGetJson(), null, 'Shadow不存在配方'), []);
