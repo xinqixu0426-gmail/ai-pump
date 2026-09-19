@@ -30,6 +30,7 @@ const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs')
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
+const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
 const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
 const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
@@ -738,6 +739,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         }
         // C：跨目录候选必须真的到达用户。模型空手反问、或长回答被本地裁剪后，这里做确定性补充。
         finalContent = appendCrossCatalogCandidates(finalContent, toolResults);
+        // 同一 规格-片数 有多套正式方案时，回答不能只讲一套（12-220 = 钢带/小眼 + 冷轧/国标眼）。
+        finalContent = appendMissingCoilVariants(finalContent, toolResults);
         if (!finalContentStreamed) {
             finalContent = ensureTaskAnswer(
                 taskEnvelope,

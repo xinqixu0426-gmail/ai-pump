@@ -16,6 +16,10 @@ const {
 } = require('../../../services/aiRecipeResolution.cjs');
 const { canonicalApiResource } = require('./formalResource.cjs');
 const { withCrossCatalogCandidates } = require('../../../services/aiCrossCatalogCandidates.cjs');
+const { createCoilVariantLookup } = require('../../../services/coilVariantAmbiguity.cjs');
+
+// 同规格片数的其它正式方案查询（歧义提示用）。
+const lookupOtherOfficialVariants = createCoilVariantLookup(getJson);
 const {
     MAX_PAGE_SIZE,
     MAX_RELATION_RESULT_BYTES,
@@ -165,12 +169,26 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 `/api/coils${query.size ? `?${query.toString()}` : ''}`,
                 '线圈库存读取失败'
             );
+            // 按材质/槽眼收窄时，同一「规格-片数」可能还有别的正式方案。空结果不算收窄，
+            // 只有真的筛掉了同规格片数的其它正式方案才提示，避免把普通查询变吵。
+            const narrowed = Boolean(filters.material || filters.slotType);
+            const ambiguity = narrowed && filters.spec && filters.sheets
+                ? await lookupOtherOfficialVariants(internalFetch, {
+                    spec: filters.spec,
+                    sheets: filters.sheets,
+                    excludeIds: coils.map(coil => Number(coil.id ?? coil.Id)),
+                })
+                : { variants: [], notice: '' };
             return {
                 success: true,
                 count: coils.length,
                 filters,
                 queryReceipt: buildQueryReceipt(filters, coils.length),
                 data: coils.map(canonicalApiResource),
+                ...(ambiguity.variants.length > 0 ? {
+                    sameSpecSheetsVariants: ambiguity.variants,
+                    sameSpecSheetsNotice: ambiguity.notice,
+                } : {}),
                 sources: coils.map(coil => ({
                     sourceTable: 'coils',
                     sourceId: coil.id ?? coil.Id,

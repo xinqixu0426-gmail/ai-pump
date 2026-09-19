@@ -1,4 +1,8 @@
 const { getJson, postJson } = require('../internalApiClient.cjs');
+const { createCoilVariantLookup } = require('../../../services/coilVariantAmbiguity.cjs');
+
+// 同规格片数的其它正式方案查询（歧义提示用）。
+const lookupOtherOfficialVariants = createCoilVariantLookup(getJson);
 
 function coilDiameter(spec, diameterMm) {
     const stored = Number(diameterMm || 0);
@@ -107,7 +111,22 @@ async function executeCostTool(toolName, args, internalFetch) {
                 // Read-only preview may inspect a testing scheme without changing its status.
                 includeTesting: true,
             }, '线圈成本计算失败');
-            return { success: true, data };
+            // 按材质/槽眼/方案 ID 收窄时，必须让调用方看到"同一规格片数还有别的正式方案"，
+            // 否则用户只会被告知其中一套成本（12-220 = 钢带/小眼 + 冷轧/国标眼）。
+            const ambiguity = await lookupOtherOfficialVariants(internalFetch, {
+                spec: args.spec,
+                sheets: args.sheets,
+                excludeIds: [data?.coilId ?? selectedCoilId],
+            });
+            if (ambiguity.variants.length === 0) return { success: true, data };
+            return {
+                success: true,
+                data: {
+                    ...data,
+                    sameSpecSheetsVariants: ambiguity.variants,
+                    sameSpecSheetsNotice: ambiguity.notice,
+                },
+            };
         }
 
         case 'dynamic_config_cost': {

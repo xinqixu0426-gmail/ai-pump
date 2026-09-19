@@ -593,14 +593,20 @@ test('explicit custom interpolation still reaches cost API when no saved scheme 
     const result = await executeCostTool('calculate_coil_cost', { spec: '12', sheets: 201, material: '钢带', slotType: '小眼' }, async (url, options) => {
         calls.push(url); return new Response(JSON.stringify({ success: true, data: options.method === 'GET' ? [] : { cost: 12 } }));
     });
-    assert.equal(result.data.cost, 12); assert.deepEqual(calls, ['/api/coils', '/api/coils/calculate']);
+    assert.equal(result.data.cost, 12);
+    // 收窄计算后额外查一次同规格片数的其它正式方案；该桩没有其它方案，因此不附加歧义提示。
+    assert.deepEqual(calls, ['/api/coils', '/api/coils/calculate', '/api/coils?spec=12&sheets=201']);
+    assert.equal(result.data.sameSpecSheetsNotice, undefined);
 });
 
 test('explicit testing scheme preview uses existing includeTesting contract without business writes', async () => {
     const { executeCostTool } = require('../api/routes/ai/executors/costExecutors.cjs');
     const { calculateCoilCost } = require('../api/services/coilCost.cjs');
     const result = await executeCostTool('calculate_coil_cost', { spec: '12', sheets: 200, coilId: 2, material: '钢带', slotType: '小眼' }, async (url, options) => {
-        assert.equal(url, '/api/coils/calculate');
+        if (url !== '/api/coils/calculate') {
+            // 歧义探测：该桩没有其它正式方案。
+            return new Response(JSON.stringify({ success: true, data: [] }));
+        }
         const body = JSON.parse(options.body); assert.equal(body.includeTesting, true);
         const calculated = calculateCoilCost([{ id: 2, spec: '120', diameterMm: 120, sheets: 200, material: '钢带', slotType: '小眼', schemeStatus: 'testing', unitPrice: 0.2, wireWeight: 1, copperBase: 80, coilFee: 8, rotorFee: 5 }], body);
         return new Response(JSON.stringify(calculated), { status: calculated.success ? 200 : 400 });
@@ -1135,6 +1141,26 @@ test('a change-description name failure reaches the model as a hint, never as a 
     assert.deepEqual(executed.map(item => item.name), ['preview_recipe_cost', 'build_recipe_bom_draft']);
     assert.equal(executed[1].args.baseRecipeId, 12);
     assert.match(result.finalContent, /285\.80/);
+});
+
+// 生产反馈：12-220 有两套正式方案，回答只讲一套时用户会以为只有一种。这里必须确定性补齐。
+test('an answer covering only one of several official coil variants is completed deterministically', async () => {
+    const coilRows = [
+        { id: 6, spec: '12', sheets: 220, material: '钢带', slotType: '小眼', schemeCode: 'COIL-0006', schemeStatus: 'official', isDefault: true, cost: 166.9728, stock: 0 },
+        { id: 10, spec: '12', sheets: 220, material: '冷轧', slotType: '国标眼', schemeCode: 'COIL-0010', schemeStatus: 'official', isDefault: true, cost: 196.1669, stock: 0 },
+    ];
+    const result = await runAiAssistant({
+        ...input('12-220的成本'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('search_coils', { spec: '12', sheets: 220 })] },
+        { content: '12-220 钢带小眼的当前成本是 166.9728 元。' },
+    ], { executeToolCall: async () => verified(coilRows) }));
+
+    assert.match(result.finalContent, /166\.9728/);
+    assert.match(result.finalContent, /COIL-0010/);
+    assert.match(result.finalContent, /共有 2 套方案/);
+    assert.match(result.finalContent, /请确认要采用哪一套/);
 });
 
 // C（生产会话 58：「V750 的成本是多少」）：空手反问必须带上正式目录里真实存在的候选。
