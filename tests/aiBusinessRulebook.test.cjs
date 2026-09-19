@@ -97,7 +97,7 @@ test('规矩册：铜基价取自本轮正式结果，缺失时不编造', () =>
     assert.doesNotMatch(outcome.answer, /\d+\.\d+ 元\/千克/);
 });
 
-test('规矩册：正式金额表（无"元"字）也算有金额，假设铜价仍要说明口径', () => {
+test('规矩册：正式金额表（无"元"字）也算有金额，且口径说明放在表格前面', () => {
     const table = '本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| V550大脚板-2寸-经典款 | 当前总成本 | 268 |\n\n完整计算明细见本轮工具结果。';
     const outcome = enforceBusinessRules({
         answer: table,
@@ -105,7 +105,21 @@ test('规矩册：正式金额表（无"元"字）也算有金额，假设铜价
         toolResults: [coilSearchResult],
     });
     assert.deepEqual(outcome.applied, ['BR-HYPOTHETICAL-PRICE']);
+    assert.ok(outcome.answer.startsWith('你问的是按假设价格（95）算的成本'));
+    assert.match(outcome.answer, /系统只按当日正式铜基价核算，不支持按假设铜价试算/);
     assert.match(outcome.answer, /按系统当前正式铜基价 110\.18 元\/千克核算/);
+    assert.ok(outcome.answer.includes(table), '正式金额表必须原样保留在说明之后');
+});
+
+test('规矩册：铜价同时支持线圈档案与当日行情两种字段', () => {
+    assert.equal(copperBaseFromResults([{
+        name: 'get_copper_price',
+        result: { success: true, data: { livePricePerKg: '110.18', dbPrice: 110.18, livePrice: 110180 } },
+    }]), 110.18);
+    assert.equal(copperBaseFromResults([{
+        name: 'get_copper_price',
+        result: { success: true, data: { livePricePerKg: '109.50' } },
+    }]), 109.5);
 });
 
 test('规矩册：空回答不产生任何补充', () => {

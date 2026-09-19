@@ -20,8 +20,11 @@ const MACHINE_COST_TOOLS = new Set([
 
 const MACHINE_COST_INTENT_RE = /(配方|成品|整机|整机成本|机器|产品).{0,6}(?:成本|价格|多少钱|报价)|(?:成本|价格|多少钱|报价).{0,6}(?:配方|成品|整机|机器|产品)/u;
 const COIL_LABEL_RE = /(线圈|定子)/u;
-const HYPOTHETICAL_PRICE_RE = /(?:按|如果|假如|假设|要是)[^。\n]{0,12}(?:铜价|铜|铝价|材料价|料价|价格|单价)[^。\n]{0,10}(\d+(?:\.\d+)?)/u;
+// 中间的连接词不许吃数字，否则"按铜价95算…V550"会错抓到 V550 的末位数字。
+const HYPOTHETICAL_PRICE_RE = /(?:按|如果|假如|假设|要是)[^。\n]{0,12}(?:铜价|铜|铝价|材料价|料价|价格|单价)\s*(?:为|是|算|按)?\s*(\d+(?:\.\d+)?)/u;
 const PRICE_BASIS_RE = /(铜价|铜基价|copperBase|报价基数)/u;
+// 金额守卫在无法核对时会输出这种纯正式金额表；对这类回答，口径说明必须放在表格前面才看得见。
+const MONEY_TABLE_ONLY_RE = /^\s*本轮正式查询金额如下/u;
 
 function verifiedResults(toolResults = []) {
     return (Array.isArray(toolResults) ? toolResults : [])
@@ -46,12 +49,16 @@ function answerHasAmount(answer) {
 /** 从本轮正式结果里取铜基价（元/千克），用于口径说明。 */
 function copperBaseFromResults(toolResults = []) {
     const values = [];
+    const push = (raw) => {
+        const value = Number(raw);
+        if (Number.isFinite(value) && value > 0) values.push(value);
+    };
     const visit = (value) => {
         if (!value || typeof value !== 'object') return;
         if (Array.isArray(value)) { value.forEach(visit); return; }
         for (const [key, nested] of Object.entries(value)) {
-            if (key === 'copperBase' && Number.isFinite(Number(nested))) values.push(Number(nested));
-            else if (key === 'copperPricePerKg' && Number.isFinite(Number(nested))) values.push(Number(nested));
+            // copperBase：线圈档案；dbPrice：成本引擎实际使用的铜基价；livePricePerKg：当日行情折千克。
+            if (['copperBase', 'dbPrice', 'livePricePerKg'].includes(key)) push(nested);
             else if (nested && typeof nested === 'object') visit(nested);
         }
     };
@@ -78,6 +85,7 @@ function machineVsCoilRule({ answer, userText, toolResults }) {
 /**
  * 假设价格：用户问"按铜价95算"，而系统不会按假设价格试算，回答也没说明用的是哪个铜价口径。
  * 命中则补一条口径说明（含本轮正式档案里的铜基价，避免用户误以为已按假设价算过）。
+ * 当最终回答只是金额守卫输出的正式金额表时，还要在表格前面加一句人话，否则用户仍然只看到一张表。
  */
 function hypotheticalPriceRule({ answer, userText, toolResults }) {
     const match = HYPOTHETICAL_PRICE_RE.exec(String(userText || ''));
@@ -88,11 +96,16 @@ function hypotheticalPriceRule({ answer, userText, toolResults }) {
     const basis = copperBase === null
         ? '系统当前的正式铜基价'
         : `系统当前正式铜基价 ${copperBase} 元/千克`;
+    const note = `口径说明：本轮金额按${basis}核算，**不是**按你假设的价格算出来的；`
+        + 'AI 工具目前不接受指定铜价（线圈级服务已支持该参数但未开放），整机级成本也不支持假设铜价。'
+        + '需要按假设铜价评估，请先确认这个口径要不要做进系统。';
+    const moneyTableOnly = MONEY_TABLE_ONLY_RE.test(String(answer || ''));
     return {
         id: 'BR-HYPOTHETICAL-PRICE',
-        text: `口径说明：本轮金额按${basis}核算，**不是**按你假设的价格算出来的；`
-            + 'AI 工具目前不接受指定铜价（线圈级服务已支持该参数但未开放），整机级成本也不支持假设铜价。'
-            + '需要按假设铜价评估，请先确认这个口径要不要做进系统。',
+        ...(moneyTableOnly ? {
+            prefix: `你问的是按假设价格（${match[1]}）算的成本：系统只按当日正式铜基价核算，不支持按假设铜价试算。下面是本轮正式查询到的金额：`,
+        } : {}),
+        text: note,
     };
 }
 
@@ -109,15 +122,18 @@ function enforceBusinessRules({ answer, userText, toolResults } = {}) {
     const text = String(answer ?? '');
     if (!text.trim()) return { answer, applied: [] };
     const applied = [];
+    const prefixes = [];
     const notes = [];
     for (const rule of RULES) {
         const hit = rule.enforce({ answer: text, userText, toolResults });
         if (!hit) continue;
         applied.push(hit.id);
-        notes.push(hit.text);
+        if (hit.prefix) prefixes.push(hit.prefix);
+        if (hit.text) notes.push(hit.text);
     }
-    if (notes.length === 0) return { answer, applied };
-    return { answer: `${text}\n\n${notes.join('\n')}`, applied };
+    if (notes.length === 0 && prefixes.length === 0) return { answer, applied };
+    const withPrefix = prefixes.length ? `${prefixes.join('\n\n')}\n\n${text}` : text;
+    return { answer: notes.length ? `${withPrefix}\n\n${notes.join('\n')}` : withPrefix, applied };
 }
 
 module.exports = {
