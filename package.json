@@ -10,8 +10,6 @@
     "test": "node scripts/run-tests.cjs",
     "test:ai-architecture": "node scripts/run-ai-architecture-acceptance.cjs",
     "test:ai-shadow": "node scripts/run-ai-shadow-evaluation.cjs",
-    "test:business-understanding": "node --test tests/businessUnderstandingBenchmark.test.cjs",
-    "benchmark:business-understanding": "node scripts/run-business-understanding-benchmark.cjs",
     "test:mcp": "node --test tests/mcp.test.cjs",
     "test:mcp:conformance": "node scripts/run-mcp-conformance.cjs",
     "verify:mcp-local": "npm run test:mcp && npm run test:mcp:conformance && node scripts/run-deep-api-smoke.cjs --scope=mcp",
