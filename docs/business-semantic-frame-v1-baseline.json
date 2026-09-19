@@ -1,0 +1,840 @@
+{
+  "version": "BusinessSemanticFrameV1",
+  "generatedAt": "2026-09-19T17:23:23.974Z",
+  "commit": "3dbebc1607763176af3b77024028f62055a3bf98",
+  "caseHash": "2cb914084fbcfce4e7ebd7c21671e12eae6836e920e3cf5da5d4d22ca03a342e",
+  "fixtureHash": "516de1adf38a17a2e9d2a93c4a76be925d6ba12700429367640ddae088ef766b",
+  "oracleHash": "5dafef1e15fc64d45e16a65ef0ee902bd41d1d4f8d41650926d068b8d067692f",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "realExecutions": 20,
+  "semanticFramesProduced": 20,
+  "frameExceptions": 0,
+  "additionalProviderCalls": 0,
+  "additionalWrites": 0,
+  "stability": [
+    {
+      "caseKey": "BU-01",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-02",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-03",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-04",
+      "frameStable": false,
+      "answerStable": false,
+      "classification": "Frame Unstable"
+    },
+    {
+      "caseKey": "BU-05",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-06",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-07",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-08",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-09",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    },
+    {
+      "caseKey": "BU-10",
+      "frameStable": true,
+      "answerStable": false,
+      "classification": "Frame Stable / Answer Unstable"
+    }
+  ],
+  "criticalProjection": [
+    {
+      "runNumber": 1,
+      "caseKey": "BU-07",
+      "failure": "False Complete Claim",
+      "evidenceSource": "BUS-P0 historical failure shape",
+      "detectedByFrame": true,
+      "semanticBlocker": "NEEDS_EVIDENCE",
+      "requiredFactMissing": "RECIPE_CANONICAL_IDENTITY",
+      "forbiddenClaim": "MUST_NOT_CLAIM_COMPLETE"
+    },
+    {
+      "runNumber": 1,
+      "caseKey": "BU-09",
+      "failure": "Wrong Entity",
+      "evidenceSource": "BUS-P0 historical failure shape",
+      "detectedByFrame": true,
+      "semanticBlocker": "ALIAS_UNRESOLVED",
+      "requiredFactMissing": "RECIPE_CANONICAL_IDENTITY",
+      "forbiddenClaim": "MUST_NOT_CLAIM_COMPLETE"
+    },
+    {
+      "runNumber": 2,
+      "caseKey": "BU-07",
+      "failure": "False Complete Claim",
+      "evidenceSource": "BUS-P0 historical failure shape",
+      "detectedByFrame": true,
+      "semanticBlocker": "NEEDS_EVIDENCE",
+      "requiredFactMissing": "RECIPE_CANONICAL_IDENTITY",
+      "forbiddenClaim": "MUST_NOT_CLAIM_COMPLETE"
+    },
+    {
+      "runNumber": 2,
+      "caseKey": "BU-10",
+      "failure": "Ungrounded Business Parameter",
+      "evidenceSource": "BUS-P0 historical failure shape",
+      "detectedByFrame": true,
+      "semanticBlocker": "AMBIGUOUS_OVERRIDE",
+      "requiredFactMissing": null,
+      "forbiddenClaim": "MUST_NOT_GUESS_PARAMETER"
+    }
+  ],
+  "scaleSentinel": {
+    "caseKey": "BU-SCALE-01",
+    "aggregateBytes": 366395,
+    "boundedBytes": 953,
+    "semanticFramePayloadMaxBytes": 2305,
+    "budgetBytes": 32768,
+    "result": "PASS"
+  },
+  "cases": [
+    {
+      "run": 1,
+      "caseKey": "BU-01",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "missingFacts": [
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-02",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "AMBIGUOUS",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": []
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-03",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "part",
+        "resolutionStatus": "CROSS_CATALOG_CANDIDATE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "CROSS_CATALOG_CANDIDATES",
+          "PART_CATALOG_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "CROSS_CATALOG_CANDIDATES",
+          "PART_CATALOG_IDENTITY"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_CROSS_CATALOG_CANDIDATE"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_PRESENT_PART_PRICE_AS_MACHINE_COST"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-04",
+      "frame": {
+        "questionKind": "HYPOTHETICAL_COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "MACHINE_CURRENT_FULL_COST",
+        "priceContext": "USER_HYPOTHETICAL_PRICE",
+        "overrideStatus": "UNSUPPORTED_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST",
+          "CURRENT_COPPER_PRICE_BASIS"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "missingFacts": [
+          "CURRENT_COPPER_PRICE_BASIS"
+        ],
+        "completeness": "UNSUPPORTED_REQUEST",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_UNSUPPORTED_HYPOTHETICAL",
+          "DISCLOSE_CURRENT_PRICE_BASIS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE",
+          "MUST_NOT_PRESENT_HYPOTHETICAL_AS_FORMAL"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-05",
+      "frame": {
+        "questionKind": "HYPOTHETICAL_COST_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "SUPPORTED_OVERRIDE",
+        "requiredFacts": [
+          "COIL_CANONICAL_IDENTITY",
+          "COIL_SCHEME_COST",
+          "COIL_OVERRIDE_APPLIED"
+        ],
+        "verifiedFacts": [
+          "COIL_CANONICAL_IDENTITY",
+          "COIL_SCHEME_COST",
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [
+          "COIL_OVERRIDE_APPLIED"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-06",
+      "frame": {
+        "questionKind": "CONFIGURATION_OVERRIDE",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "UNRESOLVED",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "MISSING_BASE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_CANONICAL_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-07",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "UNRESOLVED",
+        "ambiguity": "UNRESOLVED_IDENTITY",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "NEEDS_EVIDENCE",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-08",
+      "frame": {
+        "questionKind": "INVENTORY_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "AMBIGUOUS",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY",
+          "COIL_SCHEME_COST"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": []
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-09",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "ALIAS_UNRESOLVED",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "NEEDS_CLARIFICATION",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [
+          "CLARIFY_IDENTITY"
+        ],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-10",
+      "frame": {
+        "questionKind": "CONFIGURATION_OVERRIDE",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "AMBIGUOUS_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_CANONICAL_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [],
+        "completeness": "NEEDS_CLARIFICATION",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [
+          "CLARIFY_VARIANT_SELECTION"
+        ],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE",
+          "MUST_NOT_SELECT_VARIANT",
+          "MUST_NOT_GUESS_PARAMETER"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-01",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "missingFacts": [
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-02",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "AMBIGUOUS",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": []
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-03",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "part",
+        "resolutionStatus": "CROSS_CATALOG_CANDIDATE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "CROSS_CATALOG_CANDIDATES",
+          "PART_CATALOG_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "CROSS_CATALOG_CANDIDATES",
+          "PART_CATALOG_IDENTITY"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_CROSS_CATALOG_CANDIDATE"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_PRESENT_PART_PRICE_AS_MACHINE_COST"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-04",
+      "frame": {
+        "questionKind": "HYPOTHETICAL_COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "USER_HYPOTHETICAL_PRICE",
+        "overrideStatus": "UNSUPPORTED_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST",
+          "CURRENT_COPPER_PRICE_BASIS"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "missingFacts": [
+          "RECIPE_CURRENT_FULL_COST",
+          "CURRENT_COPPER_PRICE_BASIS"
+        ],
+        "completeness": "UNSUPPORTED_REQUEST",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_UNSUPPORTED_HYPOTHETICAL",
+          "DISCLOSE_CURRENT_PRICE_BASIS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE",
+          "MUST_NOT_PRESENT_HYPOTHETICAL_AS_FORMAL"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-05",
+      "frame": {
+        "questionKind": "HYPOTHETICAL_COST_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "NONE",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "SUPPORTED_OVERRIDE",
+        "requiredFacts": [
+          "COIL_CANONICAL_IDENTITY",
+          "COIL_SCHEME_COST",
+          "COIL_OVERRIDE_APPLIED"
+        ],
+        "verifiedFacts": [
+          "COIL_CANONICAL_IDENTITY",
+          "COIL_SCHEME_COST",
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [
+          "COIL_OVERRIDE_APPLIED"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-06",
+      "frame": {
+        "questionKind": "CONFIGURATION_OVERRIDE",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "UNRESOLVED",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "MISSING_BASE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_CANONICAL_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION"
+        ],
+        "completeness": "PARTIAL_VERIFIED",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-07",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "UNRESOLVED",
+        "ambiguity": "UNRESOLVED_IDENTITY",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "NEEDS_EVIDENCE",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS",
+          "DISCLOSE_INCOMPLETE_CONFIGURATION"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-08",
+      "frame": {
+        "questionKind": "INVENTORY_QUERY",
+        "requestedType": "coil",
+        "canonicalType": "coil",
+        "resolutionStatus": "AMBIGUOUS",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "COIL_SCHEME_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "verifiedFacts": [
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_VARIANT_INVENTORY",
+          "COIL_SCHEME_COST"
+        ],
+        "missingFacts": [],
+        "completeness": "COMPLETE",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS"
+        ],
+        "clarifications": [],
+        "forbiddenClaims": []
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-09",
+      "frame": {
+        "questionKind": "COST_QUERY",
+        "requestedType": "recipe",
+        "canonicalType": null,
+        "resolutionStatus": "ALIAS_UNRESOLVED",
+        "ambiguity": "NONE",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "UNKNOWN_COST_BASIS",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "NO_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "verifiedFacts": [],
+        "missingFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_CURRENT_FULL_COST"
+        ],
+        "completeness": "NEEDS_CLARIFICATION",
+        "disclosures": [
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [
+          "CLARIFY_IDENTITY"
+        ],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE"
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-10",
+      "frame": {
+        "questionKind": "CONFIGURATION_OVERRIDE",
+        "requestedType": "recipe",
+        "canonicalType": "recipe",
+        "resolutionStatus": "UNIQUE",
+        "ambiguity": "MULTIPLE_OFFICIAL_VARIANTS",
+        "requestedBasis": "MACHINE_CURRENT_FULL_COST",
+        "actualBasis": "COIL_SCHEME_COST",
+        "priceContext": "CURRENT_FORMAL_PRICE",
+        "overrideStatus": "AMBIGUOUS_OVERRIDE",
+        "requiredFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_CANONICAL_IDENTITY"
+        ],
+        "verifiedFacts": [
+          "RECIPE_CANONICAL_IDENTITY",
+          "RECIPE_BASE_CONFIGURATION",
+          "COIL_OFFICIAL_VARIANT_SET",
+          "COIL_SCHEME_COST",
+          "COIL_VARIANT_INVENTORY"
+        ],
+        "missingFacts": [],
+        "completeness": "NEEDS_CLARIFICATION",
+        "disclosures": [
+          "DISCLOSE_MULTIPLE_VARIANTS",
+          "DISCLOSE_COST_BASIS"
+        ],
+        "clarifications": [
+          "CLARIFY_VARIANT_SELECTION"
+        ],
+        "forbiddenClaims": [
+          "MUST_NOT_CLAIM_COMPLETE",
+          "MUST_NOT_SELECT_VARIANT",
+          "MUST_NOT_GUESS_PARAMETER"
+        ]
+      }
+    }
+  ]
+}
