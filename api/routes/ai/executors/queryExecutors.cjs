@@ -15,6 +15,7 @@ const {
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
 const { canonicalApiResource } = require('./formalResource.cjs');
+const { withCrossCatalogCandidates } = require('../../../services/aiCrossCatalogCandidates.cjs');
 const {
     MAX_PAGE_SIZE,
     MAX_RELATION_RESULT_BYTES,
@@ -300,7 +301,8 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
         case 'get_recipe_detail': {
             const recipes = await getJson(internalFetch, '/api/recipes', '配方列表读取失败');
             const resolved = resolveUniqueRecipe(recipes, args);
-            if (resolved.error) return { success: false, ...resolved };
+            // C：型号简称在配方目录查不到时，补一次跨目录正式探测，让模型带着候选澄清而不是空手反问。
+            if (resolved.error) return { success: false, ...await withCrossCatalogCandidates({ getJson, internalFetch, failure: resolved }) };
             const recipeId = resolved.recipe.id ?? resolved.recipe.Id;
             const recipe = await getJson(
                 internalFetch,
@@ -337,7 +339,7 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
         case 'get_recipe_technical_files': {
             const recipes = await getJson(internalFetch, '/api/recipes', '配方列表读取失败');
             const resolved = resolveUniqueRecipe(recipes, args);
-            if (resolved.error) return { success: false, ...resolved };
+            if (resolved.error) return { success: false, ...await withCrossCatalogCandidates({ getJson, internalFetch, failure: resolved }) };
             const recipe = resolved.recipe;
             const id = recipe.id ?? recipe.Id;
             const files = await getJson(

@@ -1067,6 +1067,66 @@ test('private assistant requests current configuration pricing for existing reci
     assert.match(result.finalContent, /265.23/);
 });
 
+// B（生产会话 58 msg 321/323/329）：同一轮正式 BOM 试算后，模型给出的结论正文不得被整段替换成金额表。
+const bomPreviewResult = () => verified({
+    parts: [{ model: 'V750-大脚板-2寸' }, { model: '12-140' }],
+    coilSnapshot: { schemeCode: 'COIL-0002', material: '钢带', slotType: '小眼', totalCost: 116.99 },
+    costPreview: { currentTotalCost: 285.8, partsCost: 264.8, laborCost: 21, pricingComplete: true },
+    configurationBasis: { source: 'recipe', recipeName: 'V550大脚板-2寸-经典款', note: '沿用此在售配方', configurationComplete: true },
+});
+
+test('currency-free conclusion is kept and the formal table is appended instead of replacing it', async () => {
+    const result = await runAiAssistant({
+        ...input('如果我把12-120换成12-140，成本是多少'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('build_recipe_bom_draft', { baseRecipeId: 12, coilSpec: '12', coilSheets: 140 })] },
+        { content: '换成 12-140 后整机当前总成本 285.8，其中零件成本 264.8、人工成本 21。' },
+    ], { executeToolCall: async () => bomPreviewResult() }));
+    assert.match(result.finalContent, /换成 12-140 后整机当前总成本 285\.8/);
+    assert.match(result.finalContent, /本轮正式查询金额如下/);
+});
+
+test('an answer claiming an unsupported amount is still replaced by the formal detail', async () => {
+    const result = await runAiAssistant({
+        ...input('如果我把12-120换成12-140，成本是多少'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('build_recipe_bom_draft', { baseRecipeId: 12, coilSpec: '12', coilSheets: 140 })] },
+        { content: '换成 12-140 后整机当前总成本 286。' },
+    ], { executeToolCall: async () => bomPreviewResult() }));
+    assert.doesNotMatch(result.finalContent, /286/);
+    assert.match(result.finalContent, /285\.8/);
+});
+
+// C（生产会话 58：「V750 的成本是多少」）：空手反问必须带上正式目录里真实存在的候选。
+test('a vague clarification about a model shorthand gets the verified cross-catalog candidates', async () => {
+    const missing = {
+        success: false,
+        code: 'AI_RESOURCE_NOT_FOUND',
+        entityType: 'recipe',
+        query: 'V750',
+        error: '未找到配方：V750',
+        crossCatalogCandidates: [
+            { entityType: 'template', entityLabel: '泵壳模板', canonicalId: 3, label: '模板-V750大脚板-2寸-经典款' },
+            { entityType: 'part', entityLabel: '零件', canonicalId: 41, label: '泵壳-V750-2寸大脚板' },
+            { entityType: 'part', entityLabel: '零件', canonicalId: 42, label: '木箱-V750' },
+        ],
+        executionEvidence: { verified: true, kind: 'formal_api_query_failure', calls: [{ method: 'GET', path: '/api/recipes' }] },
+    };
+    const vague = '"V750"在正式配方目录中没有找到对应成品。不过它可能是泵壳模板型号，请确认你要查的是哪一项。';
+    const result = await runAiAssistant({
+        ...input('V750 的成本是多少'),
+        env: { AI_PROVIDER: 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'false' },
+    }, fixture([
+        { tool_calls: [call('preview_recipe_cost', { recipeName: 'V750' })] },
+        { content: vague },
+        { content: vague },
+    ], { executeToolCall: async () => missing }));
+    assert.match(result.finalContent, /模板-V750大脚板-2寸-经典款（泵壳模板 ID 3）/);
+    assert.match(result.finalContent, /木箱-V750（零件 ID 42）/);
+});
+
 test('task presentation restores an authoritative cable rule after repeated unsupported money drafts', async () => {
     const knowledge = {
         ...verified([]),

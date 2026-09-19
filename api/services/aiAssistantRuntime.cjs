@@ -28,6 +28,8 @@ const { createInternalFetch, getJson, postJson } = require('../routes/ai/interna
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
+const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
+const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
 const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
@@ -585,9 +587,14 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     finalContent = (pendingPreview(toolResults) ? unfinishedReply(toolResults, '尚未取得正式配置成本，不能用目录或线圈档案金额代替整机成本。') : formatMoneySummary(toolResults, { includeQueries: true })) || '已取得下方正式查询明细，但本次文字回答包含无法核对的金额，已停止展示该结论。';
                 }
                 // Empty summaries and leaked formatting instructions must not replace the requested amounts.
+                // B：守卫原先只要正文没写 ¥/元 就整段替换，把带结论的回答换成一张内部金额表（生产会话 58）。
+                // 现在只有正文不可用、或引用了正式字段之外的金额时才替换；正文已引用本轮正式金额、缺口只是
+                // 格式时保留正文，把金额表作为附加明细追加。
                 if (toolResults.some(item => item.result?.data?.configurationBasis?.configurationComplete === false) || missingPreviewTotals(finalContent, toolResults) || !/[¥￥]|\d\s*元/.test(finalContent) || /仅修正文案|请再修正|未受正式金额字段|不要再调用工具/.test(finalContent)) {
-                    const summary = formatMoneySummary(toolResults);
-                    if (summary) finalContent = summary;
+                    const guard = moneyGuardDecision(finalContent, toolResults);
+                    if (guard.summary) {
+                        finalContent = guard.action === 'append' ? `${finalContent}\n\n${guard.summary}` : guard.summary;
+                    }
                 }
                 break;
             }
@@ -729,6 +736,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (isLocalAssistantMode(runtimeEnv) && !finalContentStreamed) {
             finalContent = stabilizeLocalAnswer(finalContent, latest.content);
         }
+        // C：跨目录候选必须真的到达用户。模型空手反问、或长回答被本地裁剪后，这里做确定性补充。
+        finalContent = appendCrossCatalogCandidates(finalContent, toolResults);
         if (!finalContentStreamed) {
             finalContent = ensureTaskAnswer(
                 taskEnvelope,

@@ -8,6 +8,8 @@ const {
     resolveUniqueRecipe,
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
+const { stripQueryNoise } = require('../../../services/aiResourceResolutionV3.cjs');
+const { withCrossCatalogCandidates } = require('../../../services/aiCrossCatalogCandidates.cjs');
 
 function normalizeText(value) {
     return String(value || '').trim();
@@ -22,10 +24,18 @@ function includesText(source, keyword) {
 function findByNameOrId(rows, value, nameKeys = ['name']) {
     const text = normalizeText(value);
     const id = Number.parseInt(text, 10);
-    return (rows || []).find((row) => {
+    const matches = (row, needle) => {
         if (Number.isFinite(id) && (row.id === id || row.Id === id)) return true;
-        return nameKeys.some((key) => normalizeText(row[key]) === text || includesText(row[key], text));
-    });
+        return nameKeys.some((key) => normalizeText(row[key]) === needle || includesText(row[key], needle));
+    };
+    const direct = (rows || []).find((row) => matches(row, text));
+    if (direct) return direct;
+    // 用户口语的语气助词不属于正式名称："V550的" 必须回落到 "V550" 再匹配一次。
+    const cleaned = stripQueryNoise(text).trim();
+    if (!cleaned || cleaned === text) return undefined;
+    return (rows || []).find((row) => nameKeys.some((key) => (
+        normalizeText(row[key]) === cleaned || includesText(row[key], cleaned)
+    )));
 }
 
 function roundMoney(value) {
@@ -150,7 +160,8 @@ async function executeBusinessTool(toolName, args, internalFetch) {
 
         case 'preview_recipe_cost': {
             const resolved = resolveUniqueRecipe(await loadRecipes(internalFetch), args);
-            if (resolved.error) return { success: false, ...resolved };
+            // C：型号简称在配方目录查不到时，补一次跨目录正式探测，让模型带着候选澄清而不是空手反问。
+            if (resolved.error) return { success: false, ...await withCrossCatalogCandidates({ getJson, internalFetch, failure: resolved }) };
             const recipeId = resolved.recipe.id ?? resolved.recipe.Id;
             const overrides = args.overrides || {
                 customBarrelLength: args.customBarrelLength,

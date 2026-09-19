@@ -5365,6 +5365,119 @@ test('AI executor 行为：无覆盖的配方成本查询使用当日完整成�
     ]);
 });
 
+test('AI executor 行为：用户口语片段不再被当成配方名，剥离助词后命中正式配方', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' }] });
+        }
+        if (call.url.endsWith('/api/recipes/current-costs') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: {
+                    asOf: '2026-09-19T02:00:00.000Z',
+                    sourceOfTruth: 'costEngine',
+                    basis: 'currentTemplateAndRecipeParameters',
+                    items: [{ recipeId: 12, currentTotalCost: 268 }],
+                },
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: 'V550的',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, true);
+    assert.equal(result.data.recipeId, 12);
+    assert.equal(result.data.recipeName, 'V550大脚板-2寸-经典款');
+    assert.equal(result.data.currentTotalCost, 268);
+    assert.doesNotMatch(JSON.stringify(result), /V550的/u);
+});
+
+test('AI executor 行为：确实不存在的型号明确"不存在"，不回显口语片段', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' }] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: 'V250的',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.match(result.error, /未找到配方：V250$/u);
+    assert.doesNotMatch(result.error, /V250的/u);
+});
+
+test('AI executor 行为：剥离助词后命中多条配方时返回候选澄清，而不是"未找到"', async () => {
+    installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({
+                success: true,
+                data: [
+                    { id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' },
+                    { id: 13, name: '水泵-V550-大脚板-2寸-12-120片-经典款', spec: '12-120' },
+                ],
+            });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: 'V550的',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'AI_RESOURCE_AMBIGUOUS');
+    assert.equal(result.requiresClarification, true);
+    assert.match(result.error, /匹配到 2 个配方/u);
+    assert.doesNotMatch(result.error, /未找到/u);
+    assert.deepEqual(result.clarification.candidates.map(item => item.canonicalId), [12, 13]);
+});
+
+test('AI executor 行为：型号简称查不到配方时补跨目录候选，但不改写"未找到"结论', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [{ id: 12, name: 'V550大脚板-2寸-经典款', spec: '12-120' }] });
+        }
+        if (call.url.includes('/api/templates') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 3, shellModel: 'V750大脚板-2寸-经典款', description: '模板-V750大脚板-2寸-经典款' },
+                { id: 4, shellModel: 'SPA-2寸', description: '模板-SPA-2寸' },
+            ] });
+        }
+        if (call.url.includes('/api/parts') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 41, model: '泵壳-V750-2寸大脚板', category: '泵壳' },
+                { id: 43, model: '轴承-202', category: '轴承' },
+            ] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_recipe_cost', {
+        recipeName: 'V750',
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'AI_RESOURCE_NOT_FOUND');
+    assert.equal(result.error, '未找到配方：V750');
+    assert.deepEqual(result.crossCatalogCandidates.map(item => [item.entityType, item.label]), [
+        ['template', '模板-V750大脚板-2寸-经典款'],
+        ['part', '泵壳-V750-2寸大脚板'],
+    ]);
+    assert.match(result.crossCatalogHint, /不要让用户从零说明/u);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/recipes',
+        'GET /api/templates',
+        'GET /api/parts?keyword=V750',
+    ]);
+});
+
 test('AI executor 行为：有覆盖的配方成本查询保持正式 overridePreview', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {
