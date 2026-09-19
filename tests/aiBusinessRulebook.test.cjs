@@ -97,6 +97,17 @@ test('规矩册：铜基价取自本轮正式结果，缺失时不编造', () =>
     assert.doesNotMatch(outcome.answer, /\d+\.\d+ 元\/千克/);
 });
 
+test('规矩册：正式金额表（无"元"字）也算有金额，假设铜价仍要说明口径', () => {
+    const table = '本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| V550大脚板-2寸-经典款 | 当前总成本 | 268 |\n\n完整计算明细见本轮工具结果。';
+    const outcome = enforceBusinessRules({
+        answer: table,
+        userText: '如果按照铜价95算，V550的成本是多少',
+        toolResults: [coilSearchResult],
+    });
+    assert.deepEqual(outcome.applied, ['BR-HYPOTHETICAL-PRICE']);
+    assert.match(outcome.answer, /按系统当前正式铜基价 110\.18 元\/千克核算/);
+});
+
 test('规矩册：空回答不产生任何补充', () => {
     assert.deepEqual(enforceBusinessRules({ answer: '', userText: 'V550 配方的成本', toolResults: [coilSearchResult] }).applied, []);
 });

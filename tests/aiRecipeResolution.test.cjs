@@ -111,7 +111,7 @@ test('AI 资源解析：上一轮候选的唯一绑定同样容忍结尾助词',
 
 // --- 变更描述被塞进型号字段（生产会话 58 msg 321「12-120换成12-140」、msg 329「550的重新核算」） ---
 test('AI 配方解析：变更描述不算"不存在"，给出可执行的下一步', () => {
-    for (const spoken of ['12-120换成12-140', '550的重新核算', '把12-120换成12-140成本多少']) {
+    for (const spoken of ['12-120换成12-140', '550的重新核算', '把12-120换成12-140成本多少', 'V550配方的整机', '12-140的库存']) {
         const result = resolveUniqueRecipe(productionLikeRecipes, { recipeName: spoken });
         assert.equal(result.code, 'AI_RESOURCE_QUERY_NOT_A_NAME', spoken);
         assert.equal(result.entityType, 'recipe');

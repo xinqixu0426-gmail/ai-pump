@@ -33,7 +33,14 @@ function hasResultFrom(toolResults, toolNames) {
 }
 
 function answerHasAmount(answer) {
-    return /[¥￥]\s*-?\d|\d+(?:\.\d+)?\s*元/u.test(String(answer || ''));
+    const text = String(answer || '');
+    if (/[¥￥]\s*-?\d|\d+(?:\.\d+)?\s*元/u.test(text)) return true;
+    // 正式金额表也是金额（金额守卫在无法核对时会输出这种表）：识别"表格行里有一格是纯数字"。
+    return text.split(/\r?\n/).some(line => (
+        line.includes('|')
+        && line.trim().replace(/^\||\|$/g, '').split('|')
+            .some(cell => /^\s*\*{0,2}-?\d+(?:\.\d+)?\*{0,2}\s*$/u.test(cell))
+    ));
 }
 
 /** 从本轮正式结果里取铜基价（元/千克），用于口径说明。 */
