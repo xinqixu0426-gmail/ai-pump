@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$SshHost = 'macmini',
     [string]$Branch = 'master',
