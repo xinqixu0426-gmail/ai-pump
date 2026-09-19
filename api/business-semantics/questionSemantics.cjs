@@ -10,6 +10,13 @@ function parseUserNumber(text, label) {
     return match ? Number(match[1]) : null;
 }
 
+function extractAliasMention(text) {
+    return String(text || '')
+        .replace(/^(?:请问|麻烦|帮我|请)?(?:查一下|查查|查询)?\s*/u, '')
+        .replace(/(?:的)?(?:当前|现在)?(?:完整|整机)?(?:成本|价格|多少钱|库存|有货|缺货|没货).*$/u, '')
+        .trim();
+}
+
 function classifyQuestion(userText) {
     const text = String(userText || '').trim();
     const coil = parseCoilShorthand(text);
@@ -17,6 +24,7 @@ function classifyQuestion(userText) {
     const configurationOverride = /换成|换为|替换|线圈(?:改|换|用)|改用/u.test(text);
     const hypothetical = /假如|假设|如果|按照|按(?:铜价|线重)/u.test(text);
     const cost = /成本|价格|多少钱|重新算|核算/u.test(text);
+    const aliasConcern = /老|旧名|曾用名|历史名称/u.test(text);
     let kind = 'OUT_OF_SCOPE', operation = 'NONE';
     if (inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
     else if (configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
@@ -29,9 +37,9 @@ function classifyQuestion(userText) {
         operation,
         requestedType,
         requestedIdentity: {
-            token: text.match(/V\d+/iu)?.[0] || (coil ? `${coil.spec}-${coil.sheets}` : ''),
+            token: (aliasConcern ? extractAliasMention(text) : '') || text.match(/V\d+/iu)?.[0] || (coil ? `${coil.spec}-${coil.sheets}` : ''),
             ...(coil || {}),
-            aliasConcern: /老|旧名|曾用名|历史名称/u.test(text),
+            aliasConcern,
         },
         requestedPriceContext: /铜价/u.test(text) && hypothetical ? 'USER_HYPOTHETICAL_PRICE' : 'CURRENT_FORMAL_PRICE',
         hypotheticalCopperPrice: parseUserNumber(text, '铜价'),
@@ -40,4 +48,4 @@ function classifyQuestion(userText) {
     };
 }
 
-module.exports = { classifyQuestion, parseCoilShorthand, parseUserNumber };
+module.exports = { classifyQuestion, extractAliasMention, parseCoilShorthand, parseUserNumber };

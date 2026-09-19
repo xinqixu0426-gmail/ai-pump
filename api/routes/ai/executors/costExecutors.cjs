@@ -107,7 +107,7 @@ async function executeCostTool(toolName, args, internalFetch) {
                 sheets: args.sheets,
                 material,
                 slotType,
-                wireWeight: args.wireWeight || null,
+                wireWeight: args.wireWeight ?? null,
                 // Read-only preview may inspect a testing scheme without changing its status.
                 includeTesting: true,
             }, '线圈成本计算失败');

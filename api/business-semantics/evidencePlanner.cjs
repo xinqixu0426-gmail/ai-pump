@@ -20,6 +20,9 @@ function recipeCandidates(toolResults) {
     const rows = byName(toolResults, 'get_all_recipes').flatMap(dataRows);
     return [...new Map(rows.map(row => [positiveId(row.id ?? row.Id), row]).filter(([id]) => id)).values()];
 }
+function recipeIdentityResolution(toolResults) {
+    return byName(toolResults, 'get_all_recipes').map(item => item.result?.identityResolution).find(Boolean) || null;
+}
 function coilCandidates(toolResults, semantics) {
     const rows = officialCoilRows(byName(toolResults, 'search_coils').flatMap(dataRows));
     return semantics.requestedIdentity.spec && semantics.requestedIdentity.sheets
@@ -59,7 +62,9 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     const coilLookup = () => add(call('search_coils', { spec: semantics.requestedIdentity.spec, sheets: semantics.requestedIdentity.sheets },
         { spec: 'USER_EXPLICIT_VALUE', sheets: 'USER_EXPLICIT_VALUE' }, [], 'Resolve the complete official coil variant set'));
 
-    const aliasBlocked = semantics.requestedIdentity.aliasConcern;
+    const identityResolution = recipeIdentityResolution(toolResults);
+    const aliasResolved = ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state) && recipes.length === 1;
+    const aliasBlocked = semantics.requestedIdentity.aliasConcern && !aliasResolved;
     let extraFacts = [];
     if (aliasBlocked && semantics.requestedType === 'recipe' && token && !has('get_all_recipes')) {
         recipeLookup();
@@ -119,4 +124,4 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     return plan;
 }
 
-module.exports = { buildBusinessEvidencePlan, coilCandidates, recipeCandidates };
+module.exports = { buildBusinessEvidencePlan, coilCandidates, recipeCandidates, recipeIdentityResolution };

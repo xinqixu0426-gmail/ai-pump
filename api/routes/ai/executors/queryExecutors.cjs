@@ -1,4 +1,4 @@
-const { getJson, postJson, patchJson, deleteJson } = require('../internalApiClient.cjs');
+const { getJson, postJson, patchJson, deleteJson, lookupEntities } = require('../internalApiClient.cjs');
 const {
     executeCoilStockAdjustment,
 } = require('../../../services/aiCoilStockExecution.cjs');
@@ -214,6 +214,48 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             );
             const data = recipes.map(canonicalApiResource);
             const filters = { keyword, hasTechnicalFiles };
+            const requestsHistoricalAlias = /老|旧名|曾用名|历史名称/u.test(keyword);
+            if (keyword && hasTechnicalFiles === null && requestsHistoricalAlias
+                && data.filter(item => String(item.name || '').toLocaleLowerCase() === keyword.toLocaleLowerCase()).length !== 1) {
+                let identity = null;
+                try {
+                    identity = await lookupEntities(internalFetch, {
+                        version: 1,
+                        mention: keyword,
+                        entityTypes: ['recipe'],
+                        matchPolicy: 'EXACT_OR_APPROVED_ALIAS',
+                    });
+                } catch {
+                    // Compatibility: callers that have not mounted the formal identity endpoint retain
+                    // the existing bounded recipe-search result; no alias is inferred from that failure.
+                }
+                const identityResolution = identity?.resolutions?.find(item => item.entityType === 'recipe') || null;
+                if (identity?.complete === true && identity.candidateCount === 1
+                    && ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state)) {
+                    const recipeId = Number(identity.candidates[0]?.canonicalId);
+                    const canonicalRecipe = await getJson(internalFetch, `/api/recipes/${recipeId}`, '配方明细读取失败');
+                    const canonicalData = [canonicalApiResource(canonicalRecipe)];
+                    return {
+                        success: true,
+                        count: 1,
+                        filters,
+                        queryReceipt: buildQueryReceipt(filters, 1),
+                        data: canonicalData,
+                        identityResolution,
+                        sources: [{ sourceTable: 'recipes', sourceId: recipeId, title: `${canonicalRecipe.name} 配方` }],
+                    };
+                }
+                if (['ALIAS_AMBIGUOUS', 'ALIAS_TARGET_UNAVAILABLE'].includes(identityResolution?.state)) {
+                    return {
+                        success: true,
+                        count: 0,
+                        filters,
+                        queryReceipt: buildQueryReceipt(filters, identityResolution.candidateCount || 0, 0),
+                        data: [],
+                        identityResolution,
+                    };
+                }
+            }
             // 型号样式关键词在配方目录零命中时，把模板/零件目录里的同名对象一并带出：
             // 用户问的是"这个型号"，不是"这个配方"（生产实例：V800 是零件 泵壳-V800-平刀）。
             return withEmptyCatalogProbe({

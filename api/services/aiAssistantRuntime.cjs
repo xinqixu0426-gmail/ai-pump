@@ -406,9 +406,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (!ontologyRelationRouting && coilRecipeRelationQuery) allowed.add('get_recipes_by_coil');
         const semanticEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, EnforcementFlag)
             && buildBusinessSemanticFrame({ userText: latest.content, stage: 'PRE_EVIDENCE' }).question.kind !== 'OUT_OF_SCOPE';
-        // Alias authority is explicitly outside BUS-P2. Do not let the model issue variable catalogue
-        // reads that cannot resolve it; one synthesis call is still buffered and replaced by the
-        // deterministic clarification boundary.
+        // Alias resolution is software-owned. P3 reuses the formal entity lookup inside the planned
+        // recipe read, so the model still receives no variable catalogue surface for alias turns.
         if (semanticEnforcementActive && classifyBusinessQuestion(latest.content).requestedIdentity.aliasConcern) {
             offeredTools = [];
             requiresBusinessQuery = false;

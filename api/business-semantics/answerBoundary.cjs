@@ -12,6 +12,10 @@ function rows(toolResults, name) { return toolResults.filter(item => verified(it
 }); }
 function money(value) { const amount = Number(value); return Number.isFinite(amount) ? amount.toFixed(2) : null; }
 function recipe(toolResults) { return rows(toolResults, 'get_all_recipes')[0] || toolResults.find(item => verified(item) && item.name === 'get_recipe_detail')?.result?.recipe || null; }
+function recipeIdentityResolution(toolResults) {
+    return toolResults.filter(verified).filter(item => item.name === 'get_all_recipes')
+        .map(item => item.result?.identityResolution).find(Boolean) || null;
+}
 function currentRecipeCost(toolResults) {
     for (const item of toolResults.filter(verified)) {
         if (item.name === 'get_recipe_detail') {
@@ -48,8 +52,15 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     const status = frame?.completeness?.status;
     const targetRecipe = recipe(toolResults);
     const coils = matchingCoils(toolResults, semantics);
+    const identityResolution = recipeIdentityResolution(toolResults);
+    if (identityResolution?.state === 'ALIAS_TARGET_UNAVAILABLE') {
+        return `“${semantics.requestedIdentity.token || '该名称'}”存在正式历史别名记录，但其目标配方已不可用，不能绑定为当前规范对象。请提供仍有效的正式配方全名；本轮不能给出成本。`;
+    }
     if (frame?.subject?.resolutionStatus === 'ALIAS_UNRESOLVED') {
         return `“${semantics.requestedIdentity.token || '该型号'}”包含历史别名含义，但当前没有正式别名映射可确认其规范对象。请提供正式配方全名或确认对应型号；本轮不能据此断言对象不存在，也不能给出成本。`;
+    }
+    if (identityResolution?.state === 'ALIAS_AMBIGUOUS') {
+        return `“${semantics.requestedIdentity.token || '该名称'}”对应多个仍有效的正式配方，不能自动选择。请提供当前正式配方全名后再查询成本；本轮未选择任何目标。`;
     }
     if (status === 'NEEDS_CLARIFICATION' && coils.length > 1) {
         const base = recipe(toolResults);
@@ -61,6 +72,11 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     }
     if (status === 'NOT_FOUND_VERIFIED') {
         return `已核对配方、泵壳模板和零件三个正式目录，均未找到 ${semantics.requestedIdentity.token}，因此目前无法给出其成本。`;
+    }
+    const calculatedCoil = toolResults.find(item => verified(item) && item.name === 'calculate_coil_cost')?.result?.data;
+    if (semantics.requestedType === 'coil' && semantics.wireWeight != null && calculatedCoil
+        && (calculatedCoil.overrideStatus === 'UNSUPPORTED_FOR_PRICING_MODE' || calculatedCoil.isCustomWireWeight === false)) {
+        return `${semantics.requestedIdentity.token} 的正式方案采用${calculatedCoil.pricingMode === 'kit' ? '供应商套件价' : '不可覆盖计价模式'}，用户指定线重 ${semantics.wireWeight} 未被正式能力应用；当前正式线圈成本为 ${money(calculatedCoil.totalCost ?? calculatedCoil.cost)} 元，不能把该金额表述为线重覆盖后的结果。`;
     }
     if (status === 'NEEDS_EVIDENCE' || status === 'PARTIAL_VERIFIED') {
         const verifiedFacts = frame?.evidence?.verifiedFacts || [];
@@ -75,7 +91,7 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         return `${semantics.requestedIdentity.token} 有 ${coils.length} 套正式方案：${coils.map(row => `${variantLabel(row)}，库存 ${Number(row.stock || 0) > 0 ? `有货 ${row.stock}` : '无货 0'}`).join('；')}。`;
     }
     if (semantics.requestedType === 'coil' && coils.length) {
-        const calculated = toolResults.find(item => verified(item) && item.name === 'calculate_coil_cost')?.result?.data;
+        const calculated = calculatedCoil;
         if (calculated && semantics.wireWeight != null && calculated.isCustomWireWeight === true) return `${semantics.requestedIdentity.token} 已按用户指定线重 ${semantics.wireWeight} 应用覆盖，正式线圈成本为 ${money(calculated.totalCost ?? calculated.cost)} 元。`;
         if (calculated && semantics.wireWeight != null) return `${semantics.requestedIdentity.token} 的正式方案采用供应商套件价，用户指定线重 ${semantics.wireWeight} 未被正式能力应用；当前正式线圈成本为 ${money(calculated.totalCost ?? calculated.cost)} 元，不能把该金额表述为线重覆盖后的结果。`;
         return `${semantics.requestedIdentity.token} 有 ${coils.length} 套正式方案：${coils.map(row => `${variantLabel(row)}，成本 ${variantCost(row)} 元`).join('；')}。`;

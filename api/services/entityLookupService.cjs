@@ -19,6 +19,13 @@ const MATCH_POLICIES = Object.freeze([
     'APPROVED_ALIAS',
     'EXACT_OR_APPROVED_ALIAS',
 ]);
+const ALIAS_RESOLUTION_STATES = Object.freeze([
+    'CANONICAL_NAME_MATCH',
+    'FORMAL_ALIAS_MATCH',
+    'ALIAS_NOT_FOUND',
+    'ALIAS_AMBIGUOUS',
+    'ALIAS_TARGET_UNAVAILABLE',
+]);
 const REQUEST_FIELDS = new Set(['version', 'mention', 'entityTypes', 'matchPolicy']);
 
 class EntityLookupError extends Error {
@@ -156,6 +163,10 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
 });
 
+function normalizedFormalAlias(value) {
+    return String(value || '').normalize('NFKC').trim().replace(/\s+/gu, ' ');
+}
+
 function createEntityLookupService({ db } = {}) {
     if (!db || typeof db.prepare !== 'function') {
         throw new TypeError('实体查询服务缺少数据库依赖');
@@ -178,15 +189,105 @@ function createEntityLookupService({ db } = {}) {
         return { complete, candidates };
     }
 
+    function exactResolution(entityType, candidates) {
+        if (!candidates.length) return null;
+        return {
+            entityType,
+            state: 'CANONICAL_NAME_MATCH',
+            candidateCount: candidates.length,
+            provenance: {
+                kind: 'formal_current_identity',
+                sourceOfTruth: EXACT_LOOKUPS[entityType] ? 'canonical_business_table' : 'unavailable',
+            },
+        };
+    }
+
+    function lookupRecipeAlias(mention) {
+        const normalized = normalizedFormalAlias(mention);
+        const raw = String(mention || '').trim();
+        const rows = db.prepare(`
+            SELECT a.id AS aliasId, a.alias, a.spec_revision AS aliasSpecRevision,
+                p.id AS profileId, p.recipe_id AS recipeId,
+                r.name AS canonicalCurrentName, r.deleted_at AS recipeDeletedAt
+            FROM catalog_name_aliases a
+            JOIN catalog_identity_profiles p ON p.id = a.profile_id
+            LEFT JOIN recipes r ON r.id = p.recipe_id
+            WHERE a.deleted_at IS NULL
+              AND p.recipe_id IS NOT NULL
+              AND (a.alias = ? COLLATE NOCASE OR a.alias = ? COLLATE NOCASE)
+            ORDER BY p.recipe_id, a.id
+            LIMIT ?
+        `).all(raw, normalized, MAX_CANDIDATES_PER_TYPE + 1);
+        const complete = rows.length <= MAX_CANDIDATES_PER_TYPE;
+        const bounded = rows.slice(0, MAX_CANDIDATES_PER_TYPE);
+        const liveById = new Map();
+        let unavailableCount = 0;
+        for (const row of bounded) {
+            if (!row.canonicalCurrentName || row.recipeDeletedAt) {
+                unavailableCount += 1;
+                continue;
+            }
+            if (!liveById.has(String(row.recipeId))) liveById.set(String(row.recipeId), row);
+        }
+        const live = [...liveById.values()];
+        const candidates = live.map(row => ({
+            entityType: 'recipe',
+            canonicalId: String(row.recipeId),
+            matchKind: 'APPROVED_ALIAS',
+        }));
+        if (live.length === 1 && complete) {
+            const row = live[0];
+            return { complete, candidates, resolution: {
+                entityType: 'recipe',
+                state: 'FORMAL_ALIAS_MATCH',
+                candidateCount: 1,
+                canonicalType: 'recipe',
+                canonicalId: String(row.recipeId),
+                canonicalCurrentName: row.canonicalCurrentName,
+                matchedAlias: row.alias,
+                provenance: {
+                    kind: 'formal_persisted_alias',
+                    sourceOfTruth: 'catalog_name_aliases+catalog_identity_profiles+recipes',
+                    targetActive: true,
+                },
+            } };
+        }
+        const state = live.length > 1 || !complete
+            ? 'ALIAS_AMBIGUOUS'
+            : unavailableCount > 0 ? 'ALIAS_TARGET_UNAVAILABLE' : 'ALIAS_NOT_FOUND';
+        return { complete, candidates, resolution: {
+            entityType: 'recipe',
+            state,
+            candidateCount: live.length,
+            provenance: {
+                kind: 'formal_persisted_alias',
+                sourceOfTruth: 'catalog_name_aliases+catalog_identity_profiles+recipes',
+                targetActive: live.length > 0,
+            },
+        } };
+    }
+
     function lookupEntities(input) {
         const request = validateEntityLookupRequest(input);
         const candidates = [];
+        const resolutions = [];
         let complete = true;
 
         for (const entityType of request.entityTypes) {
-            const result = request.matchPolicy === 'APPROVED_ALIAS'
-                ? { complete: true, candidates: [] }
-                : lookupExact(entityType, request.mention);
+            let result = { complete: true, candidates: [] };
+            if (request.matchPolicy !== 'APPROVED_ALIAS') {
+                result = lookupExact(entityType, request.mention);
+                const resolution = exactResolution(entityType, result.candidates);
+                if (resolution) resolutions.push(resolution);
+            }
+            const mayUseAlias = request.matchPolicy !== 'EXACT' && result.candidates.length === 0;
+            if (mayUseAlias && entityType === 'recipe') {
+                result = lookupRecipeAlias(request.mention);
+                resolutions.push(result.resolution);
+            } else if (mayUseAlias) {
+                resolutions.push({ entityType, state: 'ALIAS_NOT_FOUND', candidateCount: 0,
+                    provenance: { kind: 'formal_persisted_alias', sourceOfTruth: 'unsupported_for_entity_type' } });
+            }
             complete = complete && result.complete;
             candidates.push(...result.candidates);
         }
@@ -208,6 +309,7 @@ function createEntityLookupService({ db } = {}) {
             attemptedEntityTypes: request.entityTypes.length,
             candidateCount: boundedCandidates.length,
             candidates: Object.freeze(boundedCandidates.map(candidate => Object.freeze({ ...candidate }))),
+            resolutions: Object.freeze(resolutions.map(resolution => Object.freeze({ ...resolution }))),
         });
     }
 
@@ -216,6 +318,7 @@ function createEntityLookupService({ db } = {}) {
 
 module.exports = {
     ENTITY_LOOKUP_API_VERSION,
+    ALIAS_RESOLUTION_STATES,
     EntityLookupError,
     MATCH_POLICIES,
     MAX_CANDIDATES_PER_TYPE,
@@ -224,5 +327,6 @@ module.exports = {
     MAX_TOTAL_CANDIDATES,
     SUPPORTED_ENTITY_TYPES,
     createEntityLookupService,
+    normalizedFormalAlias,
     validateEntityLookupRequest,
 };

@@ -168,7 +168,7 @@ AI 内部关系观察由独立环境开关 `AI_ONTOLOGY_RELATION_SHADOW_ENABLED=
 | `POST` | `/api/coils/spec-draft` | `{ spec, diameterMm?, material?, slotType? }` | `coilQueries` 复用 `coilCost` 按定子组合生成新的 `pricingMode=calculated, kitPrice=0` 录入草稿；精确组合优先从计算方案带入单片价和计算字段，只有套件方案时不复制套件价或传统计算字段，但可带入默认线径/电容等辅助档案；不写库 |
 | `POST` | `/api/coils/spec-price-preview` | `{ spec, unitPrice, material?, slotType? }` | 能力 `coils.batch_update_unit_price` 的只读预览。按标准直径及可选材质/槽眼只列出 `calculated` 方案的单片价、成本差异和 `expectedUpdatedAt`，返回 `previewHash` 与建议幂等键；供应商套件价方案不参与且不写库 |
 | `PATCH` | `/api/coils/spec/:spec` | `{ unitPrice, material?, slotType?, previewHash?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `coils.batch_update_unit_price`。按预览批量更新定子单片价并重算各方案成本；版本、价格或成本漂移返回 `409`，任一写入/审计失败整批回滚。保留原路径和顶层 `updated`；旧无预览请求兼容执行并返回 warning |
-| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, coilId?, schemeCode?, schemeFamilyCode?, wireWeight?, copperPrice?, includeTesting? }` | `sheets` 必须为正整数，线重和铜价必须为非负数字；默认只使用正式方案，includeTesting=true 可在只读试算中包含测试方案，停用方案仍不参与。`coilId` 或 `schemeCode` 用于精确锁定方案；多候选未指定方案返回 `409 COIL_SCHEME_AMBIGUOUS`。插值或外推必须以 `schemeFamilyCode` 锁定同一方案族，否则返回 `409 COIL_SCHEME_FAMILY_REQUIRED`。精确命中 `kit` 时返回 `pricingMode/kitPrice/wireWeight/copperBase/totalCost`，其中线重和铜价基数是保存的可选参考值，忽略请求中的成本覆盖参数且 `totalCost` 始终等于 `kitPrice`；套件方案不参与插值或外推 |
+| `POST` | `/api/coils/calculate` | `{ spec, sheets, material?, slotType?, coilId?, schemeCode?, schemeFamilyCode?, wireWeight?, copperPrice?, includeTesting? }` | `sheets` 必须为正整数，线重和铜价必须为非负数字；默认只使用正式方案，includeTesting=true 可在只读试算中包含测试方案，停用方案仍不参与。`coilId` 或 `schemeCode` 用于精确锁定方案；多候选未指定方案返回 `409 COIL_SCHEME_AMBIGUOUS`。插值或外推必须以 `schemeFamilyCode` 锁定同一方案族，否则返回 `409 COIL_SCHEME_FAMILY_REQUIRED`。结果显式区分 `requestedWireWeight/appliedWireWeight/wireWeightAuthority/overrideStatus/isCustomWireWeight`。`calculated` 为 `OVERRIDABLE`，正式应用请求值时返回 `overrideStatus=APPLIED`；精确命中 `kit` 时为 `NON_OVERRIDABLE`，`totalCost` 始终等于 `kitPrice`，若请求线重则返回 `UNSUPPORTED_FOR_PRICING_MODE` 且 `appliedWireWeight=null`。套件保存的线重和铜价基数只是参考值，不参与套件成本，也不参与插值或外推 |
 | `GET` | `/api/coils/specs` | 无 | `coilQueries` 只读返回正式方案可用的规格、标准直径、材质、槽眼和片数；`variants[]` 按材质+槽眼返回各自可用片数，供配方联动选择 |
 | `GET` | `/api/coils/:id/stock-movements` | 查询参数 `limit?` | `coilQueries` 校验方案存在后只读返回最近库存流水，`limit` 为 1-100、默认 20；字段为 `changeQty/balanceAfter/movementType/referenceType/referenceId/note/createdAt` |
 | `POST` | `/api/coils/:id/stock-adjustment` | `{ idempotencyKey?, changeQty, expectedUpdatedAt?, note? }` | 能力 `inventory.coils.adjust_stock` 的单项兼容入口；`changeQty` 必须是非零整数，库存不足返回 `409`。成功保留 `coil/adjustment` 并附 operation receipt |
@@ -538,9 +538,9 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/entity-lookup` | `{ version: 1, mention: string, entityTypes: ('coil'\|'customer'\|'order'\|'part'\|'recipe'\|'template')[], matchPolicy: 'EXACT'\|'APPROVED_ALIAS'\|'EXACT_OR_APPROVED_ALIAS' }` | 内部只读 Query 能力 `entities.lookup_batch`。严格拒绝额外字段、类型强制转换、重复/越界实体类型和超长 mention；返回显式 `complete`、候选数量以及含 `entityType/canonicalId/matchKind` 的最小候选；coil 可增加 `bindingRefs: [{ kind: 'schemeCode', value: string }]`，值仅来自正式 `coils.scheme_code`，只供软件只读参数绑定，不提供给模型或写入日志。只做正式身份字段等值查询，无 contains/prefix/fuzzy/top-1；当前六类没有正式 alias 来源。内部调用适配为 `internalApiClient.lookupEntities`，不得由 AI 直连数据库。该 POST 不需要 `allowWrite`、确认、幂等键或 mutation/audit row，仍受统一 `/api` 鉴权保护。边界：mention 160 个 Unicode code point、每次 6 类、每类 10 候选、总计 30 候选；不完整结果不得解析成唯一实体 |
+| `POST` | `/api/entity-lookup` | `{ version: 1, mention: string, entityTypes: ('coil'\|'customer'\|'order'\|'part'\|'recipe'\|'template')[], matchPolicy: 'EXACT'\|'APPROVED_ALIAS'\|'EXACT_OR_APPROVED_ALIAS' }` | 内部只读 Query 能力 `entities.lookup_batch`。严格拒绝额外字段、类型强制转换、重复/越界实体类型和超长 mention；返回显式 `complete`、候选数量、最小候选及 `resolutions[]`。当前正式 alias authority 仅支持 `recipe`，复用 `catalog_name_aliases → catalog_identity_profiles → recipes`，状态为 `CANONICAL_NAME_MATCH/FORMAL_ALIAS_MATCH/ALIAS_NOT_FOUND/ALIAS_AMBIGUOUS/ALIAS_TARGET_UNAVAILABLE`。唯一活动 alias 命中携带 `canonicalType/canonicalId/canonicalCurrentName/matchedAlias/provenance`；同一 alias 的多个活动目标绝不选首条，失效目标不提升为 canonical。当前正式名称优先于 alias。其他实体类型仍只支持正式身份字段精确等值。所有类型都禁止 contains/prefix/fuzzy/embedding/LLM guess/top-1。内部调用适配为 `internalApiClient.lookupEntities`，不得由 AI 直连数据库。该 POST 不需要 `allowWrite`、确认、幂等键或 mutation/audit row，仍受统一 `/api` 鉴权保护。边界：mention 160 个 Unicode code point、每次 6 类、每类 10 候选、总计 30 候选；不完整结果不得解析成唯一实体 |
 
-能力登记：`capabilityId=entities.lookup_batch`，`domain=entities`，`access=query`，source of truth 为六类正式业务表经 `entityLookupService` 的有界等值读取；内部查询实现保留，原 V5 shadow resolver 调用方已撤除。风险为 low；无 preview/confirmation/idempotency/写事务/业务审计要求，错误必须区分 invalid/unsupported/incomplete/internal error，不得把技术失败当作未找到。历史设计见 `docs/ai-governance/entity-lookup-api-v1.md`；其中 V5 运行要求已退役。
+能力登记：`capabilityId=entities.lookup_batch`，`domain=catalog`，`access=query`，source of truth 为六类正式业务表，以及仅对 recipe 开放的正式 alias 表链路；内部查询实现保留。风险为 low；无 preview/confirmation/idempotency/写事务/业务审计要求，错误必须区分 invalid/unsupported/incomplete/internal error，不得把技术失败当作未找到。历史设计见 `docs/ai-governance/entity-lookup-api-v1.md`；其中 V5 运行要求已退役。
 
 ### AI
 
@@ -577,7 +577,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 78 个 AI 工具、当前 131 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 78 个 AI 工具、当前 132 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -589,6 +589,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 | `catalog.references_resolve` | HTTP/Web/Internal | query/read | 主目录和 `catalog_identity_profiles` | low | 否 | 不适用 | 天然幂等 | 同一只读事务、无审计 | 15s |
 | `catalog.bind_references` | HTTP/Web/Internal | command/write | 盘点源行、身份档案与历史绑定 | high | 是 | 绑定预览 | 90天持久化幂等 | 来源/目标/档案哈希重验；写入、强审计、业务事件及回执同一事务 | 15s |
 | `catalog.bound_names` | HTTP/Web/Internal | query/read | 原始来源、历史绑定和主目录 | low | 否 | 不适用 | 天然幂等 | 同一只读事务；按绑定 ID 有界分页 | 15s |
+| `entities.lookup_batch` | Internal | query/read | 六类正式业务表；recipe 另使用 `catalog_name_aliases + catalog_identity_profiles` | low | 否 | 不适用 | 天然幂等 | 有界只读查询；无审计 | 15s |
 | `parts.list` | HTTP/Web/`search_parts` | query/read | `parts`；当前目录价格由正式零件 Query 返回 | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP 超时 |
 | `coils.list` | HTTP/Web/`search_coils` | query/read；输出 `CoilProfile[]` 完整档案 | `coils + stator_variants` | low | 否 | 不适用 | 天然幂等/无并发 | 严格只读、无审计 | 15s |
 | `orders.list` | HTTP/Web/`get_recent_orders` | query/read | `orders` + 实时采购平衡 + `parts.price` + `coils.cost` | low | 否 | 不适用 | 不适用 | 严格只读 | 默认 HTTP |

@@ -49,6 +49,10 @@ function recipeRows(toolResults) {
     }
     return [...byId.values()];
 }
+function recipeIdentityResolution(toolResults) {
+    return toolResults.filter(verified).filter(item => item.name === 'get_all_recipes')
+        .map(item => item.result?.identityResolution).find(Boolean) || null;
+}
 function crossCatalogCandidates(toolResults) {
     const candidates = toolResults.filter(verified).flatMap(item => Array.isArray(item.result?.crossCatalogCandidates) ? item.result.crossCatalogCandidates : []);
     for (const item of toolResults.filter(verified)) {
@@ -90,7 +94,10 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const candidates = crossCatalogCandidates(toolResults);
     const calculatedCoils = toolResults.filter(item => verified(item) && item.name === 'calculate_coil_cost' && item.result?.data)
         .map(item => item.result.data).filter(row => positiveId(row.coilId));
-    const aliasUnresolved = semantics.requestedIdentity.aliasConcern;
+    const identityResolution = recipeIdentityResolution(toolResults);
+    const aliasResolved = ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state);
+    const aliasAmbiguous = identityResolution?.state === 'ALIAS_AMBIGUOUS';
+    const aliasUnresolved = semantics.requestedIdentity.aliasConcern && !aliasResolved && !aliasAmbiguous;
     const uniqueRecipe = recipes.length === 1 ? recipes[0] : null;
     const partCandidate = candidates.length === 1 && candidates[0].entityType === 'part' ? candidates[0] : null;
     const fullCatalogNegative = catalogScopeVerified(toolResults) && recipes.length === 0 && candidates.length === 0;
@@ -101,7 +108,8 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const facts = new Map(requiredFacts.map(factType => [factType, { factType, state: 'MISSING' }]));
     let canonicalType = null, canonicalId = null, resolutionStatus = 'UNRESOLVED';
     if (stage !== 'PRE_EVIDENCE') {
-        if (aliasUnresolved) resolutionStatus = 'ALIAS_UNRESOLVED';
+        if (aliasAmbiguous) { canonicalType = 'recipe'; resolutionStatus = 'AMBIGUOUS'; }
+        else if (aliasUnresolved) resolutionStatus = 'ALIAS_UNRESOLVED';
         else if (semantics.requestedType === 'coil' && coilEvidence.expectedCount > 1) { canonicalType = 'coil'; resolutionStatus = 'AMBIGUOUS'; }
         else if (semantics.requestedType === 'coil' && coils.length === 1) { canonicalType = 'coil'; canonicalId = positiveId(coils[0].id ?? coils[0].Id); resolutionStatus = 'UNIQUE'; }
         else if (semantics.requestedType === 'coil' && calculatedCoils.length === 1) { canonicalType = 'coil'; canonicalId = positiveId(calculatedCoils[0].coilId); resolutionStatus = 'UNIQUE'; }
@@ -139,9 +147,12 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         addFact(facts, 'COIL_CANONICAL_IDENTITY', 'VERIFIED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
         if (item.result.data.totalCost != null) addFact(facts, 'COIL_SCHEME_COST', 'VERIFIED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
         if (semantics.wireWeight != null && item.result.data.isCustomWireWeight === true
-            && Number(item.result.data.wireWeight) === Number(semantics.wireWeight)) {
+            && item.result.data.overrideStatus === 'APPLIED'
+            && Number(item.result.data.requestedWireWeight) === Number(semantics.wireWeight)
+            && Number(item.result.data.appliedWireWeight) === Number(semantics.wireWeight)) {
             addFact(facts, 'COIL_OVERRIDE_APPLIED', 'VERIFIED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
-        } else if (semantics.wireWeight != null && item.result.data.isCustomWireWeight === false) {
+        } else if (semantics.wireWeight != null && (item.result.data.isCustomWireWeight === false
+            || item.result.data.overrideStatus === 'UNSUPPORTED_FOR_PRICING_MODE')) {
             addFact(facts, 'COIL_OVERRIDE_APPLIED', 'UNSUPPORTED', { canonicalIds: unique([positiveId(item.result.data.coilId)]) });
         }
     }
@@ -150,7 +161,8 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     });
     if (partCandidate) addFact(facts, 'PART_CATALOG_IDENTITY', 'VERIFIED', { canonicalIds: [positiveId(partCandidate.canonicalId)] });
 
-    let ambiguityStatus = coilEvidence.expectedCount > 1 ? 'MULTIPLE_OFFICIAL_VARIANTS' : resolutionStatus === 'UNRESOLVED' ? 'UNRESOLVED_IDENTITY' : 'NONE';
+    let ambiguityStatus = coilEvidence.expectedCount > 1 ? 'MULTIPLE_OFFICIAL_VARIANTS'
+        : aliasAmbiguous || resolutionStatus === 'UNRESOLVED' ? 'UNRESOLVED_IDENTITY' : 'NONE';
     const overrideFields = [];
     if (semantics.configurationOverride && semantics.requestedIdentity.spec) overrideFields.push({ field: 'coil', requested: `${semantics.requestedIdentity.spec}-${semantics.requestedIdentity.sheets}`, source: 'USER' });
     if (semantics.wireWeight != null) overrideFields.push({ field: 'wireWeight', requested: semantics.wireWeight, source: 'USER' });
@@ -172,7 +184,7 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const unsupportedFacts = factList.filter(item => item.state === 'UNSUPPORTED').map(item => item.factType);
     let completenessStatus = 'NEEDS_EVIDENCE', blockers = missingFacts.slice();
     if (machineHypothetical) { completenessStatus = 'UNSUPPORTED_REQUEST'; blockers = ['UNSUPPORTED_MACHINE_HYPOTHETICAL_PRICE']; }
-    else if (overrideStatus === 'AMBIGUOUS_OVERRIDE' || resolutionStatus === 'ALIAS_UNRESOLVED') { completenessStatus = 'NEEDS_CLARIFICATION'; blockers = [overrideStatus === 'AMBIGUOUS_OVERRIDE' ? 'AMBIGUOUS_OVERRIDE' : 'ALIAS_UNRESOLVED']; }
+    else if (overrideStatus === 'AMBIGUOUS_OVERRIDE' || resolutionStatus === 'ALIAS_UNRESOLVED' || aliasAmbiguous) { completenessStatus = 'NEEDS_CLARIFICATION'; blockers = [overrideStatus === 'AMBIGUOUS_OVERRIDE' ? 'AMBIGUOUS_OVERRIDE' : aliasAmbiguous ? 'ALIAS_AMBIGUOUS' : 'ALIAS_UNRESOLVED']; }
     else if (resolutionStatus === 'NOT_FOUND' && verifiedFacts.includes('CROSS_CATALOG_CANDIDATES')) { completenessStatus = 'NOT_FOUND_VERIFIED'; blockers = []; }
     else if (requiredFacts.every(factType => facts.get(factType)?.state === 'VERIFIED')) { completenessStatus = 'COMPLETE'; blockers = []; }
     else if (verifiedFacts.length) completenessStatus = 'PARTIAL_VERIFIED';
@@ -184,7 +196,7 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     if (resolutionStatus === 'CROSS_CATALOG_CANDIDATE') disclosures.push('DISCLOSE_CROSS_CATALOG_CANDIDATE');
     if (['NEEDS_EVIDENCE', 'PARTIAL_VERIFIED'].includes(completenessStatus)) disclosures.push('DISCLOSE_INCOMPLETE_CONFIGURATION');
     if (overrideStatus === 'AMBIGUOUS_OVERRIDE') clarifications.push('CLARIFY_VARIANT_SELECTION');
-    if (resolutionStatus === 'ALIAS_UNRESOLVED') clarifications.push('CLARIFY_IDENTITY');
+    if (resolutionStatus === 'ALIAS_UNRESOLVED' || aliasAmbiguous) clarifications.push('CLARIFY_IDENTITY');
     if (completenessStatus !== 'COMPLETE' && completenessStatus !== 'NOT_FOUND_VERIFIED') forbiddenClaims.push('MUST_NOT_CLAIM_COMPLETE');
     if (overrideStatus === 'AMBIGUOUS_OVERRIDE') forbiddenClaims.push('MUST_NOT_SELECT_VARIANT', 'MUST_NOT_GUESS_PARAMETER');
     if (machineHypothetical) forbiddenClaims.push('MUST_NOT_PRESENT_HYPOTHETICAL_AS_FORMAL');

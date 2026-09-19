@@ -133,6 +133,27 @@ test('供应商套件价只按精确正式方案计价且忽略计算参数', ()
     assert.equal(result.data.totalCost, 68.5);
     assert.equal(result.data.formula, '供应商套件价');
     assert.equal(result.data.isCustomWireWeight, false);
+    assert.equal(result.data.requestedWireWeight, 2.5);
+    assert.equal(result.data.appliedWireWeight, null);
+    assert.equal(result.data.wireWeightAuthority, 'NON_OVERRIDABLE');
+    assert.equal(result.data.overrideStatus, 'UNSUPPORTED_FOR_PRICING_MODE');
+});
+
+test('线重覆盖权威按 pricing mode 明确区分 requested、applied 和 absent', () => {
+    const absent = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '钢带' });
+    assert.equal(absent.data.requestedWireWeight, null);
+    assert.equal(absent.data.appliedWireWeight, null);
+    assert.equal(absent.data.wireWeightAuthority, 'OVERRIDABLE');
+    assert.equal(absent.data.overrideStatus, 'NOT_REQUESTED');
+
+    for (const requested of [0, 0.8, 1.25]) {
+        const applied = calculateCoilCost(coils, { spec: '750', sheets: 24, material: '钢带', wireWeight: requested });
+        assert.equal(applied.data.requestedWireWeight, requested);
+        assert.equal(applied.data.appliedWireWeight, requested);
+        assert.equal(applied.data.wireWeight, requested);
+        assert.equal(applied.data.isCustomWireWeight, true);
+        assert.equal(applied.data.overrideStatus, 'APPLIED');
+    }
 });
 
 test('供应商套件价不参与其他片数的插值或外推', () => {

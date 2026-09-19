@@ -5,6 +5,14 @@ const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
 const COIL_SCHEME_STATUSES = new Set(['testing', 'official', 'disabled']);
 const COIL_PRICING_MODES = new Set(['calculated', 'kit']);
 const DEFAULT_COIL_PRICING_MODE = 'calculated';
+const WIRE_WEIGHT_AUTHORITIES = Object.freeze({
+    calculated: 'OVERRIDABLE',
+    kit: 'NON_OVERRIDABLE',
+});
+
+function wireWeightAuthorityForPricingMode(pricingMode) {
+    return WIRE_WEIGHT_AUTHORITIES[String(pricingMode || '')] || 'UNSUPPORTED';
+}
 
 function coilValue(coil, key) {
     return coil?.[key] ?? coil?.[key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)];
@@ -215,6 +223,10 @@ function calculateCoilCost(coils, input = {}) {
                 totalCost: parseFloat(kitPrice.toFixed(2)),
                 formula: '供应商套件价',
                 source: '供应商套件价（精确匹配）',
+                requestedWireWeight: parsedCustomerWireWeight,
+                appliedWireWeight: null,
+                wireWeightAuthority: wireWeightAuthorityForPricingMode('kit'),
+                overrideStatus: parsedCustomerWireWeight === null ? 'NOT_REQUESTED' : 'UNSUPPORTED_FOR_PRICING_MODE',
                 isCustomWireWeight: false,
             },
         };
@@ -342,6 +354,10 @@ function calculateCoilCost(coils, input = {}) {
             totalCost: parseFloat(totalCost.toFixed(2)),
             formula: `${unitPrice}×${targetSheets} + ${wireWeight}×${copperBase} + ${coilFee.toFixed(2)} + ${rotorFee.toFixed(2)}`,
             source,
+            requestedWireWeight: parsedCustomerWireWeight,
+            appliedWireWeight: parsedCustomerWireWeight === null ? null : wireWeight,
+            wireWeightAuthority: wireWeightAuthorityForPricingMode('calculated'),
+            overrideStatus: parsedCustomerWireWeight === null ? 'NOT_REQUESTED' : 'APPLIED',
             isCustomWireWeight: parsedCustomerWireWeight !== null,
         },
     };
@@ -519,6 +535,8 @@ module.exports = {
     COIL_SCHEME_STATUSES,
     COIL_PRICING_MODES,
     DEFAULT_COIL_PRICING_MODE,
+    WIRE_WEIGHT_AUTHORITIES,
+    wireWeightAuthorityForPricingMode,
     normalizeCoilSpec,
     normalizeCoilDimensions,
     calculateStoredCoilCost,

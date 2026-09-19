@@ -15,6 +15,7 @@ function errorData(status) {
         attemptedEntityTypes: 0,
         candidateCount: 0,
         candidates: [],
+        resolutions: [],
     };
 }
 

@@ -53,7 +53,8 @@ function semanticCaseFixtures() {
         ] },
         'BU-05': { userText: questions['BU-05'], toolResults: [result('calculate_coil_cost', {
             coilId: 1, spec: '12', sheets: 140, material: '钢带', slotType: '小眼', wireWeight: 0.8,
-            isCustomWireWeight: true, totalCost: 91,
+            requestedWireWeight: 0.8, appliedWireWeight: 0.8, wireWeightAuthority: 'OVERRIDABLE',
+            overrideStatus: 'APPLIED', isCustomWireWeight: true, totalCost: 91,
         }, '/api/coils/calculate')] },
         'BU-06': { userText: questions['BU-06'], toolResults: [recipeResult(), coilResult(coils200, 200)] },
         'BU-07': { userText: questions['BU-07'], toolResults: catalogNegative() },

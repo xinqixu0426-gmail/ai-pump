@@ -8,7 +8,7 @@ const { buildBusinessEvidencePlan } = require('../api/business-semantics/evidenc
 const { validateBusinessEvidencePlan } = require('../api/business-semantics/evidencePlanValidator.cjs');
 const { buildBusinessSemanticFrame } = require('../api/business-semantics/frameBuilder.cjs');
 const { enforceSemanticAnswerBoundary } = require('../api/business-semantics/answerBoundary.cjs');
-const { semanticCaseFixtures, result, recipeResult, coilResult, coils220 } = require('./helpers/businessSemanticFrameFixture.cjs');
+const { semanticCaseFixtures, result, recipe, recipeResult, coilResult, coils220 } = require('./helpers/businessSemanticFrameFixture.cjs');
 
 test('BusinessEvidencePlanV1 is immutable, default-off named, bounded to the derived three-call maximum', () => {
     assert.equal(BusinessEvidencePlanV1.version, 1);
@@ -110,7 +110,9 @@ test('runtime enforcement performs two deterministic reads, one synthesis call, 
             if (name === 'search_coils') return { success: true, data: [{ id: 7, spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', cost: 80, stock: 1 }],
                 queryReceipt: { authoritative: true, totalCount: 1, returnedCount: 1, truncated: false, possiblyTruncated: false },
                 executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=140' }] } };
-            if (name === 'calculate_coil_cost') return { success: true, data: { coilId: 7, spec: '12', sheets: 140, wireWeight: 0.8, isCustomWireWeight: true, totalCost: 91 },
+            if (name === 'calculate_coil_cost') return { success: true, data: { coilId: 7, spec: '12', sheets: 140, wireWeight: 0.8,
+                requestedWireWeight: 0.8, appliedWireWeight: 0.8, wireWeightAuthority: 'OVERRIDABLE', overrideStatus: 'APPLIED',
+                isCustomWireWeight: true, totalCost: 91 },
                 executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/coils/calculate' }] } };
             throw new Error(`unexpected ${name}`);
         },
@@ -125,24 +127,108 @@ test('runtime enforcement performs two deterministic reads, one synthesis call, 
     assert.equal(response.toolResults.some(item => /^(create|update|delete|adjust|execute|save)_/.test(item.name)), false);
 });
 
-test('runtime alias clarification performs one candidate read, offers no model tools, and remains deterministic', async () => {
+test('P3-A formal recipe alias resolves the same canonical target in five runtime runs', async () => {
     const { runAiAssistant } = require('../api/services/aiAssistantRuntime.cjs');
     let providerCalls = 0;
     const offered = [];
-    const response = await runAiAssistant({ messages: [{ role: 'user', content: '老V550经典款的成本是多少' }],
-        env: { AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true' } }, {
-        loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
-        executeToolCall: async (name, args) => {
-            assert.equal(name, 'get_all_recipes');
-            assert.deepEqual(args, { keyword: 'V550' });
-            return recipeResult().result;
-        },
-        fetchAiProvider: async (_messages, options) => { providerCalls += 1; offered.push(options.tools || []);
-            return { json: async () => ({ choices: [{ message: { content: '模型草稿' } }] }) }; },
-    });
-    assert.equal(providerCalls, 1);
-    assert.deepEqual(offered, [[]]);
-    assert.deepEqual(response.toolResults.map(item => item.name), ['get_all_recipes']);
-    assert.equal(response.toolResults[0].planningSource, 'BUSINESS_SEMANTIC_EVIDENCE_PLAN');
-    assert.match(response.finalContent, /正式别名映射/);
+    const canonicalTargets = [];
+    for (let run = 0; run < 5; run += 1) {
+        const response = await runAiAssistant({ messages: [{ role: 'user', content: '老V550经典款的成本是多少' }],
+            env: { AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true' } }, {
+            loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
+            executeToolCall: async (name, args) => {
+                if (name === 'get_all_recipes') {
+                    assert.deepEqual(args, { keyword: '老V550经典款' });
+                    return result(name, [{ ...recipe, currentCost: undefined }], '/api/recipes/1', {
+                        identityResolution: {
+                            entityType: 'recipe', state: 'FORMAL_ALIAS_MATCH', candidateCount: 1,
+                            canonicalType: 'recipe', canonicalId: '1', canonicalCurrentName: recipe.name,
+                            matchedAlias: '老V550经典款', provenance: { kind: 'formal_persisted_alias', sourceOfTruth: 'catalog_name_aliases+catalog_identity_profiles+recipes', targetActive: true },
+                        },
+                    }).result;
+                }
+                assert.equal(name, 'full_calculate');
+                assert.deepEqual(args, { recipeName: recipe.name });
+                return result(name, { recipeCost: { recipeId: 1, recipeName: recipe.name, recipeSpec: 'V550' }, totalCost: 201 }, '/api/cost/full-estimate').result;
+            },
+            fetchAiProvider: async (_messages, options) => { providerCalls += 1; offered.push(options.tools || []);
+                return { json: async () => ({ choices: [{ message: { content: '模型草稿' } }] }) }; },
+        });
+        assert.deepEqual(response.toolResults.map(item => item.name), ['get_all_recipes', 'full_calculate']);
+        assert.equal(response.toolResults.every(item => item.planningSource === 'BUSINESS_SEMANTIC_EVIDENCE_PLAN'), true);
+        assert.match(response.finalContent, new RegExp(recipe.name));
+        assert.match(response.finalContent, /201\.00 元/);
+        canonicalTargets.push(buildBusinessSemanticFrame({ userText: '老V550经典款的成本是多少', toolResults: response.toolResults,
+            stage: 'POST_EVIDENCE' }).subject.canonicalId);
+    }
+    assert.equal(providerCalls, 5);
+    assert.deepEqual(offered, [[], [], [], [], []]);
+    assert.deepEqual(canonicalTargets, [1, 1, 1, 1, 1]);
+});
+
+test('P3-B supplier-kit wire weight remains truthfully unsupported in five runtime runs', async () => {
+    const { runAiAssistant } = require('../api/services/aiAssistantRuntime.cjs');
+    for (let run = 0; run < 5; run += 1) {
+        const response = await runAiAssistant({ messages: [{ role: 'user', content: '假如线重按0.8算，12-140的成本是多少' }],
+            env: { AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } }, {
+            loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
+            executeToolCall: async name => name === 'search_coils' ? {
+                success: true,
+                data: [{ id: 7, spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', pricingMode: 'kit', kitPrice: 70, cost: 70, stock: 1 }],
+                queryReceipt: { authoritative: true, totalCount: 1, returnedCount: 1, truncated: false, possiblyTruncated: false },
+                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils?spec=12&sheets=140' }] },
+            } : {
+                success: true,
+                data: { coilId: 7, spec: '12', sheets: 140, pricingMode: 'kit', kitPrice: 70, totalCost: 70,
+                    wireWeight: 0.5, requestedWireWeight: 0.8, appliedWireWeight: null,
+                    wireWeightAuthority: 'NON_OVERRIDABLE', overrideStatus: 'UNSUPPORTED_FOR_PRICING_MODE', isCustomWireWeight: false },
+                executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/coils/calculate' }] },
+            },
+            fetchAiProvider: async () => ({ json: async () => ({ choices: [{ message: { content: '模型草稿' } }] }) }),
+        });
+        assert.match(response.finalContent, /线重 0\.8 未被正式能力应用/);
+        assert.doesNotMatch(response.finalContent, /已按用户指定线重/);
+        const frame = buildBusinessSemanticFrame({ userText: '假如线重按0.8算，12-140的成本是多少',
+            toolResults: response.toolResults, stage: 'POST_EVIDENCE' });
+        assert.equal(frame.evidence.facts.find(item => item.factType === 'COIL_OVERRIDE_APPLIED').state, 'UNSUPPORTED');
+    }
+});
+
+test('P3-B semantic layer never promotes an invented or legacy override claim without formal applied evidence', () => {
+    const userText = '假如线重按0.8算，12-140的成本是多少';
+    const toolResults = [
+        coilResult([{ id: 7, spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', cost: 80, stock: 1 }], 140),
+        result('calculate_coil_cost', { coilId: 7, spec: '12', sheets: 140, wireWeight: 0.8,
+            isCustomWireWeight: true, totalCost: 91 }, '/api/coils/calculate'),
+    ];
+    const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });
+    assert.notEqual(frame.evidence.facts.find(item => item.factType === 'COIL_OVERRIDE_APPLIED').state, 'VERIFIED');
+    assert.notEqual(frame.completeness.status, 'COMPLETE');
+});
+
+test('P3-A get_all_recipes consumes formal alias authority before bounded canonical detail read', async () => {
+    const { executeQueryTool } = require('../api/routes/ai/executors/queryExecutors.cjs');
+    const calls = [];
+    const internalFetch = async (path, options = {}) => {
+        calls.push({ path, method: options.method || 'GET' });
+        const data = path === '/api/recipes?keyword=%E8%80%81V550%E7%BB%8F%E5%85%B8%E6%AC%BE' ? [] : path === '/api/entity-lookup' ? {
+            version: 1, status: 'OK', complete: true, attemptedEntityTypes: 1, candidateCount: 1,
+            candidates: [{ entityType: 'recipe', canonicalId: '1', matchKind: 'APPROVED_ALIAS' }],
+            resolutions: [{ entityType: 'recipe', state: 'FORMAL_ALIAS_MATCH', candidateCount: 1,
+                canonicalType: 'recipe', canonicalId: '1', canonicalCurrentName: recipe.name, matchedAlias: '老V550经典款',
+                provenance: { kind: 'formal_persisted_alias', sourceOfTruth: 'catalog_name_aliases+catalog_identity_profiles+recipes', targetActive: true } }],
+        } : { ...recipe, currentCost: undefined };
+        return { ok: true, status: 200, text: async () => JSON.stringify({ success: true, data }) };
+    };
+    internalFetch.recordApiResult = () => {};
+    const output = await executeQueryTool('get_all_recipes', { keyword: '老V550经典款' }, internalFetch);
+    assert.deepEqual(calls, [
+        { path: '/api/recipes?keyword=%E8%80%81V550%E7%BB%8F%E5%85%B8%E6%AC%BE', method: 'GET' },
+        { path: '/api/entity-lookup', method: 'POST' },
+        { path: '/api/recipes/1', method: 'GET' },
+    ]);
+    assert.equal(output.count, 1);
+    assert.equal(output.data[0].id, 1);
+    assert.equal(output.identityResolution.state, 'FORMAL_ALIAS_MATCH');
+    assert.equal(output.identityResolution.canonicalCurrentName, recipe.name);
 });

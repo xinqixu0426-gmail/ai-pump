@@ -25,6 +25,21 @@ function createDb() {
         CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, deleted_at TEXT);
         CREATE TABLE recipes (id INTEGER PRIMARY KEY, name TEXT, spec TEXT, deleted_at TEXT);
         CREATE TABLE pump_shell_templates (id INTEGER PRIMARY KEY, shell_model TEXT, deleted_at TEXT);
+        CREATE TABLE catalog_identity_profiles (
+            id INTEGER PRIMARY KEY,
+            part_id INTEGER,
+            coil_id INTEGER,
+            template_id INTEGER,
+            recipe_id INTEGER,
+            model_variant_id INTEGER
+        );
+        CREATE TABLE catalog_name_aliases (
+            id INTEGER PRIMARY KEY,
+            profile_id INTEGER NOT NULL,
+            alias TEXT NOT NULL,
+            spec_revision INTEGER NOT NULL DEFAULT 1,
+            deleted_at TEXT
+        );
     `);
     return db;
 }
@@ -144,6 +159,52 @@ test('contains, prefix, and punctuation-different mentions are not accepted', ()
     }
     assert.equal(lookup(validRequest({ mention: 'V750-TOKOY-', entityTypes: ['part'], matchPolicy: 'EXACT' })).candidateCount, 1);
     assert.equal(lookup(validRequest({ mention: 'v750-tokoy-', entityTypes: ['part'], matchPolicy: 'APPROVED_ALIAS' })).candidateCount, 0);
+    db.close();
+});
+
+test('formal recipe alias resolution is exact, unique, typed, active, and current-name-first', () => {
+    const db = createDb();
+    db.prepare('INSERT INTO recipes (id, name, spec) VALUES (?, ?, ?), (?, ?, ?)')
+        .run(1, '配方-V550-当前', 'V550', 2, '老V550经典款', 'OTHER');
+    db.prepare('INSERT INTO catalog_identity_profiles (id, recipe_id) VALUES (?, ?), (?, ?)').run(11, 1, 12, 2);
+    db.prepare('INSERT INTO catalog_name_aliases (id, profile_id, alias) VALUES (?, ?, ?), (?, ?, ?)')
+        .run(21, 11, '老V550经典款', 22, 12, '另一个旧名');
+    const lookup = createEntityLookupService({ db }).lookupEntities;
+
+    const alias = lookup(validRequest({ mention: '老V550经典款', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' }));
+    assert.equal(alias.complete, true);
+    assert.deepEqual(alias.candidates, [{ entityType: 'recipe', canonicalId: '1', matchKind: 'APPROVED_ALIAS' }]);
+    assert.deepEqual(alias.resolutions[0], {
+        entityType: 'recipe', state: 'FORMAL_ALIAS_MATCH', candidateCount: 1,
+        canonicalType: 'recipe', canonicalId: '1', canonicalCurrentName: '配方-V550-当前', matchedAlias: '老V550经典款',
+        provenance: { kind: 'formal_persisted_alias', sourceOfTruth: 'catalog_name_aliases+catalog_identity_profiles+recipes', targetActive: true },
+    });
+
+    const currentWins = lookup(validRequest({ mention: '老V550经典款', entityTypes: ['recipe'], matchPolicy: 'EXACT_OR_APPROVED_ALIAS' }));
+    assert.deepEqual(currentWins.candidates, [{ entityType: 'recipe', canonicalId: '2', matchKind: 'EXACT' }]);
+    assert.equal(currentWins.resolutions[0].state, 'CANONICAL_NAME_MATCH');
+    assert.equal(lookup(validRequest({ mention: 'V550经典', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' })).candidateCount, 0);
+    assert.equal(lookup(validRequest({ mention: '不存在的旧名', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' })).resolutions[0].state, 'ALIAS_NOT_FOUND');
+    db.prepare('INSERT INTO catalog_name_aliases (id, profile_id, alias) VALUES (?, ?, ?)').run(23, 11, 'OLD-V550');
+    assert.equal(lookup(validRequest({ mention: 'ＯＬＤ－Ｖ５５０', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' })).resolutions[0].state, 'FORMAL_ALIAS_MATCH');
+    db.close();
+});
+
+test('formal recipe alias resolution fails closed for ambiguity and unavailable targets', () => {
+    const db = createDb();
+    db.prepare('INSERT INTO recipes (id, name, spec, deleted_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)')
+        .run(1, '配方一', 'A', null, 2, '配方二', 'B', null, 3, '已删除配方', 'C', '2026-09-20T00:00:00.000Z');
+    db.prepare('INSERT INTO catalog_identity_profiles (id, recipe_id) VALUES (?, ?), (?, ?), (?, ?)').run(11, 1, 12, 2, 13, 3);
+    db.prepare('INSERT INTO catalog_name_aliases (id, profile_id, alias) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)')
+        .run(21, 11, '重复旧名', 22, 12, '重复旧名', 23, 13, '失效旧名');
+    const lookup = createEntityLookupService({ db }).lookupEntities;
+
+    const ambiguous = lookup(validRequest({ mention: '重复旧名', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' }));
+    assert.equal(ambiguous.resolutions[0].state, 'ALIAS_AMBIGUOUS');
+    assert.deepEqual(ambiguous.candidates.map(item => item.canonicalId), ['1', '2']);
+    const unavailable = lookup(validRequest({ mention: '失效旧名', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' }));
+    assert.equal(unavailable.resolutions[0].state, 'ALIAS_TARGET_UNAVAILABLE');
+    assert.equal(unavailable.candidateCount, 0);
     db.close();
 });
 
