@@ -1,0 +1,44 @@
+{
+  "name": "pump-factory-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
+    "clean:build": "node -e \"const fs=require('fs'); for (const dir of ['.next','.next-dev/types','.next-preview/types']) fs.rmSync(dir,{recursive:true,force:true})\"",
+    "clean:dev": "node -e \"const fs=require('fs'); for (const dir of ['.next-dev','.next-preview']) fs.rmSync(dir,{recursive:true,force:true})\"",
+    "dev:primary": "node scripts/run-next-dev.cjs 3000 .next-dev",
+    "dev": "node scripts/run-next-dev.cjs 3001 .next-preview",
+    "build": "npm run clean:build && next build",
+    "rebuild": "npm run clean && npm run build",
+    "start:primary": "next start -p 3000",
+    "start": "next start -p 3001",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --report-unused-disable-directives"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
+    "motion": "^12.23.27",
+    "next": "^15.5.24",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.8",
+    "postcss": "^8.5.23",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^15.5.21",
+    "postcss": "^8.5.23",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.2.2"
+  }
+}

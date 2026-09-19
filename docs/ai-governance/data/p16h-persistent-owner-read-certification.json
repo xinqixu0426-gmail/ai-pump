@@ -1,0 +1,449 @@
+{
+  "stage": "P16-H",
+  "status": "PASS",
+  "startCommit": "85e4b91461832102b8815ad24c4a0027057ed3dc",
+  "candidateCommit": "15091c9ec4c462b1a1906952d3fdd788502d2ece",
+  "legacyRevision": "12fee179b6074215cf359bcc1a789ce1a345b9ba",
+  "legacyPID": 59155,
+  "restart": {
+    "beforePID": 75466,
+    "afterPID": 75492,
+    "finalCandidatePID": 75736,
+    "finalGatewayPID": 75637,
+    "automaticRestart": true,
+    "dbHashMtimeSizeBackupUnchanged": true
+  },
+  "requests": [
+    {
+      "group": "COIL_INVENTORY",
+      "factKey": "coil.inventory",
+      "final": true,
+      "latencyMs": 5270.369125000001,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:01.926Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 3875.042333999998,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "a39436ad-48f6-432a-8381-e081af1768b2",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 4003.1910000000207
+      }
+    },
+    {
+      "group": "EXACT_RECIPE_COST",
+      "factKey": "recipe.cost.preview",
+      "final": true,
+      "latencyMs": 4345.167708000001,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:06.541Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 3737.485249999998,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "0679bca8-c474-4cd6-b353-15d300d12c17",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 3748.7422500000102
+      }
+    },
+    {
+      "group": "FLAT_BLADE_PRICE",
+      "factKey": "price.current",
+      "final": true,
+      "latencyMs": 4567.304249999997,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:11.282Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 3421.151291999995,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "6f048c34-0361-4ace-a009-6c9fed88fcd2",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 3431.3382500000007
+      }
+    },
+    {
+      "group": "PART_INVENTORY_PRIMARY",
+      "factKey": "inventory.quantity",
+      "final": true,
+      "latencyMs": 3655.5466250000027,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:15.037Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 2433.520916999987,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "5ebad9bd-66ca-4efa-b9c4-4367405a71eb",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 2443.488583999977
+      }
+    },
+    {
+      "group": "PART_INVENTORY_REPEAT",
+      "factKey": "inventory.quantity",
+      "final": true,
+      "latencyMs": 2696.725499999993,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:17.989Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 2254.5655419999966,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "1387e6a0-02d7-4286-8f66-f1501a667cc5",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 2262.7980830000015
+      }
+    },
+    {
+      "group": "unavailable",
+      "final": true,
+      "latencyMs": 5447.832000000002,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": null,
+      "gateway": {
+        "requestId": "542e5e90-fdd2-4312-b3fa-821b12174ab3",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": false,
+        "safeLegacyFallback": true,
+        "finalSource": "legacy",
+        "failureClass": "CANDIDATE_UNAVAILABLE",
+        "durationMs": 3589.046416999976
+      }
+    },
+    {
+      "group": "restored",
+      "final": true,
+      "latencyMs": 14606.155582999992,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:44.483Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 3702.0521249999983,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "61571226-f8f3-449d-93b9-9ac58d1b50f3",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 3865.676124999998
+      }
+    },
+    {
+      "group": "after-rollback-restore",
+      "final": true,
+      "latencyMs": 4034.349000000002,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:55.679Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 2797.041459,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "089d21b6-d817-4cac-b845-483c0cc50da3",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 3128.47775
+      }
+    },
+    {
+      "group": "operational-control",
+      "final": true,
+      "latencyMs": 3921.488250000002,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:05:20.127Z",
+        "eligible": false,
+        "attempted": false,
+        "validated": false,
+        "delivered": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 1222.084750000009,
+        "toolCalls": 0
+      },
+      "gateway": {
+        "requestId": "a11fa18b-a891-4ebb-8991-25cd039e1297",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": false,
+        "safeLegacyFallback": true,
+        "finalSource": "legacy",
+        "failureClass": "CANDIDATE_NON_SUCCESS",
+        "durationMs": 3109.9268750000047
+      }
+    },
+    {
+      "group": "operational-control",
+      "final": true,
+      "latencyMs": 4661.906,
+      "contentCount": 1,
+      "doneCount": 1,
+      "candidate": {
+        "time": "2026-09-06T06:12:20.395Z",
+        "eligible": true,
+        "attempted": true,
+        "validated": true,
+        "delivered": true,
+        "failureClass": "NONE",
+        "durationMs": 3336.287749999996,
+        "toolCalls": 1
+      },
+      "gateway": {
+        "requestId": "c29682bb-fbee-4fe6-8818-57f95d8e21c4",
+        "explicitOwnerCanaryRequested": true,
+        "candidateAttempted": true,
+        "candidateSuccess": true,
+        "safeLegacyFallback": false,
+        "finalSource": "v5-candidate",
+        "failureClass": "NONE",
+        "durationMs": 3490.742541000014
+      }
+    }
+  ],
+  "controls": [
+    {
+      "mode": "unauth",
+      "httpStatus": 401,
+      "latencyMs": 888.4494169999998,
+      "final": false,
+      "doneCount": 0,
+      "contentCount": 0,
+      "rawExposed": false,
+      "candidate": null,
+      "gateway": {
+        "requestId": "fdd4988d-8a9c-497f-a611-ed3601283bc5",
+        "explicitOwnerCanaryRequested": false,
+        "candidateAttempted": false,
+        "candidateSuccess": false,
+        "safeLegacyFallback": false,
+        "finalSource": "none",
+        "failureClass": "NONE",
+        "durationMs": 0.6099999999860302
+      }
+    },
+    {
+      "mode": "spoof",
+      "httpStatus": 401,
+      "latencyMs": 813.8207499999999,
+      "final": false,
+      "doneCount": 0,
+      "contentCount": 0,
+      "rawExposed": false,
+      "candidate": null,
+      "gateway": {
+        "requestId": "686f73c6-5dad-4c18-aaa4-2886a0830ceb",
+        "explicitOwnerCanaryRequested": false,
+        "candidateAttempted": false,
+        "candidateSuccess": false,
+        "safeLegacyFallback": false,
+        "finalSource": "none",
+        "failureClass": "NONE",
+        "durationMs": 0.91983299999265
+      }
+    },
+    {
+      "mode": "no-marker",
+      "httpStatus": 200,
+      "latencyMs": 5700.328167,
+      "final": true,
+      "doneCount": 1,
+      "contentCount": 1,
+      "rawExposed": false,
+      "candidate": null,
+      "gateway": {
+        "requestId": "56d4d94d-0d01-467c-897f-986aca424854",
+        "explicitOwnerCanaryRequested": false,
+        "candidateAttempted": false,
+        "candidateSuccess": false,
+        "safeLegacyFallback": false,
+        "finalSource": "legacy",
+        "failureClass": "NONE",
+        "durationMs": 4876.951542000024
+      }
+    },
+    {
+      "mode": "legacy-control",
+      "httpStatus": 200,
+      "latencyMs": 8891.409292,
+      "final": true,
+      "doneCount": 1,
+      "contentCount": 1,
+      "rawExposed": false,
+      "candidate": null,
+      "gateway": null
+    }
+  ],
+  "metrics": {
+    "ownerExplicit": 10,
+    "candidateAttempts": 10,
+    "candidateEligible": 8,
+    "v5Finals": 8,
+    "fallbacks": 2,
+    "riskNotEligible": 1,
+    "riskUnavailableActual": 0,
+    "riskUnavailableDeterministic": 1,
+    "ordinaryControls": 2,
+    "ordinaryCandidateAttempts": 0,
+    "unauthenticatedAttempts": 2,
+    "unauthenticatedSuccesses": 0,
+    "writeRiskRequests": 1,
+    "writeRiskAdmissions": 0,
+    "doubleAnswers": 0,
+    "userFacingCandidateFailures": 0
+  },
+  "latency": {
+    "method": "nearest-rank; all successful owner samples including recovery; not a formal benchmark",
+    "v5Median": 4345.167708000001,
+    "v5P95": 14606.155582999992,
+    "fallbackMedian": 3921.488250000002,
+    "legacyControlMedian": 5700.328167
+  },
+  "rollback": {
+    "pass": true,
+    "routeDisabled": true,
+    "supervisorsDisabled": true,
+    "legacyPIDUnchanged": true,
+    "restored": true
+  },
+  "trace": {
+    "finalProbeSpans": 9,
+    "roots": 1,
+    "orphan": 0,
+    "crossRequest": 0,
+    "initialCounterInvalid": true,
+    "reason": "OPENINFERENCE_ROOT_ATTRIBUTES_UNAVAILABLE_AT_SDK_ONSTART",
+    "realSDKProbe": {
+      "onStartOwnershipPresent": false,
+      "onEndOwnershipPresent": true
+    },
+    "sourceLeakage": 0
+  },
+  "health": {
+    "allRecordedReady": true,
+    "finalReady": true,
+    "candidateRSSRange": [
+      144539648,
+      149422080
+    ],
+    "finalRSS": 162807808
+  },
+  "privacy": {
+    "bodiesPersisted": 0,
+    "runtimeFactsPersisted": 0,
+    "secretsPersisted": 0
+  },
+  "safety": {
+    "writes": 0,
+    "businessMutations": 0,
+    "allowWriteEnabling": 0,
+    "candidateDBMutationSuccesses": 0,
+    "backgroundMutationJobs": 0,
+    "dbHashMtimeSizeBackupUnchanged": true,
+    "legacyEnvUnchanged": true
+  },
+  "tests": {
+    "gateway": "18/18 PASS",
+    "runtime": "4/4 PASS",
+    "apiContract": "26/26 PASS",
+    "full": "2209/2210; sole known missing .guardian/config.yaml",
+    "newRegression": false
+  },
+  "finalState": {
+    "ownerRouteEnabled": true,
+    "candidateSupervised": true,
+    "gatewaySupervised": true,
+    "loopbackOnly": true,
+    "uid": 501,
+    "normalRoute": "LEGACY",
+    "automaticRouting": 0,
+    "percentageRollout": false,
+    "nonOwnerRollout": false
+  },
+  "limitations": [
+    "User LaunchAgent requires gui/501 login domain; pre-login reboot availability not certified",
+    "RISK_UNAVAILABLE current-stage deterministic frozen-gateway test; previous P16-G real Legacy fallback seam retained",
+    "Initial observability counters invalid; corrected adapter independently verified without changing frozen business runtime",
+    "One recovery public latency outlier retained; no transport/model tuning"
+  ]
+}

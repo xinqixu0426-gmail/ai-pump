@@ -1,0 +1,720 @@
+{
+  "requests": 21,
+  "paths": [
+    {
+      "id": "delete",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 673.1264000000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 678.1857
+      }
+    },
+    {
+      "id": "create",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 919.2560000000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 920.1113
+      }
+    },
+    {
+      "id": "update",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 640.1612000000002
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 641.1601
+      }
+    },
+    {
+      "id": "inventory",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 717.9488000000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 718.6772000000001
+      }
+    },
+    {
+      "id": "price",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 608.2826
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 608.6836000000003
+      }
+    },
+    {
+      "id": "order",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 553.6556
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 554.0517
+      }
+    },
+    {
+      "id": "mixed",
+      "repeat": 0,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 566.0664999999999
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 566.4633999999996
+      }
+    },
+    {
+      "id": "delete",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 715.4471999999996
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 716.1597000000002
+      }
+    },
+    {
+      "id": "create",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 878.2334000000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 878.5946999999996
+      }
+    },
+    {
+      "id": "update",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 622.6176999999998
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 623.0272999999997
+      }
+    },
+    {
+      "id": "inventory",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 519.1858000000002
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 519.6590999999999
+      }
+    },
+    {
+      "id": "price",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 729.700600000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 730.0490000000009
+      }
+    },
+    {
+      "id": "order",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 835.2163
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 835.5757000000012
+      }
+    },
+    {
+      "id": "mixed",
+      "repeat": 1,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 573.853799999999
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 575.2394999999997
+      }
+    },
+    {
+      "id": "delete",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 675.3665000000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 675.8389000000006
+      }
+    },
+    {
+      "id": "create",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 581.9644000000008
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 582.314699999999
+      }
+    },
+    {
+      "id": "update",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 1080.579099999999
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 1080.927599999999
+      }
+    },
+    {
+      "id": "inventory",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 655.3812999999991
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 655.7393000000011
+      }
+    },
+    {
+      "id": "price",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 622.7330999999995
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 623.3244000000013
+      }
+    },
+    {
+      "id": "order",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 831.713600000001
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 832.3194999999996
+      }
+    },
+    {
+      "id": "mixed",
+      "repeat": 2,
+      "contentExposed": false,
+      "outcome": {
+        "globalEnabled": true,
+        "previewOptIn": true,
+        "attempted": false,
+        "eligible": false,
+        "validationPass": false,
+        "delivered": false,
+        "exposed": false,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "risk": {
+          "version": 1,
+          "contractValid": true,
+          "mode": "command",
+          "eligible": false,
+          "invoked": true,
+          "failureClass": "RISK_NOT_ELIGIBLE",
+          "durationMs": 559.5151999999998
+        },
+        "safeAvailabilityFallback": false,
+        "riskOutcomeClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 560.0769
+      }
+    }
+  ],
+  "stability": [
+    {
+      "id": "delete",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 636.1916000000001
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 893.5501999999997
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 0,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 753.4631000000008
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "delete",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 1157.0773000000008
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 638.5686000000023
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 1,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 770.5072999999975
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "delete",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 631.3279999999977
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "inventory",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "command",
+        "eligible": false,
+        "invoked": true,
+        "failureClass": "RISK_NOT_ELIGIBLE",
+        "durationMs": 841.6257000000005
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    },
+    {
+      "id": "read",
+      "repeat": 2,
+      "risk": {
+        "version": 1,
+        "contractValid": true,
+        "mode": "query",
+        "eligible": true,
+        "invoked": true,
+        "failureClass": "NONE",
+        "durationMs": 579.4356999999982
+      },
+      "safeAvailabilityFallback": false,
+      "pass": true
+    }
+  ],
+  "trace": {
+    "spans": 42,
+    "orphans": 0,
+    "crossRequest": 0,
+    "sourceLeaks": 0,
+    "forbiddenFields": 0
+  },
+  "fixtureUnchanged": true,
+  "processExit": 0,
+  "portClosed": true,
+  "pass": true
+}

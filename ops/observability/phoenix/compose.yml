@@ -1,0 +1,32 @@
+name: pump-phoenix-observability
+
+services:
+  phoenix:
+    image: arizephoenix/phoenix:version-20.6.0
+    restart: unless-stopped
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+      PHOENIX_TELEMETRY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:6006:6006"
+      - "127.0.0.1:4317:4317"
+    volumes:
+      - phoenix_data:/mnt/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          response = urllib.request.urlopen('http://127.0.0.1:6006/healthz', timeout=5);
+          assert 200 <= response.status < 300
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  phoenix_data:
+    name: pump_phoenix_data
+    driver: local

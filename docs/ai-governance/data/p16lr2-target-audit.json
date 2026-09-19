@@ -1,0 +1,68 @@
+{
+  "stage": "P16-L-R2",
+  "kind": "PRE_IMPLEMENTATION_DIAGNOSTIC",
+  "retries": 0,
+  "toolCalls": 0,
+  "cases": [
+    {
+      "case_id": "L-08",
+      "parseValid": true,
+      "expectedStart": 5,
+      "expectedLength": 6,
+      "selectedStart": 9,
+      "selectedEnd": 15,
+      "exactTargetMatch": false,
+      "error": null
+    },
+    {
+      "case_id": "L-09",
+      "parseValid": true,
+      "expectedStart": 3,
+      "expectedLength": 3,
+      "selectedStart": null,
+      "selectedEnd": null,
+      "exactTargetMatch": false,
+      "error": null
+    },
+    {
+      "case_id": "L-14",
+      "parseValid": true,
+      "expectedStart": 2,
+      "expectedLength": 5,
+      "selectedStart": 4,
+      "selectedEnd": 12,
+      "exactTargetMatch": false,
+      "error": null
+    },
+    {
+      "case_id": "L-19",
+      "parseValid": true,
+      "expectedStart": 2,
+      "expectedLength": 5,
+      "selectedStart": 5,
+      "selectedEnd": 8,
+      "exactTargetMatch": false,
+      "error": null
+    },
+    {
+      "case_id": "L-24",
+      "parseValid": true,
+      "expectedStart": 2,
+      "expectedLength": 5,
+      "selectedStart": 4,
+      "selectedEnd": 6,
+      "exactTargetMatch": false,
+      "error": null
+    },
+    {
+      "case_id": "L-29",
+      "parseValid": true,
+      "expectedStart": 2,
+      "expectedLength": 5,
+      "selectedStart": 4,
+      "selectedEnd": 12,
+      "exactTargetMatch": false,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,569 @@
+{
+  "version": 1,
+  "startCommit": "d25abca8f58159a7a2de83236f84d7d47b9d13cf",
+  "branch": "master",
+  "worktreeCleanAtStart": false,
+  "status": "PARTIAL",
+  "coil": {
+    "caseIds": [
+      "P06-COIL-001-LEGACY",
+      "P06-COIL-001-V4I",
+      "P06-COIL-001-V4R3"
+    ],
+    "tool": "search_coils",
+    "schemaRequiredArgs": [],
+    "canonicalIdDirectlySupported": false,
+    "authoritativeSources": {
+      "rawSourceIdentity": true,
+      "canonicalEntityId": true,
+      "entityType": true,
+      "canonicalBusinessIdentity": false,
+      "matchKindInCandidate": true,
+      "matchKindInExecutionEntity": false,
+      "resolutionReceipt": true,
+      "capability": true,
+      "preRoutingContext": false
+    },
+    "argumentMap": [
+      {
+        "name": "spec",
+        "type": "string",
+        "required": false,
+        "semanticRole": "stator specification or documented compound shorthand",
+        "availability": "MISSING"
+      },
+      {
+        "name": "sheets",
+        "type": "integer",
+        "required": false,
+        "semanticRole": "lamination sheet count",
+        "availability": "MISSING"
+      },
+      {
+        "name": "material",
+        "type": "string",
+        "required": false,
+        "semanticRole": "material category",
+        "availability": "MISSING"
+      },
+      {
+        "name": "slotType",
+        "type": "string",
+        "required": false,
+        "semanticRole": "slot category",
+        "availability": "MISSING"
+      },
+      {
+        "name": "schemeCode",
+        "type": "string",
+        "required": false,
+        "semanticRole": "stable scheme business code",
+        "availability": "MISSING"
+      },
+      {
+        "name": "schemeStatus",
+        "type": "string",
+        "required": false,
+        "semanticRole": "official/testing/disabled",
+        "availability": "MISSING"
+      },
+      {
+        "name": "isDefault",
+        "type": "boolean",
+        "required": false,
+        "semanticRole": "default scheme filter",
+        "availability": "MISSING"
+      },
+      {
+        "name": "ratedVoltageV",
+        "type": "integer",
+        "required": false,
+        "semanticRole": "rated voltage positive integer",
+        "availability": "MISSING"
+      },
+      {
+        "name": "ratedFrequencyHz",
+        "type": "integer",
+        "required": false,
+        "semanticRole": "rated frequency positive integer",
+        "availability": "MISSING"
+      },
+      {
+        "name": "market",
+        "type": "string",
+        "required": false,
+        "semanticRole": "market category",
+        "availability": "MISSING"
+      },
+      {
+        "name": "schemeFamilyCode",
+        "type": "string",
+        "required": false,
+        "semanticRole": "electrical scheme family",
+        "availability": "MISSING"
+      }
+    ],
+    "nonBindableSources": [
+      {
+        "source": "canonicalEntityId",
+        "status": "SEMANTIC_MISMATCH",
+        "reason": "DATABASE_ID_NOT_SCHEME_CODE"
+      },
+      {
+        "source": "rawMention",
+        "status": "NOT_AUTHORITATIVE",
+        "reason": "MATCHED_IDENTITY_FIELD_NOT_ATTESTED"
+      }
+    ],
+    "primaryRootCause": "ENTITY_LOOKUP_CONTRACT_MISSING_BINDABLE_FIELD",
+    "secondaryRootCauses": [
+      "TOOL_SCHEMA_NOT_CANONICAL_ID_ADDRESSABLE"
+    ],
+    "recommendedFix": "B",
+    "a01ProtectionPreserved": true,
+    "entityLookupContractChangeRequired": true,
+    "toolContractChangeRequired": false,
+    "existingReadPathAvailable": true,
+    "existingReadPathLimitation": "GET_COILS_LIST_HAS_ID_AND_SCHEME_CODE_BUT_NO_ID_FILTER_OR_DETAIL_ROUTE_UNBOUNDED_LIST_NOT_RECOMMENDED",
+    "additionalReadinessGap": "COIL_RESULT_INSPECTION_NOT_IMPLEMENTED"
+  },
+  "performance": {
+    "node": "v24.16.0",
+    "platform": "win32",
+    "records": [
+      {
+        "mode": "A",
+        "set": 1,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 30.133600000000115,
+          "p95": 31.092199999999934
+        },
+        "clientResponseMs": {
+          "median": 31.017499999999927,
+          "p95": 32.087800000000016
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 0,
+          "p95": 0
+        }
+      },
+      {
+        "mode": "B",
+        "set": 1,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 31.18119999999999,
+          "p95": 32.22559999999976
+        },
+        "clientResponseMs": {
+          "median": 32.14379999999983,
+          "p95": 33.267799999999625
+        },
+        "shadowCompletionMs": {
+          "median": 45.985099999999875,
+          "p95": 47.178100000000086
+        },
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 3.4765179069207397,
+          "p95": 3.645287242458961
+        }
+      },
+      {
+        "mode": "C",
+        "set": 1,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 29.607299999999668,
+          "p95": 31.170000000000073
+        },
+        "clientResponseMs": {
+          "median": 30.637899999999718,
+          "p95": 31.659099999999853
+        },
+        "shadowCompletionMs": {
+          "median": 61.77139999999963,
+          "p95": 64.26590000000033
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -1.746555340219702,
+          "p95": 0.2502235287311194
+        }
+      },
+      {
+        "mode": "A_LOAD",
+        "set": 1,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.74319999999898,
+          "p95": 27.723700000000463
+        },
+        "clientResponseMs": {
+          "median": 31.218799999999646,
+          "p95": 32.09100000000035
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -11.251227865243862,
+          "p95": -10.833906896261691
+        }
+      },
+      {
+        "mode": "D",
+        "set": 1,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.210799999998926,
+          "p95": 29.469499999999243
+        },
+        "clientResponseMs": {
+          "median": 30.584999999999127,
+          "p95": 31.376500000000306
+        },
+        "shadowCompletionMs": {
+          "median": 46.35859999999957,
+          "p95": 47.597099999999045
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -13.018026389150894,
+          "p95": -5.218993831252517
+        },
+        "matchedLoadOverheadPercent": {
+          "median": -1.9907864429091204,
+          "p95": 6.297139270727747
+        }
+      },
+      {
+        "mode": "B",
+        "set": 2,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 31.08770000000004,
+          "p95": 31.853800000000774
+        },
+        "clientResponseMs": {
+          "median": 31.766900000000533,
+          "p95": 32.75929999999971
+        },
+        "shadowCompletionMs": {
+          "median": 46.01510000000053,
+          "p95": 47.104599999998754
+        },
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 2.6999973571624425,
+          "p95": 1.590490861136118
+        }
+      },
+      {
+        "mode": "C",
+        "set": 2,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 29.736799999998766,
+          "p95": 30.90979999999945
+        },
+        "clientResponseMs": {
+          "median": 30.55539999999928,
+          "p95": 31.452900000000227
+        },
+        "shadowCompletionMs": {
+          "median": 61.677199999998265,
+          "p95": 62.79249999999956
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -1.7627781595184855,
+          "p95": -1.420183638391248
+        }
+      },
+      {
+        "mode": "D",
+        "set": 2,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.43159999999989,
+          "p95": 29.630300000000716
+        },
+        "clientResponseMs": {
+          "median": 30.153399999999237,
+          "p95": 31.576199999999517
+        },
+        "shadowCompletionMs": {
+          "median": 46.09889999999723,
+          "p95": 47.89559999999983
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -12.681695649869251,
+          "p95": -5.500859509298084
+        },
+        "matchedLoadOverheadPercent": {
+          "median": -0.13337413901723938,
+          "p95": 8.223516005092414
+        }
+      },
+      {
+        "mode": "A",
+        "set": 2,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 30.270399999997608,
+          "p95": 31.355100000000675
+        },
+        "clientResponseMs": {
+          "median": 31.057700000001205,
+          "p95": 31.97269999999844
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 0,
+          "p95": 0
+        }
+      },
+      {
+        "mode": "A_LOAD",
+        "set": 2,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.46689999999944,
+          "p95": 27.37879999999859
+        },
+        "clientResponseMs": {
+          "median": 30.841099999997823,
+          "p95": 31.878499999998894
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -12.565080078223168,
+          "p95": -12.68150954709759
+        }
+      },
+      {
+        "mode": "D",
+        "set": 3,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.028999999998632,
+          "p95": 29.402200000000448
+        },
+        "clientResponseMs": {
+          "median": 30.267299999999523,
+          "p95": 31.15899999999965
+        },
+        "shadowCompletionMs": {
+          "median": 46.40309999999954,
+          "p95": 47.360099999998056
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -13.981017594424328,
+          "p95": -6.731040695843382
+        },
+        "matchedLoadOverheadPercent": {
+          "median": -2.672405089811858,
+          "p95": 6.093802997827291
+        }
+      },
+      {
+        "mode": "A_LOAD",
+        "set": 3,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 26.74370000000272,
+          "p95": 27.713400000000547
+        },
+        "clientResponseMs": {
+          "median": 31.12090000000171,
+          "p95": 32.14270000000033
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -11.619122526399451,
+          "p95": -12.088211875987998
+        }
+      },
+      {
+        "mode": "A",
+        "set": 3,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 30.259600000001228,
+          "p95": 31.524099999998725
+        },
+        "clientResponseMs": {
+          "median": 30.94079999999667,
+          "p95": 32.11769999999888
+        },
+        "shadowCompletionMs": null,
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 0,
+          "p95": 0
+        }
+      },
+      {
+        "mode": "C",
+        "set": 3,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 29.63090000000375,
+          "p95": 31.21799999999712
+        },
+        "clientResponseMs": {
+          "median": 30.414300000000367,
+          "p95": 31.55409999999756
+        },
+        "shadowCompletionMs": {
+          "median": 61.79579999999987,
+          "p95": 63.741299999997864
+        },
+        "fixtureExecutions": 55,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": -2.0776877420635276,
+          "p95": -0.9710031372874073
+        }
+      },
+      {
+        "mode": "B",
+        "set": 3,
+        "warmup": 5,
+        "measured": 50,
+        "responseCommitMs": {
+          "median": 31.254699999997683,
+          "p95": 32.295500000000175
+        },
+        "clientResponseMs": {
+          "median": 31.678500000001804,
+          "p95": 32.873399999996764
+        },
+        "shadowCompletionMs": {
+          "median": 46.253899999996065,
+          "p95": 47.60659999999916
+        },
+        "fixtureExecutions": 0,
+        "beforeEnd": 0,
+        "beforeFinish": 0,
+        "overheadPercent": {
+          "median": 3.288543140016431,
+          "p95": 2.44701672688985
+        }
+      }
+    ],
+    "realModelCalls": 0,
+    "realBusinessApiCalls": 0,
+    "realToolExecutions": 0,
+    "writes": 0,
+    "cleanCommit": true,
+    "syntheticResponseCommit": true,
+    "productionChatHandlerInvoked": false,
+    "realInternalHttpWorkload": false,
+    "historicalPrimaryAttribution": "PARALLEL_REGRESSION_HARNESS_CONTAMINATION",
+    "historicalExactTimingCause": "NOT_IDENTIFIABLE_FROM_RECORDED_AGGREGATES",
+    "currentArchitectureAcceptableWithoutChange": "INCONCLUSIVE",
+    "recommendedFix": "PERFORMANCE_HARNESS_FIX",
+    "userDirtyWorktreeEffect": "UNKNOWN",
+    "concurrencyLimit": 4,
+    "preResponseSyncWork": true,
+    "limitations": [
+      "SYNTHETIC_INTERPRETER_ONLY",
+      "SERIAL_FOREGROUND_REQUESTS",
+      "CONTROLLED_EVENT_LOOP_LOAD_NOT_REAL_API_CONTENTION",
+      "NO_OS_LOAD_TRACE_FOR_HISTORICAL_FAILURE"
+    ]
+  },
+  "safety": {
+    "realModelCalls": 0,
+    "realBusinessApiCalls": 0,
+    "realToolExecutions": 0,
+    "fixtureExecutorInvocations": 330,
+    "v5Writes": 0,
+    "productionCodeChanged": false,
+    "dependenciesChanged": false,
+    "databaseBefore": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    }
+  },
+  "postAuditSafety": {
+    "databaseHashUnchanged": true,
+    "databaseMtimeUnchanged": true,
+    "databaseSizeUnchanged": true,
+    "backupCountUnchanged": true,
+    "frozenP16AFileHashesUnchanged": true,
+    "databaseAfter": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904,
+      "backups": 209
+    }
+  },
+  "tests": {
+    "bindingFocused": "3/3",
+    "benchmarkMeasuredRequests": 750,
+    "benchmarkWarmups": 75,
+    "fixtureVerifications": "330/330",
+    "responseInvariant": "825/825",
+    "shadowLaunchBeforeEnd": 0,
+    "shadowLaunchBeforeFinish": 0
+  },
+  "p16A2Ready": false,
+  "reasonCodes": [
+    "COIL_BINDABLE_REFERENCE_MISSING",
+    "HISTORICAL_PARALLEL_METRIC_NOT_EXECUTION_COST",
+    "PERFORMANCE_ARCHITECTURE_ACCEPTANCE_INCONCLUSIVE"
+  ]
+}

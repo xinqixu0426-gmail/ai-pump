@@ -1,0 +1,28 @@
+#!/bin/zsh
+set -u
+
+PROJECT_DIR=/Users/dan/pump-cost-accounting-system
+PID_FILE="$PROJECT_DIR/logs/web-launchd.pid"
+CHILD_PID=
+
+cleanup() {
+  /bin/rm -f "$PID_FILE"
+}
+
+shutdown() {
+  trap - TERM INT
+  if [[ -n "$CHILD_PID" ]] && /bin/kill -0 "$CHILD_PID" 2>/dev/null; then
+    /bin/kill -TERM "$CHILD_PID"
+    wait "$CHILD_PID"
+  fi
+  exit 0
+}
+
+trap cleanup EXIT
+trap shutdown TERM INT
+
+cd "$PROJECT_DIR/apps/web-next"
+/opt/homebrew/bin/node node_modules/next/dist/bin/next start -p 3000 &
+CHILD_PID=$!
+/usr/bin/printf '%s\n' "$CHILD_PID" > "$PID_FILE"
+wait "$CHILD_PID"

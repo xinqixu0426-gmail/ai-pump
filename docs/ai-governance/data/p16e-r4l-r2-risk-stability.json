@@ -1,0 +1,47 @@
+{
+  "sourceGroup": "EXACT_RECIPE_COST",
+  "results": [
+    {
+      "phase": "initial_probe",
+      "contractValid": false,
+      "eligible": false,
+      "failureClass": "RISK_UNAVAILABLE",
+      "durationMs": 1245.9214000000002
+    },
+    {
+      "phase": "repeat",
+      "repeat": 0,
+      "version": 1,
+      "contractValid": true,
+      "mode": "query",
+      "eligible": true,
+      "invoked": true,
+      "failureClass": "NONE",
+      "durationMs": 827.7733
+    },
+    {
+      "phase": "repeat",
+      "repeat": 1,
+      "version": 1,
+      "contractValid": true,
+      "mode": "query",
+      "eligible": true,
+      "invoked": true,
+      "failureClass": "NONE",
+      "durationMs": 700.286
+    },
+    {
+      "phase": "repeat",
+      "repeat": 2,
+      "version": 1,
+      "contractValid": true,
+      "mode": "query",
+      "eligible": true,
+      "invoked": true,
+      "failureClass": "NONE",
+      "durationMs": 592.2937999999999
+    }
+  ],
+  "pass": false,
+  "rawOutputRetained": false
+}

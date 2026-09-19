@@ -1,0 +1,281 @@
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+
+const {
+    MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    MCP_BATCH_WRITE_SCENARIOS,
+    MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+    MCP_WRITE_ACCEPTANCE_CASES,
+    ROOT,
+    acceptanceTestFiles,
+} = require('./mcp-write-acceptance-manifest.cjs');
+
+const startedAt = new Date();
+const reportPath = path.join(ROOT, 'logs', 'mcp-write-local-latest.json');
+const e2eReportPath = path.join(ROOT, 'logs', 'mcp-write-local-e2e-latest.json');
+const files = acceptanceTestFiles();
+
+console.log(`MCP 写工具本地隔离验收：${MCP_WRITE_ACCEPTANCE_CASES.length} 个工具，${files.length} 个测试文件`);
+console.log('边界：不读取生产 token，不连接 Mac Mini，不使用正式数据库，不调用物理打印机。');
+
+const testDatabaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pump-mcp-write-'));
+const isolatedEnv = {
+    ...process.env,
+    NODE_ENV: 'test',
+    PUMP_TEST_DATABASE_PATH: path.join(testDatabaseDir, 'pump-{pid}.db'),
+    MCP_ENABLED: 'false',
+    MCP_WRITE_ENABLED: 'false',
+    MCP_CLIENT_ID: '',
+    MCP_TOKEN: '',
+    MCP_SERVICE_TOKENS: '',
+    MCP_VERIFY_TOKEN: '',
+    MCP_WRITE_CLIENT_IDS: '',
+    MCP_WRITE_TOOL_ALLOWLISTS: '',
+    HERMES_MCP_ENABLED: 'false',
+    HERMES_MCP_TOKEN: '',
+};
+let matrixResult;
+try {
+    matrixResult = spawnSync(process.execPath, ['--test', ...files], {
+        cwd: ROOT,
+        env: isolatedEnv,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+} finally {
+    fs.rmSync(testDatabaseDir, { recursive: true, force: true });
+}
+
+if (matrixResult.stdout) process.stdout.write(matrixResult.stdout);
+if (matrixResult.stderr) process.stderr.write(matrixResult.stderr);
+
+let e2eResult = null;
+let e2eReport = null;
+if (matrixResult.status === 0) {
+    console.log(`快速矩阵通过，开始 ${MCP_WRITE_ACCEPTANCE_CASES.length} 个写工具的真实 localhost MCP → API → SQLite 回读闭环。`);
+    e2eResult = spawnSync(process.execPath, ['scripts/run-mcp-write-local-e2e.cjs'], {
+        cwd: ROOT,
+        env: isolatedEnv,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (e2eResult.stdout) process.stdout.write(e2eResult.stdout);
+    if (e2eResult.stderr) process.stderr.write(e2eResult.stderr);
+    try {
+        e2eReport = JSON.parse(fs.readFileSync(e2eReportPath, 'utf8'));
+    } catch (error) {
+        e2eReport = {
+            status: 'failed',
+            error: `无法读取 localhost E2E 报告: ${error.message}`,
+        };
+    }
+}
+
+const matrixPassed = matrixResult.status === 0;
+const requiredReplayTools = [
+    'create_order',
+    'adjust_part_stock',
+    'batch_update_prices',
+    'delete_part',
+    'sync_factory_knowledge',
+];
+const requiredFailureTools = [
+    'update_order_item',
+    'adjust_part_stock',
+    'update_recipe',
+    'delete_part',
+    'archive_factory_file',
+];
+const replayEvidence = Array.isArray(e2eReport?.idempotencyReplays)
+    ? e2eReport.idempotencyReplays
+    : [];
+const failureEvidence = Array.isArray(e2eReport?.failedCalls)
+    ? e2eReport.failedCalls
+    : [];
+const idempotencyReplayPassed = requiredReplayTools.every(name => replayEvidence.some(item => (
+    item?.name === name
+    && item?.idempotentReplay === true
+    && item?.sideEffects === 0
+    && typeof item?.operationId === 'string'
+    && item.operationId.length > 0
+)));
+const businessFailurePassed = requiredFailureTools.every(name => failureEvidence.some(item => (
+    item?.name === name
+    && item?.sideEffects === 0
+    && typeof item?.code === 'string'
+    && item.code.length > 0
+)));
+const declinedEvidence = Array.isArray(e2eReport?.declinedCalls)
+    ? e2eReport.declinedCalls
+    : [];
+const remainingDeclinesPassed = MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.every(name => declinedEvidence.some(item => (
+    item?.name === name
+    && item?.code === 'mcp_write_declined'
+    && item?.confirmationPresented === true
+    && item?.sideEffects === 0
+    && item?.externalSideEffects === 0
+    && typeof item?.databaseDigest === 'string'
+    && /^[a-f0-9]{64}$/.test(item.databaseDigest)
+    && Number(item?.databaseTables) > 0
+)));
+const scenarioEvidence = Array.isArray(e2eReport?.scenarios) ? e2eReport.scenarios : [];
+const scenariosPassed = MCP_BATCH_WRITE_SCENARIOS.every(expected => scenarioEvidence.some(actual => (
+    actual?.id === expected.id
+    && actual?.status === 'passed'
+    && expected.tools.every(name => actual.successfulTools?.includes(name))
+    && expected.tools.every(name => actual.declinedTools?.includes(name))
+)));
+const partitionPassed = new Set([
+    ...MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+    ...MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+]).size === MCP_WRITE_ACCEPTANCE_CASES.length
+    && MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES.length + MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES.length
+        === MCP_WRITE_ACCEPTANCE_CASES.length;
+const legacyCompatibilityPassed = e2eReport?.legacyCompatibility?.listedReadTools === 48
+    && e2eReport?.legacyCompatibility?.readCall === 'passed'
+    && e2eReport?.legacyCompatibility?.hiddenWrite === 'rejected'
+    && e2eReport?.legacyCompatibility?.sideEffects === 0;
+const multiOperationTools = new Set([
+    'execute_order_readiness_action',
+    'execute_factory_workflow_step',
+]);
+const operationCardinalityPassed = MCP_WRITE_ACCEPTANCE_CASES.every(({ name }) => {
+    const tool = e2eReport?.tools?.find(item => item?.name === name);
+    const expected = multiOperationTools.has(name) ? 2 : 1;
+    return tool?.formalOperationIds?.length === expected
+        && tool?.formalCapabilityIds?.length === expected;
+});
+const recipeRecoveryCardinalityPassed = e2eReport?.recipeRecovery?.formalOperationIds?.length === 1
+    && e2eReport?.recipeRecovery?.formalCapabilityIds?.length === 1;
+const expectedPersistentOperations = MCP_WRITE_ACCEPTANCE_CASES.length
+    + multiOperationTools.size
+    + 1;
+const e2ePassed = e2eResult?.status === 0
+    && e2eReport?.status === 'passed'
+    && e2eReport?.toolsPassed === MCP_WRITE_ACCEPTANCE_CASES.length
+    && e2eReport?.productionTouched === false
+    && e2eReport?.physicalSideEffects === false
+    && e2eReport?.externalStub?.printerCalls === 0
+    && e2eReport?.temporaryDatabaseCleaned === true
+    && e2eReport?.directorySnapshot?.listCalls === 1
+    && e2eReport?.directorySnapshot?.writeTools === MCP_WRITE_ACCEPTANCE_CASES.length
+    && operationCardinalityPassed
+    && recipeRecoveryCardinalityPassed
+    && e2eReport?.persistentEvidence?.operationsVerified === expectedPersistentOperations
+    && e2eReport?.persistentEvidence?.workflowBusinessEventsVerified === 4
+    && e2eReport?.persistentEvidence?.workflowRunsVerified === 2
+    && e2eReport?.persistentEvidence?.integrity === 'ok'
+    && e2eReport?.persistentEvidence?.foreignKeyViolations === 0
+    && legacyCompatibilityPassed
+    && idempotencyReplayPassed
+    && businessFailurePassed
+    && partitionPassed
+    && remainingDeclinesPassed
+    && scenariosPassed;
+const passed = matrixPassed && e2ePassed;
+const completedAt = new Date();
+const report = {
+    schemaVersion: 3,
+    suite: 'mcp-write-local-isolated-acceptance',
+    status: passed ? 'passed' : 'failed',
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    durationMs: completedAt.getTime() - startedAt.getTime(),
+    productionTouched: false,
+    physicalSideEffects: false,
+    temporaryDatabaseCleaned: e2eReport?.temporaryDatabaseCleaned === true,
+    cleanupError: e2eReport?.cleanupError || null,
+    coverage: {
+        toolsExpected: MCP_WRITE_ACCEPTANCE_CASES.length,
+        toolsCovered: MCP_WRITE_ACCEPTANCE_CASES.length,
+        previouslyAcceptedTools: MCP_PREVIOUSLY_ACCEPTED_WRITE_TOOL_NAMES,
+        candidateTools: MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+        partition: partitionPassed ? 'passed' : 'failed',
+        protocolMatrix: {
+            status: matrixPassed ? 'passed' : 'failed',
+            testFiles: files,
+        },
+        localhostE2E: e2eReport ? {
+            status: e2eReport.status,
+            protocolVersion: e2eReport.protocolVersion,
+            toolsPassed: e2eReport.toolsPassed,
+            operationsVerified: e2eReport.persistentEvidence?.operationsVerified || 0,
+            workflowBusinessEventsVerified: e2eReport.persistentEvidence?.workflowBusinessEventsVerified || 0,
+            workflowRunsVerified: e2eReport.persistentEvidence?.workflowRunsVerified || 0,
+            printerCalls: e2eReport.externalStub?.printerCalls ?? null,
+            databaseIntegrity: e2eReport.persistentEvidence?.integrity || null,
+            foreignKeyViolations: e2eReport.persistentEvidence?.foreignKeyViolations ?? null,
+            legacyCompatibility: {
+                status: legacyCompatibilityPassed ? 'passed' : 'failed',
+                listedReadTools: e2eReport.legacyCompatibility?.listedReadTools ?? null,
+                readCall: e2eReport.legacyCompatibility?.readCall ?? null,
+                hiddenWrite: e2eReport.legacyCompatibility?.hiddenWrite ?? null,
+                sideEffects: e2eReport.legacyCompatibility?.sideEffects ?? null,
+            },
+            idempotencyReplays: {
+                status: idempotencyReplayPassed ? 'passed' : 'failed',
+                required: requiredReplayTools,
+                verified: replayEvidence.map(item => item.name),
+            },
+            businessFailures: {
+                status: businessFailurePassed ? 'passed' : 'failed',
+                required: requiredFailureTools,
+                verified: failureEvidence.map(item => ({
+                    name: item.name,
+                    code: item.code,
+                    sideEffects: item.sideEffects,
+                })),
+            },
+            directorySnapshot: e2eReport.directorySnapshot || null,
+            remainingDeclines: {
+                status: remainingDeclinesPassed ? 'passed' : 'failed',
+                required: MCP_BATCH_CANDIDATE_WRITE_TOOL_NAMES,
+                verified: declinedEvidence.map(item => ({
+                    name: item.name,
+                    code: item.code,
+                    sideEffects: item.sideEffects,
+                    externalSideEffects: item.externalSideEffects,
+                    databaseDigest: item.databaseDigest,
+                    databaseTables: item.databaseTables,
+                    databaseRows: item.databaseRows,
+                    externalFiles: item.externalFiles,
+                })),
+            },
+            scenarios: scenarioEvidence,
+            freecadStubCalls: e2eReport.externalStub?.freecadCalls ?? 0,
+            printerStubCalls: e2eReport.externalStub?.printerCalls ?? 0,
+            report: path.relative(ROOT, e2eReportPath),
+        } : {
+            status: 'not_run',
+            reason: 'protocol_matrix_failed',
+        },
+        commonProtocol: [
+            'catalog and JSON schema projection',
+            'mcp:write scope enforcement',
+            'preview without write',
+            'HMAC request state and actor/argument binding',
+            'explicit elicitation acceptance',
+            'verified command receipt',
+            'idempotent replay path',
+            'decline or false confirmation without side effect',
+        ],
+        transport: '2025/2026 clients use real localhost Streamable HTTP transports',
+        businessExecution: `all ${MCP_WRITE_ACCEPTANCE_CASES.length} tools traverse MCP elicitation, formal executor/API, temporary SQLite operation/audit, and readback; external commands are counted stubs`,
+    },
+    testFiles: files,
+    tools: MCP_WRITE_ACCEPTANCE_CASES.map(item => ({
+        name: item.name,
+        status: passed ? 'passed' : 'suite_failed',
+        isolation: item.isolation,
+        businessTests: item.businessTests,
+    })),
+};
+
+fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+console.log(`脱敏报告：${path.relative(ROOT, reportPath)}`);
+
+if (!passed) process.exit(matrixResult.status || e2eResult?.status || 1);
+console.log(`MCP 写工具本地隔离验收通过：${MCP_WRITE_ACCEPTANCE_CASES.length}/${MCP_WRITE_ACCEPTANCE_CASES.length}。`);

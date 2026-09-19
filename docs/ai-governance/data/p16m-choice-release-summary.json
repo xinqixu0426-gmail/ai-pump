@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "stage": "P16-M customer discovery and explicit choice",
+  "revision": "c98dd7efb7c43f33f705ae9095f356094f5fa829",
+  "tree": "1a2fbae7636003dfc1767f0a46139443aa3ba326",
+  "status": "MANUAL_ACCEPTANCE_READY_WITH_PRODUCTION_DATA_LIMITS",
+  "productionUpdated": true,
+  "fullProductionScenarioCertification": false,
+  "noP16N": true,
+  "p17": "PAUSED",
+  "archiveSha256": "eea3c7c95bf8c8aa2d4708ba9d0c351b3541448c8dcc52559e1a07425a08ddea",
+  "canonicalMismatches": [],
+  "local": {
+    "tests": {
+      "passed": 2289,
+      "failed": 0
+    },
+    "apiContract": {
+      "passed": 26,
+      "failed": 0
+    },
+    "deepApi": {
+      "passed": 437,
+      "failed": 0,
+      "integrity": "ok",
+      "foreignKeyViolations": 0
+    },
+    "build": "PASS",
+    "scopedLint": "PASS",
+    "dependencyAudit": {
+      "root": 0,
+      "web": 0,
+      "updatedTransitiveVersions": {
+        "fast-uri": "3.1.7",
+        "qs": "6.16.0"
+      }
+    },
+    "fullReleaseCommand": "NOT_GREEN",
+    "fullLint": {
+      "remainingBaselineErrors": 14,
+      "unchangedFiles": [
+        {
+          "file": "scripts/audit-ai-v5-nested-span-refinement.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/certify-conversation-transport.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/certify-v5-collections.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/certify-v5-f1c-paired-performance.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/certify-v5-part-read-semantics.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/run-ai-v5e4r-nested-refinement-evaluation.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/run-ai-v5e4r-protocol-v2-evaluation.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "scripts/run-ai-v5e4r-task-class-semantics-v1_1-evaluation.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "tests/aiV5CoilReadBinding.test.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "tests/aiV5ReadCanary.test.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "tests/aiV5TwoStageJsonCompatibility.test.cjs",
+          "unchangedFromBaseline": true
+        },
+        {
+          "file": "tests/entitySpanCandidates.test.cjs",
+          "unchangedFromBaseline": true
+        }
+      ]
+    },
+    "localProductionEnv": "CORS_ORIGIN absent in local development env",
+    "realProductionEnvironment": "PASS",
+    "correctedVerificationSetup": [
+      "isolated DB and backups directory",
+      "preserved existing frozen file line endings",
+      "unit tests without application credential env"
+    ],
+    "deepApiRepair": "Wait for explicit terminal startup copper-sync event before freezing the formal MCP oracle; retain failed evidence, no source DB mutation.",
+    "realModelChoice": {
+      "passed": 18,
+      "total": 18,
+      "artifact": "p16m-candidate-choice-v3.json",
+      "currentCodeHashesMatch": true
+    },
+    "existingReadRegression": {
+      "passed": 60,
+      "total": 60,
+      "artifact": "p16m-choice-existing-read-regression-v2.json",
+      "currentCodeHashesMatch": true
+    }
+  },
+  "production": {
+    "existingReads": {
+      "passed": 18,
+      "total": 18
+    },
+    "identityIsolation": true,
+    "customerChoice": {
+      "passed": 5,
+      "total": 5
+    },
+    "mixedWriteDenial": {
+      "risk": "WRITE_OR_MUTATION",
+      "attempted": false,
+      "toolCalls": 0,
+      "answers": 0,
+      "pass": true
+    },
+    "applicability": {
+      "customerTotal": 1,
+      "customerPaging": "NO_MATCHING_PRODUCTION_PAGE",
+      "customerSearch": true,
+      "coilChoice": "AVAILABLE_VIA_FORMAL_PROFILE_SCHEME_CODES"
+    },
+    "invalidFormalParameters": [
+      {
+        "id": "keyword-type",
+        "status": 400,
+        "pass": true
+      },
+      {
+        "id": "keyword-wrong-resource",
+        "status": 400,
+        "pass": true
+      },
+      {
+        "id": "page-over-bound",
+        "status": 400,
+        "pass": true
+      },
+      {
+        "id": "cursor-out-of-range",
+        "status": 400,
+        "pass": true
+      }
+    ],
+    "crossConversation": {
+      "id": "new-conversation-cannot-select-prior-candidates",
+      "status": 200,
+      "candidateRequests": 1,
+      "toolCalls": 0,
+      "riskInvoked": true,
+      "delivered": false,
+      "pass": false,
+      "review": "Original oracle incorrectly required risk bypass without certified state. Actual zero Tool calls and no delivery are the expected safety behavior.",
+      "reviewedSafe": true
+    },
+    "invalidContext": {
+      "status": 200,
+      "sse": true,
+      "candidateRequests": 0,
+      "contentCount": 0,
+      "errorCount": 1,
+      "pass": true
+    },
+    "originalBoundaryOracle": "REWORK retained unchanged: expected HTTP4xx instead of existing SSE error protocol; expected no risk call without certified state. Runtime was not modified to fit these expectations.",
+    "rollback": {
+      "label": "rollback",
+      "sourceMatched": true,
+      "environmentValid": true,
+      "httpStatus": 200,
+      "finalSource": "v5-candidate",
+      "candidateRequests": 1,
+      "validated": true,
+      "evidence": true,
+      "doneCount": 1,
+      "legacyUnchanged": true,
+      "dbUnchanged": true,
+      "candidatePid": 82937,
+      "pass": true
+    },
+    "reapply": {
+      "label": "reapply",
+      "sourceMatched": true,
+      "environmentValid": true,
+      "httpStatus": 200,
+      "finalSource": "v5-candidate",
+      "candidateRequests": 1,
+      "validated": true,
+      "evidence": true,
+      "doneCount": 1,
+      "legacyUnchanged": true,
+      "dbUnchanged": true,
+      "candidatePid": 83313,
+      "pass": true
+    },
+    "orphans": 0,
+    "crossRequestContamination": 0,
+    "privateLeakage": 0,
+    "initialHarnessStops": [
+      "No shared initial character in a single-customer database",
+      "Unexpected null cursor rejected by formal API before next model call"
+    ],
+    "finalCandidatePid": 83313,
+    "legacyPid": 59155,
+    "legacyRevision": "12fee179b6074215cf359bcc1a789ce1a345b9ba",
+    "legacyUnchanged": true,
+    "dbUnchanged": true,
+    "frontendUnchanged": true,
+    "ownerDefaultUnchanged": true,
+    "multiReadEnabled": true,
+    "productionBusinessWrites": 0,
+    "coilChoice": {
+      "passed": 4,
+      "total": 4,
+      "mode": "TWO_EXPLICIT_EXACT_IDENTITIES"
+    },
+    "applicabilityReview": "Earlier name/lookup-only preflight did not expose all scheme codes. Bounded formal coil-profile read found two explicit exact identities; separate four-case production cohort passed. Earlier applicability records retained.",
+    "candidatePositives": {
+      "passed": 27,
+      "total": 27
+    }
+  },
+  "historicalM24": {
+    "result": "29/30",
+    "risk": "RISK_UNAVAILABLE",
+    "decision": "Non-blocking unexplained occasional failure; original records not rewritten."
+  },
+  "releaseScripts": {
+    "output/p16m-choice-release/ops.cjs": "2d496fb7d528e0907dbea8a4978eccad515d91dcfe856742ddd2efd82bb9afee",
+    "output/p16m-choice-release/uat.cjs": "dd5664c209c01c37b5624dbc7e8701239560d0887b1b853f81d9472dae08ca72",
+    "output/p16m-choice-release/uat-choice.cjs": "9af9360a7a3003297e7f4797a5d32cddd0b8159848dcc003d41ffa6f718ef9b9",
+    "output/p16m-choice-release/uat-choice-final.cjs": "9ab3d164d6563658927bf0295b8f1dcc5a217f7e8ef6bad1c93879bff3f92b99",
+    "output/p16m-choice-release/preflight.cjs": "b73f5b812b8a3989142ce90bece5451e4a8902f44bf71f1794b736f62b13e572",
+    "output/p16m-choice-release/boundaries.cjs": "5551bf407d4dcc27cd43c699334dfbe52da527825d57e302f7b3581a62b90aca",
+    "output/p16m-choice-release/context-rejection.cjs": "65c347205f5040695c713d5f3bd5fcc3e60e57f2bb33e0aea534f27c0cf2710b",
+    "output/p16m-choice-release/smoke.cjs": "41ac13c8289e4106de998d426ecd156754c12311313bd1e38c08ad46a7d6a605",
+    "output/p16m-choice-release/preflight-name-and-lookup.cjs": "7981604d7986e6d4b905ce9baaff2a71816e3b42db230a99d9733bee6f2f2cde",
+    "output/p16m-choice-release/uat-coil.cjs": "2cadfb617a3f080c70ddcd9b27e7c8d1a95193d88dabe4438afdc4786e456ec8"
+  },
+  "validationLogs": {
+    "output/p16m-choice-release/verify-release-initial-audit.log": "7847cdb336a4ac26d80e9653c97270fdb32f0d20b47d68a054224f107e3b6949",
+    "output/p16m-choice-release/verify-release.log": "a7d02023e2a425226ed9f041937ec4a04506e404d7ed0de4ab695f4b55ee29a9",
+    "output/p16m-choice-release/functional-checks.log": "4ffddd6d02e61c40aabb3f7b86bbafe263b17a2306c7a095728a9660c9463146",
+    "output/p16m-choice-release/test.log": "6273d4caa083ed461df53b7251cd4213d886d5d3b572fcec96f7ce5e00e30ab5",
+    "output/p16m-choice-release/test-v2.log": "b13f3800611f7982c88be5b13a8fa269dcff9a56db8a50a2480235c0bfb84451",
+    "output/p16m-choice-release/deep-api.log": "0e02e432a055e994c0c25d48afb769fd6622e288ba1600c067d800e2ccfaf712",
+    "output/p16m-choice-release/deep-api-v2.log": "29cc312c16ae2cdc7eca86d9b48da8da48dcfd2203b32ae0b149fedeb8e7890c",
+    "output/p16m-choice-release/build.log": "3915b6dfcf08300f08b1e7f3a500cdf0ef84f79f7326fbed7ec159ac02625557",
+    "output/p16m-choice-release/api-contract.log": "cf7e67a74e950aab46133134555895fd2d05d35e5874ad236f5d6b72bd176140",
+    "output/p16m-choice-release/scoped-lint.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

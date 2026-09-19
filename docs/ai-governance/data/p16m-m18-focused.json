@@ -1,0 +1,20 @@
+{
+  "caseId": "M-18",
+  "mode": "REAL_MODELS_REAL_INTERNAL_HTTP_ISOLATED_DB",
+  "plannedRequests": 1,
+  "retries": 0,
+  "status": "PASS",
+  "productionCalls": 0,
+  "riskClass": "READ_SAFE",
+  "riskCalls": 1,
+  "failureClass": "NONE",
+  "toolCalls": 2,
+  "deliveries": 1,
+  "canonicalMatch": true,
+  "fieldMatch": true,
+  "validationPass": true,
+  "answerFieldsMatch": true,
+  "technicalLeakage": false,
+  "dbMutations": 0,
+  "durationMs": 1285.8412
+}
