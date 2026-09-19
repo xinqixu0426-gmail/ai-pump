@@ -5502,6 +5502,32 @@ test('AI executor 行为：把变更描述当型号名查时，返回可执行�
     ]);
 });
 
+test('AI executor 行为：把变更描述当泵壳型号查时，返回可执行提示而不是"未找到泵壳模板"', async () => {
+    const calls = installFetchStub((call) => {
+        if (call.url.includes('/api/templates') && call.method === 'GET') {
+            return jsonResponse({ success: true, data: [
+                { id: 7, shellModel: 'V750大脚板-2寸-经典款', description: '模板-V750大脚板-2寸-经典款' },
+            ] });
+        }
+        return jsonResponse({ success: false, error: `unexpected ${call.method} ${call.url}` }, 500);
+    });
+
+    const result = await executeToolCall('preview_pump_shell_cost', {
+        shellModel: 'V750大脚板-2寸换成12-140后的整机',
+        customBarrelLength: 180,
+    }, { allowWrite: false });
+
+    assert.equal(result.success, false);
+    assert.equal(result.code, 'AI_RESOURCE_QUERY_NOT_A_NAME');
+    assert.equal(result.entityType, 'template');
+    assert.doesNotMatch(result.error, /未找到/u);
+    assert.match(result.error, /不是泵壳模板型号/u);
+    assert.match(result.hint, /templateId/u);
+    assert.deepEqual(calls.map(call => `${call.method} ${call.url.replace(/^http:\/\/localhost:\d+/, '')}`), [
+        'GET /api/templates',
+    ]);
+});
+
 test('AI executor 行为：有覆盖的配方成本查询保持正式 overridePreview', async () => {
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/recipes') && call.method === 'GET') {

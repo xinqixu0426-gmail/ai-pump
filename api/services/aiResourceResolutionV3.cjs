@@ -404,6 +404,7 @@ module.exports = {
     normalizeResourceText,
     normalizeResolutionContext,
     normalizeToolClarification,
+    notANameFailure,
     queryCandidates,
     resolutionContextPrompt,
     resolveUniqueResource,

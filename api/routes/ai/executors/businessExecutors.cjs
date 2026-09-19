@@ -8,7 +8,7 @@ const {
     resolveUniqueRecipe,
     selectCurrentRecipeCost,
 } = require('../../../services/aiRecipeResolution.cjs');
-const { stripQueryNoise } = require('../../../services/aiResourceResolutionV3.cjs');
+const { looksLikeInstructionFragment, notANameFailure, stripQueryNoise } = require('../../../services/aiResourceResolutionV3.cjs');
 const { withCrossCatalogCandidates } = require('../../../services/aiCrossCatalogCandidates.cjs');
 
 function normalizeText(value) {
@@ -228,10 +228,15 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             const templates = await getJson(internalFetch, '/api/templates', '泵壳模板读取失败');
             const template = findByNameOrId(templates, args.templateId || args.shellModel, ['shellModel', 'description']);
             if (!template) {
+                const requested = String(args.shellModel || args.templateId || '').trim();
+                // 变更描述不是模板型号：给出可执行提示，不把它当型号回显成"未找到泵壳模板：<整句话>"。
+                if (looksLikeInstructionFragment(requested)) {
+                    return { success: false, ...notANameFailure('template', '泵壳模板型号', requested) };
+                }
                 return {
                     success: false,
                     code: 'AI_RESOURCE_NOT_FOUND',
-                    error: `未找到泵壳模板：${args.shellModel || args.templateId || ''}`,
+                    error: `未找到泵壳模板：${requested}`,
                 };
             }
 
