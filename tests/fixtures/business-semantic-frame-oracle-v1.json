@@ -1,0 +1,45 @@
+{
+  "version": "BusinessSemanticFrameOracleV1",
+  "cases": {
+    "BU-01": {
+      "equals": { "question.kind": "COST_QUERY", "subject.requestedType": "recipe", "subject.canonicalType": "recipe", "cost.requestedBasis": "MACHINE_CURRENT_FULL_COST", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.requiredFacts": ["RECIPE_CURRENT_FULL_COST"] }
+    },
+    "BU-02": {
+      "equals": { "question.kind": "COST_QUERY", "ambiguity.status": "MULTIPLE_OFFICIAL_VARIANTS", "cost.requestedBasis": "COIL_SCHEME_COST", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.requiredFacts": ["COIL_OFFICIAL_VARIANT_SET"], "obligations.requiredDisclosures": ["DISCLOSE_MULTIPLE_VARIANTS"] }
+    },
+    "BU-03": {
+      "equals": { "subject.requestedType": "recipe", "subject.canonicalType": "part", "subject.resolutionStatus": "CROSS_CATALOG_CANDIDATE", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.requiredFacts": ["CROSS_CATALOG_CANDIDATES", "PART_CATALOG_IDENTITY"], "obligations.forbiddenClaims": ["MUST_NOT_PRESENT_PART_PRICE_AS_MACHINE_COST"] }
+    },
+    "BU-04": {
+      "equals": { "question.kind": "HYPOTHETICAL_COST_QUERY", "cost.requestedBasis": "MACHINE_CURRENT_FULL_COST", "cost.requestedPriceContext": "USER_HYPOTHETICAL_PRICE", "cost.actualPriceContext": "CURRENT_FORMAL_PRICE", "cost.calculationSupport": "UNSUPPORTED", "completeness.status": "UNSUPPORTED_REQUEST" },
+      "includes": { "obligations.requiredDisclosures": ["DISCLOSE_UNSUPPORTED_HYPOTHETICAL", "DISCLOSE_CURRENT_PRICE_BASIS"], "obligations.forbiddenClaims": ["MUST_NOT_PRESENT_HYPOTHETICAL_AS_FORMAL"] }
+    },
+    "BU-05": {
+      "equals": { "question.kind": "HYPOTHETICAL_COST_QUERY", "subject.canonicalType": "coil", "override.supportStatus": "SUPPORTED_OVERRIDE", "cost.requestedBasis": "COIL_SCHEME_COST", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.verifiedFacts": ["COIL_OVERRIDE_APPLIED", "COIL_SCHEME_COST"] }
+    },
+    "BU-06": {
+      "equals": { "question.kind": "CONFIGURATION_OVERRIDE", "subject.resolutionStatus": "UNIQUE", "ambiguity.status": "NONE", "override.supportStatus": "SUPPORTED_OVERRIDE", "override.inheritancePolicy": "PRESERVE_UNMENTIONED_BASE_CONFIGURATION", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.requiredFacts": ["RECIPE_BASE_CONFIGURATION", "COIL_CANONICAL_IDENTITY"] }
+    },
+    "BU-07": {
+      "equals": { "subject.resolutionStatus": "NOT_FOUND", "cost.actualBasis": "UNKNOWN_COST_BASIS", "completeness.status": "NOT_FOUND_VERIFIED" },
+      "includes": { "evidence.verifiedFacts": ["CROSS_CATALOG_CANDIDATES"] }
+    },
+    "BU-08": {
+      "equals": { "question.kind": "INVENTORY_QUERY", "ambiguity.status": "MULTIPLE_OFFICIAL_VARIANTS", "cost.actualBasis": "UNKNOWN_COST_BASIS", "completeness.status": "COMPLETE" },
+      "includes": { "evidence.requiredFacts": ["COIL_VARIANT_INVENTORY"], "obligations.requiredDisclosures": ["DISCLOSE_MULTIPLE_VARIANTS"] }
+    },
+    "BU-09": {
+      "equals": { "subject.resolutionStatus": "ALIAS_UNRESOLVED", "completeness.status": "NEEDS_CLARIFICATION" },
+      "includes": { "obligations.requiredClarifications": ["CLARIFY_IDENTITY"], "obligations.forbiddenClaims": ["MUST_NOT_CLAIM_COMPLETE"] }
+    },
+    "BU-10": {
+      "equals": { "question.kind": "CONFIGURATION_OVERRIDE", "override.supportStatus": "AMBIGUOUS_OVERRIDE", "completeness.status": "NEEDS_CLARIFICATION" },
+      "includes": { "obligations.requiredClarifications": ["CLARIFY_VARIANT_SELECTION"], "obligations.forbiddenClaims": ["MUST_NOT_SELECT_VARIANT", "MUST_NOT_GUESS_PARAMETER"] }
+    }
+  }
+}

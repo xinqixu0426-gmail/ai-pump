@@ -780,6 +780,15 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 } catch { /* Shadow never affects the completed authoritative answer. */ }
             });
         }
+        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_BUSINESS_SEMANTIC_SHADOW_ENABLED')) {
+            setImmediate(() => {
+                try {
+                    void require('../business-semantics/shadowObserver.cjs').observeBusinessSemanticShadow({
+                        userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
+                    }, dependencies.businessSemanticShadow).catch(() => {});
+                } catch { /* Semantic shadow never affects the completed authoritative answer. */ }
+            });
+        }
         return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {} } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
