@@ -121,7 +121,7 @@ test('P6D-R1 the planned reads actually execute through the read-only executor a
  * The failure is injected on whichever read the bound direction actually plans, so this guard keeps
  * covering any future read that the runtime cannot deliver — including the ONT-P8R bounded reverse read.
  */
-const failingPlannedRead = name => async (tool, args, options) => (tool === name
+const failingPlannedRead = name => async (tool, _args, _options) => (tool === name
     ? { success: false, code: 'AI_QUERY_RESULT_TOO_LARGE', error: 'CURRENT_TOO_LARGE' }
     : { success: true, count: 0, data: [], filters: { keyword: '', hasTechnicalFiles: null },
         executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/coils' }] } });

@@ -79,9 +79,6 @@ const MAX_SOFTWARE_REPAIR_STEPS = 2;
  * — a measured +3 provider-call regression. Software steps are free; model rounds are not.
  */
 const MAX_LEGACY_MODEL_REPAIR_ROUNDS = 1;
-const LEGACY_RELATION_REPAIR_ORDER = Object.freeze([
-    LEGACY_RELATION_REPAIR_STATES.COIL_ID_DISCOVERY, LEGACY_RELATION_REPAIR_STATES.BOUNDED_REVERSE_READ,
-]);
 
 /** The canonical coil root for step 2, from a verified single-row coil read only — never from user text. */
 function verifiedCanonicalCoilId(toolResults = []) {
