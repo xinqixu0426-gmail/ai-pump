@@ -1,0 +1,470 @@
+{
+  "commit": "9f1975afb21f3aaf1b117f8ca590291922febec5",
+  "benchmarkVersion": "BusinessUnderstandingBenchmarkV2",
+  "caseHash": "95ef58e6cc399ed4780202caa1921a6c7036079a75d79c4bff689808dde12481",
+  "fixtureHash": "77735ee01b6df61568e63e6c9c87a9a1907d2fcd89a18536a887204444b9c062",
+  "oracleHash": "b7165de435511c1c902ad70cfe8efab95be0d1d5cd9682fffe05afa14f6b9082",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "generatedAt": "2026-09-19T23:47:22.582Z",
+  "selectedCases": [
+    "BU-01",
+    "BU-02",
+    "BU-03",
+    "BU-04",
+    "BU-05",
+    "BU-06",
+    "BU-07",
+    "BU-08",
+    "BU-09",
+    "BU-10",
+    "BU-11"
+  ],
+  "runs": 2,
+  "providerCalls": 25,
+  "fallbackCount": 0,
+  "aggregate": {
+    "coreCases": 11,
+    "executions": 22,
+    "PASS": 22,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "criticalFailures": 0,
+    "criticalFailureCounts": {
+      "Wrong Entity": 0,
+      "Wrong Variant": 0,
+      "Wrong Cost Basis": 0,
+      "Unsupported-As-Formal": 0,
+      "False Complete": 0,
+      "Ungrounded Parameter": 0,
+      "False Override Applied": 0,
+      "Unauthorized Writes": 0
+    },
+    "dimensionResults": {
+      "identity": {
+        "passed": 16,
+        "total": 16,
+        "passRate": 100
+      },
+      "ambiguity": {
+        "passed": 6,
+        "total": 6,
+        "passRate": 100
+      },
+      "costSemantics": {
+        "passed": 22,
+        "total": 22,
+        "passRate": 100
+      },
+      "overrides": {
+        "passed": 4,
+        "total": 4,
+        "passRate": 100
+      },
+      "evidence": {
+        "passed": 22,
+        "total": 22,
+        "passRate": 100
+      },
+      "completeness": {
+        "passed": 22,
+        "total": 22,
+        "passRate": 100
+      },
+      "safety": {
+        "passed": 22,
+        "total": 22,
+        "passRate": 100
+      }
+    },
+    "frameStableCases": [
+      "BU-01",
+      "BU-02",
+      "BU-03",
+      "BU-04",
+      "BU-05",
+      "BU-06",
+      "BU-07",
+      "BU-08",
+      "BU-09",
+      "BU-10",
+      "BU-11"
+    ],
+    "frameUnstableCases": [],
+    "outcomeStableCases": [
+      "BU-01",
+      "BU-02",
+      "BU-03",
+      "BU-04",
+      "BU-05",
+      "BU-06",
+      "BU-07",
+      "BU-08",
+      "BU-09",
+      "BU-10",
+      "BU-11"
+    ],
+    "outcomeUnstableCases": []
+  },
+  "scaleSentinel": {
+    "caseKey": "BU-SCALE-01",
+    "aggregateBytes": 366395,
+    "boundedBytes": 953,
+    "budgetResult": "PASS"
+  },
+  "cases": [
+    {
+      "run": 1,
+      "caseKey": "BU-01",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-02",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-03",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-04",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-05",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-06",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-07",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-08",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-09",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-10",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-11",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-01",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-02",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-03",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-04",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-05",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-06",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-07",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-08",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-09",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-10",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-11",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [],
+      "criticalFailures": []
+    }
+  ]
+}

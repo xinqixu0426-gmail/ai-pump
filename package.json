@@ -8,8 +8,6 @@
     "build": "npm run web-next:build",
     "lint": "eslint api.cjs \"api/**/*.cjs\" \"scripts/**/*.cjs\" \"tests/**/*.cjs\" && npm --prefix apps/web-next run lint",
     "test": "node scripts/run-tests.cjs",
-    "test:business-v2": "node --test tests/businessUnderstandingBenchmarkV2.test.cjs",
-    "benchmark:business-v2": "node scripts/run-business-understanding-benchmark-v2.cjs",
     "test:ai-architecture": "node scripts/run-ai-architecture-acceptance.cjs",
     "test:ai-shadow": "node scripts/run-ai-shadow-evaluation.cjs",
     "test:mcp": "node --test tests/mcp.test.cjs",

@@ -18,8 +18,14 @@ V2 Oracle 由隔离 Fixture、正式 `coilCost.cjs` 能力、`costEngine.cjs` �
 ## 执行
 
 ```bash
-npm run test:business-v2
-npm run benchmark:business-v2 -- --env-file=/absolute/path/to/test.env
+node --test tests/businessUnderstandingBenchmarkV2.test.cjs
+node scripts/run-business-understanding-benchmark-v2.cjs --env-file=/absolute/path/to/test.env
 ```
 
 完整验收固定为 11 个 Core Case × 2，使用隔离临时 SQLite，仅允许读取/试算能力，并记录实际 Provider、fallback、Provider 调用数、7 个维度、关键失败、Frame/Outcome 稳定性和 Scale Sentinel。生产开关不由本 Benchmark 修改。
+
+## 验收基线
+
+2026-09-20 的正式隔离验收使用 DeepSeek `deepseek-v4-flash`，11 个 Core Case 各运行两次：22 PASS、0 PARTIAL、0 FAIL、0 BLOCKED，关键业务失败 0，Identity、Ambiguity、Cost Semantics、Overrides、Evidence、Completeness 和 Safety 均为 100%。Frame Stability 与 Outcome Stability 均为 11/11，fallback 0，Provider 调用 25 次，新增语义 Provider round 0。
+
+Scale Sentinel 为 366395 / 953 bytes，PASS。可审计摘要保存在 [business-understanding-baseline-v2.json](./business-understanding-baseline-v2.json)；原始回答仅保存在 gitignored `logs/`。
