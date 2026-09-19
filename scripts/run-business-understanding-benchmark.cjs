@@ -57,7 +57,10 @@ function analyze(testCase, oracle, run) {
     const variants220 = oracle.formalFacts.variants12_220;
     const variants200 = oracle.formalFacts.variants12_200;
     const currentAmountShown = numberShown(oracle.formalFacts.currentRecipeCost);
-    const currentAmountMatch = answer.match(/当前(?:完整|整机|总)?成本[^\d]{0,16}(\d+(?:\.\d+)?)/);
+    const expectsCurrentRecipeAmount = (oracle.requiredAmounts || []).some(item => item.kind === 'currentRecipeCost');
+    const currentAmountMatch = expectsCurrentRecipeAmount
+        ? answer.match(/当前(?:完整|整机|总)?成本\s*(?:为|是|[:：])\s*(\d+(?:\.\d+)?)/)
+        : null;
     const claimedCurrentAmount = currentAmountMatch ? Number(currentAmountMatch[1]) : null;
     const currentAmountFormal = claimedCurrentAmount === Number(oracle.formalFacts.currentRecipeCost);
     const allVariantCostsShown = variants220.every(item => numberShown(item.cost));
