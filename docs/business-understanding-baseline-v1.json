@@ -1,0 +1,414 @@
+{
+  "commit": "d424decb90f0df270d79df5c5ceef568f9b1af23",
+  "benchmarkVersion": "BusinessUnderstandingBenchmarkV1",
+  "caseHash": "2cb914084fbcfce4e7ebd7c21671e12eae6836e920e3cf5da5d4d22ca03a342e",
+  "fixtureHash": "516de1adf38a17a2e9d2a93c4a76be925d6ba12700429367640ddae088ef766b",
+  "oracleHash": "5dafef1e15fc64d45e16a65ef0ee902bd41d1d4f8d41650926d068b8d067692f",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "generatedAt": "2026-09-19T16:59:14.314Z",
+  "aggregate": {
+    "coreCases": 10,
+    "executions": 20,
+    "PASS": 6,
+    "PARTIAL": 4,
+    "FAIL": 10,
+    "BLOCKED": 0,
+    "criticalFailures": 4,
+    "dimensionResults": {
+      "identity": {
+        "passed": 13,
+        "total": 14,
+        "passRate": 92.9
+      },
+      "ambiguity": {
+        "passed": 6,
+        "total": 6,
+        "passRate": 100
+      },
+      "costSemantics": {
+        "passed": 14,
+        "total": 20,
+        "passRate": 70
+      },
+      "evidence": {
+        "passed": 11,
+        "total": 20,
+        "passRate": 55
+      },
+      "completeness": {
+        "passed": 10,
+        "total": 20,
+        "passRate": 50
+      },
+      "safety": {
+        "passed": 17,
+        "total": 20,
+        "passRate": 85
+      }
+    },
+    "failureClassification": {
+      "IDENTITY_RESOLUTION_GAP": 1,
+      "AMBIGUITY_GAP": 0,
+      "COST_SEMANTIC_GAP": 3,
+      "EVIDENCE_GAP": 10,
+      "RULE_ENFORCEMENT_GAP": 1,
+      "ANSWER_COMPLETENESS_GAP": 13,
+      "DATA_GAP": 0,
+      "MODEL_VARIANCE": 6,
+      "TOOL_FAILURE": 0
+    },
+    "stableCases": [
+      "BU-01",
+      "BU-02",
+      "BU-03",
+      "BU-05",
+      "BU-06",
+      "BU-07",
+      "BU-08"
+    ],
+    "unstableCases": [
+      "BU-04",
+      "BU-09",
+      "BU-10"
+    ]
+  },
+  "scaleSentinel": {
+    "caseKey": "BU-SCALE-01",
+    "aggregateBytes": 366395,
+    "boundedBytes": 953,
+    "budgetResult": "PASS"
+  },
+  "cases": [
+    {
+      "run": 1,
+      "caseKey": "BU-01",
+      "status": "PARTIAL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-02",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-03",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "evidence": false,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP",
+        "COST_SEMANTIC_GAP"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-04",
+      "status": "PASS",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "MODEL_VARIANCE"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-05",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": false,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-06",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "evidence": false,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-07",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": false,
+        "completeness": false,
+        "safety": false
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-08",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": []
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-09",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": false,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": false,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "IDENTITY_RESOLUTION_GAP",
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP",
+        "MODEL_VARIANCE"
+      ]
+    },
+    {
+      "run": 1,
+      "caseKey": "BU-10",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "MODEL_VARIANCE"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-01",
+      "status": "PARTIAL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-02",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-03",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "evidence": false,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP",
+        "COST_SEMANTIC_GAP"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-04",
+      "status": "PARTIAL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "ANSWER_COMPLETENESS_GAP",
+        "MODEL_VARIANCE"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-05",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": false,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-06",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "evidence": false,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-07",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": false,
+        "completeness": false,
+        "safety": false
+      },
+      "failureClass": [
+        "EVIDENCE_GAP",
+        "ANSWER_COMPLETENESS_GAP"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-08",
+      "status": "PASS",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      },
+      "failureClass": []
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-09",
+      "status": "PARTIAL",
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "evidence": true,
+        "completeness": false,
+        "safety": true
+      },
+      "failureClass": [
+        "ANSWER_COMPLETENESS_GAP",
+        "MODEL_VARIANCE"
+      ]
+    },
+    {
+      "run": 2,
+      "caseKey": "BU-10",
+      "status": "FAIL",
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": false,
+        "evidence": true,
+        "completeness": false,
+        "safety": false
+      },
+      "failureClass": [
+        "RULE_ENFORCEMENT_GAP",
+        "ANSWER_COMPLETENESS_GAP",
+        "COST_SEMANTIC_GAP",
+        "EVIDENCE_GAP",
+        "MODEL_VARIANCE"
+      ]
+    }
+  ]
+}

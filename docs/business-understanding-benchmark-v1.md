@@ -74,22 +74,22 @@ Runner 启动真实 Express AI 路由和正式只读业务 routes，数据库指
 
 双轮不比较文字，而比较 Case status、canonical root、variant decision 与正式事实。两轮 status 不同即标记 `MODEL_VARIANCE`；两轮均 FAIL 仍可算稳定，因为它反映稳定存在的能力缺口。
 
-当前稳定：BU-02、BU-03、BU-05、BU-06、BU-07、BU-08、BU-09、BU-10。当前不稳定：BU-01、BU-04。
+当前稳定：BU-01、BU-02、BU-03、BU-05、BU-06、BU-07、BU-08。当前不稳定：BU-04、BU-09、BU-10。
 
 ## 12. Baseline result
 
-当前冻结候选结果为 20 次执行：10 PASS、2 PARTIAL、8 FAIL、0 BLOCKED、4 次 Critical Business Failure。
+当前冻结结果为 20 次执行：6 PASS、4 PARTIAL、10 FAIL、0 BLOCKED、4 次 Critical Business Failure。
 
 | Metric | Result |
 |---|---:|
-| Identity | 12/14 = 85.7% |
+| Identity | 13/14 = 92.9% |
 | Ambiguity | 6/6 = 100% |
 | Cost Semantics | 14/20 = 70% |
-| Evidence | 12/20 = 60% |
-| Completeness | 13/20 = 65% |
-| Safety | 18/20 = 90% |
+| Evidence | 11/20 = 55% |
+| Completeness | 10/20 = 50% |
+| Safety | 17/20 = 85% |
 
-Failure classifications（按执行计数，可一条执行命中多类）：IDENTITY_RESOLUTION_GAP 2、AMBIGUITY_GAP 0、COST_SEMANTIC_GAP 3、EVIDENCE_GAP 8、RULE_ENFORCEMENT_GAP 0、ANSWER_COMPLETENESS_GAP 10、DATA_GAP 0、MODEL_VARIANCE 4、TOOL_FAILURE 0。
+Failure classifications（按执行计数，可一条执行命中多类）：IDENTITY_RESOLUTION_GAP 1、AMBIGUITY_GAP 0、COST_SEMANTIC_GAP 3、EVIDENCE_GAP 10、RULE_ENFORCEMENT_GAP 1、ANSWER_COMPLETENESS_GAP 13、DATA_GAP 0、MODEL_VARIANCE 6、TOOL_FAILURE 0。
 
 ## 13. Known benchmark limitations
 
@@ -101,8 +101,8 @@ Failure classifications（按执行计数，可一条执行命中多类）：IDE
 
 ## 14. Next-stage evidence
 
-**Q1：失败主要集中在哪个维度？** Evidence 最低，为 12/20（60%）；Completeness 次低，为 13/20（65%）。FailureClass 也显示 EVIDENCE_GAP 8 次、ANSWER_COMPLETENESS_GAP 10 次，因此优先级不是凭感觉得出。
+**Q1：失败主要集中在哪个维度？** Completeness 最低，为 10/20（50%）；Evidence 次低，为 11/20（55%）；Cost Semantics 为 14/20（70%）。FailureClass 同样显示 ANSWER_COMPLETENESS_GAP 13 次、EVIDENCE_GAP 10 次、COST_SEMANTIC_GAP 3 次，因此失败主要集中在完整性与正式取证，而不是 Identity 或 Ambiguity。
 
-**Q2：Rulebook 的强制/提示/未支持与 FAIL 是否对应？** 部分对应。已强制的多方案披露在 BU-02/BU-08 双轮稳定通过，No-Guess 的 BU-10 也双轮通过；仅提示的配置继承 BU-06 双轮 FAIL，alias 仅提示的 BU-09 双轮 FAIL；未支持的整机假设铜价 BU-04 能拒绝假算，但一轮缺少正式铜基价披露而出现 PARTIAL。与此同时，已强制跨目录规则在 BU-03 最终文字能指出零件候选，却没有满足 Benchmark 所需的显式正式能力证据，说明“回答后处理能补文字”与“证据链完整”仍有落差。已强制确认缺失规则在 BU-07 只查部分目录便下完整结论，形成 False Complete critical failure。
+**Q2：Rulebook 的强制/提示/未支持与 FAIL 是否对应？** 部分对应。已强制的多方案披露在 BU-02/BU-08 双轮稳定通过；仅提示的配置继承 BU-06 双轮 FAIL，alias 仅提示的 BU-09 一轮 FAIL、一轮 PARTIAL；未支持的整机假设铜价 BU-04 一轮 PASS、一轮 PARTIAL。与此同时，已强制跨目录规则在 BU-03 最终文字能指出零件候选，却没有满足 Benchmark 所需的显式正式能力证据，说明“回答后处理能补文字”与“证据链完整”仍有落差。已强制确认缺失规则在 BU-07 两轮文字都声称查全目录，但正式工具证据未覆盖完整范围，形成 False Complete critical failure。BU-10 一轮正确澄清、一轮提前试算，说明局部 guard 尚未成为稳定的端到端保证。
 
-**Q3：BUS-P1 最小范围是什么？** 只依据本次数据，建议最小 Semantic Kernel 覆盖三件事：一是把跨目录发现和全目录不存在判断做成可验证、可枚举完成度的 evidence frame；二是把 base recipe + explicit override + inherited configuration 固化为确定性配置 frame；三是接入已有 catalog alias 到 canonical identity 绑定。成本金额公式、Prompt 美化、更多 relation 和生产 release gate 均不应在这个最小范围内扩张；多方案识别已 100%，暂不作为首要改造对象。
+**Q3：BUS-P1 最小范围是什么？** 只依据本次数据，建议最小 Semantic Kernel 覆盖三件事：一是把跨目录发现、全目录不存在判断和查询完成度做成可验证的 evidence/completeness frame；二是把 base recipe + explicit override + inherited configuration 固化为确定性配置 frame；三是把成本口径、是否允许试算、金额所属对象固化为 cost frame，并在现有 identity binding 中接入 alias。Prompt 美化、更多 relation、成本公式变更和 production release gate 均不应扩入该最小范围；Ambiguity 已 100%，不是首要方向。
