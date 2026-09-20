@@ -416,6 +416,9 @@ function summarizeCase(entry, truth, response) {
         providerRounds: response.providerRounds,
         ontologyPlannedReads: response.ontologyPlannedReads,
         errorCodes: response.errorCodes,
+        // The ordered capabilities this turn actually executed. A whole-catalogue read is only
+        // interpretable next to what else ran, so the sequence is recorded rather than just the count.
+        toolCallNames: response.toolCallNames,
         bounded: response.boundedResults,
         boundedBeforeFirstModel: response.boundedBeforeFirstModel,
         aggregateCalls: response.aggregateCalls,
@@ -533,6 +536,7 @@ async function chat(base, secret, conversationId, message) {
         ontologyPlannedReads: results.filter(item => String(item?.capability || '').startsWith('ontology.')
             || String(item?.name || '').startsWith('ontology')).length,
         errorCodes: events.filter(event => event.type === 'error').map(event => event.code),
+        toolCallNames: calls.map(call => call.name),
         boundedBeforeFirstModel: calls.some(call => call.name === 'get_recipes_by_coil' && call.beforeFirstModel),
         boundedResults: byName('get_recipes_by_coil').map(item => ({
             complete: item.result?.complete ?? null,
