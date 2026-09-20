@@ -365,6 +365,40 @@ test('relation acceptance: a relation case answered outside the ontology-sanctio
         fingerprintDiffResult: cleanFingerprintDiff }).observed.legacyFallbacks, 1);
 });
 
+test('relation acceptance: accuracy supplied by Legacy does not satisfy the gate', () => {
+    // Supervisor's exit condition: the correctness must be produced by the ontology route. A case that
+    // Legacy answered correctly must not be counted towards "forward 8/8".
+    const profile = resolveGateProfile('ontology-cloud');
+    const routed = evaluateVerdict({
+        profile,
+        cases: [failingCase({ toolCallNames: ['get_recipes_by_coil'] })],
+        negativeCases: [], fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(routed.status, 'PASS');
+    assert.equal(routed.observed.routedCorrect, 1);
+    assert.equal(routed.observed.routedTotal, 1);
+
+    // Correct answer, but Legacy answered it: the overall ratio is satisfied while the routed ratio is not.
+    const legacyAnswered = evaluateVerdict({
+        profile,
+        cases: [failingCase({ toolCallNames: ['get_recipes_by_coil'] }), failingCase({ caseId: 'F2', direction: 'recipe->coil', toolCallNames: ['get_all_recipes'] })],
+        negativeCases: [], fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(legacyAnswered.observed.forwardRatio, 1, 'the overall ratio is satisfied');
+    assert.equal(legacyAnswered.observed.routedTotal, 1);
+    assert.equal(legacyAnswered.status, 'FAIL');
+    assert.ok(legacyAnswered.failures.some(line => line.startsWith('legacyFallbacks=')), JSON.stringify(legacyAnswered.failures));
+
+    // A routed turn that is itself wrong must also fail the routed ratio.
+    const routedWrong = evaluateVerdict({
+        profile,
+        cases: [failingCase({ toolCallNames: ['get_recipes_by_coil'], correct: false, wrongTargets: ['12-200'] })],
+        negativeCases: [], fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(routedWrong.observed.routedCorrect, 0);
+    assert.ok(routedWrong.failures.some(line => line.startsWith('routedCorrect=0/1')), JSON.stringify(routedWrong.failures));
+});
+
 test('relation acceptance: the judged database must exist and be named explicitly', () => {
     const fs = require('node:fs');
     const os = require('node:os');

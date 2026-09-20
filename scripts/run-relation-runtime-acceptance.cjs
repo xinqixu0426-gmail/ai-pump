@@ -164,7 +164,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['local']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0, routedCorrectRatio: 1 }),
     }),
     'ontology-cloud': Object.freeze({
         id: 'ontology-cloud',
@@ -176,7 +176,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['deepseek']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0, routedCorrectRatio: 1 }),
     }),
 });
 
@@ -513,6 +513,7 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
     const relation = cases.filter(entry => entry.correct !== null);
     const reverse = relation.filter(entry => entry.direction === 'coil->recipes');
     const forward = relation.filter(entry => entry.direction === 'recipe->coil');
+    const routedRelation = relation.filter(entry => !relationTurnWasLegacy(entry, profile));
     const ratio = (list) => (list.length === 0 ? 1 : list.filter(entry => entry.correct).length / list.length);
     const sum = (list, pick) => list.reduce((total, entry) => total + (pick(entry) || 0), 0);
 
@@ -550,6 +551,11 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         // are relation cases too, so they are counted here.
         legacyFallbacks: [...cases, ...emptyRelationCases].filter(entry => relationTurnWasLegacy(entry, profile)).length,
         boundOrRouted: [...cases, ...emptyRelationCases].filter(entry => !relationTurnWasLegacy(entry, profile)).length,
+        // Supervisor's exit condition: the accuracy must come from the ontology route, not from Legacy
+        // covering for a binding miss. A case counts here only when it was routed AND correct.
+        routedTotal: routedRelation.length,
+        routedCorrect: routedRelation.filter(entry => entry.correct).length,
+        routedRatio: Number((routedRelation.length === 0 ? 1 : routedRelation.filter(entry => entry.correct).length / routedRelation.length).toFixed(4)),
         unboundedQueryBudgetRefusals: sum(negativeCases, entry => entry.tooLarge),
         emptyRelationTotal: emptyRelationCases.length,
         emptyRelationComplete: emptyRelationCases.filter(entry => entry.certificateOnly).length,
@@ -565,6 +571,12 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
     const failures = [];
     if (observed.reverseRatio < required.reverseCorrectRatio) failures.push(`reverse ${observed.reverseCorrect}/${observed.reverseTotal}`);
     if (observed.forwardRatio < required.forwardCorrectRatio) failures.push(`forward ${observed.forwardCorrect}/${observed.forwardTotal}`);
+    // Accuracy that Legacy supplied does not satisfy the gate: every relation case must be both routed and
+    // correct. Without this the gate could pass while the ontology path itself answered nothing.
+    if (required.routedCorrectRatio != null && observed.routedRatio < required.routedCorrectRatio) {
+        const bad = routedRelation.filter(entry => !entry.correct).map(entry => entry.caseId).join(',') || 'none-routed';
+        failures.push(`routedCorrect=${observed.routedCorrect}/${observed.routedTotal} (${bad})`);
+    }
     if (observed.cloudFallbacks > required.cloudFallbacks) failures.push(`cloudFallbacks=${observed.cloudFallbacks}`);
     if (observed.payloadLimitFailures > required.payloadLimitFailures) failures.push(`payloadLimitFailures=${observed.payloadLimitFailures}`);
     if (observed.unauthorizedWrites > required.unauthorizedWrites) failures.push(`unauthorizedWrites=${observed.unauthorizedWrites}`);
@@ -786,7 +798,7 @@ async function main() {
                 }
                 console.log(`r${round} ${entry.id.padEnd(24)} ${entry.direction.padEnd(13)} done=${summary.done} providers=[${summary.providers}] fb=${summary.fallbacks} `
                     + `bounded=${summary.bounded.map(item => `${item.count}/${item.totalCount} ${item.setCompleteness} ${item.bytes}B`).join('|') || '-'} `
-                    + `aggCalls=${summary.aggregateCalls} ${summary.correct ? 'correct' : 'WRONG'} err=${summary.errorCodes.length}`);
+                    + `aggCalls=${summary.aggregateCalls} ${summary.correct === null ? 'empty-certified' : summary.correct ? 'correct' : 'WRONG'} err=${summary.errorCodes.length}`);
             }
             for (const entry of NEGATIVE_CASES) {
                 const conversationId = `relation-${gateId}-r${round}-neg-${crypto.randomUUID()}`;
@@ -816,7 +828,7 @@ async function main() {
     }
     console.log(`${gateId}: status=${report.status} reverse=${verdict.observed.reverseCorrect}/${verdict.observed.reverseTotal} `
         + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} emptyCertified=${verdict.observed.emptyRelationComplete}/${verdict.observed.emptyRelationTotal} `
-        + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} boundOrRouted=${verdict.observed.boundOrRouted}/${verdict.observed.boundOrRouted + verdict.observed.legacyFallbacks} legacyFallbacks=${verdict.observed.legacyFallbacks} aggregateCalls=${verdict.observed.aggregateCalls} `
+        + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} boundOrRouted=${verdict.observed.boundOrRouted}/${verdict.observed.boundOrRouted + verdict.observed.legacyFallbacks} legacyFallbacks=${verdict.observed.legacyFallbacks} routedCorrect=${verdict.observed.routedCorrect}/${verdict.observed.routedTotal} aggregateCalls=${verdict.observed.aggregateCalls} `
         + `forwardAggregateCalls=${verdict.observed.forwardAggregateCalls} unboundedAggregateCalls=${verdict.observed.unboundedQueryAggregateCalls} `
         + `cloudFallbacks=${verdict.observed.cloudFallbacks} additionalProviderRounds=${verdict.observed.additionalProviderRounds} `
         + `payloadLimitFailures=${verdict.observed.payloadLimitFailures} unboundedQueryBudgetRefusals=${verdict.observed.unboundedQueryBudgetRefusals} `
