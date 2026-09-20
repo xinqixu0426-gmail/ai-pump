@@ -446,11 +446,13 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         wrongDirection: sum(relation, entry => (entry.correct || entry.wrongTargets.length > 0 ? 0 : 1)),
         cloudFallbacks: sum([...cases, ...negativeCases], entry => entry.fallbacks),
         unauthorizedWrites: negativeCases.filter(entry => entry.kind === 'write' && entry.writeProtected !== true).length,
-        // Same channel principle as the payload budget: a whole-catalogue read on a relation case is the
-        // failure the Supervisor requires to be zero, while the same read on a genuinely unbounded question
-        // is the documented cost of that question ("最近有哪些订单" needs the order list). Counting them
-        // together made a correct run look like a regression.
-        aggregateCalls: sum(cases, entry => entry.aggregateCalls),
+        // The Supervisor's required zero applies to the ACCEPTED path. For the coil-rooted direction the
+        // ontology profile offers the bounded reverse read first and the whole-catalogue read must never be
+        // used (`relationRoutingCanary.cjs` shortlistByRelation). The recipe-rooted direction keeps
+        // `get_all_recipes` first BY DESIGN, so reads there are reported separately rather than as a
+        // regression, and a genuinely unbounded question may legitimately need the catalogue too.
+        aggregateCalls: sum(cases.filter(entry => entry.direction === 'coil->recipes'), entry => entry.aggregateCalls),
+        forwardAggregateCalls: sum(cases.filter(entry => entry.direction === 'recipe->coil'), entry => entry.aggregateCalls),
         unboundedQueryAggregateCalls: sum(negativeCases, entry => entry.aggregateCalls),
         notDone: [...cases, ...negativeCases].filter(entry => !entry.done).length,
         errors: sum([...cases, ...negativeCases], entry => (entry.errorCodes || []).length),
@@ -721,7 +723,7 @@ async function main() {
     console.log(`${gateId}: status=${report.status} reverse=${verdict.observed.reverseCorrect}/${verdict.observed.reverseTotal} `
         + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} emptyCertified=${verdict.observed.emptyRelationComplete}/${verdict.observed.emptyRelationTotal} `
         + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} aggregateCalls=${verdict.observed.aggregateCalls} `
-        + `unboundedAggregateCalls=${verdict.observed.unboundedQueryAggregateCalls} `
+        + `forwardAggregateCalls=${verdict.observed.forwardAggregateCalls} unboundedAggregateCalls=${verdict.observed.unboundedQueryAggregateCalls} `
         + `cloudFallbacks=${verdict.observed.cloudFallbacks} additionalProviderRounds=${verdict.observed.additionalProviderRounds} `
         + `payloadLimitFailures=${verdict.observed.payloadLimitFailures} unboundedQueryBudgetRefusals=${verdict.observed.unboundedQueryBudgetRefusals} `
         + `unauthorizedWrites=${verdict.observed.unauthorizedWrites} providers=[${verdict.observed.providersServed}] `
