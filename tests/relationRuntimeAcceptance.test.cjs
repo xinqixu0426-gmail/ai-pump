@@ -120,6 +120,22 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, 'V750…的线圈转子配置如下：\n- 规格：12，片数 140\n- 主绕组漆包线：0.64，绕线数据 44-44-44-44').correct, true);
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 140').correct, true);
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 120').correct, false);
+    // The spellings real production answers actually used. Each of these is the same canonical identity
+    // and must not be scored wrong; the last two are genuinely different coils.
+    const realSpellings = [
+        '- 规格：12，片数 140',
+        '- 规格：12，共 140 片',
+        '- 规格/片数：12 规格，140 片',
+        '- **规格/片数**：12 规格，140 片',
+        '- 规格：12，140 片',
+        '线圈规格：**12-140**（12 片规格，140 片）',
+    ];
+    for (const spelling of realSpellings) {
+        assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, spelling).correct, true, spelling);
+    }
+    for (const other of ['- 规格：12，共 120 片', '- 规格/片数：12 规格，120 片', '规格：12，片数 120']) {
+        assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, other).correct, false, other);
+    }
 });
 
 function failingCase(overrides = {}) {

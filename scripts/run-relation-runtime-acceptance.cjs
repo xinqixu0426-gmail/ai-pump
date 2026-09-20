@@ -357,17 +357,35 @@ function coilShapesIn(text) {
 
 /**
  * Coil identity may be expressed as the shorthand `12-140` or through the formal fields the coil
- * directory actually returns (`规格：12` / `片数 140`). Both are the same canonical identity, so an answer
- * is judged on identity equivalence rather than on one literal spelling — otherwise a fully correct
- * answer that names the right coil is scored as wrong.
+ * directory actually returns. Real answers write it in several equally valid ways:
+ *   `规格：12，片数 140` / `规格：12，共 140 片` / `规格/片数：12 规格，120 片` / `12 片规格，140 片`
+ * so the comparison reads the numbers in the NEIGHBOURHOOD of the spec/sheet keywords instead of
+ * requiring one literal order. An answer that names the right coil must never be scored wrong because
+ * of spelling, and winding data (`44-44`) is excluded by the coil-shape rule above.
  */
+const SPEC_KEYWORD = /规格|定子规格|机型规格|spec/u;
+const SHEETS_KEYWORD = /片数|片|sheets/u;
+
+function numbersNear(text, keyword, window = 8) {
+    const found = new Set();
+    const value = String(text || '');
+    let match;
+    const pattern = new RegExp(keyword.source, 'gu');
+    while ((match = pattern.exec(value)) !== null) {
+        const windowText = value.slice(Math.max(0, match.index - window), match.index + match[0].length + window);
+        for (const number of windowText.match(/\d+/g) || []) found.add(Number(number));
+    }
+    return found;
+}
+
 function coilIdentityMentioned(text, spec, sheets) {
     if (spec == null || sheets == null) return false;
     const value = String(text || '');
     if (new RegExp(`(?<![0-9])${spec}-${sheets}(?![0-9])`).test(value)) return true;
-    const specMentioned = new RegExp(`(?:规格|定子规格|spec)\\D{0,6}${spec}(?![0-9])`).test(value);
-    const sheetsMentioned = new RegExp(`(?:片数|片|sheets)\\D{0,6}${sheets}(?![0-9])`).test(value);
-    return specMentioned && sheetsMentioned;
+    // The formal fields must be co-located: the spec near a spec keyword AND the sheet count near a
+    // sheet keyword, in either order and with any punctuation between them.
+    return numbersNear(value, SPEC_KEYWORD).has(Number(spec))
+        && numbersNear(value, SHEETS_KEYWORD).has(Number(sheets));
 }
 
 function classifyAnswer(entry, truth, content) {
