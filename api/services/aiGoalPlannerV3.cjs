@@ -616,7 +616,14 @@ async function planAiGoalV3(messages, options = {}) {
             const rawStepsPlan = await requestStructuredPlan(provider, plannerMessages, tool, options);
             const normalized = normalizeIntentPlan({
                 ...domainPlan,
-                requiredFactIntents: rawStepsPlan.requiredFactIntents,
+                // requiredFactIntents drive the read-investigation protocol only. Some local models
+                // repeat that query-only field in an otherwise valid protected command plan. The
+                // server-owned command envelope already limits domains and write capabilities, while
+                // the formal Preview/confirmation boundary verifies the write. Ignore this inapplicable
+                // planning noise instead of making confirmation availability model-stochastic.
+                requiredFactIntents: domainPlan.mode === 'command'
+                    ? []
+                    : rawStepsPlan.requiredFactIntents,
                 steps: rawStepsPlan.steps,
             }, {
                 pageContext: options.pageContext,

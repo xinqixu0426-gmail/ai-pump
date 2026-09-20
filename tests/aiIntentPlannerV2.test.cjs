@@ -180,6 +180,46 @@ test('V3 两阶段规划：查询可跨域选择只读能力但不能选择写�
     }), /本阶段未下发能力/);
 });
 
+test('V3 受保护写命令忽略模型重复的只读 Fact intent 并保留确认能力边界', async () => {
+    const commandRoute = {
+        mode: 'command',
+        domains: ['coil'],
+        preferredCapability: null,
+        source: 'explicit_user_command',
+    };
+    const result = await planAiIntentV2([{ role: 'user', content: '把12-120线圈库存增加100套' }], {
+        commandRoute,
+        fetchAiProvider: async (_messages, options) => structuredPlanResponse(
+            options,
+            options.toolChoice.function.name === 'submit_ai_domain_plan'
+                ? plan({
+                    goal: '调整线圈库存',
+                    domains: ['coil'],
+                    entityScope: 'single',
+                    steps: [],
+                })
+                : plan({
+                    goal: '调整线圈库存',
+                    mode: 'command',
+                    domains: ['coil'],
+                    answerShape: 'confirmation',
+                    entityScope: 'single',
+                    requiredFactIntents: [{
+                        entityType: 'coil',
+                        predicate: 'currentInventory',
+                        cardinality: 'single',
+                        freshness: 'current',
+                    }],
+                    steps: [{ capabilityName: 'adjust_coil_stock', objective: '生成线圈库存确认卡' }],
+                })
+        ),
+    });
+    assert.equal(result.mode, 'command');
+    assert.equal(result.answerShape, 'confirmation');
+    assert.deepEqual(result.requiredFactIntents, []);
+    assert.deepEqual(result.steps.map(step => step.capabilityName), ['adjust_coil_stock']);
+});
+
 test('V3 两阶段规划：第二阶段只采纳能力步骤，目标信封始终由服务端继承', async () => {
     const result = await planAiIntentV2([{ role: 'user', content: '查询采购中订单' }], {
         fetchAiProvider: async (_messages, options) => structuredPlanResponse(
