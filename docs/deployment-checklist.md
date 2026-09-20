@@ -2,6 +2,15 @@
 
 > 更新于 2026-09-20。
 
+## 2026-09-20 ONT-P8L-FINAL Gate B（DeepSeek + Ontology 云路由）在隔离实例上 PASS（`25778d2`）
+
+- **执行位置（未动正式生产）**：Mac Mini 隔离验证实例 `~/pump-p8l-validation`（独立 worktree，detached HEAD）、端口 `3012`、生产库 verified copy（`sqlite3 .backup` 生成，8 张业务表逐表行数一致 + `PRAGMA integrity_check=ok`）、`NODE_TEST_CONTEXT` + `PUMP_TEST_DATABASE_PATH` 重定向、process-level env 传入 `AI_PROVIDER` 与金丝雀开关。正式生产仍为 `886e514`，生产 `.env` 未改，正式实例未开 Ontology routing，端口 3002 全程健康。
+- **结果 PASS**：reverse 4/4、forward 8/8（生产仅 2 条未删除配方 × 2 种问法 × 2 轮）、emptyCertified 4/4（验证根 + 零结果 → `setCompleteness=COMPLETE`）、wrongRoot 0、wrongDirection 0、cloudFallbacks 0、additionalProviderRounds 0、**accepted path（coil 方向）`get_all_recipes` = 0**、payloadLimitFailures 0、unauthorizedWrites 0、`providersServed=[deepseek]`、业务表无变化（auditDelta 0、operationDelta 0）。
+- **代码修复（Supervisor 裁定 (1)b/(2)b）**：`recipe -> coil` 方向原先仍执行整表读取 `get_all_recipes`。事实核对：该方向的确定性必需读 `get_recipe_detail` 一次有界读即返回配方的绑定线圈身份（`coilId`/`coilSpec`/`coilSheets`/`coilMaterial`/`coilSlotType`），整表读本来就非必需。现改为 `relationRoutingCanary.shortlistByRelation['recipe.uses_coil']` **不再提供整表读**，而是由 `requiredReadsByRelation` 推导出的有界读（`get_recipe_detail`、`search_coils`），使"提供给模型的工具面"与"该方向声明的有界读"不可能漂移；整表读仅保留给 Legacy。
+- **残余（真实记录，未隐藏）**：`forwardAggregateCalls` 仍非 0（该问法绑定未命中时会退回 Legacy 的完整读目录，Legacy 面向模型仍然可达该工具），`unboundedQueryBudgetRefusals`（"最近有哪些订单"超 96 KB 预算时如实说明未取得正式结果、不编造）。这两项都不属于本 Gate 的退出条件，登记为 Legacy 残留。
+- **验收基础设施本轮另外修掉 3 处判定缺陷**：① `get_recipe_detail` 在冻结 stub 中被应答为空线圈成本预览（无 HTTP 服务），导致 ontology 无法认证、对照看似回归；② 线圈身份的多种真实写法（`规格：12，共 140 片`、`规格/片数：12 规格，120 片`）未被等价识别；③ 单个用例缺少工具调用序列，整表读计数无法解释。现按关键词邻域读数值判定身份，并逐用例记录有序工具序列。
+- **门禁**：`npm test` 2666/2666、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS、web build PASS。
+
 ## 2026-09-20 ONT-P8L-FINAL 验收基础设施对账：886e514 验收 ≠ P8L 退出证据（Supervisor 裁定 REWORK）
 
 - **背景**：本机（Windows）、gitee `origin/master`、Mac Mini 仓库与 Mac Mini 运行中的服务四方核对，均为同一提交 `886e514cec6ae6185474c16868decc3bfa0595a1`，工作区均干净。Mac Mini 走的是正规发布：`logs/release-code-gate-886e514….json`（`passed`，`02:12:50.712Z`）、`logs/ai-release-gate-latest.json`、Web 进程 10:12:50 启动，与发布脚本 [4/9]/[5/9] 时间吻合。
