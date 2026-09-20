@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const frozen = require('../fixtures/ontology-coil-recipe-canary-v1.json');
 const { rows, toolFor } = require('./ontologyBindingCorpus.cjs');
-const { formal } = require('./ontologyShadowFixture.cjs');
+const { formal, boundRecipeDetail } = require('./ontologyShadowFixture.cjs');
 const { beginAssistantSession } = require('../../api/services/aiAssistantSession.cjs');
 const { buildEvidenceBundle } = require('../../api/services/aiEvidenceBundle.cjs');
 const { createTaskEnvelope } = require('../../api/services/aiTaskEnvelope.cjs');
@@ -58,6 +58,13 @@ async function runCase(c, flag, runAiAssistant, options = {}) {
             if (o.allowWrite !== false) throw Error('WRITE_ACCESS'); executed.push({ name, args });
             if (name === 'get_all_recipes') return toolFor('recipe').result;
             if (name === 'search_coils') return toolFor('coil').result;
+            // ONT-P8L-FINAL: the recipe-rooted direction now certifies its coil through this bounded read
+            // instead of the whole catalogue. The result must match the real executor's shape (a single
+            // `recipe` object at the top level, not a `data` array) or the ontology cannot use it.
+            if (name === 'get_recipe_detail') {
+                const detail = boundRecipeDetail(Number(args.recipeId) || 301).result;
+                return formal(`/api/recipes/${detail.recipe.id}`, { recipe: detail.recipe });
+            }
             return formal('/api/coils/cost-preview', { data: [], count: 0, totalCost: 100 });
         }, ...options.dependencies,
     });

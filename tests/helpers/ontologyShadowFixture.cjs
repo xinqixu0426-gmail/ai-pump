@@ -54,12 +54,33 @@ function routingExecuteToolCall(onExecuted, reverseByCoil = { 501: [301] }) {
         if (name === 'get_recipes_by_coil') return boundedReverseRead(Number(args.coilId), reverseByCoil[Number(args.coilId)] || []);
         if (name === 'get_all_recipes') return toolFor('recipe').result;
         if (name === 'search_coils') return toolFor('coil').result;
+        // ONT-P8L-FINAL: the recipe-rooted direction certifies its coil through the bounded
+        // `get_recipe_detail` read instead of the whole catalogue. Without this branch the stub answered
+        // the bounded read with an empty coil cost-preview, so the ontology could not certify anything and
+        // the frozen counterpart looked like a regression. The result matches the real executor's shape.
+        if (name === 'get_recipe_detail') {
+            const detail = boundRecipeDetail(Number(args.recipeId) || 301).result;
+            return formal(`/api/recipes/${detail.recipe.id}`, { recipe: detail.recipe });
+        }
         return formal('/api/coils/cost-preview', { data: [], count: 0, totalCost: 100 });
     };
 }
-const recipeDetail = (id = 301, parts = [{ partId: 601, model: 'Shadow零件甲', supplier: '供应甲' }]) => ({
+// ONT-P8L-FINAL: the recipe-rooted direction must certify the coil through a bounded formal read, so this
+// stub has to carry the same shape the real `get_recipe_detail` returns. The formal API includes the
+// recipe's bound coil identity (`coilId`/`coilSpec`/`coilSheets`/`coilMaterial`/`coilSlotType`); a stub
+// with only `{id,name,parts}` cannot certify the relation, which is a fixture gap rather than a runtime
+// behaviour. `coilId` is null by default so an unbound recipe stays unbound, matching the fixture rows.
+const recipeDetail = (id = 301, parts = [{ partId: 601, model: 'Shadow零件甲', supplier: '供应甲' }], coilId = null) => ({
     name: 'get_recipe_detail', args: { recipeName: 'Shadow配方甲' },
-    result: formal(`/api/recipes/${id}`, { recipe: { id, name: 'Shadow配方甲', parts } }) });
+    result: formal(`/api/recipes/${id}`, {
+        recipe: {
+            id, name: 'Shadow配方甲', parts,
+            coilId,
+            ...(coilId === null ? {} : { coilSpec: '12', coilSheets: 120, coilMaterial: '冷轧', coilSlotType: '小眼' }),
+        },
+    }) });
+/** The fixture's only coil-bound recipe (301 -> coil 501), as the formal API reports it. */
+const boundRecipeDetail = (id = 301) => recipeDetail(id, undefined, 501);
 const realCorpus = [
     ['recipe-part', 'Shadow配方甲的配件明细有哪些？'],
     ['recipe-empty', 'Shadow空配方的配件明细有哪些？'],
@@ -135,5 +156,5 @@ async function runRecordedCase(c, flag, runAiAssistant, runCase, options = {}) {
     return { ...result, executed, signature: withRecordedTools(result.signature, executed) };
 }
 
-module.exports = { fixture, canonicalRoots, formal, recipeDetail, realCorpus, deterministicCorpus,
+module.exports = { fixture, canonicalRoots, formal, recipeDetail, boundRecipeDetail, realCorpus, deterministicCorpus,
     boundedReverseRead, routingExecuteToolCall, withRecordedTools, runRecordedCase };

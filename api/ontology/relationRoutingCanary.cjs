@@ -50,13 +50,19 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: { coil: 'search_coils', recipe: 'get_all_recipes' } },
     completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
     shortlist: ['get_all_recipes', 'search_coils', 'get_recipe_detail', 'get_recipes_by_coil'],
-    // ONT-P8R: the offered surface is per direction, for the same reason the required reads are. A
-    // coil-rooted question is now answered by the bounded reverse read, so it is offered first and the
-    // 121 KB whole-collection read is no longer the model's default first move. The recipe-rooted
-    // direction keeps the order P6D/P7 measured, so its promotion evidence still describes this code.
+    // ONT-P8R: the offered surface is per direction, for the same reason the required reads are.
+    //  - `coil.used_by_recipe`: the bounded reverse read is offered first so the 121 KB whole-collection
+    //    read is no longer the model's default first move.
+    //  - `recipe.uses_coil`: the whole-catalogue read is NOT offered at all. The deterministic required
+    //    read for this direction (`get_recipe_detail`) already returns the recipe's bound coil identity
+    //    (`coilId`/`coilSpec`/`coilSheets`/`coilMaterial`/`coilSlotType`) from one bounded read, so the
+    //    aggregate was never needed to answer; offering it first let the model fetch the whole catalogue
+    //    anyway. Supervisor ruling ONT-P8L-FINAL: this direction must use a bounded formal read, so the
+    //    shortlist is the declared bounded reads for the bound direction, in deterministic read order,
+    //    and the aggregate read stays available to Legacy only.
     shortlistByRelation: deepFreeze({
         'coil.used_by_recipe': ['get_recipes_by_coil', 'search_coils', 'get_all_recipes', 'get_recipe_detail'],
-        'recipe.uses_coil': ['get_all_recipes', 'search_coils', 'get_recipe_detail'],
+        'recipe.uses_coil': requiredReadsByRelation['recipe.uses_coil'].map(read => read.capability),
     }),
     requiredReads,
     requiredReadsByRelation,

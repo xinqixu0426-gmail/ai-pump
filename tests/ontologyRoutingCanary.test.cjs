@@ -114,6 +114,31 @@ test('P8L the historical legacy oracle V1 is preserved and differs from V2 only 
         assert.ok(after.modelCalls <= before.modelCalls, `${caseId}: provider calls must not increase (${before.modelCalls} -> ${after.modelCalls})`);
     }
 });
+test('P8L-FINAL the recipe-rooted direction offers only bounded reads, never the whole catalogue', () => {
+    // Supervisor ruling ONT-P8L-FINAL: `recipe -> coil` must resolve through a bounded formal read. The
+    // deterministic required read for that direction already returns the recipe's bound coil identity, so
+    // the whole-catalogue read must not be offered on this direction at all.
+    const profile = router.profiles[0];
+    const offered = profile.shortlistByRelation['recipe.uses_coil'];
+    assert.deepEqual(offered, ['get_recipe_detail', 'search_coils']);
+    assert.equal(offered.includes('get_all_recipes'), false,
+        'the recipe-rooted direction must not offer the whole-catalogue read');
+    // The offered surface can never drift from the declared bounded reads of that direction.
+    assert.deepEqual(offered, router.requiredReadsFor({
+        profile, binding: { relationId: 'recipe.uses_coil' },
+    }).map(read => read.capability));
+    // The inverse direction is unchanged and still features its bounded reverse read first.
+    assert.equal(profile.shortlistByRelation['coil.used_by_recipe'][0], 'get_recipes_by_coil');
+    // Requesting the relation must therefore produce a tool list without the aggregate.
+    const state = prepareRouting(inputFor(cases.find(c => c.root.entityType === 'recipe')));
+    assert.equal(state.record.eligible, true);
+    const names = state.tools.map(tool => tool.function.name);
+    assert.equal(names.includes('get_all_recipes'), false, JSON.stringify(names));
+    assert.ok(names.includes('get_recipe_detail'), JSON.stringify(names));
+    // A capability that is still legitimately offered elsewhere must remain a registered read, so the
+    // change narrowed the offered surface instead of disabling a capability.
+    assert.ok(assistantReadTools().some(tool => tool.function.name === 'get_all_recipes'));
+});
 test('P6R/P7 provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
     const c = cases[0];
     // ONT-P7 promoted `deepseek` for this family; unvalidated providers stay outside.

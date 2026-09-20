@@ -30,6 +30,7 @@ const { prepareRouting } = router;
 // that it only executes capabilities its own profile sanctions.
 const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.capability).concat(router.profiles.flatMap(profile => profile.shortlist)));
         const { currentFactsForBinding } = require('../../api/ontology/bindingCurrentFacts.cjs');
+        const { boundRecipeDetail } = require('./ontologyShadowFixture.cjs');
         const { cases, runCase } = require('./ontologyRoutingCorpus.cjs');
         const baseline = db.serialize(), changes = db.prepare('SELECT total_changes() n').get().n;
         // Freeze only default Date construction (formal provenance fetchedAt), preserving real
@@ -41,7 +42,21 @@ const sanctionedCapabilities = new Set(router.requiredReads.map(read => read.cap
         for (const c of cases.filter(c => c.category === 'positive')) {
             const name = c.root.entityType === 'coil' ? 'search_coils' : 'get_all_recipes';
             const args = c.root.entityType === 'coil' ? { spec: '12', sheets: 120 } : { keyword: 'Shadow配方甲' };
-            const seed = [{ name, args, result: await executeToolCall(name, args, { allowWrite: false }) }];
+            // ONT-P8L-FINAL: the recipe-rooted direction now certifies its coil through the bounded
+            // `get_recipe_detail` read instead of the whole catalogue, so the fixture seeds that bounded
+            // read as well. The real executor performs HTTP calls and this fixture has no HTTP server for
+            // it, so the bounded detail is the same one the formal API returns for the coil-bound recipe.
+            const seeds = [{ name, args, result: await executeToolCall(name, args, { allowWrite: false }) }];
+            if (c.root.entityType === 'recipe') {
+                const detail = boundRecipeDetail(Number(c.root.canonicalId) || 301);
+                seeds.push({ name: 'get_recipe_detail', args: detail.args, result: detail.result });
+            }
+            const seed = seeds.map(entry => ({ ...entry, result: {
+                ...entry.result,
+                executionEvidence: { verified: true, kind: 'formal_api_query',
+                    calls: [{ method: 'GET', path: entry.name === 'search_coils' ? '/api/coils'
+                        : entry.name === 'get_recipe_detail' ? `/api/recipes/${entry.args.recipeId}` : '/api/recipes' }] },
+            } }));
             let off;
             for (const flag of ['false', 'true']) {
                 const conversationId = `api-${c.caseId}-${flag}`, subject = 'p6r-fixture-owner';
