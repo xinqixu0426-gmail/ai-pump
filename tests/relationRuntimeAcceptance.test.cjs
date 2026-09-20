@@ -11,11 +11,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-    EMPTY_RELATION_CASES,
     GATE_IDS,
+    MIN_EMPTY_CASES,
+    MIN_FORWARD_CASES,
+    MIN_REVERSE_CASES,
     assertGatePreconditions,
     businessFingerprint,
     classifyAnswer,
+    discoverCasePlan,
     evaluateVerdict,
     fingerprintDiff,
     gateProfile,
@@ -23,6 +26,7 @@ const {
     readSetCompleteness,
     resolveAcceptanceDatabasePath,
     runtimeEnvFrom,
+    truthFor,
 } = require('../scripts/run-relation-runtime-acceptance.cjs');
 
 const localGateEnv = (overrides = {}) => ({
@@ -160,6 +164,44 @@ test('relation acceptance: a write that is not a confirmation card, or a busines
     assert.ok(mutated.failures.some(line => line.startsWith('businessTablesChanged=')));
 });
 
+test('relation acceptance: the corpus is discovered from the judged database, never hard-coded', () => {
+    const Database = require('better-sqlite3');
+    const db = new Database(':memory:');
+    require('../api/database/migrations.cjs').runMigrations(db);
+    // The real production shape that broke the previous harness: recipe ids that are NOT 2/3/6/7 and a
+    // coil whose relation is genuinely empty.
+    db.exec(`
+        INSERT INTO coils(id,spec,sheets,material,stock,scheme_code,scheme_status) VALUES
+            (1,'12',120,'钢带',1,'COIL-T1','official'),(2,'12',140,'钢带',1,'COIL-T2','official'),
+            (3,'12',160,'钢带',1,'COIL-T3','official'),(4,'12',180,'钢带',1,'COIL-T4','official'),
+            (5,'12',200,'钢带',1,'COIL-T5','official');
+        INSERT INTO recipes(id,name,coil_id,parts_json) VALUES
+            (11,'配方甲',1,'[]'),(12,'配方乙',1,'[]'),(13,'配方丙',2,'[]');
+    `);    const plan = discoverCasePlan(db);
+    assert.deepEqual(plan.problems, [], plan.problems.join(';'));
+    assert.ok(plan.reverse.length >= MIN_REVERSE_CASES, `reverse=${plan.reverse.length}`);
+    assert.ok(plan.forward.length >= MIN_FORWARD_CASES, `forward=${plan.forward.length}`);
+    assert.ok(plan.empty.length >= MIN_EMPTY_CASES);
+    // Forward cases must name recipes that exist in THIS database, two phrasings each.
+    const recipeIds = [...new Set(plan.forward.map(entry => entry.recipeId))];
+    assert.deepEqual(recipeIds.sort((a, b) => a - b), [11, 12, 13]);
+    assert.ok(plan.forward.length >= recipeIds.length * 2, `forward=${plan.forward.length}`);
+    // The empty case must be rooted at a coil with no bound recipes.
+    const emptyRoot = plan.empty[0].coilId;
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM recipes WHERE coil_id=?').get(emptyRoot).n, 0);
+    // Truth follows the foreign key, not a copied expectation.
+    assert.deepEqual(truthFor(db, plan.reverse[0]).expected.sort(), ['配方乙', '配方甲'].sort());
+    assert.deepEqual(truthFor(db, { direction: 'recipe->coil', recipeId: 13 }).expected, ['12-140']);
+
+    // A database that cannot supply the corpus must abort rather than silently skip cases.
+    const thin = new Database(':memory:');
+    require('../api/database/migrations.cjs').runMigrations(thin);
+    thin.exec("INSERT INTO coils(id,spec,sheets,material,stock,scheme_code,scheme_status) VALUES(1,'12',120,'钢带',1,'COIL-THIN','official'); INSERT INTO recipes(id,name,coil_id,parts_json) VALUES(1,'唯一配方',1,'[]');");
+    assert.ok(discoverCasePlan(thin).problems.length > 0);
+    thin.close();
+    db.close();
+});
+
 test('relation acceptance: a page-level complete is never read as set-level completeness', () => {
     // The service layer reports both fields. Only setCompleteness may certify that a whole relation is
     // known; `complete` alone is a property of the delivered page.
@@ -178,12 +220,12 @@ test('relation acceptance: a page-level complete is never read as set-level comp
     assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'REFERENCE_INCOMPLETE' }), 'REFERENCE_INCOMPLETE');
     assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'PARTIAL' }), 'PARTIAL');
 
-    // Both gates must carry an explicit empty-relation case and fail when it is not certified.
+    // Both gates must require a zero additional provider round, and a plan without a certified
+    // empty-relation case is never accepted.
     for (const gateId of GATE_IDS) {
         assert.ok(gateProfile(gateId).required.additionalProviderRounds === 0, gateId);
     }
-    assert.ok(EMPTY_RELATION_CASES.length > 0);
-    assert.ok(EMPTY_RELATION_CASES.every(entry => entry.expectEmptyRelation === true));
+    assert.ok(MIN_EMPTY_CASES > 0);
 
     const uncertified = evaluateVerdict({
         profile: gateProfile('p8l-local'),

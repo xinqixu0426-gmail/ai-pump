@@ -38,19 +38,7 @@ const BUSINESS_TABLES = Object.freeze(['recipes', 'coils', 'parts', 'orders', 'c
 const MAX_BOUNDED_BYTES = 32768;
 const MAX_AGGREGATE_BYTES = 98304;
 
-// Eight relation cases and the four negatives, asserted against the live database below rather than
-// trusted blindly. Truth is read from `recipes.coil_id` at run time.
-const RELATION_CASES = Object.freeze([
-    Object.freeze({ id: 'R1-coil120-to-recipes', direction: 'coil->recipes', coilSpec: '12', coilSheets: 120, seed: '12-120 线圈有哪些正式方案？', question: '这个线圈用在哪些配方？' }),
-    Object.freeze({ id: 'R2-coil140-to-recipes', direction: 'coil->recipes', coilSpec: '12', coilSheets: 140, seed: '12-140 线圈的规格和片数是什么？', question: '12-140线圈被哪些配方使用？' }),
-    Object.freeze({ id: 'R3-coil160-to-recipes', direction: 'coil->recipes', coilSpec: '12', coilSheets: 160, seed: '12-160 线圈有哪些方案？', question: '12-160线圈用在哪些配方？' }),
-    Object.freeze({ id: 'R4-coil200-to-recipes', direction: 'coil->recipes', coilSpec: '12', coilSheets: 200, seed: '12-200 线圈的规格是什么？', question: '12-200线圈被哪些配方使用？' }),
-    Object.freeze({ id: 'R5-recipe-v750-to-coil', direction: 'recipe->coil', recipeId: 2, seed: 'v750-tokoy 用的是哪个泵壳模板？', question: 'v750-tokoy 用的是哪个线圈？' }),
-    Object.freeze({ id: 'R6-recipe-v1100-to-coil', direction: 'recipe->coil', recipeId: 3, seed: 'V1100-2寸 的配件明细有哪些？', question: 'V1100-2寸 配的什么绕组？' }),
-    Object.freeze({ id: 'R7-recipe-v1500-to-coil', direction: 'recipe->coil', recipeId: 6, seed: 'v1500-DY-ml 用了哪个泵壳模板？', question: 'v1500-DY-ml 用的是哪个线圈？' }),
-    Object.freeze({ id: 'R8-recipe-800-to-coil', direction: 'recipe->coil', recipeId: 7, seed: '800直出水切割泵 的配件明细有哪些？', question: '800直出水切割泵 配的什么线圈？' }),
-]);
-
+// The four negatives, asserted against the live database below rather than trusted blindly.
 const NEGATIVE_CASES = Object.freeze([
     Object.freeze({ id: 'N1-absent-coil', kind: 'absent-coil', question: '99-999线圈被哪些配方使用？' }),
     Object.freeze({ id: 'N2-ambiguous-coil', kind: 'ambiguous-coil', question: '12-120线圈和12-140线圈用在哪些配方？' }),
@@ -59,13 +47,90 @@ const NEGATIVE_CASES = Object.freeze([
 ]);
 
 /**
- * A verified canonical root whose relation is genuinely EMPTY. The Supervisor requires both gates to
- * carry this case explicitly, because an empty answer is only acceptable when it is certified as
- * set-complete — never as "nothing found" over an unverified or partially read relation.
+ * Relation acceptance corpus is DISCOVERED from the judged database, never from hard-coded ids.
+ *
+ * The earlier harnesses pinned recipe ids (2/3/6/7) and coil 501 that only existed in their fixture, so on
+ * a real database the forward direction silently skipped and the reverse direction compared against the
+ * wrong expectation. Both gates therefore require explicit minimum case counts and abort when the data
+ * cannot supply them.
  */
-const EMPTY_RELATION_CASES = Object.freeze([
-    Object.freeze({ id: 'E1-empty-coil-relation', direction: 'coil->recipes', expectEmptyRelation: true, spec: '12', sheets: 160, seed: '12-160 线圈有哪些正式方案？', question: '12-160线圈用在哪些配方？' }),
-]);
+const MIN_REVERSE_CASES = 4;
+const MIN_FORWARD_CASES = 4;
+const MIN_EMPTY_CASES = 1;
+
+function discoverCasePlan(db) {
+    const coils = db.prepare("SELECT id, spec, sheets FROM coils WHERE scheme_status='official' ORDER BY id").all();
+    const recipes = db.prepare('SELECT id, name, coil_id AS coilId FROM recipes WHERE deleted_at IS NULL ORDER BY id').all();
+    const boundByCoil = new Map();
+    for (const recipe of recipes) {
+        if (recipe.coilId == null) continue;
+        if (!boundByCoil.has(recipe.coilId)) boundByCoil.set(recipe.coilId, []);
+        boundByCoil.get(recipe.coilId).push(recipe);
+    }
+    const shape = coil => `${coil.spec}-${coil.sheets}`;
+
+    // Reverse direction: every coil that actually has bound recipes, then coils without any, so a
+    // certified zero result is exercised in the same run. A relation only counts once per coil.
+    const occupied = coils.filter(coil => boundByCoil.has(coil.id));
+    const vacant = coils.filter(coil => !boundByCoil.has(coil.id));
+    const reverseCoils = [...occupied, ...vacant].slice(0, Math.max(MIN_REVERSE_CASES, occupied.length));
+    const reverse = reverseCoils.map((coil, index) => {
+        const isEmpty = !boundByCoil.has(coil.id);
+        return {
+            id: `R${index + 1}-coil${shape(coil)}-${isEmpty ? 'empty' : 'to-recipes'}`,
+            direction: 'coil->recipes',
+            label: shape(coil),
+            coilId: coil.id,
+            seed: `${shape(coil)} 线圈有哪些正式方案？`,
+            question: isEmpty
+                ? `${shape(coil)}线圈用在哪些配方？`
+                : `${shape(coil)}线圈被哪些配方使用？`,
+        };
+    });
+
+    // Forward direction: two independent phrasings per recipe, so the direction is measured more than
+    // once per object. A recipe whose declared coil is not bound must still answer or refuse, never guess.
+    const forward = [];
+    for (const recipe of recipes) {
+        forward.push({
+            id: `F${forward.length + 1}-recipe${recipe.id}-to-coil`,
+            direction: 'recipe->coil',
+            label: recipe.name,
+            recipeId: recipe.id,
+            seed: `${recipe.name} 用的是哪个泵壳模板？`,
+            question: `${recipe.name} 用的是哪个线圈？`,
+        });
+        forward.push({
+            id: `F${forward.length + 1}-recipe${recipe.id}-winding`,
+            direction: 'recipe->coil',
+            label: recipe.name,
+            recipeId: recipe.id,
+            seed: `${recipe.name} 的配件明细有哪些？`,
+            question: `${recipe.name} 配的什么绕组？`,
+        });
+    }
+
+    // The Supervisor's required zero-result case must be a VERIFIED canonical root whose relation is
+    // genuinely empty, so the empty list is a certified conclusion rather than an unverified guess.
+    const emptyPool = [...vacant, ...occupied];
+    const emptyCoils = emptyPool.slice(0, Math.max(MIN_EMPTY_CASES, Math.min(2, emptyPool.length)));
+    const empty = emptyCoils.map((coil, index) => ({
+        id: `E${index + 1}-${shape(coil)}-verified-empty`,
+        direction: 'coil->recipes',
+        expectEmptyRelation: true,
+        label: shape(coil),
+        coilId: coil.id,
+        seed: `${shape(coil)} 线圈有哪些正式方案？`,
+        question: `${shape(coil)}线圈用在哪些配方？`,
+    }));
+
+    const problems = [];
+    if (coils.length === 0) problems.push('no official coils');
+    if (reverse.length < MIN_REVERSE_CASES) problems.push(`reverse cases ${reverse.length} < ${MIN_REVERSE_CASES}`);
+    if (forward.length < MIN_FORWARD_CASES) problems.push(`forward cases ${forward.length} < ${MIN_FORWARD_CASES}`);
+    if (empty.length < MIN_EMPTY_CASES) problems.push(`empty-relation cases ${empty.length} < ${MIN_EMPTY_CASES}`);
+    return { reverse, forward, empty, problems, counts: { coils: coils.length, recipes: recipes.length, occupied: occupied.length, vacant: vacant.length } };
+}
 
 const GATES = Object.freeze({
     'p8l-local': Object.freeze({
@@ -221,17 +286,19 @@ function fingerprintDiff(before, after) {
 
 function truthFor(db, entry) {
     if (entry.direction === 'coil->recipes') {
-        const coil = db.prepare("SELECT id FROM coils WHERE spec=? AND sheets=? AND scheme_status='official' ORDER BY id").get(entry.coilSpec, entry.coilSheets);
+        const coil = entry.coilId != null
+            ? db.prepare('SELECT id, spec, sheets FROM coils WHERE id=?').get(entry.coilId)
+            : db.prepare("SELECT id, spec, sheets FROM coils WHERE spec=? AND sheets=? AND scheme_status='official' ORDER BY id").get(entry.coilSpec, entry.coilSheets);
         if (!coil) return { expected: [], coilId: null, note: 'NO_OFFICIAL_VARIANT' };
-        const rows = db.prepare('SELECT id, name FROM recipes WHERE coil_id=? ORDER BY id').all(coil.id);
+        const rows = db.prepare('SELECT id, name FROM recipes WHERE coil_id=? AND deleted_at IS NULL ORDER BY id').all(coil.id);
         return { expected: rows.map(row => row.name), coilId: coil.id, recipeIds: rows.map(row => row.id), note: null };
     }
-    const recipe = db.prepare('SELECT id, name, coil_id FROM recipes WHERE id=?').get(entry.recipeId);
+    const recipe = db.prepare('SELECT id, name, coil_id AS coilId FROM recipes WHERE id=?').get(entry.recipeId);
     if (!recipe) return { expected: [], recipeId: null, note: 'NO_RECIPE' };
-    const coil = recipe.coil_id
-        ? db.prepare('SELECT id, spec, sheets FROM coils WHERE id=?').get(recipe.coil_id)
-        : db.prepare('SELECT id, spec, sheets FROM coils WHERE spec=? AND sheets=? ORDER BY id').get(entry.coilSpec, entry.coilSheets);
-    return { expected: coil ? [`${coil.spec}-${coil.sheets}`] : [], coilId: coil?.id ?? null, note: coil ? null : 'NO_BOUND_COIL' };
+    const coil = recipe.coilId
+        ? db.prepare('SELECT id, spec, sheets FROM coils WHERE id=?').get(recipe.coilId)
+        : null;
+    return { expected: coil ? [`${coil.spec}-${coil.sheets}`] : [], coilId: coil?.id ?? null, note: coil ? null : 'RECIPE_HAS_NO_BOUND_COIL' };
 }
 
 /**
@@ -335,7 +402,7 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         unauthorizedWrites: negativeCases.filter(entry => entry.kind === 'write' && entry.writeProtected !== true).length,
         aggregateCalls: sum([...cases, ...negativeCases], entry => entry.aggregateCalls),
         notDone: [...cases, ...negativeCases].filter(entry => !entry.done).length,
-        errors: sum([...cases, ...negativeCases], entry => entry.errorCodes.length),
+        errors: sum([...cases, ...negativeCases], entry => (entry.errorCodes || []).length),
         // Supervisor's Gate B requirement: ontology must not add a provider round of its own.
         additionalProviderRounds: sum([...cases, ...negativeCases, ...emptyRelationCases],
             entry => Math.max(0, (entry.providerRounds ?? 0) - (entry.baselineProviderRounds ?? entry.providerRounds ?? 0))),
@@ -451,7 +518,7 @@ async function preflightEndpoint(base, providerConfig, gateId) {
     return problems;
 }
 
-function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases = [], fingerprintBefore, fingerprintAfter, diff }) {
+function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases = [], reportCasePlan = null, fingerprintBefore, fingerprintAfter, diff }) {
     return {
         schemaVersion: 1,
         gate: gateId,
@@ -476,6 +543,9 @@ function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCa
         cases,
         negativeCases,
         emptyRelationCases,
+        casePlan: reportCasePlan
+            ? { counts: reportCasePlan.counts, reverse: reportCasePlan.reverse, forward: reportCasePlan.forward, empty: reportCasePlan.empty }
+            : null,
     };
 }
 
@@ -515,9 +585,17 @@ async function main() {
     const cases = [];
     const negativeCases = [];
     const emptyRelationCases = [];
+    let reportCasePlan = null;
     try {
+        const plan = discoverCasePlan(db);
+        console.log(`casePlan coils=${plan.counts.coils} recipes=${plan.counts.recipes} occupiedCoils=${plan.counts.occupied} vacantCoils=${plan.counts.vacant} `
+            + `reverse=${plan.reverse.length} forward=${plan.forward.length} empty=${plan.empty.length}`);
+        if (plan.problems.length > 0) {
+            throw abortError('ACCEPTANCE_CORPUS_INSUFFICIENT', `the judged database cannot supply the required corpus: ${plan.problems.join('; ')}`);
+        }
+        reportCasePlan = plan;
         for (let round = 1; round <= rounds; round += 1) {
-            for (const entry of [...RELATION_CASES, ...EMPTY_RELATION_CASES]) {
+            for (const entry of [...plan.reverse, ...plan.forward, ...plan.empty]) {
                 const truth = truthFor(db, entry);
                 if (truth.note) {
                     cases.push({ caseId: entry.id, direction: entry.direction, question: entry.question, expected: [], truthNote: truth.note, correct: null });
@@ -575,7 +653,7 @@ async function main() {
     verifier.close();
     const diff = fingerprintDiff(before, after);
     const verdict = evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases, fingerprintDiffResult: diff });
-    const report = buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases, fingerprintBefore: before, fingerprintAfter: after, diff });
+    const report = buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases, reportCasePlan, fingerprintBefore: before, fingerprintAfter: after, diff });
 
     if (reportPath) {
         const target = path.isAbsolute(reportPath) ? reportPath : path.join(ROOT, reportPath);
@@ -603,15 +681,17 @@ if (require.main === module) {
 
 module.exports = {
     BUSINESS_TABLES,
-    EMPTY_RELATION_CASES,
     GATES,
     GATE_IDS,
+    MIN_EMPTY_CASES,
+    MIN_FORWARD_CASES,
+    MIN_REVERSE_CASES,
     NEGATIVE_CASES,
-    RELATION_CASES,
     VERDICT_STATUSES,
     assertGatePreconditions,
     businessFingerprint,
     classifyAnswer,
+    discoverCasePlan,
     evaluateVerdict,
     fingerprintDiff,
     gateProfile,
@@ -619,4 +699,5 @@ module.exports = {
     readSetCompleteness,
     resolveAcceptanceDatabasePath,
     runtimeEnvFrom,
+    truthFor,
 };
