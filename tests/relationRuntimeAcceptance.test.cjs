@@ -21,6 +21,7 @@ const {
     gateProfile,
     readPageCompleteness,
     readSetCompleteness,
+    resolveAcceptanceDatabasePath,
     runtimeEnvFrom,
 } = require('../scripts/run-relation-runtime-acceptance.cjs');
 
@@ -214,6 +215,21 @@ test('relation acceptance: an ontology-induced extra provider round fails the ga
     });
     assert.equal(verdict.status, 'PASS');
     assert.equal(verdict.observed.additionalProviderRounds, 0);
+});
+
+test('relation acceptance: the judged database must exist and be named explicitly', () => {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relation-acceptance-'));
+    // An isolated validation instance serves a verified copy, so the runner must never silently fall back
+    // to a project-root database that may be a different file.
+    assert.throws(() => resolveAcceptanceDatabasePath({ PUMP_ACCEPTANCE_DATABASE_PATH: path.join(dir, 'missing.db') }),
+        { code: 'ACCEPTANCE_DATABASE_MISSING' });
+    const copy = path.join(dir, 'pump-validation.db');
+    fs.writeFileSync(copy, '');
+    assert.equal(resolveAcceptanceDatabasePath({ PUMP_ACCEPTANCE_DATABASE_PATH: copy }), copy);
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('relation acceptance: business invariance is a logical fingerprint, not a WAL-mode file hash', () => {

@@ -159,6 +159,20 @@ function assertGatePreconditions(gateId, env) {
     return { profile, resolved };
 }
 
+/**
+ * The database this run judges must be the database the target instance actually serves. A validation
+ * instance redirects the API to an isolated verified copy, so the runner must be given the same file
+ * explicitly instead of assuming the project-root `pump.db`.
+ */
+function resolveAcceptanceDatabasePath(env, root = ROOT) {
+    const configured = String(env.PUMP_ACCEPTANCE_DATABASE_PATH || '').trim();
+    const path_ = configured || path.join(root, 'pump.db');
+    if (!fs.existsSync(path_)) {
+        throw abortError('ACCEPTANCE_DATABASE_MISSING', `acceptance database not found: ${path_} (set PUMP_ACCEPTANCE_DATABASE_PATH)`);
+    }
+    return path_;
+}
+
 /** Versioned logical fingerprint: never a WAL-mode file hash. */
 function businessFingerprint(db) {
     const tables = {};
@@ -493,7 +507,8 @@ async function main() {
     if (endpointProblems.length > 0) throw abortError('ENDPOINT_PREFLIGHT_FAILED', endpointProblems.join('; '));
 
     const Database = require('better-sqlite3');
-    const dbPath = path.join(ROOT, 'pump.db');
+    const dbPath = resolveAcceptanceDatabasePath(env);
+    console.log(`acceptanceDatabase=${dbPath}`);
     const db = new Database(dbPath, { readonly: true });
     const before = businessFingerprint(db);
 
@@ -602,5 +617,6 @@ module.exports = {
     gateProfile,
     readPageCompleteness,
     readSetCompleteness,
+    resolveAcceptanceDatabasePath,
     runtimeEnvFrom,
 };
