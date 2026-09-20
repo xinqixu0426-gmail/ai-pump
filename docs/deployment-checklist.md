@@ -2,14 +2,16 @@
 
 > 更新于 2026-09-20。
 
-## 2026-09-20 ONT-P8L-FINAL Gate B（DeepSeek + Ontology 云路由）在隔离实例上 PASS（`25778d2`）
+## 2026-09-20 ONT-P8L-FINAL Gate B 仍 REWORK：recipe→coil 有界读已修，绑定召回缺口未清（`4157188`）
 
-- **执行位置（未动正式生产）**：Mac Mini 隔离验证实例 `~/pump-p8l-validation`（独立 worktree，detached HEAD）、端口 `3012`、生产库 verified copy（`sqlite3 .backup` 生成，8 张业务表逐表行数一致 + `PRAGMA integrity_check=ok`）、`NODE_TEST_CONTEXT` + `PUMP_TEST_DATABASE_PATH` 重定向、process-level env 传入 `AI_PROVIDER` 与金丝雀开关。正式生产仍为 `886e514`，生产 `.env` 未改，正式实例未开 Ontology routing，端口 3002 全程健康。
-- **结果 PASS**：reverse 4/4、forward 8/8（生产仅 2 条未删除配方 × 2 种问法 × 2 轮）、emptyCertified 4/4（验证根 + 零结果 → `setCompleteness=COMPLETE`）、wrongRoot 0、wrongDirection 0、cloudFallbacks 0、additionalProviderRounds 0、**accepted path（coil 方向）`get_all_recipes` = 0**、payloadLimitFailures 0、unauthorizedWrites 0、`providersServed=[deepseek]`、业务表无变化（auditDelta 0、operationDelta 0）。
-- **代码修复（Supervisor 裁定 (1)b/(2)b）**：`recipe -> coil` 方向原先仍执行整表读取 `get_all_recipes`。事实核对：该方向的确定性必需读 `get_recipe_detail` 一次有界读即返回配方的绑定线圈身份（`coilId`/`coilSpec`/`coilSheets`/`coilMaterial`/`coilSlotType`），整表读本来就非必需。现改为 `relationRoutingCanary.shortlistByRelation['recipe.uses_coil']` **不再提供整表读**，而是由 `requiredReadsByRelation` 推导出的有界读（`get_recipe_detail`、`search_coils`），使"提供给模型的工具面"与"该方向声明的有界读"不可能漂移；整表读仅保留给 Legacy。
-- **残余（真实记录，未隐藏）**：`forwardAggregateCalls` 仍非 0（该问法绑定未命中时会退回 Legacy 的完整读目录，Legacy 面向模型仍然可达该工具），`unboundedQueryBudgetRefusals`（"最近有哪些订单"超 96 KB 预算时如实说明未取得正式结果、不编造）。这两项都不属于本 Gate 的退出条件，登记为 Legacy 残留。
-- **验收基础设施本轮另外修掉 3 处判定缺陷**：① `get_recipe_detail` 在冻结 stub 中被应答为空线圈成本预览（无 HTTP 服务），导致 ontology 无法认证、对照看似回归；② 线圈身份的多种真实写法（`规格：12，共 140 片`、`规格/片数：12 规格，120 片`）未被等价识别；③ 单个用例缺少工具调用序列，整表读计数无法解释。现按关键词邻域读数值判定身份，并逐用例记录有序工具序列。
-- **门禁**：`npm test` 2666/2666、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS、web build PASS。
+- **状态**：Gate B **仍未通过**，Supervisor 裁定 REWORK。上一版本文档中"Gate B PASS"的记录**作废**：那次运行里 8 个 forward 用例仍有 2 个没有形成 `recipe.uses_coil` 绑定、退回 Legacy，靠 Legacy 把正确率补到 8/8 不构成退出证据。
+- **已修（真实缺陷，保留）**：
+  1. `recipe -> coil` 方向不再提供整表读：`relationRoutingCanary.shortlistByRelation['recipe.uses_coil']` 由该方向的声明读推导（`get_recipe_detail`、`search_coils`），整表读只留给 Legacy。事实依据：`get_recipe_detail` 一次有界读即返回配方的绑定线圈身份，整表读本来就非必需。
+  2. `api/ontology/relationBinder.cjs` 的 per-record ownership 缺陷：ownership 原先按"结果值的形状"判定，而 `get_recipe_detail` 的回执证据同时包含列表调用（`/api/recipes`，用于解析配方名）与单条调用（`/api/recipes/12`），于是该行被当作集合读而丢弃，配方行永远进不了绑定器。现改为：集合读拥有其数组，详情读只拥有它所命名的那一条记录，两者不可互相替代；详情读的 id 不符或非 GET 均不构成 provenance。这是本轮 Gate B legacyFallbacks=3 的直接原因之一。
+  3. 线圈身份判定收紧：`12片规格` 是"12 片"的数量表达，**不得**作为 spec=12 的依据；spec/sheets 只有在各自关键词直接附着于数字时才计入。
+- **未清（Gate B 的真实退出条件）**：`V750大脚板-2寸-经典款 配的什么绕组？` 这类问法仍会掉进 Legacy。观测证据（Mac Mini 隔离实例，`logs/gates/gate-b-binder-fix.json`）：forward 7/8、`legacyFallbacks=3`（F2-recipe12-winding、F4-recipe13-winding ×2）、`wrongRoot=1`；退化的那次答案是「"V750大脚板-2寸-经典款"是一个泵壳模板……模板 BOM 里不含绕组」，即同一名称被当作**泵壳模板**而非配方解析。机制：绑定未命中 → canary 不路由（`ONTOLOGY_CANARY_FALLBACK`）→ `coilRecipeRelationQuery` 为真 → Legacy 关系特殊路径介入，其完整读目录把整表读带回工具面（`aiAssistantRuntime.cjs:357`、`:540`）。
+- **门禁**：`npm test` 2668/2668、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS。
+- **下一步（未开工）**：修"名称同时匹配配方与泵壳模板时的实体类型选择"，使 `recipe.uses_coil` 绑定不再因模型该轮选了模板工具而漏绑；随后同一 Gate B 语料再跑 2 轮，目标 forward 8/8、bound/routed 8/8、`get_all_recipes` 0、Legacy fallback 0、wrongRoot 0。
 
 ## 2026-09-20 ONT-P8L-FINAL 验收基础设施对账：886e514 验收 ≠ P8L 退出证据（Supervisor 裁定 REWORK）
 
