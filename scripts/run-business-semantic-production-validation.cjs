@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
+const { SemanticEligibilityBoundaryV1 } = require('../api/business-semantics/eligibilityBoundary.cjs');
 
 const VALIDATION_VERSION = 'BUS-P4R-V1';
 const EXPECTED_PRODUCTION_COMMIT = '365d1273e2160f303c046136c479ecb5c79f8b8c';
@@ -31,6 +32,31 @@ const fromProject = relativePath => require(path.join(PROJECT_ROOT, relativePath
 
 function validationError(code, message) {
     return Object.assign(new Error(message), { code });
+}
+
+function parseSemanticEligibility(payload, { requireReason = false } = {}) {
+    const mismatch = message => { throw validationError('RUNNER_SEMANTIC_CONTRACT_MISMATCH', message); };
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) mismatch('Eligibility payload must be an object');
+    if (!Object.prototype.hasOwnProperty.call(payload, 'kind')) mismatch('Eligibility payload is missing authoritative field: kind');
+    if (typeof payload.eligible !== 'boolean') mismatch('Eligibility payload is missing boolean field: eligible');
+    if (!SemanticEligibilityBoundaryV1.authorities.includes(payload.authority)) mismatch('Eligibility authority is not recognized');
+    const supportedKinds = new Set(['OUT_OF_SCOPE', ...SemanticEligibilityBoundaryV1.supportedKinds]);
+    if (!supportedKinds.has(payload.kind)) mismatch('Eligibility kind is not recognized');
+    if (requireReason && (typeof payload.reason !== 'string' || !payload.reason)) mismatch('Eligibility payload is missing field: reason');
+    if (payload.reason != null && !SemanticEligibilityBoundaryV1.reasonCodes.includes(payload.reason)) mismatch('Eligibility reason is not recognized');
+    if (payload.kind === 'OUT_OF_SCOPE' && (payload.eligible !== false || payload.authority !== 'LEGACY')) {
+        mismatch('OUT_OF_SCOPE must remain ineligible and Legacy-authoritative');
+    }
+    if (payload.kind !== 'OUT_OF_SCOPE' && (payload.eligible !== true || payload.authority !== 'BUSINESS_SEMANTIC_V1')) {
+        mismatch('Supported kinds must be eligible and Business Semantic-authoritative');
+    }
+    return Object.freeze({
+        version: SemanticEligibilityBoundaryV1.version,
+        kind: payload.kind,
+        eligible: payload.eligible,
+        authority: payload.authority,
+        ...(payload.reason == null ? {} : { reason: payload.reason }),
+    });
 }
 
 function buildAcceptanceRequest({ mode, runId, requestId, conversationId, overrides = {} } = {}) {
@@ -406,4 +432,5 @@ module.exports = {
     buildAcceptanceRequest,
     businessFingerprint,
     invokeAcceptanceRequest,
+    parseSemanticEligibility,
 };

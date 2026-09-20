@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
     buildAcceptanceRequest,
     invokeAcceptanceRequest,
+    parseSemanticEligibility,
 } = require('../scripts/run-business-semantic-production-validation.cjs');
 const {
     buildProtectedCommandIntent,
@@ -86,4 +87,32 @@ test('allowWrite=true cannot be smuggled through a protected-write validation re
 test('request builder also fails closed without a valid mode or validation identity', () => {
     assert.throws(() => buildAcceptanceRequest({ mode: 'invalid', ...ids('invalid') }), { code: 'ACCEPTANCE_MODE_INVALID' });
     assert.throws(() => buildAcceptanceRequest({ mode: 'off' }), { code: 'ACCEPTANCE_ID_REQUIRED' });
+});
+
+test('promotion runner parses the authoritative kind field for negative and supported eligibility', () => {
+    assert.deepEqual(parseSemanticEligibility({
+        kind: 'OUT_OF_SCOPE', eligible: false, authority: 'LEGACY',
+    }), {
+        version: 1, kind: 'OUT_OF_SCOPE', eligible: false, authority: 'LEGACY',
+    });
+    assert.deepEqual(parseSemanticEligibility({
+        kind: 'COST_QUERY', eligible: true, authority: 'BUSINESS_SEMANTIC_V1',
+    }), {
+        version: 1, kind: 'COST_QUERY', eligible: true, authority: 'BUSINESS_SEMANTIC_V1',
+    });
+});
+
+test('promotion runner rejects the obsolete questionKind-only shape', () => {
+    assert.throws(() => parseSemanticEligibility({
+        questionKind: 'OUT_OF_SCOPE', eligible: false, authority: 'LEGACY', reason: 'NO_SUPPORTED_BUSINESS_SIGNAL',
+    }), { code: 'RUNNER_SEMANTIC_CONTRACT_MISMATCH' });
+});
+
+test('promotion runner strict validation requires the authoritative reason field', () => {
+    assert.throws(() => parseSemanticEligibility({
+        kind: 'OUT_OF_SCOPE', eligible: false, authority: 'LEGACY',
+    }, { requireReason: true }), { code: 'RUNNER_SEMANTIC_CONTRACT_MISMATCH' });
+    assert.equal(parseSemanticEligibility({
+        kind: 'OUT_OF_SCOPE', eligible: false, authority: 'LEGACY', reason: 'NO_SUPPORTED_BUSINESS_SIGNAL',
+    }, { requireReason: true }).reason, 'NO_SUPPORTED_BUSINESS_SIGNAL');
 });
