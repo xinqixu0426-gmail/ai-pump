@@ -9,6 +9,7 @@ const oracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
 const historicalOracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
 const { runAiAssistant, assistantReadTools } = require('../api/services/aiAssistantRuntime.cjs');
 const { currentFactsForBinding } = require('../api/ontology/bindingCurrentFacts.cjs');
+const { verifiedRows } = require('../api/ontology/relationBinder.cjs');
 const { prepareRouting } = router;
 const inputFor = c => ({ userText: c.userText, env: { AI_PROVIDER: 'local' }, shortlistEnabled: true, tools: assistantReadTools(),
     trustedToolResults: seedResults(c), subject: 'test-owner', conversationId: 'test',
@@ -139,6 +140,27 @@ test('P8L-FINAL the recipe-rooted direction offers only bounded reads, never the
     // change narrowed the offered surface instead of disabling a capability.
     assert.ok(assistantReadTools().some(tool => tool.function.name === 'get_all_recipes'));
 });
+test('P8L-FINAL a detail receipt owns its single record even when the evidence also contains the list call', () => {
+    // The `recipe -> coil` direction binds against verified recipe rows. The detail executor performs BOTH
+    // calls (the list to resolve the name, then the single resource), so a receipt whose evidence contains
+    // both must still own its record — keying ownership on the shape of the result discarded exactly those
+    // rows and left the direction with nothing to bind, which is the ONT-P8L-FINAL binding-recall gap.
+    const recipe = { id: 301, name: 'Shadow配方甲', coilId: 501 };
+    const withBoth = (calls) => ({ success: true, recipe,
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls } });
+    const bound = (calls) => verifiedRows([{ name: 'get_recipe_detail', result: withBoth(calls) }])
+        .some(row => row.entityType === 'recipe' && row.canonicalId === '301');
+
+    assert.equal(bound([{ method: 'GET', path: '/api/recipes' }, { method: 'GET', path: '/api/recipes/301' }]), true,
+        'list + detail evidence must own the detailed record');
+    assert.equal(bound([{ method: 'GET', path: '/api/recipes/301' }]), true, 'a plain detail read still owns its record');
+    assert.equal(bound([{ method: 'GET', path: '/api/recipes?keyword=X' }]), false,
+        'a collection read alone cannot own a single record read');
+    assert.equal(bound([{ method: 'GET', path: '/api/recipes/999' }]), false,
+        'a detail read of another record must never own this one');
+    assert.equal(bound([{ method: 'GET', path: '/api/recipes' }, { method: 'POST', path: '/api/recipes/301' }]), false,
+        'a non-GET call is not read provenance');
+});
 test('P6R/P7 provider/shortlist envelope, missing root, client context and expired owner context cannot route', async () => {
     const c = cases[0];
     // ONT-P7 promoted `deepseek` for this family; unvalidated providers stay outside.
@@ -190,7 +212,10 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
     const { execFileSync } = require('node:child_process');
     // ONT-P8R sanctions exactly one tool-catalog change: the bounded reverse read. It is verified below
     // as a pure single insertion so no other catalog edit, prompt edit or schema edit can hide in it.
-    for (const file of ['api/ontology/relationBinder.cjs', 'api/ontology/bindingMetadata.cjs', 'api/services/aiCapabilityGraphV3.cjs',
+    // ONT-P8L-FINAL sanctions exactly one binder change: per-record ownership (see the dedicated test
+    // below), so `relationBinder.cjs` is no longer byte-frozen against the P6 baseline and is instead
+    // covered by its own assertions plus the whole ontology suite.
+    for (const file of ['api/ontology/bindingMetadata.cjs', 'api/services/aiCapabilityGraphV3.cjs',
         'api/services/aiAssistantAnswer.cjs', 'api/services/aiEvidenceBundle.cjs', 'api/services/aiResponsePresenter.cjs',
         'package.json', 'package-lock.json']) {
         assert.equal(fs.readFileSync(path.resolve(file), 'utf8').replace(/\r\n/g, '\n'), execFileSync('git', ['show', `${oracle.sourceCommit}:${file}`], { encoding: 'utf8' }).replace(/\r\n/g, '\n'));

@@ -121,7 +121,8 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 140').correct, true);
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 120').correct, false);
     // The spellings real production answers actually used. Each of these is the same canonical identity
-    // and must not be scored wrong; the last two are genuinely different coils.
+    // and must not be scored wrong. `规格/片数：12 规格，140 片` is accepted through the explicit `12 规格`
+    // field, not through a bare co-occurrence of 12 and 140.
     const realSpellings = [
         '- 规格：12，片数 140',
         '- 规格：12，共 140 片',
@@ -136,6 +137,15 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     for (const other of ['- 规格：12，共 120 片', '- 规格/片数：12 规格，120 片', '规格：12，片数 120']) {
         assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, other).correct, false, other);
     }
+    // Supervisor ruling: `12片规格` is the COUNT "12 sheets", not "spec 12", so it must never be read as
+    // the spec field. Without this rule any text containing both numbers would be accepted as 12-140.
+    assert.equal(coilIdentityMentioned('- 线圈规格：12-140（12 片规格，140 片）', '12', 140), true,
+        'the explicit 12-140 shorthand is the identity here');
+    assert.equal(coilIdentityMentioned('- 线圈：12 片规格，140 片', '12', 140), false,
+        '12片规格 alone must not supply spec=12');
+    assert.equal(coilIdentityMentioned('共 12 片规格，140 片', '12', 140), false);
+    assert.equal(coilIdentityMentioned('规格 12，片数 140', '12', 140), true);
+    assert.equal(coilIdentityMentioned('12 规格，140 片', '12', 140), true);
 });
 
 function failingCase(overrides = {}) {

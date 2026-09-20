@@ -20,10 +20,17 @@ function verifiedRows(toolResults = []) {
             if (records.length > 512 || rows.length + records.length > 512) continue;
             for (const row of records) {
                 if (!row || row.deletedAt || row.deleted_at || !id(row.id)) continue;
-                const ownership = r.executionEvidence.calls.some(c => c.method === 'GET' && (Array.isArray(value)
-                    ? new RegExp(`^/api/${resource.path}(?:\\?|$)`).test(c.path)
-                    : new RegExp(`^/api/${resource.path}/${row.id}${resource.field === 'data.customer' ? '/context' : ''}(?:\\?|$)`).test(c.path)));
-                if (!ownership) continue;
+                // Ownership is per RECORD. A collection read (`/api/recipes?keyword=…`) owns its array, and a
+                // detail read (`/api/recipes/12`) owns exactly the record it names. The detail executor
+                // performs BOTH calls (list to resolve the name, then the single resource), so keying the
+                // check on the shape of the result discarded every detail receipt whose evidence also
+                // contained the list call — which silently removed the recipe rows that the
+                // `recipe -> coil` direction binds against (ONT-P8L-FINAL binding-recall gap).
+                const collectionOwns = Array.isArray(value) && r.executionEvidence.calls.some(c => c.method === 'GET'
+                    && new RegExp(`^/api/${resource.path}(?:\\?|$)`).test(c.path));
+                const recordOwns = r.executionEvidence.calls.some(c => c.method === 'GET'
+                    && new RegExp(`^/api/${resource.path}/${row.id}${resource.field === 'data.customer' ? '/context' : ''}(?:\\?|$)`).test(c.path));
+                if (!collectionOwns && !recordOwns) continue;
                 const partial = r.queryReceipt?.truncated === true || r.queryReceipt?.possiblyTruncated === true
                     || r.filters?.limit != null || r.count > records.length || records.some(record => !id(record?.id));
                 const names = partial ? [] : meta.names.map(field => row[field]).filter(v => typeof v === 'string' && v.trim()).map(v => v.trim());

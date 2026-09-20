@@ -357,23 +357,22 @@ function coilShapesIn(text) {
 
 /**
  * Coil identity may be expressed as the shorthand `12-140` or through the formal fields the coil
- * directory actually returns. Real answers write it in several equally valid ways:
- *   `规格：12，片数 140` / `规格：12，共 140 片` / `规格/片数：12 规格，120 片` / `12 片规格，140 片`
- * so the comparison reads the numbers in the NEIGHBOURHOOD of the spec/sheet keywords instead of
- * requiring one literal order. An answer that names the right coil must never be scored wrong because
- * of spelling, and winding data (`44-44`) is excluded by the coil-shape rule above.
+ * directory returns (`规格：12，片数 140` / `规格/片数：12 规格，140 片` / `12 规格，140 片`).
+ *
+ * The two numbers must be read as the FIELDS they are, not merely co-occur in the text: a number only
+ * counts as the stator spec when a spec keyword is directly attached to it (`规格：12`, `12 规格`), and
+ * only counts as the sheet count when a sheet keyword is. In particular `12片规格` is the COUNT "12
+ * sheets", never "spec 12", so it must not be read as a spec — otherwise any text containing both 12 and
+ * 140 would be accepted as the identity 12-140.
  */
-const SPEC_KEYWORD = /规格|定子规格|机型规格|spec/u;
-const SHEETS_KEYWORD = /片数|片|sheets/u;
+const SPEC_FIELD = /(?:规格|spec)\s*[:：]?\s*(\d{1,2})(?![0-9])|(?<![0-9])(\d{1,2})\s*(?:规格|spec)/gu;
+const SHEETS_FIELD = /(?:片数|片|sheets)\s*[:：]?\s*(\d{2,4})(?![0-9])|(?<![0-9])(\d{2,4})\s*(?:片数|片|sheets)/gu;
 
-function numbersNear(text, keyword, window = 8) {
+function fieldNumbers(text, pattern) {
     const found = new Set();
-    const value = String(text || '');
-    let match;
-    const pattern = new RegExp(keyword.source, 'gu');
-    while ((match = pattern.exec(value)) !== null) {
-        const windowText = value.slice(Math.max(0, match.index - window), match.index + match[0].length + window);
-        for (const number of windowText.match(/\d+/g) || []) found.add(Number(number));
+    for (const match of String(text || '').matchAll(pattern)) {
+        const value = Number(match[1] ?? match[2]);
+        if (Number.isSafeInteger(value)) found.add(value);
     }
     return found;
 }
@@ -382,10 +381,8 @@ function coilIdentityMentioned(text, spec, sheets) {
     if (spec == null || sheets == null) return false;
     const value = String(text || '');
     if (new RegExp(`(?<![0-9])${spec}-${sheets}(?![0-9])`).test(value)) return true;
-    // The formal fields must be co-located: the spec near a spec keyword AND the sheet count near a
-    // sheet keyword, in either order and with any punctuation between them.
-    return numbersNear(value, SPEC_KEYWORD).has(Number(spec))
-        && numbersNear(value, SHEETS_KEYWORD).has(Number(sheets));
+    return fieldNumbers(value, SPEC_FIELD).has(Number(spec))
+        && fieldNumbers(value, SHEETS_FIELD).has(Number(sheets));
 }
 
 function classifyAnswer(entry, truth, content) {
