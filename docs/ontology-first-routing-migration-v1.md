@@ -854,5 +854,30 @@ tool shortlist remains unchanged. The new tools are private-assistant-only and d
 
 Development status: deterministic HTTP, routing, fail-closed, pagination-budget and frozen P6/P7/P8
 compatibility tests pass. Production remains on the accepted P8L release with
-`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false`; this family is not production-authoritative until the
-full local/CI gates and a controlled real-model validation pass.
+`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false`. The controlled real-model result below closes the
+development gate; production authority still requires a separate merge/release decision.
+
+### 18.1 Real-local development acceptance
+
+Commit `7ac028a` was checked on the Mac Mini in the isolated `/Users/dan/pump-p8l-validation` instance,
+port `3012`, against its production-data copy and the actual `local` provider. The canary was enabled only
+for that isolated process. Two recipe-to-part and two part-to-recipe questions ran twice:
+
+| Metric | Result |
+| --- | --- |
+| Real local executions | **8/8 PASS** |
+| `recipe -> part` | **4/4**, each returned the exact 21 canonical saved parts |
+| `part -> recipe` | **4/4**, exact one-recipe and two-recipe sets |
+| Wrong root / wrong target | **0 / 0** |
+| Foreign/cloud provider | **0** |
+| Unauthorized writes | **0** |
+| `audit_log` / `api_operations` delta | **0 / 0** |
+
+The first exploratory run exposed a presentation-only defect: a correctly resolved `轴承-202` result was
+rewritten by the model as `轴承-2022`. Commit `7ac028a` closes that gap by making every verified
+`recipe_part` tool receipt use the deterministic presenter, including questions that name the concrete
+part without the literal words “零件/配件”. The final 8/8 run contains no model-rewritten part identity.
+
+This proves the branch's controlled real-local development gate. It is not a production promotion:
+the isolated process was stopped, production remained ready on `28a3741`, and production has no enabled
+`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` value.
