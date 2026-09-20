@@ -2,7 +2,7 @@
 
 const { deepFreeze } = require('./contract.cjs');
 const { classifyQuestion } = require('./questionSemantics.cjs');
-const { officialCoilRows, sameSpecSheetsRows } = require('../services/coilVariantAmbiguity.cjs');
+const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
 
 function positiveId(value) {
     const id = Number(value);
@@ -18,16 +18,16 @@ function addFact(map, factType, state, details = {}) {
 }
 function officialCoilEvidence(toolResults, semantics) {
     const items = toolResults.filter(item => verified(item) && item.name === 'search_coils');
-    const rows = officialCoilRows(items.flatMap(dataRows));
-    const matching = semantics.requestedIdentity.spec && semantics.requestedIdentity.sheets
-        ? sameSpecSheetsRows(rows, semantics.requestedIdentity.spec, semantics.requestedIdentity.sheets)
-        : rows;
+    const candidateScope = authoritativeCoilCandidateScope(items.flatMap(dataRows), semantics);
+    const matching = candidateScope.rows;
     const receipts = items.map(item => item.result?.queryReceipt).filter(Boolean);
-    const expectedCount = receipts.length ? Math.max(...receipts.map(receipt => Number(receipt.totalCount) || 0)) : matching.length;
-    const complete = items.length > 0 && receipts.length === items.length && receipts.every(receipt => receipt.authoritative === true
-        && receipt.truncated !== true && receipt.possiblyTruncated !== true
-        && Number(receipt.returnedCount) === Number(receipt.totalCount)) && matching.length === expectedCount;
-    return { rows: matching, expectedCount, complete };
+    const complete = items.length > 0 && receipts.length === items.length && items.every(item => {
+        const receipt = item.result?.queryReceipt;
+        return receipt?.authoritative === true && receipt.truncated !== true && receipt.possiblyTruncated !== true
+            && Number(receipt.returnedCount) === Number(receipt.totalCount)
+            && dataRows(item).length === Number(receipt.returnedCount);
+    });
+    return { rows: matching, expectedCount: matching.length, complete, scope: candidateScope.scope };
 }
 function recipeRows(toolResults) {
     const rows = [];
@@ -58,6 +58,7 @@ function crossCatalogCandidates(toolResults) {
     for (const item of toolResults.filter(verified)) {
         if (item.name === 'search_parts') for (const row of [...dataRows(item), ...(Array.isArray(item.result?.parts) ? item.result.parts : [])]) candidates.push({
             entityType: 'part', canonicalId: positiveId(row.id ?? row.Id), name: row.model || row.name || '',
+            unitCost: Object.prototype.hasOwnProperty.call(row, 'price') && Number.isFinite(Number(row.price)) ? Number(row.price) : null,
         });
         if (item.name === 'search_templates') for (const row of dataRows(item)) candidates.push({
             entityType: 'template', canonicalId: positiveId(row.id ?? row.Id), name: row.shellModel || row.name || '',
@@ -101,9 +102,17 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const uniqueRecipe = recipes.length === 1 ? recipes[0] : null;
     const partCandidate = candidates.length === 1 && candidates[0].entityType === 'part' ? candidates[0] : null;
     const fullCatalogNegative = catalogScopeVerified(toolResults) && recipes.length === 0 && candidates.length === 0;
-    if (stage !== 'PRE_EVIDENCE' && semantics.kind === 'COST_QUERY' && semantics.requestedType === 'recipe' && !uniqueRecipe) {
-        if (partCandidate) requiredFacts = ['CROSS_CATALOG_CANDIDATES', 'PART_CATALOG_IDENTITY'];
+    if (stage !== 'PRE_EVIDENCE' && semantics.kind === 'COST_QUERY' && semantics.requestedType !== 'coil' && !uniqueRecipe) {
+        if (partCandidate) requiredFacts = ['CROSS_CATALOG_CANDIDATES', 'PART_CATALOG_IDENTITY',
+            ...(semantics.requestedType === 'unknown' && partCandidate.unitCost != null ? ['PART_CATALOG_UNIT_COST'] : [])];
         else if (fullCatalogNegative) requiredFacts = ['CROSS_CATALOG_CANDIDATES'];
+    }
+    const baseCoilId = positiveId(uniqueRecipe?.coilId);
+    const selectedOverrideCoilId = coilEvidence.complete && coils.length === 1 ? positiveId(coils[0]?.id ?? coils[0]?.Id) : null;
+    const requiresFormalOverridePreview = semantics.configurationOverride && baseCoilId && selectedOverrideCoilId
+        && baseCoilId !== selectedOverrideCoilId;
+    if (requiresFormalOverridePreview && !requiredFacts.includes('RECIPE_CURRENT_FULL_COST')) {
+        requiredFacts = [...requiredFacts, 'RECIPE_CURRENT_FULL_COST'];
     }
     const facts = new Map(requiredFacts.map(factType => [factType, { factType, state: 'MISSING' }]));
     let canonicalType = null, canonicalId = null, resolutionStatus = 'UNRESOLVED';
@@ -159,7 +168,12 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     if (candidates.length || catalogScopeVerified(toolResults)) addFact(facts, 'CROSS_CATALOG_CANDIDATES', 'VERIFIED', {
         canonicalIds: unique(candidates.map(item => positiveId(item.canonicalId))), candidateCount: candidates.length,
     });
-    if (partCandidate) addFact(facts, 'PART_CATALOG_IDENTITY', 'VERIFIED', { canonicalIds: [positiveId(partCandidate.canonicalId)] });
+    if (partCandidate) {
+        addFact(facts, 'PART_CATALOG_IDENTITY', 'VERIFIED', { canonicalIds: [positiveId(partCandidate.canonicalId)] });
+        if (partCandidate.unitCost != null) addFact(facts, 'PART_CATALOG_UNIT_COST', 'VERIFIED', {
+            canonicalIds: [positiveId(partCandidate.canonicalId)], unitCost: partCandidate.unitCost,
+        });
+    }
 
     let ambiguityStatus = coilEvidence.expectedCount > 1 ? 'MULTIPLE_OFFICIAL_VARIANTS'
         : aliasAmbiguous || resolutionStatus === 'UNRESOLVED' ? 'UNRESOLVED_IDENTITY' : 'NONE';
@@ -210,12 +224,14 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
         : verifiedFacts.includes('RECIPE_CURRENT_FULL_COST') ? 'MACHINE_CURRENT_FULL_COST'
         : verifiedFacts.includes('COIL_SCHEME_COST') ? 'COIL_SCHEME_COST'
             : verifiedFacts.includes('PART_CATALOG_UNIT_COST') ? 'PART_CATALOG_UNIT_COST' : 'UNKNOWN_COST_BASIS';
-    const requestedBasis = semantics.requestedType === 'coil' ? 'COIL_SCHEME_COST'
+    const requestedBasis = partCandidate && semantics.kind === 'COST_QUERY' && semantics.requestedType === 'unknown' ? 'PART_CATALOG_UNIT_COST'
+        : semantics.requestedType === 'coil' ? 'COIL_SCHEME_COST'
         : semantics.kind.includes('COST') || semantics.kind === 'CONFIGURATION_OVERRIDE' ? 'MACHINE_CURRENT_FULL_COST' : 'UNKNOWN_COST_BASIS';
     return deepFreeze({
         version: 1, stage,
         question: { kind: semantics.kind, operation: semantics.operation },
-        subject: { requestedType: semantics.requestedType, canonicalType, canonicalId, resolutionStatus },
+        subject: { requestedType: semantics.requestedType, requestedToken: semantics.requestedIdentity.token,
+            canonicalType, canonicalId, resolutionStatus },
         ambiguity: { status: ambiguityStatus, dimensions: coilEvidence.expectedCount > 1 ? ['spec', 'sheets', 'material', 'slotType', 'canonicalCoilId'] : [], candidateCount: coilEvidence.expectedCount },
         cost: { requestedBasis, actualBasis, requestedPriceContext: semantics.requestedPriceContext,
             actualPriceContext: actualBasis === 'UNKNOWN_COST_BASIS' ? 'UNKNOWN' : 'CURRENT_FORMAL_PRICE',

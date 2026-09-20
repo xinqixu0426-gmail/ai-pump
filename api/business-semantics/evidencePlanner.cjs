@@ -6,7 +6,7 @@ const { FactCapabilityRegistry } = require('./factCapabilityRegistry.cjs');
 const { buildBusinessSemanticFrame } = require('./frameBuilder.cjs');
 const { classifyQuestion } = require('./questionSemantics.cjs');
 const { validateBusinessEvidencePlan } = require('./evidencePlanValidator.cjs');
-const { officialCoilRows, sameSpecSheetsRows } = require('../services/coilVariantAmbiguity.cjs');
+const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
 
 function verified(item) { return item?.result?.success !== false && item?.result?.executionEvidence?.verified === true; }
 function byName(toolResults, name) { return toolResults.filter(item => verified(item) && item.name === name); }
@@ -24,9 +24,7 @@ function recipeIdentityResolution(toolResults) {
     return byName(toolResults, 'get_all_recipes').map(item => item.result?.identityResolution).find(Boolean) || null;
 }
 function coilCandidates(toolResults, semantics) {
-    const rows = officialCoilRows(byName(toolResults, 'search_coils').flatMap(dataRows));
-    return semantics.requestedIdentity.spec && semantics.requestedIdentity.sheets
-        ? sameSpecSheetsRows(rows, semantics.requestedIdentity.spec, semantics.requestedIdentity.sheets) : rows;
+    return authoritativeCoilCandidateScope(byName(toolResults, 'search_coils').flatMap(dataRows), semantics).rows;
 }
 function requirementRows(frame, extraFacts = []) {
     const required = [...new Set([...frame.evidence.requiredFacts, ...extraFacts])];

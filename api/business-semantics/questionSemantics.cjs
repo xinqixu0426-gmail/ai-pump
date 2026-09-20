@@ -17,6 +17,15 @@ function extractAliasMention(text) {
         .trim();
 }
 
+function extractRequestedTarget(text) {
+    return extractAliasMention(String(text || '')
+        .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+        .replace(/\s+/gu, ' '))
+        .replace(/[，。！？,.!?：:；;]+$/gu, '')
+        .trim()
+        .slice(0, 80);
+}
+
 function classifyQuestion(userText) {
     const text = String(userText || '').trim();
     const coil = parseCoilShorthand(text);
@@ -25,6 +34,8 @@ function classifyQuestion(userText) {
     const hypothetical = /假如|假设|如果|按照|按(?:铜价|线重)/u.test(text);
     const cost = /成本|价格|多少钱|重新算|核算/u.test(text);
     const aliasConcern = /老|旧名|曾用名|历史名称/u.test(text);
+    const requestedVariantScope = /所有方案|全部方案|所有线圈|全部线圈/u.test(text)
+        ? 'ALL_ACTIVE' : /测试方案|测试线圈|\btesting\b/iu.test(text) ? 'TESTING' : 'OFFICIAL';
     let kind = 'OUT_OF_SCOPE', operation = 'NONE';
     if (inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
     else if (configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
@@ -37,7 +48,8 @@ function classifyQuestion(userText) {
         operation,
         requestedType,
         requestedIdentity: {
-            token: (aliasConcern ? extractAliasMention(text) : '') || text.match(/V\d+/iu)?.[0] || (coil ? `${coil.spec}-${coil.sheets}` : ''),
+            token: (aliasConcern ? extractAliasMention(text) : '') || text.match(/V\d+/iu)?.[0]
+                || (coil ? `${coil.spec}-${coil.sheets}` : '') || extractRequestedTarget(text),
             ...(coil || {}),
             aliasConcern,
         },
@@ -45,7 +57,8 @@ function classifyQuestion(userText) {
         hypotheticalCopperPrice: parseUserNumber(text, '铜价'),
         wireWeight: parseUserNumber(text, '线重'),
         configurationOverride,
+        requestedVariantScope,
     };
 }
 
-module.exports = { classifyQuestion, extractAliasMention, parseCoilShorthand, parseUserNumber };
+module.exports = { classifyQuestion, extractAliasMention, extractRequestedTarget, parseCoilShorthand, parseUserNumber };

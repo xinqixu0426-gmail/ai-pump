@@ -21,6 +21,7 @@ function validateBusinessSemanticFrame(frame) {
     known(frame.question?.kind, c.questionKinds, 'QUESTION_KIND');
     assert(typeof frame.question?.operation === 'string', 'QUESTION_OPERATION');
     known(frame.subject?.requestedType, c.subjectTypes, 'REQUESTED_TYPE');
+    assert(typeof frame.subject?.requestedToken === 'string' && frame.subject.requestedToken.length <= 80, 'REQUESTED_TOKEN');
     assert(frame.subject?.canonicalType === null || c.subjectTypes.includes(frame.subject.canonicalType), 'CANONICAL_TYPE');
     assert(frame.subject?.canonicalId === null || (Number.isSafeInteger(frame.subject.canonicalId) && frame.subject.canonicalId > 0), 'CANONICAL_ID');
     known(frame.subject?.resolutionStatus, c.resolutionStatuses, 'RESOLUTION_STATUS');
