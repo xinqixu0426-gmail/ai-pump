@@ -2,6 +2,17 @@
 
 > 更新于 2026-09-20。
 
+## 2026-09-20 ONT-P8L strict-local Gate A PASS（分支 `1d14156`，未发布生产）
+
+- Mac Mini 隔离实例 `/Users/dan/pump-p8l-validation`、端口 3012 运行 `1d14156`，数据库 schema 87；
+  provider 为真实 `local`，模型为 Ornith 35B，cloud fallback 0。
+- 正向 8/8、反向 4/4、verified-empty 4/4 COMPLETE；wrong root/direction 0、Legacy fallback 0、
+  aggregate read 0、额外 provider round 0、payload failure 0。
+- 两轮受保护线圈库存增量请求均只生成确认卡；unauthorized write 0，业务表无变化，audit/operation delta 0。
+- 报告：`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-local-final-pass-20260920.json`。
+- 本轮只放宽已登记只读关系的确定性身份解析/选路/有界读取；模糊身份、金额、写入权限未放宽。
+- **未发布生产**：生产保持 `78de920041896637a6a810a0355424cc12de4f78`，未重启、未改开关、未迁移。
+
 ## 2026-09-20 ONT-P8L-FINAL Gate B PASS 并已发布（`3914583`，迁移 87）
 
 - **发布结果**：`npm run deploy:macmini` 走完全部 9 步（`发布完成：commit 3914583861b9，用时 55 秒`）。生产

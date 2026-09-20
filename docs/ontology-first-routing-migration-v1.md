@@ -7,9 +7,12 @@
 | Deterministic Canary Gate | Frozen Legacy Oracle, 28-case corpus, OFF/ON equivalence, dependency trap, non-eligible fallback, evidence isolation | **PASS** |
 | DeepSeek Real-AI Canary Gate (ONT-P6D / P6D-R1) | Real DeepSeek provider, paired A/B over the frozen corpus | **PASS** |
 | DeepSeek Authoritative Routing Promotion (ONT-P7) | Production provider eligibility + real `POST /api/ai/chat` SSE OFF/ON gate + rollback | **PASS** |
-| Local Provider Gate (strict local) | `AI_PROVIDER=local`, real local model host | **DEFERRED — LOCAL PROVIDER NOT CURRENTLY REQUIRED** |
+| Local Provider Gate (strict local) | `AI_PROVIDER=local`, real local model host | **PASS — ONT-P8L forward closure** |
 
-**Local Provider Gate: DEFERRED.** Reason: the local model host (`192.168.31.111`) sits on another LAN — this workstation's wired NIC is disconnected and only a different subnet is reachable, so the strict-local gate cannot execute from here. It is **not** a blocker for Ontology V1 on the current DeepSeek path, and it was never reported as PASS. Re-enabling local/local-first later requires re-running the original strict-local gate.
+**Local Provider Gate: PASS.** The model host (`192.168.31.111:8080`) became reachable and the formal
+strict-local runner was executed on the Mac Mini isolated validation instance against the real production
+data shape. The accepted run is recorded in §17.6. Historical DEFERRED/BLOCKED evidence below remains
+unchanged as provenance; it no longer describes the current gate status.
 
 Gate provenance is committed per gate: [`ontology-p6r-real-local-gate.json`](./ontology-p6r-real-local-gate.json) (strict-local, BLOCKED evidence) and [`ontology-p6d-deepseek-gate.json`](./ontology-p6d-deepseek-gate.json) (DeepSeek). Full raw per-case evidence stays in the gitignored `logs/`; the committed manifests are sufficient to prove what was and was not run. `commit` records the branch HEAD at execution time; the authoritative record of exactly which code was probed is `artifactHashes`.
 
@@ -787,3 +790,46 @@ unauthorized writes 0, business DB unchanged with a zero `total_changes` delta.
 Supervisor ruling on this phase: **FREEZE**. Production stays frozen until the local acceptance above has
 been run and reported. Production is untouched (`master @ 24106a1b`), nothing is pushed, the canary flag is
 default OFF, no production `.env` was modified, and every change is confined to the phase branch.
+
+### 17.6 Strict-local closure and read-authority boundary
+
+The previously deferred Gate A was run on the Mac Mini isolated instance at
+`/Users/dan/pump-p8l-validation`, port `3012`, with the real local Ornith model and an isolated database.
+The first real run proved that reverse reads were already complete but forward `recipe -> coil` questions
+still depended on model tool selection (forward 1/8). The closure therefore grants the registered,
+read-only relation layer enough authority to do three things even while the routing canary flag is OFF:
+
+1. parse the existing registered relation intent (no second grammar);
+2. resolve an exact recipe name through the existing formal bounded identity reader;
+3. execute the relation profile's existing `get_recipe_detail` + `search_coils` reads before synthesis.
+
+This is a deliberate landing-oriented permission change for **read-only registered relations**. It does
+not authorize fuzzy identity, first-row selection, business arithmetic, schema changes or writes. An
+absent or ambiguous canonical recipe exposes no model-selectable relation reader. The deterministic answer
+is emitted only when the recipe detail's canonical `coilId` agrees with exactly one verified catalogue row.
+
+The gate's protected-write negative was also corrected to use the formal tool's supported delta semantics
+(`增加100套`). The previous phrase `改成100` was an absolute target that cannot be represented by the
+existing `changeQty` contract without a prior authoritative calculation; silently treating it as `+100`
+would have made the acceptance test approve a false operation. The supported delta request is routed
+deterministically to the existing Preview/confirmation path and never executes the write.
+
+Accepted evidence (branch commit `1d14156`, production untouched):
+
+| Metric | Result |
+| --- | --- |
+| Actual provider / model | `local` / `/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf` |
+| Forward `recipe -> coil` | **8/8** |
+| Reverse generated cases | **4/4** (two real occupied coils × two rounds) |
+| Verified empty relations | **4/4 COMPLETE** |
+| Wrong root / wrong direction | **0 / 0** |
+| Routed correct / Legacy fallback | **12/12 / 0** |
+| Aggregate reads / payload failures | **0 / 0** |
+| Cloud fallback / additional provider rounds | **0 / 0** |
+| Protected writes / unauthorized writes | **2/2 confirmation only / 0** |
+| Business tables / audit / operations | **unchanged / 0 / 0** |
+
+Raw report:
+`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-local-final-pass-20260920.json`.
+The validation instance ran commit `1d14156`; production remained ready on commit `78de920` and was not
+restarted, reconfigured or migrated. Gate A is now PASS, but this branch has not been promoted to production.
