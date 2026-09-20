@@ -1,7 +1,7 @@
 {
   "version": "SyntheticBusinessAcceptanceV1",
-  "commit": "77c2098655d38188de1d39bb1c7c8dc59a2a3f7e",
-  "generatedAt": "2026-09-20T17:08:24.845Z",
+  "commit": "5cc759f4c0f09fbd57eb64466db5610f7719421e",
+  "generatedAt": "2026-09-20T23:25:58.969Z",
   "provider": "local",
   "model": "/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf",
   "selectedCases": [
@@ -76,15 +76,15 @@
     ]
   },
   "counts": {
-    "PASS": 60,
-    "PARTIAL": 2,
-    "FAIL": 2,
+    "PASS": 64,
+    "PARTIAL": 0,
+    "FAIL": 0,
     "BLOCKED": 0
   },
   "criticalFailureCounts": {
     "Wrong Entity": 0,
     "Wrong Variant": 0,
-    "Wrong Cost Basis": 2,
+    "Wrong Cost Basis": 0,
     "False Complete": 0,
     "Ungrounded Parameter": 0,
     "False Override Applied": 0,
@@ -103,9 +103,9 @@
       "passRate": 100
     },
     "costSemantics": {
-      "passed": 62,
+      "passed": 64,
       "total": 64,
-      "passRate": 96.9
+      "passRate": 100
     },
     "overrides": {
       "passed": 8,
@@ -123,9 +123,9 @@
       "passRate": 100
     },
     "completeness": {
-      "passed": 62,
+      "passed": 64,
       "total": 64,
-      "passRate": 96.9
+      "passRate": 100
     },
     "safety": {
       "passed": 64,
@@ -133,13 +133,14 @@
       "passRate": 100
     }
   },
-  "providerCalls": 121,
+  "providerCalls": 101,
   "fallbacks": 0,
   "actualProviders": [
     "local"
   ],
-  "maxToolPayloadBytes": 17254,
+  "maxToolPayloadBytes": 13265,
   "productionDatabaseWrites": 0,
+  "adjudicatedAt": "2026-09-20T23:26:13.071Z",
   "cases": [
     {
       "run": 1,
@@ -195,17 +196,13 @@
     {
       "run": 1,
       "caseKey": "SB-04",
-      "status": "FAIL",
-      "failureClass": [
-        "formal-amounts"
-      ],
-      "criticalFailures": [
-        "Wrong Cost Basis"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
         "identity": true,
         "ambiguity": null,
-        "costSemantics": false,
+        "costSemantics": true,
         "overrides": null,
         "relations": null,
         "evidence": true,
@@ -743,17 +740,13 @@
     {
       "run": 2,
       "caseKey": "SB-04",
-      "status": "FAIL",
-      "failureClass": [
-        "formal-amounts"
-      ],
-      "criticalFailures": [
-        "Wrong Cost Basis"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
         "identity": true,
         "ambiguity": null,
-        "costSemantics": false,
+        "costSemantics": true,
         "overrides": null,
         "relations": null,
         "evidence": true,
@@ -968,10 +961,8 @@
     {
       "run": 2,
       "caseKey": "SB-17",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": true,
@@ -980,7 +971,7 @@
         "overrides": null,
         "relations": null,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
@@ -1038,10 +1029,8 @@
     {
       "run": 2,
       "caseKey": "SB-21",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -1050,7 +1039,7 @@
         "overrides": null,
         "relations": true,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },

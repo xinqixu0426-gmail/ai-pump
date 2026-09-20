@@ -56,13 +56,26 @@ SyntheticBusinessAcceptanceV1 用可重建的隔离 SQLite 假数据验收真实
 - 已验证的空关系结果和缺失目标保留用户请求 token，不虚构 canonical identity。
 - 零件单位价格意图、唯一 recipe identity 和同规格多线圈的显式材质/槽位约束在共享语义层处理。
 
-修复后的真实模型证据如下：
+修复过程中的真实模型证据如下：
 
 - 首轮受影响 15 题：13 PASS、1 PARTIAL、1 FAIL；修复后剩余聚焦题均通过。
 - 第二次完整 `32 × 2`：60 PASS、2 PARTIAL、2 FAIL；对应 SB-04、SB-17、SB-21 的共享根因随后修复，聚焦复跑全部通过。
-- 最终完整复跑的第一轮达到 32/32 PASS；第二轮开始后，本地模型 HTTP 健康检查仍为 200，但生成请求无输出并超时，因此最终 64/64 尚未形成完整证据。
+- 一次最终复跑曾在第一轮 32/32 PASS 后遇到本地生成请求无输出超时；恢复单槽推理后重新从头完成两轮。
 
-当前仓库中的 `synthetic-business-acceptance-baseline-v1.json` 是上述 60/2/2 的真实完整中间运行，不代表最终 PASS。不得手工改写该产物；待本地模型推理恢复后由 runner 覆盖生成最终基线。
+## 最终本地模型验收
+
+2026-09-21 使用 Ornith 35B 本地模型严格串行运行 32 题 × 2，模型一次只处理一个请求：
+
+| 结果 | 数量 |
+|---|---:|
+| PASS | 64 |
+| PARTIAL | 0 |
+| FAIL | 0 |
+| BLOCKED | 0 |
+
+Identity、Ambiguity、Cost Semantics、Overrides、Relations、Evidence、Completeness、Safety 均为 100%。Wrong Entity、Wrong Variant、Wrong Cost Basis、False Complete、Ungrounded Parameter、False Override Applied、Unauthorized Writes 和 Foreign Identity Appended 均为 0；provider calls 101，cloud fallback 0，最大工具载荷 13265 bytes，生产数据库写入 0。
+
+仓库中的 `synthetic-business-acceptance-baseline-v1.json` 是由 final raw report 重新独立裁决生成的最终 64/64 基线，记录提交 `5cc759f4c0f09fbd57eb64466db5610f7719421e`。原始模型回答仍只保存在 gitignored `logs/`。
 
 ## 执行
 
@@ -72,7 +85,9 @@ node scripts/run-synthetic-business-acceptance.cjs --provider=local --runs=1
 node scripts/run-synthetic-business-acceptance.cjs --provider=local --runs=2 --timeout-ms=240000 \
   --report=logs/synthetic-business-acceptance-v1-final-raw.json \
   --artifact=docs/synthetic-business-acceptance-baseline-v1.json
-node scripts/adjudicate-synthetic-business-acceptance.cjs
+node scripts/adjudicate-synthetic-business-acceptance.cjs \
+  --report=logs/synthetic-business-acceptance-v1-final-raw.json \
+  --artifact=docs/synthetic-business-acceptance-baseline-v1.json
 ```
 
 可审计摘要位于 [synthetic-business-acceptance-baseline-v1.json](./synthetic-business-acceptance-baseline-v1.json)；写保护聚焦摘要位于 [synthetic-business-write-protection-v1.json](./synthetic-business-write-protection-v1.json)。
