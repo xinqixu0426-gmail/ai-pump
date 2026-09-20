@@ -55,9 +55,9 @@ function receiptRows(receipts, source) {
     return (receipts || []).filter(r => r?.version === 3 && r.kind === 'entity_resolution'
         && r.status === 'exact' && r.selected?.matchKind === 'exact' && id(r.selected.id)
         && r.sourceEvidence?.some(e => e.executionEvidence?.verified && e.executionEvidence.kind === 'formal_api_query'
-            && e.executionEvidence.calls?.some(c => c.method === 'GET')))
+            && e.executionEvidence.calls?.some(c => ['GET', 'POST'].includes(c.method))))
         .filter(r => entityMetadata[r.entityType]?.resources.some(resource => resource.tool === r.sourceCapability
-            && r.sourceEvidence.some(e => e.executionEvidence?.calls?.some(c => c.method === 'GET'
+            && r.sourceEvidence.some(e => e.executionEvidence?.calls?.some(c => c.method === (resource.method || 'GET')
                 && new RegExp(`^/api/${resource.path}(?:/|\\?|$)`).test(c.path))))
             && (!r.selected.stableIdentity || (r.selected.stableIdentity.entityType === r.entityType
                 && id(r.selected.stableIdentity.primaryStableId) === id(r.selected.id))))

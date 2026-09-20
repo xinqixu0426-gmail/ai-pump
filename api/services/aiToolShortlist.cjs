@@ -118,7 +118,11 @@ function toolScore(tool, domains, userText) {
 // they must never enter the locally scored auto-shortlist: scoring is score-then-index ordered, so
 // merely adding a new recipe-domain read tool silently displaces an existing entry under the
 // `maxTools` cap and changes legacy local behaviour.
-const EXPLICIT_ONLY_TOOL_NAMES = Object.freeze(new Set(['get_recipes_by_coil']));
+const EXPLICIT_ONLY_TOOL_NAMES = Object.freeze(new Set([
+    'get_recipes_by_coil',
+    'get_recipe_parts',
+    'get_recipes_by_part',
+]));
 
 function readTools() {
     // NOTE (ONT-P8L): the explicit-only filter is deliberately NOT applied here. It belongs to the

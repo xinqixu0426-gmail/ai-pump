@@ -25,6 +25,39 @@ const {
     MAX_RELATION_RESULT_BYTES,
     validateResult: validateRelationResult,
 } = require('../../../services/relationReadContract.cjs');
+const { validateResolveResult } = require('../../../ontology/resolverContract.cjs');
+
+async function readOntologyRelation(internalFetch, relationId, root, errorMessage) {
+    const items = [];
+    let afterId;
+    let pagesFetched = 0;
+    let totalCount = 0;
+    let asOf = null;
+    for (;;) {
+        const input = { ontologyVersion: 1, relationId, root, pageSize: MAX_PAGE_SIZE,
+            ...(afterId === undefined ? {} : { afterId }) };
+        const page = await postJson(internalFetch, '/api/relations/resolve', input, errorMessage);
+        const verified = validateResolveResult(input, page);
+        pagesFetched += 1;
+        items.push(...verified.items);
+        totalCount = verified.totalCount;
+        asOf = verified.asOf;
+        if (!verified.hasMore) break;
+        if (pagesFetched >= 8 || Buffer.byteLength(JSON.stringify(items), 'utf8') >= MAX_RELATION_RESULT_BYTES) {
+            const error = new Error('Ontology 关联结果超过单次有界读取预算');
+            error.code = 'RELATION_PAYLOAD_BOUND';
+            throw error;
+        }
+        const next = verified.pageBoundary?.nextAfterId;
+        if (!/^[1-9][0-9]*$/.test(String(next || '')) || (afterId !== undefined && Number(next) >= Number(afterId))) {
+            const error = new Error('Ontology 关联分页没有继续前进');
+            error.code = 'RELATION_CURSOR_INVALID';
+            throw error;
+        }
+        afterId = next;
+    }
+    return { items, totalCount, pagesFetched, asOf };
+}
 
 function parseJsonArray(value) {
     if (Array.isArray(value)) return value;
@@ -364,6 +397,50 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
                 queryId: null,
                 asOf,
                 data,
+            };
+        }
+
+        case 'get_recipe_parts': {
+            if (!Number.isSafeInteger(args.recipeId) || args.recipeId < 1) {
+                return { success: false, code: 'RELATION_REQUEST_INVALID', error: '缺少有效的正式配方ID（recipeId）' };
+            }
+            const root = { entityType: 'recipe', canonicalId: String(args.recipeId) };
+            const resolved = await readOntologyRelation(
+                internalFetch, 'recipe.contains_part', root, '配方零件关联读取失败'
+            );
+            return {
+                success: true,
+                relation: 'recipe.contains_part',
+                semantics: 'SAVED_RECIPE_PARTS_CANONICAL_ONLY',
+                root,
+                count: resolved.items.length,
+                totalCount: resolved.totalCount,
+                complete: true,
+                pagesFetched: resolved.pagesFetched,
+                asOf: resolved.asOf,
+                data: resolved.items.map(item => ({ partId: Number(item.canonicalId), partName: item.display.name })),
+            };
+        }
+
+        case 'get_recipes_by_part': {
+            if (!Number.isSafeInteger(args.partId) || args.partId < 1) {
+                return { success: false, code: 'RELATION_REQUEST_INVALID', error: '缺少有效的正式零件ID（partId）' };
+            }
+            const root = { entityType: 'part', canonicalId: String(args.partId) };
+            const resolved = await readOntologyRelation(
+                internalFetch, 'part.contained_in_recipe', root, '零件反查配方关联读取失败'
+            );
+            return {
+                success: true,
+                relation: 'part.contained_in_recipe',
+                semantics: 'SAVED_RECIPE_PARTS_CANONICAL_ONLY',
+                root,
+                count: resolved.items.length,
+                totalCount: resolved.totalCount,
+                complete: true,
+                pagesFetched: resolved.pagesFetched,
+                asOf: resolved.asOf,
+                data: resolved.items.map(item => ({ recipeId: Number(item.canonicalId), recipeName: item.display.name })),
             };
         }
 

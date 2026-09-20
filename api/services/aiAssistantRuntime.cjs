@@ -24,11 +24,12 @@ const { normalizeAiPageContext, buildAiPageContextNote } = require('./aiPageCont
 const { isEnvFlagEnabled } = require('./environment.cjs');
 const { beginAssistantSession } = require('./aiAssistantSession.cjs');
 const crypto = require('node:crypto');
-const { createInternalFetch, getJson, postJson } = require('../routes/ai/internalApiClient.cjs');
+const { createInternalFetch, getJson, postJson, lookupEntities } = require('../routes/ai/internalApiClient.cjs');
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
 const { verifiedRecipeCoilRelationReply } = require('./recipeCoilRelationAnswer.cjs');
+const { verifiedRecipePartRelationReply } = require('./recipePartRelationAnswer.cjs');
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
@@ -270,7 +271,24 @@ function aggregateGenerationTimings(items = []) {
  * name) are ordinary resolution outcomes, not failures; a genuine transport/contract failure is
  * reported as `failed` and the caller keeps the previous behaviour unchanged.
  */
-async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, mention }) {
+async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, entityType, mention }) {
+    if (entityType === 'part') {
+        const path = '/api/entity-lookup';
+        try {
+            const result = await lookupEntities(internalFetch, {
+                version: 1, mention, entityTypes: ['part'], matchPolicy: 'EXACT',
+            });
+            if (result?.complete !== true) return { status: 'failed', code: 'IDENTITY_READ_INCOMPLETE', capability, path };
+            const candidates = (Array.isArray(result.candidates) ? result.candidates : [])
+                .filter(candidate => candidate?.entityType === 'part' && candidate?.matchKind === 'EXACT');
+            if (candidates.length === 0) return { status: 'not_found', calls: [{ method: 'POST', path }] };
+            if (candidates.length !== 1) return { status: 'ambiguous', calls: [{ method: 'POST', path }] };
+            return { status: 'found', identity: { partId: Number(candidates[0].canonicalId), partName: mention },
+                calls: [{ method: 'POST', path }], path };
+        } catch (error) {
+            return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
+        }
+    }
     const path = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
     try {
         const identity = await getJsonFn(internalFetch, path, '配方身份解析读取失败');
@@ -895,8 +913,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const formalForwardReply = verifiedRecipeCoilRelationReply(latest.content, toolResults, {
             enabled: legacyForwardRelationIntent,
         });
+        const formalRecipePartReply = verifiedRecipePartRelationReply(latest.content, toolResults, {
+            enabled: relationRouting?.profile?.sourceId === 'recipe_part',
+        });
         if (formalForwardReply) finalContent = formalForwardReply;
-        if (!formalForwardReply) finalContent = appendMissingCoilIdentities(finalContent, latest.content, toolResults);
+        if (formalRecipePartReply) finalContent = formalRecipePartReply;
+        if (!formalForwardReply && !formalRecipePartReply) finalContent = appendMissingCoilIdentities(finalContent, latest.content, toolResults);
         finalContent = appendMissingTechnicalFileConclusion(finalContent, latest.content, toolResults);
         if (isLocalAssistantMode(runtimeEnv) && !finalContentStreamed) {
             finalContent = stabilizeLocalAnswer(finalContent, latest.content);

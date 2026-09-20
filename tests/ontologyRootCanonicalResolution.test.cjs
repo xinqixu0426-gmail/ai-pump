@@ -21,10 +21,15 @@ const found = (identity, calls = [{ method: 'GET', path: `${identityReadPath}?na
 const intent = (mention = MENTION) => ({ relationId: 'recipe.uses_coil', fromType: 'recipe', mention, typed: false, pronoun: false, eligible: true });
 
 test('ONT-P8L-FINAL root resolution: a resolvable direction is declared per entity type, not per question', () => {
-    assert.deepEqual(RESOLVABLE_RELATIONS, ['recipe.uses_coil']);
+    assert.deepEqual(RESOLVABLE_RELATIONS, [
+        'recipe.uses_coil',
+        'recipe.contains_part',
+        'part.contained_in_recipe',
+    ]);
     assert.equal(isResolvableRelation('recipe.uses_coil'), true);
     assert.equal(isResolvableRelation('coil.used_by_recipe'), false);
     assert.equal(IDENTITY_READS.recipe.capability, 'resolve_recipe_identity');
+    assert.equal(IDENTITY_READS.part.capability, 'resolve_part_identity');
     // The pre-binding read is declared by the live profile for the recipe-rooted direction only.
     const profile = profiles.find(entry => entry.sourceId === 'recipe_coil');
     const declared = profile.requiredReadsByRelation['recipe.uses_coil']

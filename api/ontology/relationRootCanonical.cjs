@@ -35,6 +35,12 @@ const IDENTITY_READS = Object.freeze({
         // The path prefix that must appear in that read's execution evidence.
         evidencePath: '/api/recipes/identity',
     }),
+    part: Object.freeze({
+        capability: 'resolve_part_identity',
+        path: () => '/api/entity-lookup',
+        evidencePath: '/api/entity-lookup',
+        method: 'POST',
+    }),
 });
 
 /**
@@ -43,10 +49,23 @@ const IDENTITY_READS = Object.freeze({
  * pre-resolved identity IS the relation root. `recipe.uses_template` is deliberately absent — its root
  * is a recipe while the read that would resolve a template name is a different entity's catalogue.
  */
-const RESOLVABLE_RELATIONS = Object.freeze(['recipe.uses_coil']);
+const RESOLVABLE_RELATIONS = Object.freeze([
+    'recipe.uses_coil',
+    'recipe.contains_part',
+    'part.contained_in_recipe',
+]);
 
 function isResolvableRelation(relationId) {
     return RESOLVABLE_RELATIONS.includes(relationId);
+}
+
+function entityAliases(entityType) {
+    return entityMetadata[entityType]?.aliases || [];
+}
+
+function otherEntityAliases(entityType) {
+    return Object.entries(entityMetadata).filter(([type]) => type !== entityType)
+        .flatMap(([, metadata]) => metadata.aliases || []);
 }
 
 /**
@@ -59,6 +78,15 @@ function mentionIsPlainName(mention) {
     if (!text || text.length > 120) return false;
     if (/[和与、;；]/u.test(text)) return false;
     return !Object.values(entityMetadata).some(meta => meta.aliases.some(alias => text.includes(alias)));
+}
+
+function mentionIsRecipePartName(intent) {
+    const text = String(intent?.mention || '').trim();
+    if (!['recipe.contains_part', 'part.contained_in_recipe'].includes(intent?.relationId)) return false;
+    if (!text || text.length > 120 || /[和与、;；]/u.test(text)) return false;
+    return !entityMetadata[intent.entityType || intent.fromType]?.aliases.some(alias => new RegExp(
+        `^(?:这个)?${alias}(?:$|\\s+|ID|id|编号|#|[1-9][0-9]*$)`, 'u'
+    ).test(text));
 }
 
 /** The formal name and the mention are the same identity only when normalisation makes them equal. */
@@ -86,7 +114,8 @@ async function resolveRelationRoot(intent, dependencies = {}) {
     const unresolved = reason => Object.freeze({ relationId, entityType, mention, resolved: false, reason });
     if (!relation || !read) return unresolved('RELATION_NOT_RESOLVABLE');
     if (!intent?.eligible) return unresolved('NOT_ELIGIBLE');
-    if (!mentionIsPlainName(mention)) return unresolved('NOT_A_PLAIN_NAME');
+    if (intent?.pronoun) return unresolved('NOT_A_PLAIN_NAME');
+    if (!mentionIsPlainName(mention) && !mentionIsRecipePartName(intent)) return unresolved('NOT_A_PLAIN_NAME');
     const resolve = dependencies.resolveIdentity;
     if (typeof resolve !== 'function') return unresolved('RESOLVER_UNAVAILABLE');
     let resolution;
@@ -97,22 +126,24 @@ async function resolveRelationRoot(intent, dependencies = {}) {
         // turn exactly as it was, so it is reported as unresolved and never propagated.
         return unresolved('RESOLVER_FAILED');
     }
+    const method = read.method || 'GET';
     const calls = (Array.isArray(resolution?.calls) ? resolution.calls : [])
-        .filter(call => call && String(call.method).toUpperCase() === 'GET' && typeof call.path === 'string');
+        .filter(call => call && String(call.method).toUpperCase() === method && typeof call.path === 'string');
     if (!resolution || resolution.status !== 'found' || !resolution.identity) {
         const reason = resolution?.status === 'ambiguous' ? 'AMBIGUOUS_NAME'
             : resolution?.status === 'not_found' ? 'NAME_NOT_FOUND' : 'RESOLVER_FAILED';
         return unresolved(reason);
     }
-    const recipeId = Number(resolution.identity.recipeId ?? resolution.identity.canonicalId);
-    const formalName = String(resolution.identity.recipeName ?? resolution.identity.name ?? '').trim();
-    if (!Number.isSafeInteger(recipeId) || recipeId <= 0 || !formalName) return unresolved('IDENTITY_INVALID');
+    const entityId = Number(resolution.identity.recipeId ?? resolution.identity.partId ?? resolution.identity.canonicalId);
+    const formalName = String(resolution.identity.recipeName ?? resolution.identity.partName
+        ?? resolution.identity.name ?? '').trim();
+    if (!Number.isSafeInteger(entityId) || entityId <= 0 || !formalName) return unresolved('IDENTITY_INVALID');
     // Strictness: a unique result is not enough — the formal name must BE the mention.
     if (!exactFormalName(formalName, mention)) return unresolved('NAME_NOT_EXACT');
     if (!calls.some(call => call.path.startsWith(read.evidencePath))) {
         return unresolved('READ_PROVENANCE_MISSING');
     }
-    const canonicalId = String(recipeId);
+    const canonicalId = String(entityId);
     return Object.freeze({
         relationId, entityType, mention, resolved: true, reason: null,
         canonicalId,
@@ -123,7 +154,7 @@ async function resolveRelationRoot(intent, dependencies = {}) {
         receipt: Object.freeze({
             version: 3, kind: 'entity_resolution', entityType, status: 'exact',
             originalMention: mention,
-            selected: Object.freeze({ id: recipeId, name: formalName, matchKind: 'exact' }),
+            selected: Object.freeze({ id: entityId, name: formalName, matchKind: 'exact' }),
             sourceCapability: read.capability,
             sourceEvidence: Object.freeze([Object.freeze({ executionEvidence: Object.freeze({
                 verified: true, kind: 'formal_api_query', calls,
@@ -138,5 +169,8 @@ module.exports = Object.freeze({
     exactFormalName,
     isResolvableRelation,
     mentionIsPlainName,
+    mentionIsRecipePartName,
+    entityAliases,
+    otherEntityAliases,
     resolveRelationRoot,
 });

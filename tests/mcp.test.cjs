@@ -106,6 +106,7 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
             capability
             && capability.access === 'read'
             && capability.requiresConfirmation === false
+            && capability.mcpExposure === 'eligible'
             && ['query', 'preview'].includes(capability.operation)
         ))
         .map(capability => capability.toolName);
@@ -117,6 +118,7 @@ test('通用 MCP：固定白名单只包含已登记的只读 Query/Preview，�
         new Set(eligibleReadTools),
         'MCP 只读目录必须覆盖全部已登记的安全 Query/Preview'
     );
+    assert.ok(!listed.some(tool => ['get_recipe_parts', 'get_recipes_by_part'].includes(tool.name)));
     for (const tool of listed) {
         const capability = getAiCapability(tool.name);
         assert.equal(capability.access, 'read', tool.name);

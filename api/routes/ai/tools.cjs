@@ -216,6 +216,34 @@ const AI_TOOLS = [
     {
         type: 'function',
         function: {
+            name: 'get_recipe_parts',
+            description: '按一个已确认的正式配方ID读取该配方保存的规范零件关系。只读取 partsJson 中带正式 partId 的零件，不包含线圈、额外配置、包装、模板默认件或动态展开 BOM；缺失或冲突的历史引用会失败关闭，不能猜补。分页由系统确定性完成。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    recipeId: { type: 'integer', minimum: 1, description: '正式配方ID' }
+                },
+                required: ['recipeId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'get_recipes_by_part',
+            description: '按一个已确认的正式零件ID反查哪些配方在保存的 partsJson 中规范引用它。只接受正式 partId 关系，不用同名、供应商、模糊或首条结果补造关系；分页由系统确定性完成。',
+            parameters: {
+                type: 'object',
+                properties: {
+                    partId: { type: 'integer', minimum: 1, description: '正式零件ID' }
+                },
+                required: ['partId']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
             name: 'get_recipe_detail',
             description: '读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。',
             parameters: {

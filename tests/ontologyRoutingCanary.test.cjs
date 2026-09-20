@@ -234,11 +234,12 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
     const resourceNames = text => [...text.matchAll(/tool:\s*'([a-z0-9_]+)'/gu)].map(match => match[1]);
     const resourcesBefore = resourceNames(metadataBefore);
     const resourcesNow = resourceNames(metadataNow);
-    assert.deepEqual(resourcesNow.filter(name => !resourcesBefore.includes(name)), ['resolve_recipe_identity'],
-        'the only provenance source that may be added is the bounded identity read');
+    const addedIdentityReads = ['resolve_recipe_identity', 'resolve_part_identity'];
+    assert.deepEqual(resourcesNow.filter(name => !resourcesBefore.includes(name)), addedIdentityReads,
+        'only reviewed bounded identity reads may be added');
     assert.deepEqual(resourcesBefore.filter(name => !resourcesNow.includes(name)), [],
         'no existing provenance source may be removed');
-    assert.deepEqual(resourcesNow.filter(name => name !== 'resolve_recipe_identity'), resourcesBefore,
+    assert.deepEqual(resourcesNow.filter(name => !addedIdentityReads.includes(name)), resourcesBefore,
         'the existing provenance sources and their order must be unchanged');
     for (const file of ['api/services/aiCapabilityGraphV3.cjs',
         'api/services/aiAssistantAnswer.cjs', 'api/services/aiEvidenceBundle.cjs', 'api/services/aiResponsePresenter.cjs',
@@ -254,9 +255,11 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
     const namesBefore = namesOf(normalize(execFileSync('git', ['show', `${oracle.sourceCommit}:api/routes/ai/tools.cjs`], { encoding: 'utf8' })));
     const namesNow = namesOf(normalize(fs.readFileSync(path.resolve('api/routes/ai/tools.cjs'), 'utf8')));
     const ADDED_TOOL = 'get_recipes_by_coil';
-    assert.deepEqual(namesNow.filter(name => !namesBefore.includes(name)), [ADDED_TOOL], `the only added tool may be ${ADDED_TOOL}`);
+    const ADDED_TOOLS = [ADDED_TOOL, 'get_recipe_parts', 'get_recipes_by_part'];
+    assert.deepEqual(namesNow.filter(name => !namesBefore.includes(name)), ADDED_TOOLS,
+        'only reviewed bounded relation tools may be added');
     assert.deepEqual(namesBefore.filter(name => !namesNow.includes(name)), [], 'no existing tool may be removed');
-    assert.deepEqual(namesNow.filter(name => name !== ADDED_TOOL), namesBefore, 'the existing tool order must be unchanged');
+    assert.deepEqual(namesNow.filter(name => !ADDED_TOOLS.includes(name)), namesBefore, 'the existing tool order must be unchanged');
     const bounded = require('../api/routes/ai/tools.cjs').AI_TOOLS.find(tool => tool.function.name === ADDED_TOOL);
     assert.deepEqual(Object.keys(bounded.function.parameters.properties), ['coilId'],
         'the bounded reverse read must expose no pagination control to the model');

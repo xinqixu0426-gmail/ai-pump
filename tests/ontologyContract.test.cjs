@@ -169,7 +169,7 @@ for (const [name, mutate] of invalid) {
     });
 }
 
-test('ONT-P1/P3/P6R: only authorized observer and private flagged canary import ontology; no tool/public exposure', () => {
+test('ONT-P1/P3/P6R: ontology imports stay on the exact authenticated private-assistant allowlist', () => {
     function scan(directory) {
         for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
             const file = path.join(directory, entry.name);
@@ -177,7 +177,13 @@ test('ONT-P1/P3/P6R: only authorized observer and private flagged canary import 
                 if (file !== path.join(root, 'api', 'ontology')) scan(file);
             } else if (entry.name.endsWith('.cjs')) {
                 const text = fs.readFileSync(file, 'utf8');
-                if (file === path.join(root, 'api', 'services', 'aiAssistantRuntime.cjs')) {
+                if (file === path.join(root, 'api', 'routes', 'relationRead.cjs')) {
+                    const imports = [...text.matchAll(/require\s*\(\s*['"]([^'"]*ontology\/[^'"]+)['"]\)/g)].map(m => m[1]);
+                    assert.deepEqual(imports, ['../ontology/resolver.cjs']);
+                } else if (file === path.join(root, 'api', 'routes', 'ai', 'executors', 'queryExecutors.cjs')) {
+                    const imports = [...text.matchAll(/require\s*\(\s*['"]([^'"]*ontology\/[^'"]+)['"]\)/g)].map(m => m[1]);
+                    assert.deepEqual(imports, ['../../../ontology/resolverContract.cjs']);
+                } else if (file === path.join(root, 'api', 'services', 'aiAssistantRuntime.cjs')) {
                     assert.match(text, /require\('\.\.\/ontology\/runtimeShadow\.cjs'\)\.observeShadow/);
                     assert.doesNotMatch(text, /ontology\/(?:resolver|contract)\.cjs/);
                     assert.match(text, /AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED/);

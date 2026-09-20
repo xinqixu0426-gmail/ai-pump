@@ -11,6 +11,27 @@ const projections = Object.freeze({
     order_recipe: { from: 'order', field: 'itemsJson', decoded: 'items', targetId: 'recipeId' },
     recipe_part: { from: 'recipe', field: 'partsJson', decoded: 'parts', targetId: 'partId', excludeNonPart: true },
 });
+const ontologyRelationTools = Object.freeze({
+    'recipe.contains_part': { name: 'get_recipe_parts', id: 'partId' },
+    'part.contained_in_recipe': { name: 'get_recipes_by_part', id: 'recipeId' },
+});
+
+function canonicalOntologyRelationRead(entry, binding) {
+    const contract = ontologyRelationTools[binding?.relationId];
+    const result = entry?.result;
+    if (!contract || entry?.name !== contract.name || result?.success === false
+        || result?.relation !== binding.relationId || result?.complete !== true
+        || result?.root?.entityType !== binding.root?.entityType
+        || result?.root?.canonicalId !== binding.root?.canonicalId
+        || !Array.isArray(result?.data) || result?.count !== result.data.length
+        || result?.totalCount !== result.data.length
+        || result?.executionEvidence?.verified !== true
+        || result.executionEvidence.kind !== 'formal_api_query'
+        || !result.executionEvidence.calls?.some(call => call.method === 'POST'
+            && call.path === '/api/relations/resolve')) return null;
+    const ids = result.data.map(item => item?.[contract.id]);
+    return ids.every(value => Number.isSafeInteger(value) && value > 0) ? ids.map(String) : null;
+}
 function targets(row, projection) {
     const value = row[projection.field];
     if (!projection.targetId) return value === null ? [] : [Number.isSafeInteger(value) && value > 0 ? String(value) : null];
@@ -63,6 +84,15 @@ function currentFactsForBinding(binding, toolResults = []) {
     const rows = verifiedRows(toolResults), capabilities = [...new Set(rows.map(r => r.capability))];
     const context = { relationId: relation.relationId, root: binding.root, sourceCapabilities: capabilities,
         canonicalTargetIds: [], canonical: true, complete: false };
+    const ontologyReads = toolResults.map(entry => canonicalOntologyRelationRead(entry, binding))
+        .filter(Boolean);
+    if (ontologyReads.length) {
+        const snapshots = ontologyReads.map(ids => [...new Set(ids)].sort().join(','));
+        if (new Set(snapshots).size !== 1) return context;
+        context.canonicalTargetIds = [...new Set(ontologyReads[0])];
+        context.complete = true;
+        return context;
+    }
     if (relation.fromType === projection.from) {
         const roots = rows.filter(r => r.entityType === binding.root.entityType && r.canonicalId === binding.root.canonicalId);
         const facts = [];

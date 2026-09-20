@@ -125,10 +125,7 @@ function createRelationReadService({db,canonicalOnly=false}){
     // Candidate SQL filters exact saved references before bounded authority validation.
     // A scan overflow is unavailable, never a silently incomplete relation count.
     const canonicalCandidates=canonicalOnly?db.prepare('SELECT id,name,parts_json AS partsJson FROM recipes WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ?').all(C.SCAN_LIMIT+1):null;
-    if(canonicalCandidates){
-     if(canonicalCandidates.length>C.SCAN_LIMIT)C.fail('RELATION_SCAN_BOUND');
-     for(const recipe of canonicalCandidates)for(const line of parsed(recipe.partsJson))canonicalPartId(line);
-    }
+    if(canonicalCandidates&&canonicalCandidates.length>C.SCAN_LIMIT)C.fail('RELATION_SCAN_BOUND');
     const candidates=canonicalCandidates||db.prepare(`SELECT id,name,parts_json AS partsJson FROM recipes r WHERE deleted_at IS NULL AND EXISTS
      (SELECT 1 FROM json_each(CASE WHEN json_valid(r.parts_json) THEN r.parts_json ELSE '[]' END) j
       WHERE json_extract(j.value,'$.model')=:model OR json_extract(j.value,'$.partId')=:rootId)
@@ -140,7 +137,18 @@ function createRelationReadService({db,canonicalOnly=false}){
     for(const recipe of candidates){
      let found=false;
      for(const line of parsed(recipe.partsJson)){
-      if(canonicalOnly&&canonicalPartId(line)!==root.id)continue;
+      if(canonicalOnly){
+       if(line.name==='线圈转子'||!shouldRequireCatalogIdentity(line))continue;
+       // An unrelated saved reference cannot make this root's inverse relation incomplete. A missing
+       // canonical ID matters only when its display model could be this very part; otherwise its text
+       // is not promoted and it is safely outside the requested membership set.
+       if(line.partId==null){
+        if(line.model===root.name)C.fail(line.identityStatus==='ambiguous'?'RELATION_AMBIGUOUS':'RELATION_REFERENCE_INCOMPLETE');
+        continue;
+       }
+       if(!Number.isSafeInteger(line.partId)||line.partId<1)C.fail('RELATION_REFERENCE_INCOMPLETE');
+       if(line.partId!==root.id)continue;
+      }
       if(line.model!==root.name&&line.partId!==root.id)continue;
       const p=partFor(line);if(p?.id===root.id)found=true;
      }

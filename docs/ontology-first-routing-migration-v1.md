@@ -833,3 +833,26 @@ Raw report:
 `/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-local-final-pass-20260920.json`.
 The validation instance ran commit `1d14156`; production remained ready on commit `78de920` and was not
 restarted, reconfigured or migrated. Gate A is now PASS, but this branch has not been promoted to production.
+
+## 18. Next family: recipe ↔ part (development gate)
+
+After the accepted P8L release, the next controlled family reuses the already registered
+`recipe.contains_part` and `part.contained_in_recipe` relations. It does not add an entity, relation,
+cost rule, schema field or write capability.
+
+The private assistant receives two explicit-only read capabilities: `get_recipe_parts(recipeId)` and
+`get_recipes_by_part(partId)`. Both call the authenticated `POST /api/relations/resolve` boundary with a
+canonical root, validate every `OntologyRelationResultV1` page, and stop after eight pages or 32 KB. Recipe
+identity continues to use the exact recipe identity reader; part identity uses one exact, part-only
+`POST /api/entity-lookup` request. A substring, fuzzy hit, cross-type name, missing target or ambiguous
+target never becomes a root.
+
+The relation grammar contains intentionally similar inverse wording for coils and parts. Pre-binding now
+rejects an intent when the mention explicitly names another entity type, so “12-120线圈用在哪些配方”
+continues to select the coil family while “某零件用在哪些配方” selects the part family. The legacy/OFF
+tool shortlist remains unchanged. The new tools are private-assistant-only and do not expand MCP.
+
+Development status: deterministic HTTP, routing, fail-closed, pagination-budget and frozen P6/P7/P8
+compatibility tests pass. Production remains on the accepted P8L release with
+`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false`; this family is not production-authoritative until the
+full local/CI gates and a controlled real-model validation pass.

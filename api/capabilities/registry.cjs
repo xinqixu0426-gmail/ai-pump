@@ -79,6 +79,8 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'get_template_detail',
         'get_all_recipes',
         'get_recipes_by_coil',
+        'get_recipe_parts',
+        'get_recipes_by_part',
         'get_recipe_detail',
         'get_recipe_technical_files',
         'build_recipe_bom_draft',
@@ -179,6 +181,8 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     archive_factory_file: '归档工厂文件',
     get_all_recipes: '读取配方列表',
     get_recipes_by_coil: '按线圈反查配方',
+    get_recipe_parts: '读取配方规范零件',
+    get_recipes_by_part: '按零件反查配方',
     get_recipe_detail: '读取配方明细',
     get_recipe_technical_files: '读取配方技术档案',
     build_recipe_bom_draft: '生成 BOM 草稿',
@@ -256,6 +260,8 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'search_coils',
         'get_all_recipes',
         'get_recipes_by_coil',
+        'get_recipe_parts',
+        'get_recipes_by_part',
         'get_recipe_detail',
         'get_recipe_technical_files',
         'get_recent_orders',
@@ -342,6 +348,8 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'search_coils',
     'get_all_recipes',
     'get_recipes_by_coil',
+    'get_recipe_parts',
+    'get_recipes_by_part',
     'get_recipe_detail',
     'get_recipe_technical_files',
     'preview_recipe_cost',
@@ -422,6 +430,8 @@ const LIVE_CAPABILITY_NAMES = new Set([
     'adjust_part_stock',
     'get_all_recipes',
     'get_recipes_by_coil',
+    'get_recipe_parts',
+    'get_recipes_by_part',
     'get_recipe_detail',
     'get_recipe_technical_files',
     'dynamic_config_cost',
@@ -497,6 +507,13 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
     'archive_factory_file',
 ]);
 
+// Private assistant implementation capabilities do not automatically widen the independently reviewed
+// MCP catalogue. Every AI capability still declares this boundary explicitly in its registry record.
+const PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES = new Set([
+    'get_recipe_parts',
+    'get_recipes_by_part',
+]);
+
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     search_business_changes: Object.freeze(['business_changes.list']),
     search_parts: Object.freeze(['parts.list']),
@@ -507,6 +524,8 @@ const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     get_purchase_overview: Object.freeze(['purchasing.overview']),
     get_all_recipes: Object.freeze(['recipes.list']),
     get_recipes_by_coil: Object.freeze(['recipes.by_coil']),
+    get_recipe_parts: Object.freeze(['ontology.relations.resolve']),
+    get_recipes_by_part: Object.freeze(['ontology.relations.resolve']),
     search_customers: Object.freeze(['customers.list']),
     search_templates: Object.freeze(['templates.list']),
     get_template_detail: Object.freeze(['templates.list', 'templates.detail']),
@@ -741,6 +760,14 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         inputSchema: 'POST /api/relations/read { version: 1, relation: "coil.recipes", rootId: coilId, pageSize?, afterId? }',
         outputSchema: 'BoundedRelationResultV1 (resourceType=recipe, semantics=CURRENT_RECIPE_COIL_REFERENCES, keyset id_desc)',
         sourceOfTruth: 'recipes.coil_id current canonical references (not the whole recipe aggregate)',
+        transactionality: 'read_transaction', riskLevel: 'low',
+        callers: Object.freeze(['ai', 'internal']),
+    }),
+    'ontology.relations.resolve': defineQueryCapability({
+        capabilityId: 'ontology.relations.resolve', domain: 'catalog',
+        inputSchema: 'POST /api/relations/resolve OntologyRelationResolveRequestV1',
+        outputSchema: 'OntologyRelationResolveResultV1 with canonicalOnly=true, bounded keyset page and explicit completeness',
+        sourceOfTruth: 'OntologyV1 registered relations over canonical business IDs and saved canonical references',
         transactionality: 'read_transaction', riskLevel: 'low',
         callers: Object.freeze(['ai', 'internal']),
     }),
@@ -2197,6 +2224,7 @@ function buildRegistry() {
             knowledgeCompanion: AI_KNOWLEDGE_COMPANIONS[name] || null,
             riskLevel: riskLevelFor(name, access),
             requiresConfirmation: access === 'write',
+            mcpExposure: PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES.has(name) ? 'private_assistant_only' : 'eligible',
             supportsPreview,
             formalCapabilityIds: Object.freeze([...formalCapabilityIds]),
             formalPreviewPaths: Object.freeze(formalCapabilities

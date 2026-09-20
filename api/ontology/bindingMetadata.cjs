@@ -10,7 +10,7 @@ const entityMetadata = {
     recipe: { aliases: ['配方', '产品'], names: ['name'], resources: [{ tool: 'get_all_recipes', path: 'recipes', field: 'data' }, { tool: 'get_recipe_detail', path: 'recipes', field: 'recipe' }, { tool: 'resolve_recipe_identity', path: 'recipes', field: 'data' }] },
     template: { aliases: ['泵壳模板', '模板'], names: ['shellModel'], resources: [{ tool: 'search_templates', path: 'templates', field: 'data' }, { tool: 'get_template_detail', path: 'templates', field: 'template' }] },
     coil: { aliases: ['线圈', '绕组'], names: ['schemeCode', 'schemeName'], composite: ['spec', 'sheets'], resources: [{ tool: 'search_coils', path: 'coils', field: 'data' }] },
-    part: { aliases: ['零件', '配件'], names: ['model', 'name'], resources: [{ tool: 'search_parts', path: 'parts', field: 'parts' }] },
+    part: { aliases: ['零件', '配件'], names: ['model', 'name'], resources: [{ tool: 'search_parts', path: 'parts', field: 'parts' }, { tool: 'resolve_part_identity', path: 'entity-lookup', field: 'data', method: 'POST' }] },
     order: { aliases: ['订单', '合同'], names: ['contractNo'], resources: [{ tool: 'get_recent_orders', path: 'orders', field: 'data' }, { tool: 'get_order_detail', path: 'orders', field: 'order' }] },
     customer: { aliases: ['客户'], names: ['name'], resources: [{ tool: 'search_customers', path: 'customers', field: 'data' }, { tool: 'search_customer_history', path: 'customers', field: 'data.customer' }] },
     quotation: { aliases: ['报价单', '报价'], names: [], resources: [{ tool: 'search_quotations', path: 'quotations', field: 'data' }, { tool: 'get_quotation_detail', path: 'quotations', field: 'quotation' }] },

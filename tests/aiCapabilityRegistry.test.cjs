@@ -57,7 +57,13 @@ test('AI 能力注册表：全部工具唯一登记且具备强制契约字段',
         assert.ok(Number.isFinite(capability.timeoutMs) && capability.timeoutMs > 0);
         assert.equal(WRITE_TOOLS.has(name), capability.access === 'write');
         assert.equal(capability.requiresConfirmation, capability.access === 'write');
+        assert.ok(['eligible', 'private_assistant_only'].includes(capability.mcpExposure));
     }
+});
+
+test('AI 能力注册表：Ontology 配方零件关系能力保持私有助理边界', () => {
+    assert.equal(getAiCapability('get_recipe_parts').mcpExposure, 'private_assistant_only');
+    assert.equal(getAiCapability('get_recipes_by_part').mcpExposure, 'private_assistant_only');
 });
 
 test('AI 工具目录：人类可读 schema 使用规范业务术语且保留稳定字段名', () => {
@@ -158,6 +164,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'collections.read',
         'relations.read',
         'recipes.by_coil',
+        'ontology.relations.resolve',
         'inventory.parts.batch_adjust_stock',
         'inventory.coils.adjust_stock',
         'workflow.quotation.convert_to_order',
@@ -290,7 +297,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
                 assert.equal(capability.transactionality, 'read_transaction');
                 assert.equal(capability.audit, 'none');
             } else {
-                assert.match(capability.inputSchema, ['entities.coil_span_candidates','entities.lookup_batch','collections.read','relations.read','recipes.by_coil','catalog.references_resolve','catalog.bound_names','parts.rename_impact','cost.recipe_difference','rotor.template_draft','rotor.recipe_draft'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
+                assert.match(capability.inputSchema, ['entities.coil_span_candidates','entities.lookup_batch','collections.read','relations.read','recipes.by_coil','ontology.relations.resolve','catalog.references_resolve','catalog.bound_names','parts.rename_impact','cost.recipe_difference','rotor.template_draft','rotor.recipe_draft'].includes(capabilityId) ? /^POST \/api\// : /^GET \/api\//);
             }
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);

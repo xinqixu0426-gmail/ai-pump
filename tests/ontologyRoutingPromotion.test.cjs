@@ -72,9 +72,10 @@ test('P7 fallback matrix: every non-eligible path resolves to legacy routing', a
     const ambiguous = cases.find(entry => entry.caseId === 'ambiguous-root');
     assert.equal(withProvider(ambiguous, 'deepseek').record.eligible, false);
 
-    // Unsupported relation family (recipe->part) -> not eligible.
-    const unsupported = withProvider({ userText: 'Shadow配方甲用了哪些零件？', root: { entityType: 'recipe', canonicalId: '301' } }, 'deepseek');
-    assert.equal(unsupported.record.eligible, false);
+    // The next reviewed family is now eligible when its canonical recipe root is already verified.
+    const recipePart = withProvider({ userText: 'Shadow配方甲用了哪些零件？', root: { entityType: 'recipe', canonicalId: '301' } }, 'deepseek');
+    assert.equal(recipePart.record.eligible, true);
+    assert.equal(recipePart.record.relationId, 'recipe.contains_part');
 
     // Non-relation question -> not eligible.
     const cost = withProvider({ userText: '12-120线圈成本多少？', root: { entityType: 'coil', canonicalId: '501' } }, 'deepseek');

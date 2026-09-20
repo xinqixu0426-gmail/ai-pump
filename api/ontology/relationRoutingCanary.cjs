@@ -39,9 +39,14 @@ const recipeDetailRead = deepFreeze({ capability: 'get_recipe_detail', argumentP
 // here so the profile owns the reason it exists; `argumentPolicy: 'pre_binding'` keeps it out of the
 // required/completion read lists.
 const recipeIdentityRead = deepFreeze({ capability: 'resolve_recipe_identity', argumentPolicy: 'pre_binding' });
+const partIdentityRead = deepFreeze({ capability: 'resolve_part_identity', argumentPolicy: 'pre_binding' });
+const recipePartsRead = deepFreeze({ capability: 'get_recipe_parts', argumentPolicy: 'root_id' });
+const partRecipesRead = deepFreeze({ capability: 'get_recipes_by_part', argumentPolicy: 'root_id' });
 const requiredReadsByRelation = deepFreeze({
     'coil.used_by_recipe': [byCoilRecipeRead, rootIdentityRead],
     'recipe.uses_coil': [recipeDetailRead, coilCatalogueRead, recipeIdentityRead],
+    'recipe.contains_part': [recipePartsRead, recipeIdentityRead],
+    'part.contained_in_recipe': [partRecipesRead, partIdentityRead],
 });
 // Reads the model may be asked to call for a direction. Pre-binding reads already ran in software, so
 // they are never offered and never planned as a completion repair.
@@ -49,7 +54,9 @@ const offeredReadsByRelation = deepFreeze(Object.fromEntries(Object.entries(requ
     .map(([relationId, reads]) => [relationId,
         reads.filter(read => read.argumentPolicy !== 'pre_binding').map(read => read.capability)])));
 // Union of every declared read, used for catalogue validation and capability auditing.
-const requiredReads = deepFreeze([byCoilRecipeRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
+const recipeCoilRequiredReads = deepFreeze([byCoilRecipeRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
+const recipePartRequiredReads = deepFreeze([recipePartsRead, partRecipesRead]);
+const requiredReads = deepFreeze([...recipeCoilRequiredReads, ...recipePartRequiredReads]);
 const optionalCapabilities = deepFreeze([]);
 const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     // ONT-P7: `deepseek` is promoted to production eligibility for this family after the P6D real-AI
@@ -76,15 +83,34 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
         'coil.used_by_recipe': ['get_recipes_by_coil', 'search_coils', 'get_all_recipes', 'get_recipe_detail'],
         'recipe.uses_coil': offeredReadsByRelation['recipe.uses_coil'],
     }),
-    requiredReads,
+    requiredReads: recipeCoilRequiredReads,
     requiredReadsByRelation,
     optionalCapabilities,
     // Retained as the declared completion-enforcement list; identical to requiredReads by construction.
-    requirements: requiredReads,
+    requirements: recipeCoilRequiredReads,
     // These are existing compatibility messages, not new instructions to the model.
     completionMessage: '正在补齐线圈与配方关联查询...',
     repairPrompt: '上一响应没有发送给用户。这个问题要求核对线圈与配方的关联，尚未调用：{missing}。请立即调用缺少的正式工具；已知线圈方案ID时用 get_recipes_by_coil 反查使用它的配方，需要完整配方列表时才用 get_all_recipes，不要把线圈简写当作配方名称关键词。',
     failureMessage: '线圈与配方的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
+}, { version: 1, sourceId: 'recipe_part',
+    providerModes: ['local', 'local-first', 'deepseek'],
+    shortlistRequiredProviderModes: ['local', 'local-first'],
+    discoveryRequirements: { mode: 'existing_verified_context', capabilitiesByEntityType: {
+        recipe: 'resolve_recipe_identity', part: 'resolve_part_identity',
+    } },
+    completionRequirements: 'DETERMINISTIC_REQUIRED_READS',
+    shortlist: ['get_recipe_parts', 'get_recipes_by_part'],
+    shortlistByRelation: deepFreeze({
+        'recipe.contains_part': offeredReadsByRelation['recipe.contains_part'],
+        'part.contained_in_recipe': offeredReadsByRelation['part.contained_in_recipe'],
+    }),
+    requiredReads: recipePartRequiredReads,
+    requiredReadsByRelation,
+    optionalCapabilities,
+    requirements: recipePartRequiredReads,
+    completionMessage: '正在补齐配方与零件关联查询...',
+    repairPrompt: '上一响应没有发送给用户。这个问题要求核对配方与零件的正式关联，尚未调用：{missing}。请立即调用缺少的正式只读工具；不要用名称相似、供应商或首条搜索结果补造关系。',
+    failureMessage: '配方与零件的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
 }]);
 
 /**
@@ -108,7 +134,15 @@ function rootReadArguments(binding, trustedToolResults = []) {
     if (!root) return out;
     if (root.entityType === 'recipe') {
         const recipeId = Number(root.canonicalId);
-        if (Number.isSafeInteger(recipeId) && recipeId > 0) out.get_recipe_detail = { recipeId };
+        if (Number.isSafeInteger(recipeId) && recipeId > 0) {
+            if (binding.relationId === 'recipe.contains_part') out.get_recipe_parts = { recipeId };
+            else out.get_recipe_detail = { recipeId };
+        }
+        return out;
+    }
+    if (root.entityType === 'part') {
+        const partId = Number(root.canonicalId);
+        if (Number.isSafeInteger(partId) && partId > 0) out.get_recipes_by_part = { partId };
         return out;
     }
     if (root.entityType !== 'coil') return out;
@@ -172,9 +206,17 @@ function preBindingResolverInput(input = {}) {
     const intents = relationIntentMatches(input.userText, trustedSessionRows({
         trustedSession: input.trustedSession, subject: input.subject, conversationId: input.conversationId,
     }));
-    return intents.find(intent => !intent.pronoun && !intent.typed
+    return intents.find(intent => {
+        const mention = String(intent.mention || '');
+        const ownAliases = relationRootCanonical.entityAliases(intent.fromType);
+        const conflictingTypeMention = relationRootCanonical.otherEntityAliases(intent.fromType)
+            .some(alias => mention.includes(alias)) && !ownAliases.some(alias => mention.includes(alias));
+        return !intent.pronoun && !conflictingTypeMention
+        && (!intent.typed || ['recipe.contains_part', 'part.contained_in_recipe'].includes(intent.relationId))
         && relationRootCanonical.isResolvableRelation(intent.relationId)
-        && relationRootCanonical.mentionIsPlainName(intent.mention)) || null;
+        && (relationRootCanonical.mentionIsPlainName(intent.mention)
+            || relationRootCanonical.mentionIsRecipePartName(intent));
+    }) || null;
 }
 function prepareRouting(input = {}, dependencies = {}) {
     const started = performance.now();
