@@ -66,7 +66,8 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     let extraFacts = [];
     if (aliasBlocked && semantics.requestedType === 'recipe' && token && !has('get_all_recipes')) {
         recipeLookup();
-    } else if (!aliasBlocked && ['COST_QUERY', 'HYPOTHETICAL_COST_QUERY'].includes(semantics.kind) && semantics.requestedType === 'recipe') {
+    } else if (!aliasBlocked && ((['COST_QUERY', 'HYPOTHETICAL_COST_QUERY'].includes(semantics.kind)
+        && semantics.requestedType === 'recipe') || (semantics.kind === 'COST_QUERY' && semantics.requestedType === 'unknown'))) {
         if (!has('get_all_recipes')) {
             recipeLookup();
         } else if (recipes.length === 1) {

@@ -92,6 +92,10 @@ test('PS-02: a verified catalog price is retained and labelled as part unit cost
         result('search_parts', [{ id: 149, model: '轴承-201', category: '轴承', supplier: 'fixture', price: 1.1, stock: 0 }], '/api/parts?keyword=bearing'),
     ];
     const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });
+    const initialPlan = buildBusinessEvidencePlan({ userText });
+    assert.deepEqual(initialPlan.execution.calls.map(item => item.capability), ['get_all_recipes']);
+    const catalogPlan = buildBusinessEvidencePlan({ userText, toolResults: [toolResults[0]], plannedCallCount: 1 });
+    assert.deepEqual(catalogPlan.execution.calls.map(item => item.capability), ['search_templates', 'search_parts']);
     assert.equal(validateBusinessSemanticFrame(frame), true);
     assert.equal(frame.completeness.status, 'COMPLETE');
     assert.equal(frame.cost.requestedBasis, 'PART_CATALOG_UNIT_COST');
@@ -111,6 +115,10 @@ test('PS-03: verified not-found retains bounded requested text without inventing
         result('search_parts', [], '/api/parts?keyword=missing'),
     ];
     const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });
+    const initialPlan = buildBusinessEvidencePlan({ userText });
+    assert.deepEqual(initialPlan.execution.calls.map(item => item.capability), ['get_all_recipes']);
+    const catalogPlan = buildBusinessEvidencePlan({ userText, toolResults: [toolResults[0]], plannedCallCount: 1 });
+    assert.deepEqual(catalogPlan.execution.calls.map(item => item.capability), ['search_templates', 'search_parts']);
     assert.equal(validateBusinessSemanticFrame(frame), true);
     assert.equal(frame.completeness.status, 'NOT_FOUND_VERIFIED');
     assert.equal(frame.subject.requestedToken, 'P4R-不存在-900');
