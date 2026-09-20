@@ -173,3 +173,52 @@ node scripts/run-relation-runtime-acceptance.cjs --gate ontology-cloud --execute
 3. 复跑 Gate B 两轮 → 目标 §5 的全部数字。
 4. 跑全套门禁（`npm test` / `verify:api-contract` / `test:deep-api` / `lint` / `build`）并回报 Supervisor。
 5. Gate A 待本地模型可达（`192.168.31.111:8080`，当前 `TCP_FAIL`）后再执行，**不得算 PASS**。
+
+## 10. Gate B 结果（2026-09-20 后续会话补充，事实已更新）
+
+§9 的 1–4 项已完成，提交 `0df88de`（本地 `master`，`origin/master` 仍停在 `0e27984`）。
+
+**修法与 Supervisor 裁定一致**：绑定前先做一次正式有界 exact-name 解析（新增内部能力
+`recipes.resolve_identity`，`GET /api/recipes/identity?name=`；SQL 自带 `LIMIT`；
+`found`/`404`/`409` 与技术失败可区分；**不进** AI 工具目录/shortlist/offeredTools），
+只有「唯一正式结果 AND normalize(正式名)===normalize(mention)」才允许成为 authoritative root，
+子串/前缀永不作绑定依据，解析结果走既有 `canonicalReceipts` 通道。`relationBinder` 仍为同步纯函数；
+迁移 87 为 `recipes(name)` 建立非删除行部分索引。
+
+**Gate B（隔离实例 3012，真实 DeepSeek，2 轮）= PASS**
+
+| 项 | 数字 |
+|---|---|
+| Forward | correct 8/8、bound 8/8、routed 8/8、legacyFallbacks 0、get_all_recipes 0 |
+| Reverse | positive 4/4、emptyCertified 4/4（合计 8/8）、get_all_recipes 0 |
+| 其它 | routedCorrect 12/12；wrongRoot/wrongRelation/wrongDirection 0；cloudFallbacks 0；additionalProviderRounds 0；Relation-path Budget Failures 0；unauthorizedWrites 0 |
+| 业务不变性 | changedTables=[]、auditDelta=0、operationDelta=0 |
+| 本机门禁 | `npm test` 2683/2683、`verify:api-contract` 26/26、`test:deep-api` 493/0、`lint` PASS、`build` PASS |
+
+证据：`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-final-root-resolution-attempt2.json`
+与 `ont-p8l-final-root-resolution-confirm1.json`（独立确认轮逐项一致）。
+
+**Supervisor 裁定（原文要点）**：Gate B PASS；不需要更多重复验收；允许 `0df88de` 合入 master；
+生产继续保持 `886e514`、暂不部署；迁移 87 允许随代码合入，但生产上线前需单独报备并完成
+86→87 数据库副本迁移、`integrity_check`、身份读回归、备份验证后再决定部署。
+
+**两个必须记下的坑**（都不是代码缺陷，但会让验收结果失真）：
+
+1. **隔离实例必须以 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=true` 启动**。本会话第一次重启漏了
+   这个 flag，那一轮验收其实是在「canary 关」下跑的（forward 7/8、legacyFallbacks 3），
+   恢复 flag 后同一提交才 PASS。验收前先确认实例进程的 flag，不要只看 runner 的 `.env`。
+2. **relay 读取通道曾有两个缺陷**，导致 Supervisor 的完整裁定被读成 1 个字符、并且每次
+   `ask`/`wait` 都以超时收场：旧探针读「DOM 顺序最后一个 assistant 节点的 innerText」，
+   而该节点在生成/渲染滞后时只剩残留文本（完整文本在回合的 `.markdown` 容器里，节点 innerText 还以
+   message-id 开头）；旧完成判据 `stableFor % settleMs === 0` 配 1.5s 轮询几乎永不成立。
+   已修：只读 `.markdown` 并剥 message-id、跳过空占位回合、按窗口正确累计 confirmations、
+   自适应轮询、发送后要求新回合出现。实测同一位置由 1 字符变为 509 字符全文。
+
+## 11. 仍未完成
+
+1. **迁移 87 未在生产执行**（生产未部署，故未执行）。上线前按 Supervisor 要求单独报备并走
+   副本迁移 + `integrity_check` + 身份读回归 + 备份验证。
+2. **`0df88de` 未推送 `origin/master`**，仍只在本地 `master` 与临时分支
+   `ont-p8l-final-gate-b-root-resolution`。
+3. **Gate A 仍 DEFERRED**（本地模型 `192.168.31.111:8080` 不可达），**未算 PASS**。
+4. 验证实例 `/Users/dan/pump-p8l-validation`（端口 3012）当前运行 `0df88de` + 迁移 87 的验证库副本。
