@@ -84,4 +84,12 @@ test('recipe-part formal receipts drive current facts and deterministic presenta
     const tools = [{ name: 'get_recipe_parts', result }];
     assert.deepEqual(currentFactsForBinding(binding, tools).canonicalTargetIds, ['601']);
     assert.match(verifiedRecipePartRelationReply('Shadow配方甲用了哪些零件？', tools, { enabled: true }), /Shadow零件甲/);
+
+    const reverse = { success: true, relation: 'part.contained_in_recipe', complete: true,
+        root: { entityType: 'part', canonicalId: '601' }, count: 1, totalCount: 1,
+        data: [{ recipeId: 301, recipeName: 'Shadow配方甲' }],
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/relations/resolve' }] } };
+    const reverseReply = verifiedRecipePartRelationReply('轴承-202用在哪些配方？',
+        [{ name: 'get_recipes_by_part', result: reverse }], { enabled: true });
+    assert.equal(reverseReply, '零件 ID 601 当前被以下配方的 partsJson 正式引用：Shadow配方甲。');
 });

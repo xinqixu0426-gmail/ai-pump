@@ -11,7 +11,7 @@ function uniqueVerified(toolResults, name, relation) {
 }
 
 function verifiedRecipePartRelationReply(userText, toolResults = [], options = {}) {
-    if (options.enabled !== true || !/(?:零件|配件)/u.test(String(userText || ''))) return '';
+    if (options.enabled !== true) return '';
     const forward = uniqueVerified(toolResults, 'get_recipe_parts', 'recipe.contains_part');
     if (forward) {
         const label = `配方 ID ${forward.root.canonicalId}`;
