@@ -373,7 +373,8 @@ test('关键 API 集成契约：AI 对话按当前轮次隔离上下文并二次
     assert.match(context, /不是执行授权或事实证据/);
     assert.match(protocol, /AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN/);
     assert.match(protocol, /AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN/);
-    assert.match(provider, /prepareProviderTools\(options\.tools, config\)/);
+    assert.match(provider, /prepareProviderToolRequest\(options\.tools, requestedToolChoice, config\)/);
+    assert.match(provider, /tools: matchingTools, toolChoice: 'required'/);
     assert.match(provider, /providerTools/);
     assert.match(provider, /options\.toolChoice/);
 });

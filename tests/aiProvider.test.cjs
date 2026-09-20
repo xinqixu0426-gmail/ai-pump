@@ -236,6 +236,78 @@ test('AI 本地优先：局域网模型无需密钥并保留工具与流式请�
     assert.equal(captured.body.max_tokens, 384);
 });
 
+test('AI 本地模型：结构化指定工具收窄目录并转换为 llama.cpp 支持的 required', async () => {
+    let requestBody;
+    const response = await fetchAiProvider([{ role: 'user', content: '查询订单详情' }], {
+        env: {
+            AI_PROVIDER: 'local',
+            LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+            LOCAL_AI_MODEL: 'local-apex',
+        },
+        tools: [
+            {
+                type: 'function',
+                function: {
+                    name: 'get_recent_orders',
+                    parameters: { type: 'object', properties: {} },
+                },
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'get_order_detail',
+                    parameters: { type: 'object', properties: { orderId: { type: 'integer' } } },
+                },
+            },
+        ],
+        toolChoice: {
+            type: 'function',
+            function: { name: 'get_order_detail' },
+        },
+        fetchImpl: async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return new Response(JSON.stringify({ choices: [] }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        },
+    });
+
+    assert.equal(response.ok, true);
+    assert.equal(requestBody.tool_choice, 'required');
+    assert.deepEqual(requestBody.tools.map(tool => tool.function.name), ['get_order_detail']);
+});
+
+test('AI 本地模型：指定工具不在本轮目录时请求前拒绝', async () => {
+    let fetchCalled = false;
+    await assert.rejects(
+        fetchAiProvider([{ role: 'user', content: '查询订单详情' }], {
+            env: {
+                AI_PROVIDER: 'local',
+                LOCAL_AI_BASE_URL: 'http://192.168.31.111:8080/v1',
+                LOCAL_AI_MODEL: 'local-apex',
+            },
+            tools: [{
+                type: 'function',
+                function: {
+                    name: 'get_recent_orders',
+                    parameters: { type: 'object', properties: {} },
+                },
+            }],
+            toolChoice: {
+                type: 'function',
+                function: { name: 'get_order_detail' },
+            },
+            fetchImpl: async () => {
+                fetchCalled = true;
+                return new Response('{}', { status: 200 });
+            },
+        }),
+        error => error?.code === 'AI_PROVIDER_TOOL_CHOICE_INVALID' && error?.statusCode === 400
+    );
+    assert.equal(fetchCalled, false);
+});
+
 test('AI 本地优先：中途 system 指令并入首条 system 消息以兼容只允许开头 system 的模板', async () => {
     let captured;
     const response = await fetchAiProvider([

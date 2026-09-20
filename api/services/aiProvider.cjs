@@ -901,6 +901,33 @@ function prepareProviderTools(tools, config) {
     return tools.map(tool => normalizeKimiSchemaForMoonshot(tool));
 }
 
+/**
+ * llama.cpp 当前只接受字符串形式的 tool_choice。运行时指定具体函数时，先把目录收窄到
+ * 唯一目标工具，再发送 required，保持“必须调用这个函数”的原始语义。其他提供商继续
+ * 接收 OpenAI 标准的结构化 tool_choice。
+ */
+function prepareProviderToolRequest(tools, toolChoice, config) {
+    const providerTools = prepareProviderTools(tools, config);
+    if (
+        config.provider !== LOCAL_PROVIDER_ID
+        || !toolChoice
+        || typeof toolChoice !== 'object'
+        || Array.isArray(toolChoice)
+    ) {
+        return { tools: providerTools, toolChoice };
+    }
+
+    const forcedName = text(toolChoice.function?.name);
+    const matchingTools = providerTools?.filter(tool => text(tool?.function?.name) === forcedName) || [];
+    if (toolChoice.type !== 'function' || !forcedName || matchingTools.length !== 1) {
+        const error = new Error('局域网模型指定的工具不在本轮可用工具目录中');
+        error.code = 'AI_PROVIDER_TOOL_CHOICE_INVALID';
+        error.statusCode = 400;
+        throw error;
+    }
+    return { tools: matchingTools, toolChoice: 'required' };
+}
+
 async function fetchAiProvider(messages, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const attachmentRouting = resolveAttachmentRouting(messages, {
@@ -942,10 +969,13 @@ async function fetchAiProvider(messages, options = {}) {
         });
         const send = async includeToolChoice => {
             const isKimiK3 = config.provider === 'kimi' && /^kimi-k3(?:$|-)/i.test(config.model);
-            const providerTools = prepareProviderTools(options.tools, config);
-            const effectiveToolChoice = includeToolChoice
+            const requestedToolChoice = includeToolChoice
                 ? (isKimiK3 ? 'required' : options.toolChoice)
                 : null;
+            const {
+                tools: providerTools,
+                toolChoice: effectiveToolChoice,
+            } = prepareProviderToolRequest(options.tools, requestedToolChoice, config);
             const providerMessages = prepareAiProviderMessages(messages, {
                 config,
                 dbAccessors: options.dbAccessors,
@@ -1000,7 +1030,10 @@ async function fetchAiProvider(messages, options = {}) {
             });
         };
         const includeToolChoice = Boolean(options.toolChoice)
-            && !TOOL_CHOICE_UNSUPPORTED_ROUTES.has(routeKey);
+            && (
+                config.provider === LOCAL_PROVIDER_ID
+                || !TOOL_CHOICE_UNSUPPORTED_ROUTES.has(routeKey)
+            );
         let response = await send(includeToolChoice);
         if (!response.ok) {
             let responseText = await response.text();
