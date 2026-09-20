@@ -26,6 +26,7 @@ const {
     readPageCompleteness,
     readSetCompleteness,
     resolveAcceptanceDatabasePath,
+    resolveGateProfile,
     runtimeEnvFrom,
     truthFor,
 } = require('../scripts/run-relation-runtime-acceptance.cjs');
@@ -149,10 +150,13 @@ test('relation acceptance: correctness is judged on the expected canonical targe
 });
 
 function failingCase(overrides = {}) {
+    const direction = overrides.direction || 'coil->recipes';
     return {
-        caseId: 'R1', direction: 'coil->recipes', correct: true, wrongTargets: [],
+        caseId: 'R1', direction, correct: true, wrongTargets: [],
         fallbacks: 0, tooLarge: 0, aggregateCalls: 0, done: true, errorCodes: [],
         bounded: [{ bytes: 61 }], aggregateBytes: 2,
+        // A routed turn executes the sanctioned bounded read for its direction.
+        toolCallNames: direction === 'coil->recipes' ? ['get_recipes_by_coil'] : ['get_recipe_detail'],
         ...overrides,
     };
 }
@@ -160,18 +164,22 @@ const cleanFingerprintDiff = { changedTables: [], auditDelta: 0, operationDelta:
 
 test('relation acceptance: a fully correct run is PASS and an aggregate read on the accepted path is FAIL', () => {
     const pass = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
-        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', correct: false })],
+        profile: resolveGateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'], correct: false })],
         negativeCases: [],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
     // One forward miss must already fail the gate: partial credit is not an exit criterion.
     assert.equal(pass.status, 'FAIL');
+    assert.equal(pass.observed.forwardCorrect, 0);
+    assert.equal(pass.observed.forwardTotal, 1);
     assert.ok(pass.failures.some(line => line.startsWith('forward ')));
+    // That miss must not be reported as a routing failure: the turn ran the sanctioned bounded read.
+    assert.equal(pass.observed.legacyFallbacks, 0);
 
     const allCorrect = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
-        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        profile: resolveGateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'] })],
         negativeCases: [{ caseId: 'N4', kind: 'write', writeProtected: true, fallbacks: 0, tooLarge: 0, aggregateCalls: 0, done: true, errorCodes: [], bounded: [], aggregateBytes: 0 }],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
@@ -179,8 +187,8 @@ test('relation acceptance: a fully correct run is PASS and an aggregate read on 
     assert.equal(allCorrect.observed.aggregateCalls, 0);
 
     const aggregate = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
-        cases: [failingCase({ aggregateCalls: 1, aggregateBytes: 19194 }), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        profile: resolveGateProfile('p8l-local'),
+        cases: [failingCase({ aggregateCalls: 1, aggregateBytes: 19194 }), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'] })],
         negativeCases: [],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
@@ -190,7 +198,7 @@ test('relation acceptance: a fully correct run is PASS and an aggregate read on 
 
 test('relation acceptance: a write that is not a confirmation card, or a business table change, fails the gate', () => {
     const writeLeak = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
+        profile: resolveGateProfile('p8l-local'),
         cases: [failingCase()],
         negativeCases: [{ caseId: 'N4', kind: 'write', writeProtected: false, fallbacks: 0, tooLarge: 0, aggregateCalls: 0, done: true, errorCodes: [], bounded: [], aggregateBytes: 0 }],
         fingerprintDiffResult: cleanFingerprintDiff,
@@ -199,7 +207,7 @@ test('relation acceptance: a write that is not a confirmation card, or a busines
     assert.ok(writeLeak.failures.includes('unauthorizedWrites=1'));
 
     const mutated = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
+        profile: resolveGateProfile('p8l-local'),
         cases: [failingCase()],
         negativeCases: [],
         fingerprintDiffResult: { changedTables: ['parts'], auditDelta: 2, operationDelta: 1 },
@@ -272,20 +280,20 @@ test('relation acceptance: a page-level complete is never read as set-level comp
     assert.ok(MIN_EMPTY_CASES > 0);
 
     const uncertified = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
-        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        profile: resolveGateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'] })],
         negativeCases: [],
-        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: false, aggregateFree: true }],
+        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: false, aggregateFree: true, toolCallNames: ['get_recipes_by_coil'] }],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
     assert.equal(uncertified.status, 'FAIL');
     assert.ok(uncertified.failures.some(line => line.startsWith('emptyRelationNotCertified=')));
 
     const certified = evaluateVerdict({
-        profile: gateProfile('p8l-local'),
-        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        profile: resolveGateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'] })],
         negativeCases: [],
-        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: true, aggregateFree: true }],
+        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: true, aggregateFree: true, toolCallNames: ['get_recipes_by_coil'] }],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
     assert.equal(certified.status, 'PASS');
@@ -294,13 +302,67 @@ test('relation acceptance: a page-level complete is never read as set-level comp
 
 test('relation acceptance: an ontology-induced extra provider round fails the gate', () => {
     const verdict = evaluateVerdict({
-        profile: gateProfile('ontology-cloud'),
-        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        profile: resolveGateProfile('ontology-cloud'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail'] })],
         negativeCases: [],
         fingerprintDiffResult: cleanFingerprintDiff,
     });
     assert.equal(verdict.status, 'PASS');
     assert.equal(verdict.observed.additionalProviderRounds, 0);
+});
+
+test('relation acceptance: a relation case answered outside the ontology-sanctioned reads is a Legacy fallback', () => {
+    // Both gates must answer every relation case themselves; this is the Supervisor's "Legacy fallback = 0"
+    // requirement. A canary turn only executes capabilities its own profile sanctions, so the sanctioned set
+    // comes from the live ontology profile rather than a copy inside the runner.
+    const profile = resolveGateProfile('ontology-cloud');
+    assert.ok(profile.requiredReadsByRelation['recipe.uses_coil'].length > 0);
+    const routed = evaluateVerdict({
+        profile,
+        cases: [
+            failingCase({ toolCallNames: ['get_recipes_by_coil'] }),
+            failingCase({ caseId: 'F1', direction: 'recipe->coil', toolCallNames: ['get_recipe_detail', 'search_coils'] }),
+        ],
+        negativeCases: [],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(routed.status, 'PASS');
+    assert.equal(routed.observed.legacyFallbacks, 0);
+    assert.equal(routed.observed.boundOrRouted, 2);
+    // An empty relation case is routed by its bounded read; it must not be counted as a fallback.
+    const withEmpty = evaluateVerdict({
+        profile,
+        cases: [failingCase({ toolCallNames: ['get_recipes_by_coil'] })],
+        negativeCases: [],
+        emptyRelationCases: [{ caseId: 'E1', certificateOnly: true, aggregateFree: true, toolCallNames: ['get_recipes_by_coil'] }],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(withEmpty.status, 'PASS');
+    assert.equal(withEmpty.observed.legacyFallbacks, 0);
+
+    // A case answered on the Legacy path executes an unsanctioned capability. Reading the whole recipe
+    // catalogue is the concrete Legacy marker for a relation turn, and it is what the observed
+    // fallbacks actually executed.
+    const legacyTurn = failingCase({ caseId: 'F2', direction: 'recipe->coil', toolCallNames: ['get_all_recipes'] });
+    const fellBack = evaluateVerdict({
+        profile,
+        cases: [failingCase({ toolCallNames: ['get_recipes_by_coil'] }), legacyTurn],
+        negativeCases: [],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(fellBack.status, 'FAIL');
+    assert.equal(fellBack.observed.legacyFallbacks, 1);
+    assert.equal(fellBack.observed.boundOrRouted, 1);
+    assert.ok(fellBack.failures.some(line => line.startsWith('legacyFallbacks=1')), JSON.stringify(fellBack.failures));
+    // The sanctioned forward read plus the small coil catalogue is still a routed turn.
+    assert.equal(evaluateVerdict({
+        profile,
+        cases: [failingCase({ direction: 'recipe->coil', toolCallNames: ['get_recipe_detail', 'search_coils'] })],
+        negativeCases: [], fingerprintDiffResult: cleanFingerprintDiff,
+    }).observed.legacyFallbacks, 0);
+    // A relation case that executed nothing at all is not a routed turn either.
+    assert.equal(evaluateVerdict({ profile, cases: [failingCase({ toolCallNames: [] })], negativeCases: [],
+        fingerprintDiffResult: cleanFingerprintDiff }).observed.legacyFallbacks, 1);
 });
 
 test('relation acceptance: the judged database must exist and be named explicitly', () => {

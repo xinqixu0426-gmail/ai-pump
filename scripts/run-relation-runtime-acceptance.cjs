@@ -164,7 +164,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['local']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0 }),
     }),
     'ontology-cloud': Object.freeze({
         id: 'ontology-cloud',
@@ -176,7 +176,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['deepseek']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0, legacyFallbacks: 0 }),
     }),
 });
 
@@ -445,12 +445,75 @@ function summarizeCase(entry, truth, response) {
     };
 }
 
+/**
+ * Capabilities the ontology canary sanctions FOR THIS DIRECTION. The offered surface is per direction
+ * (`shortlistByRelation`), so the whole-catalogue read is sanctioned for the recipe root but NOT for the
+ * coil root — reading it on the coil-rooted relation is exactly the Legacy behaviour the accepted path
+ * must not fall back to.
+ */
+function sanctionedCapabilities(profile, direction) {
+    const reads = profile.requiredReadsByRelation
+        ? Object.entries(profile.requiredReadsByRelation)
+            .filter(([relationId]) => directionToRelation(relationId) === direction)
+            .flatMap(([, entries]) => entries).map(read => read.capability)
+        : [];
+    const relationId = direction === 'coil->recipes' ? 'coil.used_by_recipe'
+        : direction === 'recipe->coil' ? 'recipe.uses_coil' : null;
+    const offered = (relationId && profile.shortlistByRelation?.[relationId]) || [];
+    const fallback = offered.length > 0 ? [] : (profile.shortlist || []);
+    return new Set([...reads, ...offered, ...fallback]);
+}
+
+function directionToRelation(relationId) {
+    if (relationId === 'coil.used_by_recipe') return 'coil->recipes';
+    if (relationId === 'recipe.uses_coil') return 'recipe->coil';
+    return relationId;
+}
+
+/**
+ * The Gate B corpus is answered by the ontology canary, so the capabilities that count as "not Legacy"
+ * come from the live ontology profile in the code under test, not from a copy inside this runner.
+ * Importing the module also fails closed: if the profile cannot be loaded, the gate cannot assert that a
+ * turn was routed at all.
+ */
+function loadOntologyGateProfile() {
+    const { profiles } = require('../api/ontology/relationRoutingCanary.cjs');
+    const ontologyProfile = profiles.find(entry => entry.sourceId === 'recipe_coil');
+    if (!ontologyProfile) throw abortError('ONTOLOGY_PROFILE_UNAVAILABLE', 'the recipe_coil ontology profile is not available');
+    return {
+        requiredReadsByRelation: ontologyProfile.requiredReadsByRelation,
+        shortlist: ontologyProfile.shortlist,
+        shortlistByRelation: ontologyProfile.shortlistByRelation,
+    };
+}
+
+/**
+ * Resolve a gate's profile, attaching the ontology-sanctioned reads. BOTH gates exercise the ontology
+ * relation relation-routing path (the local gate with a local model, the cloud gate with DeepSeek), so
+ * both need to know which capabilities count as a routed turn rather than a Legacy fallback.
+ */
+function resolveGateProfile(gateId) {
+    return { ...gateProfile(gateId), ...loadOntologyGateProfile() };
+}
+
+/**
+ * Supervisor's Gate B requirement: no relation case may be answered by Legacy. A canary turn only ever
+ * executes capabilities the profile itself sanctions, so a case that executed anything else — or executed
+ * nothing at all while claiming to have used the bounded path — was answered on the Legacy path.
+ */
+function relationTurnWasLegacy(entry, profile) {
+    const sanctioned = sanctionedCapabilities(profile, entry.direction);
+    const calls = entry.toolCallNames || [];
+    if (calls.length === 0) return true;
+    return calls.some(name => !sanctioned.has(name));
+}
+
 /** Deterministic verdict: a missed requirement is FAIL, never silently redefined. */
 function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [], fingerprintDiffResult }) {
     const relation = cases.filter(entry => entry.correct !== null);
     const reverse = relation.filter(entry => entry.direction === 'coil->recipes');
     const forward = relation.filter(entry => entry.direction === 'recipe->coil');
-    const ratio = (list) => (list.length === 0 ? 0 : list.filter(entry => entry.correct).length / list.length);
+    const ratio = (list) => (list.length === 0 ? 1 : list.filter(entry => entry.correct).length / list.length);
     const sum = (list, pick) => list.reduce((total, entry) => total + (pick(entry) || 0), 0);
 
     const observed = {
@@ -482,6 +545,11 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         // that no formal result was obtained and refuses to invent business data), so it is recorded
         // separately instead of being counted as a relation failure.
         payloadLimitFailures: sum(cases, entry => entry.tooLarge),
+        // The ontology canary must answer every relation case itself; a case that executed an
+        // unsanctioned capability (or nothing) was answered by the Legacy path. Empty-relation cases
+        // are relation cases too, so they are counted here.
+        legacyFallbacks: [...cases, ...emptyRelationCases].filter(entry => relationTurnWasLegacy(entry, profile)).length,
+        boundOrRouted: [...cases, ...emptyRelationCases].filter(entry => !relationTurnWasLegacy(entry, profile)).length,
         unboundedQueryBudgetRefusals: sum(negativeCases, entry => entry.tooLarge),
         emptyRelationTotal: emptyRelationCases.length,
         emptyRelationComplete: emptyRelationCases.filter(entry => entry.certificateOnly).length,
@@ -507,6 +575,10 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
     if (observed.emptyRelationTotal > 0) {
         const bad = emptyRelationCases.filter(entry => !entry.certificateOnly || !entry.aggregateFree);
         if (bad.length > 0) failures.push(`emptyRelationNotCertified=${bad.map(entry => entry.caseId).join(',')}`);
+    }
+    if (observed.legacyFallbacks > (required.legacyFallbacks ?? 0)) {
+        const fellBack = [...cases, ...emptyRelationCases].filter(entry => relationTurnWasLegacy(entry, profile));
+        failures.push(`legacyFallbacks=${observed.legacyFallbacks} (${fellBack.map(entry => entry.caseId).join(',')})`);
     }
     if (profile.required.additionalProviderRounds === 0 && observed.additionalProviderRounds > 0) {
         failures.push(`additionalProviderRounds=${observed.additionalProviderRounds}`);
@@ -634,7 +706,9 @@ async function main() {
     const reportPath = argOf(argv, 'report', null);
     const base = argOf(argv, 'base', process.env.ACCEPTANCE_BASE_URL || 'http://127.0.0.1:3002');
 
-    const profile = gateProfile(gateId);
+    // The resolved profile carries the ontology-sanctioned reads, so the verdict can tell a routed turn
+    // from a Legacy one instead of assuming.
+    const profile = resolveGateProfile(gateId);
     if (!Number.isInteger(rounds) || rounds < 1 || rounds > 5) {
         throw abortError('ROUNDS_INVALID', `--rounds must be an integer within 1-5 (got ${argOf(argv, 'rounds', '2')})`);
     }
@@ -707,6 +781,7 @@ async function main() {
                         fallbacks: summary.fallbacks,
                         done: summary.done,
                         errorCodes: summary.errorCodes,
+                        toolCallNames: summary.toolCallNames,
                     });
                 }
                 console.log(`r${round} ${entry.id.padEnd(24)} ${entry.direction.padEnd(13)} done=${summary.done} providers=[${summary.providers}] fb=${summary.fallbacks} `
@@ -741,7 +816,7 @@ async function main() {
     }
     console.log(`${gateId}: status=${report.status} reverse=${verdict.observed.reverseCorrect}/${verdict.observed.reverseTotal} `
         + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} emptyCertified=${verdict.observed.emptyRelationComplete}/${verdict.observed.emptyRelationTotal} `
-        + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} aggregateCalls=${verdict.observed.aggregateCalls} `
+        + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} boundOrRouted=${verdict.observed.boundOrRouted}/${verdict.observed.boundOrRouted + verdict.observed.legacyFallbacks} legacyFallbacks=${verdict.observed.legacyFallbacks} aggregateCalls=${verdict.observed.aggregateCalls} `
         + `forwardAggregateCalls=${verdict.observed.forwardAggregateCalls} unboundedAggregateCalls=${verdict.observed.unboundedQueryAggregateCalls} `
         + `cloudFallbacks=${verdict.observed.cloudFallbacks} additionalProviderRounds=${verdict.observed.additionalProviderRounds} `
         + `payloadLimitFailures=${verdict.observed.payloadLimitFailures} unboundedQueryBudgetRefusals=${verdict.observed.unboundedQueryBudgetRefusals} `
@@ -781,6 +856,7 @@ module.exports = {
     readPageCompleteness,
     readSetCompleteness,
     resolveAcceptanceDatabasePath,
+    resolveGateProfile,
     runtimeEnvFrom,
     truthFor,
 };
