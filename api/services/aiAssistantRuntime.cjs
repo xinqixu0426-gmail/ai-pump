@@ -413,7 +413,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const allTools = assistantReadTools();
         const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
         const coilComparisonPairs = coilCostComparisonPairs(latest.content);
-        const relationCanaryEnabled = isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED');
+        const relationCanaryEnabled = input.ontologyRelationCanaryEligible === true
+            && isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED');
         const trustedSessionInput = { subject: input.confirmationSubject, conversationId: input.conversationId,
             trustedSession: session.previous ? { subject: input.confirmationSubject,
                 conversationId: input.conversationId, observedAt: started,

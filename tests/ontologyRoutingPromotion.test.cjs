@@ -63,6 +63,14 @@ test('P7 fallback matrix: every non-eligible path resolves to legacy routing', a
     assert.equal(off.records[0].canaryEnabled, false);
     assert.notEqual(off.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
 
+    // A globally enabled flag is insufficient: an ordinary authenticated request stays on Legacy.
+    const nonOwner = await runCase(c, 'true', runAiAssistant, {
+        mode: 'deepseek',
+        input: { ontologyRelationCanaryEligible: false },
+    });
+    assert.equal(nonOwner.records[0].canaryEnabled, false);
+    assert.notEqual(nonOwner.records[0].routingSource, 'ONTOLOGY_RELATION_BINDING');
+
     // No server-owned canonical receipt -> not eligible.
     const unseeded = await runCase(c, 'true', runAiAssistant, { mode: 'deepseek', seed: false });
     assert.equal(unseeded.records[0].eligible, false);

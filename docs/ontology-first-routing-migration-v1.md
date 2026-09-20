@@ -83,15 +83,16 @@ Consequently only real local/local-first runs can certify Legacy/Ontology A/B. D
 
 ## 5. Local/local-first Canary design and canonical binding
 
-`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false` is independent from shadow flags and defaults to OFF. It is an environment-only private experiment, not a new client field or public runtime configuration API.
+`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false` is independent from shadow flags and defaults to OFF. It is an environment-only private experiment, not a new client field or public runtime configuration API. The flag does not grant request authority by itself: the HTTP chat boundary must also prove the existing formal Owner JWT or the existing exact internal secret, then pass a server-owned eligibility boolean to the runtime. Shared-admin cookies, `req.user` fields, client-declared owner headers/query fields and invalid owner configuration all fail closed to Legacy.
 
 ON admission requires all of:
 
-1. PURE_RELATION_QUERY.
-2. Unchanged P4 BOUND, unique canonical root and directional relation.
-3. Authoritative `recipe_coil` family (`coil.used_by_recipe` / `recipe.uses_coil`).
-4. Provider mode local/local-first with the existing local shortlist enabled.
-5. Every required tool is already offered by the existing registered read/query catalog.
+1. Environment flag exactly `true` and server-verified Owner/Internal request eligibility.
+2. PURE_RELATION_QUERY.
+3. Unchanged P4 BOUND, unique canonical root and directional relation.
+4. An explicitly promoted authoritative relation family.
+5. Provider mode in that relation profile; local/local-first also require the existing local shortlist.
+6. Every required tool is already offered by the existing registered read/query catalog.
 
 The runtime supplies only server-owned, same-user, same-conversation, unexpired session formal receipts. Client persisted conversation payloads, page data, ordinary assistant history and fuzzy names cannot establish identity. Typed IDs/names/shorthand still require existing formal canonical receipts. Pronouns additionally require the P4 trusted-session contract. No P4 grammar, exclusion, probability or identity rule is weakened.
 

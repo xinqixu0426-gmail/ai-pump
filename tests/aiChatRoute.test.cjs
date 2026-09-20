@@ -3,10 +3,13 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { buildAiTurnMetrics, handleAiChat } = require('../api/routes/ai/chat.cjs');
 const { createAiRuntimeTelemetry } = require('../api/services/aiRuntimeTelemetry.cjs');
+const { issueOwnerToken } = require('../api/services/ownerAuthentication.cjs');
 
 function createRequestResponse() {
     const req = new EventEmitter();
     req.body = { messages: [{ role: 'user', content: '测试' }] };
+    req.headers = {};
+    req.cookies = {};
     req.requestId = 'req-route-test';
     const res = new EventEmitter();
     res.headers = {};
@@ -177,6 +180,39 @@ test('AI SSE：已配置的单轮模型选择传入执行器', async () => {
     });
     assert.equal(receivedPreference, 'deepseek');
     assert.match(res.output, /"type":"done"/);
+});
+
+test('AI SSE：Ontology 关系 Canary 仅把可信 Owner/Internal 资格传入运行时', async () => {
+    const env = {
+        ACCESS_PASSWORD: 'synthetic-shared-password',
+        JWT_SECRET: 'synthetic-jwt-test-secret',
+        INTERNAL_SECRET: 'synthetic-internal-secret',
+        PUMP_OWNER_ACCESS_PASSWORD: 'synthetic-owner-credential-only-for-unit-test',
+        PUMP_OWNER_SUBJECT: 'synthetic_owner_subject_001',
+        AI_V5_OWNER_SUBJECTS: '["synthetic_owner_subject_001"]',
+        AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true',
+    };
+    const dispatch = async input => {
+        input.emit('content', { content: '完成' });
+        input.emit('done', {});
+        return { telemetry: { outcome: 'answered' }, eligible: input.ontologyRelationCanaryEligible };
+    };
+    async function eligibilityFor(configure) {
+        const { req, res } = createRequestResponse();
+        configure(req);
+        let received = null;
+        await handleAiChat(req, res, { env, runAiDispatcherV3: async input => {
+            received = input.ontologyRelationCanaryEligible;
+            return dispatch(input);
+        } });
+        return received;
+    }
+    const ownerToken = issueOwnerToken(env.PUMP_OWNER_ACCESS_PASSWORD, env);
+    const sharedToken = require('jsonwebtoken').sign({ role: 'admin' }, env.JWT_SECRET, { expiresIn: '1h' });
+    assert.equal(await eligibilityFor(req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), true);
+    assert.equal(await eligibilityFor(req => { req.headers['x-internal-secret'] = env.INTERNAL_SECRET; }), true);
+    assert.equal(await eligibilityFor(req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), false);
+    assert.equal(await eligibilityFor(req => { req.user = { role: 'admin', owner: true }; req.headers['x-owner'] = 'true'; }), false);
 });
 
 test('AI SSE：非法或未配置的单轮模型选择在路由边界拒绝', async () => {

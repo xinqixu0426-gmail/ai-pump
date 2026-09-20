@@ -37,6 +37,7 @@ async function runCase(c, flag, runAiAssistant, options = {}) {
     const result = await runAiAssistant({ messages: [{ role: 'user', content: c.userText }], confirmationSubject: subject, conversationId,
         env: { AI_PROVIDER: options.mode || 'local', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true',
             AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: flag, ...options.env },
+        ontologyRelationCanaryEligible: true,
         emit: (type, data) => events.push({ type, data }), ...options.input }, {
         loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
         ontologyRouting: { ...options.routing, record: r => { records.push(r); options.record?.(r); } },

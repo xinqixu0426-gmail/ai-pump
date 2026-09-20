@@ -418,6 +418,7 @@ test('a recipe-rooted relation binds from the pre-binding identity read, whateve
             messages: [{ role: 'user', content: question }],
             confirmationSubject: 'test-owner',
             conversationId,
+            ontologyRelationCanaryEligible: true,
             env: { AI_PROVIDER: 'deepseek', AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true' },
         }, fixture([], {
             // The model answer is scripted; every provider round is observed so the offered surface can
@@ -467,6 +468,7 @@ test('a recipe-rooted relation binds from the pre-binding identity read, whateve
         messages: [{ role: 'user', content: '最近有哪些订单？' }],
         confirmationSubject: 'test-owner',
         conversationId: 'ont-p8l-final-no-relation',
+        ontologyRelationCanaryEligible: true,
         env: { AI_PROVIDER: 'deepseek', AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true' },
     }, fixture([
         { tool_calls: [call('get_recent_orders', {})] },

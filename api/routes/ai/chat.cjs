@@ -15,6 +15,10 @@ const { normalizeAiTurnStateV3 } = require('../../services/aiTurnStateV3.cjs');
 const { aiRuntimeTelemetry } = require('../../services/aiRuntimeTelemetry.cjs');
 const { getAiHealth } = require('../../services/aiHealth.cjs');
 const {
+    isOntologyRelationCanaryRequestEligible,
+    isTrustedInternalAiRequest,
+} = require('../../services/ontologyRelationCanaryEligibility.cjs');
+const {
     loadAiConversationContinuation,
     loadAiRecentPartWrite,
 } = require('../../services/aiConversations.cjs');
@@ -96,7 +100,7 @@ function buildAiTurnMetrics(runtimeTelemetry = {}, routeMetrics = {}) {
 }
 
 function confirmAuth(req, res, next) {
-    if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
+    if (isTrustedInternalAiRequest(req, process.env)) {
         return next();
     }
     return authMiddleware(req, res, next);
@@ -192,8 +196,9 @@ async function handleAiChat(req, res, options = {}) {
     };
 
     try {
-        const ownerKey = req.user?.role
-            || (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET ? 'internal' : 'admin');
+        const runtimeEnv = options.env || process.env;
+        const trustedInternalRequest = isTrustedInternalAiRequest(req, runtimeEnv);
+        const ownerKey = trustedInternalRequest ? 'internal' : (req.user?.role || 'admin');
         const persistedConversationContext = (options.loadAiConversationContinuation || loadAiConversationContinuation)(
             ownerKey,
             req.body?.conversationId
@@ -211,6 +216,7 @@ async function handleAiChat(req, res, options = {}) {
             resolutionContext: normalizeResolutionContext(req.body?.resolutionContext),
             turnState: normalizeAiTurnStateV3(req.body?.turnState),
             providerPreference,
+            ontologyRelationCanaryEligible: isOntologyRelationCanaryRequestEligible(req, runtimeEnv),
             confirmationSubject: confirmationSubjectForRequest(req),
             stream: true,
             emit: send,
@@ -361,6 +367,9 @@ async function processAiChat(text, options = {}) {
         confirmationSubject: options.confirmationSubject || 'internal:process-ai-chat',
         fetchAiProvider: options.fetchAiProvider,
         env: options.env,
+        // processAiChat is an internal server-side entry point. The runtime still requires the
+        // independent environment flag before Ontology relation routing can become authoritative.
+        ontologyRelationCanaryEligible: true,
         dbAccessors: options.dbAccessors,
         stream: false,
         signal: options.signal,
