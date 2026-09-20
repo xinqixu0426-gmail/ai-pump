@@ -345,6 +345,17 @@ function readSetCompleteness(result) {
 }
 
 /**
+ * A coil identity in this catalogue is `规格-片数`, where the stator spec is a small number (12/13/14…)
+ * and the sheet count has three digits. That shape is required so that unrelated digit pairs in an answer
+ * — winding data such as `44-44-44-44` or `78-78` — are not mistaken for a wrong coil identity.
+ */
+const COIL_IDENTITY_SHAPE = /(?<![0-9])(\d{1,2})-(\d{3})(?![0-9])/g;
+
+function coilShapesIn(text) {
+    return [...String(text || '').matchAll(COIL_IDENTITY_SHAPE)].map(match => match[0]);
+}
+
+/**
  * Coil identity may be expressed as the shorthand `12-140` or through the formal fields the coil
  * directory actually returns (`规格：12` / `片数 140`). Both are the same canonical identity, so an answer
  * is judged on identity equivalence rather than on one literal spelling — otherwise a fully correct
@@ -367,8 +378,7 @@ function classifyAnswer(entry, truth, content) {
         if (coilIdentityMentioned(text, entry.coilSpec, entry.coilSheets)) {
             hits.push(truth.expected[0]);
         } else {
-            const seen = text.match(/(?<![0-9])\d{1,3}-\d{2,4}(?![0-9])/g) || [];
-            for (const shape of seen) if (!truth.expected.includes(shape)) wrong.push(shape);
+            for (const shape of coilShapesIn(text)) if (!truth.expected.includes(shape)) wrong.push(shape);
         }
     }
     return { hits, correct: hits.length > 0, wrongTargets: wrong };
@@ -436,7 +446,12 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         wrongDirection: sum(relation, entry => (entry.correct || entry.wrongTargets.length > 0 ? 0 : 1)),
         cloudFallbacks: sum([...cases, ...negativeCases], entry => entry.fallbacks),
         unauthorizedWrites: negativeCases.filter(entry => entry.kind === 'write' && entry.writeProtected !== true).length,
-        aggregateCalls: sum([...cases, ...negativeCases], entry => entry.aggregateCalls),
+        // Same channel principle as the payload budget: a whole-catalogue read on a relation case is the
+        // failure the Supervisor requires to be zero, while the same read on a genuinely unbounded question
+        // is the documented cost of that question ("最近有哪些订单" needs the order list). Counting them
+        // together made a correct run look like a regression.
+        aggregateCalls: sum(cases, entry => entry.aggregateCalls),
+        unboundedQueryAggregateCalls: sum(negativeCases, entry => entry.aggregateCalls),
         notDone: [...cases, ...negativeCases].filter(entry => !entry.done).length,
         errors: sum([...cases, ...negativeCases], entry => (entry.errorCodes || []).length),
         // Supervisor's Gate B requirement: ontology must not add a provider round of its own.
@@ -706,6 +721,7 @@ async function main() {
     console.log(`${gateId}: status=${report.status} reverse=${verdict.observed.reverseCorrect}/${verdict.observed.reverseTotal} `
         + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} emptyCertified=${verdict.observed.emptyRelationComplete}/${verdict.observed.emptyRelationTotal} `
         + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} aggregateCalls=${verdict.observed.aggregateCalls} `
+        + `unboundedAggregateCalls=${verdict.observed.unboundedQueryAggregateCalls} `
         + `cloudFallbacks=${verdict.observed.cloudFallbacks} additionalProviderRounds=${verdict.observed.additionalProviderRounds} `
         + `payloadLimitFailures=${verdict.observed.payloadLimitFailures} unboundedQueryBudgetRefusals=${verdict.observed.unboundedQueryBudgetRefusals} `
         + `unauthorizedWrites=${verdict.observed.unauthorizedWrites} providers=[${verdict.observed.providersServed}] `

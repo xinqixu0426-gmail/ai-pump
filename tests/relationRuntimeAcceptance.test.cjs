@@ -109,7 +109,15 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     assert.equal(coilIdentityMentioned('规格：12，片数 120', '12', 140), false);
     assert.equal(coilIdentityMentioned('12-140', '12', 140), true);
     assert.equal(coilIdentityMentioned('12-1400', '12', 140), false);
-    assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, 'V750…的线圈转子配置如下：\n- 规格：12，片数 140\n- 材质：钢带').correct, true);
+    // Winding data (`44-44-44-44`, `78-78`) is not a coil identity and must not be counted as a wrong
+    // coil: the catalogue shape for 规格-片数 requires a small stator spec and a three-digit sheet count.
+    const winding = classifyAnswer(recipeEntry, { expected: ['12-140'] },
+        '副绕组漆包线：0.49，绕线数据 78-78；主绕组 44-44-44-44');
+    assert.equal(winding.correct, false);
+    assert.deepEqual(winding.wrongTargets, [], 'winding data is not a coil identity');
+    const realWrong = classifyAnswer(recipeEntry, { expected: ['12-140'] }, '用的是 12-200 线圈');
+    assert.deepEqual(realWrong.wrongTargets, ['12-200']);
+    assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, 'V750…的线圈转子配置如下：\n- 规格：12，片数 140\n- 主绕组漆包线：0.64，绕线数据 44-44-44-44').correct, true);
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 140').correct, true);
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 120').correct, false);
 });
