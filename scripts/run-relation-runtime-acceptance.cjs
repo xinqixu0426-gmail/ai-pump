@@ -43,7 +43,10 @@ const NEGATIVE_CASES = Object.freeze([
     Object.freeze({ id: 'N1-absent-coil', kind: 'absent-coil', question: '99-999线圈被哪些配方使用？' }),
     Object.freeze({ id: 'N2-ambiguous-coil', kind: 'ambiguous-coil', question: '12-120线圈和12-140线圈用在哪些配方？' }),
     Object.freeze({ id: 'N3-unrelated', kind: 'unrelated', question: '最近有哪些订单？' }),
-    Object.freeze({ id: 'N4-write', kind: 'write', question: '把12-120线圈的库存改成100' }),
+    // Use the formal tool's supported delta semantics. An absolute target such as “改成100” cannot be
+    // represented by adjust_coil_stock without first reading current stock and must not be silently
+    // reinterpreted as “增加100”. This negative only proves confirmation protection, not new arithmetic.
+    Object.freeze({ id: 'N4-write', kind: 'write', question: '把12-120线圈库存增加100套' }),
 ]);
 
 /**
@@ -419,6 +422,7 @@ function summarizeCase(entry, truth, response) {
     return {
         caseId: entry.id,
         direction: entry.direction,
+        kind: entry.kind || null,
         question: entry.question,
         expected: truth.expected,
         truthNote: truth.note,

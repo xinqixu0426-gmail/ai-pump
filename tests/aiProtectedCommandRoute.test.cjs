@@ -5,6 +5,7 @@ const {
     buildProtectedCommandIntent,
     buildProtectedCommandToolCall,
     detectProtectedCommandRoute,
+    extractSingleCoilStockAdjustmentArgs,
     extractSinglePartCreateArgs,
     extractSinglePartUpdateArgs,
 } = require('../api/services/aiProtectedCommandRoute.cjs');
@@ -49,6 +50,25 @@ test('AI 写命令路由：将/把开头的零件修改进入 update_part 命令
     }
     assert.equal(detectProtectedCommandRoute(messages('不要把零件 A 的单价修改成5元')), null);
     assert.equal(detectProtectedCommandRoute(messages('零件 A 的单价能修改成5元吗')), null);
+});
+
+test('AI 写命令路由：明确线圈库存增减确定性进入确认链，绝对目标不偷换成增量', () => {
+    assert.deepEqual(extractSingleCoilStockAdjustmentArgs('把12-120线圈库存增加100套'), {
+        items: [{ model: '12-120', changeQty: 100 }],
+    });
+    assert.deepEqual(extractSingleCoilStockAdjustmentArgs('12－140线圈库存出库3套'), {
+        items: [{ model: '12-140', changeQty: -3 }],
+    });
+    assert.equal(extractSingleCoilStockAdjustmentArgs('把12-120线圈库存改成100'), null);
+
+    const userMessages = messages('把12-120线圈库存增加100套');
+    const route = detectProtectedCommandRoute(userMessages);
+    assert.equal(route?.preferredCapability, 'adjust_coil_stock');
+    const toolCall = buildProtectedCommandToolCall(userMessages, route);
+    assert.equal(toolCall.function.name, 'adjust_coil_stock');
+    assert.deepEqual(JSON.parse(toolCall.function.arguments), {
+        items: [{ model: '12-120', changeQty: 100 }],
+    });
 });
 
 test('AI 写命令路由：单零件字段从当前明确指令确定性提取并清理 Markdown 转义', () => {

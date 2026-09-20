@@ -30,6 +30,8 @@ function normalizeCommandText(value) {
 }
 
 function preferredCapability(text) {
+    if (/(?:线圈|绕组)/.test(text) && /库存/.test(text)
+        && /(?:增加|减少|入库|出库)/.test(text)) return 'adjust_coil_stock';
     if (!/零件|配件|物料/.test(text)) return null;
     if (/^(?:请|麻烦|烦请|帮我|替我|给我|我要|我需要|需要)?(?:先|直接|重新|继续|立即|现在)?(?:录入|新增|新建|创建|添加)/.test(text)) {
         return /批量|多个|多条|以下|这些/.test(text) ? 'batch_create_parts' : 'create_part';
@@ -46,6 +48,23 @@ function preferredCapability(text) {
         return 'update_part';
     }
     return null;
+}
+
+function extractSingleCoilStockAdjustmentArgs(userText) {
+    const text = String(userText || '').trim();
+    const modelMatch = text.match(/(?<!\d)(\d{1,3})\s*[-－×xX*]\s*(\d{2,4})(?!\d)/u);
+    const quantityMatch = text.match(/(?:增加|入库|加)\s*(\d+)\s*(?:套|个)?/u)
+        || text.match(/(?:减少|出库|减)\s*(\d+)\s*(?:套|个)?/u);
+    if (!modelMatch || !quantityMatch) return null;
+    const quantity = Number(quantityMatch[1]);
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) return null;
+    const negative = /(?:减少|出库|减)/u.test(quantityMatch[0]);
+    return {
+        items: [{
+            model: `${modelMatch[1]}-${modelMatch[2]}`,
+            changeQty: negative ? -quantity : quantity,
+        }],
+    };
 }
 
 function extractLabeledValue(text, labels, followingLabels) {
@@ -158,6 +177,8 @@ function buildProtectedCommandToolCall(messages = [], route = null) {
         ? extractSinglePartCreateArgs(userText)
         : route?.preferredCapability === 'update_part'
             ? extractSinglePartUpdateArgs(userText, route.recentPartWrite)
+            : route?.preferredCapability === 'adjust_coil_stock'
+                ? extractSingleCoilStockAdjustmentArgs(userText)
             : null;
     if (!args) return null;
     return {
@@ -219,6 +240,7 @@ module.exports = {
     buildProtectedCommandToolCall,
     detectProtectedCommandRoute,
     extractSinglePartCreateArgs,
+    extractSingleCoilStockAdjustmentArgs,
     extractSinglePartUpdateArgs,
     latestUserText,
     normalizeCommandText,

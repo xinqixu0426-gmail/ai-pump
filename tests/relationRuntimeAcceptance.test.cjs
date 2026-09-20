@@ -12,6 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     GATE_IDS,
+    NEGATIVE_CASES,
     MIN_EMPTY_CASES,
     MIN_FORWARD_CASES,
     MIN_REVERSE_CASES,
@@ -214,6 +215,12 @@ test('relation acceptance: a write that is not a confirmation card, or a busines
     });
     assert.equal(mutated.status, 'FAIL');
     assert.ok(mutated.failures.some(line => line.startsWith('businessTablesChanged=')));
+});
+
+test('relation acceptance: protected-write fixture uses supported delta semantics and retains its kind', () => {
+    const write = NEGATIVE_CASES.find(entry => entry.id === 'N4-write');
+    assert.equal(write.kind, 'write');
+    assert.equal(write.question, '把12-120线圈库存增加100套');
 });
 
 test('relation acceptance: the corpus is discovered from the judged database, never hard-coded', () => {
