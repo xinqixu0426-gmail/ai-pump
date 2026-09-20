@@ -11,7 +11,11 @@
   3. 线圈身份判定收紧：`12片规格` 是"12 片"的数量表达，**不得**作为 spec=12 的依据；spec/sheets 只有在各自关键词直接附着于数字时才计入。
 - **未清（Gate B 的真实退出条件）**：`V750大脚板-2寸-经典款 配的什么绕组？` 这类问法仍会掉进 Legacy。观测证据（Mac Mini 隔离实例，`logs/gates/gate-b-binder-fix.json`）：forward 7/8、`legacyFallbacks=3`（F2-recipe12-winding、F4-recipe13-winding ×2）、`wrongRoot=1`；退化的那次答案是「"V750大脚板-2寸-经典款"是一个泵壳模板……模板 BOM 里不含绕组」，即同一名称被当作**泵壳模板**而非配方解析。机制：绑定未命中 → canary 不路由（`ONTOLOGY_CANARY_FALLBACK`）→ `coilRecipeRelationQuery` 为真 → Legacy 关系特殊路径介入，其完整读目录把整表读带回工具面（`aiAssistantRuntime.cjs:357`、`:540`）。
 - **门禁**：`npm test` 2668/2668、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS。
-- **下一步（未开工）**：修"名称同时匹配配方与泵壳模板时的实体类型选择"，使 `recipe.uses_coil` 绑定不再因模型该轮选了模板工具而漏绑；随后同一 Gate B 语料再跑 2 轮，目标 forward 8/8、bound/routed 8/8、`get_all_recipes` 0、Legacy fallback 0、wrongRoot 0。
+- **根因（已用真实数据复现，修正早前"名称跨实体类型冲突"的推测）**：生产库里配方 13 名为 `V750大脚板-2寸-经典款`，模板名为 `模板-V750大脚板-2寸-经典款`——**并非同名冲突**。真实原因是 `recipe.uses_coil` 的绑定**只能**从"上一轮已验证回执"里解析根名称（`relationBinder.cjs:66-87`），而上一轮模型选哪个读取工具是不确定的：同一问法连续三次复现得到三种不同的回执组合（`["get_recipe_detail"]` / `["get_all_recipes","search_templates"]` / `["get_all_recipes","get_template_detail","get_recipe_detail"]`），其中一次 `get_all_recipes{keyword}` 只返回 1 行、另一次回执里根本没有配方行 → `possible` 为空 → 绑定未命中 → canary 不路由 → Legacy 关系特殊路径介入并带回整表读。**结论：路由召回不应依赖模型上一轮的偶然选择。**
+- **建议的修法（未开工，待确认）**：在运行时为绑定的关系根做一次**确定性的按 fromType 名称解析读取**（对 `recipe.uses_coil` 即一次有界的配方名解析），使绑定不依赖模型历史；Supervisor 已裁定方向为 A（修绑定、不修 semantic 层），但本条的定位比"A"更具体，需在下一轮确认后再动代码。
+- **稳定复现命令（只读，跑在 Mac Mini 验证实例上，允许）**：同一会话先问 `V750大脚板-2寸-经典款 用的是哪个泵壳模板？` 再问 `V750大脚板-2寸-经典款 配的什么绕组？`，重复 3 次即可看到上表三种回执组合与 Legacy 回退。
+- **门禁**：`npm test` 2669/2669、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS。
+- **下一步**：按上述确定性解析修法落地 → 同一语料复跑两轮 → 目标 forward 8/8、routedCorrect 8/8、legacyFallbacks 0、`get_all_recipes` 0、wrongRoot 0。
 
 ## 2026-09-20 ONT-P8L-FINAL 验收基础设施对账：886e514 验收 ≠ P8L 退出证据（Supervisor 裁定 REWORK）
 
