@@ -19,13 +19,14 @@
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { fixture } = require('./helpers/ontologyShadowFixture.cjs');
+const { fixture, formal } = require('./helpers/ontologyShadowFixture.cjs');
 const { cases } = require('./helpers/ontologyRoutingCorpus.cjs');
 const runtime = require('../api/services/aiAssistantRuntime.cjs');
 const oracleV1 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
 const oracleV2 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
 const { createRelationReadService } = require('../api/services/relationReadService.cjs');
 const { enforceAiToolResultBudget } = require('../api/services/aiToolProtocol.cjs');
+const { verifiedRecipeCoilRelationReply } = require('../api/services/recipeCoilRelationAnswer.cjs');
 
 const {
     LEGACY_RELATION_REPAIR_STATES: S, MAX_SOFTWARE_REPAIR_STEPS, MAX_LEGACY_MODEL_REPAIR_ROUNDS,
@@ -165,4 +166,107 @@ test('P8L the negative corpus never reaches a second hop', () => {
         assert.deepEqual(legacyRelationMissingTools([], S.BOUNDED_REVERSE_READ), [],
             `${entry.caseId}: a non-relation turn must not demand the bounded read`);
     }
+});
+
+test('P8L strict-local forward relation resolves once, executes bounded formal reads and ignores model denial', async () => {
+    const recipeName = 'V750大脚板-2寸-经典款';
+    const identityReads = [], executed = [], offered = [];
+    let providerCalls = 0;
+    const result = await runtime.runAiAssistant({
+        messages: [{ role: 'user', content: `${recipeName} 配的什么绕组？` }],
+        confirmationSubject: 'p8l-forward-owner',
+        conversationId: 'p8l-forward-exact',
+        env: {
+            AI_PROVIDER: 'local',
+            AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true',
+            AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'false',
+        },
+    }, {
+        loadMemory: async () => ({ items: [] }),
+        loadCorrections: () => '',
+        resolveRelationIdentity: async request => {
+            identityReads.push(request);
+            return { status: 'found', identity: { recipeId: 13, recipeName },
+                calls: [{ method: 'GET', path: `/api/recipes/identity?name=${encodeURIComponent(request.mention)}` }] };
+        },
+        executeToolCall: async (name, args, options) => {
+            assert.equal(options.allowWrite, false);
+            executed.push({ name, args });
+            if (name === 'get_recipe_detail') return formal('/api/recipes/13', { recipe: {
+                id: 13, name: recipeName, coilId: 140, coilSpec: '12', coilSheets: 140,
+                coilMaterial: '钢带', coilSlotType: '小眼', parts: [],
+            } });
+            if (name === 'search_coils') return formal('/api/coils', { count: 2, data: [
+                { id: 120, spec: '12', sheets: 120, material: '钢带', slotType: '小眼' },
+                { id: 140, spec: '12', sheets: 140, material: '钢带', slotType: '小眼' },
+            ] });
+            throw new Error(`unexpected tool ${name}`);
+        },
+        fetchAiProvider: async (_messages, options) => {
+            providerCalls += 1;
+            offered.push(options.tools.map(tool => tool.function.name));
+            return { json: async () => ({ choices: [{ message: {
+                content: '正式目录里没有这个配方对应的线圈。',
+            } }] }) };
+        },
+    });
+    assert.equal(identityReads.length, 1);
+    assert.equal(identityReads[0].mention, recipeName);
+    assert.equal(identityReads[0].relationId, 'recipe.uses_coil');
+    assert.deepEqual(executed, [
+        { name: 'get_recipe_detail', args: { recipeId: 13 } },
+        { name: 'search_coils', args: {} },
+    ]);
+    assert.equal(providerCalls, 1, 'formal planning must not add a model round');
+    assert.deepEqual(offered, [[]], 'the model receives evidence for synthesis and cannot redirect the reads');
+    assert.equal(result.finalContent, `${recipeName} 使用 12-140 线圈（钢带/小眼）。`);
+    assert.deepEqual(result.toolResults.map(item => item.name), ['get_recipe_detail', 'search_coils']);
+});
+
+test('P8L strict-local forward relation fails closed on ambiguous identity and never plans a canonical read', async () => {
+    let identityReads = 0, executed = 0, providerCalls = 0;
+    const offered = [];
+    const result = await runtime.runAiAssistant({
+        messages: [{ role: 'user', content: '重名型号甲 用的是哪个线圈？' }],
+        confirmationSubject: 'p8l-forward-owner',
+        conversationId: 'p8l-forward-ambiguous',
+        env: {
+            AI_PROVIDER: 'local',
+            AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true',
+            AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'false',
+        },
+    }, {
+        loadMemory: async () => ({ items: [] }),
+        loadCorrections: () => '',
+        resolveRelationIdentity: async () => { identityReads += 1; return { status: 'ambiguous', calls: [] }; },
+        executeToolCall: async () => { executed += 1; throw new Error('must not execute without a canonical root'); },
+        fetchAiProvider: async (_messages, options) => {
+            providerCalls += 1;
+            offered.push(options.tools.map(tool => tool.function.name));
+            return { json: async () => ({ choices: [{ message: {
+                content: '',
+                tool_calls: [{ id: 'guessed-root', type: 'function', function: {
+                    name: 'get_recipe_detail', arguments: JSON.stringify({ recipeName: '重名型号甲' }),
+                } }],
+            } }] }) };
+        },
+    });
+    assert.equal(identityReads, 1);
+    assert.equal(executed, 0);
+    assert.equal(providerCalls, 1);
+    assert.deepEqual(offered, [[]], 'an ambiguous formal root exposes no model-selectable relation read');
+    assert.doesNotMatch(result.finalContent, /使用\s*\d+\s*[-—~]\s*\d+\s*线圈/u);
+    assert.equal(result.toolResults.length, 0);
+});
+
+test('P8L formal forward answer requires a canonical id agreement on both sides', () => {
+    const detail = { name: 'get_recipe_detail', result: formal('/api/recipes/13', { recipe: {
+        id: 13, name: 'V750', coilId: 140, coilSpec: '12', coilSheets: 140,
+    } }) };
+    const wrongCatalogue = { name: 'search_coils', result: formal('/api/coils', { data: [
+        { id: 120, spec: '12', sheets: 120, material: '钢带', slotType: '小眼' },
+    ] }) };
+    assert.equal(verifiedRecipeCoilRelationReply('V750 用的是哪个线圈？', [detail, wrongCatalogue], { enabled: true }), '');
+    assert.equal(verifiedRecipeCoilRelationReply('V750 用的是哪个线圈？', [detail, wrongCatalogue], { enabled: false }), '');
+    assert.deepEqual(runtime.legacyForwardRelationCalls({ resolved: false, relationId: 'recipe.uses_coil' }), []);
 });

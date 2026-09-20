@@ -28,6 +28,7 @@ const { createInternalFetch, getJson, postJson } = require('../routes/ai/interna
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
+const { verifiedRecipeCoilRelationReply } = require('./recipeCoilRelationAnswer.cjs');
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
@@ -281,6 +282,44 @@ async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, m
     }
 }
 
+/**
+ * Resolve the named recipe root once through the existing bounded formal identity read.
+ *
+ * Both execution modes need the same fact: the ontology canary consumes the receipt for binding, while
+ * the strict-local OFF path consumes the resolved canonical id to run the already-sanctioned bounded
+ * forward reads. Keeping the resolver here prevents the local fallback from growing a second grammar or
+ * a fuzzy catalogue lookup of its own.
+ */
+async function preResolveRecipeRelationRoot({ relationRouter, internalFetch, userText, trustedSessionInput }, dependencies = {}) {
+    const intent = relationRouter.preBindingResolverInput({ userText, ...trustedSessionInput });
+    if (!intent) return { intent: null, resolution: null, receipts: [] };
+    const rootReader = require('../ontology/relationRootCanonical.cjs');
+    const resolveIdentity = dependencies.resolveRelationIdentity
+        || (async request => resolveRelationIdentity(internalFetch, getJson, request));
+    const resolution = await rootReader.resolveRelationRoot({ ...intent, eligible: true }, { resolveIdentity });
+    return {
+        intent,
+        resolution,
+        receipts: resolution.resolved ? [resolution.receipt] : [],
+    };
+}
+
+/**
+ * Strict-local forward relation reads. The identity is already canonical and formally proven; these are
+ * the same two bounded capabilities declared by the ontology profile for `recipe.uses_coil`.
+ */
+function legacyForwardRelationCalls(resolution) {
+    if (!resolution?.resolved || resolution.relationId !== 'recipe.uses_coil') return [];
+    const recipeId = Number(resolution.canonicalId);
+    if (!Number.isSafeInteger(recipeId) || recipeId <= 0) return [];
+    return [
+        { id: `required-get_recipe_detail-${crypto.randomUUID()}`, type: 'function',
+            function: { name: 'get_recipe_detail', arguments: JSON.stringify({ recipeId }) } },
+        { id: `required-search_coils-${crypto.randomUUID()}`, type: 'function',
+            function: { name: 'search_coils', arguments: '{}' } },
+    ];
+}
+
 async function runAiAssistant(input = {}, dependencies = {}) {
     const runtimeEnv = input.providerPreference && input.providerPreference !== 'default'
         ? { ...(input.env || process.env), AI_PROVIDER: input.providerPreference }
@@ -356,47 +395,59 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const allTools = assistantReadTools();
         const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
         const coilComparisonPairs = coilCostComparisonPairs(latest.content);
-        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED')) {
-            let preResolution = null;
-            let preResolvedRoots = [];
+        const relationCanaryEnabled = isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED');
+        const trustedSessionInput = { subject: input.confirmationSubject, conversationId: input.conversationId,
+            trustedSession: session.previous ? { subject: input.confirmationSubject,
+                conversationId: input.conversationId, observedAt: started,
+                toolResults: session.previous.toolResults || [] } : undefined };
+        let relationResolverIntent = null;
+        let preResolution = null;
+        let preResolvedRoots = [];
+        const inspectLocalRelation = useLocalToolShortlist && !detectProtectedCommandRoute(messages);
+        if (relationCanaryEnabled || inspectLocalRelation) {
             try {
                 relationRouter = require('../ontology/relationRoutingCanary.cjs');
-                const rootReader = require('../ontology/relationRootCanonical.cjs');
                 // ONT-P8L-FINAL Gate B: resolve the relation root NAME through a formal bounded read
                 // BEFORE binding. Routing recall must not depend on which read tool the model happened
                 // to choose in the previous turn. This runs only when the question actually names a
                 // resolvable relation root, costs no provider round, and never touches the offered tool
                 // surface. The resolver is injectable so tests never reach the network.
-                const trustedSessionInput = { subject: input.confirmationSubject, conversationId: input.conversationId,
-                    trustedSession: session.previous ? { subject: input.confirmationSubject,
-                        conversationId: input.conversationId, observedAt: started,
-                        toolResults: session.previous.toolResults || [] } : undefined };
-                const resolverIntent = relationRouter.preBindingResolverInput({ userText: latest.content, ...trustedSessionInput });
-                if (resolverIntent) {
-                    const resolveIdentity = dependencies.resolveRelationIdentity
-                        || (async request => resolveRelationIdentity(internalFetch, getJson, request));
-                    const resolvedRoot = await rootReader.resolveRelationRoot({ ...resolverIntent, eligible: true }, { resolveIdentity });
-                    preResolution = resolvedRoot;
-                    if (resolvedRoot.resolved) preResolvedRoots = [resolvedRoot.receipt];
+                const resolved = await preResolveRecipeRelationRoot({ relationRouter, internalFetch,
+                    userText: latest.content, trustedSessionInput }, dependencies);
+                relationResolverIntent = resolved.intent;
+                preResolution = resolved.resolution;
+                preResolvedRoots = resolved.receipts;
+                if (relationCanaryEnabled) {
+                    relationRouting = relationRouter.prepareRouting({ userText: latest.content, env: runtimeEnv || process.env,
+                        tools: allTools, shortlistEnabled: useLocalToolShortlist,
+                        // Server-owned, owner-scoped, unexpired receipts only; never client history.
+                        trustedToolResults: session.previous?.toolResults || [],
+                        preResolution,
+                        ...(preResolvedRoots.length ? { preResolvedRoots } : {}),
+                        ...trustedSessionInput,
+                    }, dependencies.ontologyRouting);
                 }
-                relationRouting = relationRouter.prepareRouting({ userText: latest.content, env: runtimeEnv || process.env,
-                    tools: allTools, shortlistEnabled: useLocalToolShortlist,
-                    // Server-owned, owner-scoped, unexpired receipts only; never client history.
-                    trustedToolResults: session.previous?.toolResults || [],
-                    preResolution,
-                    ...(preResolvedRoots.length ? { preResolvedRoots } : {}),
-                    ...trustedSessionInput,
-                }, dependencies.ontologyRouting);
             } catch {
-                relationRouting = { profile: null, record: { version: 1, canaryEnabled: true, eligible: false,
-                    relationId: null, direction: null,
-                    routingSource: 'ONTOLOGY_CANARY_FALLBACK', fallback: true, legacyDetectorUsed: true, legacyRepairUsed: false,
-                    providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other', durationMs: 0 } };
+                if (relationCanaryEnabled) {
+                    relationRouting = { profile: null, record: { version: 1, canaryEnabled: true, eligible: false,
+                        relationId: null, direction: null,
+                        routingSource: 'ONTOLOGY_CANARY_FALLBACK', fallback: true, legacyDetectorUsed: true, legacyRepairUsed: false,
+                        providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other', durationMs: 0 } };
+                }
+                // With the canary OFF, identity pre-resolution is a safe optimisation. A
+                // transport/contract failure preserves the existing fail-closed Legacy behaviour and
+                // never promotes user text to identity.
             }
         }
         const ontologyRelationRouting = Boolean(relationRouting?.profile);
         const coilRecipeRelationQuery = !ontologyRelationRouting && useLocalToolShortlist
-            && (dependencies.legacyRelationDetector || isCoilRecipeRelationQuery)(latest.content);
+            && (Boolean(relationResolverIntent)
+                || (dependencies.legacyRelationDetector || isCoilRecipeRelationQuery)(latest.content));
+        const legacyForwardRelationIntent = coilRecipeRelationQuery
+            && relationResolverIntent?.relationId === 'recipe.uses_coil';
+        const legacyForwardRelationRoot = legacyForwardRelationIntent && preResolution?.resolved
+            ? preResolution : null;
+        const legacyReverseRelationQuery = coilRecipeRelationQuery && !legacyForwardRelationIntent;
         if (!relationRouting) relationRouting = { profile: null, record: { version: 1, canaryEnabled: false, eligible: false,
             relationId: null, direction: null, providerMode: isLocalAssistantMode(runtimeEnv) ? (runtimeEnv || process.env).AI_PROVIDER : 'other',
             routingSource: coilRecipeRelationQuery ? 'LEGACY_RELATION_SPECIAL_CASE' : 'NON_RELATION_SPECIALIZED_PATH',
@@ -421,12 +472,16 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // they are queued for deterministic execution before the first model call. They still pass the
         // unchanged per-call guards below (allowlist, schema, identifier grounding, read-only executor,
         // execution evidence), and the model is only asked to synthesise the final answer.
-        const canaryCallIds = new Set();
+        const relationCallIds = new Set();
         if (ontologyRelationRouting) {
             requiredRelationCalls = relationRouter.requiredReadCalls(relationRouting, [], latest.content);
-            for (const call of requiredRelationCalls) canaryCallIds.add(call.id);
+            for (const call of requiredRelationCalls) relationCallIds.add(call.id);
             relationRouting.record.deterministicReadCalls = requiredRelationCalls.length;
             relationRouting.record.completionRepairRounds = 0;
+        } else if (legacyForwardRelationRoot) {
+            requiredRelationCalls = legacyForwardRelationCalls(legacyForwardRelationRoot);
+            for (const call of requiredRelationCalls) relationCallIds.add(call.id);
+            relationRouting.record.legacyRepairUsed = requiredRelationCalls.length > 0;
         }
         // `canaryActive` can be revoked mid-turn: a required read the runtime cannot deliver (for example
         // an unfiltered catalogue read that exceeds the per-result budget on a real-sized database) must
@@ -435,17 +490,22 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // Distinct from `canaryActive`: an inactive canary (flag OFF, or not eligible) must still keep the
         // legacy relation repair path, whereas a revoked one must stop constraining the turn entirely.
         let canaryRevoked = false;
-        const tools = ontologyRelationRouting ? relationRouting.tools : legacyTools();
-        let offeredTools = tools;
+        const tools = ontologyRelationRouting ? relationRouting.tools : legacyForwardRelationRoot
+            ? ['get_recipe_detail', 'search_coils'].map(name => allTools.find(tool => tool.function.name === name)).filter(Boolean)
+            : legacyForwardRelationIntent ? []
+            : legacyTools();
+        // A uniquely resolved forward root already has a complete deterministic read plan. Do not let the
+        // model repeat or redirect those reads; it receives the two formal receipts only for synthesis.
+        let offeredTools = legacyForwardRelationRoot ? [] : tools;
         // Reuse catalog relevance detection for evidence requirements across providers.
         // The cloud tool directory and read permissions remain unchanged.
         let requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
-        const allowed = new Set(offeredTools.map(tool => tool.function.name));
+        const allowed = new Set(tools.map(tool => tool.function.name));
         // ONT-P8L: the software-planned second repair hop has to be executable, but it is added to
         // `allowed` ONLY — never to `offeredTools` — so the model-visible legacy surface stays byte-identical
         // and the model still cannot choose this tool. This is not the option-B shortlist change.
         // Measured consequence of omitting it: the planned step 2 executed as AI_TOOL_NOT_ALLOWED.
-        if (!ontologyRelationRouting && coilRecipeRelationQuery) allowed.add('get_recipes_by_coil');
+        if (!ontologyRelationRouting && legacyReverseRelationQuery) allowed.add('get_recipes_by_coil');
         const eligibility = semanticEligibility({
             userText: latest.content,
             protectedWriteRoute: input.commandRoute === true,
@@ -578,7 +638,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     finalContent = '模型未执行必要的正式业务查询，本轮没有可验证的结论。请重试。';
                     break;
                 }
-                const missingRelationTools = canaryRevoked ? [] : ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : coilRecipeRelationQuery
+                const missingRelationTools = canaryRevoked ? [] : ontologyRelationRouting ? relationRouter.missingCapabilities(relationRouting, toolResults) : legacyReverseRelationQuery
                     ? legacyRelationMissingTools(toolResults, legacyRelationRepairState)
                     : [];
                 if (missingRelationTools.length) {
@@ -687,8 +747,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 }
                 break;
             }
-            const semanticSoftwareBatch = proposed.length > 0 && proposed.every(call => semanticCallMetadata.has(call.id));
-            if (calls + proposed.length > MAX_TOOL_CALLS || (offered.length === 0 && !semanticSoftwareBatch)) {
+            const softwarePlannedBatch = proposed.length > 0
+                && proposed.every(call => semanticCallMetadata.has(call.id) || relationCallIds.has(call.id));
+            if (calls + proposed.length > MAX_TOOL_CALLS || (offered.length === 0 && !softwarePlannedBatch)) {
                 if (offered.length && round < MAX_TOOL_ROUNDS - 1) {
                     finishQueries = true;
                     outcome = 'partial';
@@ -708,12 +769,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 let args, result;
                 const toolStarted = Date.now();
                 const semanticMetadata = semanticCallMetadata.get(call.id);
+                const deterministicRelationCall = relationCallIds.has(call.id);
                 try {
                     if (!allowed.has(name)) throw Object.assign(new Error('本轮只开放已登记的只读业务工具；业务修改需要本人确认，当前未启用。'), { code: 'AI_TOOL_NOT_ALLOWED' });
-                    // Software-planned semantic calls already carry validated field-level provenance.
+                    // Software-planned semantic and relation calls already carry validated provenance.
                     // Passing them through model-oriented candidate/target repair can replace a verified
                     // canonical ID with a fuzzy user phrase, violating the dependency rule.
-                    const groundedCall = semanticMetadata ? call : groundMissingTargetArgument(
+                    const groundedCall = semanticMetadata || deterministicRelationCall ? call : groundMissingTargetArgument(
                         sanitizeModelInferredFilters(groundCandidateSelectionArgument(
                             call, name, latest.content, continuationToolResults
                         ), name, latest.content),
@@ -765,7 +827,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 // turn worse than legacy. Revoke the canary and hand the read surface back: the model then
                 // works with exactly the tools the deployment had before the canary existed, while the
                 // failed formal read stays visible and truthful in the transcript.
-                if (canaryActive && canaryCallIds.has(call.id) && result?.success === false) {
+                if (canaryActive && relationCallIds.has(call.id) && result?.success === false) {
                     canaryRevoked = true;
                     canaryActive = false;
                     offeredTools = legacyTools();
@@ -788,7 +850,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             // bounded read has not run) rather than the state variable is what makes it fire for a
             // model-driven step 1 as well: gating it on COIL_ID_DISCOVERY left coil-explicit at +1 provider
             // call, because the model's own search_coils never advanced the machine.
-            if (!ontologyRelationRouting && coilRecipeRelationQuery && !requiredRelationCalls.length
+            if (!ontologyRelationRouting && legacyReverseRelationQuery && !requiredRelationCalls.length
                 && legacySoftwareRepairSteps < MAX_SOFTWARE_REPAIR_STEPS
                 && !toolResults.some(item => item.name === 'get_recipes_by_coil')
                 && verifiedCanonicalCoilId(toolResults) !== null) {
@@ -830,7 +892,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             outcome = 'partial';
             finalContent = safeKnowledgeReply;
         }
-        finalContent = appendMissingCoilIdentities(finalContent, latest.content, toolResults);
+        const formalForwardReply = verifiedRecipeCoilRelationReply(latest.content, toolResults, {
+            enabled: legacyForwardRelationIntent,
+        });
+        if (formalForwardReply) finalContent = formalForwardReply;
+        if (!formalForwardReply) finalContent = appendMissingCoilIdentities(finalContent, latest.content, toolResults);
         finalContent = appendMissingTechnicalFileConclusion(finalContent, latest.content, toolResults);
         if (isLocalAssistantMode(runtimeEnv) && !finalContentStreamed) {
             finalContent = stabilizeLocalAnswer(finalContent, latest.content);
@@ -838,7 +904,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // C：跨目录候选必须真的到达用户。模型空手反问、或长回答被本地裁剪后，这里做确定性补充。
         finalContent = appendCrossCatalogCandidates(finalContent, toolResults);
         // 同一 规格-片数 有多套正式方案时，回答不能只讲一套（12-220 = 钢带/小眼 + 冷轧/国标眼）。
-        finalContent = appendMissingCoilVariants(finalContent, toolResults);
+        if (!formalForwardReply) finalContent = appendMissingCoilVariants(finalContent, toolResults);
         // 规矩册：成本/价格口径类规矩由系统确定性补齐，不靠模型自觉（见 docs/ai-business-rulebook.md）。
         finalContent = enforceBusinessRules({
             answer: finalContent,
@@ -916,4 +982,4 @@ module.exports = { runAiAssistant, assistantReadTools, requiredCoilRecipeToolCal
     legacyRelationMissingTools, nextLegacyRelationRepairState, verifiedCanonicalCoilId, legacyRelationRepairCall,
     // ONT-P8L-FINAL Gate B: the HTTP client side of the pre-binding identity read, exported so its
     // outcome mapping (found / not_found / ambiguous / failed) is covered without a live API.
-    resolveRelationIdentity };
+    resolveRelationIdentity, preResolveRecipeRelationRoot, legacyForwardRelationCalls };
