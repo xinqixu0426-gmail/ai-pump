@@ -26,7 +26,10 @@ const oracleV1 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json'
 const oracleV2 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
 const { createRelationReadService } = require('../api/services/relationReadService.cjs');
 const { enforceAiToolResultBudget } = require('../api/services/aiToolProtocol.cjs');
-const { verifiedRecipeCoilRelationReply } = require('../api/services/recipeCoilRelationAnswer.cjs');
+const {
+    shouldReplaceWithVerifiedRecipeCoilReply,
+    verifiedRecipeCoilRelationReply,
+} = require('../api/services/recipeCoilRelationAnswer.cjs');
 
 const {
     LEGACY_RELATION_REPAIR_STATES: S, MAX_SOFTWARE_REPAIR_STEPS, MAX_LEGACY_MODEL_REPAIR_ROUNDS,
@@ -269,4 +272,12 @@ test('P8L formal forward answer requires a canonical id agreement on both sides'
     assert.equal(verifiedRecipeCoilRelationReply('V750 用的是哪个线圈？', [detail, wrongCatalogue], { enabled: true }), '');
     assert.equal(verifiedRecipeCoilRelationReply('V750 用的是哪个线圈？', [detail, wrongCatalogue], { enabled: false }), '');
     assert.deepEqual(runtime.legacyForwardRelationCalls({ resolved: false, relationId: 'recipe.uses_coil' }), []);
+});
+
+test('P8L formal forward answer replaces omitted or foreign coil identities but preserves a grounded presentation', () => {
+    const verifiedReply = 'V550 使用 12-120 线圈。';
+    assert.equal(shouldReplaceWithVerifiedRecipeCoilReply('V550 使用 12-120 线圈。', verifiedReply), false);
+    assert.equal(shouldReplaceWithVerifiedRecipeCoilReply('V550 使用 12-120，另外还使用 12-220。', verifiedReply), true);
+    assert.equal(shouldReplaceWithVerifiedRecipeCoilReply('V550 使用已核实线圈。', verifiedReply), true);
+    assert.equal(shouldReplaceWithVerifiedRecipeCoilReply('', ''), false);
 });

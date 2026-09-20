@@ -28,7 +28,10 @@ const { createInternalFetch, getJson, postJson, lookupEntities } = require('../r
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
-const { verifiedRecipeCoilRelationReply } = require('./recipeCoilRelationAnswer.cjs');
+const {
+    shouldReplaceWithVerifiedRecipeCoilReply,
+    verifiedRecipeCoilRelationReply,
+} = require('./recipeCoilRelationAnswer.cjs');
 const { verifiedRecipePartRelationReply } = require('./recipePartRelationAnswer.cjs');
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
@@ -911,9 +914,19 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             outcome = 'partial';
             finalContent = safeKnowledgeReply;
         }
-        const formalForwardReply = verifiedRecipeCoilRelationReply(latest.content, toolResults, {
+        let formalForwardReply = verifiedRecipeCoilRelationReply(latest.content, toolResults, {
             enabled: legacyForwardRelationIntent,
         });
+        const ontologyForwardReply = verifiedRecipeCoilRelationReply(latest.content, toolResults, {
+            enabled: relationRouting?.profile?.sourceId === 'recipe_coil'
+                && relationRouting?.binding?.relationId === 'recipe.uses_coil',
+        });
+        // Preserve an already-grounded model presentation for the frozen OFF/ON equivalence contract,
+        // but replace it whenever it omits the verified coil or appends a different numeric identity.
+        if (!formalForwardReply
+            && shouldReplaceWithVerifiedRecipeCoilReply(finalContent, ontologyForwardReply)) {
+            formalForwardReply = ontologyForwardReply;
+        }
         const formalRecipePartReply = verifiedRecipePartRelationReply(latest.content, toolResults, {
             enabled: relationRouting?.profile?.sourceId === 'recipe_part',
         });

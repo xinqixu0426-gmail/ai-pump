@@ -477,6 +477,34 @@ test('a recipe-rooted relation binds from the pre-binding identity read, whateve
     assert.equal(untouched, 0);
 });
 
+test('an Ontology recipe-to-coil answer is deterministically presented from matching canonical receipts', async () => {
+    const recipeName = 'V550大脚板-2寸-经典款';
+    const result = await runAiAssistant({
+        messages: [{ role: 'user', content: `${recipeName} 用的是哪个线圈？` }],
+        confirmationSubject: 'owner-canary-regression',
+        conversationId: 'owner-canary-regression',
+        ontologyRelationCanaryEligible: true,
+        env: { AI_PROVIDER: 'deepseek', AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true' },
+    }, fixture([], {
+        resolveRelationIdentity: async () => ({
+            status: 'found',
+            identity: { recipeId: 12, recipeName },
+            calls: [{ method: 'GET', path: `/api/recipes/identity?name=${encodeURIComponent(recipeName)}` }],
+        }),
+        fetchAiProvider: async () => ({ json: async () => ({ choices: [{ message: {
+            content: `${recipeName} 使用 12-120 线圈，另外还使用 12-220 线圈。`,
+        } }] }) }),
+        executeToolCall: async name => name === 'get_recipe_detail'
+            ? { success: true, recipe: { id: 12, name: recipeName, coilId: 120, coilSpec: '12', coilSheets: 120 },
+                executionEvidence: { verified: true, kind: 'formal_api_query' } }
+            : verified([{ id: 120, spec: '12', sheets: 120, material: '钢带', slotType: '小眼' }]),
+    }));
+    assert.match(result.finalContent, /12-120/u);
+    assert.doesNotMatch(result.finalContent, /12-220/u);
+    assert.equal(result.toolResults.some(item => item.name === 'get_recipe_detail'), true);
+    assert.equal(result.toolResults.some(item => item.name === 'search_coils'), true);
+});
+
 test('local business turn fails closed when the model twice skips offered tools', async () => {
     const events = [];
     const result = await runAiAssistant({

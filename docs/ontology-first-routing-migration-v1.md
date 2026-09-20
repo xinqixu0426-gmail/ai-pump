@@ -96,6 +96,8 @@ ON admission requires all of:
 
 The runtime supplies only server-owned, same-user, same-conversation, unexpired session formal receipts. Client persisted conversation payloads, page data, ordinary assistant history and fuzzy names cannot establish identity. Typed IDs/names/shorthand still require existing formal canonical receipts. Pronouns additionally require the P4 trusted-session contract. No P4 grammar, exclusion, probability or identity rule is weakened.
 
+For `recipe.uses_coil`, a model answer that already contains only the verified numeric coil identity is preserved. If it omits that identity or appends another numeric coil identity, the server replaces the prose with the deterministic result derived from the mutually agreeing recipe-detail and coil-catalogue receipts. This is presentation enforcement only: it adds no read, provider round, relation, or cost rule.
+
 P6R deliberately does not preselect discovery using the legacy detector and relabel it Ontology. Fresh requests with no existing canonical receipt remain CANARY_NOT_ELIGIBLE; their current legacy discovery is preserved. No mid-turn promotion is claimed. Source/target entity types are read from the authoritative directional RelationDefinition.
 
 ## 6. Generic compatibility execution profile and completion

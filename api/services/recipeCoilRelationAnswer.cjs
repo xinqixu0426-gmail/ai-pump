@@ -41,4 +41,15 @@ function verifiedRecipeCoilRelationReply(userText, toolResults = [], options = {
     return `${String(recipe.name || `配方 ${recipe.id}`).trim()} 使用 ${spec}-${sheets} 线圈${identity.length ? `（${identity.join('/')}）` : ''}。`;
 }
 
-module.exports = { verifiedRecipeCoilRelationReply };
+function shouldReplaceWithVerifiedRecipeCoilReply(answer, verifiedReply) {
+    if (!verifiedReply) return false;
+    const shapes = text => [...String(text || '').matchAll(/(?<!\d)(\d{1,3}\s*[-—~]\s*\d{2,3})(?!\d)/gu)]
+        .map(match => match[1].replace(/\s+/g, '').replace(/[—~]/g, '-'));
+    const expected = new Set(shapes(verifiedReply));
+    const actual = new Set(shapes(answer));
+    return expected.size > 0 && (actual.size === 0
+        || [...expected].some(value => !actual.has(value))
+        || [...actual].some(value => !expected.has(value)));
+}
+
+module.exports = { shouldReplaceWithVerifiedRecipeCoilReply, verifiedRecipeCoilRelationReply };
