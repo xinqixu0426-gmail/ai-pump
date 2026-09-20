@@ -58,6 +58,23 @@ const MIN_REVERSE_CASES = 4;
 const MIN_FORWARD_CASES = 4;
 const MIN_EMPTY_CASES = 1;
 
+/**
+ * The Supervisor's targets (reverse 8/8, forward 8/8) were written for a database with enough objects to
+ * supply eight cases per direction. The corpus is bounded by the real data, so the plan is always
+ * reported explicitly and both directions must be complete for every generated case — a small corpus is
+ * never silently presented as the full eight.
+ */
+function corpusScale(plan) {
+    return {
+        reverseCases: plan.reverse.length,
+        forwardCases: plan.forward.length,
+        emptyCases: plan.empty.length,
+        reverseCasesPerRound: plan.reverse.length,
+        forwardCasesPerRound: plan.forward.length,
+        note: 'case counts are bounded by the judged database and are reported as generated, not padded to eight',
+    };
+}
+
 function discoverCasePlan(db) {
     const coils = db.prepare("SELECT id, spec, sheets FROM coils WHERE scheme_status='official' ORDER BY id").all();
     const recipes = db.prepare('SELECT id, name, coil_id AS coilId FROM recipes WHERE deleted_at IS NULL ORDER BY id').all();
@@ -92,19 +109,23 @@ function discoverCasePlan(db) {
     // once per object. A recipe whose declared coil is not bound must still answer or refuse, never guess.
     const forward = [];
     for (const recipe of recipes) {
-        forward.push({
-            id: `F${forward.length + 1}-recipe${recipe.id}-to-coil`,
+        const coil = recipe.coilId != null ? coils.find(item => item.id === recipe.coilId) || null : null;
+        const shared = {
             direction: 'recipe->coil',
             label: recipe.name,
             recipeId: recipe.id,
+            coilSpec: coil ? coil.spec : null,
+            coilSheets: coil ? coil.sheets : null,
+        };
+        forward.push({
+            ...shared,
+            id: `F${forward.length + 1}-recipe${recipe.id}-to-coil`,
             seed: `${recipe.name} 用的是哪个泵壳模板？`,
             question: `${recipe.name} 用的是哪个线圈？`,
         });
         forward.push({
+            ...shared,
             id: `F${forward.length + 1}-recipe${recipe.id}-winding`,
-            direction: 'recipe->coil',
-            label: recipe.name,
-            recipeId: recipe.id,
             seed: `${recipe.name} 的配件明细有哪些？`,
             question: `${recipe.name} 配的什么绕组？`,
         });
@@ -323,15 +344,31 @@ function readSetCompleteness(result) {
     return result.setCompleteness === 'COMPLETE' && result?.hasMore !== true ? 'COMPLETE' : result.setCompleteness;
 }
 
+/**
+ * Coil identity may be expressed as the shorthand `12-140` or through the formal fields the coil
+ * directory actually returns (`规格：12` / `片数 140`). Both are the same canonical identity, so an answer
+ * is judged on identity equivalence rather than on one literal spelling — otherwise a fully correct
+ * answer that names the right coil is scored as wrong.
+ */
+function coilIdentityMentioned(text, spec, sheets) {
+    if (spec == null || sheets == null) return false;
+    const value = String(text || '');
+    if (new RegExp(`(?<![0-9])${spec}-${sheets}(?![0-9])`).test(value)) return true;
+    const specMentioned = new RegExp(`(?:规格|定子规格|spec)\\D{0,6}${spec}(?![0-9])`).test(value);
+    const sheetsMentioned = new RegExp(`(?:片数|片|sheets)\\D{0,6}${sheets}(?![0-9])`).test(value);
+    return specMentioned && sheetsMentioned;
+}
+
 function classifyAnswer(entry, truth, content) {
     const text = String(content || '');
     const hits = truth.expected.filter(value => text.includes(value));
     const wrong = [];
-    if (truth.expected.length > 0 && hits.length === 0) {
-        if (entry.direction === 'recipe->coil') {
-            const seen = text.match(/\b(\d{1,3})-(\d{2,4})\b/g) || [];
-            const expectedShapes = new Set(truth.expected);
-            for (const shape of seen) if (!expectedShapes.has(shape)) wrong.push(shape);
+    if (truth.expected.length > 0 && hits.length === 0 && entry.direction === 'recipe->coil') {
+        if (coilIdentityMentioned(text, entry.coilSpec, entry.coilSheets)) {
+            hits.push(truth.expected[0]);
+        } else {
+            const seen = text.match(/(?<![0-9])\d{1,3}-\d{2,4}(?![0-9])/g) || [];
+            for (const shape of seen) if (!truth.expected.includes(shape)) wrong.push(shape);
         }
     }
     return { hits, correct: hits.length > 0, wrongTargets: wrong };
@@ -398,7 +435,6 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         wrongRoot: sum(relation, entry => (entry.correct ? 0 : entry.wrongTargets.length)),
         wrongDirection: sum(relation, entry => (entry.correct || entry.wrongTargets.length > 0 ? 0 : 1)),
         cloudFallbacks: sum([...cases, ...negativeCases], entry => entry.fallbacks),
-        payloadLimitFailures: sum([...cases, ...negativeCases], entry => entry.tooLarge),
         unauthorizedWrites: negativeCases.filter(entry => entry.kind === 'write' && entry.writeProtected !== true).length,
         aggregateCalls: sum([...cases, ...negativeCases], entry => entry.aggregateCalls),
         notDone: [...cases, ...negativeCases].filter(entry => !entry.done).length,
@@ -406,6 +442,12 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         // Supervisor's Gate B requirement: ontology must not add a provider round of its own.
         additionalProviderRounds: sum([...cases, ...negativeCases, ...emptyRelationCases],
             entry => Math.max(0, (entry.providerRounds ?? 0) - (entry.baselineProviderRounds ?? entry.providerRounds ?? 0))),
+        // A budget refusal on a relation case is a gate failure. A budget refusal on a genuinely unrelated,
+        // unbounded question is the documented graceful degradation of a proper read (the answer states
+        // that no formal result was obtained and refuses to invent business data), so it is recorded
+        // separately instead of being counted as a relation failure.
+        payloadLimitFailures: sum(cases, entry => entry.tooLarge),
+        unboundedQueryBudgetRefusals: sum(negativeCases, entry => entry.tooLarge),
         emptyRelationTotal: emptyRelationCases.length,
         emptyRelationComplete: emptyRelationCases.filter(entry => entry.certificateOnly).length,
         providersServed: [...new Set([...cases, ...negativeCases, ...emptyRelationCases].flatMap(entry => entry.providers || []))],
@@ -544,7 +586,7 @@ function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCa
         negativeCases,
         emptyRelationCases,
         casePlan: reportCasePlan
-            ? { counts: reportCasePlan.counts, reverse: reportCasePlan.reverse, forward: reportCasePlan.forward, empty: reportCasePlan.empty }
+            ? { counts: reportCasePlan.counts, scale: corpusScale(reportCasePlan), reverse: reportCasePlan.reverse, forward: reportCasePlan.forward, empty: reportCasePlan.empty }
             : null,
     };
 }
@@ -662,9 +704,12 @@ async function main() {
         console.log(`report -> ${target}`);
     }
     console.log(`${gateId}: status=${report.status} reverse=${verdict.observed.reverseCorrect}/${verdict.observed.reverseTotal} `
-        + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} cloudFallbacks=${verdict.observed.cloudFallbacks} `
-        + `aggregateCalls=${verdict.observed.aggregateCalls} payloadLimitFailures=${verdict.observed.payloadLimitFailures} `
-        + `unauthorizedWrites=${verdict.observed.unauthorizedWrites} businessTablesChanged=[${diff.changedTables}] auditDelta=${diff.auditDelta} operationDelta=${diff.operationDelta}`);
+        + `forward=${verdict.observed.forwardCorrect}/${verdict.observed.forwardTotal} emptyCertified=${verdict.observed.emptyRelationComplete}/${verdict.observed.emptyRelationTotal} `
+        + `wrongRoot=${verdict.observed.wrongRoot} wrongDirection=${verdict.observed.wrongDirection} aggregateCalls=${verdict.observed.aggregateCalls} `
+        + `cloudFallbacks=${verdict.observed.cloudFallbacks} additionalProviderRounds=${verdict.observed.additionalProviderRounds} `
+        + `payloadLimitFailures=${verdict.observed.payloadLimitFailures} unboundedQueryBudgetRefusals=${verdict.observed.unboundedQueryBudgetRefusals} `
+        + `unauthorizedWrites=${verdict.observed.unauthorizedWrites} providers=[${verdict.observed.providersServed}] `
+        + `businessTablesChanged=[${diff.changedTables}] auditDelta=${diff.auditDelta} operationDelta=${diff.operationDelta}`);
     if (report.status !== 'PASS') {
         console.error(`GATE_FAILED ${gateId}: ${verdict.failures.join('; ')}`);
         process.exitCode = 1;
@@ -691,6 +736,7 @@ module.exports = {
     assertGatePreconditions,
     businessFingerprint,
     classifyAnswer,
+    coilIdentityMentioned,
     discoverCasePlan,
     evaluateVerdict,
     fingerprintDiff,

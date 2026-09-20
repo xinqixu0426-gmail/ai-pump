@@ -18,6 +18,7 @@ const {
     assertGatePreconditions,
     businessFingerprint,
     classifyAnswer,
+    coilIdentityMentioned,
     discoverCasePlan,
     evaluateVerdict,
     fingerprintDiff,
@@ -97,11 +98,20 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     assert.equal(missed.correct, false);
     assert.deepEqual(missed.wrongTargets, [], 'a missing answer is not a wrong root');
 
-    const recipeEntry = { id: 'R5', direction: 'recipe->coil' };
+    const recipeEntry = { id: 'R5', direction: 'recipe->coil', coilSpec: '12', coilSheets: 140 };
     const wrongCoil = classifyAnswer(recipeEntry, { expected: ['12-140'] }, 'v750-tokoy 用的是 12-120 线圈');
     assert.equal(wrongCoil.correct, false);
     assert.deepEqual(wrongCoil.wrongTargets, ['12-120'], 'naming a different coil is a wrong target');
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '用的是 12-140').correct, true);
+    // The formal coil directory spells the identity as fields, not as shorthand. That is the same
+    // canonical identity, so a correct answer must not be scored wrong for its spelling.
+    assert.equal(coilIdentityMentioned('规格：12，片数 140', '12', 140), true);
+    assert.equal(coilIdentityMentioned('规格：12，片数 120', '12', 140), false);
+    assert.equal(coilIdentityMentioned('12-140', '12', 140), true);
+    assert.equal(coilIdentityMentioned('12-1400', '12', 140), false);
+    assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, 'V750…的线圈转子配置如下：\n- 规格：12，片数 140\n- 材质：钢带').correct, true);
+    assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 140').correct, true);
+    assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '定子规格 12 / 片数 120').correct, false);
 });
 
 function failingCase(overrides = {}) {
