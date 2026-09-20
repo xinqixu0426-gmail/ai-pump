@@ -31,7 +31,7 @@ SyntheticBusinessAcceptanceV1 用可重建的隔离 SQLite 假数据验收真实
 
 ## 本地模型基线
 
-2026-09-21 使用局域网本地模型完整运行 32 题一轮：
+2026-09-21 首次使用局域网本地模型完整运行 32 题一轮：
 
 | 结果 | 数量 |
 |---|---:|
@@ -46,20 +46,32 @@ SyntheticBusinessAcceptanceV1 用可重建的隔离 SQLite 假数据验收真实
 
 维度结果：Identity 85%、Ambiguity 100%、Cost Semantics 100%、Overrides 100%、Relations 80%、Evidence 81.3%、Completeness 56.3%、Safety 96.9%。Safety 未满分来自一次将 testing 方案误称为“正式方案”，不是写入或金额事故。
 
-## 已证实的缺口家族
+## 语义闭环进展
 
-1. 唯一 recipe 别名对成本查询可用，但在“正式名称”或继续查关系时没有稳定传入 canonical root。
-2. `recipe→coil`、`coil→recipe`、`recipe→part`、`part→recipe` 的正式读取已存在，但 Semantic completeness 会额外要求无关的 `CROSS_CATALOG_CANDIDATES` 或配方基础事实，使正确关系回执无法变成最终答案。
-3. 本地模型能读到 testing 方案库存，但回答层丢失 lifecycle/status 语义，误称“正式方案”。
-4. 零件反查有时已调用正式关系工具，仍被通用跨目录缺失逻辑覆盖成“未找到”。
+上述缺口已在共享层闭环：
 
-下一阶段应在共享的关系问题 completeness/answer projection 层修复，不为 32 个问句分别写补丁。修复后再跑 32 题 × 2，检查 Outcome Stability。
+- 正式持久化 recipe alias 和经结构化证据校验的规格键可以进入 canonical relation root；歧义、失效和描述不一致继续 fail closed。
+- 已验证的关系回执进入 `FORMAL_RELATION_RESULT`，关系完整性不再依赖无关的跨目录候选事实。
+- testing 库存答案保留 testing 生命周期语义。
+- 已验证的空关系结果和缺失目标保留用户请求 token，不虚构 canonical identity。
+- 零件单位价格意图、唯一 recipe identity 和同规格多线圈的显式材质/槽位约束在共享语义层处理。
+
+修复后的真实模型证据如下：
+
+- 首轮受影响 15 题：13 PASS、1 PARTIAL、1 FAIL；修复后剩余聚焦题均通过。
+- 第二次完整 `32 × 2`：60 PASS、2 PARTIAL、2 FAIL；对应 SB-04、SB-17、SB-21 的共享根因随后修复，聚焦复跑全部通过。
+- 最终完整复跑的第一轮达到 32/32 PASS；第二轮开始后，本地模型 HTTP 健康检查仍为 200，但生成请求无输出并超时，因此最终 64/64 尚未形成完整证据。
+
+当前仓库中的 `synthetic-business-acceptance-baseline-v1.json` 是上述 60/2/2 的真实完整中间运行，不代表最终 PASS。不得手工改写该产物；待本地模型推理恢复后由 runner 覆盖生成最终基线。
 
 ## 执行
 
 ```bash
 node --test tests/syntheticBusinessAcceptanceV1.test.cjs
 node scripts/run-synthetic-business-acceptance.cjs --provider=local --runs=1
+node scripts/run-synthetic-business-acceptance.cjs --provider=local --runs=2 --timeout-ms=240000 \
+  --report=logs/synthetic-business-acceptance-v1-final-raw.json \
+  --artifact=docs/synthetic-business-acceptance-baseline-v1.json
 node scripts/adjudicate-synthetic-business-acceptance.cjs
 ```
 

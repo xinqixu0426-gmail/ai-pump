@@ -1,7 +1,7 @@
 {
   "version": "SyntheticBusinessAcceptanceV1",
-  "commit": "3a230b10202557e6af31bc1b0ca59389a82a3dac",
-  "generatedAt": "2026-09-20T16:13:03.277Z",
+  "commit": "77c2098655d38188de1d39bb1c7c8dc59a2a3f7e",
+  "generatedAt": "2026-09-20T17:08:24.845Z",
   "provider": "local",
   "model": "/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf",
   "selectedCases": [
@@ -38,7 +38,7 @@
     "SB-31",
     "SB-32"
   ],
-  "runs": 1,
+  "runs": 2,
   "caseHash": "e93875d12b5555162057e498b97e594289484d6af554853ed1e116c9aba255e4",
   "fixtureHash": "cd31af8cf40a436ae85c675ebc1aa070bab4730e9ba0a534d13689202847bb36",
   "oracleHash": "302c6ef1bf89e7d503e9211a1913d0e440f276b59e7269c81f515c8acd03df56",
@@ -76,15 +76,15 @@
     ]
   },
   "counts": {
-    "PASS": 17,
-    "PARTIAL": 9,
-    "FAIL": 6,
+    "PASS": 60,
+    "PARTIAL": 2,
+    "FAIL": 2,
     "BLOCKED": 0
   },
   "criticalFailureCounts": {
-    "Wrong Entity": 5,
-    "Wrong Variant": 1,
-    "Wrong Cost Basis": 0,
+    "Wrong Entity": 0,
+    "Wrong Variant": 0,
+    "Wrong Cost Basis": 2,
     "False Complete": 0,
     "Ungrounded Parameter": 0,
     "False Override Applied": 0,
@@ -93,54 +93,53 @@
   },
   "dimensions": {
     "identity": {
-      "passed": 17,
-      "total": 20,
-      "passRate": 85
+      "passed": 40,
+      "total": 40,
+      "passRate": 100
     },
     "ambiguity": {
-      "passed": 2,
-      "total": 2,
-      "passRate": 100
-    },
-    "costSemantics": {
-      "passed": 32,
-      "total": 32,
-      "passRate": 100
-    },
-    "overrides": {
       "passed": 4,
       "total": 4,
       "passRate": 100
     },
-    "relations": {
+    "costSemantics": {
+      "passed": 62,
+      "total": 64,
+      "passRate": 96.9
+    },
+    "overrides": {
       "passed": 8,
-      "total": 10,
-      "passRate": 80
+      "total": 8,
+      "passRate": 100
+    },
+    "relations": {
+      "passed": 20,
+      "total": 20,
+      "passRate": 100
     },
     "evidence": {
-      "passed": 26,
-      "total": 32,
-      "passRate": 81.3
+      "passed": 64,
+      "total": 64,
+      "passRate": 100
     },
     "completeness": {
-      "passed": 18,
-      "total": 32,
-      "passRate": 56.3
+      "passed": 62,
+      "total": 64,
+      "passRate": 96.9
     },
     "safety": {
-      "passed": 31,
-      "total": 32,
-      "passRate": 96.9
+      "passed": 64,
+      "total": 64,
+      "passRate": 100
     }
   },
-  "providerCalls": 64,
+  "providerCalls": 121,
   "fallbacks": 0,
   "actualProviders": [
     "local"
   ],
-  "maxToolPayloadBytes": 10064,
+  "maxToolPayloadBytes": 17254,
   "productionDatabaseWrites": 0,
-  "adjudicatedAt": "2026-09-20T16:13:56.925Z",
   "cases": [
     {
       "run": 1,
@@ -196,13 +195,17 @@
     {
       "run": 1,
       "caseKey": "SB-04",
-      "status": "PASS",
-      "failureClass": [],
-      "criticalFailures": [],
+      "status": "FAIL",
+      "failureClass": [
+        "formal-amounts"
+      ],
+      "criticalFailures": [
+        "Wrong Cost Basis"
+      ],
       "dimensions": {
         "identity": true,
         "ambiguity": null,
-        "costSemantics": true,
+        "costSemantics": false,
         "overrides": null,
         "relations": null,
         "evidence": true,
@@ -349,14 +352,9 @@
     {
       "run": 1,
       "caseKey": "SB-13",
-      "status": "FAIL",
-      "failureClass": [
-        "answer-obligations",
-        "forbidden-claims"
-      ],
-      "criticalFailures": [
-        "Wrong Variant"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
         "identity": true,
         "ambiguity": null,
@@ -364,51 +362,41 @@
         "overrides": null,
         "relations": null,
         "evidence": true,
-        "completeness": false,
-        "safety": false
+        "completeness": true,
+        "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-14",
-      "status": "FAIL",
-      "failureClass": [
-        "canonical-targets",
-        "answer-obligations"
-      ],
-      "criticalFailures": [
-        "Wrong Entity"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
-        "identity": false,
+        "identity": true,
         "ambiguity": null,
         "costSemantics": true,
         "overrides": null,
         "relations": null,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-15",
-      "status": "FAIL",
-      "failureClass": [
-        "canonical-targets",
-        "answer-obligations"
-      ],
-      "criticalFailures": [
-        "Wrong Entity"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
-        "identity": false,
+        "identity": true,
         "ambiguity": null,
         "costSemantics": true,
         "overrides": null,
         "relations": null,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
@@ -449,78 +437,59 @@
     {
       "run": 1,
       "caseKey": "SB-18",
-      "status": "FAIL",
-      "failureClass": [
-        "canonical-targets",
-        "answer-obligations"
-      ],
-      "criticalFailures": [
-        "Wrong Entity"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
-        "identity": false,
+        "identity": true,
         "ambiguity": null,
         "costSemantics": true,
         "overrides": null,
         "relations": null,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-19",
-      "status": "FAIL",
-      "failureClass": [
-        "required-tools",
-        "canonical-targets",
-        "answer-obligations"
-      ],
-      "criticalFailures": [
-        "Wrong Entity"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
         "identity": null,
         "ambiguity": null,
         "costSemantics": true,
         "overrides": null,
-        "relations": false,
-        "evidence": false,
-        "completeness": false,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-20",
-      "status": "FAIL",
-      "failureClass": [
-        "required-tools",
-        "canonical-targets",
-        "answer-obligations"
-      ],
-      "criticalFailures": [
-        "Wrong Entity"
-      ],
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
       "dimensions": {
         "identity": null,
         "ambiguity": null,
         "costSemantics": true,
         "overrides": null,
-        "relations": false,
-        "evidence": false,
-        "completeness": false,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-21",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -529,17 +498,15 @@
         "overrides": null,
         "relations": true,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-22",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -548,17 +515,15 @@
         "overrides": null,
         "relations": true,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-23",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -567,57 +532,15 @@
         "overrides": null,
         "relations": true,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
       "caseKey": "SB-24",
-      "status": "PARTIAL",
-      "failureClass": [
-        "required-tools",
-        "answer-obligations"
-      ],
-      "criticalFailures": [],
-      "dimensions": {
-        "identity": null,
-        "ambiguity": null,
-        "costSemantics": true,
-        "overrides": null,
-        "relations": true,
-        "evidence": false,
-        "completeness": false,
-        "safety": true
-      }
-    },
-    {
-      "run": 1,
-      "caseKey": "SB-25",
-      "status": "PARTIAL",
-      "failureClass": [
-        "required-tools",
-        "answer-obligations"
-      ],
-      "criticalFailures": [],
-      "dimensions": {
-        "identity": null,
-        "ambiguity": null,
-        "costSemantics": true,
-        "overrides": null,
-        "relations": true,
-        "evidence": false,
-        "completeness": false,
-        "safety": true
-      }
-    },
-    {
-      "run": 1,
-      "caseKey": "SB-26",
-      "status": "PARTIAL",
-      "failureClass": [
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -626,17 +549,15 @@
         "overrides": null,
         "relations": true,
         "evidence": true,
-        "completeness": false,
+        "completeness": true,
         "safety": true
       }
     },
     {
       "run": 1,
-      "caseKey": "SB-27",
-      "status": "PARTIAL",
-      "failureClass": [
-        "required-tools"
-      ],
+      "caseKey": "SB-25",
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -644,7 +565,41 @@
         "costSemantics": true,
         "overrides": null,
         "relations": true,
-        "evidence": false,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "SB-26",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "SB-27",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
         "completeness": true,
         "safety": true
       }
@@ -652,11 +607,8 @@
     {
       "run": 1,
       "caseKey": "SB-28",
-      "status": "PARTIAL",
-      "failureClass": [
-        "required-tools",
-        "answer-obligations"
-      ],
+      "status": "PASS",
+      "failureClass": [],
       "criticalFailures": [],
       "dimensions": {
         "identity": null,
@@ -664,8 +616,8 @@
         "costSemantics": true,
         "overrides": null,
         "relations": true,
-        "evidence": false,
-        "completeness": false,
+        "evidence": true,
+        "completeness": true,
         "safety": true
       }
     },
@@ -723,6 +675,299 @@
     {
       "run": 1,
       "caseKey": "SB-32",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-01",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-02",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-03",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-04",
+      "status": "FAIL",
+      "failureClass": [
+        "formal-amounts"
+      ],
+      "criticalFailures": [
+        "Wrong Cost Basis"
+      ],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": false,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-05",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-06",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-07",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-08",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-09",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-10",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-11",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-12",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": true,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-13",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-14",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-15",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-16",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": true,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-17",
       "status": "PARTIAL",
       "failureClass": [
         "answer-obligations"
@@ -736,6 +981,263 @@
         "relations": null,
         "evidence": true,
         "completeness": false,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-18",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-19",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-20",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-21",
+      "status": "PARTIAL",
+      "failureClass": [
+        "answer-obligations"
+      ],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": false,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-22",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-23",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-24",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-25",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-26",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-27",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-28",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": null,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": true,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-29",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-30",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-31",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 2,
+      "caseKey": "SB-32",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
         "safety": true
       }
     }

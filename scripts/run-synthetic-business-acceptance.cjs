@@ -46,6 +46,11 @@ function hydrateRuntimeConfiguration() {
         }
     }
     environment.AI_PROVIDER = provider;
+    const requestedTimeoutMs = Number(args.get('timeout-ms'));
+    if (Number.isFinite(requestedTimeoutMs) && requestedTimeoutMs >= 30_000 && requestedTimeoutMs <= 600_000) {
+        environment.AI_PROVIDER_TIMEOUT_MS = String(Math.trunc(requestedTimeoutMs));
+        environment.AI_CHAT_TIMEOUT_MS = String(Math.trunc(requestedTimeoutMs + 30_000));
+    }
     return environment;
 }
 

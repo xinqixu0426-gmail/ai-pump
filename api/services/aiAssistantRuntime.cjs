@@ -292,14 +292,71 @@ async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, e
             return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
         }
     }
-    const path = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
+    const exactPath = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
     try {
-        const identity = await getJsonFn(internalFetch, path, '配方身份解析读取失败');
-        return { status: 'found', identity, calls: [{ method: 'GET', path }], path };
+        const identity = await getJsonFn(internalFetch, exactPath, '配方身份解析读取失败');
+        return { status: 'found', identity, calls: [{ method: 'GET', path: exactPath }], path: exactPath };
     } catch (error) {
-        if (error?.formalApiOutcome === 'not_found') return { status: 'not_found', calls: [{ method: 'GET', path }] };
-        if (error?.statusCode === 409) return { status: 'ambiguous', calls: [{ method: 'GET', path }] };
-        return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
+        if (error?.statusCode === 409) return { status: 'ambiguous', calls: [{ method: 'GET', path: exactPath }] };
+        if (error?.formalApiOutcome !== 'not_found') {
+            return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path: exactPath };
+        }
+    }
+    const path = '/api/entity-lookup';
+    try {
+        let result = await lookupEntities(internalFetch, {
+            version: 1, mention, entityTypes: ['recipe'], matchPolicy: 'EXACT_OR_APPROVED_ALIAS',
+        });
+        if (result?.complete !== true) return { status: 'failed', code: 'IDENTITY_READ_INCOMPLETE', capability, path };
+        let resolution = result.resolutions?.find(item => item.entityType === 'recipe') || null;
+        if (['ALIAS_AMBIGUOUS', 'CANONICAL_NAME_AMBIGUOUS'].includes(resolution?.state)
+            || result.candidateCount > 1) return { status: 'ambiguous', calls: [{ method: 'POST', path }] };
+        if (resolution?.state === 'ALIAS_TARGET_UNAVAILABLE') {
+            return { status: 'not_found', calls: [{ method: 'POST', path }] };
+        }
+        let candidate = result.candidates?.[0];
+        let structuredIdentity = null;
+        if ((!candidate || result.candidateCount !== 1) && result.candidateCount === 0) {
+            const keys = [...new Set(String(mention).match(/\bV\d+\b/giu) || [])];
+            if (keys.length === 1) {
+                const canonicalKey = keys[0];
+                result = await lookupEntities(internalFetch, {
+                    version: 1, mention: canonicalKey, entityTypes: ['recipe'], matchPolicy: 'EXACT',
+                });
+                resolution = result.resolutions?.find(item => item.entityType === 'recipe') || null;
+                candidate = result?.complete === true && result.candidateCount === 1 ? result.candidates?.[0] : null;
+                if (candidate) {
+                    const recipeId = Number(candidate.canonicalId);
+                    const current = await getJsonFn(internalFetch, `/api/recipes/${recipeId}`, '配方身份校验读取失败');
+                    const descriptor = String(mention).replace(new RegExp(canonicalKey, 'iu'), '')
+                        .replace(/(?:这个|该)?配方/gu, '').trim().toLocaleLowerCase('zh-CN');
+                    const currentName = String(current?.name || '').trim();
+                    if (!currentName || !new RegExp(`(?:^|[^A-Z0-9])${canonicalKey}(?:[^0-9]|$)`, 'iu').test(currentName)
+                        || (descriptor && !currentName.toLocaleLowerCase('zh-CN').includes(descriptor))) {
+                        return { status: 'not_found', calls: [{ method: 'POST', path }] };
+                    }
+                    structuredIdentity = { recipeId, recipeName: currentName, matchKind: 'STRUCTURED_CANONICAL_KEY',
+                        canonicalKey, descriptorVerified: true };
+                }
+            }
+        }
+        if ((!candidate || result.candidateCount !== 1) && !structuredIdentity) {
+            return { status: 'not_found', calls: [{ method: 'POST', path }] };
+        }
+        if (structuredIdentity) return { status: 'found', identity: structuredIdentity,
+            calls: [{ method: 'POST', path }], path };
+        const alias = resolution?.state === 'FORMAL_ALIAS_MATCH';
+        return { status: 'found', identity: {
+            recipeId: Number(candidate.canonicalId),
+            recipeName: alias ? resolution.canonicalCurrentName : mention,
+            matchKind: alias ? 'APPROVED_ALIAS' : 'EXACT',
+            ...(alias ? { matchedAlias: resolution.matchedAlias } : {}),
+        }, calls: [{ method: 'POST', path }], path };
+    } catch (error) {
+        // Exact-name absence is already a valid fail-closed outcome. Alias/spec resolution is a
+        // secondary authority; if that optional read is unavailable, do not turn the whole assistant
+        // request into a transport failure and never manufacture a root.
+        return { status: 'not_found', calls: [{ method: 'GET', path: exactPath }] };
     }
 }
 
