@@ -13,12 +13,12 @@ function safeRequestId(value) {
     return /^[a-zA-Z0-9._-]{8,128}$/.test(value) ? value : crypto.createHash('sha256').update(value).digest('hex').slice(0, 24);
 }
 
-async function observeBusinessSemanticShadow({ userText, toolResults = [], answer = '', requestId } = {}, dependencies = {}) {
+async function observeBusinessSemanticShadow({ userText, toolResults = [], answer = '', requestId, eligibility = null } = {}, dependencies = {}) {
     const started = performance.now();
     let record;
     try {
-        const preFrame = buildBusinessSemanticFrame({ userText, stage: 'PRE_EVIDENCE' });
-        const postFrame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });
+        const preFrame = buildBusinessSemanticFrame({ userText, stage: 'PRE_EVIDENCE', eligibility });
+        const postFrame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE', eligibility });
         validateBusinessSemanticFrame(preFrame);
         validateBusinessSemanticFrame(postFrame);
         record = deepFreeze({ version: 1, requestId: safeRequestId(requestId), preFrame, postFrame,

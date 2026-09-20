@@ -47,7 +47,7 @@ function variantLabel(row) { return [row.material, row.slotType, row.schemeCode]
 function variantCost(row) { return money(row.cost ?? row.totalCost ?? row.kitPrice ?? row.unitCost); }
 
 function deterministicSemanticAnswer(frame, toolResults, userText) {
-    const semantics = classifyQuestion(userText);
+    const semantics = classifyQuestion(userText, { admittedCatalogLookup: frame?.question?.kind === 'CATALOG_LOOKUP' });
     const requestedToken = frame?.subject?.requestedToken || semantics.requestedIdentity.token || '该目标';
     const status = frame?.completeness?.status;
     const targetRecipe = recipe(toolResults);

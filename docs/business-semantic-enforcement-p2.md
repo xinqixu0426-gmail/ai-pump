@@ -15,7 +15,9 @@ The existing `AI_BUSINESS_SEMANTIC_SHADOW_ENABLED` remains observation-only. Whe
 supported turns follow this order:
 
 ```text
-pre-evidence frame
+SemanticEligibilityBoundaryV1
+→ eligible supported business request
+→ pre-evidence frame
 → BusinessEvidencePlanV1
 → bounded existing formal reads
 → post-evidence frame
@@ -25,6 +27,14 @@ pre-evidence frame
 
 `OUT_OF_SCOPE` keeps legacy behavior. The supported kinds are `COST_QUERY`, `INVENTORY_QUERY`,
 `CONFIGURATION_OVERRIDE`, `HYPOTHETICAL_COST_QUERY`, and `CATALOG_LOOKUP`.
+
+`SemanticEligibilityBoundaryV1` is deterministic admission control, not another intent planner. Cost,
+inventory, override and catalog semantics enter only when the request also carries a positive supported
+business signal such as a recognised recipe/coil/catalog identifier or an explicit lookup over a supported
+resource. `CATALOG_LOOKUP` is never the generic non-empty fallback. Generic conversation, writing,
+arithmetic, general knowledge, unsupported domains and protected write commands retain Legacy authority and
+produce zero semantic planned reads. A trusted page context can contribute only after server-side
+normalisation and only for an already-supported semantic resource type.
 
 ## Evidence planning
 

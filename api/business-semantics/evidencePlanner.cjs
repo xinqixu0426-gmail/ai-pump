@@ -44,10 +44,10 @@ function requirementRows(frame, extraFacts = []) {
     });
 }
 
-function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCount = 0 } = {}) {
-    const semantics = classifyQuestion(userText);
+function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCount = 0, eligibility = null } = {}) {
+    const semantics = classifyQuestion(userText, { admittedCatalogLookup: eligibility?.eligible === true && eligibility?.kind === 'CATALOG_LOOKUP' });
     if (semantics.kind === 'OUT_OF_SCOPE') return null;
-    const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });
+    const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE', eligibility });
     const recipes = recipeCandidates(toolResults), coils = coilCandidates(toolResults, semantics);
     const token = semantics.requestedIdentity.token;
     const has = name => byName(toolResults, name).length > 0;

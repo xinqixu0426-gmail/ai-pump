@@ -26,7 +26,33 @@ function extractRequestedTarget(text) {
         .slice(0, 80);
 }
 
-function classifyQuestion(userText) {
+function catalogAdmissionSignals(userText) {
+    const text = String(userText || '').trim();
+    if (!text) return [];
+    const signals = [];
+    if (/\bV\d+[\p{L}\p{N}_\-]*/iu.test(text)) signals.push('RECIPE_IDENTIFIER');
+    if (parseCoilShorthand(text)) signals.push('COIL_SHORTHAND');
+    if (/\b[A-Z]+\d[A-Z0-9]*(?:[-－][\p{L}\p{N}]+)+/iu.test(text)) signals.push('BUSINESS_IDENTIFIER');
+    if (/(?:轴承|油封|电容|电缆|浮球|螺丝|叶轮|泵壳)[\s_\-－]*[\p{L}\p{N}]+/iu.test(text)) signals.push('CATALOG_IDENTIFIER');
+    if (/(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)) signals.push('SUPPORTED_RESOURCE_TERM');
+    if (/(?:型号|目录|方案)/u.test(text) && /[\p{L}\p{N}][\p{L}\p{N}_\-－]{1,}/u.test(text)) signals.push('STRUCTURED_CATALOG_TERM');
+    if (/(?:找|查|查询|查看|看看|看一下|搜索|搜一下|是什么型号|有哪些方案|哪些方案)/u.test(text)) signals.push('LOOKUP_OPERATION');
+    if (/(?:这个|该|当前|这些)(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)) signals.push('EXPLICIT_RESOURCE_REFERENCE');
+    return [...new Set(signals)];
+}
+
+function positivelyAdmittedBusinessRequest(text) {
+    const signals = catalogAdmissionSignals(text);
+    const genericKnowledge = /(?:工作原理|基本原理|原理是什么|科普|讲讲|介绍一下|怎么工作|如何工作)/u.test(text);
+    if (genericKnowledge) return { admitted: false, signals };
+    const hasIdentity = signals.some(item => ['RECIPE_IDENTIFIER', 'COIL_SHORTHAND', 'BUSINESS_IDENTIFIER',
+        'CATALOG_IDENTIFIER', 'STRUCTURED_CATALOG_TERM'].includes(item));
+    const hasResourceLookup = signals.includes('SUPPORTED_RESOURCE_TERM')
+        && (signals.includes('LOOKUP_OPERATION') || signals.includes('EXPLICIT_RESOURCE_REFERENCE'));
+    return { admitted: hasIdentity || hasResourceLookup, signals };
+}
+
+function classifyQuestion(userText, options = {}) {
     const text = String(userText || '').trim();
     const coil = parseCoilShorthand(text);
     const inventory = /库存|有货|缺货|没货/u.test(text);
@@ -36,12 +62,14 @@ function classifyQuestion(userText) {
     const aliasConcern = /老|旧名|曾用名|历史名称/u.test(text);
     const requestedVariantScope = /所有方案|全部方案|所有线圈|全部线圈/u.test(text)
         ? 'ALL_ACTIVE' : /测试方案|测试线圈|\btesting\b/iu.test(text) ? 'TESTING' : 'OFFICIAL';
+    const admission = positivelyAdmittedBusinessRequest(text);
+    const admitted = admission.admitted || options.admittedCatalogLookup === true;
     let kind = 'OUT_OF_SCOPE', operation = 'NONE';
-    if (inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
-    else if (configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
-    else if (hypothetical && cost) { kind = 'HYPOTHETICAL_COST_QUERY'; operation = 'READ_OR_PREVIEW_COST'; }
-    else if (cost) { kind = 'COST_QUERY'; operation = 'READ_COST'; }
-    else if (text) { kind = 'CATALOG_LOOKUP'; operation = 'LOOKUP'; }
+    if (admitted && inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
+    else if (admitted && configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
+    else if (admitted && hypothetical && cost) { kind = 'HYPOTHETICAL_COST_QUERY'; operation = 'READ_OR_PREVIEW_COST'; }
+    else if (admitted && cost) { kind = 'COST_QUERY'; operation = 'READ_COST'; }
+    else if (admitted) { kind = 'CATALOG_LOOKUP'; operation = 'LOOKUP'; }
     const requestedType = coil && !/V\d+/iu.test(text) ? 'coil' : /V\d+/iu.test(text) ? 'recipe' : 'unknown';
     return {
         kind,
@@ -58,7 +86,9 @@ function classifyQuestion(userText) {
         wireWeight: parseUserNumber(text, '线重'),
         configurationOverride,
         requestedVariantScope,
+        admissionSignals: admission.signals,
     };
 }
 
-module.exports = { classifyQuestion, extractAliasMention, extractRequestedTarget, parseCoilShorthand, parseUserNumber };
+module.exports = { catalogAdmissionSignals, classifyQuestion, extractAliasMention, extractRequestedTarget,
+    parseCoilShorthand, parseUserNumber, positivelyAdmittedBusinessRequest };

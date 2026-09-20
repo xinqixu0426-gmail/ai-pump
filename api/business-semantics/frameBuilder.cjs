@@ -88,8 +88,8 @@ function sourceProjection(toolResults) {
     }))).sort((a, b) => `${a.capability}\0${a.method}\0${a.path}`.localeCompare(`${b.capability}\0${b.method}\0${b.path}`)).slice(0, 24);
 }
 
-function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_EVIDENCE' } = {}) {
-    const semantics = classifyQuestion(userText);
+function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_EVIDENCE', eligibility = null } = {}) {
+    const semantics = classifyQuestion(userText, { admittedCatalogLookup: eligibility?.eligible === true && eligibility?.kind === 'CATALOG_LOOKUP' });
     let requiredFacts = requiredFactsFor(semantics);
     const recipes = recipeRows(toolResults), coilEvidence = officialCoilEvidence(toolResults, semantics), coils = coilEvidence.rows;
     const candidates = crossCatalogCandidates(toolResults);

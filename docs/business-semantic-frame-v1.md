@@ -19,6 +19,12 @@ Canonical identity is never manufactured from a keyword. Language parsing can de
 
 Question kinds are limited to `COST_QUERY`, `INVENTORY_QUERY`, `CONFIGURATION_OVERRIDE`, `HYPOTHETICAL_COST_QUERY`, `CATALOG_LOOKUP`, and `OUT_OF_SCOPE`.
 
+Question classification is preceded by `SemanticEligibilityBoundaryV1`. A non-empty sentence is no longer
+implicitly a catalog lookup: `CATALOG_LOOKUP` requires a positive, deterministic supported-catalog signal.
+Requests without such a signal remain `OUT_OF_SCOPE`; they do not start semantic evidence planning and the
+existing Legacy path remains authoritative. Eligibility allows investigation only and never creates a
+canonical identity or verified business fact.
+
 Cost basis is explicit: `MACHINE_CURRENT_FULL_COST`, `RECIPE_SAVED_COST`, `PART_CATALOG_UNIT_COST`, `COIL_SCHEME_COST`, or `UNKNOWN_COST_BASIS`. Price context is separate: `CURRENT_FORMAL_PRICE`, `USER_HYPOTHETICAL_PRICE`, `HISTORICAL_PRICE`, or `UNKNOWN`. Thus an unsupported copper-price request can retain a verified current machine cost without pretending the current amount was calculated using the hypothetical price.
 
 Overrides are classified as `NO_OVERRIDE`, `SUPPORTED_OVERRIDE`, `AMBIGUOUS_OVERRIDE`, `UNSUPPORTED_OVERRIDE`, or `MISSING_BASE`. A recipe override retains a canonical base entity and `PRESERVE_UNMENTIONED_BASE_CONFIGURATION`; an ambiguous coil family never receives a selected canonical ID.

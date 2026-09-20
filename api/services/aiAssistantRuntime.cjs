@@ -38,6 +38,7 @@ const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
 const { ensureTaskAnswer } = require('./aiResponsePresenter.cjs');
 const { buildBusinessSemanticFrame } = require('../business-semantics/frameBuilder.cjs');
 const { classifyQuestion: classifyBusinessQuestion } = require('../business-semantics/questionSemantics.cjs');
+const { semanticEligibility } = require('../business-semantics/eligibilityBoundary.cjs');
 const { buildBusinessEvidencePlan } = require('../business-semantics/evidencePlanner.cjs');
 const { validateBusinessSemanticFrame } = require('../business-semantics/validator.cjs');
 const { enforceSemanticAnswerBoundary } = require('../business-semantics/answerBoundary.cjs');
@@ -404,11 +405,18 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // and the model still cannot choose this tool. This is not the option-B shortlist change.
         // Measured consequence of omitting it: the planned step 2 executed as AI_TOOL_NOT_ALLOWED.
         if (!ontologyRelationRouting && coilRecipeRelationQuery) allowed.add('get_recipes_by_coil');
+        const eligibility = semanticEligibility({
+            userText: latest.content,
+            protectedWriteRoute: input.commandRoute === true,
+            trustedPageContext: pageContext ? { ...pageContext, trusted: true } : null,
+        });
         const semanticEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, EnforcementFlag)
-            && buildBusinessSemanticFrame({ userText: latest.content, stage: 'PRE_EVIDENCE' }).question.kind !== 'OUT_OF_SCOPE';
+            && eligibility.eligible;
         // Alias resolution is software-owned. P3 reuses the formal entity lookup inside the planned
         // recipe read, so the model still receives no variable catalogue surface for alias turns.
-        if (semanticEnforcementActive && classifyBusinessQuestion(latest.content).requestedIdentity.aliasConcern) {
+        if (semanticEnforcementActive && classifyBusinessQuestion(latest.content, {
+            admittedCatalogLookup: eligibility.kind === 'CATALOG_LOOKUP',
+        }).requestedIdentity.aliasConcern) {
             offeredTools = [];
             requiresBusinessQuery = false;
         }
@@ -431,7 +439,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let latestSemanticPlan = null;
         const semanticToolCalls = () => {
             if (!semanticEnforcementActive || semanticPlannedCallCount >= MAX_SEMANTIC_EVIDENCE_CALLS) return [];
-            latestSemanticPlan = buildBusinessEvidencePlan({ userText: latest.content, toolResults, plannedCallCount: semanticPlannedCallCount });
+            latestSemanticPlan = buildBusinessEvidencePlan({ userText: latest.content, toolResults,
+                plannedCallCount: semanticPlannedCallCount, eligibility });
             if (!latestSemanticPlan) return [];
             maxSemanticEvidencePlanBytes = Math.max(maxSemanticEvidencePlanBytes, Buffer.byteLength(JSON.stringify(latestSemanticPlan)));
             return latestSemanticPlan.execution.calls.map(item => {
@@ -805,7 +814,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let postEvidenceSemanticFrame = null;
         let semanticBoundary = null;
         if (semanticEnforcementActive && !finalContentStreamed) {
-            postEvidenceSemanticFrame = buildBusinessSemanticFrame({ userText: latest.content, toolResults, stage: 'POST_EVIDENCE' });
+            postEvidenceSemanticFrame = buildBusinessSemanticFrame({ userText: latest.content, toolResults,
+                stage: 'POST_EVIDENCE', eligibility });
             validateBusinessSemanticFrame(postEvidenceSemanticFrame);
             maxSemanticFrameBytes = Buffer.byteLength(JSON.stringify(postEvidenceSemanticFrame));
             semanticBoundary = enforceSemanticAnswerBoundary({ frame: postEvidenceSemanticFrame, answer: finalContent,
@@ -841,12 +851,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             setImmediate(() => {
                 try {
                     void require('../business-semantics/shadowObserver.cjs').observeBusinessSemanticShadow({
-                        userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
+                        userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId, eligibility,
                     }, dependencies.businessSemanticShadow).catch(() => {});
                 } catch { /* Semantic shadow never affects the completed authoritative answer. */ }
             });
         }
         return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {},
+            businessSemanticEligibility: eligibility,
             businessSemanticEnforcement: semanticEnforcementActive ? { plannedReads: semanticPlannedCallCount,
                 maxEvidencePlanBytes: maxSemanticEvidencePlanBytes, maxSemanticFrameBytes,
                 completenessStatus: postEvidenceSemanticFrame?.completeness?.status || null,
