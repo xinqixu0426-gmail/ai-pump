@@ -392,14 +392,13 @@ function classifyAnswer(entry, truth, content) {
     const text = String(content || '');
     const hits = truth.expected.filter(value => text.includes(value));
     const wrong = [];
-    if (truth.expected.length > 0 && hits.length === 0 && entry.direction === 'recipe->coil') {
-        if (coilIdentityMentioned(text, entry.coilSpec, entry.coilSheets)) {
+    if (truth.expected.length > 0 && entry.direction === 'recipe->coil') {
+        if (hits.length === 0 && coilIdentityMentioned(text, entry.coilSpec, entry.coilSheets)) {
             hits.push(truth.expected[0]);
-        } else {
-            for (const shape of coilShapesIn(text)) if (!truth.expected.includes(shape)) wrong.push(shape);
         }
+        for (const shape of coilShapesIn(text)) if (!truth.expected.includes(shape)) wrong.push(shape);
     }
-    return { hits, correct: hits.length > 0, wrongTargets: wrong };
+    return { hits, correct: hits.length > 0 && wrong.length === 0, wrongTargets: [...new Set(wrong)] };
 }
 
 function parseSse(text) {
@@ -528,7 +527,7 @@ function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [
         forwardTotal: forward.length,
         forwardCorrect: forward.filter(entry => entry.correct).length,
         forwardRatio: Number(ratio(forward).toFixed(4)),
-        wrongRoot: sum(relation, entry => (entry.correct ? 0 : entry.wrongTargets.length)),
+        wrongRoot: sum(relation, entry => entry.wrongTargets.length),
         wrongDirection: sum(relation, entry => (entry.correct || entry.wrongTargets.length > 0 ? 0 : 1)),
         cloudFallbacks: sum([...cases, ...negativeCases], entry => entry.fallbacks),
         unauthorizedWrites: negativeCases.filter(entry => entry.kind === 'write' && entry.writeProtected !== true).length,

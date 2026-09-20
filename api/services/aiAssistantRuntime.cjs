@@ -921,6 +921,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             enabled: relationRouting?.profile?.sourceId === 'recipe_coil'
                 && relationRouting?.binding?.relationId === 'recipe.uses_coil',
         });
+        const ontologyForwardVerified = Boolean(ontologyForwardReply);
         // Preserve an already-grounded model presentation for the frozen OFF/ON equivalence contract,
         // but replace it whenever it omits the verified coil or appends a different numeric identity.
         if (!formalForwardReply
@@ -940,7 +941,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         // C：跨目录候选必须真的到达用户。模型空手反问、或长回答被本地裁剪后，这里做确定性补充。
         finalContent = appendCrossCatalogCandidates(finalContent, toolResults);
         // 同一 规格-片数 有多套正式方案时，回答不能只讲一套（12-220 = 钢带/小眼 + 冷轧/国标眼）。
-        if (!formalForwardReply) finalContent = appendMissingCoilVariants(finalContent, toolResults);
+        // A canonical recipe -> coil relation answers one bound target. The legacy variant completer
+        // reasons over every catalogue row sharing a nominal specification, so letting it run here can
+        // append an unrelated coil even after the bound relation was formally verified.
+        if (!formalForwardReply && !ontologyForwardVerified) {
+            finalContent = appendMissingCoilVariants(finalContent, toolResults);
+        }
         // 规矩册：成本/价格口径类规矩由系统确定性补齐，不靠模型自觉（见 docs/ai-business-rulebook.md）。
         finalContent = enforceBusinessRules({
             answer: finalContent,

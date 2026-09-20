@@ -884,3 +884,21 @@ part without the literal words “零件/配件”. The final 8/8 run contains n
 This proves the branch's controlled real-local development gate. It is not a production promotion:
 the isolated process was stopped, production remained ready on `28a3741`, and production has no enabled
 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` value.
+
+## 19. Owner/Internal production canary and strict target accounting
+
+Production authority is restricted by two independent server-side gates: the environment flag must be
+exactly enabled, and the request must carry either a formally verified Owner JWT or the existing exact
+internal secret. Shared-admin sessions, request-body fields, query parameters, arbitrary owner headers
+and forged `req.user` state cannot grant eligibility. The repository default remains OFF.
+
+For a bound `recipe.uses_coil` answer, the canonical recipe detail and the canonical coil catalogue must
+agree on one coil ID before the relation is treated as verified. Once that agreement exists, the legacy
+same-specification variant completer is excluded from the answer: it describes catalogue alternatives,
+not the recipe's bound relation, and may not append a different coil identity to an otherwise correct
+answer.
+
+The production acceptance runner enforces the same invariant. A forward answer is correct only when it
+contains the expected canonical coil and contains no other coil-shaped identity. “Correct target plus a
+foreign target” is therefore a failure and contributes to `wrongRoot`; the presence of the correct target
+can no longer hide an overclaim.

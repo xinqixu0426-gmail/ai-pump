@@ -105,6 +105,10 @@ test('relation acceptance: correctness is judged on the expected canonical targe
     assert.equal(wrongCoil.correct, false);
     assert.deepEqual(wrongCoil.wrongTargets, ['12-120'], 'naming a different coil is a wrong target');
     assert.equal(classifyAnswer(recipeEntry, { expected: ['12-140'] }, '用的是 12-140').correct, true);
+    const mixedCoils = classifyAnswer(recipeEntry, { expected: ['12-140'] },
+        '用的是 12-140；另外还使用 12-220。');
+    assert.equal(mixedCoils.correct, false, 'a correct target cannot hide an appended wrong target');
+    assert.deepEqual(mixedCoils.wrongTargets, ['12-220']);
     // The formal coil directory spells the identity as fields, not as shorthand. That is the same
     // canonical identity, so a correct answer must not be scored wrong for its spelling.
     assert.equal(coilIdentityMentioned('规格：12，片数 140', '12', 140), true);
