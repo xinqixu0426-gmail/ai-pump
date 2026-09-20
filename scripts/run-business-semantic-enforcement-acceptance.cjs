@@ -64,7 +64,7 @@ const results = phases.map(runPhase);
 const [off, on, rollback] = results;
 const bounds = semanticPayloadBounds(on);
 const providerCallDelta = on.providerCalls - off.providerCalls;
-const summary = { version: 1, generatedAt: new Date().toISOString(), phases: results.map(({ executions, ...item }) => item),
+const summary = { version: 1, generatedAt: new Date().toISOString(), phases: results.map(({ executions: _executions, ...item }) => item),
     providerCallDelta, payloadBounds: bounds,
     latencyRegressionOver2x: off.latency.medianMs > 0 && on.latency.medianMs > off.latency.medianMs * 2,
     rollbackOutcomeMatchesOff: JSON.stringify(rollback.counts) === JSON.stringify(off.counts)

@@ -10,11 +10,6 @@ function result(name, data, path, extras = {}) {
     } : { data }), ...extras, executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path }] } } };
 }
 
-function withCalls(item, calls) {
-    item.result.executionEvidence.calls = calls.map(([method, path]) => ({ method, path }));
-    return item;
-}
-
 const recipe = { id: 1, name: '配方-V550大脚板-2寸-经典款-12-200', spec: 'V550', coilId: 2,
     partsJson: '[{"partId":1}]', currentCost: { currentTotalCost: 201 } };
 const coils200 = [
