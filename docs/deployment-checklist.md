@@ -2,7 +2,41 @@
 
 > 更新于 2026-09-20。
 
+## 2026-09-20 ONT-P8L-FINAL Gate B PASS 并已发布（`3914583`，迁移 87）
+
+- **发布结果**：`npm run deploy:macmini` 走完全部 9 步（`发布完成：commit 3914583861b9，用时 55 秒`）。生产
+  `HEAD=3914583861b9c78855311017eb6d211ed7418b0f`、分支 `master`、已跟踪改动 0。
+- **线上验收（发布后独立核对）**：本机 `127.0.0.1:3002/api/health/ready` 与公网
+  `https://xuxinqi.xin/api/health/ready` 均 `ready=true`、`gitCommit=3914583861b9`、`migrations=87`、
+  启动备份 `ok`；公网 `/login` 200、`/ai` 200；`com.pumpfactory.api`、`com.pumpfactory.web` 均 `state = running`。
+- **数据库**：`user_version=87`、`schema_migrations` 头部 `87:recipes_name_identity_lookup`、索引
+  `idx_recipes_name_active` 存在、`PRAGMA integrity_check=ok`；业务表行数与迁移前一致
+  （recipes 3、coils 14、parts 92、orders 1、customers 2、quotations 1、pump_shell_templates 1、system_settings 7）。
+  启动备份 `backups/startup/pump-startup-2026-09-20T07-35-53-735Z.db` 记录 `userVersion: 87`。
+- **发布前按 Supervisor 要求在副本上完成的四项前置**（生产库全程只读打开，预检结束时
+  `prod_user_version` 仍为 86）：86→87 副本迁移（`{"currentVersion":87,"appliedVersions":[87]}`）、
+  `integrity_check ok`（前后各一次）、身份读回归（真实 HTTP：精确名 200、带尾缀「的」200、不存在 404
+  `RECIPE_NOT_FOUND`）、release + startup 备份验证。
+- **三个开关未改**：`AI_BUSINESS_SEMANTIC_SHADOW_ENABLED=true`、
+  `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=false`、
+  `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 未设置（即关闭）。
+- **Gate B 验收（隔离实例 3012，真实 DeepSeek，2 轮）= PASS**：forward 8/8、bound 8/8、reverse 4/4、
+  emptyCertified 4/4、routedCorrect 12/12、legacyFallbacks 0、aggregateCalls 0、wrongRoot/wrongDirection 0、
+  cloudFallbacks 0、additionalProviderRounds 0、unauthorizedWrites 0、业务表无变化；独立确认轮逐项一致。
+  证据：`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-final-root-resolution-attempt2.json` 与
+  `-confirm1.json`。本机门禁：`npm test` 2683/2683、`verify:api-contract` 26/26、`test:deep-api` 493/0、
+  `lint` PASS、`build` PASS。
+- **Supervisor 裁定**：Gate B PASS、不需要更多重复验收、允许 `0df88de` 合入 master、迁移 87 允许随代码合入
+  （生产上线前单独报备并完成副本迁移 / `integrity_check` / 身份读回归 / 备份验证）——本条目即为该报备，
+  四项前置与发布验收均已在上表完成。
+- **本次发布未改变的行为**：canary 仍默认关闭，因此生产聊天链路与发布前一致；`recipes.resolve_identity`
+  是仅 internal 的有界身份读，不进入模型工具目录。`verify:ai-release` 因核心用例已于 2026-09-19 全部退役
+  而没有可执行项，本轮不据此声称 AI 质量证据。
+- **Gate A 仍 DEFERRED**（本地模型 `192.168.31.111:8080` 不可达），未算 PASS。
+
 ## 2026-09-20 ONT-P8L-FINAL Gate B 仍 REWORK：recipe→coil 有界读已修，绑定召回缺口未清（`4157188`）
+
+> 本节记录的是**修复前**的状态与根因，其"未清"项已由上方 `3914583` 条目关闭；保留作为根因证据。
 
 - **状态**：Gate B **仍未通过**，Supervisor 裁定 REWORK。上一版本文档中"Gate B PASS"的记录**作废**：那次运行里 8 个 forward 用例仍有 2 个没有形成 `recipe.uses_coil` 绑定、退回 Legacy，靠 Legacy 把正确率补到 8/8 不构成退出证据。
 - **已修（真实缺陷，保留）**：

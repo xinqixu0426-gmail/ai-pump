@@ -216,9 +216,11 @@ node scripts/run-relation-runtime-acceptance.cjs --gate ontology-cloud --execute
 
 ## 11. 仍未完成
 
-1. **迁移 87 未在生产执行**（生产未部署，故未执行）。上线前按 Supervisor 要求单独报备并走
-   副本迁移 + `integrity_check` + 身份读回归 + 备份验证。
-2. **`0df88de` 未推送 `origin/master`**，仍只在本地 `master` 与临时分支
-   `ont-p8l-final-gate-b-root-resolution`。
+1. ~~**迁移 87 未在生产执行**~~ —— **已执行**：2026-09-20 发布 `3914583` 时生产库升到 87
+   （副本前置 + 发布后独立核对见 `docs/deployment-checklist.md` 顶部条目）。
+2. ~~**`0df88de` 未推送 `origin/master`**~~ —— **已推送并发布**：`origin/master` = 生产运行 =
+   `3914583861b9c78855311017eb6d211ed7418b0f`。
 3. **Gate A 仍 DEFERRED**（本地模型 `192.168.31.111:8080` 不可达），**未算 PASS**。
 4. 验证实例 `/Users/dan/pump-p8l-validation`（端口 3012）当前运行 `0df88de` + 迁移 87 的验证库副本。
+5. **生产 canary 仍默认关闭**：发布只带上了有界身份读这一新能力，生产聊天链路的 ontology 路由未启用；
+   启用 canary 是独立决策，不在本次发布范围内。
