@@ -1,6 +1,17 @@
 # 生产发布检查清单
 
-> 更新于 2026-09-19。
+> 更新于 2026-09-20。
+
+## 2026-09-20 BUS-P4 受控生产灰度：部署与 Shadow 通过，Enforcement Canary 需返工
+
+- P3R 验收提交 `eb73419` 以快进方式合并到 `master`，证据链未 squash/改写；另用提交 `1802b41` 只清理 3 个未使用的测试/验收变量，使生产 lint 门禁通过，不改运行语义。发布前后全量测试 2628/2628、API 契约 26/26、Deep API 490/490、lint 和 Web build 均通过。
+- 生产从 `f8a3c35` 快进发布；发布备份 `backups/release/pump-release-2026-09-20T00-02-37-553Z.db` 已按前一运行提交、SHA-256 和 schema 86 验证。正式脚本完成 `git pull --ff-only`、代码门禁、LaunchDaemon 重启、本机/公网 ready 与启动备份验证。
+- 部署前生产 `AI_BUSINESS_SEMANTIC_SHADOW_ENABLED` / `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED` 均未设置（默认 OFF）。OFF 验收后，以权限受限备份和原子替换把 Shadow 设为 `true`、Enforcement 明确设为 `false`，只重启 API。最终全局 Enforcement 仍为 OFF，未授权全量推广。
+- 当前生产数据构成 10 条可测真实问题：配方成本、线圈成本/库存/多方案、calculated 线重覆盖、kit 覆盖拒绝、零件价格、不存在对象、配置覆盖和跨目录身份。生产无 recipe 正式别名，别名验收记为 `NOT_TESTABLE_WITH_CURRENT_PRODUCTION_DATA`，未为验收造数据。
+- Shadow 评估：MATCH 7、MODEL_UNDERCLAIM 2、MODEL_OVERCLAIM 1、WRONG_SEMANTIC_CLAIM 0。唯一过度表述是 kit 回答同时说“覆盖不生效”和“按 0.8 试算仍为 91”；Canary 已确定性替换为“0.8 未应用，91 只是当前固定套件价”。
+- Owner/Internal Canary 不通过客户端 query/header 开关；它使用现有服务端 `processAiChat` 内部身份和逐请求 env 注入，普通生产流量仍走 Legacy。10 条 ON 结果为 PASS 6 / PARTIAL 4 / FAIL 0：生产 testing+official 共存使 12-200 库存与配置覆盖被判为不完整；零件单价被替换成只说“零件候选”；不存在结论丢失了目标文本。因存在真实生产下的完整性回归，BUS-P4 状态为 `REWORK`，不推荐全局权威。
+- 三阶段实际 provider calls：OFF 31、Shadow 29、Canary 15；语义层新增 LLM 轮次 0。小样本延迟（n=10）：OFF median/P95 2338.5/6434 ms，ON 1418/3502 ms。最大单次业务结果 19661 bytes，最大 Semantic Frame 2141 bytes，预算超限 0。
+- 受保护写请求只生成正式确认卡，零件库存前后均为 0，未执行写入。发布备份与验收后生产的核心业务表 dump 哈希一致（`d99ea419…`）；开关 OFF 的内部回滚复测恢复 Legacy，不需要 DB/schema 回滚。
 
 ## 2026-09-19 泛化自测与两处"补丁变规则"（`f8a3c35`）
 
