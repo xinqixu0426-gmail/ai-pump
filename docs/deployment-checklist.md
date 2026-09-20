@@ -2,6 +2,19 @@
 
 > 更新于 2026-09-20。
 
+## 2026-09-20 ONT-P8L-FINAL 验收基础设施对账：886e514 验收 ≠ P8L 退出证据（Supervisor 裁定 REWORK）
+
+- **背景**：本机（Windows）、gitee `origin/master`、Mac Mini 仓库与 Mac Mini 运行中的服务四方核对，均为同一提交 `886e514cec6ae6185474c16868decc3bfa0595a1`，工作区均干净。Mac Mini 走的是正规发布：`logs/release-code-gate-886e514….json`（`passed`，`02:12:50.712Z`）、`logs/ai-release-gate-latest.json`、Web 进程 10:12:50 启动，与发布脚本 [4/9]/[5/9] 时间吻合。
+- **本次验收不能作为 P8L 退出证据**。它跑的是第三种配置：`AI_PROVIDER` 未设置（非 `local`/`local-first`）、`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 未设置（OFF）。因此 P8L 的有界反查修复与 ontology 云路由都不介入，正向 0/4、反向 1/4 与 P8L 基线（反向 4/4、正向 3/4）不可比。代码依据：`api/services/aiToolShortlist.cjs`（有界读需 local 模式 + shortlist）与 `api/services/aiAssistantRuntime.cjs:338`（ontology 路由需金丝雀开关）。**P8L 真实退出门禁仍未通过。**
+- **本次实测（Mac Mini 生产实例，真实 DeepSeek，`logs/p8r-acceptance.cjs` → `logs/p8r-post-pull-verify.json`）**：14/14 完成、errors 0、payload 超限 0、反向 1/4、正向 0/4、`boundedMax` 61 B、`aggregateMax` 19194 B、受保护写只出确认卡。**未执行** `build` / `test:deep-api` / `verify:prod-env` / `lint`，因此不是完整 release-quality gate。
+- **生产开关曾被未入库工具翻转，现已按 Supervisor 裁定恢复**：`backups/config/semantic-enforcement/` 下有 7 个 `.env-before-*` 备份（`01:28:39Z`–`02:15:04Z`），其中最后一个 `.env-before-false-to-true-2026-09-20T02-15-04-988Z`（= 北京 10:15:04）方向为 `false→true`，即生产被留在未授权的 `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=true`。该工具不在仓库内，无法从 commit 复现。现已按裁定恢复为 `AI_BUSINESS_SEMANTIC_SHADOW_ENABLED=true` + `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=false`，并只重启 API（未回滚代码，生产仍在 `886e514`）。
+- **`dbUnchanged=false` / `delta=0` 不可解释为"数据库文件完全未变"**：验收脚本用文件 SHA-256 比较，在 SQLite WAL 模式下不可靠，只能说明逻辑变更（`total_changes` 差值）为 0。新的正式 runner 改用**逻辑指纹**（各业务表行数 + 内容哈希 + `audit_log`/`api_operations` 最大 id 差值），不再依赖文件哈希。
+- **假 COMPLETE 复核结论：在现有数据与实现下不成立，但契约命名存在歧义**。`coil.recipes` 的 `complete` 是**页面级**（页面读到且未截断），集合级完整性在 `setCompleteness`。AI 工具执行器（`api/routes/ai/executors/queryExecutors.cjs:344`）要求 `!truncated && setCompleteness==='COMPLETE'` 才置 `complete=true`；ontology 认证（`api/ontology/bindingCurrentFacts.cjs:45`）同时要求 `hasMore===false`、`complete===true`、`setCompleteness==='COMPLETE'`、`totalCount===count`。生产库副本上的判别实验：零未绑定旧引用 → `COMPLETE`；插入一条部分旧引用 → `REFERENCE_INCOMPLETE`；插入一条声明同规格同片数但 `coil_id IS NULL` 的配方 → `AMBIGUOUS_LEGACY_REFERENCE`；不同规格 → 确认为非匹配且不污染完整性；未绑定根 → `RELATION_NOT_FOUND` 抛错。生产库真实构成：3 条配方（全部 `coil_id` 已绑定）、1 条 `coil_id IS NULL` 的行都没有，`12-160` 线圈确实零配方，因此 0 行 `COMPLETE` 属实。
+- **门禁数字**：本地 `npm run verify:api-contract` 26/26 PASS；`npm test` 2651/2652 → 修复后 2652/2652（见下条）；新增 `tests/relationRuntimeAcceptance.test.cjs` 9/9。
+- **本轮修掉两处验收基础设施缺陷**：
+  1. `tests/businessUnderstandingBenchmarkV2.test.cjs` 的冻结资产哈希原先对**工作区原始字节**取 SHA-256，Windows 上 git 以 CRLF 检出即被判为"资产已变"。现改为**内容身份哈希**（行尾归一，`tests/helpers/businessUnderstandingOracle.cjs` 导出 `contentIdentity`），跨 Windows/macOS 一致；冻结资产本身未被改写。
+  2. 新增 `scripts/run-relation-runtime-acceptance.cjs`：双门禁 fail-closed runner（`--gate p8l-local` / `--gate ontology-cloud`，必须显式 `--execute`），逐门禁断言自己的开关组合与唯一可接受 provider，报告 run id / commit / config / provider，并在开关不匹配或出现云回退时中止而不是记为通过。`tests/relationRuntimeAcceptance.test.cjs` 覆盖 9 项：门禁互不替代、未设 `AI_PROVIDER` 不得默认当作 local、宽松布尔值不得当作开启、错误 provider 计数、聚合读取计数即失败、写请求非确认卡即失败、业务表逻辑变更即失败。
+
 ## 2026-09-20 BUS-P4 受控生产灰度：部署与 Shadow 通过，Enforcement Canary 需返工
 
 - P3R 验收提交 `eb73419` 以快进方式合并到 `master`，证据链未 squash/改写；另用提交 `1802b41` 只清理 3 个未使用的测试/验收变量，使生产 lint 门禁通过，不改运行语义。发布前后全量测试 2628/2628、API 契约 26/26、Deep API 490/490、lint 和 Web build 均通过。

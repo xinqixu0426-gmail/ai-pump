@@ -62,12 +62,26 @@ function buildBusinessUnderstandingOracle(fixture, definition) {
     return { version: 1, perCase };
 }
 
+/**
+ * Frozen-asset identity is CONTENT identity, never the raw working-tree bytes.
+ *
+ * The frozen assets are shared between Windows and macOS. `git` checks the same blob out as LF on one
+ * platform and CRLF on the other, so hashing raw working-tree bytes reports an unchanged asset as
+ * changed on Windows — a platform artefact, not a business change. Git itself normalises line endings on
+ * add, so a line-ending-normalised hash is the correct cross-platform identity.
+ *
+ * The normalisation is only ever applied to hashing. The frozen assets themselves are never rewritten.
+ */
+function contentIdentity(fileBuffer) {
+    return Buffer.from(String(fileBuffer).replace(/\r\n?/g, '\n'), 'utf8');
+}
+
 function definitionHashes(definitionPath, fixtureModulePath, oracleModulePath) {
     return {
-        caseHash: sha256(fs.readFileSync(definitionPath)),
-        fixtureHash: sha256(fs.readFileSync(fixtureModulePath)),
-        oracleHash: sha256(fs.readFileSync(oracleModulePath)),
+        caseHash: sha256(contentIdentity(fs.readFileSync(definitionPath))),
+        fixtureHash: sha256(contentIdentity(fs.readFileSync(fixtureModulePath))),
+        oracleHash: sha256(contentIdentity(fs.readFileSync(oracleModulePath))),
     };
 }
 
-module.exports = { buildBusinessUnderstandingOracle, definitionHashes, readDefinition, sha256 };
+module.exports = { buildBusinessUnderstandingOracle, contentIdentity, definitionHashes, readDefinition, sha256 };

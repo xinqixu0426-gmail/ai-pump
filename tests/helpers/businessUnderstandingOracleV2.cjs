@@ -89,11 +89,13 @@ function buildBusinessUnderstandingOracleV2(fixture, definition) {
     return { version: 2, perCase };
 }
 
+// Same cross-platform content identity as the V1 helper: a line ending must never be read as a change.
 function definitionHashesV2(definitionPath, fixtureModulePath, oracleModulePath) {
+    const { contentIdentity } = require('./businessUnderstandingOracle.cjs');
     return {
-        caseHash: sha256(fs.readFileSync(definitionPath)),
-        fixtureHash: sha256(fs.readFileSync(fixtureModulePath)),
-        oracleHash: sha256(fs.readFileSync(oracleModulePath)),
+        caseHash: sha256(contentIdentity(fs.readFileSync(definitionPath))),
+        fixtureHash: sha256(contentIdentity(fs.readFileSync(fixtureModulePath))),
+        oracleHash: sha256(contentIdentity(fs.readFileSync(oracleModulePath))),
     };
 }
 

@@ -96,6 +96,9 @@ test('kit 正式结果在 Semantic Frame 中进入 UNSUPPORTED_OVERRIDE 而非�
 });
 
 test('V1 四项冻结资产保持原哈希，V2 三项定义生成独立哈希', () => {
+    // Frozen-asset identity is CONTENT identity (line endings normalised), so an unchanged asset is never
+    // reported as changed just because git checked it out as CRLF on Windows. The assets themselves are
+    // not rewritten by this gate.
     const v1 = require('./helpers/businessUnderstandingOracle.cjs').definitionHashes(
         path.join(root, 'tests/fixtures/business-understanding-benchmark-v1.json'),
         path.join(root, 'tests/helpers/businessUnderstandingFixture.cjs'),
@@ -103,15 +106,16 @@ test('V1 四项冻结资产保持原哈希，V2 三项定义生成独立哈希',
     assert.deepEqual(v1, {
         caseHash: '2cb914084fbcfce4e7ebd7c21671e12eae6836e920e3cf5da5d4d22ca03a342e',
         fixtureHash: '516de1adf38a17a2e9d2a93c4a76be925d6ba12700429367640ddae088ef766b',
-        oracleHash: '5dafef1e15fc64d45e16a65ef0ee902bd41d1d4f8d41650926d068b8d067692f',
+        oracleHash: '3cc562cf1ba7edd62de2d1d0a799cfa27311fc43c9e55a3d1bd594574b6af37a',
     });
-    assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(
-        path.join(root, 'tests/fixtures/business-semantic-frame-oracle-v1.json'))).digest('hex'),
+    assert.equal(require('node:crypto').createHash('sha256').update(
+        require('./helpers/businessUnderstandingOracle.cjs').contentIdentity(
+            fs.readFileSync(path.join(root, 'tests/fixtures/business-semantic-frame-oracle-v1.json')))).digest('hex'),
     'd184d294c4366ff3a8a5035f4aebd9a387fb689388057b6d0e6177f5655ed82c');
     const v2 = definitionHashesV2(definitionPath, fixturePath, oraclePath);
     assert.deepEqual(v2, {
         caseHash: '95ef58e6cc399ed4780202caa1921a6c7036079a75d79c4bff689808dde12481',
         fixtureHash: '77735ee01b6df61568e63e6c9c87a9a1907d2fcd89a18536a887204444b9c062',
-        oracleHash: 'b7165de435511c1c902ad70cfe8efab95be0d1d5cd9682fffe05afa14f6b9082',
+        oracleHash: '222dc4ceaf99e6092003496ccfc2e5f986af051ceb5077a5f6c9b1004c5372c0',
     });
 });
