@@ -11,6 +11,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+    EMPTY_RELATION_CASES,
     GATE_IDS,
     assertGatePreconditions,
     businessFingerprint,
@@ -18,6 +19,8 @@ const {
     evaluateVerdict,
     fingerprintDiff,
     gateProfile,
+    readPageCompleteness,
+    readSetCompleteness,
     runtimeEnvFrom,
 } = require('../scripts/run-relation-runtime-acceptance.cjs');
 
@@ -154,6 +157,63 @@ test('relation acceptance: a write that is not a confirmation card, or a busines
     });
     assert.equal(mutated.status, 'FAIL');
     assert.ok(mutated.failures.some(line => line.startsWith('businessTablesChanged=')));
+});
+
+test('relation acceptance: a page-level complete is never read as set-level completeness', () => {
+    // The service layer reports both fields. Only setCompleteness may certify that a whole relation is
+    // known; `complete` alone is a property of the delivered page.
+    const pageOnly = { complete: true };
+    assert.equal(readPageCompleteness(pageOnly), true);
+    assert.equal(readSetCompleteness(pageOnly), null, 'a page flag must not become set completeness');
+
+    assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'COMPLETE' }), 'COMPLETE');
+    // The service layer reports the relation-level status as it is; downgrading a still-paginated
+    // relation to PARTIAL is the AI tool executor's job (`queryExecutors.cjs`), so the helper must not
+    // silently reinterpret it here. What matters is that a caller cannot obtain set completeness from
+    // the page flag alone.
+    assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'COMPLETE', hasMore: true }), 'COMPLETE');
+    assert.notEqual(readSetCompleteness({ complete: true, hasMore: false }), 'COMPLETE');
+    assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'AMBIGUOUS_LEGACY_REFERENCE' }), 'AMBIGUOUS_LEGACY_REFERENCE');
+    assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'REFERENCE_INCOMPLETE' }), 'REFERENCE_INCOMPLETE');
+    assert.equal(readSetCompleteness({ complete: true, setCompleteness: 'PARTIAL' }), 'PARTIAL');
+
+    // Both gates must carry an explicit empty-relation case and fail when it is not certified.
+    for (const gateId of GATE_IDS) {
+        assert.ok(gateProfile(gateId).required.additionalProviderRounds === 0, gateId);
+    }
+    assert.ok(EMPTY_RELATION_CASES.length > 0);
+    assert.ok(EMPTY_RELATION_CASES.every(entry => entry.expectEmptyRelation === true));
+
+    const uncertified = evaluateVerdict({
+        profile: gateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        negativeCases: [],
+        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: false, aggregateFree: true }],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(uncertified.status, 'FAIL');
+    assert.ok(uncertified.failures.some(line => line.startsWith('emptyRelationNotCertified=')));
+
+    const certified = evaluateVerdict({
+        profile: gateProfile('p8l-local'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        negativeCases: [],
+        emptyRelationCases: [{ caseId: 'E1-empty-coil-relation', certificateOnly: true, aggregateFree: true }],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(certified.status, 'PASS');
+    assert.equal(certified.observed.emptyRelationComplete, 1);
+});
+
+test('relation acceptance: an ontology-induced extra provider round fails the gate', () => {
+    const verdict = evaluateVerdict({
+        profile: gateProfile('ontology-cloud'),
+        cases: [failingCase(), failingCase({ caseId: 'R5', direction: 'recipe->coil' })],
+        negativeCases: [],
+        fingerprintDiffResult: cleanFingerprintDiff,
+    });
+    assert.equal(verdict.status, 'PASS');
+    assert.equal(verdict.observed.additionalProviderRounds, 0);
 });
 
 test('relation acceptance: business invariance is a logical fingerprint, not a WAL-mode file hash', () => {

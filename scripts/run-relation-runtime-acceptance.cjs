@@ -58,6 +58,15 @@ const NEGATIVE_CASES = Object.freeze([
     Object.freeze({ id: 'N4-write', kind: 'write', question: '把12-120线圈的库存改成100' }),
 ]);
 
+/**
+ * A verified canonical root whose relation is genuinely EMPTY. The Supervisor requires both gates to
+ * carry this case explicitly, because an empty answer is only acceptable when it is certified as
+ * set-complete — never as "nothing found" over an unverified or partially read relation.
+ */
+const EMPTY_RELATION_CASES = Object.freeze([
+    Object.freeze({ id: 'E1-empty-coil-relation', direction: 'coil->recipes', expectEmptyRelation: true, spec: '12', sheets: 160, seed: '12-160 线圈有哪些正式方案？', question: '12-160线圈用在哪些配方？' }),
+]);
+
 const GATES = Object.freeze({
     'p8l-local': Object.freeze({
         id: 'p8l-local',
@@ -69,7 +78,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['local']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0 }),
     }),
     'ontology-cloud': Object.freeze({
         id: 'ontology-cloud',
@@ -81,7 +90,7 @@ const GATES = Object.freeze({
             requireProviderSet: true,
             extraProviders: Object.freeze(['deepseek']),
         }),
-        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0 }),
+        required: Object.freeze({ reverseCorrectRatio: 1, forwardCorrectRatio: 1, cloudFallbacks: 0, payloadLimitFailures: 0, unauthorizedWrites: 0, aggregateCalls: 0, wrongRoot: 0, wrongDirection: 0, additionalProviderRounds: 0 }),
     }),
 });
 
@@ -216,6 +225,23 @@ function truthFor(db, entry) {
  * required counters must still be computed deterministically: a target that is not the expected one is
  * counted as wrong root; a coil answer whose 规格-片数 is not the expected one is counted as wrong coil.
  */
+/**
+ * Page-level completeness is NOT set-level completeness.
+ *
+ * `coil.recipes` carries `complete` (the page was read in full and not truncated) and `setCompleteness`
+ * (the whole relation was drained and every legacy reference was confirmable). Only the latter may be
+ * used to claim that a relation is fully known, so the two are read through distinct helpers and a
+ * caller that mistakes one for the other is visible rather than silent.
+ */
+function readPageCompleteness(result) {
+    return result?.complete === true;
+}
+
+function readSetCompleteness(result) {
+    if (result?.setCompleteness == null) return null;
+    return result.setCompleteness === 'COMPLETE' && result?.hasMore !== true ? 'COMPLETE' : result.setCompleteness;
+}
+
 function classifyAnswer(entry, truth, content) {
     const text = String(content || '');
     const hits = truth.expected.filter(value => text.includes(value));
@@ -259,6 +285,8 @@ function summarizeCase(entry, truth, response) {
         done: response.done,
         providers: response.providers,
         fallbacks: response.fallbacks,
+        providerRounds: response.providerRounds,
+        ontologyPlannedReads: response.ontologyPlannedReads,
         errorCodes: response.errorCodes,
         bounded: response.boundedResults,
         boundedBeforeFirstModel: response.boundedBeforeFirstModel,
@@ -272,7 +300,7 @@ function summarizeCase(entry, truth, response) {
 }
 
 /** Deterministic verdict: a missed requirement is FAIL, never silently redefined. */
-function evaluateVerdict({ profile, cases, negativeCases, fingerprintDiffResult }) {
+function evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases = [], fingerprintDiffResult }) {
     const relation = cases.filter(entry => entry.correct !== null);
     const reverse = relation.filter(entry => entry.direction === 'coil->recipes');
     const forward = relation.filter(entry => entry.direction === 'recipe->coil');
@@ -294,6 +322,12 @@ function evaluateVerdict({ profile, cases, negativeCases, fingerprintDiffResult 
         aggregateCalls: sum([...cases, ...negativeCases], entry => entry.aggregateCalls),
         notDone: [...cases, ...negativeCases].filter(entry => !entry.done).length,
         errors: sum([...cases, ...negativeCases], entry => entry.errorCodes.length),
+        // Supervisor's Gate B requirement: ontology must not add a provider round of its own.
+        additionalProviderRounds: sum([...cases, ...negativeCases, ...emptyRelationCases],
+            entry => Math.max(0, (entry.providerRounds ?? 0) - (entry.baselineProviderRounds ?? entry.providerRounds ?? 0))),
+        emptyRelationTotal: emptyRelationCases.length,
+        emptyRelationComplete: emptyRelationCases.filter(entry => entry.certificateOnly).length,
+        providersServed: [...new Set([...cases, ...negativeCases, ...emptyRelationCases].flatMap(entry => entry.providers || []))],
         boundedMaxBytes: Math.max(0, ...cases.flatMap(entry => entry.bounded.map(item => item.bytes))),
         aggregateMaxBytes: Math.max(0, ...cases.flatMap(entry => entry.aggregateBytes)),
         businessTablesChanged: fingerprintDiffResult.changedTables,
@@ -312,6 +346,19 @@ function evaluateVerdict({ profile, cases, negativeCases, fingerprintDiffResult 
     if (observed.wrongRoot > required.wrongRoot) failures.push(`wrongRoot=${observed.wrongRoot}`);
     if (observed.wrongDirection > required.wrongDirection) failures.push(`wrongDirection=${observed.wrongDirection}`);
     if (observed.notDone > 0) failures.push(`notDone=${observed.notDone}`);
+    if (observed.emptyRelationTotal > 0) {
+        const bad = emptyRelationCases.filter(entry => !entry.certificateOnly || !entry.aggregateFree);
+        if (bad.length > 0) failures.push(`emptyRelationNotCertified=${bad.map(entry => entry.caseId).join(',')}`);
+    }
+    if (profile.required.additionalProviderRounds === 0 && observed.additionalProviderRounds > 0) {
+        failures.push(`additionalProviderRounds=${observed.additionalProviderRounds}`);
+    }
+    // The provider that ACTUALLY served the run must be the one this gate claims to validate. A silent
+    // fallback to another provider would otherwise be reported as that gate's acceptance.
+    const served = [...new Set([...cases, ...negativeCases, ...emptyRelationCases]
+        .flatMap(entry => entry.providers || []))];
+    const foreign = served.filter(name => String(name).toLowerCase() !== profile.env.providerMustBe);
+    if (foreign.length > 0) failures.push(`unexpectedProviders=${foreign.join(',')}`);
     if (observed.businessTablesChanged.length > 0) failures.push(`businessTablesChanged=${observed.businessTablesChanged.join(',')}`);
 
     return { status: failures.length === 0 ? 'PASS' : 'FAIL', failures, observed };
@@ -340,11 +387,17 @@ async function chat(base, secret, conversationId, message) {
         content: events.filter(event => event.type === 'content').map(event => event.content).join(''),
         providers: [...new Set(events.filter(event => event.type === 'provider').map(event => event.provider).filter(Boolean))],
         fallbacks: events.filter(event => event.type === 'provider' && event.fallback).length,
+        // One `generating` gate per provider round. A gate that only appears because ontology injected a
+        // software read after the first round is what the Supervisor counts separately.
+        providerRounds: events.filter(event => event.type === 'status' && event.status === 'generating').length,
+        ontologyPlannedReads: results.filter(item => String(item?.capability || '').startsWith('ontology.')
+            || String(item?.name || '').startsWith('ontology')).length,
         errorCodes: events.filter(event => event.type === 'error').map(event => event.code),
         boundedBeforeFirstModel: calls.some(call => call.name === 'get_recipes_by_coil' && call.beforeFirstModel),
         boundedResults: byName('get_recipes_by_coil').map(item => ({
             complete: item.result?.complete ?? null,
             setCompleteness: item.result?.setCompleteness ?? null,
+            hasMore: item.result?.hasMore ?? null,
             pagesFetched: item.result?.pagesFetched ?? null,
             count: item.result?.count ?? null,
             totalCount: item.result?.totalCount ?? null,
@@ -357,7 +410,14 @@ async function chat(base, secret, conversationId, message) {
     };
 }
 
-async function preflightEndpoint(base, providerConfig) {
+/**
+ * Endpoint preflight. Only the local gateway is probed over HTTP: it is an OpenAI-compatible LAN server
+ * whose `/models` is unauthenticated, and the local gate additionally needs it to be up before it starts.
+ * A cloud provider is deliberately NOT probed — its `/models` requires authorization and a 401 there says
+ * nothing about whether the gate can run. The provider that actually served the run is reported from the
+ * SSE stream instead, and a mismatch is a gate failure rather than a preflight guess.
+ */
+async function preflightEndpoint(base, providerConfig, gateId) {
     const problems = [];
     try {
         const health = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(10000) });
@@ -365,19 +425,19 @@ async function preflightEndpoint(base, providerConfig) {
     } catch (error) {
         problems.push(`API ${base} unreachable (${error.cause?.code || error.name})`);
     }
-    if (providerConfig?.baseUrl) {
+    if (gateId === 'p8l-local' && providerConfig?.baseUrl) {
         const url = `${String(providerConfig.baseUrl).replace(/\/$/, '')}/models`;
         try {
             const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
-            if (!response.ok) problems.push(`provider endpoint ${url} answered HTTP ${response.status}`);
+            if (!response.ok) problems.push(`local provider endpoint ${url} answered HTTP ${response.status}`);
         } catch (error) {
-            problems.push(`provider endpoint ${url} unreachable (${error.cause?.code || error.name})`);
+            problems.push(`local provider endpoint ${url} unreachable (${error.cause?.code || error.name})`);
         }
     }
     return problems;
 }
 
-function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, fingerprintBefore, fingerprintAfter, diff }) {
+function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases = [], fingerprintBefore, fingerprintAfter, diff }) {
     return {
         schemaVersion: 1,
         gate: gateId,
@@ -401,6 +461,7 @@ function buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCa
         gates: { maxBoundedBytes: MAX_BOUNDED_BYTES, maxAggregateBytes: MAX_AGGREGATE_BYTES },
         cases,
         negativeCases,
+        emptyRelationCases,
     };
 }
 
@@ -428,7 +489,7 @@ async function main() {
     }
     if (!secret) throw abortError('INTERNAL_SECRET_MISSING', 'INTERNAL_SECRET is required to drive POST /api/ai/chat');
 
-    const endpointProblems = await preflightEndpoint(base, resolved);
+    const endpointProblems = await preflightEndpoint(base, resolved, gateId);
     if (endpointProblems.length > 0) throw abortError('ENDPOINT_PREFLIGHT_FAILED', endpointProblems.join('; '));
 
     const Database = require('better-sqlite3');
@@ -438,9 +499,10 @@ async function main() {
 
     const cases = [];
     const negativeCases = [];
+    const emptyRelationCases = [];
     try {
         for (let round = 1; round <= rounds; round += 1) {
-            for (const entry of RELATION_CASES) {
+            for (const entry of [...RELATION_CASES, ...EMPTY_RELATION_CASES]) {
                 const truth = truthFor(db, entry);
                 if (truth.note) {
                     cases.push({ caseId: entry.id, direction: entry.direction, question: entry.question, expected: [], truthNote: truth.note, correct: null });
@@ -452,6 +514,30 @@ async function main() {
                 const response = await chat(base, secret, conversationId, entry.question);
                 const summary = { round, ...summarizeCase(entry, truth, response) };
                 cases.push(summary);
+                // Supervisor's required zero-result case: a verified canonical root with an empty relation
+                // must certify set-level COMPLETE, and must never be reported from an unverified read.
+                if (entry.expectEmptyRelation) {
+                    const bounded = summary.bounded.find(item => item.complete !== null) || null;
+                    const boundedWithoutAggregate = summary.aggregateCalls === 0;
+                    emptyRelationCases.push({
+                        round,
+                        caseId: entry.id,
+                        expected: truth.expected,
+                        boundedFound: Boolean(bounded),
+                        count: bounded?.count ?? null,
+                        totalCount: bounded?.totalCount ?? null,
+                        setCompleteness: bounded?.setCompleteness ?? null,
+                        pageComplete: bounded?.complete ?? null,
+                        certificateOnly: Boolean(bounded) && bounded.complete === true
+                            && bounded.setCompleteness === 'COMPLETE'
+                            && bounded.hasMore !== true,
+                        aggregateFree: boundedWithoutAggregate,
+                        providers: summary.providers,
+                        fallbacks: summary.fallbacks,
+                        done: summary.done,
+                        errorCodes: summary.errorCodes,
+                    });
+                }
                 console.log(`r${round} ${entry.id.padEnd(24)} ${entry.direction.padEnd(13)} done=${summary.done} providers=[${summary.providers}] fb=${summary.fallbacks} `
                     + `bounded=${summary.bounded.map(item => `${item.count}/${item.totalCount} ${item.setCompleteness} ${item.bytes}B`).join('|') || '-'} `
                     + `aggCalls=${summary.aggregateCalls} ${summary.correct ? 'correct' : 'WRONG'} err=${summary.errorCodes.length}`);
@@ -473,8 +559,8 @@ async function main() {
     const after = businessFingerprint(verifier);
     verifier.close();
     const diff = fingerprintDiff(before, after);
-    const verdict = evaluateVerdict({ profile, cases, negativeCases, fingerprintDiffResult: diff });
-    const report = buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, fingerprintBefore: before, fingerprintAfter: after, diff });
+    const verdict = evaluateVerdict({ profile, cases, negativeCases, emptyRelationCases, fingerprintDiffResult: diff });
+    const report = buildReport({ gateId, rounds, env, resolved, verdict, cases, negativeCases, emptyRelationCases, fingerprintBefore: before, fingerprintAfter: after, diff });
 
     if (reportPath) {
         const target = path.isAbsolute(reportPath) ? reportPath : path.join(ROOT, reportPath);
@@ -502,6 +588,7 @@ if (require.main === module) {
 
 module.exports = {
     BUSINESS_TABLES,
+    EMPTY_RELATION_CASES,
     GATES,
     GATE_IDS,
     NEGATIVE_CASES,
@@ -513,5 +600,7 @@ module.exports = {
     evaluateVerdict,
     fingerprintDiff,
     gateProfile,
+    readPageCompleteness,
+    readSetCompleteness,
     runtimeEnvFrom,
 };
