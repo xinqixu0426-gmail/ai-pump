@@ -3849,6 +3849,21 @@ const MIGRATIONS = Object.freeze([
             `).run(...retiredCaseKeys);
         },
     },
+    {
+        version: 87,
+        name: 'recipes_name_identity_lookup',
+        signature: 'recipes-name-identity-lookup-v1',
+        up(db) {
+            // ONT-P8L-FINAL Gate B: the ontology routes a recipe-rooted relation by resolving the
+            // relation's root NAME through a formal bounded read (`recipes.resolve_identity`). That
+            // lookup filters on `recipes.name`, so it needs an index to stay bounded as the recipe
+            // catalogue grows instead of degrading into a full-table scan per question.
+            db.exec(`
+                CREATE INDEX IF NOT EXISTS idx_recipes_name_active
+                    ON recipes(name) WHERE deleted_at IS NULL;
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

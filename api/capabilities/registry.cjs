@@ -651,8 +651,14 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         sourceOfTruth: 'pump_shell_templates+unique_active_shell_catalog+rotorTemplateDraft',
         riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
-    'recipes.current_costs': defineQueryCapability({
-        capabilityId: 'recipes.current_costs', domain: 'recipes',
+    'recipes.resolve_identity': defineQueryCapability({
+        capabilityId: 'recipes.resolve_identity', domain: 'recipes',
+        inputSchema: 'GET /api/recipes/identity?name=',
+        outputSchema: 'RecipeIdentityResolutionV1: { recipeId, recipeName } bound to exactly ONE active recipe; unregistered name returns 404 RECIPE_NOT_FOUND, several active recipes sharing the name return 409 RECIPE_AMBIGUOUS with bounded candidates',
+        sourceOfTruth: 'recipes(name) exact match over non-deleted recipes, LIMIT-bounded by the service',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['internal']),
+    }),
+    'recipes.current_costs': defineQueryCapability({        capabilityId: 'recipes.current_costs', domain: 'recipes',
         inputSchema: 'GET /api/recipes/current-costs', outputSchema: 'CurrentRecipeCosts with per-recipe calculationError and incomplete costs',
         sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
         riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'internal']),

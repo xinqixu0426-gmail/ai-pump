@@ -125,8 +125,48 @@ function createRecipeQueries({
         return recipe;
     }
 
-    function getInventoryStatus(rawRecipeId) {
-        const recipeId = parsePositiveId(rawRecipeId);
+    /**
+     * Bounded canonical identity resolution for one recipe NAME.
+     *
+     * ONT-P8L-FINAL Gate B: the ontology routes a recipe-rooted relation by resolving the relation's
+     * root name through a formal read. That read must not become a second whole-catalogue path, so it
+     * takes only typed, bounded name candidates and lets SQL decide the lookup:
+     *
+     *  - the statement carries its own LIMIT, so it can never drain the catalogue even if every recipe
+     *    shared a name (the two noisy rows are what turn a duplicate name into `ambiguous`);
+     *  - `resolve_identity` returns exactly ONE row when the name is unique, so the caller cannot use a
+     *    substring or prefix hit as an authoritative canonical root;
+     *  - the outcome is one of `found` / `not_found` / `ambiguous`, so a miss, an ambiguity and a
+     *    technical failure stay distinguishable (a technical failure throws).
+     */
+    function resolveRecipeIdentity(rawName) {
+        const name = String(rawName ?? '').trim();
+        if (!name) {
+            throw new RecipeQueryError('缺少配方名称（name）');
+        }
+        if (name.length > 120) {
+            throw new RecipeQueryError('配方名称过长（name 最多 120 个字符）');
+        }
+        // User wording can glue a trailing particle onto a formal name (`V550的`). The stripped form is
+        // only a second CANDIDATE for the same exact lookup — never a substring or prefix search.
+        const candidates = [...new Set([name,
+            name.replace(/(?:[的了吧呢啊吗呀嘛哦喔噢哈哪啦嘞么]|[。，、；：？！,.;:?!~～\s])+$/u, '').trim(),
+        ].filter(Boolean))];
+        const rows = db.prepare(`
+            SELECT id, name
+            FROM recipes
+            WHERE deleted_at IS NULL AND name IN (${candidates.map(() => '?').join(', ')})
+            ORDER BY id
+            LIMIT 2
+        `).all(...candidates);
+        if (rows.length === 0) return { status: 'not_found' };
+        if (rows.length > 1) {
+            return { status: 'ambiguous', candidates: rows.map(row => ({ recipeId: row.id, recipeName: row.name })) };
+        }
+        return { status: 'found', identity: { recipeId: rows[0].id, recipeName: rows[0].name } };
+    }
+
+    function getInventoryStatus(rawRecipeId) {        const recipeId = parsePositiveId(rawRecipeId);
         if (!recipeId) {
             throw new RecipeQueryError('非法配方ID');
         }
@@ -440,6 +480,7 @@ function createRecipeQueries({
         getModelVariantDraft,
         getRecipe,
         loadTemplateContext,
+        resolveRecipeIdentity,
     };
 }
 

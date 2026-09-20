@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 251 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 252 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -229,6 +229,7 @@ AI 的 Part/Coil 当前库存数量共用 `inventoryQuantity/current/current_inv
 | `POST` | `/api/recipes/:id/technical-files` | 请求头 `Idempotency-Key`；`multipart/form-data` 字段 `file`、`expectedUpdatedAt?`，支持 `.xls/.xlsx`，最大 10MB | 能力 `recipes.technical_files.upload`。验证真实文件类型并解析水泵性能报告；统一文件对象、配方附件、operation 和强审计同一事务提交。相同幂等键安全重放，同一配方重复上传相同 SHA-256 返回现有附件；版本或审计冲突不留下部分文件。响应继续在顶层返回原附件字段并增加标准回执；旧请求缺少重试/版本协议字段仍兼容并返回 warnings；新建缺少结构化 `naming` 返回 `400 CATALOG_NAMING_REQUIRED`，不能绕过生成规则。规定点、实测点和偏差不进入 API 摘要或知识检索文本 |
 | `GET` | `/api/recipes/:id/technical-files/:fileId/download` | 无 | 通过技术档案 Query service 下载原始测试报告；优先读取统一文件对象，兼容历史附件 BLOB |
 | `DELETE` | `/api/recipes/:id/technical-files/:fileId` | 请求头 `Idempotency-Key`；请求体 `{ expectedUpdatedAt? }` | 能力 `recipes.technical_files.delete`。软删除附件关联，不删除可能被其他业务引用的统一文件对象；附件、operation 和强审计同一事务提交，相同请求安全重放，版本或审计冲突返回 409。变更自动触发现有知识派生同步；旧请求仍兼容并返回 warnings |
+| `GET` | `/api/recipes/identity` | 可选 query：`name`（必填，最多 120 字符） | 正式能力 `recipes.resolve_identity`（query，来源 `recipes(name)` 非删除配方的精确匹配，Internal，只读事务，无确认/幂等/审计，15秒）。按**完整正式配方名称**把用户说出的名称解析为唯一规范身份，供 Ontology 关系绑定在绑定前做确定性根解析使用，不进入 AI 工具目录、不对模型开放。服务端用固定 `name IN (...)` 语句并自带 `LIMIT`，永远不会全表枚举；只接受原样名称和剥离末尾语气助词后的形态，不做子串、前缀或模糊匹配。找到返回 `{ success: true, data: { recipeId, recipeName } }`；无此配方返回 `404 RECIPE_NOT_FOUND`；多个有效配方共用同一名称返回 `409 RECIPE_AMBIGUOUS` 并在 `details.candidates` 返回有界候选。零匹配和多匹配必须区分，调用方不得把其中任一当作唯一身份 |
 | `GET` | `/api/recipes/:id/cost` | 无 | 经 `costQueries` 读取正式配方并委托 `costEngine` 重算当前配件参考；不是保存成本，也不是完整总成本 |
 | `GET` | `/api/recipes/current-costs` | 无 | 正式能力 `recipes.current_costs`（query，来源 `saved_recipe_ids+current_template_ids+costEngine`，Web/internal，只读事务，无确认/幂等/审计，15秒）；经 `costQueries` 批量返回所有配方的当日完整成本；在同一只读事务内先按配方参数和当前泵壳模板完整重建 BOM，保存的选配/包装 ID 使用当前目录名，原快照不回写；损坏数组、非法/失效 ID、供应商或分类冲突、泵壳目录歧义作为该配方 calculationError 返回，再由成本引擎按当前零件库价格、全局动态配置和当前线圈数据重算，并叠加配方人工、表面处理与管理费。响应顶层返回 `asOf/sourceOfTruth=costEngine/basis=currentTemplateAndRecipeParameters`；每项返回 `costComplete/warnings/missingParts`。单条配方因历史线圈方案未明确等原因无法重算时，该项返回 `calculationError { code, message, details? }`、`costComplete=false` 和空正式金额，其他配方仍正常返回，列表不得因一条 enrichment 失败而整体消失。存在未定价项目时 `currentTotalCost/partsCost/difference` 为 `null`，只保留明确标记为诊断用途的 `partialPartsCost/partialTotalCost`，禁止把缺失项按 ¥0 形成正式成本。成品电缆当前成本同样必须取得当前电缆目录价；历史快照不能掩盖当前目录缺价 |
 | `POST` | `/api/recipes/:id/cost-preview` | `{ overrides: { coilId?, coilSpec?, coilSheets?, coilMaterial?, coilSlotType?, ... } }` | 报价和直接建单共用的客户配置试算。线圈覆盖应以具体 `coilId` 锁定方案，并校验组合字段一致；最终 `configurationSnapshot` 保存 `coilId`。其余配置白名单、包装、表面处理、不锈钢接轴和成本权威规则不变；线圈无法唯一计价时明确失败，不按记录顺序猜测 |
@@ -577,7 +578,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 78 个 AI 工具、当前 132 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 78 个 AI 工具、当前 133 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记，输入唯一 schema 在 `api/routes/ai/tools.cjs`。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 

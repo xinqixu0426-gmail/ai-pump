@@ -64,6 +64,48 @@ function receiptRows(receipts, source) {
         .map(r => ({ entityType: r.entityType, canonicalId: id(r.selected.id),
             names: [r.originalMention, r.selected.name].filter(v => typeof v === 'string'), source, capability: r.sourceCapability }));
 }
+/**
+ * Structural relation intent: which relation the question names, and which root mention it carries.
+ *
+ * This is the SAME grammar the binder applies, exposed as a pure function of the question text plus the
+ * already-verified session rows — no candidate rows are consulted, so it cannot change what binds. It
+ * exists so callers that must run BEFORE binding (the deterministic root resolution in
+ * `relationRootCanonical.cjs`) can know the relation's `fromType` without inventing a second grammar.
+ */
+function relationIntentMatches(userText, sessionRows = []) {
+    const text = String(userText || '').trim();
+    if (!text || text.length > 2048) return [];
+    const matches = [];
+    const clauses = text.split(/[;；]/u);
+    for (const relation of relationMetadata) for (const expression of relation.expressions) for (const clause of clauses) {
+        const match = new RegExp(policy.prefix + expression + policy.suffix, 'u').exec(clause.trim());
+        if (!match) continue;
+        const mention = match.groups.root.trim();
+        const typed = entityMetadata[relation.fromType].aliases.some(alias => mention.includes(alias));
+        const pronoun = policy.pronouns.includes(mention);
+        if (pronoun && !typed && Object.values(entityMetadata).some(meta => meta.aliases.some(alias => mention.includes(alias)))) continue;
+        if (pronoun && !typed && sessionRows.length && !sessionRows.some(c => c.entityType === relation.fromType)) continue;
+        if (pronoun && !typed && !sessionRows.length) continue;
+        matches.push({ relationId: relation.relationId, fromType: relation.fromType, toType: relation.toType,
+            mention, typed, pronoun });
+    }
+    return matches;
+}
+/**
+ * Verified rows of a trusted same-session receipt set. Ownership (subject + conversationId) and the
+ * session TTL are checked here, so a caller that must consult the session BEFORE binding (the
+ * deterministic root resolution) applies exactly the same rules the binder does.
+ */
+function trustedSessionRows(input = {}) {
+    return verifiedSessionRows(input);
+}
+function verifiedSessionRows(input = {}) {
+    const session = input.trustedSession;
+    const validSession = session && input.subject && input.conversationId && session.subject === input.subject
+        && session.conversationId === input.conversationId && Number.isFinite(session.observedAt)
+        && Date.now() - session.observedAt >= 0 && Date.now() - session.observedAt < TTL_MS;
+    return validSession ? verifiedRows(session.toolResults) : [];
+}
 function bindRelation(input = {}) {
     if (input.ontologyVersion !== 1 || typeof input.userText !== 'string' || input.userText.length > 2048) return unbound('NOT_ELIGIBLE');
     if (['verifiedToolResults', 'canonicalReceipts', 'resolverReceipts'].some(k => input[k] !== undefined
@@ -78,20 +120,20 @@ function bindRelation(input = {}) {
     const validSession = session && input.subject && input.conversationId && session.subject === input.subject
         && session.conversationId === input.conversationId && Number.isFinite(session.observedAt)
         && Date.now() - session.observedAt >= 0 && Date.now() - session.observedAt < TTL_MS;
-    const sessionRows = validSession ? verifiedRows(session.toolResults) : [];
+    const sessionRows = trustedSessionRows(input);
+    // The grammar runs once, in `relationIntentMatches`, and the binder only attaches the candidate rows
+    // each matched mention resolves to. Behaviour is identical to matching inline, but the structural
+    // intent is now available to callers that must act before binding.
     const matches = [];
-    const clauses = text.split(/[;；]/u);
-    for (const relation of relationMetadata) for (const expression of relation.expressions) for (const clause of clauses) {
-        const match = new RegExp(policy.prefix + expression + policy.suffix, 'u').exec(clause.trim());
-        if (!match) continue;
-        const mention = match.groups.root.trim();
-        const possible = all.filter(c => c.entityType === relation.fromType && mentionMatches(mention, c));
-        const typed = entityMetadata[relation.fromType].aliases.some(alias => mention.includes(alias));
-        const pronoun = policy.pronouns.includes(mention);
-        if (pronoun && !typed && Object.values(entityMetadata).some(meta => meta.aliases.some(alias => mention.includes(alias)))) continue;
-        if (pronoun && !typed && sessionRows.length && !sessionRows.some(c => c.entityType === relation.fromType)) continue;
+    for (const intent of relationIntentMatches(text, sessionRows)) {
+        const { relationId, fromType, mention, typed, pronoun } = intent;
+        // A context-free pronoun was already excluded by the grammar; this keeps the binder's original
+        // fail-closed status for it instead of silently treating an unresolvable pronoun as no match.
         if (pronoun && !typed && !sessionRows.length) return unbound('INSUFFICIENT_CONTEXT');
-        if (typed || pronoun || possible.length) matches.push({ relation, mention, possible, pronoun });
+        const possible = all.filter(c => c.entityType === fromType && mentionMatches(mention, c));
+        if (typed || pronoun || possible.length) {
+            matches.push({ relation: relationMetadata.find(r => r.relationId === relationId), mention, possible, pronoun });
+        }
     }
     const directions = [...new Set(matches.map(m => m.relation.relationId))];
     if (matches.some(m => m.pronoun) && new Set(sessionRows.filter(c => matches.some(m => m.pronoun && m.relation.fromType === c.entityType))
@@ -121,4 +163,4 @@ function bindRelation(input = {}) {
         bindingEvidence: [{ kind: selected.source, capability: /^[a-z0-9_]{1,64}$/.test(selected.capability) ? selected.capability : null }],
         bindingSource: [selected.source, 'ontology_intent_metadata'], confidenceClass: 'deterministic', shadowEligible: true });
 }
-module.exports = deepFreeze({ bindRelation, verifiedRows, mentionMatches, receiptRows });
+module.exports = deepFreeze({ bindRelation, verifiedRows, mentionMatches, receiptRows, relationIntentMatches, trustedSessionRows, verifiedSessionRows });

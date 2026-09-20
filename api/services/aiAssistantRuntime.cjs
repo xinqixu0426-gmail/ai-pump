@@ -260,6 +260,27 @@ function aggregateGenerationTimings(items = []) {
     };
 }
 
+/**
+ * Deterministic pre-binding root resolution read (ONT-P8L-FINAL Gate B).
+ *
+ * Resolves a relation root NAME through the formal bounded identity API and returns the trace of that
+ * read, so the ontology can bind on a formal read provenance instead of on whichever tool the model
+ * happened to pick in the previous turn. A 404 (no such name) and a 409 (several recipes share the
+ * name) are ordinary resolution outcomes, not failures; a genuine transport/contract failure is
+ * reported as `failed` and the caller keeps the previous behaviour unchanged.
+ */
+async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, mention }) {
+    const path = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
+    try {
+        const identity = await getJsonFn(internalFetch, path, '配方身份解析读取失败');
+        return { status: 'found', identity, calls: [{ method: 'GET', path }], path };
+    } catch (error) {
+        if (error?.formalApiOutcome === 'not_found') return { status: 'not_found', calls: [{ method: 'GET', path }] };
+        if (error?.statusCode === 409) return { status: 'ambiguous', calls: [{ method: 'GET', path }] };
+        return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
+    }
+}
+
 async function runAiAssistant(input = {}, dependencies = {}) {
     const runtimeEnv = input.providerPreference && input.providerPreference !== 'default'
         ? { ...(input.env || process.env), AI_PROVIDER: input.providerPreference }
@@ -336,15 +357,35 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const useLocalToolShortlist = shouldUseLocalToolShortlist(runtimeEnv);
         const coilComparisonPairs = coilCostComparisonPairs(latest.content);
         if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED')) {
+            let preResolution = null;
+            let preResolvedRoots = [];
             try {
                 relationRouter = require('../ontology/relationRoutingCanary.cjs');
+                const rootReader = require('../ontology/relationRootCanonical.cjs');
+                // ONT-P8L-FINAL Gate B: resolve the relation root NAME through a formal bounded read
+                // BEFORE binding. Routing recall must not depend on which read tool the model happened
+                // to choose in the previous turn. This runs only when the question actually names a
+                // resolvable relation root, costs no provider round, and never touches the offered tool
+                // surface. The resolver is injectable so tests never reach the network.
+                const trustedSessionInput = { subject: input.confirmationSubject, conversationId: input.conversationId,
+                    trustedSession: session.previous ? { subject: input.confirmationSubject,
+                        conversationId: input.conversationId, observedAt: started,
+                        toolResults: session.previous.toolResults || [] } : undefined };
+                const resolverIntent = relationRouter.preBindingResolverInput({ userText: latest.content, ...trustedSessionInput });
+                if (resolverIntent) {
+                    const resolveIdentity = dependencies.resolveRelationIdentity
+                        || (async request => resolveRelationIdentity(internalFetch, getJson, request));
+                    const resolvedRoot = await rootReader.resolveRelationRoot({ ...resolverIntent, eligible: true }, { resolveIdentity });
+                    preResolution = resolvedRoot;
+                    if (resolvedRoot.resolved) preResolvedRoots = [resolvedRoot.receipt];
+                }
                 relationRouting = relationRouter.prepareRouting({ userText: latest.content, env: runtimeEnv || process.env,
                     tools: allTools, shortlistEnabled: useLocalToolShortlist,
                     // Server-owned, owner-scoped, unexpired receipts only; never client history.
-                    trustedToolResults: session.previous?.toolResults || [], subject: input.confirmationSubject,
-                    conversationId: input.conversationId,
-                    trustedSession: session.previous ? { subject: input.confirmationSubject, conversationId: input.conversationId,
-                        observedAt: started, toolResults: session.previous.toolResults || [] } : undefined,
+                    trustedToolResults: session.previous?.toolResults || [],
+                    preResolution,
+                    ...(preResolvedRoots.length ? { preResolvedRoots } : {}),
+                    ...trustedSessionInput,
                 }, dependencies.ontologyRouting);
             } catch {
                 relationRouting = { profile: null, record: { version: 1, canaryEnabled: true, eligible: false,
@@ -872,4 +913,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
 module.exports = { runAiAssistant, assistantReadTools, requiredCoilRecipeToolCall, MAX_TOOL_CALLS, MAX_TOOL_ROUNDS,
     // ONT-P8L: exported for the bounded-repair regression suite. These are the state machine's pure parts.
     LEGACY_RELATION_REPAIR_STATES, MAX_SOFTWARE_REPAIR_STEPS, MAX_LEGACY_MODEL_REPAIR_ROUNDS,
-    legacyRelationMissingTools, nextLegacyRelationRepairState, verifiedCanonicalCoilId, legacyRelationRepairCall };
+    legacyRelationMissingTools, nextLegacyRelationRepairState, verifiedCanonicalCoilId, legacyRelationRepairCall,
+    // ONT-P8L-FINAL Gate B: the HTTP client side of the pre-binding identity read, exported so its
+    // outcome mapping (found / not_found / ambiguous / failed) is covered without a live API.
+    resolveRelationIdentity };

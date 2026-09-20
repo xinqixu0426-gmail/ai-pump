@@ -258,6 +258,26 @@ router.delete('/:id/technical-files/:fileId', (req, res) => {
     }
 });
 
+router.get('/identity', (req, res) => {
+    try {
+        const resolved = recipeQueries.resolveRecipeIdentity(req.query.name);
+        if (resolved.status === 'not_found') {
+            return res.status(404).json({ success: false, code: 'RECIPE_NOT_FOUND', error: '未找到该配方名称' });
+        }
+        if (resolved.status === 'ambiguous') {
+            return res.status(409).json({
+                success: false,
+                code: 'RECIPE_AMBIGUOUS',
+                error: '该配方名称对应多个配方，需要确认具体对象',
+                details: { candidates: resolved.candidates },
+            });
+        }
+        res.json({ success: true, data: resolved.identity });
+    } catch (error) {
+        sendRecipeQueryError(res, error, 400);
+    }
+});
+
 router.get('/:id', (req, res) => {
     try {
         res.json({

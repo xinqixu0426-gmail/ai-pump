@@ -2,7 +2,12 @@
 const { ontology } = require('./contract.cjs');
 const { deepFreeze } = require('./sources.cjs');
 const entityMetadata = {
-    recipe: { aliases: ['配方', '产品'], names: ['name'], resources: [{ tool: 'get_all_recipes', path: 'recipes', field: 'data' }, { tool: 'get_recipe_detail', path: 'recipes', field: 'recipe' }] },
+    // `resources` is the binding contract's provenance whitelist: a canonical root may only be
+    // established by one of these formal reads, and the read's execution evidence must name its path.
+    // ONT-P8L-FINAL Gate B adds the bounded identity read, which is the read the runtime executes
+    // BEFORE binding to resolve a relation root name; it is internal-only and is never offered to the
+    // model, so declaring it here does not widen the model's tool surface.
+    recipe: { aliases: ['配方', '产品'], names: ['name'], resources: [{ tool: 'get_all_recipes', path: 'recipes', field: 'data' }, { tool: 'get_recipe_detail', path: 'recipes', field: 'recipe' }, { tool: 'resolve_recipe_identity', path: 'recipes', field: 'data' }] },
     template: { aliases: ['泵壳模板', '模板'], names: ['shellModel'], resources: [{ tool: 'search_templates', path: 'templates', field: 'data' }, { tool: 'get_template_detail', path: 'templates', field: 'template' }] },
     coil: { aliases: ['线圈', '绕组'], names: ['schemeCode', 'schemeName'], composite: ['spec', 'sheets'], resources: [{ tool: 'search_coils', path: 'coils', field: 'data' }] },
     part: { aliases: ['零件', '配件'], names: ['model', 'name'], resources: [{ tool: 'search_parts', path: 'parts', field: 'parts' }] },

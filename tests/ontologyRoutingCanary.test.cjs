@@ -124,10 +124,20 @@ test('P8L-FINAL the recipe-rooted direction offers only bounded reads, never the
     assert.deepEqual(offered, ['get_recipe_detail', 'search_coils']);
     assert.equal(offered.includes('get_all_recipes'), false,
         'the recipe-rooted direction must not offer the whole-catalogue read');
-    // The offered surface can never drift from the declared bounded reads of that direction.
+    // The offered surface can never drift from the declared bounded reads of that direction. The
+    // pre-binding identity read is deliberately NOT part of it: it runs in software before binding and
+    // is never a tool the model can choose (ONT-P8L-FINAL Gate B).
+    assert.deepEqual(offered, profile.requiredReadsByRelation['recipe.uses_coil']
+        .filter(read => read.argumentPolicy !== 'pre_binding')
+        .map(read => read.capability));
     assert.deepEqual(offered, router.requiredReadsFor({
         profile, binding: { relationId: 'recipe.uses_coil' },
     }).map(read => read.capability));
+    assert.ok(profile.requiredReadsByRelation['recipe.uses_coil']
+        .some(read => read.capability === 'resolve_recipe_identity' && read.argumentPolicy === 'pre_binding'),
+    'the direction must declare its pre-binding root resolution read');
+    assert.equal(offered.includes('resolve_recipe_identity'), false,
+        'the pre-binding read must never be offered to the model');
     // The inverse direction is unchanged and still features its bounded reverse read first.
     assert.equal(profile.shortlistByRelation['coil.used_by_recipe'][0], 'get_recipes_by_coil');
     // Requesting the relation must therefore produce a tool list without the aggregate.
@@ -215,7 +225,22 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
     // ONT-P8L-FINAL sanctions exactly one binder change: per-record ownership (see the dedicated test
     // below), so `relationBinder.cjs` is no longer byte-frozen against the P6 baseline and is instead
     // covered by its own assertions plus the whole ontology suite.
-    for (const file of ['api/ontology/bindingMetadata.cjs', 'api/services/aiCapabilityGraphV3.cjs',
+    //
+    // `bindingMetadata.cjs` carries the binding contract's provenance whitelist. ONT-P8L-FINAL also
+    // sanctions exactly one addition there — the bounded identity read that resolves a relation root
+    // BEFORE binding — so it is asserted as an exact single-entry addition instead of byte equality.
+    const metadataNow = fs.readFileSync(path.resolve('api/ontology/bindingMetadata.cjs'), 'utf8').replace(/\r\n/g, '\n');
+    const metadataBefore = execFileSync('git', ['show', `${oracle.sourceCommit}:api/ontology/bindingMetadata.cjs`], { encoding: 'utf8' }).replace(/\r\n/g, '\n');
+    const resourceNames = text => [...text.matchAll(/tool:\s*'([a-z0-9_]+)'/gu)].map(match => match[1]);
+    const resourcesBefore = resourceNames(metadataBefore);
+    const resourcesNow = resourceNames(metadataNow);
+    assert.deepEqual(resourcesNow.filter(name => !resourcesBefore.includes(name)), ['resolve_recipe_identity'],
+        'the only provenance source that may be added is the bounded identity read');
+    assert.deepEqual(resourcesBefore.filter(name => !resourcesNow.includes(name)), [],
+        'no existing provenance source may be removed');
+    assert.deepEqual(resourcesNow.filter(name => name !== 'resolve_recipe_identity'), resourcesBefore,
+        'the existing provenance sources and their order must be unchanged');
+    for (const file of ['api/services/aiCapabilityGraphV3.cjs',
         'api/services/aiAssistantAnswer.cjs', 'api/services/aiEvidenceBundle.cjs', 'api/services/aiResponsePresenter.cjs',
         'package.json', 'package-lock.json']) {
         assert.equal(fs.readFileSync(path.resolve(file), 'utf8').replace(/\r\n/g, '\n'), execFileSync('git', ['show', `${oracle.sourceCommit}:${file}`], { encoding: 'utf8' }).replace(/\r\n/g, '\n'));

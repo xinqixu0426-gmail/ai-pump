@@ -182,7 +182,12 @@ test('ONT-P1/P3/P6R: only authorized observer and private flagged canary import 
                     assert.doesNotMatch(text, /ontology\/(?:resolver|contract)\.cjs/);
                     assert.match(text, /AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED/);
                     const imports = [...text.matchAll(/require\s*\(\s*['"]([^'"]*ontology\/[^'"]+)['"]\)/g)].map(m => m[1]);
-                    assert.deepEqual(imports.sort(), ['../ontology/relationRoutingCanary.cjs', '../ontology/runtimeShadow.cjs']);
+                    // ONT-P8L-FINAL Gate B adds exactly one more ontology import: the deterministic
+                    // pre-binding root resolution, used INSIDE the same flag-gated canary block. It is a
+                    // read-only module (no tools, no writes, no provider calls), and the assertion stays
+                    // an exact allowlist so no further import can appear unnoticed.
+                    assert.deepEqual(imports.sort(), ['../ontology/relationRootCanonical.cjs',
+                        '../ontology/relationRoutingCanary.cjs', '../ontology/runtimeShadow.cjs']);
                 } else assert.doesNotMatch(text, /require\s*\(\s*['"][^'"]*(?:\/ontology\/|ontology\/contract)/, file);
             }
         }

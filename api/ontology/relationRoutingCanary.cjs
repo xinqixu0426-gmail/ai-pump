@@ -4,7 +4,8 @@ const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { ontology } = require('./contract.cjs');
 const { relationMetadata, policy } = require('./bindingMetadata.cjs');
-const { bindRelation, verifiedRows } = require('./relationBinder.cjs');
+const { bindRelation, verifiedRows, relationIntentMatches, trustedSessionRows } = require('./relationBinder.cjs');
+const relationRootCanonical = require('./relationRootCanonical.cjs');
 const { getAiCapability } = require('../capabilities/registry.cjs');
 const { deepFreeze } = require('./sources.cjs');
 // Deterministic formal reads that certify the relation AND keep answer/observation parity with the
@@ -32,10 +33,21 @@ const rootIdentityRead = deepFreeze({ capability: 'search_coils', argumentPolicy
 const coilCatalogueRead = deepFreeze({ capability: 'search_coils', argumentPolicy: 'empty' });
 // Bounded root read for a recipe-rooted question: one recipe, not the whole catalogue.
 const recipeDetailRead = deepFreeze({ capability: 'get_recipe_detail', argumentPolicy: 'root_detail' });
+// ONT-P8L-FINAL Gate B: pre-binding, formal, EXACT-NAME resolution of the relation root. This read runs
+// in software BEFORE binding (never as a model tool, never as a completion repair) so routing recall no
+// longer depends on which read tool the model happened to choose in the previous turn. It is declared
+// here so the profile owns the reason it exists; `argumentPolicy: 'pre_binding'` keeps it out of the
+// required/completion read lists.
+const recipeIdentityRead = deepFreeze({ capability: 'resolve_recipe_identity', argumentPolicy: 'pre_binding' });
 const requiredReadsByRelation = deepFreeze({
     'coil.used_by_recipe': [byCoilRecipeRead, rootIdentityRead],
-    'recipe.uses_coil': [recipeDetailRead, coilCatalogueRead],
+    'recipe.uses_coil': [recipeDetailRead, coilCatalogueRead, recipeIdentityRead],
 });
+// Reads the model may be asked to call for a direction. Pre-binding reads already ran in software, so
+// they are never offered and never planned as a completion repair.
+const offeredReadsByRelation = deepFreeze(Object.fromEntries(Object.entries(requiredReadsByRelation)
+    .map(([relationId, reads]) => [relationId,
+        reads.filter(read => read.argumentPolicy !== 'pre_binding').map(read => read.capability)])));
 // Union of every declared read, used for catalogue validation and capability auditing.
 const requiredReads = deepFreeze([byCoilRecipeRead, rootIdentityRead, coilCatalogueRead, recipeDetailRead]);
 const optionalCapabilities = deepFreeze([]);
@@ -62,7 +74,7 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     //    and the aggregate read stays available to Legacy only.
     shortlistByRelation: deepFreeze({
         'coil.used_by_recipe': ['get_recipes_by_coil', 'search_coils', 'get_all_recipes', 'get_recipe_detail'],
-        'recipe.uses_coil': requiredReadsByRelation['recipe.uses_coil'].map(read => read.capability),
+        'recipe.uses_coil': offeredReadsByRelation['recipe.uses_coil'],
     }),
     requiredReads,
     requiredReadsByRelation,
@@ -75,9 +87,14 @@ const profiles = deepFreeze([{ version: 1, sourceId: 'recipe_coil',
     failureMessage: '线圈与配方的关联查询未完成，缺少正式查询：{missing}。本轮没有足够依据给出关联结论，请重试。',
 }]);
 
-/** The deterministic reads that apply to this request's bound direction (none when unknown). */
+/**
+ * The deterministic reads that apply to this request's bound direction and are enforced as TOOL reads
+ * before the model answers (none when unknown). Pre-binding reads are excluded: they already ran in
+ * software, so planning them again would add work the turn does not need.
+ */
 function requiredReadsFor(state) {
-    return state?.profile?.requiredReadsByRelation?.[state.binding?.relationId] || [];
+    return (state?.profile?.requiredReadsByRelation?.[state.binding?.relationId] || [])
+        .filter(read => read.argumentPolicy !== 'pre_binding');
 }
 
 /**
@@ -145,12 +162,34 @@ function effectiveProviderMode(env) {
         return String(resolved || declared).trim().toLowerCase();
     } catch { return declared; }
 }
+/**
+ * The structural relation intent this question names, if any, ready for deterministic root resolution.
+ * Pure and synchronous: the caller performs the (async) formal read and hands the resulting canonical
+ * receipt back in through `prepareRouting({ preResolvedRoots })`. Keeping resolution OUT of
+ * `prepareRouting` is what lets routing stay a synchronous decision.
+ */
+function preBindingResolverInput(input = {}) {
+    const intents = relationIntentMatches(input.userText, trustedSessionRows({
+        trustedSession: input.trustedSession, subject: input.subject, conversationId: input.conversationId,
+    }));
+    return intents.find(intent => !intent.pronoun && !intent.typed
+        && relationRootCanonical.isResolvableRelation(intent.relationId)
+        && relationRootCanonical.mentionIsPlainName(intent.mention)) || null;
+}
 function prepareRouting(input = {}, dependencies = {}) {
     const started = performance.now();
     const mode = effectiveProviderMode(input.env);
+    // ONT-P8L-FINAL Gate B: a deterministic, formal, EXACT-NAME resolution of the relation root is
+    // consumed here. It was executed BEFORE this call, so which read tool the model happened to choose
+    // in the previous turn no longer decides whether this question can bind and route at all. Each
+    // receipt is a formal read provenance, and it enters through the binder's highest-priority
+    // `canonicalReceipts` channel — no identity rule is loosened.
+    const preResolvedRoots = (Array.isArray(input.preResolvedRoots) ? input.preResolvedRoots : [])
+        .filter(receipt => receipt && typeof receipt === 'object' && !Array.isArray(receipt));
     const binding = bindRelation({ ontologyVersion: 1, userText: input.userText,
         verifiedToolResults: input.trustedToolResults || [], trustedSession: input.trustedSession,
-        subject: input.subject, conversationId: input.conversationId });
+        subject: input.subject, conversationId: input.conversationId,
+        ...(preResolvedRoots.length ? { canonicalReceipts: preResolvedRoots } : {}) });
     const semanticClass = classifyCoilRecipeLegacyIntentV1(input.userText, binding);
     const definition = ontology.relations.find(r => r.relationId === binding.relationId);
     const profile = profiles.find(p => p.sourceId === definition?.sourceId);
@@ -165,6 +204,12 @@ function prepareRouting(input = {}, dependencies = {}) {
         routingSource: eligible ? 'ONTOLOGY_RELATION_BINDING' : semanticClass === 'PURE_RELATION_QUERY' || semanticClass === 'AMBIGUOUS' || semanticClass === 'OTHER'
             ? 'CANARY_NOT_ELIGIBLE' : 'NON_RELATION_SPECIALIZED_PATH',
         fallback: false, legacyDetectorUsed: !eligible, legacyRepairUsed: false,
+        // Deterministic pre-binding name resolution outcome, reported by the caller that ran it. It
+        // never carries the user's raw mention, only whether the root was resolved and why not.
+        preResolution: input.preResolution && typeof input.preResolution === 'object'
+            ? { resolved: input.preResolution.resolved === true, reason: input.preResolution.reason || null,
+                entityType: input.preResolution.entityType || null, relationId: input.preResolution.relationId || null }
+            : null,
         durationMs: 0 };
     if (!eligible) { record.durationMs = performance.now() - started; return { record, binding, profile: null }; }
     try {
@@ -172,7 +217,10 @@ function prepareRouting(input = {}, dependencies = {}) {
         const names = new Set(catalog.map(t => t.function.name));
         // Every capability the canary may plan or offer must be a registered read query, so a missing
         // or non-read capability degrades to legacy instead of producing an unusable tool list.
-        const declared = [...profile.requiredReads, ...profile.optionalCapabilities,
+        // Pre-binding reads are excluded: they are executed in software, not chosen from the model's
+        // tool catalogue, and their registration is asserted by the pre-binding resolver itself.
+        const declared = [...profile.requiredReads.filter(read => read.argumentPolicy !== 'pre_binding'),
+            ...profile.optionalCapabilities,
             ...profile.shortlist.map(name => ({ capability: name }))];
         if (declared.some(r => !names.has(r.capability) || getAiCapability(r.capability)?.access !== 'read'
             || getAiCapability(r.capability)?.operation !== 'query')) throw Error('READ_PROFILE_UNAVAILABLE');
@@ -220,5 +268,5 @@ function normalizeArguments(state, name, args) {
     for (const key of declared.find(r => r.capability === name)?.omitArguments || []) delete args[key];
     return args;
 }
-module.exports = { profiles, requiredReads, optionalCapabilities, classifyCoilRecipeLegacyIntentV1, prepareRouting,
+module.exports = { profiles, requiredReads, optionalCapabilities, classifyCoilRecipeLegacyIntentV1, preBindingResolverInput, prepareRouting,
     rootReadArguments, requiredReadsFor, missingCapabilities, requiredReadCalls, completionCalls, normalizeArguments };

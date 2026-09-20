@@ -395,6 +395,86 @@ test('local coil recipe relation requires both formal sides before answering', a
     assert.match(result.finalContent, /Q12-200/);
 });
 
+test('a recipe-rooted relation binds from the pre-binding identity read, whatever the previous turn read', async () => {
+    // ONT-P8L-FINAL Gate B regression for the reproduced defect: the SAME question used to bind or not
+    // bind depending on which read tool the model happened to choose in the previous turn, and a miss
+    // fell through to the Legacy path that reads the whole recipe catalogue.
+    const RECIPE = 'V750大脚板-2寸-经典款';
+    const question = `${RECIPE} 配的什么绕组？`;
+    const conversations = {
+        'detail only': [],
+        'whole-catalogue list': [{ name: 'get_all_recipes', result: { success: true, filters: { limit: 50 }, count: 1,
+            data: [{ id: 13, name: RECIPE }],
+            executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes' }] } } }],
+        'unrelated reads': [{ name: 'search_templates', result: { success: true, data: [{ id: 401, shellModel: `模板-${RECIPE}` }],
+            executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/templates' }] } } }],
+    };
+    for (const [label, previousToolResults] of Object.entries(conversations)) {
+        const conversationId = `ont-p8l-final-${label.replace(/\s+/g, '-')}`;
+        beginAssistantSession('test-owner', conversationId).finish({ toolResults: previousToolResults });
+        const identityReads = [], executed = [], offered = [];
+        const answer = { content: `${RECIPE} 用的是 12-140 线圈。` };
+        const result = await runAiAssistant({
+            messages: [{ role: 'user', content: question }],
+            confirmationSubject: 'test-owner',
+            conversationId,
+            env: { AI_PROVIDER: 'deepseek', AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true' },
+        }, fixture([], {
+            // The model answer is scripted; every provider round is observed so the offered surface can
+            // be asserted directly instead of inferred from the executed calls.
+            fetchAiProvider: async (messages, options) => {
+                offered.push(options.tools.map(tool => tool.function.name));
+                return { json: async () => ({ choices: [{ message: answer }] }) };
+            },
+            // The runtime's own pre-binding read goes through the injected internal API client, whose
+            // request object is exposed so a test can assert the bounded read really happened. This is
+            // the read the binding consumes; it is never offered to the model.
+            resolveRelationIdentity: async request => {
+                identityReads.push(request);
+                return { status: 'found', identity: { recipeId: 13, recipeName: RECIPE },
+                    calls: request.path
+                        ? [{ method: 'GET', path: request.path }]
+                        : [{ method: 'GET', path: `/api/recipes/identity?name=${encodeURIComponent(request.mention)}` }] };
+            },
+            executeToolCall: async (name, args) => {
+                executed.push({ name, args });
+                return name === 'search_coils'
+                    ? verified([{ id: 140, spec: '12', sheets: 140 }])
+                    : verified({ id: 13, name: RECIPE });
+            },
+        }));
+        assert.equal(identityReads.length, 1, `${label}: exactly one bounded identity read per turn`);
+        assert.equal(identityReads[0].mention, RECIPE, label);
+        assert.equal(identityReads[0].relationId, 'recipe.uses_coil', label);
+        // The offered surface is the same in every case and never contains the aggregate or the
+        // pre-binding read — the model cannot choose either.
+        assert.ok(offered.length > 0, label);
+        for (const names of offered) {
+            assert.deepEqual(names, ['get_recipe_detail', 'search_coils'], label);
+        }
+        const names = result.toolResults.map(item => item.name);
+        // The bound direction's deterministic reads ran, and the whole-catalogue read never did — no
+        // matter which of the three previous-turn receipt sets this conversation had.
+        assert.ok(names.includes('get_recipe_detail'), `${label}: ${JSON.stringify(names)}`);
+        assert.ok(names.includes('search_coils'), `${label}: ${JSON.stringify(names)}`);
+        assert.equal(names.includes('get_all_recipes'), false, `${label}: ${JSON.stringify(names)}`);
+        assert.equal(executed.some(item => item.name === 'resolve_recipe_identity'), false,
+            `${label}: the pre-binding read is never a model tool`);
+    }
+    // A question that names no resolvable relation root spends no identity read at all.
+    let untouched = 0;
+    await runAiAssistant({
+        messages: [{ role: 'user', content: '最近有哪些订单？' }],
+        confirmationSubject: 'test-owner',
+        conversationId: 'ont-p8l-final-no-relation',
+        env: { AI_PROVIDER: 'deepseek', AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true' },
+    }, fixture([
+        { tool_calls: [call('get_recent_orders', {})] },
+        { content: '最近订单如下。' },
+    ], { resolveRelationIdentity: async () => { untouched += 1; } }));
+    assert.equal(untouched, 0);
+});
+
 test('local business turn fails closed when the model twice skips offered tools', async () => {
     const events = [];
     const result = await runAiAssistant({
