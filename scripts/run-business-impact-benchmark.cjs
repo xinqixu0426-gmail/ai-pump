@@ -9,6 +9,8 @@ const { execFileSync } = require('node:child_process');
 const { createBusinessImpactFixture, runBusinessImpactFixtureChecks } = require('../tests/helpers/businessImpactFixture.cjs');
 const { buildBusinessImpactOracle, impactDefinitionHashes } = require('../tests/helpers/businessImpactOracle.cjs');
 const { evaluateBusinessImpactCase, CRITICAL_FAILURES } = require('../tests/helpers/businessImpactEvaluator.cjs');
+const { buildProjectionCases } = require('../tests/helpers/businessImpactProjectionCases.cjs');
+const { createBusinessImpactProjection } = require('../api/business-impact/projection.cjs');
 
 const root = path.resolve(__dirname, '..');
 const casePath = path.join(root, 'tests/fixtures/business-impact-benchmark-v1.json');
@@ -128,6 +130,10 @@ async function main() {
         AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true',
         KNOWLEDGE_AUTO_SYNC_ENABLED: 'false', KNOWLEDGE_VECTOR_ENABLED: 'false' });
     const runtimeDb = require('../api/db.cjs').db; fixture.db = runtimeDb;
+    const projectionCases = buildProjectionCases(fixture.ids);
+    const { buildOrderReadinessContext } = require('../api/services/activeOrderReadiness.cjs');
+    const projection = createBusinessImpactProjection({ db: runtimeDb,
+        readinessForOrder: order => buildOrderReadinessContext(order).readiness });
     const server = await new Promise(resolve => { const instance = mount(fixture).listen(0, '127.0.0.1', () => resolve(instance)); });
     process.env.PORT = String(server.address().port);
     const executions = [];
@@ -138,6 +144,9 @@ async function main() {
             try {
                 const raw = await streamCase(`http://127.0.0.1:${server.address().port}`, process.env.INTERNAL_SECRET, item, run);
                 const actual = analyze(raw, before, fingerprint(runtimeDb));
+                const impactProjection = projection.project(projectionCases[item.caseKey]);
+                actual.impactProjection = impactProjection;
+                actual.impactProjectionBytes = Buffer.byteLength(JSON.stringify(impactProjection));
                 const evaluated = { runNumber: run, ...evaluateBusinessImpactCase(item, oracle.perCase[item.caseKey], actual) };
                 executions.push(evaluated);
                 console.log(`[impact] run=${run} case=${item.caseKey} status=${evaluated.status} elapsedMs=${actual.elapsedMs}`);
@@ -161,6 +170,16 @@ async function main() {
             passRate: values.length ? Number((values.filter(Boolean).length / values.length * 100).toFixed(1)) : 0 }];
     }));
     const hashes = impactDefinitionHashes(casePath, fixturePath, oraclePath);
+    const projectionExecutions = executions.filter(item => item.actual?.impactProjection);
+    const projectionByCase = projectionExecutions.reduce((groups, item) => {
+        (groups[item.caseKey] ||= []).push(item); return groups;
+    }, {});
+    const stableProjection = value => JSON.stringify({ trigger: value.trigger,
+        impacts: value.impacts.map(({ impactType, target, effect, authority, temporal }) =>
+            ({ impactType, target, effect, authority, temporal })), completeness: value.completeness });
+    const projectionStability = Object.values(projectionByCase).filter(entries => entries.length === runs
+        && entries.every(entry => stableProjection(entry.actual.impactProjection)
+            === stableProjection(entries[0].actual.impactProjection))).length;
     const summary = { version: definition.version, contractVersion: definition.contractVersion,
         commit: execFileSync('git', ['rev-parse','HEAD'], { cwd: root, encoding: 'utf8' }).trim(), generatedAt: new Date().toISOString(),
         provider, model: resolved.model, runs, executionsCount: executions.length, ...hashes, fixtureChecks, counts,
@@ -168,6 +187,11 @@ async function main() {
         providerCalls: executions.reduce((sum, item) => sum + Number(item.actual?.modelRequestCount || 0), 0),
         fallbacks: executions.reduce((sum, item) => sum + Number(item.actual?.fallbackCount || 0), 0),
         maxToolPayloadBytes: Math.max(0, ...executions.map(item => Number(item.actual?.serializedToolBytes || 0))),
+        projectionProduced: projectionExecutions.length,
+        projectionExceptions: executions.length - projectionExecutions.length,
+        projectionStability: `${projectionStability}/${definition.cases.length}`,
+        maxProjectionBytes: Math.max(0, ...projectionExecutions.map(item => Number(item.actual.impactProjectionBytes || 0))),
+        additionalImpactProviderCalls: 0,
         productionDatabaseWrites: 0 };
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, `${JSON.stringify({ ...summary, executions }, null, 2)}\n`);

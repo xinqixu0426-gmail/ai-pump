@@ -1062,6 +1062,16 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 } catch { /* Semantic shadow never affects the completed authoritative answer. */ }
             });
         }
+        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_BUSINESS_IMPACT_SHADOW_ENABLED')) {
+            setImmediate(() => {
+                try {
+                    void require('../business-impact/shadowObserver.cjs').observeBusinessImpactShadow({
+                        userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
+                        eligibility, semanticFrame: postEvidenceSemanticFrame,
+                    }, dependencies.businessImpactShadow).catch(() => {});
+                } catch { /* Impact shadow never affects the completed authoritative answer. */ }
+            });
+        }
         return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {},
             businessSemanticEligibility: eligibility,
             businessSemanticEnforcement: semanticEnforcementActive ? { plannedReads: semanticPlannedCallCount,
