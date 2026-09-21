@@ -9,6 +9,7 @@ const { buildImpactTrigger } = require('../api/business-impact/triggerBuilder.cj
 const { createBusinessImpactProjection } = require('../api/business-impact/projection.cjs');
 const { buildImpactEvidenceBundle, validateImpactEvidenceBundle } = require('../api/business-impact/evidenceBundle.cjs');
 const { enforceImpactAnswerBoundary, hasForbiddenClaim } = require('../api/business-impact/answerBoundary.cjs');
+const { runAiAssistant } = require('../api/services/aiAssistantRuntime.cjs');
 
 const positive = [
     ['把 V550 的 12-200 换成 12-140，除了成本变化，还影响什么？','RECIPE_CONFIGURATION_CHANGE'],
@@ -31,6 +32,47 @@ test('ImpactEligibilityV1 admits supported impact intent and rejects eight ordin
         const actual = impactEligibility({ userText: question, semanticEligible: true });
         assert.equal(actual.eligible, false, question);
     }
+});
+
+test('Impact enforcement requires trusted Owner/Internal admission in addition to its flag', async () => {
+    const baseInput = {
+        messages: [{ role: 'user', content: '轴承-202涨价会影响哪些配方成本？' }],
+        env: {
+            AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true',
+            AI_BUSINESS_IMPACT_ENFORCEMENT_CANARY_ENABLED: 'true',
+        },
+        fetchAiProvider: async () => ({ json: async () => ({ choices: [{ message: { content: '无法验证' } }] }) }),
+    };
+    const ordinary = await runAiAssistant({ ...baseInput, impactEnforcementCanaryEligible: false });
+    assert.equal(ordinary.telemetry.businessImpactEnforcement.eligible, false);
+    assert.equal(ordinary.telemetry.businessImpactEnforcement.projectionCalls, 0);
+});
+
+test('Impact Shadow derives a formal trigger without gaining answer authority', async () => {
+    const fixture = createBusinessImpactFixture();
+    try {
+        let shadowRecord;
+        const input = {
+            messages: [{ role: 'user', content: '轴承-202涨价会影响哪些配方成本？' }],
+            requestId: 'impact-shadow-runtime-test',
+            fetchAiProvider: async () => ({ json: async () => ({ choices: [{ message: { content: '原回答' } }] }) }),
+        };
+        const baseline = await runAiAssistant({ ...input, env: { AI_BUSINESS_IMPACT_SHADOW_ENABLED: 'false' } });
+        const result = await runAiAssistant({ ...input, env: {
+            AI_BUSINESS_IMPACT_SHADOW_ENABLED: 'true',
+            AI_BUSINESS_IMPACT_ENFORCEMENT_CANARY_ENABLED: 'false',
+        } }, {
+            businessImpact: { db: fixture.db },
+            businessImpactShadow: { db: fixture.db, record: value => { shadowRecord = value; } },
+        });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(result.finalContent, baseline.finalContent);
+        assert.equal(result.telemetry.businessImpactEnforcement.eligible, false);
+        assert.equal(shadowRecord.eligible, true);
+        assert.equal(shadowRecord.trigger.entityType, 'part');
+        assert.equal(shadowRecord.additionalProviderCalls, 0);
+        assert.equal(shadowRecord.businessWrites, 0);
+    } finally { fixture.close(); }
 });
 
 test('Impact trigger builder resolves only unique persisted canonical roots for all frozen cases', () => {

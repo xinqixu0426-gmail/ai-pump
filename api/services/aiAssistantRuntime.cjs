@@ -600,7 +600,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             && eligibility.eligible;
         const impactEligibilityResult = impactEligibility({ userText: latest.content,
             semanticEligible: semanticEnforcementActive });
-        const impactEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, IMPACT_ENFORCEMENT_FLAG)
+        const impactEnforcementActive = input.impactEnforcementCanaryEligible === true
+            && isEnvFlagEnabled(runtimeEnv || process.env, IMPACT_ENFORCEMENT_FLAG)
             && impactEligibilityResult.eligible;
         if (impactEnforcementActive && impactEligibilityResult.unsupportedDomain) requiresBusinessQuery = false;
         // Alias resolution is software-owned. P3 reuses the formal entity lookup inside the planned
@@ -1109,9 +1110,21 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_BUSINESS_IMPACT_SHADOW_ENABLED')) {
             setImmediate(() => {
                 try {
+                    const shadowImpactEligibility = impactEligibility({
+                        userText: latest.content,
+                        semanticEligible: eligibility.eligible,
+                    });
+                    const shadowImpactTrigger = buildImpactTrigger({
+                        db: dependencies.businessImpact?.db || require('../db.cjs').db,
+                        userText: latest.content,
+                        impactEligibility: shadowImpactEligibility,
+                        toolResults,
+                    });
                     void require('../business-impact/shadowObserver.cjs').observeBusinessImpactShadow({
                         userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
                         eligibility, semanticFrame: postEvidenceSemanticFrame,
+                        impactEligibility: shadowImpactEligibility,
+                        impactTrigger: shadowImpactTrigger,
                     }, dependencies.businessImpactShadow).catch(() => {});
                 } catch { /* Impact shadow never affects the completed authoritative answer. */ }
             });
