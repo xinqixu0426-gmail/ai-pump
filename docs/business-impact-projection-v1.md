@@ -51,3 +51,11 @@ After the authoritative assistant answer is complete, `aiAssistantRuntime` may s
 ## Deferred prerequisites
 
 Recipe/configuration revision fingerprints, report configuration fingerprints, quotation source revision/cost-basis timestamps, a legacy-order snapshot compatibility contract, canonical supplier identity, and product-platform/variant identities remain documentation-only gaps. No schema or entity was added in L5-P1.
+
+## L5-P1 acceptance evidence
+
+The deterministic suite passes all 12 frozen BusinessImpactBenchmarkV1 cases, including correct unsupported and identity-clarification boundaries. Eight authority-elevation mutations are rejected, and the scale sentinel caps 62 template-linked recipes at 50 targets with explicit `PARTIAL` completeness.
+
+Real local Shadow acceptance ran 12 cases twice, strictly serial, using `/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf`. Projection was produced for 24/24 executions with zero exceptions, 12/12 cross-run stability, zero additional provider calls, zero fallback, zero writes, and a maximum projection size of 2,364 bytes. The unchanged authoritative model answers were 12 PASS / 12 PARTIAL / 0 FAIL / 0 BLOCKED; L5-P1 intentionally does not improve answer text.
+
+Focused frozen regression is 56/56. Full regression is 2,739/2,739; API contract 27/27; Deep API 490/490 with clean temporary-database integrity and zero foreign-key violations; lint and Web build pass. The acceptance artifact is `docs/business-impact-projection-baseline-v1.json`; raw model answers remain only under gitignored `logs/`.
