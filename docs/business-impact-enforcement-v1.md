@@ -86,7 +86,7 @@ Scale sentinel:
 
 Regression:
 
-- focused/frozen deterministic tests: `53/53 PASS`
+- focused/frozen deterministic tests: `54/54 PASS`
 - full regression: `2744/2744 PASS`
 - API contract: `27/27 PASS`
 - Deep API: `490/490 PASS`, integrity OK, foreign-key violations 0
