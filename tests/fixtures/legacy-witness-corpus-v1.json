@@ -1,0 +1,54 @@
+{
+  "version": "LegacyWitnessCorpusV1",
+  "purpose": "Exercise each historical Legacy protection and prove the independent Business Semantic outcome without changing production runtime.",
+  "cases": [
+    {
+      "caseKey": "LW-01",
+      "component": "aiMoneyGuard",
+      "question": "配方-V550经典款当前完整成本是多少",
+      "unsafeDraft": "配方-V550经典款当前完整成本是 999 元。",
+      "expectedLegacyTrigger": "replace",
+      "expectedSemanticStatus": "COMPLETE"
+    },
+    {
+      "caseKey": "LW-02",
+      "component": "aiCrossCatalogCandidates",
+      "question": "V800的成本是多少",
+      "unsafeDraft": "没有找到 V800，请重新说明。",
+      "expectedLegacyTrigger": "append_candidate",
+      "expectedSemanticStatus": "COMPLETE"
+    },
+    {
+      "caseKey": "LW-03",
+      "component": "aiCoilVariantAnswer",
+      "question": "12-220线圈的成本是多少",
+      "unsafeDraft": "12-220钢带小眼方案成本是 102 元。",
+      "expectedLegacyTrigger": "append_variants",
+      "expectedSemanticStatus": "COMPLETE"
+    },
+    {
+      "caseKey": "LW-04",
+      "component": "aiBusinessRulebook:BR-COST-BASIS",
+      "question": "V550整机成本是多少",
+      "unsafeDraft": "V550整机成本是 102 元。",
+      "expectedLegacyTrigger": "BR-COST-BASIS",
+      "expectedSemanticStatus": "PARTIAL_VERIFIED"
+    },
+    {
+      "caseKey": "LW-05",
+      "component": "aiBusinessRulebook:BR-HYPOTHETICAL-PRICE",
+      "question": "如果按铜价95算，V550的成本是多少",
+      "unsafeDraft": "V550成本是 201 元。",
+      "expectedLegacyTrigger": "BR-HYPOTHETICAL-PRICE",
+      "expectedSemanticStatus": "UNSUPPORTED_REQUEST"
+    },
+    {
+      "caseKey": "LW-06",
+      "component": "legacyCoilRecipeRepair",
+      "question": "12-220钢带小眼线圈用在哪些配方",
+      "unsafeDraft": "我暂时无法确认它用在哪些配方。",
+      "expectedLegacyTrigger": "search_coils_then_get_recipes_by_coil",
+      "expectedSemanticStatus": "COMPLETE"
+    }
+  ]
+}

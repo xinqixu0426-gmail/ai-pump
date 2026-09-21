@@ -48,6 +48,12 @@ const { buildBusinessEvidencePlan } = require('../business-semantics/evidencePla
 const { validateBusinessSemanticFrame } = require('../business-semantics/validator.cjs');
 const { enforceSemanticAnswerBoundary } = require('../business-semantics/answerBoundary.cjs');
 const { EnforcementFlag, MAX_SEMANTIC_EVIDENCE_CALLS } = require('../business-semantics/evidencePlanContract.cjs');
+const { impactEligibility } = require('../business-impact/eligibility.cjs');
+const { buildImpactTrigger } = require('../business-impact/triggerBuilder.cjs');
+const { createBusinessImpactProjection } = require('../business-impact/projection.cjs');
+const { buildImpactEvidenceBundle, modelImpactEvidenceMessage } = require('../business-impact/evidenceBundle.cjs');
+const { enforceImpactAnswerBoundary } = require('../business-impact/answerBoundary.cjs');
+const { IMPACT_ENFORCEMENT_FLAG } = require('../business-impact/enforcementContract.cjs');
 
 const { normalizeUserConfigurationOverrides } = require('./recipeConfigurationBaseline.cjs');
 
@@ -292,14 +298,71 @@ async function resolveRelationIdentity(internalFetch, getJsonFn, { capability, e
             return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
         }
     }
-    const path = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
+    const exactPath = `/api/recipes/identity?name=${encodeURIComponent(mention)}`;
     try {
-        const identity = await getJsonFn(internalFetch, path, '配方身份解析读取失败');
-        return { status: 'found', identity, calls: [{ method: 'GET', path }], path };
+        const identity = await getJsonFn(internalFetch, exactPath, '配方身份解析读取失败');
+        return { status: 'found', identity, calls: [{ method: 'GET', path: exactPath }], path: exactPath };
     } catch (error) {
-        if (error?.formalApiOutcome === 'not_found') return { status: 'not_found', calls: [{ method: 'GET', path }] };
-        if (error?.statusCode === 409) return { status: 'ambiguous', calls: [{ method: 'GET', path }] };
-        return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path };
+        if (error?.statusCode === 409) return { status: 'ambiguous', calls: [{ method: 'GET', path: exactPath }] };
+        if (error?.formalApiOutcome !== 'not_found') {
+            return { status: 'failed', code: error?.code || 'IDENTITY_READ_FAILED', capability, path: exactPath };
+        }
+    }
+    const path = '/api/entity-lookup';
+    try {
+        let result = await lookupEntities(internalFetch, {
+            version: 1, mention, entityTypes: ['recipe'], matchPolicy: 'EXACT_OR_APPROVED_ALIAS',
+        });
+        if (result?.complete !== true) return { status: 'failed', code: 'IDENTITY_READ_INCOMPLETE', capability, path };
+        let resolution = result.resolutions?.find(item => item.entityType === 'recipe') || null;
+        if (['ALIAS_AMBIGUOUS', 'CANONICAL_NAME_AMBIGUOUS'].includes(resolution?.state)
+            || result.candidateCount > 1) return { status: 'ambiguous', calls: [{ method: 'POST', path }] };
+        if (resolution?.state === 'ALIAS_TARGET_UNAVAILABLE') {
+            return { status: 'not_found', calls: [{ method: 'POST', path }] };
+        }
+        let candidate = result.candidates?.[0];
+        let structuredIdentity = null;
+        if ((!candidate || result.candidateCount !== 1) && result.candidateCount === 0) {
+            const keys = [...new Set(String(mention).match(/\bV\d+\b/giu) || [])];
+            if (keys.length === 1) {
+                const canonicalKey = keys[0];
+                result = await lookupEntities(internalFetch, {
+                    version: 1, mention: canonicalKey, entityTypes: ['recipe'], matchPolicy: 'EXACT',
+                });
+                resolution = result.resolutions?.find(item => item.entityType === 'recipe') || null;
+                candidate = result?.complete === true && result.candidateCount === 1 ? result.candidates?.[0] : null;
+                if (candidate) {
+                    const recipeId = Number(candidate.canonicalId);
+                    const current = await getJsonFn(internalFetch, `/api/recipes/${recipeId}`, '配方身份校验读取失败');
+                    const descriptor = String(mention).replace(new RegExp(canonicalKey, 'iu'), '')
+                        .replace(/(?:这个|该)?配方/gu, '').trim().toLocaleLowerCase('zh-CN');
+                    const currentName = String(current?.name || '').trim();
+                    if (!currentName || !new RegExp(`(?:^|[^A-Z0-9])${canonicalKey}(?:[^0-9]|$)`, 'iu').test(currentName)
+                        || (descriptor && !currentName.toLocaleLowerCase('zh-CN').includes(descriptor))) {
+                        return { status: 'not_found', calls: [{ method: 'POST', path }] };
+                    }
+                    structuredIdentity = { recipeId, recipeName: currentName, matchKind: 'STRUCTURED_CANONICAL_KEY',
+                        canonicalKey, descriptorVerified: true };
+                }
+            }
+        }
+        if ((!candidate || result.candidateCount !== 1) && !structuredIdentity) {
+            return { status: 'not_found', calls: [{ method: 'POST', path }] };
+        }
+        if (structuredIdentity) return { status: 'found', identity: structuredIdentity,
+            calls: [{ method: 'POST', path }], path };
+        const alias = resolution?.state === 'FORMAL_ALIAS_MATCH';
+        return { status: 'found', identity: {
+            recipeId: Number(candidate.canonicalId),
+            recipeName: alias ? resolution.canonicalCurrentName : mention,
+            matchKind: alias ? 'APPROVED_ALIAS' : 'EXACT',
+            ...(alias ? { matchedAlias: resolution.matchedAlias } : {}),
+        }, calls: [{ method: 'POST', path }], path };
+    } catch (error) {
+        // Exact-name absence is already a valid fail-closed outcome. Alias/spec resolution is a
+        // secondary authority; if that optional read is unavailable, do not turn the whole assistant
+        // request into a transport failure and never manufacture a root.
+        return { status: 'not_found', calls: [{ method: 'GET', path: exactPath }] };
     }
 }
 
@@ -535,6 +598,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         });
         const semanticEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, EnforcementFlag)
             && eligibility.eligible;
+        const impactEligibilityResult = impactEligibility({ userText: latest.content,
+            semanticEligible: semanticEnforcementActive });
+        const impactEnforcementActive = input.impactEnforcementCanaryEligible === true
+            && isEnvFlagEnabled(runtimeEnv || process.env, IMPACT_ENFORCEMENT_FLAG)
+            && impactEligibilityResult.eligible;
+        if (impactEnforcementActive && impactEligibilityResult.unsupportedDomain) requiresBusinessQuery = false;
         // Alias resolution is software-owned. P3 reuses the formal entity lookup inside the planned
         // recipe read, so the model still receives no variable catalogue surface for alias turns.
         if (semanticEnforcementActive && classifyBusinessQuestion(latest.content, {
@@ -560,6 +629,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let maxSemanticFrameBytes = 0;
         const semanticCallMetadata = new Map();
         let latestSemanticPlan = null;
+        let impactEvidencePrepared = false;
+        let impactProjectionCalls = 0;
+        let impactResult = null;
+        let impactEvidenceBundle = null;
+        let impactBoundary = null;
+        let maxImpactProjectionBytes = 0;
+        let maxImpactEvidenceBundleBytes = 0;
         const semanticToolCalls = () => {
             if (!semanticEnforcementActive || semanticPlannedCallCount >= MAX_SEMANTIC_EVIDENCE_CALLS) return [];
             latestSemanticPlan = buildBusinessEvidencePlan({ userText: latest.content, toolResults,
@@ -584,7 +660,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         }));
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
-            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : offeredTools;
+            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1
+                || impactEnforcementActive ? [] : offeredTools;
             if (!offered.length) current.push({ role: 'system', content: '本轮查询阶段已结束，没有可调用工具。现在只用已取得的正式结果回答用户原问题；已核实不存在或查询范围为空的部分明确说明，尚未核实的部分说明缺失。不要继续规划查询，不输出工具协议，也不要把下一步查询写成已经完成。' });
             if (estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) offered = compactToolDescriptions(offered);
             if (toolResults.length && estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) {
@@ -612,6 +689,25 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             } else if (round === 0 && restoredCandidateCall) {
                 answer = { content: '', tool_calls: [restoredCandidateCall] };
             } else {
+                if (impactEnforcementActive && !impactEvidencePrepared) {
+                    impactEvidencePrepared = true;
+                    const impactDb = dependencies.businessImpact?.db || require('../db.cjs').db;
+                    const trigger = buildImpactTrigger({ db: impactDb, userText: latest.content,
+                        impactEligibility: impactEligibilityResult, toolResults });
+                    if (trigger) {
+                        const readinessForOrder = dependencies.businessImpact?.readinessForOrder
+                            || (order => require('./activeOrderReadiness.cjs').buildOrderReadinessContext(order).readiness);
+                        impactResult = createBusinessImpactProjection({ db: impactDb, readinessForOrder }).project(trigger);
+                        impactProjectionCalls += 1;
+                        impactEvidenceBundle = buildImpactEvidenceBundle({ db: impactDb, impactResult,
+                            impactEligibility: impactEligibilityResult });
+                        maxImpactProjectionBytes = Buffer.byteLength(JSON.stringify(impactResult));
+                        maxImpactEvidenceBundleBytes = Buffer.byteLength(JSON.stringify(impactEvidenceBundle));
+                        current.push({ role: 'system', content: modelImpactEvidenceMessage(impactEvidenceBundle) });
+                    } else if (impactEligibilityResult.unsupportedDomain) {
+                        current.push({ role: 'system', content: '本轮是影响问题，但目标超出当前正式影响关系范围。不得编造供应商、采购、订单或工程影响链；只能说明当前无法从正式业务关系证明。' });
+                    }
+                }
                 const requireBusinessTool = offered.length && requiresBusinessQuery && !toolResults.length;
                 emit('status', {
                     status: 'generating',
@@ -620,7 +716,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 const providerStartedAt = Date.now();
                 const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && ((evidenceReminder && !toolResults.length) || requireBusinessTool) ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: runtimeEnv, providerPreference: input.providerPreference, dbAccessors: input.dbAccessors, signal: input.signal });
                 if (input.stream) {
-                    const streamDirectReply = tools.length === 0 && offered.length === 0 && toolResults.length === 0;
+                    const streamDirectReply = !impactEnforcementActive
+                        && tools.length === 0 && offered.length === 0 && toolResults.length === 0;
                     const streamed = await readAiProviderStream(response, {
                         signal: input.signal,
                         ...(streamDirectReply ? {
@@ -971,6 +1068,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 toolResults, userText: latest.content });
             finalContent = semanticBoundary.answer;
         }
+        if (impactEnforcementActive && !finalContentStreamed) {
+            impactBoundary = enforceImpactAnswerBoundary({ answer: finalContent, bundle: impactEvidenceBundle,
+                userText: latest.content, toolResults, impactEligibility: impactEligibilityResult });
+            finalContent = impactBoundary.answer;
+        }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);
         if (!finalContentStreamed) emit('content', { content: finalContent });
@@ -1005,12 +1107,44 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 } catch { /* Semantic shadow never affects the completed authoritative answer. */ }
             });
         }
+        if (isEnvFlagEnabled(runtimeEnv || process.env, 'AI_BUSINESS_IMPACT_SHADOW_ENABLED')) {
+            setImmediate(() => {
+                try {
+                    const shadowImpactEligibility = impactEligibility({
+                        userText: latest.content,
+                        semanticEligible: eligibility.eligible,
+                    });
+                    const shadowImpactTrigger = buildImpactTrigger({
+                        db: dependencies.businessImpact?.db || require('../db.cjs').db,
+                        userText: latest.content,
+                        impactEligibility: shadowImpactEligibility,
+                        toolResults,
+                    });
+                    void require('../business-impact/shadowObserver.cjs').observeBusinessImpactShadow({
+                        userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
+                        eligibility, semanticFrame: postEvidenceSemanticFrame,
+                        impactEligibility: shadowImpactEligibility,
+                        impactTrigger: shadowImpactTrigger,
+                    }, dependencies.businessImpactShadow).catch(() => {});
+                } catch { /* Impact shadow never affects the completed authoritative answer. */ }
+            });
+        }
         return { finalContent: memoryPrefix + finalContent, speech: finalContent.split(/[。\n]/)[0], toolResults, telemetry: { outcome, totalMs: Date.now() - started, providerDurationMs: providerDurations.reduce((sum, duration) => sum + duration, 0), generationTiming: aggregateGenerationTimings(generationTimings), modelRequestCount: providerDurations.length, toolSteps, executedTools: calls, usage, stageLatencyMs: {},
             businessSemanticEligibility: eligibility,
             businessSemanticEnforcement: semanticEnforcementActive ? { plannedReads: semanticPlannedCallCount,
                 maxEvidencePlanBytes: maxSemanticEvidencePlanBytes, maxSemanticFrameBytes,
                 completenessStatus: postEvidenceSemanticFrame?.completeness?.status || null,
-                fallbackType: semanticBoundary?.fallbackType || null, replaced: semanticBoundary?.replaced || false } : null } };
+                fallbackType: semanticBoundary?.fallbackType || null, replaced: semanticBoundary?.replaced || false } : null,
+            businessImpactEnforcement: impactEnforcementActive ? {
+                version: 1, eligible: true, reason: impactEligibilityResult.reason,
+                slice: impactEligibilityResult.slice, unsupportedDomain: impactEligibilityResult.unsupportedDomain,
+                projectionCalls: impactProjectionCalls, completeness: impactResult?.completeness || null,
+                maxProjectionBytes: maxImpactProjectionBytes,
+                maxEvidenceBundleBytes: maxImpactEvidenceBundleBytes,
+                fallbackType: impactBoundary?.fallbackType || null,
+                replaced: impactBoundary?.replaced || false,
+                additionalProviderCalls: 0, businessWrites: 0,
+            } : { version: 1, eligible: false, projectionCalls: 0 } } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
         else session.cancel();

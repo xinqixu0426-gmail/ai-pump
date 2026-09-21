@@ -53,12 +53,17 @@ function mentionMatches(mention, candidate) {
 }
 function receiptRows(receipts, source) {
     return (receipts || []).filter(r => r?.version === 3 && r.kind === 'entity_resolution'
-        && r.status === 'exact' && r.selected?.matchKind === 'exact' && id(r.selected.id)
+        && ((r.status === 'exact' && r.selected?.matchKind === 'exact')
+            || (r.status === 'approved_alias' && r.selected?.matchKind === 'approved_alias')
+            || (r.status === 'structured_canonical_key' && r.selected?.matchKind === 'structured_canonical_key'))
+        && id(r.selected.id)
         && r.sourceEvidence?.some(e => e.executionEvidence?.verified && e.executionEvidence.kind === 'formal_api_query'
             && e.executionEvidence.calls?.some(c => ['GET', 'POST'].includes(c.method))))
         .filter(r => entityMetadata[r.entityType]?.resources.some(resource => resource.tool === r.sourceCapability
-            && r.sourceEvidence.some(e => e.executionEvidence?.calls?.some(c => c.method === (resource.method || 'GET')
-                && new RegExp(`^/api/${resource.path}(?:/|\\?|$)`).test(c.path))))
+            && r.sourceEvidence.some(e => e.executionEvidence?.calls?.some(c => [
+                { path: resource.path, method: resource.method || 'GET' }, ...(resource.alternatePaths || []),
+            ].some(endpoint => c.method === endpoint.method
+                && new RegExp(`^/api/${endpoint.path}(?:/|\\?|$)`).test(c.path)))))
             && (!r.selected.stableIdentity || (r.selected.stableIdentity.entityType === r.entityType
                 && id(r.selected.stableIdentity.primaryStableId) === id(r.selected.id))))
         .map(r => ({ entityType: r.entityType, canonicalId: id(r.selected.id),
