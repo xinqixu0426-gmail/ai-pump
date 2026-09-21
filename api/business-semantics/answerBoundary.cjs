@@ -17,7 +17,21 @@ function recipeIdentityResolution(toolResults) {
     return toolResults.filter(verified).filter(item => item.name === 'get_all_recipes')
         .map(item => item.result?.identityResolution).find(Boolean) || null;
 }
-function currentRecipeCost(toolResults) {
+function currentRecipeCost(toolResults, authority = null) {
+    if (authority?.costBasis) {
+        for (const item of toolResults.filter(verified)) {
+            if (!['preview_recipe_cost', 'full_calculate'].includes(item.name)) continue;
+            const data = item.result?.data || {};
+            const recipeId = Number(data.recipeId ?? data.recipeCost?.recipeId ?? data.configurationBasis?.baseRecipeId ?? data.baseRecipeId);
+            const appliedCoilId = Number(data.configurationSnapshot?.coilId);
+            if (data.sourceOfTruth !== authority.sourceOfTruth || data.costBasis !== authority.costBasis
+                || recipeId !== Number(authority.recipeId)
+                || (authority.appliedCoilId && appliedCoilId !== Number(authority.appliedCoilId))) continue;
+            const value = data.currentTotalCost ?? data.totalCost ?? data.unitCost ?? data.costPreview?.currentTotalCost;
+            if (money(value)) return money(value);
+        }
+        return null;
+    }
     for (const item of toolResults.filter(verified)) {
         if (item.name === 'get_recipe_detail') {
             const value = item.result?.currentCost?.currentTotalCost ?? item.result?.recipe?.currentCost?.currentTotalCost;
@@ -106,6 +120,10 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         return `${verifiedFacts.length ? `已核实：${verifiedFacts.join('、')}。` : ''}仍缺少正式证据：${(frame?.evidence?.missingFacts || frame?.completeness?.blockers || []).join('、') || '所需业务事实'}，本轮不能给出完整结论。`;
     }
     const partRows = rows(toolResults, 'search_parts');
+    if (semantics.operation === 'READ_COPPER_PRICE') {
+        const copper = copperPrice(toolResults);
+        if (copper != null) return `当前正式铜价基准为 ${Number(copper)}。`;
+    }
     if (frame?.subject?.resolutionStatus === 'CROSS_CATALOG_CANDIDATE' && partRows.length) {
         const part = partRows[0];
         const unitCost = money(part.price);
@@ -126,7 +144,14 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         return `${semantics.requestedIdentity.token} 有 ${coils.length} 套正式方案：${coils.map(row => `${variantLabel(row)}，成本 ${variantCost(row)} 元`).join('；')}。`;
     }
     if (semantics.kind === 'CONFIGURATION_OVERRIDE' && targetRecipe) {
-        const current = currentRecipeCost(toolResults);
+        const currentCostFact = frame?.evidence?.facts?.find(item => item.factType === 'RECIPE_CURRENT_FULL_COST'
+            && item.state === 'VERIFIED');
+        const current = currentRecipeCost(toolResults, currentCostFact?.costBasis ? {
+            recipeId: frame?.subject?.canonicalId,
+            costBasis: currentCostFact.costBasis,
+            sourceOfTruth: currentCostFact.sourceOfTruth,
+            appliedCoilId: currentCostFact.appliedCoilId,
+        } : null);
         return `以${targetRecipe.name || semantics.requestedIdentity.token}为基准配方，线圈覆盖为 ${semantics.requestedIdentity.spec}-${semantics.requestedIdentity.sheets}；未提到的电缆、包装/纸箱、其他零件和人工工资均保留并继承原配置。${current ? `正式试算的当前完整成本为 ${current} 元。` : ''}`;
     }
     const current = currentRecipeCost(toolResults);

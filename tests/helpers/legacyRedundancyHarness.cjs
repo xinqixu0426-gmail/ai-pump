@@ -41,7 +41,8 @@ function witnessInput(caseKey) {
         answer: '配方-V550经典款当前完整成本是 999 元。',
         toolResults: [
             result('get_all_recipes', [{ ...recipe }], '/api/recipes?keyword=V550'),
-            result('full_calculate', { recipeCost: { recipeId: 550, recipeName: recipe.name }, totalCost: 201 }, '/api/cost/full-estimate'),
+            result('full_calculate', { sourceOfTruth: 'costEngine', costBasis: 'currentFullCost',
+                recipeCost: { recipeId: 550, recipeName: recipe.name }, totalCost: 201 }, '/api/cost/full-estimate'),
         ],
     };
     if (caseKey === 'LW-02') {
@@ -63,7 +64,8 @@ function witnessInput(caseKey) {
     if (caseKey === 'LW-05') return { userText: '如果按铜价95算，V550的成本是多少',
         answer: 'V550成本是 201 元。', toolResults: [
             result('get_all_recipes', [{ ...recipe }], '/api/recipes?keyword=V550'),
-            result('full_calculate', { recipeCost: { recipeId: 550, recipeName: recipe.name }, totalCost: 201 }, '/api/cost/full-estimate'),
+            result('full_calculate', { sourceOfTruth: 'costEngine', costBasis: 'currentFullCost',
+                recipeCost: { recipeId: 550, recipeName: recipe.name }, totalCost: 201 }, '/api/cost/full-estimate'),
             result('get_copper_price', { pricePerKg: 88, dbPrice: 88 }, '/api/copper-price'),
         ] };
     if (caseKey === 'LW-06') return { userText: '12-220钢带小眼线圈用在哪些配方',

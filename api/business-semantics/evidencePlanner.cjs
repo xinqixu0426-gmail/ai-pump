@@ -64,7 +64,9 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     const aliasResolved = ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state) && recipes.length === 1;
     const aliasBlocked = semantics.requestedIdentity.aliasConcern && !aliasResolved;
     let extraFacts = [];
-    if (aliasBlocked && semantics.requestedType === 'recipe' && token && !identityResolution) {
+    if (semantics.operation === 'READ_COPPER_PRICE') {
+        if (!has('get_copper_price')) add(call('get_copper_price', {}, {}, [], 'Read the current formal copper-price basis'));
+    } else if (aliasBlocked && semantics.requestedType === 'recipe' && token && !identityResolution) {
         recipeLookup();
     } else if (!aliasBlocked && ((['COST_QUERY', 'HYPOTHETICAL_COST_QUERY'].includes(semantics.kind)
         && semantics.requestedType === 'recipe') || (semantics.kind === 'COST_QUERY' && semantics.requestedType === 'unknown'))) {
@@ -73,6 +75,9 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
         } else if (recipes.length === 1) {
             if (!has('full_calculate')) add(call('full_calculate', { recipeName: String(recipes[0].name || '') },
                 { recipeName: 'VERIFIED_PRIOR_FACT' }, ['RECIPE_CANONICAL_IDENTITY'], 'Read current full machine cost from the canonical recipe'));
+            if (semantics.copperBasisRequested && !has('get_copper_price')) {
+                add(call('get_copper_price', {}, {}, [], 'Read the current formal copper-price basis requested with the recipe cost'));
+            }
             if (semantics.hypotheticalCopperPrice != null && !has('search_coils')) add(call('search_coils', {
                 spec: String(recipes[0].coilSpec || ''), sheets: Number(recipes[0].coilSheets),
             }, { spec: 'VERIFIED_PRIOR_FACT', sheets: 'VERIFIED_PRIOR_FACT' }, ['RECIPE_BASE_CONFIGURATION'], 'Read the formal copper basis used by the recipe coil schemes'));
@@ -99,6 +104,9 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     } else if (!aliasBlocked && ['COST_QUERY', 'INVENTORY_QUERY', 'HYPOTHETICAL_COST_QUERY'].includes(semantics.kind)
         && semantics.requestedType === 'coil') {
         if (!has('search_coils')) coilLookup();
+        if (semantics.copperBasisRequested && !has('get_copper_price')) {
+            add(call('get_copper_price', {}, {}, [], 'Read the current formal copper-price basis requested with the coil cost'));
+        }
         if (semantics.wireWeight != null && coils.length === 1 && !has('calculate_coil_cost')) {
             const selected = coils[0];
             add(call('calculate_coil_cost', { spec: String(selected.spec || semantics.requestedIdentity.spec), sheets: Number(selected.sheets || semantics.requestedIdentity.sheets),

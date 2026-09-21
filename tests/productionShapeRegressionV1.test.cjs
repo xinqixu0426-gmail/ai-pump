@@ -143,6 +143,8 @@ test('PS-04: one official override plus a testing sibling becomes COMPLETE only 
         currentTotalCost: 316.61,
         sourceOfTruth: 'costEngine',
         costBasis: 'overridePreview',
+        pricingComplete: true,
+        configurationSnapshot: { coilId: 12, coilSpec: '12', coilSheets: 200, coilMaterial: '钢带', coilSlotType: '小眼' },
     }, '/api/recipes/21/cost-preview');
     const toolResults = [recipeResult(), coils, preview];
     const frame = buildBusinessSemanticFrame({ userText, toolResults, stage: 'POST_EVIDENCE' });

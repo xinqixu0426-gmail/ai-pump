@@ -58,6 +58,27 @@ Software-only capabilities are added to the runtime allowlist, never automatical
 surface. A dependent cost or override read is planned only after its canonical recipe or coil evidence exists.
 Read failures and incomplete receipts remain missing evidence and can never become verified absence.
 
+### Current-cost evidence reconciliation
+
+An ordinary current full recipe-cost request does not require a separate copper-price read. A configuration
+override such as `如果改成 12-120 正式线圈` is classified as `CONFIGURATION_OVERRIDE`, not as a generic
+hypothetical copper-price calculation. It is complete only when the existing formal preview proves all of the
+following in one execution chain:
+
+- the cost authority is `costEngine` and the result is a current full-cost or override-preview basis;
+- the receipt belongs to the same canonical recipe;
+- the formal result is not marked pricing-incomplete;
+- for a requested coil override, the returned configuration snapshot contains the selected canonical coil.
+
+A saved recipe amount, a coil-only amount, a receipt for another recipe, a result without an authoritative cost
+basis, or a preview that does not prove the requested override remains missing `RECIPE_CURRENT_FULL_COST`.
+The semantic layer never duplicates cost arithmetic.
+
+`CURRENT_COPPER_PRICE_BASIS` remains required for explicit current/system copper-basis questions, explicit
+copper-basis disclosure requested together with recipe or coil cost, and hypothetical copper-price questions.
+The planner uses the existing `get_copper_price` capability for explicit current-basis reads; an unrelated recipe
+total cannot satisfy that fact.
+
 ## Completeness and answer boundary
 
 The post-evidence `BusinessSemanticFrameV1` is the sole completeness input. The explicit policy covers:
@@ -79,7 +100,9 @@ paragraph appending, prevents overlap with the existing Money Guard and legacy p
 
 ## Verification
 
-Focused coverage is in `tests/businessSemanticEnforcement.test.cjs`, including eight fail-safe mutations.
+Focused coverage is in `tests/businessSemanticEnforcement.test.cjs` and
+`tests/semanticCostEvidenceReconciliation.test.cjs`, including the original fail-safe mutations plus current-cost
+receipt, wrong-recipe, saved-snapshot, coil-only, unapplied-override, and copper-basis counterexamples.
 Real-provider OFF/ON/OFF comparison is run with:
 
 ```bash

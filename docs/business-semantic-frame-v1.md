@@ -29,6 +29,13 @@ Cost basis is explicit: `MACHINE_CURRENT_FULL_COST`, `RECIPE_SAVED_COST`, `PART_
 
 Overrides are classified as `NO_OVERRIDE`, `SUPPORTED_OVERRIDE`, `AMBIGUOUS_OVERRIDE`, `UNSUPPORTED_OVERRIDE`, or `MISSING_BASE`. A recipe override retains a canonical base entity and `PRESERVE_UNMENTIONED_BASE_CONFIGURATION`; an ambiguous coil family never receives a selected canonical ID.
 
+The existing `RECIPE_CURRENT_FULL_COST` fact distinguishes a formal current-cost receipt from a saved snapshot.
+For a configuration override, the same fact is verified only when the authoritative preview is bound to the
+canonical base recipe and its returned configuration proves the selected canonical override was applied. Ordinary
+current full-cost questions do not acquire `CURRENT_COPPER_PRICE_BASIS` merely because copper contributes inside
+the cost engine. Copper basis is separately required when the user explicitly asks for it or proposes a copper-price
+hypothesis.
+
 Completeness is derived from required fact states, ambiguity, and support—not model confidence. The states are `COMPLETE`, `NEEDS_EVIDENCE`, `NEEDS_CLARIFICATION`, `UNSUPPORTED_REQUEST`, `PARTIAL_VERIFIED`, and `NOT_FOUND_VERIFIED`. A negative catalog answer is verified only when recipe, template, and part catalogs each provide an authoritative, untruncated result; execution-call paths alone do not prove an empty result.
 
 ## Business Rulebook → Semantic Frame

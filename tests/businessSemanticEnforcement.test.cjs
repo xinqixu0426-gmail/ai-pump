@@ -149,7 +149,8 @@ test('P3-A formal recipe alias resolves the same canonical target in five runtim
                 }
                 assert.equal(name, 'full_calculate');
                 assert.deepEqual(args, { recipeName: recipe.name });
-                return result(name, { recipeCost: { recipeId: 1, recipeName: recipe.name, recipeSpec: 'V550' }, totalCost: 201 }, '/api/cost/full-estimate').result;
+                return result(name, { sourceOfTruth: 'costEngine', costBasis: 'currentFullCost',
+                    recipeCost: { recipeId: 1, recipeName: recipe.name, recipeSpec: 'V550' }, totalCost: 201 }, '/api/cost/full-estimate').result;
             },
             fetchAiProvider: async (_messages, options) => { providerCalls += 1; offered.push(options.tools || []);
                 return { json: async () => ({ choices: [{ message: { content: '模型草稿' } }] }) }; },

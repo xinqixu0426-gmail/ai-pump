@@ -39,7 +39,6 @@ function recipeRows(toolResults) {
             id: item.result.data.recipeCost.recipeId,
             name: item.result.data.recipeCost.recipeName,
             spec: item.result.data.recipeCost.recipeSpec,
-            currentTotalCost: item.result.data.totalCost,
         });
     }
     const byId = new Map();
@@ -79,9 +78,32 @@ function requiredFactsFor(semantics) {
     if (semantics.kind === 'CONFIGURATION_OVERRIDE') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_BASE_CONFIGURATION', 'COIL_CANONICAL_IDENTITY'];
     if (semantics.kind === 'HYPOTHETICAL_COST_QUERY' && semantics.wireWeight != null) return ['COIL_CANONICAL_IDENTITY', 'COIL_SCHEME_COST', 'COIL_OVERRIDE_APPLIED'];
     if (semantics.kind === 'HYPOTHETICAL_COST_QUERY') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_CURRENT_FULL_COST', 'CURRENT_COPPER_PRICE_BASIS'];
-    if (semantics.kind === 'COST_QUERY' && semantics.requestedType === 'coil') return ['COIL_OFFICIAL_VARIANT_SET', 'COIL_SCHEME_COST'];
-    if (semantics.kind === 'COST_QUERY') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_CURRENT_FULL_COST'];
+    if (semantics.kind === 'COST_QUERY' && semantics.operation === 'READ_COPPER_PRICE') return ['CURRENT_COPPER_PRICE_BASIS'];
+    if (semantics.kind === 'COST_QUERY' && semantics.requestedType === 'coil') return ['COIL_OFFICIAL_VARIANT_SET', 'COIL_SCHEME_COST',
+        ...(semantics.copperBasisRequested ? ['CURRENT_COPPER_PRICE_BASIS'] : [])];
+    if (semantics.kind === 'COST_QUERY') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_CURRENT_FULL_COST',
+        ...(semantics.copperBasisRequested ? ['CURRENT_COPPER_PRICE_BASIS'] : [])];
     return ['CROSS_CATALOG_CANDIDATES'];
+}
+
+function formalCurrentCostReceipt(item, { canonicalRecipeId, requireOverride = false, selectedOverrideCoilId = null } = {}) {
+    if (!verified(item) || !['preview_recipe_cost', 'full_calculate'].includes(item.name)) return null;
+    const data = item.result?.data;
+    if (!data || data.sourceOfTruth !== 'costEngine') return null;
+    const expectedBasis = requireOverride ? 'overridePreview' : 'currentFullCost';
+    if (data.costBasis !== expectedBasis || data.pricingComplete === false || data.costComplete === false) return null;
+    if (Array.isArray(data.missingParts) && data.missingParts.length > 0) return null;
+    const amount = Number(data.currentTotalCost ?? data.totalCost ?? data.unitCost ?? data.costPreview?.currentTotalCost);
+    if (!Number.isFinite(amount)) return null;
+    const receiptRecipeId = positiveId(data.recipeId ?? data.recipeCost?.recipeId
+        ?? data.configurationBasis?.baseRecipeId ?? data.baseRecipeId);
+    if (!receiptRecipeId || !canonicalRecipeId || receiptRecipeId !== positiveId(canonicalRecipeId)) return null;
+    if (requireOverride) {
+        const appliedCoilId = positiveId(data.configurationSnapshot?.coilId);
+        if (!selectedOverrideCoilId || appliedCoilId !== positiveId(selectedOverrideCoilId)) return null;
+    }
+    return { recipeId: receiptRecipeId, amount, costBasis: data.costBasis, sourceOfTruth: data.sourceOfTruth,
+        appliedCoilId: positiveId(data.configurationSnapshot?.coilId) };
 }
 function sourceProjection(toolResults) {
     return toolResults.filter(verified).flatMap(item => (item.result.executionEvidence.calls || []).map(call => ({
@@ -140,15 +162,24 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     if (uniqueRecipe && !aliasUnresolved) {
         addFact(facts, 'RECIPE_CANONICAL_IDENTITY', 'VERIFIED', { canonicalIds: [positiveId(uniqueRecipe.id ?? uniqueRecipe.Id)] });
         if (uniqueRecipe.coilId || uniqueRecipe.partsJson || uniqueRecipe.parts_json) addFact(facts, 'RECIPE_BASE_CONFIGURATION', 'VERIFIED', { canonicalIds: [positiveId(uniqueRecipe.id ?? uniqueRecipe.Id)] });
-        if (uniqueRecipe.currentCost?.currentTotalCost != null || uniqueRecipe.currentTotalCost != null) addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [positiveId(uniqueRecipe.id ?? uniqueRecipe.Id)] });
+        if (!requiresFormalOverridePreview && (uniqueRecipe.currentCost?.currentTotalCost != null || uniqueRecipe.currentTotalCost != null)) {
+            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [positiveId(uniqueRecipe.id ?? uniqueRecipe.Id)] });
+        }
     }
     for (const item of toolResults.filter(verified)) {
         const data = item.result?.data;
-        if (['preview_recipe_cost', 'full_calculate'].includes(item.name) && data && (data.currentTotalCost != null || data.costPreview?.currentTotalCost != null || data.totalCost != null)) {
-            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: unique([positiveId(data.recipeId), canonicalId]) });
+        const currentCostReceipt = formalCurrentCostReceipt(item, { canonicalRecipeId: positiveId(uniqueRecipe?.id ?? uniqueRecipe?.Id),
+            requireOverride: requiresFormalOverridePreview, selectedOverrideCoilId });
+        if (currentCostReceipt) {
+            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [currentCostReceipt.recipeId],
+                costBasis: currentCostReceipt.costBasis, sourceOfTruth: currentCostReceipt.sourceOfTruth,
+                appliedCoilId: currentCostReceipt.appliedCoilId });
         }
-        if (item.name === 'get_recipe_detail' && (item.result?.currentCost?.currentTotalCost != null || item.result?.recipe?.currentCost?.currentTotalCost != null)) {
-            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [positiveId(item.result.recipe.id)] });
+        const detailRecipeId = positiveId(item.result?.recipe?.id ?? item.result?.recipe?.Id);
+        if (!requiresFormalOverridePreview && item.name === 'get_recipe_detail'
+            && detailRecipeId === positiveId(uniqueRecipe?.id ?? uniqueRecipe?.Id)
+            && (item.result?.currentCost?.currentTotalCost != null || item.result?.recipe?.currentCost?.currentTotalCost != null)) {
+            addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [detailRecipeId] });
         }
         if (item.name === 'get_copper_price' && data && (data.pricePerKg != null || data.copperPrice != null || data.price != null)) addFact(facts, 'CURRENT_COPPER_PRICE_BASIS', 'VERIFIED');
     }
@@ -264,4 +295,4 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     });
 }
 
-module.exports = { buildBusinessSemanticFrame, catalogScopeVerified, officialCoilEvidence, requiredFactsFor };
+module.exports = { buildBusinessSemanticFrame, catalogScopeVerified, formalCurrentCostReceipt, officialCoilEvidence, requiredFactsFor };

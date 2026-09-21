@@ -43,7 +43,8 @@ function semanticCaseFixtures() {
                 { method: 'GET', path: '/api/parts?keyword=V800' },
             ] } } }] },
         'BU-04': { userText: questions['BU-04'], toolResults: [
-            result('full_calculate', { recipeCost: { recipeId: 1, recipeName: recipe.name, recipeSpec: 'V550' }, totalCost: 201 }, '/api/cost/full-estimate'),
+            result('full_calculate', { sourceOfTruth: 'costEngine', costBasis: 'currentFullCost',
+                recipeCost: { recipeId: 1, recipeName: recipe.name, recipeSpec: 'V550' }, totalCost: 201 }, '/api/cost/full-estimate'),
             result('get_copper_price', { pricePerKg: 88 }, '/api/copper-price'),
         ] },
         'BU-05': { userText: questions['BU-05'], toolResults: [result('calculate_coil_cost', {
