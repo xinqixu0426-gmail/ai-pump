@@ -11,6 +11,8 @@ const { buildBusinessImpactOracle, impactDefinitionHashes } = require('../tests/
 const { evaluateBusinessImpactCase, CRITICAL_FAILURES } = require('../tests/helpers/businessImpactEvaluator.cjs');
 const { buildProjectionCases } = require('../tests/helpers/businessImpactProjectionCases.cjs');
 const { createBusinessImpactProjection } = require('../api/business-impact/projection.cjs');
+const { impactEligibility } = require('../api/business-impact/eligibility.cjs');
+const { buildImpactEvidenceBundle } = require('../api/business-impact/evidenceBundle.cjs');
 
 const root = path.resolve(__dirname, '..');
 const casePath = path.join(root, 'tests/fixtures/business-impact-benchmark-v1.json');
@@ -127,6 +129,7 @@ async function main() {
     Object.assign(process.env, environment, { NODE_ENV: 'test', NODE_TEST_CONTEXT: 'business-impact-benchmark-v1',
         PUMP_TEST_DATABASE_PATH: fixture.filename, INTERNAL_SECRET: 'business-impact-benchmark-v1-secret', AI_PROVIDER: provider,
         AI_BUSINESS_SEMANTIC_SHADOW_ENABLED: 'true', AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true',
+        AI_BUSINESS_IMPACT_SHADOW_ENABLED: 'true', AI_BUSINESS_IMPACT_ENFORCEMENT_CANARY_ENABLED: 'true',
         AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true', AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true',
         KNOWLEDGE_AUTO_SYNC_ENABLED: 'false', KNOWLEDGE_VECTOR_ENABLED: 'false' });
     const runtimeDb = require('../api/db.cjs').db; fixture.db = runtimeDb;
@@ -147,6 +150,9 @@ async function main() {
                 const impactProjection = projection.project(projectionCases[item.caseKey]);
                 actual.impactProjection = impactProjection;
                 actual.impactProjectionBytes = Buffer.byteLength(JSON.stringify(impactProjection));
+                const impactEvidenceBundle = buildImpactEvidenceBundle({ db: runtimeDb, impactResult: impactProjection,
+                    impactEligibility: impactEligibility({ userText: item.question, semanticEligible: true }) });
+                actual.impactEvidenceBundleBytes = Buffer.byteLength(JSON.stringify(impactEvidenceBundle));
                 const evaluated = { runNumber: run, ...evaluateBusinessImpactCase(item, oracle.perCase[item.caseKey], actual) };
                 executions.push(evaluated);
                 console.log(`[impact] run=${run} case=${item.caseKey} status=${evaluated.status} elapsedMs=${actual.elapsedMs}`);
@@ -191,6 +197,7 @@ async function main() {
         projectionExceptions: executions.length - projectionExecutions.length,
         projectionStability: `${projectionStability}/${definition.cases.length}`,
         maxProjectionBytes: Math.max(0, ...projectionExecutions.map(item => Number(item.actual.impactProjectionBytes || 0))),
+        maxEvidenceBundleBytes: Math.max(0, ...projectionExecutions.map(item => Number(item.actual.impactEvidenceBundleBytes || 0))),
         additionalImpactProviderCalls: 0,
         productionDatabaseWrites: 0 };
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });

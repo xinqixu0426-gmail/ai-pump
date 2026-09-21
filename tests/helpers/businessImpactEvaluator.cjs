@@ -3,7 +3,8 @@
 const CRITICAL_FAILURES = Object.freeze([
     'Wrong Impact Target', 'False Causal Claim', 'Historical Snapshot Treated As Current',
     'Current Recipe Change Claimed To Mutate Saved Order', 'Unsupported Engineering Number',
-    'False Test-Report Validity Claim', 'False Quotation Freshness Claim', 'Unauthorized Write',
+    'Unsupported Engineering Direction', 'False Test-Report Validity Claim',
+    'False Quotation Freshness Claim', 'False Complete Impact Set', 'Unauthorized Write',
 ]);
 
 const has = (text, pattern) => pattern.test(String(text || ''));
@@ -53,6 +54,11 @@ function evaluateBusinessImpactCase(testCase, oracle, actual) {
     if (testCase.caseKey === 'IMP-09' && !has(answer, /多个|多套|哪个|哪套|材质|槽型|澄清|确认/u)) add('Negative Impact Completeness', 'AMBIGUITY_NOT_PRESERVED');
     if (testCase.caseKey === 'IMP-10' && moneyOrEngineeringNumber(answer))
         add('Engineering Non-Hallucination', 'UNSUPPORTED_ENGINEERING_NUMBER', 'Unsupported Engineering Number');
+    if (testCase.caseKey === 'IMP-10' && /(?:温升|性能|扬程).*(?:会|大概率|预计|应该).*(?:升高|降低|增加|减少)/su.test(answer))
+        add('Engineering Non-Hallucination', 'UNSUPPORTED_ENGINEERING_DIRECTION', 'Unsupported Engineering Direction');
+    if (actual.impactProjection?.completeness === 'PARTIAL'
+        && /(?:这些|以上).*(?:就是|包含).*(?:全部|所有)/su.test(answer))
+        add('Negative Impact Completeness', 'FALSE_COMPLETE_IMPACT_SET', 'False Complete Impact Set');
     if (testCase.caseKey === 'IMP-11') {
         if (!has(answer, /快照|当时|当前|现在|差异|比较/u)) add('Temporal/Snapshot Semantics', 'SNAPSHOT_COMPARISON_MISSING');
         if (has(answer, /订单.*就是.*当前配方/su)) add('Temporal/Snapshot Semantics', 'SNAPSHOT_TREATED_CURRENT', 'Historical Snapshot Treated As Current');

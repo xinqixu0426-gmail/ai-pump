@@ -8,6 +8,8 @@ const { createBusinessImpactProjection } = require('../api/business-impact/proje
 const { validateImpactResult } = require('../api/business-impact/validator.cjs');
 const C = require('../api/business-impact/contract.cjs');
 const { observeBusinessImpactShadow } = require('../api/business-impact/shadowObserver.cjs');
+const { buildImpactEvidenceBundle } = require('../api/business-impact/evidenceBundle.cjs');
+const { MAX_IMPACT_EVIDENCE_BUNDLE_BYTES } = require('../api/business-impact/enforcementContract.cjs');
 
 function setup(t) {
     const fixture = createBusinessImpactFixture(); t.after(() => fixture.close());
@@ -88,6 +90,11 @@ test('Impact scale sentinel caps target count and marks PARTIAL', t => {
     assert.equal(result.completeness, 'PARTIAL');
     assert.equal(result.bounds.truncated, true);
     assert.ok(Buffer.byteLength(JSON.stringify(result)) <= C.MAX_IMPACT_RESULT_BYTES);
+    const bundle = buildImpactEvidenceBundle({ db: fixture.db, impactResult: result,
+        impactEligibility: { slice: 'IP-04_TEMPLATE_RECIPES' } });
+    assert.equal(bundle.completeness, 'PARTIAL');
+    assert.ok(bundle.answerObligations.includes('DISCLOSE_INCOMPLETE_IMPACT_SCOPE'));
+    assert.ok(Buffer.byteLength(JSON.stringify(bundle)) <= MAX_IMPACT_EVIDENCE_BUNDLE_BYTES);
 });
 
 test('Shadow observer 只记录投影且 provider/write 增量为零', async t => {

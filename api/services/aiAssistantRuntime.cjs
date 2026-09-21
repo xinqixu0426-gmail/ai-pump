@@ -48,6 +48,12 @@ const { buildBusinessEvidencePlan } = require('../business-semantics/evidencePla
 const { validateBusinessSemanticFrame } = require('../business-semantics/validator.cjs');
 const { enforceSemanticAnswerBoundary } = require('../business-semantics/answerBoundary.cjs');
 const { EnforcementFlag, MAX_SEMANTIC_EVIDENCE_CALLS } = require('../business-semantics/evidencePlanContract.cjs');
+const { impactEligibility } = require('../business-impact/eligibility.cjs');
+const { buildImpactTrigger } = require('../business-impact/triggerBuilder.cjs');
+const { createBusinessImpactProjection } = require('../business-impact/projection.cjs');
+const { buildImpactEvidenceBundle, modelImpactEvidenceMessage } = require('../business-impact/evidenceBundle.cjs');
+const { enforceImpactAnswerBoundary } = require('../business-impact/answerBoundary.cjs');
+const { IMPACT_ENFORCEMENT_FLAG } = require('../business-impact/enforcementContract.cjs');
 
 const { normalizeUserConfigurationOverrides } = require('./recipeConfigurationBaseline.cjs');
 
@@ -592,6 +598,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         });
         const semanticEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, EnforcementFlag)
             && eligibility.eligible;
+        const impactEligibilityResult = impactEligibility({ userText: latest.content,
+            semanticEligible: semanticEnforcementActive });
+        const impactEnforcementActive = isEnvFlagEnabled(runtimeEnv || process.env, IMPACT_ENFORCEMENT_FLAG)
+            && impactEligibilityResult.eligible;
+        if (impactEnforcementActive && impactEligibilityResult.unsupportedDomain) requiresBusinessQuery = false;
         // Alias resolution is software-owned. P3 reuses the formal entity lookup inside the planned
         // recipe read, so the model still receives no variable catalogue surface for alias turns.
         if (semanticEnforcementActive && classifyBusinessQuestion(latest.content, {
@@ -617,6 +628,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let maxSemanticFrameBytes = 0;
         const semanticCallMetadata = new Map();
         let latestSemanticPlan = null;
+        let impactEvidencePrepared = false;
+        let impactProjectionCalls = 0;
+        let impactResult = null;
+        let impactEvidenceBundle = null;
+        let impactBoundary = null;
+        let maxImpactProjectionBytes = 0;
+        let maxImpactEvidenceBundleBytes = 0;
         const semanticToolCalls = () => {
             if (!semanticEnforcementActive || semanticPlannedCallCount >= MAX_SEMANTIC_EVIDENCE_CALLS) return [];
             latestSemanticPlan = buildBusinessEvidencePlan({ userText: latest.content, toolResults,
@@ -641,7 +659,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         }));
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
             abortIfNeeded(input.signal);
-            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1 ? [] : offeredTools;
+            let offered = finishQueries || calls >= MAX_TOOL_CALLS || round === MAX_TOOL_ROUNDS - 1
+                || impactEnforcementActive ? [] : offeredTools;
             if (!offered.length) current.push({ role: 'system', content: '本轮查询阶段已结束，没有可调用工具。现在只用已取得的正式结果回答用户原问题；已核实不存在或查询范围为空的部分明确说明，尚未核实的部分说明缺失。不要继续规划查询，不输出工具协议，也不要把下一步查询写成已经完成。' });
             if (estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) offered = compactToolDescriptions(offered);
             if (toolResults.length && estimateAiMessagesTokens(current) + estimateTextTokens(JSON.stringify(offered)) > budgets.usableInputTokens) {
@@ -669,6 +688,25 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             } else if (round === 0 && restoredCandidateCall) {
                 answer = { content: '', tool_calls: [restoredCandidateCall] };
             } else {
+                if (impactEnforcementActive && !impactEvidencePrepared) {
+                    impactEvidencePrepared = true;
+                    const impactDb = dependencies.businessImpact?.db || require('../db.cjs').db;
+                    const trigger = buildImpactTrigger({ db: impactDb, userText: latest.content,
+                        impactEligibility: impactEligibilityResult, toolResults });
+                    if (trigger) {
+                        const readinessForOrder = dependencies.businessImpact?.readinessForOrder
+                            || (order => require('./activeOrderReadiness.cjs').buildOrderReadinessContext(order).readiness);
+                        impactResult = createBusinessImpactProjection({ db: impactDb, readinessForOrder }).project(trigger);
+                        impactProjectionCalls += 1;
+                        impactEvidenceBundle = buildImpactEvidenceBundle({ db: impactDb, impactResult,
+                            impactEligibility: impactEligibilityResult });
+                        maxImpactProjectionBytes = Buffer.byteLength(JSON.stringify(impactResult));
+                        maxImpactEvidenceBundleBytes = Buffer.byteLength(JSON.stringify(impactEvidenceBundle));
+                        current.push({ role: 'system', content: modelImpactEvidenceMessage(impactEvidenceBundle) });
+                    } else if (impactEligibilityResult.unsupportedDomain) {
+                        current.push({ role: 'system', content: '本轮是影响问题，但目标超出当前正式影响关系范围。不得编造供应商、采购、订单或工程影响链；只能说明当前无法从正式业务关系证明。' });
+                    }
+                }
                 const requireBusinessTool = offered.length && requiresBusinessQuery && !toolResults.length;
                 emit('status', {
                     status: 'generating',
@@ -677,7 +715,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 const providerStartedAt = Date.now();
                 const response = await provider(offered.length ? current : answerOnlyMessages(current), { tools: offered, ...(offered.length && ((evidenceReminder && !toolResults.length) || requireBusinessTool) ? { toolChoice: 'required' } : {}), stream: Boolean(input.stream), onProvider: input.onProvider, env: runtimeEnv, providerPreference: input.providerPreference, dbAccessors: input.dbAccessors, signal: input.signal });
                 if (input.stream) {
-                    const streamDirectReply = tools.length === 0 && offered.length === 0 && toolResults.length === 0;
+                    const streamDirectReply = !impactEnforcementActive
+                        && tools.length === 0 && offered.length === 0 && toolResults.length === 0;
                     const streamed = await readAiProviderStream(response, {
                         signal: input.signal,
                         ...(streamDirectReply ? {
@@ -1028,6 +1067,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 toolResults, userText: latest.content });
             finalContent = semanticBoundary.answer;
         }
+        if (impactEnforcementActive && !finalContentStreamed) {
+            impactBoundary = enforceImpactAnswerBoundary({ answer: finalContent, bundle: impactEvidenceBundle,
+                userText: latest.content, toolResults, impactEligibility: impactEligibilityResult });
+            finalContent = impactBoundary.answer;
+        }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);
         if (!finalContentStreamed) emit('content', { content: finalContent });
@@ -1077,7 +1121,17 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             businessSemanticEnforcement: semanticEnforcementActive ? { plannedReads: semanticPlannedCallCount,
                 maxEvidencePlanBytes: maxSemanticEvidencePlanBytes, maxSemanticFrameBytes,
                 completenessStatus: postEvidenceSemanticFrame?.completeness?.status || null,
-                fallbackType: semanticBoundary?.fallbackType || null, replaced: semanticBoundary?.replaced || false } : null } };
+                fallbackType: semanticBoundary?.fallbackType || null, replaced: semanticBoundary?.replaced || false } : null,
+            businessImpactEnforcement: impactEnforcementActive ? {
+                version: 1, eligible: true, reason: impactEligibilityResult.reason,
+                slice: impactEligibilityResult.slice, unsupportedDomain: impactEligibilityResult.unsupportedDomain,
+                projectionCalls: impactProjectionCalls, completeness: impactResult?.completeness || null,
+                maxProjectionBytes: maxImpactProjectionBytes,
+                maxEvidenceBundleBytes: maxImpactEvidenceBundleBytes,
+                fallbackType: impactBoundary?.fallbackType || null,
+                replaced: impactBoundary?.replaced || false,
+                additionalProviderCalls: 0, businessWrites: 0,
+            } : { version: 1, eligible: false, projectionCalls: 0 } } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
         else session.cancel();
