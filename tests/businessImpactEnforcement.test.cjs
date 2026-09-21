@@ -90,3 +90,28 @@ test('Impact answer boundary rejects all eight required causal mutations by dete
         assert.equal(result.replaced, true); assert.doesNotMatch(result.answer, /错误配方/); // M8
     } finally { fixture.close(); }
 });
+
+test('unsupported impact corpus receives deterministic boundaries without fabricated authority', () => {
+    const fixture = createBusinessImpactFixture();
+    try {
+        const questions = [
+            ['换线圈以后温升增加多少？', /不能给出数值|不能给出.*方向/u],
+            ['改完以后扬程会提高多少？', /不能给出数值/u],
+            ['这个报价肯定过期了吗？', /不能断言报价已过期/u],
+            ['原测试报告是不是已经作废？', /不能直接说.*已作废/u],
+            ['这个供应商出问题会影响哪些所有订单？', /不能给出权威影响清单/u],
+        ];
+        for (const [question, expected] of questions) {
+            const eligibility = impactEligibility({ userText: question, semanticEligible: true });
+            assert.equal(eligibility.eligible, true, question);
+            const trigger = buildImpactTrigger({ db: fixture.db, userText: question, impactEligibility: eligibility });
+            const impactResult = trigger ? createBusinessImpactProjection({ db: fixture.db }).project(trigger) : null;
+            const bundle = impactResult ? buildImpactEvidenceBundle({ db: fixture.db, impactResult,
+                impactEligibility: eligibility }) : null;
+            const boundary = enforceImpactAnswerBoundary({ answer: '模型猜测', bundle, userText: question,
+                impactEligibility: eligibility });
+            assert.match(boundary.answer, expected, question);
+            assert.doesNotMatch(boundary.answer, /(?:增加| 提高)\s*\d+(?:\.\d+)?(?:℃|米)?/u, question);
+        }
+    } finally { fixture.close(); }
+});
