@@ -643,6 +643,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let impactResult = null;
         let impactEvidenceBundle = null;
         let impactBoundary = null;
+        let impactCanonicalFrame = null;
         let maxImpactProjectionBytes = 0;
         let maxImpactEvidenceBundleBytes = 0;
         const semanticToolCalls = () => {
@@ -710,8 +711,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 if (impactEnforcementActive && !impactEvidencePrepared) {
                     impactEvidencePrepared = true;
                     const impactDb = dependencies.businessImpact?.db || require('../db.cjs').db;
+                    impactCanonicalFrame = buildBusinessSemanticFrame({ userText: latest.content, toolResults,
+                        stage: 'POST_EVIDENCE', eligibility });
                     const trigger = buildImpactTrigger({ db: impactDb, userText: latest.content,
-                        impactEligibility: impactEligibilityResult, toolResults });
+                        impactEligibility: impactEligibilityResult, toolResults,
+                        canonicalSubject: impactCanonicalFrame.subject });
                     if (trigger) {
                         const readinessForOrder = dependencies.businessImpact?.readinessForOrder
                             || (order => require('./activeOrderReadiness.cjs').buildOrderReadinessContext(order).readiness);
@@ -1080,8 +1084,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let postEvidenceSemanticFrame = null;
         let semanticBoundary = null;
         if (semanticEnforcementActive && !finalContentStreamed) {
-            postEvidenceSemanticFrame = buildBusinessSemanticFrame({ userText: latest.content, toolResults,
-                stage: 'POST_EVIDENCE', eligibility });
+            postEvidenceSemanticFrame = impactCanonicalFrame || buildBusinessSemanticFrame({ userText: latest.content,
+                toolResults, stage: 'POST_EVIDENCE', eligibility });
             validateBusinessSemanticFrame(postEvidenceSemanticFrame);
             maxSemanticFrameBytes = Buffer.byteLength(JSON.stringify(postEvidenceSemanticFrame));
             semanticBoundary = enforceSemanticAnswerBoundary({ frame: postEvidenceSemanticFrame, answer: finalContent,
@@ -1143,15 +1147,19 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         userText: latest.content,
                         semanticEligible: eligibility.eligible,
                     });
+                    const shadowSemanticFrame = postEvidenceSemanticFrame || buildBusinessSemanticFrame({
+                        userText: latest.content, toolResults, stage: 'POST_EVIDENCE', eligibility,
+                    });
                     const shadowImpactTrigger = buildImpactTrigger({
                         db: dependencies.businessImpact?.db || require('../db.cjs').db,
                         userText: latest.content,
                         impactEligibility: shadowImpactEligibility,
                         toolResults,
+                        canonicalSubject: shadowSemanticFrame.subject,
                     });
                     void require('../business-impact/shadowObserver.cjs').observeBusinessImpactShadow({
                         userText: latest.content, toolResults, answer: finalContent, requestId: input.requestId,
-                        eligibility, semanticFrame: postEvidenceSemanticFrame,
+                        eligibility, semanticFrame: shadowSemanticFrame,
                         impactEligibility: shadowImpactEligibility,
                         impactTrigger: shadowImpactTrigger,
                     }, dependencies.businessImpactShadow).catch(() => {});
