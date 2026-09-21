@@ -17,9 +17,6 @@ const FactCapabilityRegistry = deepFreeze({
     PART_CATALOG_UNIT_COST: { capability: 'search_parts', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
     CURRENT_COPPER_PRICE_BASIS: { capability: ['get_copper_price', 'search_coils'], sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['VERIFIED_PRIOR_FACT'] },
     CROSS_CATALOG_CANDIDATES: { capability: ['get_all_recipes', 'search_templates', 'search_parts'], sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
-    FORMAL_RELATION_RESULT: { capability: ['get_recipe_detail', 'search_coils', 'get_recipes_by_coil',
-        'get_recipe_parts', 'get_recipes_by_part'], sourcePolicy: 'FORMAL_API_ONLY',
-        argumentPolicy: ['CANONICAL_SUBJECT_ID', 'VERIFIED_PRIOR_FACT'] },
 });
 
 function capabilityForFact(factType) { return FactCapabilityRegistry[factType] || null; }

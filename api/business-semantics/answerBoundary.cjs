@@ -3,7 +3,6 @@
 const { classifyQuestion } = require('./questionSemantics.cjs');
 const { enforcementDecision } = require('./completenessPolicy.cjs');
 const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
-const { formalRelationEvidence } = require('./formalRelationEvidence.cjs');
 
 function verified(item) { return item?.result?.success !== false && item?.result?.executionEvidence?.verified === true; }
 function rows(toolResults, name) { return toolResults.filter(item => verified(item) && item.name === name).flatMap(item => {
@@ -46,25 +45,6 @@ function matchingCoils(toolResults, semantics) {
 }
 function variantLabel(row) { return [row.material, row.slotType, row.schemeCode].filter(Boolean).join('/') || `方案ID ${row.id ?? row.Id}`; }
 function variantCost(row) { return money(row.cost ?? row.totalCost ?? row.kitPrice ?? row.unitCost); }
-function relationAnswer(evidence, requestedToken) {
-    if (!evidence) return '';
-    if (evidence.rootNotFound) return `在正式线圈方案范围内未找到“${requestedToken}”，因此无法查询它被哪些配方使用。`;
-    if (evidence.relationId === 'recipe.uses_coil') {
-        const coil = evidence.items[0];
-        const identity = [coil.material, coil.slotType].map(value => String(value || '').trim()).filter(Boolean);
-        return `${evidence.rootName || requestedToken} 使用 ${coil.spec}-${coil.sheets} 线圈${identity.length ? `（${identity.join('/')}）` : ''}。`;
-    }
-    if (evidence.relationId === 'recipe.contains_part') {
-        if (evidence.empty) return `${requestedToken} 的已保存规范零件关系为空（范围仅为 partsJson）。`;
-        return `${requestedToken} 的已保存规范零件：${evidence.items.map(item => item.partName).join('、')}。范围仅为 partsJson。`;
-    }
-    if (evidence.relationId === 'part.contained_in_recipe' || evidence.relationId === 'coil.used_by_recipe') {
-        const names = evidence.items.map(item => item.recipeName).filter(Boolean);
-        if (!names.length) return `${requestedToken} 当前没有被任何有效配方正式引用。`;
-        return `${requestedToken} 当前被以下配方正式引用：${names.join('、')}。`;
-    }
-    return '';
-}
 
 function deterministicSemanticAnswer(frame, toolResults, userText) {
     const semantics = classifyQuestion(userText, { admittedCatalogLookup: frame?.question?.kind === 'CATALOG_LOOKUP' });
@@ -73,9 +53,6 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     const targetRecipe = recipe(toolResults);
     const coils = matchingCoils(toolResults, semantics);
     const identityResolution = recipeIdentityResolution(toolResults);
-    const relation = formalRelationEvidence(userText, toolResults);
-    const formalRelationAnswer = relationAnswer(relation, requestedToken);
-    if (formalRelationAnswer) return formalRelationAnswer;
     if (identityResolution?.state === 'ALIAS_TARGET_UNAVAILABLE') {
         return `“${requestedToken}”存在正式历史别名记录，但其目标配方已不可用，不能绑定为当前规范对象。请提供仍有效的正式配方全名；本轮不能给出成本。`;
     }
@@ -115,9 +92,7 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         return `${semantics.requestedIdentity.token} 未匹配到成品配方，但零件目录找到候选“${part.model || part.name}”（零件 ID ${part.id ?? part.Id}）。这是零件候选，不是整机成本，不能据此给出成品总成本。`;
     }
     if (semantics.kind === 'INVENTORY_QUERY' && coils.length) {
-        const scopeLabel = semantics.requestedVariantScope === 'TESTING' ? '测试方案'
-            : semantics.requestedVariantScope === 'ALL_ACTIVE' ? '在用方案' : '正式方案';
-        return `${semantics.requestedIdentity.token} 有 ${coils.length} 套${scopeLabel}：${coils.map(row => `${variantLabel(row)}，库存 ${Number(row.stock || 0) > 0 ? `有货 ${row.stock}` : '无货 0'}`).join('；')}。`;
+        return `${semantics.requestedIdentity.token} 有 ${coils.length} 套正式方案：${coils.map(row => `${variantLabel(row)}，库存 ${Number(row.stock || 0) > 0 ? `有货 ${row.stock}` : '无货 0'}`).join('；')}。`;
     }
     if (semantics.requestedType === 'coil' && coils.length) {
         const calculated = calculatedCoil;
@@ -131,7 +106,6 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     }
     const current = currentRecipeCost(toolResults);
     if (targetRecipe && current) return `${targetRecipe.name || semantics.requestedIdentity.token} 当前完整成本为 ${current} 元（正式当前完整成本口径）。`;
-    if (semantics.kind === 'CATALOG_LOOKUP' && targetRecipe) return `“${requestedToken}”对应的当前正式配方名称为“${targetRecipe.name}”。`;
     return '';
 }
 

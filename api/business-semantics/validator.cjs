@@ -68,8 +68,7 @@ function validateBusinessSemanticFrame(frame) {
     }
     if (frame.completeness.status === 'NOT_FOUND_VERIFIED') {
         assert(frame.subject.resolutionStatus === 'NOT_FOUND', 'NOT_FOUND_STATUS_MISMATCH');
-        assert(facts.get('CROSS_CATALOG_CANDIDATES')?.state === 'VERIFIED'
-            || facts.get('FORMAL_RELATION_RESULT')?.state === 'VERIFIED', 'NOT_FOUND_SCOPE_UNVERIFIED');
+        assert(facts.get('CROSS_CATALOG_CANDIDATES')?.state === 'VERIFIED', 'NOT_FOUND_SCOPE_UNVERIFIED');
     }
     assert(frame.obligations && typeof frame.obligations === 'object', 'OBLIGATIONS');
     for (const field of ['requiredDisclosures', 'requiredClarifications', 'forbiddenClaims']) {

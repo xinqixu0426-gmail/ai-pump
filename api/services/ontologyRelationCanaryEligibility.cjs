@@ -23,22 +23,14 @@ function isOwnerOntologyRelationCanaryRequest(req = {}, env = process.env) {
     return isAuthenticatedOwner(verifyAuthentication(token, env), env);
 }
 
-// Shared admission boundary for read-only AI canaries. A browser-controlled field or
-// header is never sufficient: the request must be backed by the existing Owner JWT or
-// the existing internal service secret.
-function isOwnerScopedAiCanaryRequestEligible(req = {}, env = process.env) {
+// Identity admission only. The runtime independently requires the environment canary flag.
+function isOntologyRelationCanaryRequestEligible(req = {}, env = process.env) {
     return isTrustedInternalAiRequest(req, env)
         || isOwnerOntologyRelationCanaryRequest(req, env);
 }
 
-// Identity admission only. The runtime independently requires the environment canary flag.
-function isOntologyRelationCanaryRequestEligible(req = {}, env = process.env) {
-    return isOwnerScopedAiCanaryRequestEligible(req, env);
-}
-
 module.exports = {
     equalSecret,
-    isOwnerScopedAiCanaryRequestEligible,
     isOntologyRelationCanaryRequestEligible,
     isOwnerOntologyRelationCanaryRequest,
     isTrustedInternalAiRequest,

@@ -13,8 +13,7 @@ function parseUserNumber(text, label) {
 function extractAliasMention(text) {
     return String(text || '')
         .replace(/^(?:请问|麻烦|帮我|请)?(?:查一下|查查|查询)?\s*/u, '')
-        .replace(/(?:现在|当前)?的?(?:正式|当前)?名称(?:是什么|是哪个)?[?？。]*$/u, '')
-        .replace(/(?:的)?(?:当前|现在)?(?:完整|整机)?(?:单位)?(?:成本|价格|多少钱|库存|有货|缺货|没货).*$/u, '')
+        .replace(/(?:的)?(?:当前|现在)?(?:完整|整机)?(?:成本|价格|多少钱|库存|有货|缺货|没货).*$/u, '')
         .trim();
 }
 
@@ -37,7 +36,6 @@ function catalogAdmissionSignals(userText) {
     if (/(?:轴承|油封|电容|电缆|浮球|螺丝|叶轮|泵壳)[\s_\-－]*[\p{L}\p{N}]+/iu.test(text)) signals.push('CATALOG_IDENTIFIER');
     if (/(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)) signals.push('SUPPORTED_RESOURCE_TERM');
     if (/(?:型号|目录|方案)/u.test(text) && /[\p{L}\p{N}][\p{L}\p{N}_\-－]{1,}/u.test(text)) signals.push('STRUCTURED_CATALOG_TERM');
-    if (/(?:旧名|曾用名|历史名称|(?:^|\s)老[\p{L}\p{N}_\-－]{2,})/u.test(text)) signals.push('FORMAL_ALIAS_REFERENCE');
     if (/(?:找|查|查询|查看|看看|看一下|搜索|搜一下|是什么型号|有哪些方案|哪些方案)/u.test(text)) signals.push('LOOKUP_OPERATION');
     if (/(?:这个|该|当前|这些)(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)) signals.push('EXPLICIT_RESOURCE_REFERENCE');
     return [...new Set(signals)];
@@ -48,7 +46,7 @@ function positivelyAdmittedBusinessRequest(text) {
     const genericKnowledge = /(?:工作原理|基本原理|原理是什么|科普|讲讲|介绍一下|怎么工作|如何工作)/u.test(text);
     if (genericKnowledge) return { admitted: false, signals };
     const hasIdentity = signals.some(item => ['RECIPE_IDENTIFIER', 'COIL_SHORTHAND', 'BUSINESS_IDENTIFIER',
-        'CATALOG_IDENTIFIER', 'STRUCTURED_CATALOG_TERM', 'FORMAL_ALIAS_REFERENCE'].includes(item));
+        'CATALOG_IDENTIFIER', 'STRUCTURED_CATALOG_TERM'].includes(item));
     const hasResourceLookup = signals.includes('SUPPORTED_RESOURCE_TERM')
         && (signals.includes('LOOKUP_OPERATION') || signals.includes('EXPLICIT_RESOURCE_REFERENCE'));
     return { admitted: hasIdentity || hasResourceLookup, signals };
@@ -72,8 +70,7 @@ function classifyQuestion(userText, options = {}) {
     else if (admitted && hypothetical && cost) { kind = 'HYPOTHETICAL_COST_QUERY'; operation = 'READ_OR_PREVIEW_COST'; }
     else if (admitted && cost) { kind = 'COST_QUERY'; operation = 'READ_COST'; }
     else if (admitted) { kind = 'CATALOG_LOOKUP'; operation = 'LOOKUP'; }
-    const requestedType = aliasConcern ? 'recipe'
-        : coil && !/V\d+/iu.test(text) ? 'coil' : /V\d+/iu.test(text) ? 'recipe' : 'unknown';
+    const requestedType = coil && !/V\d+/iu.test(text) ? 'coil' : /V\d+/iu.test(text) ? 'recipe' : 'unknown';
     return {
         kind,
         operation,

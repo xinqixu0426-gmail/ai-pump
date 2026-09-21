@@ -212,8 +212,10 @@ function preBindingResolverInput(input = {}) {
         const conflictingTypeMention = relationRootCanonical.otherEntityAliases(intent.fromType)
             .some(alias => mention.includes(alias)) && !ownAliases.some(alias => mention.includes(alias));
         return !intent.pronoun && !conflictingTypeMention
+        && (!intent.typed || ['recipe.contains_part', 'part.contained_in_recipe'].includes(intent.relationId))
         && relationRootCanonical.isResolvableRelation(intent.relationId)
-        && relationRootCanonical.mentionIsResolvableName(intent);
+        && (relationRootCanonical.mentionIsPlainName(intent.mention)
+            || relationRootCanonical.mentionIsRecipePartName(intent));
     }) || null;
 }
 function prepareRouting(input = {}, dependencies = {}) {

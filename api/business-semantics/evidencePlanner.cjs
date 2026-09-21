@@ -64,7 +64,7 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     const aliasResolved = ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state) && recipes.length === 1;
     const aliasBlocked = semantics.requestedIdentity.aliasConcern && !aliasResolved;
     let extraFacts = [];
-    if (aliasBlocked && semantics.requestedType === 'recipe' && token && !identityResolution) {
+    if (aliasBlocked && semantics.requestedType === 'recipe' && token && !has('get_all_recipes')) {
         recipeLookup();
     } else if (!aliasBlocked && ((['COST_QUERY', 'HYPOTHETICAL_COST_QUERY'].includes(semantics.kind)
         && semantics.requestedType === 'recipe') || (semantics.kind === 'COST_QUERY' && semantics.requestedType === 'unknown'))) {

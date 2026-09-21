@@ -34,7 +34,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 | 集成 | [MCP 开发指南](mcp-development-guide.md) | 外部 Agent 接入与身份配置 |
 | AI 运行 | [私人 AI 助理](ai-assistant.md) | 当前链路、使用方法、记忆与能力边界 |
 | AI 业务规矩 | [AI 业务规矩册](./ai-business-rulebook.md) | 成本/价格口径、假设问法、身份与回答规矩，逐条标明"已强制 / 仅提示 / 未支持" |
-| AI 业务语义 | [Business Semantic Frame V1](./business-semantic-frame-v1.md) / [BUS-P2 Enforcement](./business-semantic-enforcement-p2.md) / [Business Understanding Benchmark V2](./business-understanding-benchmark-v2.md) / [Synthetic Business Acceptance V1](./synthetic-business-acceptance-v1.md) | Shadow 契约、确定性证据规划、完整性边界、历史业务基线与隔离假数据真实 AI 验收 |
+| AI 业务语义 | [Business Semantic Frame V1](./business-semantic-frame-v1.md) / [BUS-P2 Enforcement](./business-semantic-enforcement-p2.md) / [Business Understanding Benchmark V2](./business-understanding-benchmark-v2.md) | Shadow 契约、确定性证据规划、完整性边界与当前业务验收基线 |
 | AI 验收 | [AI 学习发布门禁](./ai-learning-release-gate-guide.md) | 真实 AI 回归与失败处理 |
 | 历史 | [阶段档案](archive/README.md)、[观测基线](ai-observability/trace-contract-v1.md) | 已退役方案、阶段结论和原始验证证据 |
 

@@ -3,7 +3,6 @@
 const { deepFreeze } = require('./contract.cjs');
 const { classifyQuestion } = require('./questionSemantics.cjs');
 const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
-const { formalRelationEvidence } = require('./formalRelationEvidence.cjs');
 
 function positiveId(value) {
     const id = Number(value);
@@ -92,7 +91,6 @@ function sourceProjection(toolResults) {
 function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_EVIDENCE', eligibility = null } = {}) {
     const semantics = classifyQuestion(userText, { admittedCatalogLookup: eligibility?.eligible === true && eligibility?.kind === 'CATALOG_LOOKUP' });
     let requiredFacts = requiredFactsFor(semantics);
-    const relationEvidence = stage === 'PRE_EVIDENCE' ? null : formalRelationEvidence(userText, toolResults);
     const recipes = recipeRows(toolResults), coilEvidence = officialCoilEvidence(toolResults, semantics), coils = coilEvidence.rows;
     const candidates = crossCatalogCandidates(toolResults);
     const calculatedCoils = toolResults.filter(item => verified(item) && item.name === 'calculate_coil_cost' && item.result?.data)
@@ -104,10 +102,6 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const uniqueRecipe = recipes.length === 1 ? recipes[0] : null;
     const partCandidate = candidates.length === 1 && candidates[0].entityType === 'part' ? candidates[0] : null;
     const fullCatalogNegative = catalogScopeVerified(toolResults) && recipes.length === 0 && candidates.length === 0;
-    if (relationEvidence) requiredFacts = ['FORMAL_RELATION_RESULT'];
-    else if (stage !== 'PRE_EVIDENCE' && semantics.kind === 'CATALOG_LOOKUP' && uniqueRecipe && !aliasUnresolved) {
-        requiredFacts = ['RECIPE_CANONICAL_IDENTITY'];
-    }
     if (stage !== 'PRE_EVIDENCE' && semantics.kind === 'COST_QUERY' && semantics.requestedType !== 'coil' && !uniqueRecipe) {
         if (partCandidate) requiredFacts = ['CROSS_CATALOG_CANDIDATES', 'PART_CATALOG_IDENTITY',
             ...(semantics.requestedType === 'unknown' && partCandidate.unitCost != null ? ['PART_CATALOG_UNIT_COST'] : [])];
@@ -123,12 +117,7 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     const facts = new Map(requiredFacts.map(factType => [factType, { factType, state: 'MISSING' }]));
     let canonicalType = null, canonicalId = null, resolutionStatus = 'UNRESOLVED';
     if (stage !== 'PRE_EVIDENCE') {
-        if (relationEvidence) {
-            canonicalType = relationEvidence.rootType;
-            canonicalId = relationEvidence.rootId;
-            resolutionStatus = relationEvidence.rootNotFound ? 'NOT_FOUND' : 'UNIQUE';
-        }
-        else if (aliasAmbiguous) { canonicalType = 'recipe'; resolutionStatus = 'AMBIGUOUS'; }
+        if (aliasAmbiguous) { canonicalType = 'recipe'; resolutionStatus = 'AMBIGUOUS'; }
         else if (aliasUnresolved) resolutionStatus = 'ALIAS_UNRESOLVED';
         else if (semantics.requestedType === 'coil' && coilEvidence.expectedCount > 1) { canonicalType = 'coil'; resolutionStatus = 'AMBIGUOUS'; }
         else if (semantics.requestedType === 'coil' && coils.length === 1) { canonicalType = 'coil'; canonicalId = positiveId(coils[0].id ?? coils[0].Id); resolutionStatus = 'UNIQUE'; }
@@ -185,11 +174,6 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
             canonicalIds: [positiveId(partCandidate.canonicalId)], unitCost: partCandidate.unitCost,
         });
     }
-    if (relationEvidence) addFact(facts, 'FORMAL_RELATION_RESULT', 'VERIFIED', {
-        canonicalIds: unique([relationEvidence.rootId, ...relationEvidence.targetIds]),
-        relationId: relationEvidence.relationId,
-        empty: relationEvidence.empty,
-    });
 
     let ambiguityStatus = coilEvidence.expectedCount > 1 ? 'MULTIPLE_OFFICIAL_VARIANTS'
         : aliasAmbiguous || resolutionStatus === 'UNRESOLVED' ? 'UNRESOLVED_IDENTITY' : 'NONE';
@@ -219,8 +203,7 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
     if (machineHypothetical) { completenessStatus = 'UNSUPPORTED_REQUEST'; blockers = ['UNSUPPORTED_MACHINE_HYPOTHETICAL_PRICE']; }
     else if (wireWeightOverrideUnsupported) { completenessStatus = 'UNSUPPORTED_REQUEST'; blockers = ['UNSUPPORTED_COIL_WIRE_WEIGHT_OVERRIDE']; }
     else if (overrideStatus === 'AMBIGUOUS_OVERRIDE' || resolutionStatus === 'ALIAS_UNRESOLVED' || aliasAmbiguous) { completenessStatus = 'NEEDS_CLARIFICATION'; blockers = [overrideStatus === 'AMBIGUOUS_OVERRIDE' ? 'AMBIGUOUS_OVERRIDE' : aliasAmbiguous ? 'ALIAS_AMBIGUOUS' : 'ALIAS_UNRESOLVED']; }
-    else if (resolutionStatus === 'NOT_FOUND' && (verifiedFacts.includes('CROSS_CATALOG_CANDIDATES')
-        || relationEvidence?.rootNotFound === true)) { completenessStatus = 'NOT_FOUND_VERIFIED'; blockers = []; }
+    else if (resolutionStatus === 'NOT_FOUND' && verifiedFacts.includes('CROSS_CATALOG_CANDIDATES')) { completenessStatus = 'NOT_FOUND_VERIFIED'; blockers = []; }
     else if (requiredFacts.every(factType => facts.get(factType)?.state === 'VERIFIED')) { completenessStatus = 'COMPLETE'; blockers = []; }
     else if (verifiedFacts.length) completenessStatus = 'PARTIAL_VERIFIED';
 

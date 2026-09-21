@@ -34,7 +34,6 @@ const IDENTITY_READS = Object.freeze({
         path: name => `/api/recipes/identity?name=${encodeURIComponent(name)}`,
         // The path prefix that must appear in that read's execution evidence.
         evidencePath: '/api/recipes/identity',
-        alternateEvidence: Object.freeze({ path: '/api/entity-lookup', method: 'POST' }),
     }),
     part: Object.freeze({
         capability: 'resolve_part_identity',
@@ -90,25 +89,6 @@ function mentionIsRecipePartName(intent) {
     ).test(text));
 }
 
-/** Remove only relation grammar decoration; never shorten or fuzzy-match the business name itself. */
-function lookupMention(intent) {
-    let text = String(intent?.mention || '').trim();
-    if (intent?.fromType === 'recipe') {
-        text = text.replace(/(?:现在|当前)$/u, '').trim();
-        text = text.replace(/(?:这个|该)配方$/u, '').trim();
-    }
-    return text;
-}
-
-function mentionIsResolvableName(intent) {
-    const text = lookupMention(intent);
-    if (!text || text.length > 120 || /[和与、;；]/u.test(text)) return false;
-    // A typed recipe can legitimately start with the canonical `配方-` prefix.  Other embedded
-    // entity labels still fail closed so a multi-domain phrase never becomes a root name.
-    if (intent?.fromType === 'recipe' && /^\s*配方[-－]/u.test(text)) return true;
-    return mentionIsPlainName(text) || mentionIsRecipePartName({ ...intent, mention: text });
-}
-
 /** The formal name and the mention are the same identity only when normalisation makes them equal. */
 function exactFormalName(formalName, mention) {
     const formal = normalizeResourceText(formalName);
@@ -129,14 +109,13 @@ async function resolveRelationRoot(intent, dependencies = {}) {
     const relationId = intent?.relationId || null;
     const relation = relationMetadata.find(item => item.relationId === relationId);
     const entityType = relation?.fromType || null;
-    const originalMention = String(intent?.mention || '').trim();
-    const mention = lookupMention(intent);
+    const mention = String(intent?.mention || '').trim();
     const read = entityType ? IDENTITY_READS[entityType] : null;
-    const unresolved = reason => Object.freeze({ relationId, entityType, mention: originalMention, resolved: false, reason });
+    const unresolved = reason => Object.freeze({ relationId, entityType, mention, resolved: false, reason });
     if (!relation || !read) return unresolved('RELATION_NOT_RESOLVABLE');
     if (!intent?.eligible) return unresolved('NOT_ELIGIBLE');
     if (intent?.pronoun) return unresolved('NOT_A_PLAIN_NAME');
-    if (!mentionIsResolvableName({ ...intent, mention })) return unresolved('NOT_A_PLAIN_NAME');
+    if (!mentionIsPlainName(mention) && !mentionIsRecipePartName(intent)) return unresolved('NOT_A_PLAIN_NAME');
     const resolve = dependencies.resolveIdentity;
     if (typeof resolve !== 'function') return unresolved('RESOLVER_UNAVAILABLE');
     let resolution;
@@ -149,12 +128,7 @@ async function resolveRelationRoot(intent, dependencies = {}) {
     }
     const method = read.method || 'GET';
     const calls = (Array.isArray(resolution?.calls) ? resolution.calls : [])
-        .filter(call => call && typeof call.path === 'string' && (
-            (String(call.method).toUpperCase() === method && call.path.startsWith(read.evidencePath))
-            || (read.alternateEvidence
-                && String(call.method).toUpperCase() === read.alternateEvidence.method
-                && call.path.startsWith(read.alternateEvidence.path))
-        ));
+        .filter(call => call && String(call.method).toUpperCase() === method && typeof call.path === 'string');
     if (!resolution || resolution.status !== 'found' || !resolution.identity) {
         const reason = resolution?.status === 'ambiguous' ? 'AMBIGUOUS_NAME'
             : resolution?.status === 'not_found' ? 'NAME_NOT_FOUND' : 'RESOLVER_FAILED';
@@ -163,39 +137,24 @@ async function resolveRelationRoot(intent, dependencies = {}) {
     const entityId = Number(resolution.identity.recipeId ?? resolution.identity.partId ?? resolution.identity.canonicalId);
     const formalName = String(resolution.identity.recipeName ?? resolution.identity.partName
         ?? resolution.identity.name ?? '').trim();
-    const matchKind = resolution.identity.matchKind === 'APPROVED_ALIAS' ? 'approved_alias'
-        : resolution.identity.matchKind === 'STRUCTURED_CANONICAL_KEY' ? 'structured_canonical_key' : 'exact';
     if (!Number.isSafeInteger(entityId) || entityId <= 0 || !formalName) return unresolved('IDENTITY_INVALID');
     // Strictness: a unique result is not enough — the formal name must BE the mention.
-    if (matchKind === 'exact' && !exactFormalName(formalName, mention)) return unresolved('NAME_NOT_EXACT');
-    if (matchKind === 'approved_alias' && String(resolution.identity.matchedAlias || '').trim() !== mention) {
-        return unresolved('ALIAS_NOT_EXACT');
-    }
-    if (matchKind === 'structured_canonical_key') {
-        const key = String(resolution.identity.canonicalKey || '').trim();
-        if (!/^V\d+$/iu.test(key) || resolution.identity.descriptorVerified !== true
-            || !new RegExp(`\\b${key}\\b`, 'iu').test(mention)
-            || !new RegExp(`(?:^|[^A-Z0-9])${key}(?:[^0-9]|$)`, 'iu').test(formalName)) {
-            return unresolved('CANONICAL_KEY_NOT_VERIFIED');
-        }
-    }
-    if (!calls.length) {
+    if (!exactFormalName(formalName, mention)) return unresolved('NAME_NOT_EXACT');
+    if (!calls.some(call => call.path.startsWith(read.evidencePath))) {
         return unresolved('READ_PROVENANCE_MISSING');
     }
     const canonicalId = String(entityId);
     return Object.freeze({
-        relationId, entityType, mention: originalMention, resolved: true, reason: null,
+        relationId, entityType, mention, resolved: true, reason: null,
         canonicalId,
         // Shaped as an entity-resolution receipt so the binder consumes it through the EXISTING
         // `canonicalReceipts` channel. `sourceCapability` is the formal read that produced it and
         // `sourceEvidence` carries that read's execution evidence, so this is a read provenance, not a
         // string comparison result.
         receipt: Object.freeze({
-            version: 3, kind: 'entity_resolution', entityType,
-            status: matchKind === 'approved_alias' ? 'approved_alias'
-                : matchKind === 'structured_canonical_key' ? 'structured_canonical_key' : 'exact',
-            originalMention,
-            selected: Object.freeze({ id: entityId, name: formalName, matchKind }),
+            version: 3, kind: 'entity_resolution', entityType, status: 'exact',
+            originalMention: mention,
+            selected: Object.freeze({ id: entityId, name: formalName, matchKind: 'exact' }),
             sourceCapability: read.capability,
             sourceEvidence: Object.freeze([Object.freeze({ executionEvidence: Object.freeze({
                 verified: true, kind: 'formal_api_query', calls,
@@ -211,8 +170,6 @@ module.exports = Object.freeze({
     isResolvableRelation,
     mentionIsPlainName,
     mentionIsRecipePartName,
-    mentionIsResolvableName,
-    lookupMention,
     entityAliases,
     otherEntityAliases,
     resolveRelationRoot,

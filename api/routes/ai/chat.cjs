@@ -16,7 +16,6 @@ const { aiRuntimeTelemetry } = require('../../services/aiRuntimeTelemetry.cjs');
 const { getAiHealth } = require('../../services/aiHealth.cjs');
 const {
     isOntologyRelationCanaryRequestEligible,
-    isOwnerScopedAiCanaryRequestEligible,
     isTrustedInternalAiRequest,
 } = require('../../services/ontologyRelationCanaryEligibility.cjs');
 const {
@@ -218,7 +217,6 @@ async function handleAiChat(req, res, options = {}) {
             turnState: normalizeAiTurnStateV3(req.body?.turnState),
             providerPreference,
             ontologyRelationCanaryEligible: isOntologyRelationCanaryRequestEligible(req, runtimeEnv),
-            impactEnforcementCanaryEligible: isOwnerScopedAiCanaryRequestEligible(req, runtimeEnv),
             confirmationSubject: confirmationSubjectForRequest(req),
             stream: true,
             emit: send,
@@ -370,9 +368,8 @@ async function processAiChat(text, options = {}) {
         fetchAiProvider: options.fetchAiProvider,
         env: options.env,
         // processAiChat is an internal server-side entry point. The runtime still requires the
-        // independent environment flags before either canary can become authoritative.
+        // independent environment flag before Ontology relation routing can become authoritative.
         ontologyRelationCanaryEligible: true,
-        impactEnforcementCanaryEligible: true,
         dbAccessors: options.dbAccessors,
         stream: false,
         signal: options.signal,

@@ -182,7 +182,7 @@ test('AI SSE：已配置的单轮模型选择传入执行器', async () => {
     assert.match(res.output, /"type":"done"/);
 });
 
-test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner/Internal 资格传入运行时', async () => {
+test('AI SSE：Ontology 关系 Canary 仅把可信 Owner/Internal 资格传入运行时', async () => {
     const env = {
         ACCESS_PASSWORD: 'synthetic-shared-password',
         JWT_SECRET: 'synthetic-jwt-test-secret',
@@ -202,20 +202,17 @@ test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner/Internal 资格传�
         configure(req);
         let received = null;
         await handleAiChat(req, res, { env, runAiDispatcherV3: async input => {
-            received = {
-                ontology: input.ontologyRelationCanaryEligible,
-                impact: input.impactEnforcementCanaryEligible,
-            };
+            received = input.ontologyRelationCanaryEligible;
             return dispatch(input);
         } });
         return received;
     }
     const ownerToken = issueOwnerToken(env.PUMP_OWNER_ACCESS_PASSWORD, env);
     const sharedToken = require('jsonwebtoken').sign({ role: 'admin' }, env.JWT_SECRET, { expiresIn: '1h' });
-    assert.deepEqual(await eligibilityFor(req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { ontology: true, impact: true });
-    assert.deepEqual(await eligibilityFor(req => { req.headers['x-internal-secret'] = env.INTERNAL_SECRET; }), { ontology: true, impact: true });
-    assert.deepEqual(await eligibilityFor(req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), { ontology: false, impact: false });
-    assert.deepEqual(await eligibilityFor(req => { req.user = { role: 'admin', owner: true }; req.headers['x-owner'] = 'true'; }), { ontology: false, impact: false });
+    assert.equal(await eligibilityFor(req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), true);
+    assert.equal(await eligibilityFor(req => { req.headers['x-internal-secret'] = env.INTERNAL_SECRET; }), true);
+    assert.equal(await eligibilityFor(req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), false);
+    assert.equal(await eligibilityFor(req => { req.user = { role: 'admin', owner: true }; req.headers['x-owner'] = 'true'; }), false);
 });
 
 test('AI SSE：非法或未配置的单轮模型选择在路由边界拒绝', async () => {
