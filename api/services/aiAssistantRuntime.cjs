@@ -54,6 +54,7 @@ const { createBusinessImpactProjection } = require('../business-impact/projectio
 const { buildImpactEvidenceBundle, modelImpactEvidenceMessage } = require('../business-impact/evidenceBundle.cjs');
 const { enforceImpactAnswerBoundary } = require('../business-impact/answerBoundary.cjs');
 const { IMPACT_ENFORCEMENT_FLAG } = require('../business-impact/enforcementContract.cjs');
+const { buildCompatibilityRead, enforceCompatibilityAnswer } = require('./l5OffCompatibility.cjs');
 
 const { normalizeUserConfigurationOverrides } = require('./recipeConfigurationBaseline.cjs');
 
@@ -614,6 +615,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         }
         if (semanticEnforcementActive) for (const name of ['get_all_recipes', 'get_recipe_detail', 'search_coils',
             'calculate_coil_cost', 'get_copper_price', 'search_templates', 'search_parts', 'preview_recipe_cost', 'full_calculate']) allowed.add(name);
+        // L5-P3R: a non-impact exact-name cost question must retain the pre-L5 canonical identity
+        // outcome even when an optional descriptor (recipe.spec) is blank. This is a bounded formal
+        // catalogue read keyed by the already-classified business token; it is not Impact evidence and
+        // it never turns a partial/fuzzy candidate into identity.
+        const compatibilityRead = !semanticEnforcementActive && !impactEligibilityResult.eligible
+            ? buildCompatibilityRead(latest.content) : null;
+        if (compatibilityRead) allowed.add(compatibilityRead.capability);
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
             ? [messages.at(-1)]
@@ -628,6 +636,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let maxSemanticEvidencePlanBytes = 0;
         let maxSemanticFrameBytes = 0;
         const semanticCallMetadata = new Map();
+        const compatibilityCallIds = new Set();
         let latestSemanticPlan = null;
         let impactEvidencePrepared = false;
         let impactProjectionCalls = 0;
@@ -650,6 +659,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             });
         };
         let requiredSemanticEvidenceCalls = semanticToolCalls();
+        let requiredCompatibilityCalls = compatibilityRead ? [{
+            id: `l5-off-compatibility-${crypto.randomUUID()}`,
+            type: 'function',
+            function: { name: compatibilityRead.capability, arguments: JSON.stringify(compatibilityRead.arguments) },
+        }] : [];
+        for (const call of requiredCompatibilityCalls) compatibilityCallIds.add(call.id);
         let requiredCoilComparisonCalls = coilComparisonPairs.map(pair => ({
             id: `required-calculate_coil_cost-${crypto.randomUUID()}`,
             type: 'function',
@@ -680,6 +695,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             if (requiredSemanticEvidenceCalls.length) {
                 answer = { content: '', tool_calls: requiredSemanticEvidenceCalls };
                 requiredSemanticEvidenceCalls = [];
+            } else if (requiredCompatibilityCalls.length) {
+                answer = { content: '', tool_calls: requiredCompatibilityCalls };
+                requiredCompatibilityCalls = [];
             } else if (requiredCoilComparisonCalls.length) {
                 answer = { content: '', tool_calls: requiredCoilComparisonCalls };
                 requiredCoilComparisonCalls = [];
@@ -867,7 +885,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 break;
             }
             const softwarePlannedBatch = proposed.length > 0
-                && proposed.every(call => semanticCallMetadata.has(call.id) || relationCallIds.has(call.id));
+                && proposed.every(call => semanticCallMetadata.has(call.id) || relationCallIds.has(call.id)
+                    || compatibilityCallIds.has(call.id));
             if (calls + proposed.length > MAX_TOOL_CALLS || (offered.length === 0 && !softwarePlannedBatch)) {
                 if (offered.length && round < MAX_TOOL_ROUNDS - 1) {
                     finishQueries = true;
@@ -889,12 +908,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 const toolStarted = Date.now();
                 const semanticMetadata = semanticCallMetadata.get(call.id);
                 const deterministicRelationCall = relationCallIds.has(call.id);
+                const deterministicCompatibilityCall = compatibilityCallIds.has(call.id);
                 try {
                     if (!allowed.has(name)) throw Object.assign(new Error('本轮只开放已登记的只读业务工具；业务修改需要本人确认，当前未启用。'), { code: 'AI_TOOL_NOT_ALLOWED' });
                     // Software-planned semantic and relation calls already carry validated provenance.
                     // Passing them through model-oriented candidate/target repair can replace a verified
                     // canonical ID with a fuzzy user phrase, violating the dependency rule.
-                    const groundedCall = semanticMetadata || deterministicRelationCall ? call : groundMissingTargetArgument(
+                    const groundedCall = semanticMetadata || deterministicRelationCall || deterministicCompatibilityCall ? call : groundMissingTargetArgument(
                         sanitizeModelInferredFilters(groundCandidateSelectionArgument(
                             call, name, latest.content, continuationToolResults
                         ), name, latest.content),
@@ -921,7 +941,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     // The semantic planner has already validated provenance and canonical dependencies.
                     // The legacy guard only understands user/model-derived numbers and would reject a
                     // verified recipe configuration (for example its coil sheet count) as "ungrounded".
-                    const issue = semanticMetadata ? null : validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...continuationToolResults, ...toolResults] });
+                    const issue = semanticMetadata || deterministicCompatibilityCall ? null : validateAiToolIdentifierGrounding({ toolName: name, args, messages: savedMemoryState ? [...messages, { role: 'user', content: session.previous.pendingQuestion }] : messages, pageContext, toolResults: [...continuationToolResults, ...toolResults] });
                     if (issue) throw Object.assign(new Error(issue.error), { code: issue.code });
                     const key = `${name}:${JSON.stringify(args)}`;
                     if (seen.has(key)) result = seen.get(key);
@@ -959,7 +979,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                     planningSource: 'BUSINESS_SEMANTIC_EVIDENCE_PLAN',
                     argumentProvenance: semanticMetadata.argumentProvenance,
                     dependsOnFacts: semanticMetadata.dependsOnFacts,
-                } : {}) });
+                } : deterministicCompatibilityCall ? { planningSource: 'L5_OFF_COMPATIBILITY_V1' } : {}) });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
                 current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments, userText: latest.content })));
@@ -1073,6 +1093,15 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 userText: latest.content, toolResults, impactEligibility: impactEligibilityResult });
             finalContent = impactBoundary.answer;
         }
+        let compatibilityBoundary = null;
+        if (!finalContentStreamed && compatibilityRead) {
+            compatibilityBoundary = enforceCompatibilityAnswer({
+                userText: latest.content,
+                toolResults,
+                answer: finalContent,
+            });
+            finalContent = compatibilityBoundary.answer;
+        }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);
         if (!finalContentStreamed) emit('content', { content: finalContent });
@@ -1144,7 +1173,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 fallbackType: impactBoundary?.fallbackType || null,
                 replaced: impactBoundary?.replaced || false,
                 additionalProviderCalls: 0, businessWrites: 0,
-            } : { version: 1, eligible: false, projectionCalls: 0 } } };
+            } : { version: 1, eligible: false, projectionCalls: 0 },
+            l5OffCompatibility: compatibilityRead ? {
+                version: 1,
+                plannedReads: compatibilityCallIds.size,
+                canonicalStatus: compatibilityBoundary?.evidence?.status || null,
+                replaced: compatibilityBoundary?.replaced || false,
+            } : null } };
     } catch (error) {
         if (savedMemoryState) session.finish({ ...session.previous, ...savedMemoryState });
         else session.cancel();
