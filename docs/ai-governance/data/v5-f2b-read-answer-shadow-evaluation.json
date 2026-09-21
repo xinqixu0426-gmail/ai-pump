@@ -1,0 +1,385 @@
+{
+  "version": 1,
+  "status": "BLOCKED",
+  "phase": "PRE_IMPLEMENTATION_HANDOFF_PREFLIGHT",
+  "startCommit": "62e89d2d076c7265747d39b6b555ac20eeb39041",
+  "formalAnswerEvaluationRuns": 0,
+  "answerImplementation": "NOT_IMPLEMENTED",
+  "frozenPaths": 15,
+  "answerApplicablePaths": 15,
+  "certifiedAnswerFactHandoffAvailable": 3,
+  "certifiedAnswerFactHandoffMissing": 12,
+  "frozenBaseline": {
+    "readExecution": "15/15",
+    "resultEquivalence": "15/15",
+    "taskVerification": "15/15",
+    "priceHandoff": "3/3"
+  },
+  "probes": [
+    {
+      "capabilityId": "inventory.read",
+      "factKey": "inventory.quantity",
+      "syntheticVerification": "PASS",
+      "runtimeHandoffAvailable": false
+    },
+    {
+      "capabilityId": "coil.read",
+      "factKey": "coil.inventory",
+      "syntheticVerification": "PASS",
+      "runtimeHandoffAvailable": false
+    },
+    {
+      "capabilityId": "recipe.cost.preview",
+      "factKey": "recipe.cost.preview",
+      "syntheticVerification": "PASS",
+      "runtimeHandoffAvailable": false
+    },
+    {
+      "capabilityId": "inventory.read",
+      "factKey": "price.current",
+      "syntheticVerification": "PASS",
+      "runtimeHandoffAvailable": true
+    }
+  ],
+  "syntheticExecutions": 4,
+  "unsupportedFactAccessRejected": 3,
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "handoffAvailableFromFrozenB1": true,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_ANSWER_IMPLEMENTATION"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "handoffAvailableFromFrozenB1": true,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_ANSWER_IMPLEMENTATION"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "price.current"
+      ],
+      "handoffAvailableFromFrozenB1": true,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_ANSWER_IMPLEMENTATION"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "answerApplicable": true,
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "handoffAvailableFromFrozenB1": false,
+      "answerStatus": "ANSWER_NOT_GENERATED",
+      "answerContractValid": null,
+      "claimGrounding": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "answerModelCalls": 0,
+      "reasonCodes": [
+        "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE"
+      ]
+    }
+  ],
+  "realToolCalls": 0,
+  "realBusinessApiCalls": 0,
+  "modelCalls": 0,
+  "writes": 0,
+  "productionRouting": 0,
+  "userVisibleAnswers": 0,
+  "preflightPreHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "7f2dd9eef3657c3879109c52cc5e26ec50d64b1b2794056b9330441d1b101f43",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "c290f56f93dd2342f7d06b1f4a8de2b5bbe07aa54c5f1569762cf60ce9eeb257",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "8120b29693f2c71046382015f5708783a4ec73575a0a414243c2bb5196868d23"
+  },
+  "preflightPostHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "7f2dd9eef3657c3879109c52cc5e26ec50d64b1b2794056b9330441d1b101f43",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "c290f56f93dd2342f7d06b1f4a8de2b5bbe07aa54c5f1569762cf60ce9eeb257",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "8120b29693f2c71046382015f5708783a4ec73575a0a414243c2bb5196868d23"
+  },
+  "frozenHashesMatch": true,
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true,
+  "blockers": [
+    "CERTIFIED_RUNTIME_VALUE_HANDOFF_UNAVAILABLE_FOR_TWELVE_PATHS"
+  ],
+  "validation": {
+    "handoffPreflight": "PASS",
+    "combinedV5Tests": { "passed": 322, "total": 322 },
+    "baselineRegression": { "passed": 2084, "total": 2085, "knownFailure": "MISSING_GUARDIAN_CONFIG", "newRegression": false },
+    "answerTests": "NOT_RUN",
+    "answerPerformance": "NOT_RUN",
+    "answerConcurrency": "NOT_RUN",
+    "productionCodeChanged": false,
+    "dependenciesChanged": false
+  },
+  "P16_C_READY": false
+}

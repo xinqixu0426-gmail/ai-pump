@@ -1,0 +1,29 @@
+{
+  "name": "水泵工厂管理系统",
+  "short_name": "水泵工厂",
+  "description": "水泵工厂管理 PWA — 统一管理零件、模板、配方、报价、订单、采购与出图",
+  "start_url": "/ai",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0f1a",
+  "theme_color": "#071018",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

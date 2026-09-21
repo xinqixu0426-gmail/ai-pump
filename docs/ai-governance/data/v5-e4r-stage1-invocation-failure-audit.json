@@ -1,0 +1,96 @@
+{
+  "failedCaseId": "P06-COIL-001-LEGACY",
+  "auditStatus": "PASS",
+  "failureLayer": "PROVIDER_REQUEST_VALIDATION",
+  "primaryClassification": "JSON_MODE_COMPATIBILITY",
+  "secondaryClassifications": ["MODEL_REQUEST_PARAMETER_BUG", "ERROR_WRAPPING_LOST_CAUSE", "EVALUATION_HARNESS_BUG"],
+  "originalProviderErrorRecoverable": false,
+  "historicalAttributionStrength": "STRONG_REPRODUCTION_NOT_ORIGINAL_ERROR_RECOVERY",
+  "requestShapeDifferences": ["STAGE_SPECIFIC_MESSAGES_REPLACE_HISTORICAL_MESSAGES", "NO_JSON_TOKEN_IN_STAGE_INSTRUCTIONS", "REQUEST_LOCAL_PROVIDER_MODEL_ENV", "OBSERVATION_STREAMING_METADATA_OMITTED"],
+  "firstErrorConverter": "providerHttpError",
+  "firstCauseDiscarder": "callStage.catch",
+  "fatalExitRootCause": "INNER_CATCH_FULFILLS_MAIN_WITHOUT_RETHROW_OR_EXITCODE",
+  "semanticEvaluationIntegrity": "PRESERVED_BUT_NOT_STARTED",
+  "resumeAllowed": false,
+  "failedFirstPathMustBeRerunForFutureValidEvaluation": true,
+  "remainingNeverExecutedPaths": 14,
+  "resumeScope": "NONE_UNTIL_SUPERVISOR_APPROVES_FORMAT_COMPATIBILITY_EXCEPTION",
+  "recommendedFixClasses": ["REQUEST_PARAMETER_FIX", "ERROR_PRESERVATION_FIX", "EVALUATOR_FATAL_EXIT_FIX"],
+  "nextStageReady": false,
+  "safeReasonCodes": ["JSON_FORMAT_MESSAGE_PRECONDITION_MISSING", "PROMPT_FREEZE_REQUIRES_SUPERVISOR_EXCEPTION", "NO_FROZEN_CASE_RERUN", "NO_PRODUCTION_CHANGE"],
+  "syntheticCalls": 2,
+  "canaryB": "FAIL",
+  "wire": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "endpointHost": "api.deepseek.com",
+    "endpointPath": "/chat/completions",
+    "temperature": 0,
+    "topP": "OMITTED",
+    "responseFormat": {
+      "type": "json_object"
+    },
+    "maxTokens": 512,
+    "roles": [
+      "system",
+      "user"
+    ],
+    "stringContents": true,
+    "toolsPresent": false,
+    "stream": false,
+    "thinking": {
+      "type": "disabled"
+    },
+    "signalPresent": true,
+    "messageHasJsonToken": false,
+    "historicalInstructionHasJsonToken": true
+  },
+  "underlying": {
+    "errorClass": "AiProviderHttpError",
+    "code": "AI_PROVIDER_REQUEST_ERROR",
+    "httpStatus": 400,
+    "retryable": false,
+    "causePresent": false
+  },
+  "httpStatus": 400,
+  "providerReason": "UNCLASSIFIED_PROVIDER_REJECTION",
+  "providerErrorType": "invalid_request_error",
+  "canaryA": "FAIL",
+  "canaryStatus": "ERROR",
+  "wrapperPreservedCode": false,
+  "wrapperPreservedCause": false,
+  "hashesUnchanged": true,
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true,
+  "fatalControlFlowReproduction": {
+    "exitCode": 0,
+    "fatalRecorded": true
+  },
+  "canaryBReasonFeatures": {
+    "json": true,
+    "prompt": true,
+    "messages": false,
+    "contain": true,
+    "word": true,
+    "required": true
+  },
+  "canaryBProviderReason": "JSON_MODE_REQUIRES_JSON_TOKEN_IN_MESSAGES",
+  "canaryBUnderlying": {
+    "errorClass": "AiProviderHttpError",
+    "code": "AI_PROVIDER_REQUEST_ERROR",
+    "httpStatus": 400,
+    "retryable": false,
+    "causePresent": false
+  }
+}

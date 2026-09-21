@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "audit": "V5-E4R-E-A Entity-First Interpreter Architecture Audit",
+  "frozen_paths": 15,
+  "semantic_wrong_paths": 6,
+  "failure_dimensions": {
+    "ENTITY_DIMENSION_WRONG": 0,
+    "OPERATION_DIMENSION_WRONG": 0,
+    "BOTH_WRONG": 6,
+    "TASK_CLASS_ONLY_MAPPING_WRONG": 0
+  },
+  "factorization": {
+    "task_class_count": 27,
+    "unique_domain_count": 12,
+    "unique_operation_count": 18,
+    "unique_entity_type_count": 16,
+    "flat_class_coupling": true
+  },
+  "resolver": {
+    "path": "api/services/ai-v5/entityResolverAdapter.cjs",
+    "exact_source_identity_input": true,
+    "entity_type_hint_required": true,
+    "external_formal_result_required": true,
+    "type_independent_resolution": false,
+    "read_only": true,
+    "business_api_calls": false,
+    "internal_api_client_calls": false,
+    "direct_db_reads": false,
+    "write_side_effect": false,
+    "supported_entity_types": ["coil", "customer", "order", "part", "recipe", "template"],
+    "frozen_groups_with_resolver_evidence": 1,
+    "frozen_groups_total": 5
+  },
+  "candidate_reduction": {
+    "global_classes": 27,
+    "median_entity_filtered_classes": 1,
+    "max_entity_filtered_classes": 4,
+    "expected_class_survival": "15/15",
+    "groups": [
+      {"source_group":"COIL_INVENTORY","expected_entity_type":"coil","filtered_count":2,"class_refs":["tc_003","tc_004"],"expected_class":"tc_004","survives":true},
+      {"source_group":"EXACT_RECIPE_COST","expected_entity_type":"recipe","filtered_count":4,"class_refs":["tc_017","tc_024","tc_025","tc_026"],"expected_class":"tc_024","survives":true},
+      {"source_group":"FLAT_BLADE_PRICE","expected_entity_type":"part","filtered_count":1,"class_refs":["tc_002"],"expected_class":"tc_002","survives":true},
+      {"source_group":"PART_INVENTORY_PRIMARY","expected_entity_type":"part","filtered_count":1,"class_refs":["tc_002"],"expected_class":"tc_002","survives":true},
+      {"source_group":"PART_INVENTORY_REPEAT","expected_entity_type":"part","filtered_count":1,"class_refs":["tc_002"],"expected_class":"tc_002","survives":true}
+    ]
+  },
+  "cases": [
+    {"case_id":"P06-COIL-001-LEGACY","source_group":"COIL_INVENTORY","expected_class":"tc_004","actual_class":"tc_002","expected_domain":"coil","actual_domain":"catalog","expected_operation":"read","actual_operation":"read_inventory","expected_entity_type":"coil","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"coil.read","actual_capability":"inventory.read","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":2,"prevention":{"A":"MAY_PREVENT","B":"MAY_PREVENT","C":"WOULD_NOT_PREVENT","D":"MAY_PREVENT"}},
+    {"case_id":"P06-COIL-001-V4I","source_group":"COIL_INVENTORY","expected_class":"tc_004","actual_class":"tc_002","expected_domain":"coil","actual_domain":"catalog","expected_operation":"read","actual_operation":"read_inventory","expected_entity_type":"coil","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"coil.read","actual_capability":"inventory.read","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":2,"prevention":{"A":"MAY_PREVENT","B":"MAY_PREVENT","C":"WOULD_NOT_PREVENT","D":"MAY_PREVENT"}},
+    {"case_id":"P06-COIL-001-V4R3","source_group":"COIL_INVENTORY","expected_class":"tc_004","actual_class":"tc_002","expected_domain":"coil","actual_domain":"catalog","expected_operation":"read","actual_operation":"read_inventory","expected_entity_type":"coil","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"coil.read","actual_capability":"inventory.read","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":2,"prevention":{"A":"MAY_PREVENT","B":"MAY_PREVENT","C":"WOULD_NOT_PREVENT","D":"MAY_PREVENT"}},
+    {"case_id":"P06-EXACT-001-LEGACY","source_group":"EXACT_RECIPE_COST","expected_class":"tc_024","actual_class":"tc_024","expected_domain":"recipe","actual_domain":"recipe","expected_operation":"preview_cost","actual_operation":"preview_cost","expected_entity_type":"recipe","actual_entity_type":"recipe","span_correct":true,"anchor_correct":true,"expected_capability":"recipe.cost.preview","actual_capability":"recipe.cost.preview","dimension_failure":"NONE","entity_filtered_candidate_count":4},
+    {"case_id":"P06-EXACT-001-V4I","source_group":"EXACT_RECIPE_COST","expected_class":"tc_024","actual_class":"tc_024","expected_domain":"recipe","actual_domain":"recipe","expected_operation":"preview_cost","actual_operation":"preview_cost","expected_entity_type":"recipe","actual_entity_type":"recipe","span_correct":true,"anchor_correct":true,"expected_capability":"recipe.cost.preview","actual_capability":"recipe.cost.preview","dimension_failure":"NONE","entity_filtered_candidate_count":4},
+    {"case_id":"P06-EXACT-001-V4R3","source_group":"EXACT_RECIPE_COST","expected_class":"tc_024","actual_class":"tc_024","expected_domain":"recipe","actual_domain":"recipe","expected_operation":"preview_cost","actual_operation":"preview_cost","expected_entity_type":"recipe","actual_entity_type":"recipe","span_correct":true,"anchor_correct":true,"expected_capability":"recipe.cost.preview","actual_capability":"recipe.cost.preview","dimension_failure":"NONE","entity_filtered_candidate_count":4},
+    {"case_id":"P06-FLATBLADE-001-LEGACY","source_group":"FLAT_BLADE_PRICE","expected_class":"tc_002","actual_class":"tc_003","expected_domain":"catalog","actual_domain":"coil","expected_operation":"read_inventory","actual_operation":"cost","expected_entity_type":"part","actual_entity_type":"coil","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"coil.cost","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":1,"prevention":{"A":"WOULD_PREVENT","B":"WOULD_PREVENT","C":"WOULD_NOT_PREVENT","D":"WOULD_PREVENT"}},
+    {"case_id":"P06-FLATBLADE-001-V4I","source_group":"FLAT_BLADE_PRICE","expected_class":"tc_002","actual_class":"tc_003","expected_domain":"catalog","actual_domain":"coil","expected_operation":"read_inventory","actual_operation":"cost","expected_entity_type":"part","actual_entity_type":"coil","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"coil.cost","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":1,"prevention":{"A":"WOULD_PREVENT","B":"WOULD_PREVENT","C":"WOULD_NOT_PREVENT","D":"WOULD_PREVENT"}},
+    {"case_id":"P06-FLATBLADE-001-V4R3","source_group":"FLAT_BLADE_PRICE","expected_class":"tc_002","actual_class":"tc_003","expected_domain":"catalog","actual_domain":"coil","expected_operation":"read_inventory","actual_operation":"cost","expected_entity_type":"part","actual_entity_type":"coil","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"coil.cost","dimension_failure":"BOTH_WRONG","entity_filtered_candidate_count":1,"prevention":{"A":"WOULD_PREVENT","B":"WOULD_PREVENT","C":"WOULD_NOT_PREVENT","D":"WOULD_PREVENT"}},
+    {"case_id":"P06-INVENTORY-001-LEGACY","source_group":"PART_INVENTORY_PRIMARY","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1},
+    {"case_id":"P06-INVENTORY-001-V4I","source_group":"PART_INVENTORY_PRIMARY","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1},
+    {"case_id":"P06-INVENTORY-001-V4R3","source_group":"PART_INVENTORY_PRIMARY","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1},
+    {"case_id":"P06-SIMPLE-001-LEGACY","source_group":"PART_INVENTORY_REPEAT","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1},
+    {"case_id":"P06-SIMPLE-001-V4I","source_group":"PART_INVENTORY_REPEAT","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1},
+    {"case_id":"P06-SIMPLE-001-V4R3","source_group":"PART_INVENTORY_REPEAT","expected_class":"tc_002","actual_class":"tc_002","expected_domain":"catalog","actual_domain":"catalog","expected_operation":"read_inventory","actual_operation":"read_inventory","expected_entity_type":"part","actual_entity_type":"part","span_correct":true,"anchor_correct":true,"expected_capability":"inventory.read","actual_capability":"inventory.read","dimension_failure":"NONE","entity_filtered_candidate_count":1}
+  ],
+  "decision": {
+    "flat_task_class_architecture_root_cause": "CONFIRMED",
+    "recommended_architecture": "TWO_STAGE_SPAN_ENTITY_LOCAL_INTENT",
+    "model_global_27_way_selection_removed": true,
+    "option_b_failure_prevention": {"WOULD_PREVENT":3,"MAY_PREVENT":3,"WOULD_NOT_PREVENT":0,"UNKNOWN":0},
+    "external_contract_v1_sufficient": true,
+    "source_anchor": "KEEP_EXACT",
+    "implementation_prerequisite": "READ_ONLY_TYPE_INDEPENDENT_AUTHORITATIVE_RESOLUTION_BOUNDARY"
+  }
+}

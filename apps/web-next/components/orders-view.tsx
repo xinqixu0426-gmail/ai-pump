@@ -1,0 +1,1015 @@
+'use client';
+
+import { useBusinessRefresh } from '@/lib/use-business-refresh';
+
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { AnimatePresence } from 'motion/react';
+import { CircleAlert, Plus, RefreshCw, Save, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { getAllCustomers, type Customer } from '@/lib/customers';
+import {
+  calcOrderTotals,
+  commitOrderUpdate,
+  createOrder,
+  createOrderItemFromRecipe,
+  getAllOrders,
+  prepareOrderUpdate,
+  type Order,
+  type OrderItem,
+  type OrderSavePayloadDraft,
+  type OrderStatus,
+} from '@/lib/orders';
+import { getAllRecipes, type Recipe } from '@/lib/recipes';
+import { getAllParts, type Part } from '@/lib/parts';
+import {
+  buildPackingOptions,
+  previewRecipeConfiguration,
+  type RecipeConfigurationOverrides,
+} from '@/lib/recipe-configurations';
+import { dateShort, money } from '@/lib/format';
+import {
+  customerMarginPercent,
+  marginMultiplierToPercent,
+  marginPercentToMultiplier,
+} from '@/lib/pricing-margin';
+import { FadePanel } from '@/components/motion/fade-panel';
+import { PresenceRow } from '@/components/motion/presence-row';
+import { OrderDetailDrawer } from '@/components/order-detail-drawer';
+import { SlideOver } from '@/components/motion/slide-over';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { BusinessAlertsBanner } from '@/components/business-alerts-banner';
+import { MetricCard, MetricGrid } from '@/components/ui/metric-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { FormError } from '@/components/ui/form-error';
+import { selectInputValueOnFocus } from '@/components/ui/field';
+import { ListToolbar } from '@/components/ui/list-toolbar';
+import { PageHeader } from '@/components/ui/page-header';
+import { StatusBadge, type StatusBadgeTone } from '@/components/ui/status-badge';
+import { TableScrollArea } from '@/components/ui/table-scroll-area';
+import { replacePageLocation } from '@/lib/page-context';
+import { createLatestPreviewCoordinator } from '@/lib/latest-preview.cjs';
+import {
+  appendPendingOrderItem,
+  applyOrderItemPreview,
+  buildPendingOrderItem,
+  removeCalculatingItemId,
+  removeOrderDraftItem,
+  rollbackOrderItemConfiguration,
+} from '@/lib/order-draft-state.cjs';
+import { useConfirmDiscard } from '@/hooks/use-confirm-discard';
+import { OrderItemConfigurationEditor } from '@/components/order-item-configuration-editor';
+
+const statusOptions: Array<{ value: OrderStatus | '全部'; label: string }> = [
+  { value: '全部', label: '全部状态' },
+  { value: '待确认', label: '待确认' },
+  { value: '待采购', label: '待采购' },
+  { value: '采购中', label: '采购中' },
+  { value: '采购完成', label: '采购完成' },
+  { value: '已关闭', label: '已关闭' },
+  { value: '已取消', label: '已取消' },
+];
+
+const statusTones: Record<OrderStatus, StatusBadgeTone> = {
+  待确认: 'slate',
+  待采购: 'amber',
+  采购中: 'blue',
+  采购完成: 'green',
+  已关闭: 'slate',
+  已取消: 'red',
+};
+
+export function OrdersView({
+  initialOrderId = null,
+  initialDetailTab = 'items',
+}: {
+  initialOrderId?: number | null;
+  initialDetailTab?: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions';
+}) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [auxLoading, setAuxLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<OrderStatus | '全部'>('全部');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editReason, setEditReason] = useState('');
+  const [updateConfirmTarget, setUpdateConfirmTarget] = useState<{
+    order: Order;
+    draft: OrderSavePayloadDraft;
+  } | null>(null);
+  const [customerId, setCustomerId] = useState('');
+  const [contractNo, setContractNo] = useState('');
+  const [remark, setRemark] = useState('');
+  const [recipeId, setRecipeId] = useState('');
+  const [itemQty, setItemQty] = useState('1');
+  const [itemMargin, setItemMargin] = useState('10');
+  const [pendingItem, setPendingItem] = useState<OrderItem | null>(null);
+  const [draftItems, setDraftItems] = useState<OrderItem[]>([]);
+  const [calculatingItemIds, setCalculatingItemIds] = useState<Set<string>>(() => new Set());
+  const configurationPreviewCoordinatorRef = useRef(createLatestPreviewCoordinator<string>());
+  const pendingItemIdRef = useRef<string | null>(null);
+  const draftItemIdsRef = useRef<Set<string>>(new Set());
+  const initialOrderHandledRef = useRef<number | null>(null);
+  const {
+    dirty: formDirty,
+    discardPromptOpen,
+    discardMessage,
+    markDirty: markFormDirty,
+    resetDirty: resetFormDirty,
+    requestClose: requestDrawerClose,
+    confirmDiscard,
+    cancelDiscard,
+  } = useConfirmDiscard({
+    open: drawerOpen,
+    busy: saving,
+    onDiscard: closeFormDrawer,
+  });
+
+  function closeFormDrawer() {
+    setDrawerOpen(false);
+    setEditingOrder(null);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
+  }
+
+  const loadVersion = useRef(0);
+  const load = useCallback(async (force = false, background = false) => {
+    const version = ++loadVersion.current;
+    if (!background) {
+      setError(null);
+      if (force) setRefreshing(true);
+      else setLoading(true);
+    }
+
+    try {
+      const data = await getAllOrders(background ? AbortSignal.timeout(10000) : undefined);
+      if (version !== loadVersion.current) return false;
+      setOrders(data);
+      if (initialOrderId && initialOrderHandledRef.current !== initialOrderId) {
+        initialOrderHandledRef.current = initialOrderId;
+        const target = data.find((order) => Number(order.id) === initialOrderId);
+        if (target) setSelectedOrder(target);
+        else setError(`没有找到订单 #${initialOrderId}`);
+      }
+      return true;
+    } catch (err) {
+      if (version !== loadVersion.current) return false;
+      if (!background) setError(err instanceof Error ? err.message : '订单加载失败');
+      return false;
+    } finally {
+      if (version === loadVersion.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [initialOrderId]);
+
+  useBusinessRefresh(() => load(false, true));
+
+  useEffect(() => {
+    void load();
+    return () => { loadVersion.current += 1; };
+  }, [load]);
+
+  async function loadAuxiliary(marginCustomerId?: string) {
+    if (customers.length > 0 && recipes.length > 0 && parts.length > 0) {
+      if (marginCustomerId) {
+        const marginCustomer = customers.find(customer => String(customer.id) === marginCustomerId);
+        setItemMargin(customerMarginPercent(marginCustomer?.defaultMargin));
+      }
+      return;
+    }
+    setAuxLoading(true);
+    try {
+      const [nextCustomers, nextRecipes, nextParts] = await Promise.all([
+        getAllCustomers(),
+        getAllRecipes(),
+        getAllParts(),
+      ]);
+      setCustomers(nextCustomers);
+      setRecipes(nextRecipes);
+      setParts(nextParts);
+      if (marginCustomerId) {
+        const marginCustomer = nextCustomers.find(customer => String(customer.id) === marginCustomerId);
+        setItemMargin(customerMarginPercent(marginCustomer?.defaultMargin));
+      }
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '订单表单数据加载失败');
+    } finally {
+      setAuxLoading(false);
+    }
+  }
+
+  function openCreateDrawer() {
+    resetFormDirty();
+    setFormError(null);
+    setEditingOrder(null);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
+    setCustomerId('');
+    setContractNo('');
+    setRemark('');
+    setRecipeId('');
+    setItemQty('1');
+    setItemMargin('10');
+    pendingItemIdRef.current = null;
+    setPendingItem(null);
+    setDraftItems([]);
+    draftItemIdsRef.current = new Set();
+    setCalculatingItemIds(new Set());
+    configurationPreviewCoordinatorRef.current.clear();
+    setDrawerOpen(true);
+    void loadAuxiliary();
+  }
+
+  function openEditDrawer(order: Order) {
+    resetFormDirty();
+    setFormError(null);
+    setSelectedOrder(null);
+    replacePageLocation('/orders');
+    setEditingOrder(order);
+    setEditReason('');
+    setUpdateConfirmTarget(null);
+    setCustomerId(order.customerId == null ? '' : String(order.customerId));
+    setContractNo(order.contractNo || '');
+    setRemark(order.remark || '');
+    setRecipeId('');
+    setItemQty('1');
+    pendingItemIdRef.current = null;
+    setPendingItem(null);
+    const nextItems = order.items.map(item => ({
+      ...item,
+      configurationOverrides: item.configurationOverrides
+        ? { ...item.configurationOverrides }
+        : undefined,
+      configurationWarnings: item.configurationWarnings
+        ? [...item.configurationWarnings]
+        : undefined,
+    }));
+    setDraftItems(nextItems);
+    draftItemIdsRef.current = new Set(nextItems.map(item => item.id));
+    setCalculatingItemIds(new Set());
+    configurationPreviewCoordinatorRef.current.clear();
+    setDrawerOpen(true);
+    void loadAuxiliary(String(order.customerId));
+  }
+
+  function openOrder(order: Order, detailTab: 'requirements' | 'readiness' | 'execution' | 'items' | 'purchase' | 'todos' | 'revisions' = 'items') {
+    setSelectedOrder(order);
+    replacePageLocation(`/orders?orderId=${order.id}&view=${detailTab}`);
+  }
+
+  function closeOrder() {
+    setSelectedOrder(null);
+    replacePageLocation('/orders');
+  }
+
+  const filteredOrders = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return orders.filter((order) => {
+      const matchesStatus = status === '全部' || order.status === status;
+      const text = `${order.customerName} ${order.contractNo || ''} ${order.remark || ''}`.toLowerCase();
+      return matchesStatus && (!normalizedQuery || text.includes(normalizedQuery));
+    });
+  }, [orders, query, status]);
+
+  const stats = useMemo(() => {
+    const pending = orders.filter((order) => order.status === '待确认' || order.status === '待采购').length;
+    const purchasing = orders.filter((order) => order.status === '采购中').length;
+    const totalPrice = orders.reduce((sum, order) => sum + order.totalPrice, 0);
+    const totalProfit = orders.reduce((sum, order) => sum + order.totalProfit, 0);
+    return { pending, purchasing, totalPrice, totalProfit };
+  }, [orders]);
+
+  const selectedFreshOrder = selectedOrder
+    ? orders.find((order) => order.id === selectedOrder.id) || selectedOrder
+    : null;
+
+  const selectedCustomer = customers.find((customer) => String(customer.id) === customerId);
+  const selectedRecipe = recipes.find((recipe) => String(recipe.id) === recipeId);
+  const draftTotals = useMemo(() => calcOrderTotals(draftItems), [draftItems]);
+  const packingOptions = useMemo(() => buildPackingOptions(parts, recipes), [parts, recipes]);
+
+  function onCustomerChange(nextId: string) {
+    setCustomerId(nextId);
+    const customer = customers.find((item) => String(item.id) === nextId);
+    const marginPercent = customerMarginPercent(customer?.defaultMargin);
+    const nextMargin = marginPercentToMultiplier(marginPercent);
+    setItemMargin(marginPercent);
+    setPendingItem(current => current ? {
+      ...current,
+      profitMargin: nextMargin,
+      unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+      pricingMode: 'margin',
+    } : current);
+  }
+
+  function onRecipeChange(nextId: string) {
+    const previousPendingId = pendingItemIdRef.current;
+    if (previousPendingId) {
+      configurationPreviewCoordinatorRef.current.clear(previousPendingId);
+      setCalculatingItemIds(current => removeCalculatingItemId(current, previousPendingId));
+    }
+    setRecipeId(nextId);
+    setFormError(null);
+    const recipe = recipes.find(item => String(item.id) === nextId);
+    if (!recipe) {
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
+      return;
+    }
+    try {
+      const nextPendingItem = buildPendingOrderItem(
+        recipe,
+        itemQty,
+        marginPercentToMultiplier(itemMargin),
+        createOrderItemFromRecipe,
+      );
+      pendingItemIdRef.current = nextPendingItem.id;
+      setPendingItem(nextPendingItem);
+    } catch (err) {
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
+      setFormError(err instanceof Error ? err.message : '订单产品成本初始化失败');
+    }
+  }
+
+  function onPendingQtyChange(value: string) {
+    setItemQty(value);
+    setPendingItem(current => current ? {
+      ...current,
+      qty: Math.max(1, Number(value) || 1),
+    } : current);
+  }
+
+  function onPendingMarginChange(value: string) {
+    setItemMargin(value);
+    const nextMargin = marginPercentToMultiplier(value);
+    setPendingItem(current => current ? {
+      ...current,
+      profitMargin: nextMargin,
+      unitPrice: Math.round(current.unitCost * nextMargin * 100) / 100,
+      pricingMode: 'margin',
+    } : current);
+  }
+
+  async function addDraftItem() {
+    if (!selectedRecipe || !pendingItem) {
+      setFormError('请先选择配方');
+      return;
+    }
+    if (calculatingItemIds.has(pendingItem.id)) {
+      setFormError('客户配置成本正在重算，请稍候再添加');
+      return;
+    }
+    setAuxLoading(true);
+    setFormError(null);
+    try {
+      draftItemIdsRef.current.add(pendingItem.id);
+      setDraftItems((current) => appendPendingOrderItem(current, pendingItem));
+      markFormDirty();
+      setRecipeId('');
+      setItemQty('1');
+      configurationPreviewCoordinatorRef.current.clear(pendingItem.id);
+      pendingItemIdRef.current = null;
+      setPendingItem(null);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '订单产品成本计算失败');
+    } finally {
+      setAuxLoading(false);
+    }
+  }
+
+  function updateDraftItem(id: string, patch: Partial<Pick<OrderItem, 'qty' | 'profitMargin' | 'unitPrice'>>) {
+    setDraftItems((current) => current.map((item) => {
+      if (item.id !== id) return item;
+      const nextQty = patch.qty == null ? item.qty : Math.max(1, Number(patch.qty) || 1);
+      const nextMargin = patch.profitMargin == null ? item.profitMargin : Math.max(0.01, Number(patch.profitMargin) || 1);
+      const unitPrice = patch.unitPrice == null ? item.unitPrice : Math.max(0, Number(patch.unitPrice) || 0);
+      return {
+        ...item,
+        qty: nextQty,
+        profitMargin: patch.unitPrice == null ? nextMargin : (item.unitCost > 0 ? unitPrice / item.unitCost : nextMargin),
+        unitPrice: patch.unitPrice == null ? Math.round(item.unitCost * nextMargin * 100) / 100 : unitPrice,
+        pricingMode: patch.unitPrice == null ? 'margin' : 'manual',
+      };
+    }));
+  }
+
+  function removeDraftItem(id: string) {
+    configurationPreviewCoordinatorRef.current.clear(id);
+    setCalculatingItemIds(current => removeCalculatingItemId(current, id));
+    draftItemIdsRef.current.delete(id);
+    markFormDirty();
+    setDraftItems(current => removeOrderDraftItem(current, id));
+  }
+
+  async function runConfigurationPreview(
+    item: OrderItem,
+    configurationOverrides: RecipeConfigurationOverrides,
+    handlers: {
+      onSuccess: (preview: Awaited<ReturnType<typeof previewRecipeConfiguration>>) => void;
+      onError: () => boolean;
+    },
+  ) {
+    const recipeIdForPreview = Number(item.recipeId || 0);
+    if (!recipeIdForPreview) return;
+    const itemId = item.id;
+    setCalculatingItemIds(current => new Set(current).add(itemId));
+    setFormError(null);
+    await configurationPreviewCoordinatorRef.current.run(
+      itemId,
+      () => previewRecipeConfiguration(recipeIdForPreview, configurationOverrides),
+      {
+        onSuccess: handlers.onSuccess,
+        onError: (err) => {
+          if (handlers.onError()) {
+            setFormError(err instanceof Error ? err.message : '订单配置成本重算失败');
+          }
+        },
+        onSettled: () => {
+          setCalculatingItemIds(current => {
+            const next = new Set(current);
+            next.delete(itemId);
+            return next;
+          });
+        },
+      },
+    );
+  }
+
+  async function updateDraftItemConfiguration(id: string, patch: RecipeConfigurationOverrides) {
+    const currentItem = draftItems.find(item => item.id === id);
+    if (!currentItem?.recipeId) return;
+
+    const configurationOverrides = { ...(currentItem.configurationOverrides || {}), ...patch };
+    markFormDirty();
+    setDraftItems(current => current.map(item => (
+      item.id === id ? { ...item, configurationOverrides } : item
+    )));
+    await runConfigurationPreview(currentItem, configurationOverrides, {
+      onSuccess: (preview) => {
+        setDraftItems(current => current.map(item => applyOrderItemPreview(item, id, preview)));
+      },
+      onError: () => {
+        if (!draftItemIdsRef.current.has(id)) return false;
+        setDraftItems(current => current.map(item => (
+          rollbackOrderItemConfiguration(item, id, currentItem)
+        )));
+        return true;
+      },
+    });
+  }
+
+  async function updatePendingItemConfiguration(patch: RecipeConfigurationOverrides) {
+    const currentItem = pendingItem;
+    if (!currentItem?.recipeId) return;
+
+    const configurationOverrides = { ...(currentItem.configurationOverrides || {}), ...patch };
+    const currentId = currentItem.id;
+    markFormDirty();
+    setPendingItem(current => current?.id === currentId ? { ...current, configurationOverrides } : current);
+    await runConfigurationPreview(currentItem, configurationOverrides, {
+      onSuccess: (preview) => {
+        setPendingItem(current => applyOrderItemPreview(current, currentId, preview));
+      },
+      onError: () => {
+        if (pendingItemIdRef.current !== currentId) return false;
+        setPendingItem(current => rollbackOrderItemConfiguration(current, currentId, currentItem));
+        return true;
+      },
+    });
+  }
+
+  async function submitOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const customerName = selectedCustomer?.name || '';
+    if (!selectedCustomer || !customerName) {
+      setFormError('请选择客户');
+      return;
+    }
+    if (draftItems.length === 0) {
+      setFormError('至少添加一个订单产品');
+      return;
+    }
+    if (editingOrder && !editReason.trim()) {
+      setFormError('请填写本次修改原因');
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+    setError(null);
+
+    try {
+      if (editingOrder) {
+        const nextOrder: Order = {
+          ...editingOrder,
+          customerId: Number(selectedCustomer.id),
+          customerName,
+          contractNo,
+          remark,
+          items: draftItems,
+        };
+        const draft = await prepareOrderUpdate(nextOrder, editReason);
+        setUpdateConfirmTarget({ order: nextOrder, draft });
+        return;
+      }
+      const created = await createOrder({
+        customerId: Number(selectedCustomer.id),
+        customerName,
+        contractNo,
+        remark,
+        items: draftItems,
+      });
+      await load(true);
+      resetFormDirty();
+      setDrawerOpen(false);
+      setSelectedOrder(created);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '订单创建失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmOrderUpdate() {
+    if (!updateConfirmTarget) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      const updated = await commitOrderUpdate(updateConfirmTarget.order, updateConfirmTarget.draft);
+      await load(true);
+      resetFormDirty();
+      closeFormDrawer();
+      setSelectedOrder(updated);
+    } catch (err) {
+      setUpdateConfirmTarget(null);
+      setFormError(err instanceof Error ? err.message : '订单修改失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="订单"
+        description="跟踪订单状态、销售金额与采购进度。"
+        actions={(
+          <>
+          <Button
+            onClick={() => void load(true)}
+            disabled={refreshing || saving}
+            icon={<RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />}
+          >
+            刷新
+          </Button>
+          <Button variant="primary" onClick={openCreateDrawer} disabled={saving} icon={<Plus size={15} />}>
+            新建订单
+          </Button>
+          </>
+        )}
+      />
+
+      <BusinessAlertsBanner scope="order" />
+
+      <MetricGrid>
+        <MetricCard value={loading ? '—' : String(orders.length)} label="订单总数" delay={0.02} />
+        <MetricCard
+          value={loading ? '—' : String(stats.pending + stats.purchasing)}
+          label="待处理订单"
+          tone={!loading && stats.pending + stats.purchasing > 0 ? 'attention' : 'default'}
+          delay={0.04}
+        />
+        <MetricCard value={loading ? '—' : money(stats.totalPrice)} label="总销售额" delay={0.06} />
+        <MetricCard value={loading ? '—' : money(stats.totalProfit)} label="总利润" delay={0.08} />
+      </MetricGrid>
+
+      <FadePanel className="rounded-panel border border-line bg-white shadow-panel">
+        <ListToolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchLabel="搜索订单"
+          placeholder="搜索客户、合同号或备注"
+          resultText={`显示 ${filteredOrders.length} / ${orders.length} 个订单`}
+          hasActiveFilters={Boolean(query.trim()) || status !== '全部'}
+          onReset={() => {
+            setQuery('');
+            setStatus('全部');
+          }}
+          filters={(
+            <>
+              <SlidersHorizontal size={16} className="text-muted" />
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as OrderStatus | '全部')}
+                aria-label="订单状态筛选"
+                className="h-9 rounded-md border border-line bg-white px-3 text-sm text-ink outline-none focus:border-sky-400"
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </>
+          )}
+        />
+
+        {error ? (
+          <div className="flex items-center gap-2 p-5 text-sm text-rose-700">
+            <CircleAlert size={16} />
+            {error}
+          </div>
+        ) : loading ? (
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="h-12 animate-pulse rounded-md bg-slate-100" />
+            ))}
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <EmptyState
+            title={orders.length === 0 ? '还没有订单' : '没有匹配的订单'}
+            description={orders.length === 0 ? '新建第一张订单后，生产与采购进度会在这里集中展示。' : '调整搜索词或状态筛选后再看。'}
+            action={orders.length === 0 ? (
+              <Button size="sm" variant="primary" onClick={openCreateDrawer} icon={<Plus size={14} />}>新建订单</Button>
+            ) : null}
+          />
+        ) : (
+          <TableScrollArea label="订单列表">
+            <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="w-[28%] border-b border-line px-4 py-3">客户</th>
+                  <th className="w-[14%] border-b border-line px-4 py-3">合同号</th>
+                  <th className="w-[10%] border-b border-line px-4 py-3">状态</th>
+                  <th className="w-[8%] border-b border-line px-4 py-3 text-right">产品数</th>
+                  <th className="w-[14%] border-b border-line px-4 py-3 text-right">销售额</th>
+                  <th className="w-[14%] border-b border-line px-4 py-3 text-right">利润</th>
+                  <th className="w-[12%] border-b border-line px-4 py-3">创建</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence initial={false}>
+                  {filteredOrders.map((order) => (
+                    <PresenceRow
+                      key={order.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`查看订单：${order.customerName || '未命名客户'}${order.contractNo ? `，合同号 ${order.contractNo}` : ''}`}
+                      className="group cursor-pointer transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400"
+                      onClick={() => openOrder(order)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openOrder(order);
+                        }
+                      }}
+                    >
+                      <td className="border-b border-line px-4 py-3">
+                        <div className="font-medium text-ink">{order.customerName || '未命名客户'}</div>
+                        <div className="mt-0.5 max-w-[280px] truncate text-xs text-muted">{order.remark || '无备注'}</div>
+                      </td>
+                      <td className="border-b border-line px-4 py-3 text-muted">{order.contractNo || '-'}</td>
+                      <td className="border-b border-line px-4 py-3 whitespace-nowrap">
+                        <StatusBadge tone={statusTones[order.status]}>{order.status}</StatusBadge>
+                      </td>
+                      <td className="border-b border-line px-4 py-3 text-right text-muted">{order.items.length}</td>
+                      <td className="border-b border-line px-4 py-3 text-right font-medium text-ink">{money(order.totalPrice)}</td>
+                      <td className="border-b border-line px-4 py-3 text-right text-muted">{money(order.totalProfit)}</td>
+                      <td className="border-b border-line px-4 py-3 text-muted">{dateShort(order.createdAt)}</td>
+                    </PresenceRow>
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </TableScrollArea>
+        )}
+      </FadePanel>
+
+      <OrderDetailDrawer
+        order={selectedFreshOrder}
+        open={Boolean(selectedOrder)}
+        initialTab={initialOrderId && selectedOrder && Number(selectedOrder.id) === initialOrderId ? initialDetailTab : 'items'}
+        onClose={closeOrder}
+        onSaved={() => void load(true)}
+        onEdit={openEditDrawer}
+      />
+
+      <SlideOver open={drawerOpen} onClose={requestDrawerClose} size="workspace" ariaLabelledBy="order-form-title">
+        <form onSubmit={submitOrder} onChange={markFormDirty} className="flex min-h-full flex-col">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-white p-5">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted">{editingOrder ? 'Order revision' : 'Order'}</div>
+              <h2 id="order-form-title" className="mt-2 text-xl font-semibold tracking-tight text-ink">
+                {editingOrder ? `编辑订单 #${editingOrder.id}` : '新建订单'}
+              </h2>
+            </div>
+            <button
+              type="button"
+              aria-label="关闭"
+              disabled={saving}
+              onClick={requestDrawerClose}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted transition-colors duration-150 hover:bg-slate-50 hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-5 p-5">
+            <FormError message={formError} />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium text-ink">客户</span>
+                <select
+                  value={customerId}
+                  onChange={(event) => onCustomerChange(event.target.value)}
+                  disabled={auxLoading}
+                  className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
+                >
+                  <option value="">{auxLoading ? '加载客户中' : '选择客户'}</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={String(customer.id)}>{customer.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-ink">合同号</span>
+                <input
+                  value={contractNo}
+                  onChange={(event) => setContractNo(event.target.value)}
+                  className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  placeholder="可选"
+                />
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-medium text-ink">备注</span>
+              <textarea
+                value={remark}
+                onChange={(event) => setRemark(event.target.value)}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                placeholder="交付要求、合同备注等"
+              />
+            </label>
+
+            {editingOrder ? (
+              <label className="block rounded-panel border border-amber-200 bg-amber-50 p-4">
+                <span className="text-sm font-semibold text-amber-950">本次修改原因</span>
+                <span className="ml-1 text-xs text-rose-700">必填</span>
+                <textarea
+                  value={editReason}
+                  onChange={(event) => setEditReason(event.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  className="mt-2 w-full resize-none rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-amber-500"
+                  placeholder="例如：客户将数量调整为20台，并要求取消浮球"
+                />
+                <div className="mt-1 text-xs text-amber-800">保存后会记录修改前后快照和采购计划变化。</div>
+              </label>
+            ) : null}
+
+            <div className="rounded-panel border border-line">
+              <div className="border-b border-line p-4">
+                <div className="text-sm font-semibold text-ink">添加产品</div>
+                <div className="mt-1 text-xs text-muted">选择配方后可按客户要求调整选配；保存时由后端重新锁定最终成本和 BOM。</div>
+              </div>
+              <div className="grid gap-3 p-4 lg:grid-cols-[minmax(18rem,1fr)_8rem_10rem] lg:items-end">
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">配方</span>
+                  <select
+                    value={recipeId}
+                    onChange={(event) => onRecipeChange(event.target.value)}
+                    disabled={auxLoading}
+                    className="mt-2 h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400 disabled:opacity-60"
+                  >
+                    <option value="">{auxLoading ? '加载配方中' : '选择配方'}</option>
+                    {recipes.map((recipe) => (
+                      <option key={recipe.id} value={String(recipe.id)}>
+                        {recipe.name} {recipe.spec ? ` / ${recipe.spec}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">数量</span>
+                  <input
+                    value={itemQty}
+                    onChange={(event) => onPendingQtyChange(event.target.value)}
+                    onFocus={selectInputValueOnFocus}
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-ink">利润率</span>
+                  <div className="relative mt-2">
+                    <input
+                      value={itemMargin}
+                      onChange={(event) => onPendingMarginChange(event.target.value)}
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="h-10 w-full rounded-md border border-line px-3 pr-8 text-sm text-ink outline-none transition-colors duration-150 focus:border-slate-400"
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">%</span>
+                  </div>
+                </label>
+
+              </div>
+              {pendingItem ? (
+                <>
+                  <OrderItemConfigurationEditor
+                    item={pendingItem}
+                    recipe={selectedRecipe}
+                    packingOptions={packingOptions}
+                    calculating={calculatingItemIds.has(pendingItem.id)}
+                    onChange={patch => void updatePendingItemConfiguration(patch)}
+                    onError={setFormError}
+                  />
+                  <div className="flex flex-col gap-3 border-t border-line bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+                      <span>预览成本 <b className="text-ink">{money(pendingItem.unitCost)}</b></span>
+                      <span>销售单价 <b className="text-ink">{money(pendingItem.unitPrice)}</b></span>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => void addDraftItem()}
+                      disabled={auxLoading || saving || calculatingItemIds.has(pendingItem.id)}
+                      icon={<Plus size={15} />}
+                    >
+                      {calculatingItemIds.has(pendingItem.id) ? '成本重算中' : auxLoading ? '添加中' : '加入订单'}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {draftItems.length > 0 ? (
+              <div className="space-y-3">
+                {draftItems.map((item) => (
+                  <section key={item.id} className="overflow-hidden rounded-panel border border-line bg-white">
+                    <div className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(12rem,1fr)_5rem_7rem_7rem_7rem_auto] sm:items-end">
+                      <div>
+                        <div className="text-xs text-muted">产品</div>
+                        <div className="mt-1">
+                          <div className="font-medium text-ink">{item.recipeName}</div>
+                          <div className="mt-0.5 text-xs text-muted">{item.spec || '-'}</div>
+                        </div>
+                      </div>
+                      <label className="block text-xs text-muted">
+                        数量
+                        <input
+                          value={item.qty}
+                          onChange={(event) => updateDraftItem(item.id, { qty: Number(event.target.value) })}
+                          onFocus={selectInputValueOnFocus}
+                          type="number"
+                          min="1"
+                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
+                        />
+                      </label>
+                      <div className="text-right">
+                        <div className="text-xs text-muted">锁定成本</div>
+                        <div className="mt-2 text-sm font-medium text-ink">{money(item.unitCost)}</div>
+                      </div>
+                      <label className="block text-xs text-muted">
+                        利润率
+                        <div className="relative mt-1">
+                          <input
+                            value={marginMultiplierToPercent(item.profitMargin)}
+                            onChange={(event) => updateDraftItem(item.id, { profitMargin: marginPercentToMultiplier(event.target.value) })}
+                            type="number"
+                            min="0"
+                            step="1"
+                            className="h-9 w-full rounded-md border border-line px-2 pr-7 text-right text-sm outline-none"
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted">%</span>
+                        </div>
+                      </label>
+                      <label className="block text-xs text-muted">
+                        销售单价
+                        <input
+                          value={item.unitPrice}
+                          onChange={(event) => updateDraftItem(item.id, { unitPrice: Number(event.target.value) })}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="mt-1 h-9 w-full rounded-md border border-line px-2 text-right text-sm outline-none"
+                        />
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        type="button"
+                        onClick={() => removeDraftItem(item.id)}
+                        icon={<Trash2 size={14} />}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                    <OrderItemConfigurationEditor
+                      item={item}
+                      recipe={recipes.find(recipe => recipe.id === item.recipeId)}
+                      packingOptions={packingOptions}
+                      calculating={calculatingItemIds.has(item.id)}
+                      onChange={patch => void updateDraftItemConfiguration(item.id, patch)}
+                      onError={setFormError}
+                    />
+                  </section>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 rounded-panel border border-line bg-slate-50 p-4 text-sm md:grid-cols-3">
+              <div>
+                <div className="text-xs text-muted">总成本</div>
+                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalCost)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted">总销售额</div>
+                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalPrice)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted">预计利润</div>
+                <div className="mt-1 font-semibold text-ink">{money(draftTotals.totalProfit)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-line bg-white p-4 sm:p-5">
+            <div className="text-xs text-muted" aria-live="polite">{formDirty ? '有未保存修改' : '尚未修改'}</div>
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={requestDrawerClose} disabled={saving}>
+                取消
+              </Button>
+              <Button type="submit" variant="primary" disabled={saving || auxLoading || calculatingItemIds.size > 0} icon={<Save size={15} />}>
+                {saving ? (editingOrder ? '生成预览中' : '创建中') : (editingOrder ? '预览并保存' : '创建订单')}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </SlideOver>
+
+      <ConfirmDialog
+        open={Boolean(updateConfirmTarget)}
+        title="确认保存订单修改？"
+        description={updateConfirmTarget ? (
+          <div className="space-y-3">
+            <div>修改原因：{editReason.trim()}</div>
+            <div>
+              <div className="font-medium text-ink">服务端确认的变化</div>
+              {updateConfirmTarget.draft.changes.length > 0 ? (
+                <ul className="mt-1 list-disc space-y-1 pl-5">
+                  {updateConfirmTarget.draft.changes.slice(0, 8).map((change, index) => (
+                    <li key={`${change.type}-${change.itemId || change.field || index}`}>{change.description}</li>
+                  ))}
+                </ul>
+              ) : <div className="mt-1 text-muted">采购计划将按当前正式数据重新生成。</div>}
+            </div>
+            {updateConfirmTarget.draft.warnings.length > 0 ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                {updateConfirmTarget.draft.warnings.map((warning, index) => (
+                  <div key={`${warning.code || 'warning'}-${index}`}>{warning.message}</div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        confirmLabel="确认保存"
+        cancelLabel="返回修改"
+        busy={saving}
+        onConfirm={() => void confirmOrderUpdate()}
+        onClose={() => setUpdateConfirmTarget(null)}
+        layer="top"
+      />
+
+      <ConfirmDialog
+        open={discardPromptOpen}
+        title="放弃未保存修改？"
+        description={discardMessage}
+        confirmLabel="放弃修改"
+        cancelLabel="继续编辑"
+        confirmVariant="danger"
+        busy={saving}
+        onConfirm={confirmDiscard}
+        onClose={cancelDiscard}
+        layer="top"
+      />
+    </div>
+  );
+}

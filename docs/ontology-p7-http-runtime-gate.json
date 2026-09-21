@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "gate": "ONT-P7",
+  "scope": {
+    "relationFamily": "recipe_coil",
+    "provider": "deepseek",
+    "transport": "POST /api/ai/chat (SSE)",
+    "canaryFlag": "AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED"
+  },
+  "branch": "codex/ont-p1-thin-contract",
+  "commit": "a54345bf159caaec9f8cad89ddb3e6f4e47f1d5d",
+  "generatedAt": "2026-09-18T12:44:48.406Z",
+  "requestedProvider": "deepseek",
+  "actualProvidersSeen": [
+    "deepseek"
+  ],
+  "fallbackCount": 0,
+  "p6CorpusHash": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+  "expectedP6CorpusHash": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+  "artifactHashes": {
+    "tests/helpers/ontologyRoutingCorpus.cjs": "1ee1d64d67b50d8595702670c385b21daa91b227369f81b4e65f8e2234de12c8",
+    "api/ontology/relationRoutingCanary.cjs": "71f47ad20ab50b30d1dc720d4a2c30591164149c7129dc77dc2c4cfc7494b708",
+    "api/ontology/bindingCurrentFacts.cjs": "494aa8c55bf57c6c8c090fa07678924f80dce9b7db1664880869ee982ff8c5f2"
+  },
+  "canaryDefault": "false",
+  "providerEligibility": [
+    "local",
+    "local-first",
+    "deepseek"
+  ],
+  "rollback": {
+    "verified": true,
+    "requiredRestart": false,
+    "requiredDbChange": false,
+    "onRoutingSource": "ONTOLOGY_RELATION_BINDING",
+    "offRoutingSource": "NON_RELATION_SPECIALIZED_PATH"
+  },
+  "resultClassification": "PASS",
+  "primaryBlocker": null,
+  "preflight": {
+    "requestedProvider": "deepseek",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "minimalChat": {
+      "responded": true,
+      "reportedModel": "deepseek-flash"
+    },
+    "actualProvider": "deepseek",
+    "fallbackUsed": false,
+    "ok": true
+  },
+  "metrics": {
+    "positives": 12,
+    "negatives": 12,
+    "runs": 24,
+    "eligibleOn": 7,
+    "ontologyAuthoritativeRouted": 7,
+    "positiveEligibilityRate": "7/12",
+    "notEligiblePositives": 5,
+    "nonEligibleOntologyRouted": 0,
+    "nonEligibleLegacyRouted": 10,
+    "nonEligibleCommandChannel": 2,
+    "ontologyFallbacks": 0,
+    "wrongRoot": 0,
+    "wrongRelation": 0,
+    "wrongDirection": 0,
+    "unauthorizedTools": 0,
+    "writes": 0,
+    "legacyDetectorCallsUnderEligibleOn": 0,
+    "legacyRepairCallsUnderEligibleOn": 0,
+    "ontologyInducedProviderCalls": 0,
+    "offProviderCalls": 56,
+    "onProviderCalls": 47,
+    "offToolCalls": 49,
+    "onToolCalls": 46,
+    "comparablePositives": 7,
+    "notComparablePositives": 5,
+    "answerCorrectOff": 10,
+    "answerCorrectOn": 7,
+    "businessFactRegressions": 0,
+    "canonicalMismatches": 2,
+    "unexplainedMismatches": 0,
+    "sseCompleted": 24,
+    "offMeanLatencyMs": 2820,
+    "onMeanLatencyMs": 3295,
+    "providersSeen": [
+      "deepseek"
+    ]
+  },
+  "gatePassConditions": {
+    "preflightOk": true,
+    "corpusHashUnchanged": true,
+    "providerDeepseekOnly": true,
+    "noFallbackForced": true,
+    "offIsLegacy": true,
+    "onEligibleIsOntology": true,
+    "zeroNonEligibleOntologyRouted": true,
+    "zeroLegacyUnderEligibleOn": true,
+    "zeroWrongBinding": true,
+    "zeroUnauthorizedTool": true,
+    "zeroWrite": true,
+    "zeroOntologyInducedProviderCalls": true,
+    "zeroBusinessFactRegression": true,
+    "zeroUnexplainedMismatch": true,
+    "rollbackOnToOff": true,
+    "fixtureUnchanged": true
+  },
+  "fixtureUnchanged": true
+}

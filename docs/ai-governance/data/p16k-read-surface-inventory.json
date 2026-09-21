@@ -1,0 +1,5034 @@
+{
+  "stage": "P16-K",
+  "mode": "STATIC_AUDIT_NOT_REAL_UAT",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/auth/check",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/auth.cjs",
+      "line": 80,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/environment.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/live",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/health.cjs",
+      "line": 8,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/serviceHealth.cjs",
+        "../services/runtimeDiagnostics.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "getBackupRuntimeState",
+        "buildReadinessSnapshot",
+        "getAutoKnowledgeSyncStatus",
+        "getKnowledgeVectorSyncStatus",
+        "getManagementActionLifecycleMonitorStatus"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/ready",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/health.cjs",
+      "line": 40,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/serviceHealth.cjs",
+        "../services/runtimeDiagnostics.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/health.cjs",
+      "line": 41,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/serviceHealth.cjs",
+        "../services/runtimeDiagnostics.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/parts",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 68,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateParts"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cost/recipe/by-name",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 80,
+      "queryFields": [
+        "name"
+      ],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getRecipeCostByName"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/current-costs",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 92,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getCurrentRecipeCosts"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id/cost",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 103,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getRecipeCostById"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/coil",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 114,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateCoil"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/float",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 125,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateFloat"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/cable",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 136,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateCable"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/packing",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 147,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculatePacking"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/overhead",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 158,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateOverhead"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/dynamic",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 170,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateDynamic"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/:id/cost-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 182,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "previewRecipeCost"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/full-estimate",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 205,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "calculateFullEstimate"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/recipe-difference",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 221,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getRecipeDifference",
+        "getTime"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/copper-price",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 282,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getCopperPrice"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/market-indicators",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/cost.cjs",
+      "line": 309,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costQueries.cjs",
+        "../services/recipeQueries.cjs",
+        "../services/httpClient.cjs",
+        "../services/marketIndicatorCommands.cjs",
+        "../services/marketSync.cjs",
+        "../services/commandRequest.cjs",
+        "../services/candidateDatabase.cjs"
+      ],
+      "handlerCalls": [
+        "getMarketIndicators"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/parts",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 69,
+      "queryFields": [
+        "keyword",
+        "category",
+        "supplier",
+        "stockStatus",
+        "limit",
+        "minPrice",
+        "maxPrice",
+        "priceBelow",
+        "priceAbove",
+        "minStock",
+        "maxStock",
+        "stockBelow",
+        "stockAbove",
+        "sortBy",
+        "sortOrder"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listParts"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/batch-create-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 111,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartBatchCreatePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/batch-delete-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 139,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartBatchDeletePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/prices-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 167,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartPricePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/:id/save-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 192,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartProfileSavePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/:id/delete-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 241,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartDeletePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/parts/batch-stock-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/parts.cjs",
+      "line": 274,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/partQueries.cjs",
+        "../services/partCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildPartStockPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 102,
+      "queryFields": [
+        "keyword",
+        "hasTechnicalFiles"
+      ],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getAllRecipes"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/cost-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 121,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "buildRecipeCostDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/bom-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 130,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getBomDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/model-variant-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 139,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getModelVariantDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/save-payload-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 152,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "buildRecipeSavePayloadDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id/inventory-status",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 165,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getInventoryStatus"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id/technical-files",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 176,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "listRecipeTechnicalFiles"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id/technical-files/:fileId/download",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 222,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getRecipeTechnicalFileDownload"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 261,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getRecipe"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes/:id/delete-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/recipes.cjs",
+      "line": 289,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/costEngine.cjs",
+        "../services/pumpTestReport.cjs",
+        "../services/validation.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/recipeTechnicalFiles.cjs",
+        "../services/recipeCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/recipeQueries.cjs"
+      ],
+      "handlerCalls": [
+        "buildRecipeDeletePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 69,
+      "queryFields": [
+        "shellModel",
+        "description",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getAllTemplates"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 84,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getTemplate"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/:id/cost",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 95,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getTemplateCost"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/:id/default-recipe",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 106,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getDefaultRecipe"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/templates/:id/apply",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 117,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/templates/:id/recipes",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/templates.cjs",
+      "line": 131,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/templateCommands.cjs",
+        "../services/templateQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getTemplateRecipes"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model-variants",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/modelVariants.cjs",
+      "line": 46,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/commandRequest.cjs",
+        "../services/modelVariantCommands.cjs",
+        "../services/validation.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 128,
+      "queryFields": [
+        "limit",
+        "status",
+        "customerName",
+        "contractNo"
+      ],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getAllOrders"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/purchase-overview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 150,
+      "queryFields": [
+        "limit",
+        "supplier",
+        "pendingOnly"
+      ],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getPurchaseOverview"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/history-price/:recipeName",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 170,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getLatestRecipePrice"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders/purchase-plan",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 180,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildOrderPlan"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/lookup",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 192,
+      "queryFields": [
+        "query"
+      ],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/readiness-overview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 203,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getReadinessOverview"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/knowledge-package",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 214,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildOrderKnowledgePackage"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/readiness-plan",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 224,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildOrderReadinessActionDraft"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/readiness",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 273,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getOrderReadiness"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/requirements",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 284,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getOrderRequirementSummary"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/execution-records",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 348,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getOrderExecutionRecords"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders/save-payload-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 456,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildOrderSavePayloadDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders/purchase-items/batch-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 498,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildPurchaseBatchDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders/:id/purchase-items/progress-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 568,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildPurchaseItemProgressDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/orders/:id/complete-purchase-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 631,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "buildCompletePurchaseDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 674,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "getOrder"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orders/:id/revisions",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/orders.cjs",
+      "line": 685,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/orderPlanning.cjs",
+        "../services/activeOrderReadiness.cjs",
+        "../services/orderCommands.cjs",
+        "../services/orderReadinessCommands.cjs",
+        "../services/orderTodoCommands.cjs",
+        "../services/purchasingItemProgress.cjs",
+        "../services/purchasingBatchOrder.cjs",
+        "../services/purchasingInbound.cjs",
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/orderRequirements.cjs",
+        "../services/orderRequirementCommands.cjs",
+        "../services/orderExecutionRecords.cjs",
+        "../services/orderExecutionRecordCommands.cjs",
+        "../services/orderKnowledgePackage.cjs",
+        "../services/orderPurchasePlanning.cjs",
+        "../services/orderQueries.cjs",
+        "../services/orderRevisions.cjs"
+      ],
+      "handlerCalls": [
+        "listOrderRevisions"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/coils",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 76,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getAllCoils"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/coils/variants",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 81,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getAllStatorVariants"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/coils/spec-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 86,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getSpecDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/coils/spec-price-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 106,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildCoilUnitPricePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/coils/stock-adjustments-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 140,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildCoilStockPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/coils/:id/stock-movements",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 170,
+      "queryFields": [
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getStockMovements"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/coils/calculate",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 262,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/coils/specs",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/coils.cjs",
+      "line": 266,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/coilCost.cjs",
+        "../services/validation.cjs",
+        "../services/coilInventory.cjs",
+        "../services/coilQueries.cjs",
+        "../services/commandRequest.cjs",
+        "../services/inventoryCommands.cjs",
+        "../services/coilCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getSpecOptions"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rotor/draw-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 78,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildDrawPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rotor/chat",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 129,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rotor/status/:jobId",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 147,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "getRotorJobStatus"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rotor/history",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 156,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listRotorHistory"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rotor/print/:jobId/preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 211,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildPrintPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rotor/order-pump-models",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 254,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listOrderPumpModels"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rotor/recipe-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 270,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildRecipeRotorDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rotor/template-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 289,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildTemplateRotorDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rotor/link-targets",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/rotor.cjs",
+      "line": 312,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/rotorHistory.cjs",
+        "../services/rotorQueries.cjs",
+        "../services/rotorCommands.cjs",
+        "../services/rotorExternalCommands.cjs",
+        "../services/rotorNaturalLanguage.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listRotorLinkTargets"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/runtime",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/settings.cjs",
+      "line": 45,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/commandRequest.cjs",
+        "../services/businessSettingCommands.cjs",
+        "../services/runtimeConfig.cjs",
+        "../services/runtimeSettingCommands.cjs",
+        "../services/aiProvider.cjs",
+        "../services/aiProviderRegistry.cjs",
+        "../services/settingsQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getRuntimeSettings"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/:key",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/settings.cjs",
+      "line": 90,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/commandRequest.cjs",
+        "../services/businessSettingCommands.cjs",
+        "../services/runtimeConfig.cjs",
+        "../services/runtimeSettingCommands.cjs",
+        "../services/aiProvider.cjs",
+        "../services/aiProviderRegistry.cjs",
+        "../services/settingsQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getBusinessSetting"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/settings.cjs",
+      "line": 128,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/commandRequest.cjs",
+        "../services/businessSettingCommands.cjs",
+        "../services/runtimeConfig.cjs",
+        "../services/runtimeSettingCommands.cjs",
+        "../services/aiProvider.cjs",
+        "../services/aiProviderRegistry.cjs",
+        "../services/settingsQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getAllBusinessSettings"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/customers",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/customers.cjs",
+      "line": 51,
+      "queryFields": [
+        "id",
+        "name",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/customerCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/customerQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getAllCustomers"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/customers/:id/context",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/customers.cjs",
+      "line": 71,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/customerCommands.cjs",
+        "../services/commandRequest.cjs",
+        "../services/customerQueries.cjs"
+      ],
+      "handlerCalls": [
+        "getCustomerContext"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quotations",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 75,
+      "queryFields": [
+        "status",
+        "customerName",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quotations/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 96,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/quotations/save-payload-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 123,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildQuotationSavePayloadDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/quotations/inquiry-summary-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 137,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quotations/:id/inquiry-summary",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 155,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "getQuotationAttachmentSummary"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/quotations/:id/order-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quotations.cjs",
+      "line": 175,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/quotationConversion.cjs",
+        "../services/quotationCommands.cjs",
+        "../services/quotationDraft.cjs",
+        "../services/quotationAttachmentSummaries.cjs",
+        "../services/quotationInquiryAi.cjs",
+        "../services/quotationQueries.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildQuotationOrderDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/summary",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/workbench.cjs",
+      "line": 26,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/businessSummary.cjs",
+        "../services/managementActionCenter.cjs",
+        "../services/factoryExecutionPlan.cjs",
+        "../services/factoryWorkflowHistory.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryWorkflowCommands.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "buildBusinessSummary"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/action-center",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/workbench.cjs",
+      "line": 34,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/businessSummary.cjs",
+        "../services/managementActionCenter.cjs",
+        "../services/factoryExecutionPlan.cjs",
+        "../services/factoryWorkflowHistory.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryWorkflowCommands.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "buildManagementActionCenter",
+        "decorateManagementActionCenter"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/action-history",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/workbench.cjs",
+      "line": 43,
+      "queryFields": [
+        "status",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/businessSummary.cjs",
+        "../services/managementActionCenter.cjs",
+        "../services/factoryExecutionPlan.cjs",
+        "../services/factoryWorkflowHistory.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryWorkflowCommands.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "listManagementActionLifecycles"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/execution-plan",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/workbench.cjs",
+      "line": 60,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/businessSummary.cjs",
+        "../services/managementActionCenter.cjs",
+        "../services/factoryExecutionPlan.cjs",
+        "../services/factoryWorkflowHistory.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryWorkflowCommands.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryExecutionPlan",
+        "decorateFactoryExecutionPlanWithHistory"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/execution-runs",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/workbench.cjs",
+      "line": 72,
+      "queryFields": [
+        "workflowType",
+        "subjectId",
+        "actionId",
+        "status",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/businessSummary.cjs",
+        "../services/managementActionCenter.cjs",
+        "../services/factoryExecutionPlan.cjs",
+        "../services/factoryWorkflowHistory.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryWorkflowCommands.cjs",
+        "../services/managementActionLifecycle.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryWorkflowRuns"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/summary",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 43,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildDataQualitySummary"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/business-alerts",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 51,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildBusinessAlerts"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/quality/recipe-analysis",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 59,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/rule-compliance",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 107,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryRuleCompliance"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/rule-learning-health",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 115,
+      "queryFields": [
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryLearningHealth"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/rule-candidates",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 126,
+      "queryFields": [
+        "status"
+      ],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryRuleCandidates"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/rule-events",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 137,
+      "queryFields": [
+        "candidateId",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryRuleEvents"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/quality/rule-candidates/:id/impact",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/quality.cjs",
+      "line": 190,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/qualitySummary.cjs",
+        "../services/businessAlerts.cjs",
+        "../services/recipeIntelligence.cjs",
+        "../services/factoryRuleCandidates.cjs",
+        "../services/commandRequest.cjs",
+        "../services/qualityRuleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryRuleImpact"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 56,
+      "queryFields": [
+        "detectedType",
+        "sourceType",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryFiles"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/files/business-attachment-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 136,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryFileBusinessAttachmentPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/archive-targets",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 231,
+      "queryFields": [
+        "targetType",
+        "query",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "searchFactoryFileArchiveTargets"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/links",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 246,
+      "queryFields": [
+        "targetType",
+        "targetId"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryFileLinks"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/files/:id/quotation-draft",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 282,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getFactoryFile",
+        "buildQuotationFileDraft"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/:id/links",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 316,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryFileLinks"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/files/:id/archive-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 329,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "buildFactoryFileArchivePreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/:id/download",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 411,
+      "queryFields": [
+        "inline"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getFactoryFileBlob"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/:id/content",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 429,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getFactoryFileContent"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/files.cjs",
+      "line": 441,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/commandRequest.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/factoryFileParser.cjs",
+        "../services/factoryQuotationDraft.cjs",
+        "../services/factoryFileArchive.cjs",
+        "../services/factoryFileCommands.cjs",
+        "../services/factoryFileLifecycleCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getFactoryFile"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/overview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 83,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "inspectKnowledgeOverview"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 92,
+      "queryFields": [
+        "query",
+        "keyword",
+        "entryType",
+        "type",
+        "sourceTable",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "searchFactoryKnowledge"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/sync-runs",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 108,
+      "queryFields": [
+        "limit",
+        "status"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listKnowledgeSyncRuns"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/health",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 120,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "inspectKnowledgeOverview",
+        "listKnowledgeSyncRuns",
+        "buildKnowledgeSyncHealth"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/vector-health",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 135,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listKnowledgeVectorSyncRuns",
+        "buildKnowledgeVectorHealth",
+        "getKnowledgeVectorSyncStatus"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/vector-sync-runs",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 148,
+      "queryFields": [
+        "limit",
+        "status"
+      ],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listKnowledgeVectorSyncRuns"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/retrieval-evaluation",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 160,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/documents",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 169,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "listKnowledgeDocuments"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/documents/:id/download",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 211,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "getKnowledgeDocumentDownload"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/knowledge/sync-preview",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 245,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "buildKnowledgeSyncPreview"
+      ],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/knowledge/:id",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/knowledge.cjs",
+      "line": 284,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/validation.cjs",
+        "../services/knowledge.cjs",
+        "../services/knowledgeHybridSearch.cjs",
+        "../services/knowledgeAutoSync.cjs",
+        "../services/knowledgeSyncHistory.cjs",
+        "../services/knowledgeSyncHealth.cjs",
+        "../services/embeddingProvider.cjs",
+        "../services/knowledgeVectorStore.cjs",
+        "../services/knowledgeVectorAutoSync.cjs",
+        "../services/knowledgeVectorSyncHistory.cjs",
+        "../services/knowledgeRetrievalEvaluation.cjs",
+        "../services/knowledgeDocumentParser.cjs",
+        "../services/factoryFileStore.cjs",
+        "../services/knowledgeDocuments.cjs",
+        "../services/knowledgeSyncCommand.cjs",
+        "../services/commandRequest.cjs"
+      ],
+      "handlerCalls": [
+        "getKnowledgeEntryDetail"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/business-changes",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/businessChanges.cjs",
+      "line": 10,
+      "queryFields": [
+        "semanticQuery",
+        "period",
+        "from",
+        "to",
+        "domain",
+        "entityType",
+        "entityId",
+        "eventType",
+        "keyword",
+        "beforeId",
+        "limit"
+      ],
+      "serviceImports": [
+        "../services/businessChanges.cjs",
+        "../services/knowledgeHybridSearch.cjs"
+      ],
+      "handlerCalls": [
+        "searchFactoryKnowledge",
+        "listBusinessChanges"
+      ],
+      "safety": "READ_PATH; do not infer V5 admission from HTTP verb",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/entity-lookup",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/entityLookup.cjs",
+      "line": 25,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/entityLookupService.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "POST",
+      "path": "/api/entity-span-candidates",
+      "scope": "BUSINESS_READ_CAPABLE",
+      "source": "api/routes/entitySpanCandidates.cjs",
+      "line": 8,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/entitySpanCandidates.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "QUERY_OR_PREVIEW_NOT_EXECUTION; may issue ephemeral confirmation or invoke provider",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/mcp",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/mcp.cjs",
+      "line": 115,
+      "queryFields": [],
+      "serviceImports": [
+        "../services/environment.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/capabilities",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/chat.cjs",
+      "line": 60,
+      "queryFields": [],
+      "serviceImports": [
+        "../../services/aiProvider.cjs",
+        "../../services/aiDispatcherV3.cjs",
+        "../../services/aiToolConfirmation.cjs",
+        "../../services/aiConfirmedToolExecution.cjs",
+        "../../services/aiResourceResolutionV3.cjs",
+        "../../services/aiTurnStateV3.cjs",
+        "../../services/aiRuntimeTelemetry.cjs",
+        "../../services/aiHealth.cjs",
+        "../../services/ai-v5/readAuthorityMux.cjs",
+        "../../services/ai-v5/readCanary.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/health",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/chat.cjs",
+      "line": 68,
+      "queryFields": [],
+      "serviceImports": [
+        "../../services/aiProvider.cjs",
+        "../../services/aiDispatcherV3.cjs",
+        "../../services/aiToolConfirmation.cjs",
+        "../../services/aiConfirmedToolExecution.cjs",
+        "../../services/aiResourceResolutionV3.cjs",
+        "../../services/aiTurnStateV3.cjs",
+        "../../services/aiRuntimeTelemetry.cjs",
+        "../../services/aiHealth.cjs",
+        "../../services/ai-v5/readAuthorityMux.cjs",
+        "../../services/ai-v5/readCanary.cjs"
+      ],
+      "handlerCalls": [
+        "getAiHealth",
+        "previewAfterLegacy"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/conversations",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/conversations.cjs",
+      "line": 52,
+      "queryFields": [
+        "limit"
+      ],
+      "serviceImports": [
+        "../../services/validation.cjs",
+        "../../services/commandRequest.cjs",
+        "../../services/aiConversations.cjs",
+        "../../services/aiConversationCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listAiConversations"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/conversations/:id",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/conversations.cjs",
+      "line": 75,
+      "queryFields": [],
+      "serviceImports": [
+        "../../services/validation.cjs",
+        "../../services/commandRequest.cjs",
+        "../../services/aiConversations.cjs",
+        "../../services/aiConversationCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getAiConversation"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/evaluations/overview",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/evaluations.cjs",
+      "line": 63,
+      "queryFields": [],
+      "serviceImports": [
+        "../../services/validation.cjs",
+        "../../services/commandRequest.cjs",
+        "../../services/aiEvaluations.cjs",
+        "../../services/aiEvaluationCommands.cjs"
+      ],
+      "handlerCalls": [
+        "getAiEvaluationOverview"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/feedback",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/feedback.cjs",
+      "line": 55,
+      "queryFields": [
+        "conversationId",
+        "status",
+        "rating",
+        "limit"
+      ],
+      "serviceImports": [
+        "../../services/validation.cjs",
+        "../../services/commandRequest.cjs",
+        "../../services/aiAnswerFeedback.cjs",
+        "../../services/factoryAiRules.cjs",
+        "../../services/aiFeedbackCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listAiAnswerFeedback"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/learning-rules",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/feedback.cjs",
+      "line": 146,
+      "queryFields": [
+        "status",
+        "effectiveStatus",
+        "domain",
+        "limit"
+      ],
+      "serviceImports": [
+        "../../services/validation.cjs",
+        "../../services/commandRequest.cjs",
+        "../../services/aiAnswerFeedback.cjs",
+        "../../services/factoryAiRules.cjs",
+        "../../services/aiFeedbackCommands.cjs"
+      ],
+      "handlerCalls": [
+        "listFactoryAiRules"
+      ],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/system-prompt",
+      "scope": "TECHNICAL_OR_DISPATCH",
+      "source": "api/routes/ai/prompt.cjs",
+      "line": 22,
+      "queryFields": [
+        "includeMeta"
+      ],
+      "serviceImports": [
+        "../../services/commandRequest.cjs",
+        "../../services/factoryProfileService.cjs"
+      ],
+      "handlerCalls": [],
+      "safety": "NOT_AN_OWNER_BUSINESS_READ",
+      "API_EXISTS": true,
+      "V5_ROUTABLE": "ONLY_IF_TOOL_AND_SEMANTIC_AND_ENTITY_GATES_PASS",
+      "ANSWERABLE": "NO_EXCEPT_FOUR_CERTIFIED_FACT_PROJECTIONS",
+      "OWNER_USABLE": "NOT_CERTIFIED_AS_GENERAL_ENDPOINT"
+    }
+  ],
+  "tools": [
+    {
+      "tool": "search_business_changes",
+      "domain": "business_history",
+      "formalCapabilities": [
+        "business_changes.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 73,
+      "required": [],
+      "fields": [
+        "period",
+        "from",
+        "to",
+        "domain",
+        "entityType",
+        "entityId",
+        "eventType",
+        "keyword",
+        "semanticQuery",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/business-changes${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "business_history.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_management_action_center",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 647,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/workbench/action-center"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "management.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "plan_factory_workflow",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 664,
+      "required": [
+        "workflowType"
+      ],
+      "fields": [
+        "workflowType",
+        "goal",
+        "orderId",
+        "quotationId",
+        "actionId"
+      ],
+      "apiLiteralReferences": [
+        "/api/workbench/execution-plan"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "management.workflow.plan"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_business_alerts",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 695,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/quality/business-alerts"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "management.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_dashboard_summary",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 622,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/workbench/summary"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "management.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_order_readiness_overview",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 398,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/orders/readiness-overview"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.readiness.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "check_order_readiness",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 375,
+      "required": [],
+      "fields": [
+        "orderId",
+        "orderQuery"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders/${resolved.orderId}/readiness"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.readiness.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "plan_order_readiness_actions",
+      "domain": "management",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 413,
+      "required": [],
+      "fields": [
+        "orderId",
+        "orderQuery"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders/${resolved.orderId}/readiness-plan"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.readiness.plan"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_factory_knowledge",
+      "domain": "knowledge",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 759,
+      "required": [],
+      "fields": [
+        "query",
+        "entryType",
+        "sourceTable",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/knowledge${query.toString() ? ",
+        "/api/knowledge/${item.id}",
+        "/api/knowledge/overview"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "knowledge.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_factory_knowledge_detail",
+      "domain": "knowledge",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 827,
+      "required": [
+        "id"
+      ],
+      "fields": [
+        "id"
+      ],
+      "apiLiteralReferences": [
+        "/api/knowledge/${args.id}",
+        "/api/knowledge/overview"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "knowledge.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_factory_knowledge_health",
+      "domain": "knowledge",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 848,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/knowledge/health"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "knowledge.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_order_knowledge_package",
+      "domain": "knowledge",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 352,
+      "required": [],
+      "fields": [
+        "orderId",
+        "orderQuery"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders/${resolved.orderId}/knowledge-package"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.knowledge.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_data_quality_summary",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 439,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/quality/summary"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "analyze_recipe_configuration",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 450,
+      "required": [],
+      "fields": [
+        "recipeId",
+        "recipeName",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/quality/recipe-analysis"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.recipe.analyze"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_factory_learning_health",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 496,
+      "required": [],
+      "fields": [
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/quality/rule-learning-health${suffix}"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_factory_rule_candidates",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 514,
+      "required": [],
+      "fields": [
+        "status"
+      ],
+      "apiLiteralReferences": [
+        "/api/quality/rule-candidates${suffix}"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_factory_rule_impact",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 532,
+      "required": [
+        "candidateId"
+      ],
+      "fields": [
+        "candidateId"
+      ],
+      "apiLiteralReferences": [
+        "/api/quality/rule-candidates/${Number(args.candidateId)}/impact"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_factory_rule_compliance",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 550,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/quality/rule-compliance"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_factory_rule_history",
+      "domain": "quality",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 565,
+      "required": [],
+      "fields": [
+        "candidateId",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/quality/rule-events${suffix}"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quality.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_order_detail",
+      "domain": "order",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 314,
+      "required": [],
+      "fields": [
+        "orderId",
+        "orderQuery"
+      ],
+      "apiLiteralReferences": [],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_recent_orders",
+      "domain": "order",
+      "formalCapabilities": [
+        "orders.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 236,
+      "required": [],
+      "fields": [
+        "limit",
+        "status",
+        "customerName",
+        "contractNo"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_purchase_overview",
+      "domain": "order",
+      "formalCapabilities": [
+        "purchasing.overview"
+      ],
+      "source": "api/routes/ai/executors/orderExecutors.cjs",
+      "line": 161,
+      "required": [],
+      "fields": [
+        "limit",
+        "supplier",
+        "pendingOnly"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders/purchase-overview${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "purchase.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "build_order_draft",
+      "domain": "order",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 322,
+      "required": [
+        "customerName",
+        "items"
+      ],
+      "fields": [
+        "customerName",
+        "contractNo",
+        "remark",
+        "status",
+        "items"
+      ],
+      "apiLiteralReferences": [
+        "/api/orders/save-payload-draft"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "order.draft"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_quotations",
+      "domain": "quotation",
+      "formalCapabilities": [
+        "quotations.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 268,
+      "required": [],
+      "fields": [
+        "status",
+        "customerName",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/quotations${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_quotation_detail",
+      "domain": "quotation",
+      "formalCapabilities": [
+        "quotations.detail"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 309,
+      "required": [
+        "quotationId"
+      ],
+      "fields": [
+        "quotationId"
+      ],
+      "apiLiteralReferences": [
+        "/api/quotations/${quotationId}"
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_customers",
+      "domain": "quotation",
+      "formalCapabilities": [
+        "customers.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 343,
+      "required": [],
+      "fields": [
+        "name",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/customers${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.customer.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "inspect_quotation_file",
+      "domain": "quotation",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 249,
+      "required": [
+        "fileId"
+      ],
+      "fields": [
+        "fileId",
+        "customerName"
+      ],
+      "apiLiteralReferences": [
+        "/api/files/${fileId}/quotation-draft"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.file.inspect"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "build_quotation_draft",
+      "domain": "quotation",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 272,
+      "required": [
+        "items"
+      ],
+      "fields": [
+        "customerName",
+        "customerId",
+        "status",
+        "margin",
+        "remark",
+        "items"
+      ],
+      "apiLiteralReferences": [
+        "/api/customers",
+        "/api/recipes/${recipeId}/cost-preview",
+        "/api/quotations/save-payload-draft"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.draft"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_customer_history",
+      "domain": "quotation",
+      "formalCapabilities": [
+        "customers.list",
+        "customers.history"
+      ],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 341,
+      "required": [],
+      "fields": [
+        "customerName",
+        "customerId",
+        "keyword",
+        "recipeName",
+        "model",
+        "historyType",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/customers${customerQuery.size ? ",
+        "/api/customers/${customerId}/context${suffix}"
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.customer.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "preview_recipe_cost",
+      "domain": "quotation",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 148,
+      "required": [],
+      "fields": [
+        "recipeId",
+        "recipeName",
+        "overrides",
+        "customBarrelLength",
+        "coilSheets",
+        "coilWireWeight",
+        "hasFloat",
+        "floatWire",
+        "floatAccessoryType",
+        "hasCable",
+        "cableLength",
+        "cableWire",
+        "cableAccessoryType"
+      ],
+      "apiLiteralReferences": [
+        "/api/recipes/current-costs",
+        "/api/recipes/${recipeId}/cost-preview"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.cost.preview"
+      ],
+      "executionRegistered": true,
+      "ANSWERABLE": "CERTIFIED_NARROW_FACT_ONLY",
+      "OWNER_USABLE": "CERTIFIED_SINGLE_IDENTITY_FACT_ONLY",
+      "paginationFields": []
+    },
+    {
+      "tool": "explain_cost_change",
+      "domain": "quotation",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 422,
+      "required": [],
+      "fields": [
+        "leftRecipeId",
+        "leftRecipeName",
+        "rightRecipeId",
+        "rightRecipeName",
+        "recipe1",
+        "recipe2",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/cost/recipe-difference"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "quotation.cost.explain"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "search_factory_file_archive_targets",
+      "domain": "file",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 706,
+      "required": [
+        "targetType"
+      ],
+      "fields": [
+        "targetType",
+        "query",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/files/archive-targets?${query.toString()}"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "file.search"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "search_templates",
+      "domain": "recipe",
+      "formalCapabilities": [
+        "templates.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 378,
+      "required": [],
+      "fields": [
+        "shellModel",
+        "description",
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/templates${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.template.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_template_detail",
+      "domain": "recipe",
+      "formalCapabilities": [
+        "templates.list",
+        "templates.detail"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 414,
+      "required": [],
+      "fields": [
+        "templateId",
+        "shellModel"
+      ],
+      "apiLiteralReferences": [
+        "/api/templates?${query.toString()}",
+        "/api/templates/${templateId}"
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.template.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_all_recipes",
+      "domain": "recipe",
+      "formalCapabilities": [
+        "recipes.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 150,
+      "required": [],
+      "fields": [
+        "keyword",
+        "hasTechnicalFiles"
+      ],
+      "apiLiteralReferences": [
+        "/api/recipes${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_recipe_detail",
+      "domain": "recipe",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 176,
+      "required": [],
+      "fields": [
+        "recipeId",
+        "recipeName",
+        "includeCurrentCost"
+      ],
+      "apiLiteralReferences": [
+        "/api/recipes",
+        "/api/recipes/${recipeId}",
+        "/api/recipes/current-costs"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_recipe_technical_files",
+      "domain": "recipe",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 213,
+      "required": [],
+      "fields": [
+        "recipeId",
+        "recipeName"
+      ],
+      "apiLiteralReferences": [
+        "/api/recipes",
+        "/api/recipes/${id}/technical-files"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.files.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "build_recipe_bom_draft",
+      "domain": "recipe",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 114,
+      "required": [],
+      "fields": [
+        "templateId",
+        "shellModel",
+        "modelVariantId",
+        "customBarrelLength",
+        "longScrewExtraLength",
+        "coilSpec",
+        "coilSheets",
+        "coilMaterial",
+        "coilSlotType",
+        "coilWireWeight",
+        "hasFloat",
+        "floatWire",
+        "floatAccessoryType",
+        "hasCable",
+        "cableLength",
+        "cableWire",
+        "cableAccessoryType",
+        "packingParts",
+        "optionalParts"
+      ],
+      "apiLiteralReferences": [
+        "/api/recipes/bom-draft"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.cost.preview"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "preview_pump_shell_cost",
+      "domain": "recipe",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/businessExecutors.cjs",
+      "line": 196,
+      "required": [
+        "customBarrelLength"
+      ],
+      "fields": [
+        "shellModel",
+        "templateId",
+        "customBarrelLength"
+      ],
+      "apiLiteralReferences": [
+        "/api/templates",
+        "/api/recipes/bom-draft"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.cost.preview"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "compare_recipes",
+      "domain": "recipe",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/recipeExecutors.cjs",
+      "line": 733,
+      "required": [
+        "recipe1",
+        "recipe2"
+      ],
+      "fields": [
+        "recipe1",
+        "recipe2"
+      ],
+      "apiLiteralReferences": [
+        "/api/cost/recipe-difference"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "recipe.cost.preview"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "full_calculate",
+      "domain": "cost",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/costExecutors.cjs",
+      "line": 52,
+      "required": [],
+      "fields": [
+        "recipeId",
+        "recipeName",
+        "pumphousing_model",
+        "stator",
+        "hasFloat",
+        "cableLength",
+        "boxType",
+        "floatWire",
+        "cableWire",
+        "cableAccessoryType",
+        "packingPartsJson"
+      ],
+      "apiLiteralReferences": [
+        "/api/cost/full-estimate"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "cost.calculate"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "dynamic_config_cost",
+      "domain": "cost",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/costExecutors.cjs",
+      "line": 108,
+      "required": [],
+      "fields": [
+        "stator",
+        "hasFloat",
+        "cableLength",
+        "boxType",
+        "floatWire",
+        "cableWire",
+        "cableAccessoryType"
+      ],
+      "apiLiteralReferences": [
+        "/api/cost/dynamic"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "cost.calculate"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "calculate_coil_cost",
+      "domain": "cost",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/costExecutors.cjs",
+      "line": 62,
+      "required": [
+        "spec",
+        "sheets"
+      ],
+      "fields": [
+        "spec",
+        "coilId",
+        "schemeCode",
+        "schemeFamilyCode",
+        "sheets",
+        "wireWeight",
+        "material",
+        "slotType"
+      ],
+      "apiLiteralReferences": [
+        "/api/coils",
+        "/api/coils/calculate"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "coil.cost"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_copper_price",
+      "domain": "cost",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/costExecutors.cjs",
+      "line": 57,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/copper-price"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "coil.cost"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "get_coil_specs",
+      "domain": "coil",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 100,
+      "required": [],
+      "fields": [],
+      "apiLiteralReferences": [
+        "/api/coils/specs"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "coil.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_coils",
+      "domain": "coil",
+      "formalCapabilities": [
+        "coils.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 105,
+      "required": [],
+      "fields": [
+        "spec",
+        "sheets",
+        "material",
+        "slotType",
+        "schemeCode",
+        "schemeStatus",
+        "isDefault",
+        "ratedVoltageV",
+        "ratedFrequencyHz",
+        "market",
+        "schemeFamilyCode"
+      ],
+      "apiLiteralReferences": [
+        "/api/coils${query.size ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "coil.read"
+      ],
+      "executionRegistered": true,
+      "ANSWERABLE": "CERTIFIED_NARROW_FACT_ONLY",
+      "OWNER_USABLE": "CERTIFIED_SINGLE_IDENTITY_FACT_ONLY",
+      "paginationFields": []
+    },
+    {
+      "tool": "search_parts",
+      "domain": "catalog",
+      "formalCapabilities": [
+        "parts.list"
+      ],
+      "source": "api/routes/ai/executors/queryExecutors.cjs",
+      "line": 521,
+      "required": [],
+      "fields": [
+        "keyword",
+        "category",
+        "supplier",
+        "stockStatus",
+        "limit",
+        "minPrice",
+        "maxPrice",
+        "priceBelow",
+        "priceAbove",
+        "minStock",
+        "maxStock",
+        "stockBelow",
+        "stockAbove",
+        "sortBy",
+        "sortOrder"
+      ],
+      "apiLiteralReferences": [
+        "/api/parts${queryString ? "
+      ],
+      "API_EXISTS": "FORMAL_REGISTERED",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "inventory.read"
+      ],
+      "executionRegistered": true,
+      "ANSWERABLE": "CERTIFIED_NARROW_FACT_ONLY",
+      "OWNER_USABLE": "CERTIFIED_SINGLE_IDENTITY_FACT_ONLY",
+      "paginationFields": [
+        "limit"
+      ]
+    },
+    {
+      "tool": "get_rotor_drawing_history",
+      "domain": "drawing",
+      "formalCapabilities": [],
+      "source": "api/routes/ai/executors/costExecutors.cjs",
+      "line": 214,
+      "required": [],
+      "fields": [
+        "limit"
+      ],
+      "apiLiteralReferences": [
+        "/api/rotor/history"
+      ],
+      "API_EXISTS": "EXECUTOR_PATH_INDEXED; registry mapping incomplete",
+      "TOOL_EXISTS": true,
+      "V5_ROUTABLE": [
+        "drawing.read"
+      ],
+      "executionRegistered": false,
+      "ANSWERABLE": "NO",
+      "OWNER_USABLE": "NOT_PROVEN; see UAT matrix",
+      "paginationFields": [
+        "limit"
+      ]
+    }
+  ],
+  "counts": {
+    "businessReadCapableApis": 121,
+    "technicalOrDispatchReadRoutes": 13,
+    "registeredQueryPreviewCapabilities": 19,
+    "readTools": 48,
+    "readToolDomains": [
+      "business_history",
+      "catalog",
+      "coil",
+      "cost",
+      "drawing",
+      "file",
+      "knowledge",
+      "management",
+      "order",
+      "quality",
+      "quotation",
+      "recipe"
+    ],
+    "businessRouteFamilies": [
+      "businessChanges",
+      "coils",
+      "cost",
+      "customers",
+      "entityLookup",
+      "entitySpanCandidates",
+      "files",
+      "knowledge",
+      "modelVariants",
+      "orders",
+      "parts",
+      "quality",
+      "quotations",
+      "recipes",
+      "rotor",
+      "settings",
+      "templates",
+      "workbench"
+    ]
+  },
+  "note": "API count includes bounded queries, previews and diagnostics; not all are deterministic or safe for V5. Route/service pointers are code evidence, not live UAT. POST list inherited from source-checked P17-A and asserted against current routes.",
+  "safety": {
+    "v5Writes": 0,
+    "allowWriteEnablingCalls": 0,
+    "businessMutationCalls": 0,
+    "productionCalls": 0,
+    "p17Paused": true
+  }
+}

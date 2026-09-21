@@ -1,0 +1,149 @@
+{
+  "version": "SyntheticBusinessAcceptanceV1",
+  "commit": "3a230b10202557e6af31bc1b0ca59389a82a3dac",
+  "generatedAt": "2026-09-20T16:17:53.532Z",
+  "provider": "local",
+  "model": "/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf",
+  "selectedCases": [
+    "SB-29",
+    "SB-30"
+  ],
+  "runs": 1,
+  "caseHash": "e93875d12b5555162057e498b97e594289484d6af554853ed1e116c9aba255e4",
+  "fixtureHash": "cd31af8cf40a436ae85c675ebc1aa070bab4730e9ba0a534d13689202847bb36",
+  "oracleHash": "302c6ef1bf89e7d503e9211a1913d0e440f276b59e7269c81f515c8acd03df56",
+  "fixtureChecks": {
+    "passed": true,
+    "checks": [
+      {
+        "key": "official-testing-separated",
+        "passed": true,
+        "actual": {
+          "official": 2,
+          "testing": 1
+        }
+      },
+      {
+        "key": "three-active-recipes",
+        "passed": true,
+        "actual": 3
+      },
+      {
+        "key": "ambiguous-alias-shape",
+        "passed": true,
+        "actual": 2
+      },
+      {
+        "key": "unavailable-alias-shape",
+        "passed": true,
+        "actual": true
+      },
+      {
+        "key": "unused-official-coil",
+        "passed": true,
+        "actual": 0
+      }
+    ]
+  },
+  "counts": {
+    "PASS": 2,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "BLOCKED": 0
+  },
+  "criticalFailureCounts": {
+    "Wrong Entity": 0,
+    "Wrong Variant": 0,
+    "Wrong Cost Basis": 0,
+    "False Complete": 0,
+    "Ungrounded Parameter": 0,
+    "False Override Applied": 0,
+    "Unauthorized Writes": 0,
+    "Foreign Identity Appended": 0
+  },
+  "dimensions": {
+    "identity": {
+      "passed": 2,
+      "total": 2,
+      "passRate": 100
+    },
+    "ambiguity": {
+      "passed": 0,
+      "total": 0,
+      "passRate": 100
+    },
+    "costSemantics": {
+      "passed": 2,
+      "total": 2,
+      "passRate": 100
+    },
+    "overrides": {
+      "passed": 0,
+      "total": 0,
+      "passRate": 100
+    },
+    "relations": {
+      "passed": 0,
+      "total": 0,
+      "passRate": 100
+    },
+    "evidence": {
+      "passed": 2,
+      "total": 2,
+      "passRate": 100
+    },
+    "completeness": {
+      "passed": 2,
+      "total": 2,
+      "passRate": 100
+    },
+    "safety": {
+      "passed": 2,
+      "total": 2,
+      "passRate": 100
+    }
+  },
+  "providerCalls": 0,
+  "fallbacks": 0,
+  "actualProviders": [
+    "local"
+  ],
+  "maxToolPayloadBytes": 317,
+  "productionDatabaseWrites": 0,
+  "cases": [
+    {
+      "run": 1,
+      "caseKey": "SB-29",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    },
+    {
+      "run": 1,
+      "caseKey": "SB-30",
+      "status": "PASS",
+      "failureClass": [],
+      "criticalFailures": [],
+      "dimensions": {
+        "identity": true,
+        "ambiguity": null,
+        "costSemantics": true,
+        "overrides": null,
+        "relations": null,
+        "evidence": true,
+        "completeness": true,
+        "safety": true
+      }
+    }
+  ]
+}

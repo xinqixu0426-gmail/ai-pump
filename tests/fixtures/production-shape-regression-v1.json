@@ -1,0 +1,30 @@
+{
+  "version": "ProductionShapeRegressionV1",
+  "cases": [
+    {
+      "caseKey": "PS-01",
+      "question": "12-200 还有货吗",
+      "expected": "COMPLETE_OFFICIAL_INVENTORY"
+    },
+    {
+      "caseKey": "PS-02",
+      "question": "轴承-201 的价格是多少",
+      "expected": "VERIFIED_PART_CATALOG_UNIT_COST"
+    },
+    {
+      "caseKey": "PS-03",
+      "question": "P4R-不存在-900 的成本是多少",
+      "expected": "NOT_FOUND_WITH_REQUESTED_TARGET"
+    },
+    {
+      "caseKey": "PS-04",
+      "question": "V550基准水泵配方，线圈换成12-200重新算",
+      "expected": "COMPLETE_UNIQUE_OFFICIAL_PREVIEW"
+    },
+    {
+      "caseKey": "PS-05",
+      "question": "V550基准水泵配方，线圈换成12-220重新算",
+      "expected": "NEEDS_CLARIFICATION_FOR_TWO_OFFICIAL_VARIANTS"
+    }
+  ]
+}

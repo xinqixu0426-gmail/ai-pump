@@ -1,0 +1,575 @@
+{
+  "schemaVersion": 1,
+  "audit": "V5-E4R-E-B1-C Cross-Type Ambiguity + Regression Attribution Audit",
+  "collision": {
+    "classification": "TRUE_AUTHORITATIVE_AMBIGUITY",
+    "partCandidateAuthoritative": true,
+    "templateCandidateAuthoritative": true,
+    "distinctTypeScopedCanonicalEntities": true,
+    "resolverAmbiguousCorrect": true,
+    "exactMatchKinds": [
+      "EXACT"
+    ],
+    "complete": true
+  },
+  "candidateSetArchitecture": {
+    "decision": "CANDIDATE_SET_THEN_LOCAL_TASK_CLASS",
+    "globalTaskClassCount": 27,
+    "expectedClassSurvival": "15/15",
+    "finalUniqueEntityAfterExpectedClassFilter": "15/15",
+    "minLocalTaskClassCount": 1,
+    "medianLocalTaskClassCount": 2,
+    "maxLocalTaskClassCount": 4,
+    "modelSelectsCanonicalEntity": false,
+    "modelSelectsEntityTypeDirectly": false,
+    "modelSelectsLocalTaskClassOnly": true,
+    "simulationOnly": true
+  },
+  "regression": {
+    "dirtyMainGate": "FAIL_SEARCH_COILS_COPPER_BASE_MISMATCH",
+    "cleanCurrentCommitGate": "FAIL_SEARCH_COILS_COPPER_BASE_MISMATCH",
+    "cleanPreB1BCommitGate": "FAIL_SEARCH_COILS_COPPER_BASE_MISMATCH",
+    "attribution": "PRE_EXISTING_COMMITTED_FAILURE",
+    "b1bNewRegressionConfirmed": false,
+    "b1bInterferencePath": "NONE",
+    "userDirtyWorktreeEffect": false,
+    "firstDivergence": "FORMAL_API_SNAPSHOT_BEFORE_ASYNC_STARTUP_COPPER_SYNC_SETTLED_VS_MCP_READ_AFTER_UPDATE",
+    "safeReasonCodes": [
+      "SAME_FAILURE_AT_PRE_B1B_COMMIT",
+      "SAME_FAILURE_AT_B1B_COMMIT",
+      "SAME_FAILURE_IN_DIRTY_MAIN",
+      "B1B_ENTITY_LOOKUP_PATH_DISCONNECTED_FROM_SEARCH_COILS",
+      "DEEP_API_STABILITY_CHECK_RACES_ASYNC_STARTUP_COPPER_SYNC"
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "coil"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_003",
+          "operation": "cost",
+          "entityTypes": [
+            "coil"
+          ]
+        },
+        {
+          "classRef": "tc_004",
+          "operation": "read",
+          "entityTypes": [
+            "coil"
+          ]
+        }
+      ],
+      "expectedClass": "tc_004",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localTaskClassCount": 4,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localTaskClassCount": 4,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "recipe"
+      ],
+      "localTaskClassCount": 4,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_017",
+          "operation": "analyze_recipe",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_024",
+          "operation": "preview_cost",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_025",
+          "operation": "read",
+          "entityTypes": [
+            "recipe"
+          ]
+        },
+        {
+          "classRef": "tc_026",
+          "operation": "read_files",
+          "entityTypes": [
+            "recipe"
+          ]
+        }
+      ],
+      "expectedClass": "tc_024",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "TRUE_AUTHORITATIVE_AMBIGUITY",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "DISTINCT_EXACT_CROSS_TYPE_CANDIDATES",
+        "EXPECTED_CLASS_DISAMBIGUATES_ENTITY_TYPE"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "TRUE_AUTHORITATIVE_AMBIGUITY",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "DISTINCT_EXACT_CROSS_TYPE_CANDIDATES",
+        "EXPECTED_CLASS_DISAMBIGUATES_ENTITY_TYPE"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "candidateTypeCount": 2,
+      "candidateTypes": [
+        "part",
+        "template"
+      ],
+      "localTaskClassCount": 2,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        },
+        {
+          "classRef": "tc_027",
+          "operation": "read_template",
+          "entityTypes": [
+            "template"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "TRUE_AUTHORITATIVE_AMBIGUITY",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "DISTINCT_EXACT_CROSS_TYPE_CANDIDATES",
+        "EXPECTED_CLASS_DISAMBIGUATES_ENTITY_TYPE"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "candidateTypeCount": 1,
+      "candidateTypes": [
+        "part"
+      ],
+      "localTaskClassCount": 1,
+      "localTaskClasses": [
+        {
+          "classRef": "tc_002",
+          "operation": "read_inventory",
+          "entityTypes": [
+            "part"
+          ]
+        }
+      ],
+      "expectedClass": "tc_002",
+      "expectedClassSurvives": true,
+      "finalExpectedTypeCandidateCount": 1,
+      "finalUniqueEntityAfterExpectedClassFilter": true,
+      "ambiguityClass": "NOT_AMBIGUOUS",
+      "simulationOnly": true,
+      "safeReasonCodes": [
+        "AUTHORITATIVE_UNIQUE_CANDIDATE",
+        "EXPECTED_CLASS_SURVIVES_LOCAL_UNION"
+      ]
+    }
+  ]
+}

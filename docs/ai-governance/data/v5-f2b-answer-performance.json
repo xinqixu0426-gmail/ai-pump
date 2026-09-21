@@ -1,0 +1,632 @@
+{
+  "version": 1,
+  "methodology": "A3C_FIXED_KEEP_ALIVE_EXTERNAL_CLIENT_RESPONSE_FINISH",
+  "realAnswerModelCalls": 0,
+  "controlledAnswerModel": "FAKE_2MS_REAL_COMPOSER_AND_VALIDATOR",
+  "warmup": 24,
+  "measured": 200,
+  "pairs": [
+    {
+      "width": 2,
+      "attempt": 0,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.403200000000652,
+          "p95": 32.27420000000029
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.979799999999159,
+            "p95": 14.272699999999986,
+            "max": 15.850800000000163
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.304599999999482,
+          "p95": 32.259400000000824
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.049599999999828,
+            "p95": 14.300799999999981,
+            "max": 16.126500000000306
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 5.113100000000486,
+          "p95": 16.288899999999558
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": -0.3139807408199413,
+      "p95Overhead": -0.04585706229579545,
+      "pass": true
+    },
+    {
+      "width": 2,
+      "attempt": 1,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.258200000000215,
+          "p95": 32.30909999999858
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 6.5052999999998065,
+            "p95": 13.530700000000024,
+            "max": 14.907100000000128
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.358800000001793,
+          "p95": 32.397799999998824
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.408600000000661,
+            "p95": 14.660600000000159,
+            "max": 15.324399999999514
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 4.780300000002171,
+          "p95": 16.933899999999994
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": 0.3218355503566306,
+      "p95Overhead": 0.27453565713762007,
+      "pass": true
+    },
+    {
+      "width": 2,
+      "attempt": 2,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.216999999996915,
+          "p95": 32.261899999997695
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.140300000000025,
+            "p95": 14.362500000000182,
+            "max": 15.54989999999998
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.279099999999744,
+          "p95": 32.39110000000073
+        },
+        "histogram": {
+          "1": 100,
+          "2": 100
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.449899999999616,
+            "p95": 14.50880000000052,
+            "max": 15.639400000000023
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 4.916899999996531,
+          "p95": 15.631099999998696
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": 0.19893007016316133,
+      "p95Overhead": 0.400472383842998,
+      "pass": true
+    },
+    {
+      "width": 4,
+      "attempt": 0,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.314400000002934,
+          "p95": 32.113699999994424
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 6.592499999999745,
+            "p95": 13.335100000000011,
+            "max": 14.485999999999876
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.201999999997497,
+          "p95": 32.37710000000516
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 8.425699999999779,
+            "p95": 15.107099999999946,
+            "max": 15.751900000000205
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 8.509799999999814,
+          "p95": 14.90860000000248
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": -0.3589402958556587,
+      "p95Overhead": 0.8202106889295901,
+      "pass": true
+    },
+    {
+      "width": 4,
+      "attempt": 1,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.32050000000163,
+          "p95": 32.183700000008685
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.551000000000045,
+            "p95": 14.388099999999895,
+            "max": 14.994799999999941
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.221900000004098,
+          "p95": 32.005099999994854
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 6.349100000000362,
+            "p95": 14.504199999999855,
+            "max": 15.61369999999988
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 10.73739999999816,
+          "p95": 15.451099999998405
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": -0.3148097891078616,
+      "p95Overhead": -0.5549393016147319,
+      "pass": true
+    },
+    {
+      "width": 4,
+      "attempt": 2,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.257299999997485,
+          "p95": 32.349600000001374
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.878400000000056,
+            "p95": 14.102999999999952,
+            "max": 15.170999999999822
+          }
+        },
+        "reads": 224,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.065300000002026,
+          "p95": 32.32189999999537
+        },
+        "histogram": {
+          "1": 50,
+          "2": 50,
+          "3": 50,
+          "4": 50
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 6.263800000000174,
+            "p95": 14.346300000000156,
+            "max": 15.328899999999976
+          }
+        },
+        "reads": 224,
+        "answerCount": 224,
+        "completion": {
+          "median": 8.732399999993504,
+          "p95": 15.393400000000838
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": -0.6142565096648678,
+      "p95Overhead": -0.08562702477312722,
+      "pass": true
+    },
+    {
+      "width": 8,
+      "attempt": 0,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.42259999999078,
+          "p95": 35.46520000000601
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 9.053899999999885,
+            "p95": 14.799099999999953,
+            "max": 15.299800000000005
+          }
+        },
+        "reads": 112,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.56380000000354,
+          "p95": 35.065199999997276
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.548200000000179,
+            "p95": 14.075000000000045,
+            "max": 14.531600000000026
+          }
+        },
+        "reads": 112,
+        "answerCount": 112,
+        "completion": {
+          "median": 12.429000000003725,
+          "p95": 15.610799999994924
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": 0.4493581053534701,
+      "p95Overhead": -1.1278661899796538,
+      "pass": true
+    },
+    {
+      "width": 8,
+      "attempt": 1,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.45789999999397,
+          "p95": 35.65549999999348
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.8078000000000145,
+            "p95": 14.881199999999808,
+            "max": 15.196199999999862
+          }
+        },
+        "reads": 112,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.8185000000085,
+          "p95": 35.72370000000228
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 6.363799999999856,
+            "p95": 14.720900000000029,
+            "max": 16.60940000000005
+          }
+        },
+        "reads": 112,
+        "answerCount": 112,
+        "completion": {
+          "median": 5.898499999995693,
+          "p95": 15.813999999998487
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": 1.1462939357509416,
+      "p95Overhead": 0.19127483840870596,
+      "pass": true
+    },
+    {
+      "width": 8,
+      "attempt": 2,
+      "valid": true,
+      "off": {
+        "enabled": false,
+        "latency": {
+          "median": 31.381600000007893,
+          "p95": 35.508499999996275
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 8.143100000000004,
+            "p95": 14.222700000000032,
+            "max": 15.277699999999868
+          }
+        },
+        "reads": 112,
+        "answerCount": 0,
+        "completion": null,
+        "errors": 0
+      },
+      "on": {
+        "enabled": true,
+        "latency": {
+          "median": 31.605400000000373,
+          "p95": 35.39389999999548
+        },
+        "histogram": {
+          "1": 25,
+          "2": 25,
+          "3": 25,
+          "4": 25,
+          "5": 25,
+          "6": 25,
+          "7": 25,
+          "8": 25
+        },
+        "transport": {
+          "reused": 200,
+          "newConnections": 0,
+          "deviation": {
+            "count": 200,
+            "median": 7.596300000000014,
+            "p95": 14.518299999999954,
+            "max": 14.744300000000067
+          }
+        },
+        "reads": 112,
+        "answerCount": 112,
+        "completion": {
+          "median": 11.10000000000582,
+          "p95": 15.23420000000624
+        },
+        "errors": 0
+      },
+      "foregroundTV": 0,
+      "medianOverhead": 0.7131567542522532,
+      "p95Overhead": -0.3227396257256765,
+      "pass": true
+    }
+  ],
+  "fixtureSafety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "unchanged": true
+  },
+  "databaseUnchanged": true,
+  "hashesMatch": true,
+  "pass": true
+}

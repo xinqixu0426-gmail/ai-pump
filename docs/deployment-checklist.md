@@ -1,0 +1,428 @@
+# 生产发布检查清单
+
+> 更新于 2026-09-20。
+
+## 2026-09-20 ONT-P8L strict-local Gate A PASS（分支 `1d14156`，未发布生产）
+
+- Mac Mini 隔离实例 `/Users/dan/pump-p8l-validation`、端口 3012 运行 `1d14156`，数据库 schema 87；
+  provider 为真实 `local`，模型为 Ornith 35B，cloud fallback 0。
+- 正向 8/8、反向 4/4、verified-empty 4/4 COMPLETE；wrong root/direction 0、Legacy fallback 0、
+  aggregate read 0、额外 provider round 0、payload failure 0。
+- 两轮受保护线圈库存增量请求均只生成确认卡；unauthorized write 0，业务表无变化，audit/operation delta 0。
+- 报告：`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-local-final-pass-20260920.json`。
+- 本轮只放宽已登记只读关系的确定性身份解析/选路/有界读取；模糊身份、金额、写入权限未放宽。
+- **未发布生产**：生产保持 `78de920041896637a6a810a0355424cc12de4f78`，未重启、未改开关、未迁移。
+
+## 2026-09-20 ONT-P8L-FINAL Gate B PASS 并已发布（`3914583`，迁移 87）
+
+- **发布结果**：`npm run deploy:macmini` 走完全部 9 步（`发布完成：commit 3914583861b9，用时 55 秒`）。生产
+  `HEAD=3914583861b9c78855311017eb6d211ed7418b0f`、分支 `master`、已跟踪改动 0。
+- **线上验收（发布后独立核对）**：本机 `127.0.0.1:3002/api/health/ready` 与公网
+  `https://xuxinqi.xin/api/health/ready` 均 `ready=true`、`gitCommit=3914583861b9`、`migrations=87`、
+  启动备份 `ok`；公网 `/login` 200、`/ai` 200；`com.pumpfactory.api`、`com.pumpfactory.web` 均 `state = running`。
+- **数据库**：`user_version=87`、`schema_migrations` 头部 `87:recipes_name_identity_lookup`、索引
+  `idx_recipes_name_active` 存在、`PRAGMA integrity_check=ok`；业务表行数与迁移前一致
+  （recipes 3、coils 14、parts 92、orders 1、customers 2、quotations 1、pump_shell_templates 1、system_settings 7）。
+  启动备份 `backups/startup/pump-startup-2026-09-20T07-35-53-735Z.db` 记录 `userVersion: 87`。
+- **发布前按 Supervisor 要求在副本上完成的四项前置**（生产库全程只读打开，预检结束时
+  `prod_user_version` 仍为 86）：86→87 副本迁移（`{"currentVersion":87,"appliedVersions":[87]}`）、
+  `integrity_check ok`（前后各一次）、身份读回归（真实 HTTP：精确名 200、带尾缀「的」200、不存在 404
+  `RECIPE_NOT_FOUND`）、release + startup 备份验证。
+- **三个开关未改**：`AI_BUSINESS_SEMANTIC_SHADOW_ENABLED=true`、
+  `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=false`、
+  `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 未设置（即关闭）。
+- **Gate B 验收（隔离实例 3012，真实 DeepSeek，2 轮）= PASS**：forward 8/8、bound 8/8、reverse 4/4、
+  emptyCertified 4/4、routedCorrect 12/12、legacyFallbacks 0、aggregateCalls 0、wrongRoot/wrongDirection 0、
+  cloudFallbacks 0、additionalProviderRounds 0、unauthorizedWrites 0、业务表无变化；独立确认轮逐项一致。
+  证据：`/Users/dan/pump-p8l-validation/logs/gates/ont-p8l-final-root-resolution-attempt2.json` 与
+  `-confirm1.json`。本机门禁：`npm test` 2683/2683、`verify:api-contract` 26/26、`test:deep-api` 493/0、
+  `lint` PASS、`build` PASS。
+- **Supervisor 裁定**：Gate B PASS、不需要更多重复验收、允许 `0df88de` 合入 master、迁移 87 允许随代码合入
+  （生产上线前单独报备并完成副本迁移 / `integrity_check` / 身份读回归 / 备份验证）——本条目即为该报备，
+  四项前置与发布验收均已在上表完成。
+- **本次发布未改变的行为**：canary 仍默认关闭，因此生产聊天链路与发布前一致；`recipes.resolve_identity`
+  是仅 internal 的有界身份读，不进入模型工具目录。`verify:ai-release` 因核心用例已于 2026-09-19 全部退役
+  而没有可执行项，本轮不据此声称 AI 质量证据。
+- **Gate A 仍 DEFERRED**（本地模型 `192.168.31.111:8080` 不可达），未算 PASS。
+
+## 2026-09-20 ONT-P8L-FINAL Gate B 仍 REWORK：recipe→coil 有界读已修，绑定召回缺口未清（`4157188`）
+
+> 本节记录的是**修复前**的状态与根因，其"未清"项已由上方 `3914583` 条目关闭；保留作为根因证据。
+
+- **状态**：Gate B **仍未通过**，Supervisor 裁定 REWORK。上一版本文档中"Gate B PASS"的记录**作废**：那次运行里 8 个 forward 用例仍有 2 个没有形成 `recipe.uses_coil` 绑定、退回 Legacy，靠 Legacy 把正确率补到 8/8 不构成退出证据。
+- **已修（真实缺陷，保留）**：
+  1. `recipe -> coil` 方向不再提供整表读：`relationRoutingCanary.shortlistByRelation['recipe.uses_coil']` 由该方向的声明读推导（`get_recipe_detail`、`search_coils`），整表读只留给 Legacy。事实依据：`get_recipe_detail` 一次有界读即返回配方的绑定线圈身份，整表读本来就非必需。
+  2. `api/ontology/relationBinder.cjs` 的 per-record ownership 缺陷：ownership 原先按"结果值的形状"判定，而 `get_recipe_detail` 的回执证据同时包含列表调用（`/api/recipes`，用于解析配方名）与单条调用（`/api/recipes/12`），于是该行被当作集合读而丢弃，配方行永远进不了绑定器。现改为：集合读拥有其数组，详情读只拥有它所命名的那一条记录，两者不可互相替代；详情读的 id 不符或非 GET 均不构成 provenance。这是本轮 Gate B legacyFallbacks=3 的直接原因之一。
+  3. 线圈身份判定收紧：`12片规格` 是"12 片"的数量表达，**不得**作为 spec=12 的依据；spec/sheets 只有在各自关键词直接附着于数字时才计入。
+- **未清（Gate B 的真实退出条件）**：`V750大脚板-2寸-经典款 配的什么绕组？` 这类问法仍会掉进 Legacy。观测证据（Mac Mini 隔离实例，`logs/gates/gate-b-binder-fix.json`）：forward 7/8、`legacyFallbacks=3`（F2-recipe12-winding、F4-recipe13-winding ×2）、`wrongRoot=1`；退化的那次答案是「"V750大脚板-2寸-经典款"是一个泵壳模板……模板 BOM 里不含绕组」，即同一名称被当作**泵壳模板**而非配方解析。机制：绑定未命中 → canary 不路由（`ONTOLOGY_CANARY_FALLBACK`）→ `coilRecipeRelationQuery` 为真 → Legacy 关系特殊路径介入，其完整读目录把整表读带回工具面（`aiAssistantRuntime.cjs:357`、`:540`）。
+- **门禁**：`npm test` 2668/2668、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS。
+- **根因（已用真实数据复现，修正早前"名称跨实体类型冲突"的推测）**：生产库里配方 13 名为 `V750大脚板-2寸-经典款`，模板名为 `模板-V750大脚板-2寸-经典款`——**并非同名冲突**。真实原因是 `recipe.uses_coil` 的绑定**只能**从"上一轮已验证回执"里解析根名称（`relationBinder.cjs:66-87`），而上一轮模型选哪个读取工具是不确定的：同一问法连续三次复现得到三种不同的回执组合（`["get_recipe_detail"]` / `["get_all_recipes","search_templates"]` / `["get_all_recipes","get_template_detail","get_recipe_detail"]`），其中一次 `get_all_recipes{keyword}` 只返回 1 行、另一次回执里根本没有配方行 → `possible` 为空 → 绑定未命中 → canary 不路由 → Legacy 关系特殊路径介入并带回整表读。**结论：路由召回不应依赖模型上一轮的偶然选择。**
+- **建议的修法（未开工，待确认）**：在运行时为绑定的关系根做一次**确定性的按 fromType 名称解析读取**（对 `recipe.uses_coil` 即一次有界的配方名解析），使绑定不依赖模型历史；Supervisor 已裁定方向为 A（修绑定、不修 semantic 层），但本条的定位比"A"更具体，需在下一轮确认后再动代码。
+- **稳定复现命令（只读，跑在 Mac Mini 验证实例上，允许）**：同一会话先问 `V750大脚板-2寸-经典款 用的是哪个泵壳模板？` 再问 `V750大脚板-2寸-经典款 配的什么绕组？`，重复 3 次即可看到上表三种回执组合与 Legacy 回退。
+- **门禁**：`npm test` 2669/2669、`verify:api-contract` 26/26、`test:deep-api` 493 passed / 0 failed、lint PASS。
+- **下一步**：按上述确定性解析修法落地 → 同一语料复跑两轮 → 目标 forward 8/8、routedCorrect 8/8、legacyFallbacks 0、`get_all_recipes` 0、wrongRoot 0。
+
+## 2026-09-20 ONT-P8L-FINAL 验收基础设施对账：886e514 验收 ≠ P8L 退出证据（Supervisor 裁定 REWORK）
+
+- **背景**：本机（Windows）、gitee `origin/master`、Mac Mini 仓库与 Mac Mini 运行中的服务四方核对，均为同一提交 `886e514cec6ae6185474c16868decc3bfa0595a1`，工作区均干净。Mac Mini 走的是正规发布：`logs/release-code-gate-886e514….json`（`passed`，`02:12:50.712Z`）、`logs/ai-release-gate-latest.json`、Web 进程 10:12:50 启动，与发布脚本 [4/9]/[5/9] 时间吻合。
+- **本次验收不能作为 P8L 退出证据**。它跑的是第三种配置：`AI_PROVIDER` 未设置（非 `local`/`local-first`）、`AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 未设置（OFF）。因此 P8L 的有界反查修复与 ontology 云路由都不介入，正向 0/4、反向 1/4 与 P8L 基线（反向 4/4、正向 3/4）不可比。代码依据：`api/services/aiToolShortlist.cjs`（有界读需 local 模式 + shortlist）与 `api/services/aiAssistantRuntime.cjs:338`（ontology 路由需金丝雀开关）。**P8L 真实退出门禁仍未通过。**
+- **本次实测（Mac Mini 生产实例，真实 DeepSeek，`logs/p8r-acceptance.cjs` → `logs/p8r-post-pull-verify.json`）**：14/14 完成、errors 0、payload 超限 0、反向 1/4、正向 0/4、`boundedMax` 61 B、`aggregateMax` 19194 B、受保护写只出确认卡。**未执行** `build` / `test:deep-api` / `verify:prod-env` / `lint`，因此不是完整 release-quality gate。
+- **生产开关曾被未入库工具翻转，现已按 Supervisor 裁定恢复**：`backups/config/semantic-enforcement/` 下有 7 个 `.env-before-*` 备份（`01:28:39Z`–`02:15:04Z`），其中最后一个 `.env-before-false-to-true-2026-09-20T02-15-04-988Z`（= 北京 10:15:04）方向为 `false→true`，即生产被留在未授权的 `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=true`。该工具不在仓库内，无法从 commit 复现。现已按裁定恢复为 `AI_BUSINESS_SEMANTIC_SHADOW_ENABLED=true` + `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED=false`，并只重启 API（未回滚代码，生产仍在 `886e514`）。
+- **`dbUnchanged=false` / `delta=0` 不可解释为"数据库文件完全未变"**：验收脚本用文件 SHA-256 比较，在 SQLite WAL 模式下不可靠，只能说明逻辑变更（`total_changes` 差值）为 0。新的正式 runner 改用**逻辑指纹**（各业务表行数 + 内容哈希 + `audit_log`/`api_operations` 最大 id 差值），不再依赖文件哈希。
+- **假 COMPLETE 复核结论：在现有数据与实现下不成立，但契约命名存在歧义**。`coil.recipes` 的 `complete` 是**页面级**（页面读到且未截断），集合级完整性在 `setCompleteness`。AI 工具执行器（`api/routes/ai/executors/queryExecutors.cjs:344`）要求 `!truncated && setCompleteness==='COMPLETE'` 才置 `complete=true`；ontology 认证（`api/ontology/bindingCurrentFacts.cjs:45`）同时要求 `hasMore===false`、`complete===true`、`setCompleteness==='COMPLETE'`、`totalCount===count`。生产库副本上的判别实验：零未绑定旧引用 → `COMPLETE`；插入一条部分旧引用 → `REFERENCE_INCOMPLETE`；插入一条声明同规格同片数但 `coil_id IS NULL` 的配方 → `AMBIGUOUS_LEGACY_REFERENCE`；不同规格 → 确认为非匹配且不污染完整性；未绑定根 → `RELATION_NOT_FOUND` 抛错。生产库真实构成：3 条配方（全部 `coil_id` 已绑定）、1 条 `coil_id IS NULL` 的行都没有，`12-160` 线圈确实零配方，因此 0 行 `COMPLETE` 属实。
+- **门禁数字**：本地 `npm run verify:api-contract` 26/26 PASS；`npm test` 2651/2652 → 修复后 2652/2652（见下条）；新增 `tests/relationRuntimeAcceptance.test.cjs` 9/9。
+- **本轮修掉两处验收基础设施缺陷**：
+  1. `tests/businessUnderstandingBenchmarkV2.test.cjs` 的冻结资产哈希原先对**工作区原始字节**取 SHA-256，Windows 上 git 以 CRLF 检出即被判为"资产已变"。现改为**内容身份哈希**（行尾归一，`tests/helpers/businessUnderstandingOracle.cjs` 导出 `contentIdentity`），跨 Windows/macOS 一致；冻结资产本身未被改写。
+  2. 新增 `scripts/run-relation-runtime-acceptance.cjs`：双门禁 fail-closed runner（`--gate p8l-local` / `--gate ontology-cloud`，必须显式 `--execute`），逐门禁断言自己的开关组合与唯一可接受 provider，报告 run id / commit / config / provider，并在开关不匹配或出现云回退时中止而不是记为通过。`tests/relationRuntimeAcceptance.test.cjs` 覆盖 9 项：门禁互不替代、未设 `AI_PROVIDER` 不得默认当作 local、宽松布尔值不得当作开启、错误 provider 计数、聚合读取计数即失败、写请求非确认卡即失败、业务表逻辑变更即失败。
+
+## 2026-09-20 BUS-P4 受控生产灰度：部署与 Shadow 通过，Enforcement Canary 需返工
+
+- P3R 验收提交 `eb73419` 以快进方式合并到 `master`，证据链未 squash/改写；另用提交 `1802b41` 只清理 3 个未使用的测试/验收变量，使生产 lint 门禁通过，不改运行语义。发布前后全量测试 2628/2628、API 契约 26/26、Deep API 490/490、lint 和 Web build 均通过。
+- 生产从 `f8a3c35` 快进发布；发布备份 `backups/release/pump-release-2026-09-20T00-02-37-553Z.db` 已按前一运行提交、SHA-256 和 schema 86 验证。正式脚本完成 `git pull --ff-only`、代码门禁、LaunchDaemon 重启、本机/公网 ready 与启动备份验证。
+- 部署前生产 `AI_BUSINESS_SEMANTIC_SHADOW_ENABLED` / `AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED` 均未设置（默认 OFF）。OFF 验收后，以权限受限备份和原子替换把 Shadow 设为 `true`、Enforcement 明确设为 `false`，只重启 API。最终全局 Enforcement 仍为 OFF，未授权全量推广。
+- 当前生产数据构成 10 条可测真实问题：配方成本、线圈成本/库存/多方案、calculated 线重覆盖、kit 覆盖拒绝、零件价格、不存在对象、配置覆盖和跨目录身份。生产无 recipe 正式别名，别名验收记为 `NOT_TESTABLE_WITH_CURRENT_PRODUCTION_DATA`，未为验收造数据。
+- Shadow 评估：MATCH 7、MODEL_UNDERCLAIM 2、MODEL_OVERCLAIM 1、WRONG_SEMANTIC_CLAIM 0。唯一过度表述是 kit 回答同时说“覆盖不生效”和“按 0.8 试算仍为 91”；Canary 已确定性替换为“0.8 未应用，91 只是当前固定套件价”。
+- Owner/Internal Canary 不通过客户端 query/header 开关；它使用现有服务端 `processAiChat` 内部身份和逐请求 env 注入，普通生产流量仍走 Legacy。10 条 ON 结果为 PASS 6 / PARTIAL 4 / FAIL 0：生产 testing+official 共存使 12-200 库存与配置覆盖被判为不完整；零件单价被替换成只说“零件候选”；不存在结论丢失了目标文本。因存在真实生产下的完整性回归，BUS-P4 状态为 `REWORK`，不推荐全局权威。
+- 三阶段实际 provider calls：OFF 31、Shadow 29、Canary 15；语义层新增 LLM 轮次 0。小样本延迟（n=10）：OFF median/P95 2338.5/6434 ms，ON 1418/3502 ms。最大单次业务结果 19661 bytes，最大 Semantic Frame 2141 bytes，预算超限 0。
+- 受保护写请求只生成正式确认卡，零件库存前后均为 0，未执行写入。发布备份与验收后生产的核心业务表 dump 哈希一致（`d99ea419…`）；开关 OFF 的内部回滚复测恢复 Legacy，不需要 DB/schema 回滚。
+
+## 2026-09-19 泛化自测与两处"补丁变规则"（`f8a3c35`）
+
+- 用户要求区分"建规则"还是"打补丁"，于是做一次**泛化自测**：8 条此前没讨论过的新说法在生产上各问一次，看规则是否真的泛化。结果：6 条成立，**2 条暴露真问题**——
+  1. `V800 的成本是多少` → AI 只查配方与模板就答"查不到、无法给出成本"，而 `泵壳-V800-平刀`（零件，孚元，96 元）一直存在于零件目录。原"跨目录探测"只在"按名字解析配方失败"时触发，属于补丁。
+  2. `假如线重按0.8算，12-140的成本是多少` → 算对了（130.54），但最终回答只剩一张正式金额表，没有正文。
+- 处置（把补丁换成规则）：
+  - 跨目录探测改成按目录表（配方/模板/零件）通用探测，并覆盖**查询成功但零行**的形态（`get_all_recipes`、`search_templates` 空结果时补齐候选）；空结果仍是该目录内的权威结论，只是不再让用户以为"系统里什么都没有"。生产复测：`V800 的成本是多少` 现在回答"正式配方与模板目录没有 V800，只在零件目录查到相近型号 `泵壳-V800-平刀`，要不要按这个零件查单价/库存"。
+  - 材质/槽眼改为依据校验：只读工具入参里的 `material/slotType/coilMaterial/coilSlotType` 必须来自用户输入或本轮已验证的正式结果，否则拒绝该次计算（防止 12-220 这类多方案被自猜的"钢带/小眼"收窄）。这条校验在本地全量测试里当场拦下一个用不完整测试桩的场景。
+  - 线重假设那条：现行版本已保留正文并把金额表降为附注；生产复测 `假如线重按0.8算，12-140的成本是多少` 现在给出正文（含"本次按你指定的 0.8 自定义线重试算，结果仅适用于该假设"）+ 正式金额明细。
+- 仍如实记账的补丁：判断"变更描述 vs 名称"仍靠关键词表（登记在 `docs/ai-business-rulebook.md` 的"已知的补丁"一节），以及金额证据校验对派生数字（两个正式金额相减）偏严。
+- 门禁：全量测试 2585/2585、API 契约 26/26、深度 API 493/493、lint、构建；发布 `f8a3c35` 全绿（53 秒）。未改动生产 `.env`、凭据、写权限或业务数据。
+
+## 2026-09-19 业务规矩册（B）：成本与价格口径做成系统保证（`6384906`）
+
+- 用户决定先做"规矩册"（成本怎么算、参数不清不许替你猜）。交付两部分：
+  1. `docs/ai-business-rulebook.md`（新增，用户可读可改）：17 条规矩逐条标明编号、规矩、触发时机、系统必须做什么、现状——**已强制 11 条 / 仅提示 5 条 / 未支持 1 条**；末尾列出最值得补的四条缺口。
+  2. `api/services/aiBusinessRulebook.cjs`（新增）：回答层确定性执行两条口径规矩。
+- 已强制并生产验证：
+  - **BR-COST-BASIS**：问配方/成品/整机成本而本轮只有线圈级正式金额、回答又没说明是线圈成本时，自动补口径说明（"以上金额是线圈方案成本；整机成本要按在售配方为基准重算"）。
+  - **BR-HYPOTHETICAL-PRICE**：问"按铜价95算"时，回答必须说明本轮是按当日正式铜基价核算、不是按假设价格；若最终回答只剩金额守卫输出的正式金额表，口径说明放在表格**前面**并带出铜基价。生产实测 `如果按照铜价95算，V550的成本是多少`（生产会话 58 msg 332 原话）：现在先给人话说明（"系统只按当日正式铜基价核算，不支持按假设铜价试算"，含铜基价 110.18 元/千克），再列正式金额 268/247/21；修复前该问题只返回一张没有任何解释的金额表。
+- 验证过程中发现并修掉三处（同一批提交）：① 规矩只在"回答含 ¥/元"时触发，金额守卫输出的裸数字表被漏判 → 增加"表格行里有一格是纯数字"的识别；② 铜价数字抓取的正则中间连接词会吃数字（`按铜价95算…V550` 错抓到 V550 的末位 `0`），铜基价字段名也取错（应为 `dbPrice` / `livePricePerKg`）；③ 变更描述判定漏掉"整机/成品/库存/明细/清单/详情/成本/价格/报价"这类后缀词，导致 `V550配方的整机` 又出现"未找到配方：…"（现已判为变更描述，模型随后自行改用完整配方名答对）。
+- 门禁与发布：全量测试 2583/2583、API 契约 26/26、深度 API 493/493、lint、构建；`61dde9a` → `01d834e` → `6384906` 三次发布均全绿（各 52–53 秒），生产复核 ready、迁移 86。未改动生产 `.env`、凭据、写权限或业务数据。
+- 待用户决定：规矩册中唯一"未支持"的条目——线圈级"按指定铜价算"在服务端 `coilCost.cjs` 已支持该参数，只是 AI 工具没开放（小改动即可）；整机级需要成本引擎支持才可能。
+
+## 2026-09-19 线圈多方案成本只报一种：已修复并生产验证（`ddf5aa7`）
+
+- 用户反馈：问 `12-220 的成本`，实际有两套规格却只返回一种。生产库确认 12-220 有两套正式方案：`COIL-0006`（钢带/小眼，166.9728）与 `COIL-0010`（冷轧/国标眼，196.1669），两套都是各自定子组合下的默认。
+- 根因（两层，用生产与 MCP 实测确认）：① 执行器 `calculate_coil_cost` 收到 `material`/`slotType`（或 `coilId`）就按该组合算出一个数，完全不提同规格片数还有别的正式方案（实测 `material=钢带,slotType=小眼` 只回 166.97）；② 运行器现有的"未依据数值"校验只覆盖数字（片数、线径、机筒长度…），`material`/`slotType` 这类身份字符串没有校验，模型自猜一个组合即可悄悄收窄。工具层在没有材质时是正确的（返回 `requiresVariantSelection` 要求选择），因此漏洞只在"调用方替用户填了材质"时出现，内置 AI 与外部 MCP Agent 同样受影响。
+- 修复：`api/services/coilVariantAmbiguity.cjs` 取同一 `spec-sheets` 的其它正式方案（测试/停用方案不参与唯一性判断）；`calculate_coil_cost` 收窄计算后附加 `sameSpecSheetsVariants` / `sameSpecSheetsNotice`，`search_coils` 仅在按材质/槽眼收窄且确实筛掉了同规格片数其它方案时附加；`api/services/aiCoilVariantAnswer.cjs` 在最终回答只覆盖其中一部分方案时确定性追加完整清单并请用户确认（整套都讲到或完全没提方案时不追加）。
+- 发布 `ddf5aa7` 全绿（用时 53 秒），生产复核 ready、迁移 86。生产验证：MCP `calculate_coil_cost(12,220,钢带,小眼)` 与 `search_coils(12,220,钢带)` 均返回 `sameSpecSheetsVariants`（COIL-0010）与提示；真实对话 `12-220的成本` 列出两套方案并请用户确认；`12-220钢带的成本` 在给出钢带那套后主动补充"另有同规格片数方案 COIL-0010（冷轧/国标眼），成本 196.1669……以上金额仅对应 12-220 钢带小眼这一套"。
+- 本次未改动生产 `.env`、凭据、写权限或业务数据。门禁：全量测试 2573/2573、API 契约 26/26、深度 API 493/493、lint、生产构建。
+
+## 2026-09-19 旧 AI 发布用例退役 + 变更描述识别：发布全绿（MCP 验收按决定停用）
+
+- 最终发布提交 `f91b377`（会话内依次为 `fc29c66` 变更描述识别、`f88282f` 用例退役与迁移 86、`90cf72e` 模板路径补全、`408f1bb` 停用 MCP 验收步骤、`f91b377` 恢复 deploy 包装脚本 BOM）。**本次发布 `npm run deploy:macmini` 首次整条跑通并以退出码 0 结束，用时 53 秒**：代码门禁（全量测试 2564/2564、API 契约 26/26、深度 API 490/490、lint、生产构建、依赖与环境检查）→ 重启 → ready/启动备份/运行 commit 核对 → [7/9] AI 门禁 → [8/9] 公网验收 → [9/9] 跳过 MCP 验收。生产复核：运行 `f91b377`、ready=true、迁移与 `user_version` 均为 86、外键异常 0、`logs/release-code-gate-f91b377….json` 记录代码门禁通过。
+- 第 [7/9] 步真实 AI 发布门禁通过：报告 `status=passed`、`blocked=false`、`coreCasesRetired=true`、`retiredAt=2026-09-19`，控制台同时打印"核心用例已于 2026-09-19 全部退役，本轮没有可执行的 AI 回归项；本次发布不据此声称 AI 质量证据"。退役实施见技术债 §2.3：`CORE_AI_RELEASE_CASE_KEYS` 显式置空、迁移 86 删除九条用例行及其运行结果；生产复核 `ai_evaluation_cases` 0 行、`ai_evaluation_results` 0 行、外键异常 0，59 条运行历史保留作审计。
+- 第 [9/9] 步生产 MCP 全领域只读验收按负责人 2026-09-19 决定**暂时停用**：`scripts/deploy-macmini-release.sh` 默认跳过并打印原因与恢复方式，`scripts/deploy-macmini.ps1` 新增 `-McpAcceptance disabled|enabled`（默认 `disabled`）。恢复命令 `npm run deploy:macmini -- -McpAcceptance enabled`。停用原因是该验收的成本对比场景要求至少两个正式配方，而生产只有 1 个未删除配方；负责人同时表示若 ontology 能满足需求可能弃用 MCP。服务端 `/mcp`、只读工具、`verify:mcp-local`、`verify:mcp-write-local` 与手工执行该命令均不受影响。
+- 恢复路径已实测（不只靠结构断言）：`npm run deploy:macmini -- -McpAcceptance enabled` 真跑一次，第 [9/9] 步确实执行了 `verify:mcp-prod-read`（`logs/mcp-production-read-latest.json` 重新生成于 09:34:52），并按预期因数据前置失败、发布以退出码 1 结束；随后用默认（停用）状态重新发布，`a1c6299` 全绿、用时 8 秒。两次发布期间生产始终 ready。
+- 变更描述识别（生产会话 58 msg 321/329）：解析层在所有名称形态都没命中之后判断请求是否为变更或提问描述，是则返回 `AI_RESOURCE_QUERY_NOT_A_NAME` 与可执行提示，不再把用户整句话回显成"未找到配方：…"；模板路径（`preview_pump_shell_cost` 的 `shellModel`）同样处理并复用同一判定与提示。
+- 生产真实对话复现两次：`如果我把12-120换成12-140，成本是多少` → 只查线圈方案并说明"以上只是线圈方案成本，整机需给配方基准"；`替换550的重新核算` → 先定位配方 `V550大脚板-2寸-经典款`（ID 12），再按泵壳/线圈/机筒/浮球/电缆/包装逐项澄清缺什么。两次都没有把整句话塞进型号字段（新分支未被真实触发，其行为由单元、executor 与运行时测试覆盖）。
+- **失败尝试与原因（保留真实记录）**：`408f1bb` 推送后第一次发布在本地 PowerShell 解析阶段就失败，退出码 1，生产未被改动（未拉取）。根因是编辑 `scripts/deploy-macmini.ps1` 时丢掉了文件原有的 UTF-8 BOM，Windows PowerShell 5.1 于是按系统 ANSI 代码页解析 `.ps1`，中文乱码并报 `Missing expression after ','`。修复 `f91b377` 恢复 BOM，并用 `Parser::ParseFile` 复核 0 错误。教训：本仓库的 `.ps1` 若含中文必须保留 UTF-8 BOM（另两个 `.ps1` 为纯 ASCII，无需 BOM）。
+- **需要留意的一次生产状态变化（非本次代码引起）**：服务在 08:18:22 重启时，启动自动同步按设计重建了知识库，`knowledge_entries` 从被清空状态恢复为 263 条、`knowledge_embeddings` 263 条（150 条业务变更 + 88 零件 + 14 线圈 + 5 业务规则 + 客户/质量/配方/模板各若干），后续几次重启的同步均为 success 且未再新增。知识是业务数据的可重建投影，业务数据未受影响；若确实希望知识库保持为空，需要关闭运行设置中的自动同步，而不是依赖一次性清理。
+- 顺带修掉一个既有偶发失败：隐私断言 `/301|501|601/` 会撞上运行时长毫秒数的数字片段（例如 0.301ms 里的 `301`），现在隐私断言只看非数值内容。
+- 本次未改动生产 `.env`、凭据、写权限或业务数据（评测用例退役除外）。
+
+## 2026-09-19 AI 助理三处行为修复发布：代码已上线，AI 门禁仍被陈旧用例拦住
+
+- 发布提交 `e0f31c3`（A/B/C：口语片段不再被当成实体名、金额守卫保留结论正文、型号简称跨目录探测）。生产已快进拉取、重启并验证：ready=true、迁移 85、启动备份通过、`logs/release-code-gate-e0f31c330b5e7f75b3bed64ea45a85c43100f8d6.json` 记录完整代码门禁通过（API 契约 26/26、lint、全量测试 2557/2557、深度 API 490/490、生产构建、依赖与环境检查）；第 [6/9] 步核对运行 commit 为 `e0f31c330b5e`。
+- 第 [7/9] 步真实 AI 门禁运行 62 为 **8/9**，唯一失败是核心用例 `configured-template-cost`：它仍引用清理前的模板与包材名（`V750-大脚板-2寸`、`v550木箱`、`珍珠棉`），与当前库中的 `模板-V750大脚板-2寸-经典款`、`木箱-V550`、`珍珠棉-厚度2mm` 不一致，判定「正式 BOM 中匹配 0 条」。这是技术债 2.3 第一条的既有问题，不是本次代码引入；部署脚本因此在第 7 步以退出码 1 结束，第 [9/9] 步未执行。
+- 手工补跑第 [9/9] 步生产 MCP 只读验收未通过，原因是数据量而非代码：生产只有 1 个未删除配方，脚本要求至少两个正式配方才能验收成本对比（`logs/mcp-production-read-latest.json`，`error=生产环境至少需要两个正式配方才能验收成本对比`）。
+- 生产真实对话复现（Mac Mini 上 `POST http://127.0.0.1:3002/api/ai/chat`，使用 `.env` 中的 `x-internal-secret`，未在回复或文档中记录该值）：
+  - A 已修复：`我要找V550的 成本` → 模型仍原样传 `recipeName:"V550的"`，executor 解析成功并绑定配方 12，回答「**V550大脚板-2寸-经典款**（配方ID 12）当前完整成本为 **268.00 元**」。修复前该场景返回「未找到配方：V550的」。
+  - C 生效：`V750 的成本是多少` → 模型先查配方目录（零命中）再查模板目录，答出「模板-V750大脚板-2寸-经典款（模板ID 7）」并要求补充机筒长度，不再空手反问；`V250 的成本是多少` → 回答明确「未找到配方：V250」且不回显片段，日志显示 executor 在配方解析失败后自动补查 `/api/parts`（08:20:15.359）与 `/api/templates`（08:20:15.363），跨目录探测确实执行。
+  - B 生效：`V550大脚板-2寸-经典款换成12-140线圈后的整机成本是多少` → `build_recipe_bom_draft` 试算 285.8 后回答保留结论正文（“当前完整成本约 ¥285.80，零件 ¥264.80，人工 ¥21.00”），不再被整段替换成内部金额表。
+- 发布前处理的生产数据遗留：`PRAGMA foreign_key_check` 报 11 条异常，全部是 `ai_evaluation_results` 中 `case_id=15`（父用例已于 2026-09-19T07:12:35Z 删除）的孤儿行，导致发布备份校验拒绝创建（`api/services/databaseBackup.cjs`）。经用户确认后在线备份 `backups/manual-purge-eval-results-20260919T081720Z.db`、归档 `logs/ai-evaluation-results-orphaned-20260919T081720Z.sql`（11 行）并删除该 11 行；复核外键异常 0、`integrity_check=ok`。该遗留来自上一轮删除门禁用例，与本次代码无关。
+- 本次未改动生产 `.env`、凭据、写权限、迁移或业务数据；只读回归按实际状态记录，AI 门禁与 MCP 验收的失败原因按上方原样保留，未通过删检查或改断言规避。
+
+## 当前修复版本 V1.0.2：生产已发布并验证
+
+- 按在售配方继承完整配置，只覆盖用户明确变更项；浮球、电缆、包装和配件未提及的模型默认值不覆盖基准。BOM 服务按当前价格重算；私人助理的配方覆盖试算也采用当前基准，原 HTTP/MCP 报价快照兼容行为不变。
+- 修复条件句长期记忆保存、保存后续查、模板目录上下文、超大上轮记录保留试算参数、表格金额证据校验及正式总价汇总。未启用业务写入、未变更生产配置。
+- 本地测试 **1882/1882**、契约 **26/26**、深度 API **437/437**、lint/build 通过。深度检查曾因外部铜价源 fetch failed 中断，确认源恢复后复核通过，失败日志保留。
+- Mac Mini 隔离数据库正式 API 与在售配方当前成本对照：完整配置 **273.23**（保存快照 271.89），去浮球 **265.23**，保留浮球换指定纸箱 **265.23**。三轮真实聊天“木箱带浮球→去浮球→再换 v550牛皮纸箱” **3/3**，金额 **273.23→265.23→257.23**。最终隔离真实 AI 运行 **51：9/9**；这是隔离验证，尚非生产结果。
+- 历史修复过程保留：隔离运行 48、49 各 **8/9**，分别为繁体否定与明确排除目录候选的评测误判；修复后运行 50 为 **9/9**。连续配置测试先后暴露未试算、表格无证据金额、丢失旧标识、模型删除未提电缆，各自修复后才复测，未改写失败记录。当前成功三轮日志为 `v102-explicit-config-live.log`，此前失败日志均在本机发布归档目录。
+- 首次生产发布 `fb9efc3` 真实运行 48 为 **8/9**：唯一绕组方案用纵向表格分行展示材质和槽眼，评测分段未识别，答案及正式值本身一致。修复单方案表格识别，仍检查身份、每个绕组值和多方案分段；原回执离线复核 9/9，不算新模型运行。原 8/9 保留于 `failed-fb9efc3.db` 与 `v102-deployment.log`。
+- 首次发布失败后已恢复 `9ad4112` 与发布前 Web 构建，ready=true、迁移 80、启动备份通过，生产配置哈希一致。没有迁移变化，数据库保留现有数据与真实失败记录，没有用旧数据库覆盖用户数据。
+- 第二次发布 `9c1f6e9`：生产运行 49 **9/9**、MCP 与公网页面检查通过；登录后连续配置专项 **2/3**，第三轮模型没有取得本轮查询证据，系统安全拒答。随后恢复 `9ad4112` 与原 Web 构建；记忆及业务数据库保留。修复为在无证据金额草稿后的纠错轮要求正式只读工具调用，仍沿用相同轮次预算。
+- 公网登录专项另发现原 3104 登录兼容进程停止，Cloudflare 仍指向该端口，造成 502。生产业务服务本地登录正常。已按原配置及 NODE_PATH 恢复原兼容程序，登录和自然语言记忆回执通过，用户明确规则仅一条有效记录；未改公网路由、生产 .env、凭据或 owner 权限。原 LaunchAgent 所需 GUI domain 当前不可用，现用原程序后台运行；开机自动启动尚待单独收口。
+- 最终生产代码 `ddf8344cf5ff`：发布完整代码检查通过（1882 测试、26 契约、437 深度 API、lint/build、依赖及环境检查），生产真实运行 **50：9/9**，MCP 九领域只读、公网 ready/login/ai 通过。公网真实登录后记忆保存回执通过，规则有效记录仍仅 1 条；三轮配置专项 **3/3：273.23→265.23→257.23**，每轮均有正式成本回执，见 `v102-production-acceptance-required-evidence.log`。
+- 只读逐表比较发布前后一共 53 张表：业务事实表无变化，仅评测、操作审计、用户明确的个人记忆、索引/同步及管理生命周期记录变化。生产 .env 哈希不变，原未跟踪配置备份保留。原始日志在本机发布归档目录，Mac Mini 制品位于 `~/pump-release-staging/v102/`；回退数据库核验件为 `rollback-stable/pump-verified.db`。
+- 源码修复发布标签 `pump-ai-v1.0.2`；后续发布记录提交仅更新文档，生产运行代码不变。原人工冻结基准 `pump-ai-v1.0.1` / `9ad4112` 与所有历史结果保留。V1.0.2 为自动验收通过，不替代用户新的人工验收；登录兼容进程的开机自启动限制见技术债清单。
+
+## 原稳定冻结版本：水泵ai管理系统 V1.0.1
+
+- 2026-09-07 用户确认“目前 ai 可以用了”，要求冻结当前版本。发布标签为 `pump-ai-v1.0.1`，以该标签对应提交作为后续开发与回退的稳定源码基线，不移动或覆盖已有标签。
+- 冻结包含生产运行代码 `d0d6b5cf4cdcf47284ceb5454e20247fec2a9c33` 及之后的验收、冻结文档；之后提交仅修改文档，运行代码一致。Git 发布标签标识修复版，包内版本字段仍为 `1.0.0`，不因冻结修改运行文件或重启服务。
+- 复核本地与远端 master 一致、已跟踪工作区干净，生产运行 d0d6b5c、ready=true、迁移 80；已有生产 AI 9/9 与 MCP 通过报告保留。自动化测试 1863/1863、契约 26/26、深度 API 437/437、lint/build 及用户人工验收共同构成本次基线，不重复模型测试来改写历史。
+- 本次仅更新冻结文档和创建标签，生产同步文档与标签，不改业务数据、配置或写权限。原 V1.0.0、历史失败和回滚证据保留；复杂长链查询预算、未启用的业务写入等限制不变。
+- 后续功能和修复使用新提交及新版本标签；源码标签不包含数据库、密钥或生产构建，恢复生产时须另行核对备份及迁移兼容性。
+
+## 水泵ai管理系统 V1.0.0 原始冻结记录
+
+- 版本标签：`pump-ai-v1.0.0`，包版本 `1.0.0`。以标签对应提交为冻结源码，后续修复使用新的版本标签，不移动本标签。
+- 2026-09-07 用户明确确认 Windows 本地人工验收通过。本次为源码审计、清理与冻结；未发布新版至 Mac Mini，未修改或重启生产 Legacy。
+- 本次最终验证：全量测试 1848/1848、API 契约 26/26、隔离深度 API 437/437；完整 lint 与生产构建通过；后端和 Web 依赖审计各 0 个已知漏洞。深度 API 中的 401/502/503 为失败路径测试，整体退出码 0。
+- 审计核对默认聊天/内部调用进入新工具循环、正式 API 事实来源、49 个只读工具、写工具拒绝、会话隔离、记忆回执和迁移 80、上下文预算及保留明细路径。清理后修正一处未使用导入，未另行扩大功能。
+- V1 包含当前已实现的跨业务只读查询、正式成本比较、自然语言明确记忆保存/修改/删除/撤销。自由指代记忆、记忆管理界面和本人确认业务写入属于后续能力；复杂长链调查仍受轮次及上下文预算限制，不能保证所有自然语言问题都得到完整答案。
+- 旧框架运行代码和阶段脚本已撤除；历史报告保留，包括 M-24 原因未明偶发故障与原始 29/30，未改写为全绿。未启用业务写操作、P17 或 P16-N。
+- 清理前的全部 Git 引用、未提交源码备份，以及临时输出、过渡脚本和重规划草稿归档在本机 `C:\Users\Dan\Documents\pump-v1-release-archive\2026-09-07`。冻结验证原始日志已移到该归档目录的 `final-folder-cleanup/output/v1-freeze/`，不进入发布源码。
+- 删除 25 个已合并本地分支、27 个已合并远端分支。未合并分支和有未提交修改的工作区保留；清洁工作区保留原文件并解除已删除分支绑定。
+- 冻结时尚未批准重启 Legacy；2026-09-07 用户随后明确“调整，重启”，授权本次更新主服务。生产配置、数据库备份、发布与回滚仍须验证；本地构建通过不等同于生产环境验证通过。
+
+### 2026-09-07 V1 修复发布状态：已通过，生产已更新
+
+- 生产运行代码：`d0d6b5cf4cdcf47284ceb5454e20247fec2a9c33`，迁移 80。V1 冻结标签 `pump-ai-v1.0.0` 保持原提交，后续修复通过提交追踪。
+- 本地及 Mac Mini 发布检查：测试 **1863/1863**、API 契约 **26/26**、深度 API **437/437**，lint、生产构建、依赖审计与生产环境检查通过。本地深度检查首次外部铜价 fetch failed；保留失败日志，确认来源恢复后复核通过，未改写原结果。
+- 本次隔离真实 AI 运行 59 为 **9/9**；生产真实 AI 运行 47（对应本次提交）为 **9/9**，无失败或待确认。公网 ready、登录页、AI 页面及生产 MCP 九个领域只读验收全部通过。
+- 从公网登录并实际输入“查一下最近 5 个订单”，新版调用 get_recent_orders，正常返回现有 1 条订单，无查询结果过大或上下文超容提示。
+- 已修复：列表模型视图与知识正文重复膨胀、正式金额来源及成本汇总、模板价格含义、目标缺失/空查询反馈、内部协议泄露、无需许可的只读查询提前反问、超出剩余查询次数时未完成最终汇总。模板目录支持多关键词全部匹配，模板结果提供既有 BOM 试算入口，缺省配置交由正式服务处理。真实候选歧义仍需显式选择，未增加查询次数或业务写权限。
+- 原 6/9 的三项在本次生产全部通过；报价零记录项为确定性验收规则误判，已补齐等价表达并保留假设、疑问和双重否定拒绝。随后配置成本绕路缺陷也已修复。模型输出仍受预算和正式证据约束，本次 9/9 仅代表所列场景通过，不代表所有开放式问题均可完成。
+- 发布前备份：`pump-release-2026-09-07T10-43-44-541Z.db`；启动备份及公网运行版本核对通过，发布耗时 123 秒。生产环境文件与首次发布前逐字节相同。对比 51 个已有表，变化仅涉及迁移、审计/operation、评测、同步和 FTS 内部表，原有业务表内容未变；迁移新增两个个人记忆表。隔离 3402 服务已停止。
+- 验收制品：Mac Mini `~/pump-release-staging/d0d6b5c/` 保存本次生产数据库快照、AI/MCP 报告与数据库对比；本机归档的 `deployment-template.log`、`recent-five-orders-production.json`、`d0d6b5c-database-diff.json` 保存完整发布及同问题验证结果。
+- 回滚能力已经在此前失败发布中实测：最近 `6d555d0` 失败后使用其发布前备份 `pump-release-2026-09-07T10-30-46-458Z.db` 恢复 `12fee179b607`、迁移 79 与旧 Web 构建，并确认 ready 和启动备份通过。本次成功发布后保留新版，不再人为重复回滚。
+
+#### 本轮修复过程（保留真实结果）
+
+- 隔离运行 56 为 8/9、57 为 7/9；修复未发送草稿引发补充回答与明确拒绝替代来源被误判，配置成本专项运行 58 为 1/1。
+- `6d555d0` 生产 8/9，原三项均通过，配置成本因模板多关键词零命中与绕路查询耗尽次数未通过。回滚后修复正式模板目录匹配及既有试算入口，再运行 59 与本次生产验收，分别为 9/9。
+
+#### 失败与回滚证据（保留真实历史）
+
+| 发布提交 | 生产真实结果 | 首要问题 | 回滚制品目录 |
+|---|---|---|---|
+| `d81ff7e` | 4/9 | 单价来源、目标资料、用途与成本摘要 | `~/pump-release-staging/d81ff7e/` |
+| `51e0425` | 8/9 | 模板套件价替代零件目录价 | `~/pump-release-staging/51e0425/` |
+| `d553716` | 8/9 | 重复知识资料累积超容 | `~/pump-release-staging/d553716/` |
+| `8b54378` | 8/9 | “没有查询到任何报价记录”误判 | `~/pump-release-staging/8b54378/` |
+| `5f1fc21` | 6/9 | 提前反问、预算结束不完整、另一零报价表达误判 | `~/pump-release-staging/5f1fc21/` |
+| `6d555d0` | 8/9 | 模板多关键词零命中，配置成本绕路耗尽次数 | `~/pump-release-staging/6d555d0/` |
+
+- 每次失败均恢复 `12fee179b607`、迁移 79 和原 Web 构建。各失败数据库可能都有运行 ID 47（恢复旧快照后再次运行），必须连同提交及制品目录识别，不能按 ID 合并或覆盖。
+- 隔离真实检查：48=6/9、49=6/9、50=7/9、51=7/9、52=8/9、53=7/9、54=9/9；55 为切割用途单项诊断 1/1。原记录全部保留。51 与 `8b54378` 原生产回执经修正规则后只读复核 9/9，是离线复核，不能写成新的真实模型运行。另保留启动未就绪的 fetch failed。
+- 本机全部日志与只读复核结果：`C:\Users\Dan\Documents\pump-v1-release-archive\2026-09-07`。此前 `5f1fc21` 失败日志为 `deployment-zero-quotation.log`，数据库对比为 `5f1fc21-database-diff.json`。这些历史结果保留，不因后续修复通过而改写；本次成功证据见上方当前状态。
+
+在已授权常规主服务发布、且没有上述 Legacy 保护限制时，Windows 项目根目录运行：
+
+```powershell
+npm run deploy:macmini
+```
+
+该命令只接受已经 push 到 `origin/master` 的提交，并自动完成生产快照、快进拉取、
+按需安装依赖、完整发布门禁、无 sudo LaunchDaemon 重启、启动备份验证、真实 AI
+回归和公网验收。PowerShell 通过 stdin 把 UTF-8 脚本交给远端 `zsh`，不再拼接
+复杂 SSH 命令。重复部署同一 commit 时会复用该 commit 已通过的代码门禁证据，
+但仍会重新执行服务重启、ready、启动备份、真实 AI 和公网检查。
+
+本文用于 Mac Mini 生产环境发布前后的固定检查。发布命令以项目根目录为准：
+
+```bash
+cd ~/pump-cost-accounting-system
+export PATH=/opt/homebrew/bin:$PATH
+```
+
+生产运行目录不要放在 `~/Documents`。macOS 的 TCC 隐私保护会阻止 LaunchDaemon 读取该目录，导致服务反复启动失败。
+
+## 1. 发布前
+
+- 确认当前机器上的真实 `.env` 已按 `.env.example` 补齐，真实密钥不得提交到仓库。
+- 配置 `DB_BACKUP_MIRROR_DIR` 指向另一块磁盘或备份设备；未配置时明确记录本次发布只有本机备份。
+- 生产环境必填：`ACCESS_PASSWORD`、`JWT_SECRET`、`INTERNAL_SECRET`、`CORS_ORIGIN`。
+- 如启用 AI 或出图，确认 `DEEPSEEK_API_KEY`、`FREECAD_BIN`、`PYTHONPATH` 按实际环境配置。
+- 如启用通用 MCP，设置 `MCP_ENABLED=true`。单 Agent 配置 `MCP_CLIENT_ID + MCP_TOKEN`；多个 Agent 使用 `MCP_SERVICE_TOKENS` JSON 为 Hermes、Codex 等分别分配独立 token。每个 token 至少 32 字符，不得跨 Agent 复用，也不得复用 `INTERNAL_SECRET`、`JWT_SECRET` 或管理密码。公网域名 hostname 会从 `CORS_ORIGIN` 自动加入允许列表，其他入口显式写入 `MCP_ALLOWED_HOSTS`。
+- 已进入多 Agent 模式后，日常新增、轮换、撤销和回滚不得手工编辑生产 `.env`；Windows 端使用 `npm run mcp:identity:macmini -- -Action <...>`，Mac Mini 本机使用 `npm run mcp:identity -- <...>`。所有写操作先 dry-run，再显式 `-Apply`/`--apply`；token 只能来自 SSH stdin、命名环境变量或包装器内存生成，不得放入命令行参数、聊天、日志或报告。正式变更必须保留 `backups/config/mcp-identities/` 权限受限备份，并在 API 重启后按身份精确核对由权威 catalog 与实际 allowlist 推导出的完整工具名集合，不得用统一工具数量代替。完整命令和回滚流程见 `docs/mcp-development-guide.md`。
+- MCP 写能力保持 `MCP_WRITE_ENABLED=false`，除非本次发布明确批准写入。批准后的初始灰度配置示例为 `MCP_WRITE_CLIENT_IDS=<clientId,...>` 与 `MCP_WRITE_TOOL_ALLOWLISTS={"clientId":["sync_factory_knowledge"]}`；每个身份只获得数组中明确列出的写工具，不再默认看到全部 18 个。缺少映射、空列表、未知身份或未知工具会使 API 启动失败。首次只向支持 2026 form elicitation 的客户端开放一个可回滚工具；2025 无状态客户端只能使用只读工具，写调用会安全拒绝。
+- 任何批准生产 MCP 写能力的发布，必须先在待发布 commit 上通过 `npm run verify:mcp-write-local` 并检查 `logs/mcp-write-local-latest.json` 为 `passed`、`toolsCovered=18`、`productionTouched=false`。该本地门禁不授权修改生产 `.env`；启用开关、身份和逐工具 allowlist 仍需本次发布单独明确批准。
+- 首次把新的权威写工具加入生产灰度集合，日常增量默认使用 `approve-write`，每次只指定一个身份和一个工具。固定候选集已整体通过代码审计、18/18 localhost 成功路径及逐工具原生拒绝零副作用验收，且输入集合与 `scripts/mcp-write-acceptance-manifest.cjs` 当前候选清单精确一致时，可使用 `approve-write-batch` 对一个身份整批首次批准；列表中任一工具缺失、多余、未知、重复或已灰度都必须整批拒绝。两种入口都先 dry-run，再使用各自独立确认词执行；Mac Mini 批量执行在同一个远端进程和配置锁内只产生一份配置备份、一次原子替换、一次 API 重启和一次全身份精确目录核对，失败时恢复该备份并再次重启核验，达到终态后才释放锁。已进入灰度集合后才可用 `grant-write` 授权给其他身份。禁止手工编辑 `.env` 或用普通配置确认词绕过首次批准门卫。
+- 拉取代码前，先把当前数据库快照与当前 commit 绑定并验证：
+
+```bash
+PREVIOUS_COMMIT=$(git rev-parse HEAD)
+npm run db:backup:release -- --git-commit "$PREVIOUS_COMMIT"
+npm run db:backup:verify -- --latest --type release \
+  --expect-commit "$PREVIOUS_COMMIT"
+```
+
+- 快照通过后再拉取代码并安装依赖：
+
+```bash
+git pull --ff-only origin master
+npm ci
+npm --prefix apps/web-next ci
+```
+
+首次部署 Knowledge V6 或更换模型时，联网准备本地模型缓存：
+
+```bash
+npm run knowledge:model-prepare
+```
+
+成功后在 `.env` 设置 `KNOWLEDGE_MODEL_OFFLINE=true`。后续重启只读取本地缓存，不依赖外网；模型准备失败时不要删除现有 FTS 数据。
+
+## 2. 发布验证
+
+每次重启生产服务前必须执行：
+
+```bash
+npm run verify:release
+```
+
+该命令会依次执行：
+
+- `npm audit`
+- `npm test`
+- `npm run test:deep-api`，在临时数据库副本上执行跨模块 API 冒烟测试
+- `npm run build`
+- `npm run verify:prod-env`
+
+`verify:prod-env` 会检查生产必填环境变量、拒绝开发默认密钥，并校验 `PORT` 与
+`INTERNAL_API_TIMEOUT_MS`（允许 1000-120000 毫秒）。任一环节失败都不要继续重启生产服务。
+
+Hermes NAS 的 `~/.hermes/.env` 只保存 MCP 专用 token：
+
+```dotenv
+PUMP_FACTORY_MCP_TOKEN=<与 Mac Mini 上 Hermes 身份对应的 MCP service token 相同>
+```
+
+`~/.hermes/config.yaml` 使用远程 Streamable HTTP，并明确禁止并行工具调用：
+
+```yaml
+mcp_servers:
+  pump_factory:
+    url: "https://xuxinqi.xin/mcp"
+    headers:
+      Authorization: "Bearer ${PUMP_FACTORY_MCP_TOKEN}"
+    enabled: true
+    supports_parallel_tool_calls: false
+    timeout: 30
+    connect_timeout: 15
+```
+
+不要把 Bearer token 直接写入可提交的 Compose、配置模板或日志。Hermes 连接后运行 `hermes mcp test pump_factory`，只读身份应发现 49 个工具；其他 Agent 连接同一 `/mcp` 时按部署策略使用自己的身份。未授权请求应返回 `401`；未列入 `MCP_WRITE_CLIENT_IDS` 的身份看不到任何写工具，已列入的身份也只能看到 `MCP_WRITE_TOOL_ALLOWLISTS` 为其明确授权的子集。当前 service-token 模式只适合同一管理域控制的 Agent/CI；开放第三方多租户前必须增加 MCP OAuth 2.1 Resource Server 流程。回滚写能力只需设 `MCP_WRITE_ENABLED=false` 并重启 API；完全回滚 MCP 则设 `MCP_ENABLED=false`，不涉及数据库迁移。
+
+## 3. 重启服务
+
+日常发布由 `npm run deploy:macmini` 使用现有系统级 LaunchDaemon 的非 sudo
+`kickstart` 重启，不再重复安装系统文件。首次部署，或
+`com.pumpfactory.*.plist`、守护包装脚本、日志轮转配置发生变化时，才运行一次：
+
+```bash
+sudo ./scripts/install-macmini-launchdaemons.sh
+```
+
+日常远端手工兜底命令为：
+
+```bash
+/bin/zsh ./scripts/deploy-macmini-release.sh
+```
+
+不要把手动 `pkill + nohup` 作为常规发布路径。只有 LaunchDaemon 被系统策略阻断或需要临时排障时，才允许短时间手动启动，并在排障结束后回到脚本托管：
+
+```bash
+pkill -f 'node api.cjs'
+pkill -f 'next start -p 3000'
+nohup node api.cjs > logs/api.log 2>&1 &
+nohup npm run web-next:start:primary > logs/web.log 2>&1 &
+```
+
+## 4. 发布后检查
+
+- 后端健康检查：
+
+```bash
+curl http://127.0.0.1:3002/api/health
+curl http://127.0.0.1:3002/api/health/live
+curl http://127.0.0.1:3002/api/health/ready
+```
+
+`live` 仅证明进程还活着；发布验收必须以 `ready` 为准，它会检查数据库、
+迁移版本和启动备份。`install-macmini-launchdaemons.sh` 已自动等待两个
+LaunchDaemon 进入 running，并验收 API ready 与 Web `/login`；任一失败会
+输出最近错误日志并以非零状态退出，不能把脚本开始执行视为发布成功。
+健康检查通过后，安装脚本还会自动执行 `npm run verify:ai-release`。真实 AI
+回归存在失败、待确认或模型调用错误时，安装命令返回失败，本次发布不能验收；
+服务保持运行以便排查，结果保存在 `logs/ai-release-gate-latest.json`，并进入
+管理看板“今日待办”的知识健康事项。模型流式连接瞬时中断会自动重试，连续
+3 次不能完成才按错误阻止验收。
+
+日常发布在公网 ready、登录页和 AI 页面通过后，原本还会执行
+`npm run verify:mcp-prod-read`。**2026-09-19 起该步骤默认停用**：生产只有 1 个未删除配方，
+而它要求至少两个正式配方才能验收成本对比，任何发布都会卡在这一步；负责人同时表示若
+ontology 能满足需求可能弃用 MCP，因此不再为它补数据或放宽验收。停用期间发布不再执行该验收，
+脚本会打印跳过原因。需要恢复时运行 `npm run deploy:macmini -- -McpAcceptance enabled`，
+或在远端设置 `PUMP_DEPLOY_MCP_ACCEPTANCE=enabled`；服务端 `/mcp`、只读工具、隔离库验收
+（`npm run verify:mcp-local`、`npm run verify:mcp-write-local`）与手工执行本命令都不受影响。
+
+该验收本身的行为（恢复后仍然适用）：在单个连接内复用三个正式成本场景，并覆盖 18 个
+代表工具及库存、配方、客户/报价、订单/采购、管理/质量、知识、出图历史和统一业务变更；逐次验证
+`mcp.verified`、能力 ID 和正式数据源，并交叉核对配方明细/无覆盖试算的当前完整成本、
+覆盖试算的 `currentTotalCost` 主字段，以及两项成本对比工具的实时数据模式。最坏 36 个请求，低于每分钟 60 次生产限流。
+它不创建缺价、订单或其他测试样本，也不修改任何生产数据。失败会以非零状态阻止发布完成，
+脱敏综合报告保存在 `logs/mcp-production-read-latest.json`，成本子报告继续保存在
+`logs/mcp-production-cost-latest.json`。
+
+若本次发布包含 MCP 写目录、确认协议或 executor/command 变更，部署前还必须执行
+`npm run verify:mcp-write-local`。它通过真实 localhost Streamable HTTP、2025/2026 双客户端和临时
+SQLite，让 18/18 写工具逐一经过正式 executor/API、operation/audit 与 Query/数据库回读，并对两种工作流的业务动作与历史命令逐条核对独立业务变更事件，同时覆盖代表性
+正式幂等重放、业务失败零副作用和 `accepted_async` 终态。验收清单把当前批次基线 9 项和候选 9 项
+做无重复、无遗漏分区；候选按订单与报价转单、文件归档、转子出图三个场景汇总，并逐项验证
+原生 decline 后数据库和外部命令零副作用。出图外部命令由跨平台替身隔离，未知命令 fail-closed。
+不得为了通过门禁临时打开生产写开关，也不得把本地通过等同于生产写入已授权；生产仍需
+`approve-write` 单项首次批准或满足整批前置条件时使用 `approve-write-batch` 原子批准，并继续按身份精确工具名验证和独立人工灰度。生产验收使用专用灰度数据；
+`execute_factory_workflow_step` 默认只验拒绝，`archive_factory_file` 只使用专用 canary 文件。
+`print_rotor_drawing` 不属于 MCP 目录；发布前必须先用 `revoke-write` 从每个身份的旧 allowlist 移除它，再重启新版本，不得用 MCP 触发任何打印路径。
+
+`npm test` 会为每个测试进程创建独立临时 SQLite，发布门禁不会再运行迁移或
+测试写入生产 `pump.db`；真实生产迁移只在 API 服务重启时执行，并由拉取前的
+commit 绑定 release 备份保护。
+脚本还会安装并校验 `/etc/newsyslog.d/com.pumpfactory.conf`，四个
+LaunchDaemon 日志达到 10 MB 后轮转，保留 14 份压缩文件；轮转后对应服务
+收到 `SIGTERM` 并由 LaunchDaemon 自动拉起，以确保新日志文件真正生效。
+
+- 打开 Web 前端并验证登录、订单、配方、报价、线圈、转子出图和移动端 `/ai`。
+- 本次包含迁移 67 时，在可回滚的隔离数据库先执行一笔业务变更，确认 operation 回执带 `businessChangeEvent`，`GET /api/business-changes` 可按实体查到同一事件，知识条目 `entryType=change_event` 与向量投影完成同步；生产只做已有真实变更的只读查询，不为验收制造数据。
+- 查看错误日志：
+
+```bash
+tail -n 80 logs/api-launchd.error.log
+tail -n 80 logs/web-launchd.error.log
+```
+
+- 保存响应头中的 `X-Request-ID`，确认可在 API 日志中定位同一次请求。
+- 核对 ready 响应中的 `runtime.gitCommit`、启动时间、内存以及 `background`
+  后台任务状态。详细排查步骤见 [operations-runbook.md](./operations-runbook.md)。
+
+- 确认 `backups/startup/` 有最近启动备份、`backups/daily/` 有每日备份；启动备份保留 5 份，每日备份保留 30 份，二者互不挤占。
+- 执行 `npm run db:backup:verify -- --latest --type startup`，验证最新真实落盘备份的元数据、SHA-256、完整性、外键、Schema 和核心表数量。
+- 执行 `npm run knowledge:backup-check`，确认临时恢复库完整性、外键、向量数量和余弦查询全部正常。
+- 执行 `npm run test:knowledge-retrieval`，确认固定检索评测通过；该命令复用已启动 API，不调用外部 AI。
+- 在管理看板“知识库”确认向量覆盖率、混合检索模式和待生成数量；模型异常时系统应自动显示 FTS 回退。
+- 确认审计保留期：默认 `AUDIT_RETENTION_DAYS=365`，清理只在成功备份后执行；设为 `0` 表示禁用。
+- 首次部署知识库版本后，在 `/ai` 输入“同步工厂知识库”并确认执行；核对同步总数、新增/更新/删除数量和 FTS 状态。
+- 用真实型号、客户、报价和订单各提问一次，确认 AI 能返回正确来源；知识库同步失败时先检查 API 日志，不要反复清库。
+
+## 5. 回滚
+
+如发布后发现阻断问题，选择上一个已知可用 tag/commit 和与其绑定的
+`release` 备份。禁止只切换 Git：数据库迁移版本高于旧代码时，旧代码会
+拒绝启动。
+
+```bash
+sudo /bin/zsh ./scripts/rollback-macmini-release.sh \
+  <target-tag-or-commit> \
+  backups/release/<matching-file>.db
+```
+
+脚本会验证备份绑定的 commit、停止服务、创建 safety 快照、恢复数据库、
+切换代码、重新验证并启动服务。失败时按输出中的 `logs/rollback-*.json`
+和 safety 备份处理，不要继续启动版本错配的服务。
+
+完整恢复规则见 [database-backup-recovery.md](./database-backup-recovery.md)。

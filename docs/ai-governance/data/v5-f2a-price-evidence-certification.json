@@ -1,0 +1,519 @@
+{
+  "version": 1,
+  "startCommit": "27863176d4127e21f45336e86f667efc3aeb7fcc",
+  "formalCertificationRuns": 1,
+  "certificationScope": "FROZEN_READ_EXECUTION_AND_FIELD_EVIDENCE_ONLY",
+  "authoritativeTaskInputs": "FROZEN_CONTRACTS_NOT_NEW_INTERPRETER_EVALUATION",
+  "frozenPaths": 15,
+  "priceApplicable": 3,
+  "preCertificationHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "7f2dd9eef3657c3879109c52cc5e26ec50d64b1b2794056b9330441d1b101f43",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "c290f56f93dd2342f7d06b1f4a8de2b5bbe07aa54c5f1569762cf60ce9eeb257",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "8120b29693f2c71046382015f5708783a4ec73575a0a414243c2bb5196868d23"
+  },
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "requiredFactKeys": [
+        "coil.inventory"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "requiredFactKeys": [
+        "recipe.cost.preview"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "requiredFactKeys": [
+        "inventory.quantity",
+        "price.current"
+      ],
+      "evidencePresence": [
+        true,
+        true
+      ],
+      "evidenceValidity": [
+        true,
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": true,
+      "numericTypeMatch": true,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 2,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED",
+        "PRICE_FIELD_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "requiredFactKeys": [
+        "inventory.quantity",
+        "price.current"
+      ],
+      "evidencePresence": [
+        true,
+        true
+      ],
+      "evidenceValidity": [
+        true,
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": true,
+      "numericTypeMatch": true,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 2,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED",
+        "PRICE_FIELD_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "requiredFactKeys": [
+        "inventory.quantity",
+        "price.current"
+      ],
+      "evidencePresence": [
+        true,
+        true
+      ],
+      "evidenceValidity": [
+        true,
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": true,
+      "numericTypeMatch": true,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 2,
+      "toolCalls": 1,
+      "businessApiReadCalls": 2,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED",
+        "PRICE_FIELD_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "requiredFactKeys": [
+        "inventory.quantity"
+      ],
+      "evidencePresence": [
+        true
+      ],
+      "evidenceValidity": [
+        true
+      ],
+      "verificationStatus": "PASS",
+      "runtimeHandoffAvailable": null,
+      "numericTypeMatch": null,
+      "toolMatch": true,
+      "argumentValidation": "VALIDATED",
+      "executionStatus": "SUCCESS",
+      "resultComparison": "MATCH",
+      "evidenceCount": 1,
+      "toolCalls": 1,
+      "businessApiReadCalls": 1,
+      "reasonCodes": [
+        "READ_EXECUTION_VERIFIED"
+      ]
+    }
+  ],
+  "answerModelCalls": 0,
+  "interpreterModelCalls": 0,
+  "writes": 0,
+  "allowWriteEnablingCalls": 0,
+  "businessMutationCalls": 0,
+  "productionRouting": 0,
+  "metrics": {
+    "toolMatches": 15,
+    "validatedArguments": 15,
+    "executionSuccess": 15,
+    "resultEquivalence": 15,
+    "requiredFields": 18,
+    "evidencePresent": 18,
+    "evidenceValid": 18,
+    "verificationPass": 15,
+    "priceExtracted": 3,
+    "priceValid": 3,
+    "priceVerificationPass": 3,
+    "priceHandoff": 3,
+    "realToolCalls": 15,
+    "executionReadCalls": 21,
+    "totalReadCalls": 51
+  },
+  "privacy": {
+    "safeSchema": true,
+    "sourceLeakCount": 0,
+    "runtimeValueFieldCount": 0,
+    "canonicalIdFieldCount": 0,
+    "priceValueFieldCount": 0,
+    "verificationSpanCount": 3,
+    "traceSink": "IN_MEMORY_PHOENIX_METADATA_ADAPTER",
+    "normalLogCount": 1
+  },
+  "fixtureSafety": {
+    "before": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "after": {
+      "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+      "mtimeMs": 1788424936315.8767,
+      "size": 35323904
+    },
+    "unchanged": true
+  },
+  "postCertificationHashes": {
+    "api/services/ai-v5/evidenceRequirements.cjs": "5f123fc91739b11ddd648d3e311e36b46ba1e22eff1a586e9af1e42f99beb76e",
+    "api/services/ai-v5/evidenceLedger.cjs": "999aa3f2a2d7e5f3e19a57316122eaec06759d66b6cd77aac8a92c60179244db",
+    "api/services/ai-v5/fieldReadEvidence.cjs": "7f2dd9eef3657c3879109c52cc5e26ec50d64b1b2794056b9330441d1b101f43",
+    "api/services/ai-v5/verification.cjs": "4ff93e3c95d06c3801225b23afcae2404edda18f4dacb09af50fb2346e4e8f79",
+    "api/services/ai-v5/readExecutionShadow.cjs": "c290f56f93dd2342f7d06b1f4a8de2b5bbe07aa54c5f1569762cf60ce9eeb257",
+    "api/services/ai-v5/coilReadComparator.cjs": "a1ced40384df4cbb7bfa1dec1ea663d1224df0f2a2545c6e3d2c7fa4e5f5496d",
+    "api/services/ai-v5/readArgumentBinder.cjs": "79023034ee6df865da5f3abc5dbea760e3295bece8fff85c28a3120a7849f0ed",
+    "api/services/ai-v5/readExecutionRegistry.cjs": "1969fe7b2b46de87865a8abf74bb827efb6ddc4995b983301b46ad8129929450",
+    "api/services/ai-v5/taskState.cjs": "93d52aa61ffa11d013e6ec1b0f002bdc034c29e97f51863edc514d92d877e601",
+    "api/services/ai-v5/policy.cjs": "9aff3bdb382bd7fc35d1205304aa5acb255ab41681a3103e13156d7175ab3186",
+    "api/services/ai-v5/candidateSet.cjs": "8b2827b00959c4a8b0a6759a6470509c989c7f69869a35ee7449cf020ba077dc",
+    "api/services/ai-v5/capabilityRouter.cjs": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "api/services/ai-v5/toolExposure.cjs": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "api/routes/ai/executors/queryExecutors.cjs": "842b58450202b71d2b0b63df12030fca2efc9770384d466c711197b992758b9c",
+    "api/routes/ai/internalApiClient.cjs": "ee415eb3aa964d1e677e924a95d768acb1d4afaea4bc3df70830f1073a21a105",
+    "docs/ai-governance/data/v5-e4r-entity-first-architecture-audit.json": "286592bfea5f1a77ec5f8c061af64be6de03282a02fdd9b789ef1c435d062551",
+    "docs/ai-observability/data/p06-failure-cases.json": "0c2929647dba224cd9d9984083f454ee654d644a9ee199577f869bcab6ff8618",
+    "docs/ai-governance/data/v5-e4r-task-class-semantics-v1_1-evaluation.json": "9ca3a3c8b50cba54a34a171263a72deb347ef6a0a0df487d913e979f9e2d114a",
+    "scripts/run-ai-v5f1b-read-certification.cjs": "3cd811bf09b6d1f84a2ee77c41b8a1ebcc09b8f7df77299f5f6e6f459f236cc2",
+    "scripts/run-ai-v5f2a-price-evidence-certification.cjs": "780d573b3d82dde3f8621f9094beec2041b11b5871edbea730e90d36edcbd6a9",
+    "tests/aiV5FieldReadEvidence.test.cjs": "8955212b71ed22ccde068d9215b7415416f618ae993a019bc5b6317557a34299",
+    "tests/aiV5Projection.test.cjs": "8120b29693f2c71046382015f5708783a4ec73575a0a414243c2bb5196868d23"
+  },
+  "hashesMatch": true,
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backups": 209
+  },
+  "databaseUnchanged": true,
+  "certificationPass": true,
+  "validation": {
+    "deterministicPriceTests": { "passed": 27, "total": 27 },
+    "combinedV5Tests": { "passed": 322, "total": 322 },
+    "baselineRegression": { "passed": 2084, "total": 2085, "knownFailure": "MISSING_GUARDIAN_CONFIG", "newRegression": false },
+    "apiContractTests": { "passed": 26, "total": 26 },
+    "build": "PASS",
+    "deepApi": "NOT_RUN_WRITE_SCENARIOS_OUT_OF_SCOPE",
+    "concurrentTasks": 10,
+    "crossTaskHandoffRejections": "PASS",
+    "quantityNonRegression": "PASS"
+  },
+  "P16_B_RESUME_READY": true
+}

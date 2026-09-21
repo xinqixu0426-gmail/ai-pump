@@ -1,0 +1,138 @@
+#!/bin/zsh
+set -euo pipefail
+
+SCRIPT_DIR=${0:A:h}
+PROJECT_DIR=/Users/dan/pump-cost-accounting-system
+USER_ID=$(/usr/bin/id -u dan)
+NPM_BIN=/opt/homebrew/bin/npm
+USER_PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+as_dan() {
+  /usr/bin/sudo -u dan /usr/bin/env \
+    HOME=/Users/dan \
+    PATH="$USER_PATH" \
+    "$@"
+}
+
+bootstrap_daemon() {
+  local label=$1
+  local plist_path=$2
+
+  if /bin/launchctl bootstrap system "$plist_path"; then
+    return
+  fi
+
+  echo "$label 首次注册失败，等待系统释放旧服务后重试。" >&2
+  /bin/launchctl bootout "system/$label" 2>/dev/null || true
+  /bin/sleep 2
+  /bin/launchctl bootstrap system "$plist_path"
+}
+
+wait_for_daemon() {
+  local label=$1
+  local attempts=30
+  local output
+
+  for ((i = 1; i <= attempts; i++)); do
+    output=$(/bin/launchctl print "system/$label" 2>&1 || true)
+    if [[ "$output" == *"state = running"* ]]; then
+      return
+    fi
+    /bin/sleep 1
+  done
+
+  echo "$label 未在 ${attempts} 秒内进入 running 状态。" >&2
+  /bin/launchctl print "system/$label" >&2 || true
+  return 1
+}
+
+wait_for_http() {
+  local name=$1
+  local url=$2
+  local attempts=45
+
+  for ((i = 1; i <= attempts; i++)); do
+    if /usr/bin/curl --silent --show-error --fail --max-time 3 "$url" >/dev/null 2>&1; then
+      return
+    fi
+    /bin/sleep 1
+  done
+
+  echo "$name 未在 ${attempts} 秒内通过 HTTP 验收：$url" >&2
+  return 1
+}
+
+show_failure_diagnostics() {
+  echo "最近 API 日志：" >&2
+  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/api-launchd.error.log" >&2 2>/dev/null || true
+  echo "最近 Web 日志：" >&2
+  /usr/bin/tail -n 60 "$PROJECT_DIR/logs/web-launchd.error.log" >&2 2>/dev/null || true
+}
+
+if [[ $EUID -ne 0 ]]; then
+  echo "请使用 sudo 运行此脚本。" >&2
+  exit 1
+fi
+
+/bin/mkdir -p "$PROJECT_DIR/logs"
+/usr/sbin/chown dan:staff "$PROJECT_DIR/logs"
+
+cd "$PROJECT_DIR"
+/opt/homebrew/bin/node scripts/verify-production-env.cjs
+/usr/bin/plutil -lint "$SCRIPT_DIR/com.pumpfactory.api.daemon.plist" >/dev/null
+/usr/bin/plutil -lint "$SCRIPT_DIR/com.pumpfactory.web.daemon.plist" >/dev/null
+
+/usr/bin/install -o root -g wheel -m 644 \
+  "$SCRIPT_DIR/com.pumpfactory.api.daemon.plist" \
+  /Library/LaunchDaemons/com.pumpfactory.api.plist
+/usr/bin/install -o root -g wheel -m 644 \
+  "$SCRIPT_DIR/com.pumpfactory.web.daemon.plist" \
+  /Library/LaunchDaemons/com.pumpfactory.web.plist
+/usr/bin/install -o root -g wheel -m 644 \
+  "$SCRIPT_DIR/com.pumpfactory.newsyslog.conf" \
+  /etc/newsyslog.d/com.pumpfactory.conf
+/bin/mkdir -p /usr/local/libexec
+/usr/bin/install -o root -g wheel -m 755 \
+  "$SCRIPT_DIR/pumpfactory-api-daemon" \
+  /usr/local/libexec/pumpfactory-api-daemon
+/usr/bin/install -o root -g wheel -m 755 \
+  "$SCRIPT_DIR/pumpfactory-web-daemon" \
+  /usr/local/libexec/pumpfactory-web-daemon
+/bin/rm -f /usr/local/libexec/pumpfactory-api-log-reopen
+/bin/rm -f /usr/local/libexec/pumpfactory-web-log-reopen
+/usr/sbin/newsyslog -n -f /etc/newsyslog.d/com.pumpfactory.conf >/dev/null
+
+/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.api" 2>/dev/null || true
+/bin/launchctl bootout "gui/$USER_ID/com.pumpfactory.web" 2>/dev/null || true
+/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.api.plist
+/bin/rm -f /Users/dan/Library/LaunchAgents/com.pumpfactory.web.plist
+
+/bin/launchctl bootout system/com.pumpfactory.api 2>/dev/null || true
+/bin/launchctl bootout system/com.pumpfactory.web 2>/dev/null || true
+/bin/rm -f "$PROJECT_DIR/logs/api-launchd.pid"
+/bin/rm -f "$PROJECT_DIR/logs/web-launchd.pid"
+
+/bin/sleep 1
+bootstrap_daemon com.pumpfactory.api /Library/LaunchDaemons/com.pumpfactory.api.plist
+bootstrap_daemon com.pumpfactory.web /Library/LaunchDaemons/com.pumpfactory.web.plist
+/bin/launchctl enable system/com.pumpfactory.api
+/bin/launchctl enable system/com.pumpfactory.web
+/bin/launchctl kickstart system/com.pumpfactory.api
+/bin/launchctl kickstart system/com.pumpfactory.web
+
+if ! wait_for_daemon com.pumpfactory.api ||
+   ! wait_for_daemon com.pumpfactory.web ||
+   ! wait_for_http "API 就绪检查" "http://127.0.0.1:3002/api/health/ready" ||
+   ! wait_for_http "Web 登录页" "http://127.0.0.1:3000/login"; then
+  show_failure_diagnostics
+  exit 1
+fi
+
+if ! as_dan "$NPM_BIN" run verify:ai-release; then
+  echo "AI 发布回归门禁未通过，服务保持运行但本次发布不能验收。" >&2
+  echo "检查 $PROJECT_DIR/logs/ai-release-gate-latest.json 和知识管理页失败明细。" >&2
+  show_failure_diagnostics
+  exit 1
+fi
+
+echo "系统级水泵服务已安装，并通过 LaunchDaemon、API、Web 和 AI 回归门禁验收。"

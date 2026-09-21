@@ -1,0 +1,368 @@
+{
+  "status": "BLOCKED",
+  "phase": "PRE_IMPLEMENTATION_AUTHORITY_PREFLIGHT",
+  "startCommit": "a4aa53c36862ebd38882b47af6cad9ae2b53fe85",
+  "formalEvaluationRuns": 0,
+  "answerModelCalls": 0,
+  "interpreterModelCalls": 0,
+  "realToolExecutions": 0,
+  "businessApiCalls": 0,
+  "writes": 0,
+  "productionRouting": 0,
+  "userVisibleAnswers": 0,
+  "frozenPaths": 15,
+  "answerApplicablePaths": 15,
+  "answerImplementation": "NOT_IMPLEMENTED",
+  "preflight": {
+    "assertions": "PASS",
+    "probes": [
+      {
+        "probe": "PRICE_ABSENT",
+        "inspectionAccepted": true,
+        "verificationDecision": "VERIFIED",
+        "verifiedClaimType": "inventory.quantity",
+        "priceEvidencePresent": false
+      },
+      {
+        "probe": "PRICE_NON_NUMERIC",
+        "inspectionAccepted": true,
+        "verificationDecision": "VERIFIED",
+        "verifiedClaimType": "inventory.quantity",
+        "priceEvidencePresent": false
+      },
+      {
+        "probe": "PRICE_NUMERIC",
+        "inspectionAccepted": true,
+        "verificationDecision": "VERIFIED",
+        "verifiedClaimType": "inventory.quantity",
+        "priceEvidencePresent": false
+      }
+    ],
+    "priceCoverage": "NOT_DEFINED_IN_FROZEN_EVIDENCE_REQUIREMENTS",
+    "affectedPaths": 3
+  },
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "REQUIRED_PRICE_OUTSIDE_VERIFIED_CLAIM_SCOPE"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "REQUIRED_PRICE_OUTSIDE_VERIFIED_CLAIM_SCOPE"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "REQUIRED_PRICE_OUTSIDE_VERIFIED_CLAIM_SCOPE"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "answerApplicable": true,
+      "answerStatus": "NOT_RUN",
+      "claimCount": null,
+      "groundedClaimCount": null,
+      "requiredFactCoverage": null,
+      "numericFactMatch": null,
+      "entityIdentityMatch": null,
+      "unsupportedClaimCount": null,
+      "internalLeakageCount": null,
+      "oracleComparison": "NOT_RUN",
+      "v4Comparison": "NOT_RUN",
+      "safeAnswerDigest": null,
+      "reasonCodes": [
+        "SESSION_BLOCKED_BEFORE_IMPLEMENTATION"
+      ],
+      "traceId": null,
+      "shadowTaskId": null
+    }
+  ],
+  "blockers": [
+    "REQUIRED_PRICE_OUTSIDE_VERIFIED_CLAIM_SCOPE",
+    "VERIFIED_VALUE_HANDOFF_NOT_AVAILABLE"
+  ],
+  "databaseBefore": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backupCount": 209
+  },
+  "databaseAfter": {
+    "hash": "09b77d8d93a7fe8a30dd4a9ac6f9e743745c384396e783983fc82617f4bef38e",
+    "mtimeMs": 1788424936315.8767,
+    "size": 35323904,
+    "backupCount": 209
+  },
+  "databaseUnchanged": true,
+  "productionPreHash": "f3c98316c8ae11a4d8efa60d67da291d0fae077d2623e545a3dfb338f4bb2d16",
+  "productionPostHash": "f3c98316c8ae11a4d8efa60d67da291d0fae077d2623e545a3dfb338f4bb2d16",
+  "productionChanged": false,
+  "dependenciesChanged": false,
+  "P16_C_READY": false
+}

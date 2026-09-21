@@ -1,0 +1,720 @@
+{
+  "schema_version": 1,
+  "provider": "deepseek",
+  "model_id": "deepseek-v4-pro",
+  "project": "pump-ai-v5e4r-model-deepseek-v4-pro",
+  "canary": {
+    "model": "deepseek-v4-pro",
+    "status": "PASS",
+    "protocolStatus": "VALID",
+    "reasonCode": "INTERPRETATION_VALID",
+    "modelCalls": 1,
+    "durationMs": 1390.9689,
+    "usage": {
+      "promptTokens": 4032,
+      "completionTokens": 64,
+      "totalTokens": 4096
+    }
+  },
+  "formal_evaluation_runs": 1,
+  "freeze_hashes_pre": {
+    "prompt": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+    "taskClassSemantics": "c120fc465004c0424260cf04fdac4d58ef489439fc51264f49e50d53de5121f1",
+    "sourceSpan": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "protocolV2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "inputEnvelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "sourceAnchor": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "capabilityRegistry": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "capabilityRouter": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "toolExposure": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "classIdentity": "0149514aca7bbca5124ad069d6925e113209cb8c85f7f82cc7e9840d3b18ef02",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "6980ffb284a8d82543cb1337dbe4cc9ff70ee5ab3aec59438daf0f39f8ee5590"
+  },
+  "freeze_hashes_post": {
+    "prompt": "24b2f09d94e86960e328d5aa63ac66e3439f4f9a39152a9c6564adf555b585d3",
+    "taskClassSemantics": "c120fc465004c0424260cf04fdac4d58ef489439fc51264f49e50d53de5121f1",
+    "sourceSpan": "00b1331e6e8c3ffc8985fb268b861dcbb066d3e409aeda43f1ceef43f3821fd8",
+    "protocolV2": "da3a2c98858d16fd6ebe9008d7cd933a1bf1d5266ea876289fa33ae9d81e20ad",
+    "modelSettings": "2c6f611d49134afc68ffbd67c834eb37622084b0cb25f916b0e9399c6ad38398",
+    "inputEnvelope": "a368a4b92b218b826ff3a4351fce9cc631439244986e6122af05cec394fa7ded",
+    "sourceAnchor": "f31564536b806fd3f3261f4d19d7fd3623726a967204379fc5e633154107a339",
+    "capabilityRegistry": "c2e9c428c348866d4417a5934d7ec9d36b2d8b85cf147d95e299da8b80b8fc40",
+    "capabilityRouter": "9a13f47414a306a11e62015865162f82098c434a85c1cd17aaa2e026ee7fce55",
+    "toolExposure": "d4f4ce7caa7c12172b42375350d66843f4337e86b9484f360dc9c42e5850e2e4",
+    "classIdentity": "0149514aca7bbca5124ad069d6925e113209cb8c85f7f82cc7e9840d3b18ef02",
+    "frozenCorpus": "315a21d96fdd84f0ecb253772ae942b2cbbfd56842c2a8858e378693f444d4df",
+    "frozenExpected": "6980ffb284a8d82543cb1337dbe4cc9ff70ee5ab3aec59438daf0f39f8ee5590"
+  },
+  "paths": [
+    {
+      "case_id": "P06-COIL-001-LEGACY",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_FALSE_BLOCK",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "24645079c8e138be07127bd7c7c1e010",
+      "shadow_task_id": "v5-shadow-b2-coil-current-stock-real-provider-legacy"
+    },
+    {
+      "case_id": "P06-COIL-001-V4I",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_FALSE_BLOCK",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "830d386b3d36d7103c9eeb05c0982782",
+      "shadow_task_id": "v5-shadow-b2-coil-current-stock-real-provider-v4i"
+    },
+    {
+      "case_id": "P06-COIL-001-V4R3",
+      "source_group_id": "COIL_INVENTORY",
+      "input_fingerprint": "35f9b79f60f8ff9b445bf07151b3f28430226db8ca7c0c4ec238ecfeea425545",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_FALSE_BLOCK",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "fde52ff6c031537efdda318009a2a068",
+      "shadow_task_id": "v5-shadow-b2-coil-current-stock-real-provider-v4r3"
+    },
+    {
+      "case_id": "P06-EXACT-001-LEGACY",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "ead829515caa3086dec73ad141ddc587",
+      "shadow_task_id": "v5-shadow-b2-current-cost-1-legacy"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4I",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "fc9db9f50378e8b776f80112168496c6",
+      "shadow_task_id": "v5-shadow-b2-current-cost-1-v4i"
+    },
+    {
+      "case_id": "P06-EXACT-001-V4R3",
+      "source_group_id": "EXACT_RECIPE_COST",
+      "input_fingerprint": "edc10149c57d6147052d38f2ba3cf18c68923240b227172c0937af1acfe4e6cc",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "fb0e929540e39b4cb4df841e56a01545",
+      "shadow_task_id": "v5-shadow-b2-current-cost-1-v4r3"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-LEGACY",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "aea04443304e9f68e98e46eee697167e",
+      "shadow_task_id": "v5-shadow-b2-flat-knife-800-1-legacy"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4I",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "55546262f1a4598fca530cdd7400a29f",
+      "shadow_task_id": "v5-shadow-b2-flat-knife-800-1-v4i"
+    },
+    {
+      "case_id": "P06-FLATBLADE-001-V4R3",
+      "source_group_id": "FLAT_BLADE_PRICE",
+      "input_fingerprint": "e9f3a0b4d8f0dc6df7b8ca194247f0f9050d7e8cc13a086761a894dc09d4dc7d",
+      "protocol_status": "VALID",
+      "task_class_match": false,
+      "projected_domain_match": false,
+      "projected_operation_match": false,
+      "projected_entity_type_match": false,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": false,
+      "expected_tool_exposed": false,
+      "wrong_tool_excluded": true,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_INSUFFICIENT_DATA",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MISMATCH"
+      ],
+      "trace_id": "9a83f1bb6f5898f44980b978a9d25b1e",
+      "shadow_task_id": "v5-shadow-b2-flat-knife-800-1-v4r3"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "INCOMPARABLE",
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "dc322644939aaefb5cc2a4268285069b",
+      "shadow_task_id": "v5-shadow-b2-part-current-stock-real-provider-legacy"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4I",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": true,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "64212b942bbad162dc299927ed960234",
+      "shadow_task_id": "v5-shadow-b2-part-current-stock-real-provider-v4i"
+    },
+    {
+      "case_id": "P06-INVENTORY-001-V4R3",
+      "source_group_id": "PART_INVENTORY_PRIMARY",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "c2b889efe8aedb82c69ed9d91389807b",
+      "shadow_task_id": "v5-shadow-b2-part-current-stock-real-provider-v4r3"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-LEGACY",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": true,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "V5_BLOCKS_V4_FAILURE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "61fdf7d727c9b2d6a15219ce16a6dd20",
+      "shadow_task_id": "v5-shadow-b2-simple-current-1-legacy"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4I",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "f767870b47b02fb88aaeb474abedb2cd",
+      "shadow_task_id": "v5-shadow-b2-simple-current-1-v4i"
+    },
+    {
+      "case_id": "P06-SIMPLE-001-V4R3",
+      "source_group_id": "PART_INVENTORY_REPEAT",
+      "input_fingerprint": "81fa37cd399171c1308565c8f390e3994e8260b64f5dec6fc514b6e29f771ef4",
+      "protocol_status": "VALID",
+      "task_class_match": true,
+      "projected_domain_match": true,
+      "projected_operation_match": true,
+      "projected_entity_type_match": true,
+      "source_span_selection_status": "MATCH",
+      "anchor_status": "ANCHORED",
+      "capability_match": true,
+      "expected_tool_exposed": true,
+      "wrong_tool_excluded": null,
+      "v4_comparison_status": "COMPARABLE",
+      "overall_comparison": "AGREE",
+      "safe_reason_codes": [
+        "INTERPRETATION_VALID",
+        "SOURCE_ANCHOR_VALID",
+        "INDEPENDENT_ROUTE_SELECTED",
+        "SHADOW_PROJECTION_ONLY",
+        "V5_EXECUTION_DISABLED",
+        "INDEPENDENT_ORACLE_MATCH"
+      ],
+      "trace_id": "869e2e519de08a026f8c20e9e3c93423",
+      "shadow_task_id": "v5-shadow-b2-simple-current-1-v4r3"
+    }
+  ],
+  "metrics": {
+    "realPathsAttempted": 15,
+    "realPathsRecorded": 15,
+    "interpreterModelCalls": 15,
+    "protocolValidOutputs": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "protocolInvalidOutputs": 0,
+    "modelNoncomplianceCount": 0,
+    "taskClassMatch": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "projectedDomainMatch": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "projectedOperationMatch": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "projectedEntityTypeMatch": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "sourceSpanMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "anchorMatch": {
+      "correct": 15,
+      "total": 15,
+      "rate": 1
+    },
+    "capabilityMatch": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "expectedToolExposed": {
+      "correct": 9,
+      "total": 15,
+      "rate": 0.6
+    },
+    "sourceGroupMetrics": {
+      "taskClassMatch": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "projectedDomainMatch": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "projectedOperationMatch": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "projectedEntityTypeMatch": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "sourceSpanMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "anchorMatch": {
+        "correct": 5,
+        "total": 5,
+        "rate": 1
+      },
+      "capabilityMatch": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      },
+      "expectedToolExposed": {
+        "correct": 3,
+        "total": 5,
+        "rate": 0.6
+      }
+    },
+    "inputFingerprintMetrics": {
+      "taskClassMatch": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "projectedDomainMatch": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "projectedOperationMatch": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "projectedEntityTypeMatch": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "sourceSpanMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "anchorMatch": {
+        "correct": 4,
+        "total": 4,
+        "rate": 1
+      },
+      "capabilityMatch": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      },
+      "expectedToolExposed": {
+        "correct": 2,
+        "total": 4,
+        "rate": 0.5
+      }
+    },
+    "identicalInputConsistency": {
+      "correct": 3,
+      "total": 4,
+      "rate": 0.75
+    },
+    "coilRead": {
+      "cases": 3,
+      "taskClass": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      },
+      "sourceSpan": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "anchor": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "identityPreservation": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "capability": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      },
+      "expectedToolExposure": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      }
+    },
+    "exactEntity": {
+      "cases": 3,
+      "taskClass": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "sourceSpan": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "anchor": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "identityPreservation": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "capability": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "expectedToolExposure": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "v4ComparisonIncomparable": 0
+    },
+    "flatBlade": {
+      "cases": 3,
+      "taskClass": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      },
+      "sourceSpan": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "anchor": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "identityPreservation": {
+        "correct": 3,
+        "total": 3,
+        "rate": 1
+      },
+      "capability": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      },
+      "expectedToolExposure": {
+        "correct": 0,
+        "total": 3,
+        "rate": 0
+      }
+    },
+    "r02Cases": 3,
+    "r02WrongToolExclusion": {
+      "correct": 3,
+      "total": 3,
+      "rate": 1
+    },
+    "v5FalseBlockCount": 3,
+    "v5BlocksV4FailureCount": 4,
+    "v5InsufficientDataCount": 3,
+    "notComparableV4ComparisonCount": 1,
+    "tokenUsage": {
+      "promptTokens": 65292,
+      "completionTokens": 960,
+      "totalTokens": 66252
+    },
+    "shadowCompletionMedianMs": 1404.3431999999993,
+    "shadowCompletionP95Ms": 1636.1058999999998,
+    "v5ToolCalls": 0,
+    "v5BusinessApiCalls": 0,
+    "v5Writes": 0,
+    "modelEligible": true,
+    "promotionGate": false
+  }
+}
