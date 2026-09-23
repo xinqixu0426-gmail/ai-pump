@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R3",
+  "status": "PASS",
+  "startHead": "fd8fd2fa5b8e73c12a67cf07993dc8976d6e8546",
+  "branch": "ai-native/v1",
+  "scope": {
+    "newHttpEndpoints": 0,
+    "databaseSchemaChanged": false,
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "productionChanged": false,
+    "databaseChanged": false,
+    "deployPerformed": false,
+    "pushPerformed": false
+  },
+  "packingRemovalPolicy": {
+    "contract": "configurationPolicyJson v1 optional packingRemovalPolicy",
+    "legacyCompatibility": "field absent is legacy_open; explicit empty fields deny removal; version remains 1",
+    "removableRoles": [
+      "container",
+      "pearlCotton",
+      "foam",
+      "fixed"
+    ],
+    "removablePartIds": "positive unique integer ids, at most 100",
+    "allowClearAll": "strict boolean; false by default",
+    "replacementNotRemoval": "existing packingPartIds replacement is permitted independently of removal authorization"
+  },
+  "exitConditions": {
+    "roleRemovalAllow": "PASS",
+    "roleRemovalDeny": "PASS",
+    "partRemovalAllow": "PASS",
+    "partRemovalDeny": "PASS",
+    "clearAllAllow": "PASS",
+    "clearAllDeny": "PASS",
+    "supplierValidation": "PASS",
+    "roleValidation": "PASS",
+    "policyEnforcement": "PASS",
+    "missingPrice": "PASS",
+    "surfaceClarificationContinuation": "PASS",
+    "readSetHashStability": "PASS",
+    "readSetHashPackingMutation": "PASS",
+    "readSetHashSurfacePolicyMutation": "PASS",
+    "metadataOnlyNotCompared": "PASS",
+    "partialSourceScope": "PASS",
+    "fakeUserSpanPresent": "PASS",
+    "userGoalRequired": "PASS",
+    "documentCanStartScenario": "PASS"
+  },
+  "live": {
+    "actualProvider": "deepseek",
+    "actualModel": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "newAcceptedRuns": 12,
+    "priorAcceptedRuns": 39,
+    "totalAcceptedRuns": 51,
+    "criticalFailures": 0,
+    "rawLog": "gitignored logs/ai-native-n4-1c-r3-live-raw.json"
+  },
+  "matrices": {
+    "mandatoryComplete": true,
+    "unprovenRows": 0,
+    "partialRows": 0,
+    "notRunRows": 0
+  },
+  "gates": {
+    "verifyApiContract": "PASS (27/27)",
+    "npmTest": "PASS (2866/2866)",
+    "deepApi": "PASS (482/482)",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "nativeBlockerFalseComplete": "CLOSED from N3.2; unchanged.",
+  "testingCoilBoundary": "Unchanged; testing variants remain query evidence only and cannot become a production selection.",
+  "legacyDefaultChanged": false,
+  "legacyToolExposureChanged": false,
+  "planDeviations": [
+    "No HTTP endpoint or database schema was added. The R3 policy remains an optional v1 policy extension.",
+    "DeepSeek complex extraction used the existing one extraction plus one permitted format-repair call per initial turn; provider fallback remained zero."
+  ],
+  "rollback": "git revert <N4.1C-R3 commit>",
+  "nextTicket": "N4.2",
+  "endCommit": "HEAD (N4.1C-R3 stage commit)"
+}

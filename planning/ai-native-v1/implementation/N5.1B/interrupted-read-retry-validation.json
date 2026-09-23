@@ -1,0 +1,61 @@
+{
+  "ticket": "N5.1B-R5",
+  "status": "PASS",
+  "storageModel": "same Step row; attempt increment; bounded event history",
+  "schemaChanged": false,
+  "migrationCreated": false,
+  "query": {
+    "initialAttempt": 1,
+    "finalAttempt": 2,
+    "underlyingCalls": 2,
+    "adapterDispatch": true,
+    "events": [
+      "STEP_ATTEMPT_INTERRUPTED",
+      "STEP_RETRY_STARTED"
+    ],
+    "argsHashRevalidated": true,
+    "planRevisionRevalidated": true,
+    "budget": {
+      "beforeAttempt1": {
+        "toolCalls": 0,
+        "apiCalls": 0
+      },
+      "afterAttempt1": {
+        "toolCalls": 1,
+        "apiCalls": 1
+      },
+      "afterAttempt2": {
+        "toolCalls": 2,
+        "apiCalls": 2
+      },
+      "doubleCount": false
+    }
+  },
+  "preview": {
+    "initialAttempt": 1,
+    "finalAttempt": 2,
+    "underlyingCalls": 2,
+    "adapterDispatch": true,
+    "events": [
+      "STEP_ATTEMPT_INTERRUPTED",
+      "STEP_RETRY_STARTED"
+    ],
+    "budgetDoubleCount": false
+  },
+  "exhaustion": {
+    "attempt": 2,
+    "taskState": "SUSPENDED",
+    "reason": "READ_RETRY_EXHAUSTED",
+    "thirdAttemptExternalCalls": 0,
+    "budgetIncrement": 0
+  },
+  "plannedRecovery": {
+    "attempt": 1,
+    "retryEvents": 0
+  },
+  "nonRetryable": {
+    "commandRetryCalls": 0,
+    "failedReadRetryCalls": 0
+  },
+  "focusedTest": "node --test tests/aiTaskWorkerV2.test.cjs (17/17)"
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R2G",
+  "priorDeepApiPassFound": true,
+  "priorDeepApiPassResult": {
+    "passed": 482,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "evidenceSource": "N4.2A-R2 implementation-status.json and deep-api-environment-adjudication.json",
+  "priorRunTime": null,
+  "priorHead": null,
+  "priorWorktreeManifest": null,
+  "priorDeepApiPassApplicable": false,
+  "applicabilityReason": "The earlier PASS reports contain no timestamp, HEAD, worktree state, or source/test content manifest. The strict content-equivalence condition cannot be proven from the retained evidence.",
+  "resolution": "A single formal N4.2A-R2G deep-api rerun passed against the frozen gate-closeout worktree; prior-pass reuse was not used."
+}

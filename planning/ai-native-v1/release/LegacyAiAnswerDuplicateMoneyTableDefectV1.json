@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "artifact": "LegacyAiAnswerDuplicateMoneyTableDefectV1",
+  "defectId": "LEGACY-AI-ANSWER-003",
+  "defectClass": "PRESENTATION_DEFECT",
+  "title": "同一张正式金额表被渲染两次",
+  "type": "DEFECT_RECORD_LOCAL_ACCEPTANCE_FINDING",
+  "status": "REPORTED_ONLY_NO_CODE_CHANGED",
+  "recordedDuring": "AI Native V1 production integration candidate - local manual acceptance",
+  "candidateUnderAcceptance": {
+    "commit": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+    "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "note": "the defect exists identically on the production base, so it is NOT introduced by the integration"
+  },
+  "userReport": "用户在人工验收中发现：AI 返回的正式金额表在同一段回答里出现了两次，第二处与第一处内容高度重复（用户以该表「看不懂/重复」为线索提出）。",
+  "summary": "在 AI 助手的回答里，正式金额表「本轮正式查询金额如下（元）」会被渲染两次：第一次由模型自己写出，第二次由后端的金额守卫整块追加。用户可见结果是同一张表重复，且第二块缺少部分行。",
+  "observedBy": "user, local acceptance instance",
+  "reproduction": {
+    "conversation": "会话 42「看一下报价情况」",
+    "userTurn": "如果我把12-200换成12-180，成本能省多少（消息 229）",
+    "storedAssistantMessage": "消息 230，长度 1258 字",
+    "symptom": "「本轮正式查询金额如下（元）：」在同一段回答里出现 2 次"
+  },
+  "storedEvidence": {
+    "dbIsDuplicated": true,
+    "messageId": 230,
+    "totalLength": 1258,
+    "firstBlockStart": 0,
+    "secondBlockStart": 656,
+    "firstBlockLength": 654,
+    "secondBlockLength": 602,
+    "blocksByteIdentical": false,
+    "firstBlockOnlyLine": "| COIL-0004 / 12-180 / 钢带 / 小眼 | 档案成本 | 140.43062 |",
+    "secondBlockOnlyLine": "(none)",
+    "secondBlockSignature": "第二块以「完整计算明细见本轮工具结果。」结尾，第一块没有这句 —— 这是判定「哪一块是程序生成」的关键特征"
+  },
+  "abProof": {
+    "runtimeBehavioural": {
+      "method": "把同一段用户历史（会话 42 该轮之前的 7 条消息）原样复制到新会话，同一问题分别打到候选实例（ecc2b27, :3002）与从生产基线代码启动的隔离实例（e244bd75, :3003），两者使用同一份数据（用户 pump.db 的副本）",
+      "candidateResult": "复现：回答长度 1336，金额表出现 2 次，工具序列 search_coils→preview_recipe_cost×2→build_recipe_bom_draft→preview_recipe_cost→get_recipe_detail×2",
+      "productionBaseResult": "复现：回答长度 1258，金额表出现 2 次；与用户库中 msg 230 逐字一致（同为 1258 字、同两处重复）",
+      "conclusion": "两端行为一致，属既有缺陷"
+    },
+    "codeIdentity": {
+      "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+      "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+      "filesVerified": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "identical": true,
+          "blob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e"
+        },
+        {
+          "path": "api/services/aiMoneyGuard.cjs",
+          "identical": true,
+          "blob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "identical": true,
+          "blob": "b5942b5f4584df19492830566a889e7a1cbb2564"
+        },
+        {
+          "path": "api/services/aiPromptComposer.cjs",
+          "identical": true,
+          "blob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46"
+        },
+        {
+          "path": "api/services/aiBusinessRulebook.cjs",
+          "identical": true,
+          "blob": "94176772325d0fdf426aa28c35d50d24d1503446"
+        }
+      ],
+      "allIdentical": true,
+      "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+    },
+    "note": "本条是五条中唯一已取得「运行时 A/B 双复现」的缺陷：两端都产生 2 次金额表，且生产基线输出与用户库中 msg 230 逐字一致"
+  },
+  "rootCause": {
+    "primaryLocation": "api/services/aiMoneyGuard.cjs:56",
+    "code": "if (text.includes(summary)) return { action: 'none', summary, unsupportedClaims: [] };",
+    "explanation": "守卫用「整块精确子串」判断正文是否已经包含这张金额表。模型自己写出的是同一张表的变体（少一行或多一行、行序可能不同），includes() 因此判断为「正文没有这张表」。",
+    "secondaryLocation": "api/services/aiAssistantRuntime.cjs:886",
+    "secondaryCode": "finalContent = guard.action === 'append' ? `${finalContent}\\n\\n${guard.summary}` : guard.summary;",
+    "explanation2": "守卫返回 append 后，完整金额表被整块追加到模型正文之后，于是同一张表出现两次，重复的行就是模型已经写过的那部分。",
+    "generatorLocation": "api/services/aiAssistantAnswer.cjs:80",
+    "generatorNote": "formatMoneySummary() 生成该表，末尾固定带「完整计算明细见本轮工具结果。」；此行是识别程序生成块的可靠特征。",
+    "whyNotSimplyRemove": "该守卫是防止模型编造金额的保护（正文引用非正式金额时会整段替换为正式金额表），不能取消；缺陷只在于「是否已包含」的判据过严。"
+  },
+  "suggestedFixDirection": [
+    "把「正文是否已含金额表」的判据从整块逐字相等，改为按金额表标记行 + 表格结构（对象/项目/金额三列）识别；已含同类表时不再追加，或改为按行合并去重。",
+    "不要把判据放宽到「正文里出现过 ¥ 或元」；那会削弱金额守卫，属于另一个方向的回归。",
+    "修完应覆盖：模型写完整表、模型写少一行的变体、模型写多一行的变体、模型完全没写表（此时仍应追加）、正文引用非正式金额（此时仍应整段替换）五种情况。"
+  ],
+  "regressionTestRequirement": [
+    "模型写完整金额表 → 不得追加（当前失败）",
+    "模型写少一行的变体 → 不得追加（当前失败，即本次缺陷）",
+    "模型写多一行的变体 → 不得追加",
+    "模型完全没写表 → 仍应追加",
+    "正文引用本轮正式金额之外的非正式金额 → 仍应整段替换",
+    "判据不得放宽为「正文出现过 ¥ 或元」"
+  ],
+  "secondaryObservationsInSameTurn": [
+    {
+      "item": "AI 未回答用户实际所问的「能省多少」",
+      "evidence": "全文不含差额/节省类数字，只给出两组绝对成本（生成 BOM 草稿 当前总成本 322.59；读取配方明细 当前总成本 330.34）",
+      "classification": "ANSWER_QUALITY - 需求覆盖不足",
+      "note": "同时这揭示可改进点：12-200 当前成本与 12-180 情景成本缺少同一读取集合下的差额表达"
+    },
+    {
+      "item": "两次无效工具调用",
+      "evidence": "preview_recipe_cost 以不存在的配方名「12-200换成12-180」调用两次后失败；该轮 toolCallCount=5、modelRequestCount=6",
+      "classification": "TOOL_INVOCATION_EFFICIENCY"
+    }
+  ],
+  "withdrawnObservations": [
+    {
+      "item": "「配置基准：800直出水切割泵」与「正式配置：800平刀切割泵壳」被初判为口径矛盾",
+      "withdrawnBecause": "用户指出这是名称层次不同，已核实成立：recipes.id=7.name='800直出水切割泵'，其 template_id=4 指向 pump_shell_templates.shell_model='800平刀切割泵壳'，parts 目录中该泵壳件名称同为 '800平刀切割泵壳'（category=泵壳）。模板沿用泵壳自身名称，因此该表述正确，不是缺陷。",
+      "verifiedBy": [
+        "recipes.name",
+        "pump_shell_templates.shell_model",
+        "parts.model where category='泵壳'"
+      ]
+    }
+  ],
+  "scopeStatement": {
+    "codeChanged": false,
+    "reason": "该缺陷位于 legacy AI 助手范围，不属于本次生产整合 ticket 的范围；按用户决定只做记录，待单独排期。",
+    "integrationImpact": "无。整合候选未引入、未放大该缺陷；生产基线与候选表现一致。",
+    "candidateGatesUnaffected": "本缺陷不影响既有任何门禁结论；候选仍为 READY_FOR_OFF_MODE_PRODUCTION_DEPLOYMENT = YES（该值由生产等价与 Native 回归决定，与此缺陷无关）"
+  },
+  "dataHandling": {
+    "productionTouched": false,
+    "userOriginalDatabaseModified": false,
+    "evidenceSource": "候选工作区里用户 pump.db 的副本（启动时已由候选把它从 schema 85 迁移到 88）",
+    "userOriginalConversationModified": false,
+    "probeConversationsCreatedInCopyOnly": [
+      43,
+      44,
+      45,
+      46
+    ],
+    "credentialsPrinted": false
+  }
+}

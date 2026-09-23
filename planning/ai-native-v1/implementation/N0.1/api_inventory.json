@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "capturedFrom": {
+    "toolDefinitions": "api/routes/ai/tools.cjs:1",
+    "registry": "api/capabilities/registry.cjs",
+    "validatedInputSchemas": "api/services/aiToolInputValidatorV2.cjs",
+    "dispatcher": "api/services/aiDispatcherV3.cjs:1-34",
+    "executor": "api/routes/ai/executor.cjs:1-44"
+  },
+  "summary": {
+    "registeredAiTools": 80,
+    "registeredCapabilities": 80,
+    "executorKeys": ["cost", "query", "order", "recipe", "business"],
+    "sourceOfSchemas": "getAiToolInputSchema(toolName), with AI_TOOLS as the declared tool surface",
+    "provenancePolicy": "Read tools with live business facts are registered as live_business; write tools require executor preflight and structured confirmation."
+  },
+  "actualExecutionPath": {
+    "chat": "POST /api/ai/chat -> api/routes/ai/chat.cjs -> runAiDispatcherV3",
+    "readRuntime": "runAiDispatcherV3 -> runAiAssistant; command runtime -> runAiAgentRuntimeV3",
+    "tool": "registry getAiCapability -> validateAiToolArgs -> executeToolCall -> TOOL_EXECUTORS[executorKey] -> internalApiClient -> formal /api route -> service",
+    "executorSources": {
+      "cost": "api/routes/ai/executors/costExecutors.cjs",
+      "query": "api/routes/ai/executors/queryExecutors.cjs",
+      "order": "api/routes/ai/executors/orderExecutors.cjs",
+      "recipe": "api/routes/ai/executors/recipeExecutors.cjs",
+      "business": "api/routes/ai/executors/businessExecutors.cjs"
+    }
+  },
+  "configurationFieldAlignment": {
+    "aiCostOverrideSchema": {
+      "source": "api/routes/ai/tools.cjs:COST_OVERRIDE_SCHEMA",
+      "fields": ["coilId", "coilSchemeFamilyCode", "surfaceTreatmentMode", "surfaceTreatmentCost", "hasFloat", "floatWire", "floatAccessoryType", "hasCable", "cableLength", "cableWire", "cableAccessoryType", "coilSpec", "coilSheets", "coilMaterial", "coilSlotType", "customBarrelLength", "boxType", "packingPartsJson", "extraPartsJson"]
+    },
+    "configuredRecipeSnapshot": {
+      "source": "api/services/configuredRecipeSnapshot.cjs:CONFIGURATION_KEYS",
+      "fields": ["hasFloat", "floatWire", "floatAccessoryType", "hasCable", "cableLength", "cableWire", "cableAccessoryType", "coilId", "coilSchemeFamilyCode", "coilSpec", "coilSheets", "coilMaterial", "coilSlotType", "customBarrelLength", "boxType", "packingPartsJson", "surfaceTreatmentMode", "surfaceTreatmentCost", "hasStainlessShaftJoint", "stainlessShaftJointCost"]
+    },
+    "bomDraftTool": {
+      "source": "build_recipe_bom_draft in api/routes/ai/tools.cjs",
+      "fields": ["useRecipeBaseline", "baseRecipeId", "templateId", "shellModel", "modelVariantId", "customBarrelLength", "longScrewExtraLength", "coilId", "coilSpec", "coilSheets", "coilMaterial", "coilSlotType", "coilWireWeight", "hasFloat", "floatWire", "floatAccessoryType", "hasCable", "cableLength", "cableWire", "cableAccessoryType", "packingParts", "optionalParts"]
+    },
+    "findings": [
+      "extraPartsJson is accepted by the AI override schema but is not an accepted configuredRecipeSnapshot field.",
+      "BOM uses packingParts and optionalParts arrays; configuration snapshot uses packingPartsJson.",
+      "AI preview_recipe_cost maps coilWireWeight, while COST_OVERRIDE_SCHEMA exposes no coilWireWeight and configured snapshots expose no coilWireWeight.",
+      "No current adapter declares supportedOverrideFields or a per-path conversion contract; N2 must add this without forwarding unknown properties."
+    ]
+  },
+  "capabilities": [
+    {"toolName":"search_coils","capabilityId":"ai.search_coils","executorKey":"query","formalCapabilityIds":["coils.list"],"access":"read","inputFields":["spec","sheets","material","slotType","schemeCode","schemeStatus","isDefault","ratedVoltageV","ratedFrequencyHz","market","schemeFamilyCode"],"actualMethodPath":["GET /api/coils"],"resultFields":["coils","schemeStatus","isDefault","pricingMode","kitPrice"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"calculate_coil_cost","capabilityId":"ai.calculate_coil_cost","executorKey":"cost","formalCapabilityIds":[],"access":"read","inputFields":["spec","sheets","coilId","schemeCode","schemeFamilyCode","wireWeight","material","slotType"],"actualMethodPath":["GET /api/coils","POST /api/coils/calculate"],"resultFields":["pricingMode","kitPrice","totalCost","wireWeightAuthority","candidates"],"directCaller":"AI runtime","sideEffectVerified":"yes; query/preview only"},
+    {"toolName":"preview_recipe_cost","capabilityId":"ai.preview_recipe_cost","executorKey":"business","formalCapabilityIds":[],"access":"read","inputFields":["recipeId","recipeName","useRecipeBaseline","overrides","customBarrelLength","coilSheets","coilWireWeight","hasFloat","floatWire","floatAccessoryType","hasCable","cableLength","cableWire","cableAccessoryType"],"actualMethodPath":["GET /api/recipes","GET /api/recipes/current-costs","POST /api/recipes/bom-draft","POST /api/recipes/:id/cost-preview"],"resultFields":["currentTotalCost","unitCost","pricingComplete","warnings"],"directCaller":"AI runtime","sideEffectVerified":"yes; query/preview only"},
+    {"toolName":"build_recipe_bom_draft","capabilityId":"ai.build_recipe_bom_draft","executorKey":"business","formalCapabilityIds":[],"access":"read","inputFields":["useRecipeBaseline","baseRecipeId","templateId","shellModel","modelVariantId","coilId","customBarrelLength","hasFloat","hasCable","packingParts","optionalParts"],"actualMethodPath":["POST /api/recipes/bom-draft"],"resultFields":["parts","costPreview","pricingComplete"],"directCaller":"AI runtime","sideEffectVerified":"yes; preview only"},
+    {"toolName":"full_calculate","capabilityId":"ai.full_calculate","executorKey":"cost","formalCapabilityIds":[],"access":"read","inputFields":["recipeId","recipeName","stator","hasFloat","cableLength","boxType","floatWire","cableWire","cableAccessoryType","packingPartsJson"],"actualMethodPath":["POST /api/cost/full-estimate"],"resultFields":["cost","warnings"],"directCaller":"AI runtime","sideEffectVerified":"yes; calculation query"},
+    {"toolName":"explain_cost_change","capabilityId":"ai.explain_cost_change","executorKey":"business","formalCapabilityIds":[],"access":"read","inputFields":["leftRecipeId","leftRecipeName","rightRecipeId","rightRecipeName","limit"],"actualMethodPath":["POST /api/cost/recipe-difference"],"resultFields":["differences","summary"],"directCaller":"AI runtime","sideEffectVerified":"yes; calculation query"},
+    {"toolName":"get_all_recipes","capabilityId":"ai.get_all_recipes","executorKey":"query","formalCapabilityIds":["recipes.list"],"access":"read","inputFields":["keyword","hasTechnicalFiles"],"actualMethodPath":["GET /api/recipes"],"resultFields":["recipes","id","name"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"get_recipe_detail","capabilityId":"ai.get_recipe_detail","executorKey":"query","formalCapabilityIds":[],"access":"read","inputFields":["recipeId","recipeName","includeCurrentCost"],"actualMethodPath":["GET /api/recipes","GET /api/recipes/:id","GET /api/recipes/current-costs"],"resultFields":["recipe","currentCost"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"get_recipes_by_coil","capabilityId":"ai.get_recipes_by_coil","executorKey":"query","formalCapabilityIds":["recipes.by_coil"],"access":"read","inputFields":["coilId"],"actualMethodPath":["POST /api/relations/read"],"resultFields":["items","hasMore","completeness"],"directCaller":"AI runtime","sideEffectVerified":"yes; relation query"},
+    {"toolName":"get_recipe_parts","capabilityId":"ai.get_recipe_parts","executorKey":"query","formalCapabilityIds":["ontology.relations.resolve"],"access":"read","inputFields":["recipeId"],"actualMethodPath":["POST /api/relations/resolve"],"resultFields":["items","hasMore","completeness"],"directCaller":"AI runtime","sideEffectVerified":"yes; relation query"},
+    {"toolName":"get_recipes_by_part","capabilityId":"ai.get_recipes_by_part","executorKey":"query","formalCapabilityIds":["ontology.relations.resolve"],"access":"read","inputFields":["partId"],"actualMethodPath":["POST /api/relations/resolve"],"resultFields":["items","hasMore","completeness"],"directCaller":"AI runtime","sideEffectVerified":"yes; relation query"},
+    {"toolName":"search_customer_history","capabilityId":"ai.search_customer_history","executorKey":"business","formalCapabilityIds":["customers.list","customers.history"],"access":"read","inputFields":["customerName","customerId","keyword","recipeName","model","historyType","limit"],"actualMethodPath":["GET /api/customers","GET /api/customers/:id/history"],"resultFields":["items","limit","hasMore"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"get_order_detail","capabilityId":"ai.get_order_detail","executorKey":"order","formalCapabilityIds":[],"access":"read","inputFields":["orderId","orderQuery"],"actualMethodPath":["GET /api/orders","GET /api/orders/:id"],"resultFields":["order","items","snapshots"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"check_order_readiness","capabilityId":"ai.check_order_readiness","executorKey":"order","formalCapabilityIds":[],"access":"read","inputFields":["orderId","orderQuery"],"actualMethodPath":["GET /api/orders/:id/readiness"],"resultFields":["readiness","shortages","warnings"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"plan_order_readiness_actions","capabilityId":"ai.plan_order_readiness_actions","executorKey":"order","formalCapabilityIds":[],"access":"read","inputFields":["orderId","orderQuery"],"actualMethodPath":["GET /api/orders/:id/readiness-actions"],"resultFields":["actions","warnings"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"get_quotation_detail","capabilityId":"ai.get_quotation_detail","executorKey":"query","formalCapabilityIds":["quotations.detail"],"access":"read","inputFields":["quotationId"],"actualMethodPath":["GET /api/quotations/:id"],"resultFields":["quotation","items","margin","unitPrice","totalPrice"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"build_quotation_draft","capabilityId":"ai.build_quotation_draft","executorKey":"business","formalCapabilityIds":[],"access":"read","inputFields":["customerName","customerId","status","margin","remark","items"],"actualMethodPath":["GET /api/customers","GET /api/recipes","POST /api/recipes/:id/cost-preview","POST /api/quotations/save-payload-draft"],"resultFields":["items","unitCost","margin","unitPrice","totalPrice"],"directCaller":"AI runtime","sideEffectVerified":"yes; draft/preview only"},
+    {"toolName":"search_parts","capabilityId":"ai.search_parts","executorKey":"query","formalCapabilityIds":["parts.list"],"access":"read","inputFields":["keyword","category","supplier","stockStatus","limit","minPrice","maxPrice","priceBelow","priceAbove","minStock","maxStock","stockBelow","stockAbove","sortBy","sortOrder"],"actualMethodPath":["GET /api/parts"],"resultFields":["parts","id","model","supplier","stock","price"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"},
+    {"toolName":"search_business_changes","capabilityId":"ai.search_business_changes","executorKey":"query","formalCapabilityIds":["business_changes.list"],"access":"read","inputFields":["period","from","to","domain","entityType","entityId","eventType","keyword","semanticQuery","limit"],"actualMethodPath":["GET /api/business-changes"],"resultFields":["events","hasMore","sourceOfTruth"],"directCaller":"AI runtime","sideEffectVerified":"yes; GET query"}
+  ],
+  "remainingRegisteredTools": {
+    "source": "api/routes/ai/tools.cjs and api/capabilities/registry.cjs; all 80 current names were enumerated during N0.1",
+    "read": ["get_copper_price","get_coil_specs","dynamic_config_cost","get_recent_orders","search_quotations","search_customers","search_templates","get_template_detail","get_purchase_overview","get_recipe_technical_files","preview_pump_shell_cost","inspect_quotation_file","get_order_knowledge_package","get_data_quality_summary","analyze_recipe_configuration","get_factory_learning_health","get_factory_rule_candidates","get_factory_rule_impact","get_factory_rule_compliance","get_factory_rule_history","get_management_action_center","plan_factory_workflow","get_business_alerts","get_order_readiness_overview","search_factory_file_archive_targets","search_factory_knowledge","get_factory_knowledge_detail","get_factory_knowledge_health","compare_recipes","get_dashboard_summary","get_rotor_drawing_history"],
+    "write": ["adjust_coil_stock","adjust_part_stock","create_part","batch_create_parts","create_order","add_recipe_to_order","update_part","update_order_status","remove_recipe_from_order","update_order_item","generate_purchase_list","delete_order","create_recipe","delete_recipe","update_recipe","set_recipe_analysis_feedback","restore_factory_rule_event","refresh_factory_rule_candidates","review_factory_rule_candidate","execute_factory_workflow_step","execute_order_readiness_action","save_order_requirement_draft","save_order_execution_draft","archive_factory_file","sync_factory_knowledge","delete_part","batch_update_prices","generate_rotor_drawing","print_rotor_drawing"],
+    "writeBoundary": "All listed write tools pass through WRITE_PREFLIGHTS or their registered command executor and require structured confirmation; none are available to an N0 read audit."
+  },
+  "n1n2ReusableSymbols": [
+    "getAiCapability", "listAiCapabilities", "AI_TOOLS", "getAiToolInputSchema", "validateAiToolArgs", "executeToolCall", "createInternalFetch", "lookupEntities", "resolveAiToolTargetV3", "aiExecutionEvidence", "recipeConfigurationBaseline", "buildConfiguredRecipeSnapshot", "buildCurrentRecipeCostBasis", "costDifference"
+  ]
+}

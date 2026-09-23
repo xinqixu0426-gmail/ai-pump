@@ -1,0 +1,52 @@
+{
+  "ticket": "N4-AUDIT-FIX-01",
+  "status": "PASS",
+  "finding": {
+    "id": "N4-AUDIT-FINDING-001",
+    "severity": "HIGH",
+    "status": "CLOSED"
+  },
+  "sourceN4Commit": "9229c625e0bcb3dfb4aa2bd406a1a14e2101cb95",
+  "auditBranch": "audit/n4-surface-policy-fix",
+  "schemaChanged": false,
+  "migrationCreated": false,
+  "publicApiChanged": false,
+  "targetedLive": {
+    "families": 4,
+    "runsPerFamily": 2,
+    "totalRuns": 8,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "criticalFailures": 0
+  },
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "orderCreates": 0,
+  "inventoryWrites": 0,
+  "finalGates": {
+    "verifyApiContract": {
+      "status": "PASS",
+      "passed": 27,
+      "failed": 0
+    },
+    "npmTest": {
+      "status": "PASS",
+      "passed": 2909,
+      "failed": 0
+    },
+    "deepApi": {
+      "status": "PASS",
+      "passed": 490,
+      "failed": 0,
+      "sourceDatabase": "isolated copy of /Users/dan/Documents/水泵工厂管理助手/pump.db"
+    },
+    "lint": {
+      "status": "PASS"
+    },
+    "build": {
+      "status": "PASS"
+    }
+  },
+  "rollback": "Revert the single audit commit; no migration or production data change exists."
+}

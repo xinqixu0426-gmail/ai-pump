@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R3",
+  "status": "PASS",
+  "provider": {
+    "requested": "deepseek",
+    "actual": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0
+  },
+  "execution": {
+    "strictSerial": true,
+    "database": "temporary SQLite fixture",
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "auditDelta": 0,
+    "operationDelta": 0,
+    "fileWrites": 0,
+    "fileSideEffects": 0
+  },
+  "countedRuns": {
+    "previousAccepted": 39,
+    "newR3": 12,
+    "total": 51
+  },
+  "newRunFamilies": {
+    "surfaceContinuation": 2,
+    "sourceScenario": 2,
+    "packingAllowedRemoval": 2,
+    "packingForbiddenRemoval": 2,
+    "packingForbiddenClear": 2,
+    "packingReplacement": 2
+  },
+  "runs": [
+    {
+      "label": "surface-continuation-1",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": "WAITING_INPUT",
+      "firstBlockers": [
+        "SURFACE_TREATMENT_COST_REQUIRED"
+      ],
+      "modelCalls": 2,
+      "toolCalls": 4
+    },
+    {
+      "label": "surface-continuation-2",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": "WAITING_INPUT",
+      "firstBlockers": [
+        "SURFACE_TREATMENT_COST_REQUIRED"
+      ],
+      "modelCalls": 2,
+      "toolCalls": 4
+    },
+    {
+      "label": "source-scenario-1",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 5
+    },
+    {
+      "label": "source-scenario-2",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 5
+    },
+    {
+      "label": "packing-remove-allowed-1",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    },
+    {
+      "label": "packing-remove-allowed-2",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    },
+    {
+      "label": "packing-remove-forbidden-1",
+      "accepted": true,
+      "state": "FAILED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    },
+    {
+      "label": "packing-remove-forbidden-2",
+      "accepted": true,
+      "state": "FAILED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    },
+    {
+      "label": "packing-clear-forbidden-1",
+      "accepted": true,
+      "state": "FAILED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 2
+    },
+    {
+      "label": "packing-clear-forbidden-2",
+      "accepted": true,
+      "state": "FAILED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 2
+    },
+    {
+      "label": "packing-replace-1",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    },
+    {
+      "label": "packing-replace-2",
+      "accepted": true,
+      "state": "SUCCEEDED",
+      "firstState": null,
+      "firstBlockers": [],
+      "modelCalls": 2,
+      "toolCalls": 3
+    }
+  ],
+  "criticalLiveFailures": [],
+  "notes": [
+    "DeepSeek responded through the existing structured-extraction path. Each complex initial turn used one extraction and one allowed format-repair call; provider fallback count remained zero. Raw responses remain only in gitignored logs.",
+    "Forbidden removal and forbidden clear completed as accepted fail-closed safety outcomes: their task state is FAILED with the expected formal policy code."
+  ]
+}

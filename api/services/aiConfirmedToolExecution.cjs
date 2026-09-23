@@ -13,6 +13,8 @@ async function executeConfirmedAiTool({
     expectedArgs,
     execute = executeToolCall,
     verifyWriteExecution = hasVerifiedWriteExecution,
+    onAdmission = null,
+    onCompleted = null,
 }) {
     let consumed = null;
     try {
@@ -25,6 +27,7 @@ async function executeConfirmedAiTool({
         if (consumed.replay) {
             return { ...consumed.receipt, idempotentReplay: true };
         }
+        if (typeof onAdmission === 'function') await onAdmission(consumed);
 
         const result = await execute(consumed.toolName, consumed.args, {
             allowWrite: true,
@@ -36,7 +39,7 @@ async function executeConfirmedAiTool({
                 result?.error || '正式业务 API 执行失败'
             );
             executionError.code = result?.code || 'ai_write_execution_failed';
-            executionError.statusCode = 502;
+            executionError.statusCode = result?.statusCode || 502;
             throw executionError;
         }
         if (!verifyWriteExecution(result)) {
@@ -89,6 +92,7 @@ async function executeConfirmedAiTool({
                 : null,
         };
         completeAiToolConfirmation({ confirmationToken, subject, receipt });
+        if (typeof onCompleted === 'function') await onCompleted(receipt, consumed);
         return receipt;
     } catch (error) {
         const failure = error instanceof Error ? error : new Error(String(error));

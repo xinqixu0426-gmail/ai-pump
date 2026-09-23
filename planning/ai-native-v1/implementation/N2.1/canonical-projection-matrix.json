@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "ticket": "N2.1",
+  "projectionRule": "Only a server-owned projector may map a trusted formal result to CanonicalEntity.",
+  "projectors": [
+    {"entityType": "recipe", "toolName": "get_all_recipes", "resultPointer": "/data", "integrationVerified": true},
+    {"entityType": "recipe", "toolName": "preview_recipe_cost", "resultPointer": "/data", "resultShape": "single formal snapshot", "integrationVerified": false},
+    {"entityType": "coil", "toolName": "search_coils", "resultPointer": "/data", "unitTestVerified": true},
+    {"entityType": "part", "toolName": "search_parts", "resultPointer": "/parts", "integrationVerified": true},
+    {"entityType": "template", "toolName": "search_templates", "resultPointer": "/data", "unitTestVerified": false}
+  ],
+  "bindingInvariants": [
+    "complete single candidate becomes UNIQUE",
+    "complete multiple candidates remains MULTIPLE with null selected",
+    "SELECTED requires closure-held USER_CHOICE",
+    "complete verified empty becomes NOT_FOUND",
+    "truncated or incomplete empty remains UNRESOLVED"
+  ],
+  "rejected": ["caller supplied canonicalId", "unverified executor result", "incomplete collection as NOT_FOUND", "truncated one-record collection as UNIQUE", "multiple collection auto-selection"],
+  "databaseWrites": 0
+}

@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R2",
+  "status": "RESOLVED",
+  "blockerId": "PACKING_POLICY_REMOVAL_CLEAR_ALL_CONTRACT_MISSING",
+  "formalLayer": "api/services/recipeConfigurationPolicy.cjs:assertRecipeConfigurationAllowed",
+  "finding": "packingPartIds validates selected additions but has no declarative control for removal or clear-all of baseline packing roles.",
+  "reproduction": {
+    "policy": {
+      "version": 1,
+      "fields": {},
+      "packingPartIds": []
+    },
+    "baselinePacking": "one formal container",
+    "candidateOverride": {
+      "packingParts": []
+    },
+    "observed": "Scenario comparison succeeds and returns []"
+  },
+  "evidence": [
+    "tests/recipeScenarioComparison.test.cjs:N4.1C-R2 policy contract currently permits packing removal because it has no removal or clear-all semantics"
+  ],
+  "requiredResolution": "Define and validate a formal recipe configuration policy contract for baseline packing-role removal and clear-all; then rerun N4.1C-R2 without a controller exception.",
+  "controllerSpecialCaseAdded": false,
+  "resolution": "configurationPolicyJson v1 now optionally defines packingRemovalPolicy; shared assertRecipeConfigurationAllowed enforces it across formal current and scenario previews.",
+  "resolutionEvidence": [
+    "api/services/recipeConfigurationPolicy.cjs",
+    "tests/recipeConfigurationPolicy.test.cjs",
+    "tests/recipeScenarioComparison.test.cjs",
+    "planning/ai-native-v1/implementation/N4.1C-R3/final-n4.1-exit-audit.json"
+  ]
+}

@@ -1,0 +1,1498 @@
+{
+  "version": 1,
+  "ticket": "N4.2C",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "families": 14,
+  "runsPerFamily": 2,
+  "baseTaskResults": 28,
+  "continuationTaskResults": 4,
+  "totalAcceptedLiveTaskResults": 32,
+  "failures": [],
+  "metrics": {
+    "medianLatencyMs": 2858,
+    "p95LatencyMs": 3492,
+    "firstStatusMedianMs": 2858,
+    "finalAnswerMedianMs": 2858,
+    "admissionMedianMs": 2858,
+    "admissionP95Ms": 3492
+  },
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "auditDelta": 0,
+  "operationDelta": 0,
+  "fileSideEffects": 0,
+  "rawLog": "gitignored logs/ai-native-n4-2c-live-raw.json",
+  "results": [
+    {
+      "label": "full-four-goal",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2667,
+      "firstStatusMs": 2667,
+      "finalAnswerMs": 2667
+    },
+    {
+      "label": "full-four-goal",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2734,
+      "firstStatusMs": 2734,
+      "finalAnswerMs": 2734
+    },
+    {
+      "label": "base-profit-readiness",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2663,
+      "firstStatusMs": 2663,
+      "finalAnswerMs": 2663
+    },
+    {
+      "label": "base-profit-readiness",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2527,
+      "firstStatusMs": 2527,
+      "finalAnswerMs": 2527
+    },
+    {
+      "label": "packing-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "search_parts",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "candidateConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "readinessConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2947,
+      "firstStatusMs": 2947,
+      "finalAnswerMs": 2947
+    },
+    {
+      "label": "packing-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "search_parts",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "candidateConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "readinessConfigurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 3265,
+      "firstStatusMs": 3265,
+      "finalAnswerMs": 3265
+    },
+    {
+      "label": "coil-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "search_coils",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 3374,
+      "firstStatusMs": 3374,
+      "finalAnswerMs": 3374
+    },
+    {
+      "label": "coil-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "search_coils",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 3483,
+      "firstStatusMs": 3483,
+      "finalAnswerMs": 3483
+    },
+    {
+      "label": "surface-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80",
+        "candidateConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80",
+        "readinessConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3372,
+      "firstStatusMs": 3372,
+      "finalAnswerMs": 3372
+    },
+    {
+      "label": "surface-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80",
+        "candidateConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80",
+        "readinessConfigurationHash": "aa9fa4afa7e90baea8c2b21e66c9fdb40568359a53a49cde08e9f0933475ae80"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3196,
+      "firstStatusMs": 3196,
+      "finalAnswerMs": 3196
+    },
+    {
+      "label": "shortage-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3404,
+      "firstStatusMs": 3404,
+      "finalAnswerMs": 3404
+    },
+    {
+      "label": "shortage-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3492,
+      "firstStatusMs": 3492,
+      "finalAnswerMs": 3492
+    },
+    {
+      "label": "active-reservation-base",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2508,
+      "firstStatusMs": 2508,
+      "finalAnswerMs": 2508
+    },
+    {
+      "label": "active-reservation-base",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2425,
+      "firstStatusMs": 2425,
+      "finalAnswerMs": 2425
+    },
+    {
+      "label": "missing-price",
+      "run": 1,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3731,
+      "firstStatusMs": 3731,
+      "finalAnswerMs": 3731
+    },
+    {
+      "label": "missing-price",
+      "run": 2,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3225,
+      "firstStatusMs": 3225,
+      "finalAnswerMs": 3225
+    },
+    {
+      "label": "missing-quantity",
+      "run": 1,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 3222,
+      "firstStatusMs": 3222,
+      "finalAnswerMs": 3222
+    },
+    {
+      "label": "missing-quantity",
+      "run": 2,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 3370,
+      "firstStatusMs": 3370,
+      "finalAnswerMs": 3370
+    },
+    {
+      "label": "cost-incomplete-readiness-independent",
+      "run": 1,
+      "taskState": "PARTIAL",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "71a43fb23b94f73430bdc4dfd7c324fb8a5256e2cfa0033b2aea54de862e4079",
+        "candidateConfigurationHash": "71a43fb23b94f73430bdc4dfd7c324fb8a5256e2cfa0033b2aea54de862e4079",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 2622,
+      "firstStatusMs": 2622,
+      "finalAnswerMs": 2622
+    },
+    {
+      "label": "cost-incomplete-readiness-independent",
+      "run": 2,
+      "taskState": "PARTIAL",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "71a43fb23b94f73430bdc4dfd7c324fb8a5256e2cfa0033b2aea54de862e4079",
+        "candidateConfigurationHash": "71a43fb23b94f73430bdc4dfd7c324fb8a5256e2cfa0033b2aea54de862e4079",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 2558,
+      "firstStatusMs": 2558,
+      "finalAnswerMs": 2558
+    },
+    {
+      "label": "quantity-change-shortage",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3058,
+      "firstStatusMs": 3058,
+      "finalAnswerMs": 3058
+    },
+    {
+      "label": "quantity-change-shortage",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 3325,
+      "firstStatusMs": 3325,
+      "finalAnswerMs": 3325
+    },
+    {
+      "label": "usd-unsupported-readiness-independent",
+      "run": 1,
+      "taskState": "PARTIAL",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "UNSUPPORTED",
+          "blockers": [
+            "PROFITABILITY_CURRENCY_UNSUPPORTED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2546,
+      "firstStatusMs": 2546,
+      "finalAnswerMs": 2546
+    },
+    {
+      "label": "usd-unsupported-readiness-independent",
+      "run": 2,
+      "taskState": "PARTIAL",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "UNSUPPORTED",
+          "blockers": [
+            "PROFITABILITY_CURRENCY_UNSUPPORTED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2835,
+      "firstStatusMs": 2835,
+      "finalAnswerMs": 2835
+    },
+    {
+      "label": "source-config-price-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "FILE_INSPECT",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "get_recipe_technical_files",
+        "compare_recipe_scenarios",
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 6,
+      "apiCalls": 7,
+      "durationMs": 2908,
+      "firstStatusMs": 2908,
+      "finalAnswerMs": 2908
+    },
+    {
+      "label": "source-config-price-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "FILE_INSPECT",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "get_recipe_technical_files",
+        "compare_recipe_scenarios",
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 6,
+      "apiCalls": 7,
+      "durationMs": 2823,
+      "firstStatusMs": 2823,
+      "finalAnswerMs": 2823
+    },
+    {
+      "label": "customer-historical-price-integrated",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CUSTOMER_HISTORY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "QUOTATION_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "search_customers",
+        "search_customer_history",
+        "search_quotations",
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 7,
+      "apiCalls": 8,
+      "durationMs": 2763,
+      "firstStatusMs": 2763,
+      "finalAnswerMs": 2763
+    },
+    {
+      "label": "customer-historical-price-integrated",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CUSTOMER_HISTORY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "QUOTATION_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "search_customers",
+        "search_customer_history",
+        "search_quotations",
+        "get_all_recipes",
+        "preview_virtual_readiness",
+        "preview_profitability",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "base",
+        "profitabilityConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "candidateConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "readinessConfigurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8"
+      },
+      "modelCalls": 2,
+      "toolCalls": 7,
+      "apiCalls": 8,
+      "durationMs": 2858,
+      "firstStatusMs": 2858,
+      "finalAnswerMs": 2858
+    },
+    {
+      "label": "missing-price-quantity-turn1",
+      "run": 1,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 3062,
+      "firstStatusMs": 3062,
+      "finalAnswerMs": 3062
+    },
+    {
+      "label": "missing-price-quantity-turn2",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 18,
+      "firstStatusMs": 18,
+      "finalAnswerMs": 18
+    },
+    {
+      "label": "missing-price-quantity-turn1",
+      "run": 2,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios"
+      ],
+      "comparisonCalls": 1,
+      "scenarioIdentity": null,
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2677,
+      "firstStatusMs": 2677,
+      "finalAnswerMs": 2677
+    },
+    {
+      "label": "missing-price-quantity-turn2",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "tools": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "comparisonCalls": 0,
+      "scenarioIdentity": {
+        "recipeId": 301,
+        "scenarioKey": "candidate_1",
+        "profitabilityConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "candidateConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "readinessConfigurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d"
+      },
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 15,
+      "firstStatusMs": 15,
+      "finalAnswerMs": 15
+    }
+  ]
+}

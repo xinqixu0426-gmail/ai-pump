@@ -1,0 +1,18 @@
+{
+  "ticket": "N5.1B-R5",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "families": 2,
+  "runs": 4,
+  "acceptedRuns": 4,
+  "errors": [],
+  "taskRuntimeDbWrites": "temporary SQLite only",
+  "businessWrites": 0,
+  "commandExecutions": 0,
+  "productionChanged": false,
+  "productionWorkerEnabled": false,
+  "deployPerformed": false,
+  "pushPerformed": false
+}

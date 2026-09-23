@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "ticket": "N1.1",
+  "testFiles":["tests/aiTaskContractV2.test.cjs","tests/aiTaskValidationV2.test.cjs"],
+  "cases":[
+    {"testCase":"proposal valid","contract":"TaskProposalV1","invariant":"strict candidate-only proposal with linked source spans","valid":true,"mutation":"none","actualResult":"PASS"},
+    {"testCase":"proposal privilege and graph mutations","contract":"TaskProposalV1","invariant":"no authority fields, duplicate keys, missing refs, cycles, reserved base","valid":false,"mutation":"canonicalId/ownerKey/allowWrite/verified/approved/receiptId/businessWritePolicy, duplicate, missing, cycle, base","actualResult":"PASS"},
+    {"testCase":"source span UTF-16","contract":"SourceSpan","invariant":"JavaScript slice offsets include Chinese, ASCII, full-width punctuation and emoji","valid":true,"mutation":"emoji offset mismatch","actualResult":"PASS"},
+    {"testCase":"binding resolution","contract":"SubjectBinding","invariant":"UNIQUE, MULTIPLE, SELECTED and incomplete NOT_FOUND remain distinct","valid":true,"mutation":"multiple selected, incomplete not found","actualResult":"PASS"},
+    {"testCase":"fact trusted receipt","contract":"FactRecordV1","invariant":"receipt, task, plan, hash and result pointer must be independently trusted","valid":true,"mutation":"wrong receipt, wrong pointer, negative incomplete","actualResult":"PASS"},
+    {"testCase":"fact supersede","contract":"FactRecordV1","invariant":"same task, same FactKey, later revision only","valid":true,"mutation":"different scenario key","actualResult":"PASS"},
+    {"testCase":"full fact requirement matcher","contract":"FactRequirement","invariant":"predicate, entity, scenario, temporal scope, basis, unit, currency and completeness all match","valid":true,"mutation":"wrong entity/scenario/temporal/basis/unit/currency/incomplete","actualResult":"PASS"},
+    {"testCase":"goal and task success","contract":"GoalState and TaskEnvelopeV2","invariant":"VERIFIED requires satisfied requirements; SUCCEEDED requires every goal VERIFIED","valid":true,"mutation":"missing requirements, PARTIAL or CANCELLED goal","actualResult":"PASS"},
+    {"testCase":"write and size safety","contract":"TaskStep and TaskEnvelopeV2","invariant":"FORBIDDEN rejects COMMAND; unknown argument sources and oversized state reject","valid":false,"mutation":"COMMAND, unsourced argument, over 262144 bytes","actualResult":"PASS"},
+    {"testCase":"transition and scenario immutability","contract":"TaskEnvelopeV2","invariant":"revision increments exactly, terminal does not resurrect, existing scenario key cannot mutate","valid":true,"mutation":"resurrection, revision skip, changed scenario","actualResult":"PASS"},
+    {"testCase":"false/zero/null/omitted","contract":"ScenarioOverridesV1 and envelope fields","invariant":"false, 0, [], null and omitted retain distinct semantics","valid":true,"mutation":"null boolean and unknown field","actualResult":"PASS"},
+    {"testCase":"BU-07 completeness family","contract":"FactRequirement","invariant":"recipe, template and part catalogue absence each require complete verified negative evidence","valid":false,"mutation":"parts incomplete","actualResult":"PASS"}
+  ]
+}

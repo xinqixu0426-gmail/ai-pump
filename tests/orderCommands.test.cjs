@@ -18,6 +18,7 @@ const {
 const { createCostQueries } = require('../api/services/costQueries.cjs');
 const { buildOrderReadiness } = require('../api/services/orderReadiness.cjs');
 const { listOrderRevisions } = require('../api/services/orderRevisions.cjs');
+const { buildConfiguredRecipeSnapshot } = require('../api/services/configuredRecipeSnapshot.cjs');
 
 const FIXED_UPDATED_AT = '2026-08-02T00:00:00.000Z';
 const NEXT_UPDATED_AT = '2026-08-02T00:01:00.000Z';
@@ -598,6 +599,75 @@ test('直接建单由服务端拒绝超出配方策略的客户配置', () => {
                 && error.statusCode === 422
         );
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM orders').get().count, 0);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('N4-AUDIT-FIX-01：正式订单草稿在写入前拒绝 surface policy 的显式费用绕过', () => {
+    const fixture = createFixture();
+    try {
+        fixture.db.prepare(`UPDATE recipes SET configuration_policy_json = ? WHERE id = 2`).run(JSON.stringify({
+            version: 1,
+            fields: {},
+            surfaceTreatmentOptions: [{ mode: 'none', cost: 0 }, { mode: 'painting', cost: 5 }],
+        }));
+        const before = Object.fromEntries(['orders', 'audit_log', 'api_operations', 'parts', 'coils'].map(table => [
+            table, Number(fixture.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count),
+        ]));
+        assert.throws(
+            () => buildOrderSavePayloadDraft(fixture.dependencies, {
+                ...draftInput(),
+                items: [{
+                    recipeId: 2,
+                    qty: 1,
+                    profitMargin: 1.2,
+                    configurationOverrides: { surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 6 },
+                }],
+            }),
+            error => error.code === 'RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED' && error.statusCode === 422
+        );
+        const after = Object.fromEntries(Object.keys(before).map(table => [
+            table, Number(fixture.db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count),
+        ]));
+        assert.deepEqual(after, before, 'forbidden configuration must fail before order, audit, operation or inventory writes');
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('N4-AUDIT-FIX-01：configured recipe snapshot 与正式订单共享 surface policy 边界', () => {
+    const fixture = createFixture();
+    try {
+        const policy = JSON.stringify({
+            version: 1,
+            fields: {},
+            surfaceTreatmentOptions: [{ mode: 'none', cost: 0 }, { mode: 'painting', cost: 5 }],
+        });
+        fixture.db.prepare('UPDATE recipes SET configuration_policy_json = ? WHERE id = 2').run(policy);
+        const exact = buildConfiguredRecipeSnapshot(fixture.dependencies, 2, {
+            surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 5,
+        });
+        assert.equal(exact.configurationSnapshot.surfaceTreatmentMode, 'painting');
+        assert.equal(exact.configurationSnapshot.surfaceTreatmentCost, 5);
+        assert.throws(
+            () => buildConfiguredRecipeSnapshot(fixture.dependencies, 2, {
+                surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 6,
+            }),
+            error => error.code === 'RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED'
+        );
+        assert.throws(
+            () => buildConfiguredRecipeSnapshot(fixture.dependencies, 2, {
+                surfaceTreatmentMode: 'electrophoresis', surfaceTreatmentCost: 6,
+            }),
+            error => error.code === 'RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED'
+        );
+        fixture.db.prepare('UPDATE recipes SET configuration_policy_json = ? WHERE id = 2').run(JSON.stringify({ version: 1, fields: {} }));
+        const hypothetical = buildConfiguredRecipeSnapshot(fixture.dependencies, 2, {
+            surfaceTreatmentMode: 'electrophoresis', surfaceTreatmentCost: 6,
+        });
+        assert.equal(hypothetical.configurationSnapshot.surfaceTreatmentMode, 'electrophoresis');
+        assert.equal(hypothetical.configurationSnapshot.surfaceTreatmentCost, 6);
     } finally {
         fixture.db.close();
     }

@@ -56,6 +56,7 @@ import { useAiAttachments } from '@/components/ai/useAiAttachments';
 import { AiAttachmentArchiveController } from '@/components/ai/AiAttachmentArchiveController';
 import { AiComposer, type AiComposerHandle } from '@/components/ai/AiComposer';
 import { AiMessageList } from '@/components/ai/AiMessageList';
+import { AiTaskWorkbench } from '@/components/ai/AiTaskWorkbench';
 import { useAiAnswerFeedback } from '@/components/ai/useAiAnswerFeedback';
 
 function makeId() {
@@ -157,6 +158,8 @@ export function AiView({
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
   const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [latestTaskMessageId, setLatestTaskMessageId] = useState<number | null>(null);
+  const [nativeTaskId, setNativeTaskId] = useState<string | null>(null);
   const [providerPreference, setProviderPreference] = useState<AiProviderPreference>('default');
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -354,11 +357,12 @@ export function AiView({
         addConversation(conversation);
       }
       if (!retrying) {
-        await appendAiConversationMessage(conversationId, {
+        const savedUser = await appendAiConversationMessage(conversationId, {
           role: 'user',
           content,
           metadata: attachments.length > 0 ? { attachments } : undefined,
         });
+        setLatestTaskMessageId(savedUser.id);
         markAttachmentsPersisted(attachments);
       }
       options?.onDraftPersisted?.(true);
@@ -505,6 +509,8 @@ export function AiView({
     discardAllPendingAttachments();
     clearActiveConversation();
     setItems([]);
+    setLatestTaskMessageId(null);
+    setNativeTaskId(null);
     resetFeedback();
     composerRef.current?.clear();
     setAsideMode('history');
@@ -527,6 +533,9 @@ export function AiView({
     composerRef.current?.clear();
     setFeedbackByMessageId(opened.feedbackByMessageId);
     setItems(opened.items);
+    const latestUser = [...opened.items].reverse().find((item) => item.role === 'user' && item.persistedMessageId);
+    setLatestTaskMessageId(latestUser?.persistedMessageId || null);
+    setNativeTaskId(latestUser?.nativeTaskId || null);
     autoFollowRef.current = true;
     setShowJumpToLatest(false);
     setMobileSidebarOpen(false);
@@ -845,6 +854,23 @@ export function AiView({
               onMarkHelpful={markMessageHelpful}
               onReportIssue={reportMessageIssue}
               onScroll={scrollMessages}
+            />
+
+            <AiTaskWorkbench
+              conversationId={activeConversationId}
+              userMessageId={latestTaskMessageId}
+              initialTaskId={nativeTaskId}
+              onTaskCreated={async (taskId) => {
+                if (!activeConversationId || !latestTaskMessageId) return;
+                const item = items.find((candidate) => candidate.persistedMessageId === latestTaskMessageId);
+                await updateAiConversationMessage(activeConversationId, latestTaskMessageId, { attachments: item?.attachments || [], nativeTaskId: taskId });
+                setNativeTaskId(taskId);
+              }}
+              persistAnswerMessage={async (content) => {
+                if (!activeConversationId) throw new Error('会话不存在');
+                const saved = await appendAiConversationMessage(activeConversationId, { role: 'user', content });
+                setLatestTaskMessageId(saved.id);
+              }}
             />
 
             {showJumpToLatest ? (

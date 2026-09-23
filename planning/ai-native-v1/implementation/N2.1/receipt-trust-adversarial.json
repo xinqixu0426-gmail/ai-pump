@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "ticket": "N2.1",
+  "receiptStore": "Factory closure Map; callers cannot seed it through receipt-shaped input.",
+  "receiptContract": {
+    "version": 1,
+    "origin": "SERVER_EXECUTOR",
+    "maxResultBytes": 98304,
+    "argsHash": "canonical JSON SHA-256",
+    "sourceHash": "canonical formal result SHA-256 excluding execution transport metadata"
+  },
+  "adversarialCases": [
+    {"case": "executor result lacks verified execution evidence", "result": "No trusted receipt"},
+    {"case": "foreign task receipt", "result": "FORMAL_RECEIPT_UNTRUSTED"},
+    {"case": "unknown or forged receipt identifier", "result": "FORMAL_RECEIPT_UNTRUSTED"},
+    {"case": "receipt-shaped object added to the externally returned Map copy", "result": "FORMAL_RECEIPT_UNTRUSTED; closure state is unchanged"},
+    {"case": "old plan revision receipt", "result": "FORMAL_RECEIPT_UNTRUSTED"},
+    {"case": "unsafe JSON pointer token", "result": "JSON_POINTER_FORBIDDEN_TOKEN"},
+    {"case": "missing pointer", "result": "JSON_POINTER_MISSING"},
+    {"case": "array index out of range", "result": "JSON_POINTER_OUT_OF_RANGE"},
+    {"case": "receipt result exceeds limit", "result": "RECEIPT_RESULT_LIMIT"}
+  ],
+  "modelCalls": 0,
+  "businessWrites": 0
+}

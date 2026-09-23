@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "activeOrderSource": "ACTIVE_ORDERS_SQL",
+  "validatedBy": [
+    "isolated active order shortage test",
+    "isolated active order snapshot concurrency test",
+    "live active-reservation-shortage x2"
+  ],
+  "reservationSemantics": "existing active-order reservedDemand is subtracted once before virtual demand; virtual preview does not update reservedDemand outside its in-memory projection."
+}

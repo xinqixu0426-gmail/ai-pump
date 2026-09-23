@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "store": "in-memory owner+conversation scoped TTL 20 minutes; no SQLite persistence",
+  "checks": [
+    "owner",
+    "conversation",
+    "questionId",
+    "planRevision",
+    "candidateSetHash",
+    "expiry",
+    "answeredAt",
+    "choice membership"
+  ],
+  "cases": [
+    {
+      "case": "multiple recipe/coil",
+      "result": "WAITING_INPUT; no candidate[0] selection"
+    },
+    {
+      "case": "second option",
+      "result": "USER_CHOICE provenance; formal catalogue re-read before preview"
+    },
+    {
+      "case": "missing cable unit",
+      "result": "choices=[] WAITING_INPUT then 5米 binds as cableLength m"
+    },
+    {
+      "case": "wrong owner/missing session/stale answer",
+      "result": "fail closed"
+    }
+  ]
+}

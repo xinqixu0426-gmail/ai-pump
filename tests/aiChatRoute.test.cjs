@@ -261,3 +261,34 @@ test('AI SSE：总请求超时返回稳定错误码并计入超时指标', async
     assert.equal(snapshot.totals.failed, 1);
     assert.equal(snapshot.totals.timeouts, 1);
 });
+
+test('N7.1 chat rollout keeps off/shadow Legacy-authoritative and admits only authenticated Owner to Native delegation', async () => {
+    const env = {
+        ACCESS_PASSWORD: 'synthetic-shared-password', JWT_SECRET: 'synthetic-jwt-test-secret',
+        INTERNAL_SECRET: 'synthetic-internal-secret',
+        PUMP_OWNER_ACCESS_PASSWORD: 'synthetic-owner-credential-only-for-unit-test',
+        PUMP_OWNER_SUBJECT: 'synthetic_owner_subject_001',
+        AI_V5_OWNER_SUBJECTS: '["synthetic_owner_subject_001"]',
+    };
+    const ownerToken = issueOwnerToken(env.PUMP_OWNER_ACCESS_PASSWORD, env);
+    const sharedToken = require('jsonwebtoken').sign({ role: 'admin' }, env.JWT_SECRET, { expiresIn: '1h' });
+    async function receivedFor(mode, configure) {
+        const { req, res } = createRequestResponse();
+        configure(req);
+        let received;
+        await handleAiChat(req, res, {
+            env: { ...env, AI_NATIVE_MODE: mode, AI_NATIVE_WRITE_ENABLED: 'false' },
+            runAiDispatcherV3: async (input, dependencies) => {
+                received = { delegated: dependencies.nativeTaskDelegation, message: input.messages[0].content };
+                input.emit('content', { content: 'legacy answer' }); input.emit('done');
+                return { telemetry: {} };
+            },
+        });
+        assert.match(res.output, /legacy answer/);
+        return received;
+    }
+    assert.deepEqual(await receivedFor('off', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
+    assert.deepEqual(await receivedFor('shadow', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
+    assert.deepEqual(await receivedFor('owner', req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
+    assert.deepEqual(await receivedFor('owner', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: true, message: '测试' });
+});

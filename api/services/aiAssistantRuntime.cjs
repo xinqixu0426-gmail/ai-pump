@@ -27,13 +27,15 @@ const crypto = require('node:crypto');
 const { createInternalFetch, getJson, postJson, lookupEntities } = require('../routes/ai/internalApiClient.cjs');
 const { parseMemoryCommand } = require('./aiPersonalMemory.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
-const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, missingPreviewTotals, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
+const { unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, unfinishedReply, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer } = require('./aiAssistantAnswer.cjs');
 const {
     shouldReplaceWithVerifiedRecipeCoilReply,
     verifiedRecipeCoilRelationReply,
 } = require('./recipeCoilRelationAnswer.cjs');
 const { verifiedRecipePartRelationReply } = require('./recipePartRelationAnswer.cjs');
 const { moneyGuardDecision } = require('./aiMoneyGuard.cjs');
+const { turnMonetaryPresentation } = require('../capabilities/monetaryPresentationContract.cjs');
+const { normalizeAnswerPresentation, buildListCriticality } = require('./aiPresentationNormalizer.cjs');
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
 const { enforceBusinessRules } = require('./aiBusinessRulebook.cjs');
@@ -622,6 +624,12 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const compatibilityRead = !semanticEnforcementActive && !impactEligibilityResult.eligible
             ? buildCompatibilityRead(latest.content) : null;
         if (compatibilityRead) allowed.add(compatibilityRead.capability);
+        // E1-B：软件规划出来的比较能力必须真的可执行（否则计划会被 allowed 白名单挡掉）。
+        // 只在语义层已确定「两个显式主体 + 成本比较」时放行 compare_recipes，不扩大模型可见面：
+        // 该调用由软件注入，模型仍然看不到也选不到它。
+        const comparisonPlanApplies = buildBusinessEvidencePlan({ userText: latest.content, toolResults: [],
+            plannedCallCount: 0, eligibility })?.questionKind === 'COST_COMPARISON';
+        if (comparisonPlanApplies) allowed.add('compare_recipes');
         const budgets = resolveAiTokenBudgets(runtimeEnv);
         const providerConversation = useLocalToolShortlist && tools.length > 0
             ? [messages.at(-1)]
@@ -659,7 +667,41 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 return { id, type: 'function', function: { name: item.capability, arguments: JSON.stringify(item.arguments) } };
             });
         };
+        /**
+         * E1-B：**成本比较的确定性规划**。
+         *
+         * 语义层一旦确定「两个显式主体 + 成本比较」（questionSemantics 的 COST_COMPARISON，
+         * 由 parseComparisonSubjects 归一，不区分具体问法），正式 compare 调用就由软件规划，
+         * 模型没有「要不要调用 compare_recipes」的决定权 —— 也不再出现 Phase D 的
+         * 「模型自己相减 → 被守卫拒绝 → 用户只拿到一张表」。
+         *
+         * 只覆盖这一族，且只在两个主体都可解析时生效；其余目标族仍走原有路径。
+         */
+        // 参数键序无关的调用标识：模型与软件计划可能以不同键序表达同一调用。
+        const comparisonReadKey = (name, args) => {
+            let parsed = args;
+            if (typeof args === 'string') { try { parsed = JSON.parse(args || '{}'); } catch { parsed = {}; } }
+            const ordered = Object.fromEntries(Object.entries(parsed || {}).sort(([left], [right]) => left.localeCompare(right)));
+            return `${name}|${JSON.stringify(ordered)}`;
+        };
+        const comparisonPlannedReadKeys = new Set();
+        const deterministicComparisonCalls = (plannedCalls = []) => {
+            if (semanticPlannedCallCount >= MAX_SEMANTIC_EVIDENCE_CALLS) return [];
+            const plan = buildBusinessEvidencePlan({ userText: latest.content, toolResults,
+                plannedCallCount: semanticPlannedCallCount, eligibility });
+            if (!plan || plan.questionKind !== 'COST_COMPARISON') return [];
+            const alreadyPlanned = new Set(plannedCalls.map(item => `${item.function?.name}|${item.function?.arguments}`));
+            return plan.execution.calls.filter(item => !alreadyPlanned.has(`${item.capability}|${JSON.stringify(item.arguments)}`)).map(item => {
+                const id = `business-comparison-evidence-${crypto.randomUUID()}`;
+                semanticCallMetadata.set(id, item);
+                comparisonPlannedReadKeys.add(comparisonReadKey(item.capability, item.arguments));
+                maxSemanticEvidencePlanBytes = Math.max(maxSemanticEvidencePlanBytes, Buffer.byteLength(JSON.stringify(plan)));
+                semanticPlannedCallCount += 1;
+                return { id, type: 'function', function: { name: item.capability, arguments: JSON.stringify(item.arguments) } };
+            });
+        };
         let requiredSemanticEvidenceCalls = semanticToolCalls();
+        requiredSemanticEvidenceCalls = [...requiredSemanticEvidenceCalls, ...deterministicComparisonCalls(requiredSemanticEvidenceCalls)];
         let requiredCompatibilityCalls = compatibilityRead ? [{
             id: `l5-off-compatibility-${crypto.randomUUID()}`,
             type: 'function',
@@ -874,17 +916,48 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         continue;
                     }
                     outcome = 'failed_answer';
-                    finalContent = (pendingPreview(toolResults) ? unfinishedReply(toolResults, '尚未取得正式配置成本，不能用目录或线圈档案金额代替整机成本。') : formatMoneySummary(toolResults, { includeQueries: true })) || '已取得下方正式查询明细，但本次文字回答包含无法核对的金额，已停止展示该结论。';
+                    // PHASE-D-DEFECT-05：草稿因「无法核对的金额」被拒时，用户必须知道结论为什么不可用。
+                    // 旧实现把「解释」与「正式明细」当成互斥的两件事（summary || 解释），
+                    // 于是只要金额表能渲染，用户就只看到一张内部表 —— 这正是
+                    // LEGACY-AI-ANSWER-001 的原始症状在另一个触发条件下的复现。
+                    // 现在解释永远是正文，正式明细是它下面的补充；没有明细时才回退到纯解释。
+                    const rejectedDraftNotice = '本次文字回答包含无法核对的金额，已停止展示该结论。你可以先核对下面的本轮正式查询明细，需要我按正式口径重算请直接说明。';
+                    const rejectedSummary = pendingPreview(toolResults)
+                        ? unfinishedReply(toolResults, '尚未取得正式配置成本，不能用目录或线圈档案金额代替整机成本。')
+                        : formatMoneySummary(toolResults, { includeQueries: true });
+                    finalContent = rejectedSummary ? `${rejectedDraftNotice}\n\n${rejectedSummary}` : rejectedDraftNotice;
                 }
                 // Empty summaries and leaked formatting instructions must not replace the requested amounts.
                 // B：守卫原先只要正文没写 ¥/元 就整段替换，把带结论的回答换成一张内部金额表（生产会话 58）。
-                // 现在只有正文不可用、或引用了正式字段之外的金额时才替换；正文已引用本轮正式金额、缺口只是
-                // 格式时保留正文，把金额表作为附加明细追加。
-                if (toolResults.some(item => item.result?.data?.configurationBasis?.configurationComplete === false) || missingPreviewTotals(finalContent, toolResults) || !/[¥￥]|\d\s*元/.test(finalContent) || /仅修正文案|请再修正|未受正式金额字段|不要再调用工具/.test(finalContent)) {
-                    const guard = moneyGuardDecision(finalContent, toolResults);
-                    if (guard.summary) {
-                        finalContent = guard.action === 'append' ? `${finalContent}\n\n${guard.summary}` : guard.summary;
-                    }
+                //
+                // LEGACY-AI-ANSWER-001（候选人工验收）：那个「正文没写 ¥/元」的前置条件还会把非金额问题的
+                // 正确结论送进替换分支，结论被删除（用户问规格差异，答案被换成核对表）。
+                //
+                // 现在把两件事分开：
+                //   正文是否保留 = 完全由守卫内部的 evaluateAnswerMoney 决定
+                //                  （正文不可用 / 含无依据金额才 replace；非金额结论永不删）
+                //   是否补金额表 = 由守卫内部的 moneyDetailObligation 决定（见 Part 1-R2 说明）
+                //
+                // LEGACY-AI-ANSWER-002 / 005：运行时这里曾经自己再判一次「要不要给守卫机会」，
+                // 于是 compare_recipes 这类没有 currentTotalCost 的正式预览永远进不了守卫 ——
+                // 模型只写「两套方案的成本已给出，供你参考。」时，A/B/差额三个正式金额全部丢失。
+                // 现在调用方不再重复实现守卫的判据：统一把判断交给 moneyGuardDecision。
+                //
+                // Part 1-R2：本轮「要不要补金额」必须是**轮次级**的，不能只看能力类型。
+                // turnMonetaryPresentation 从既有业务语义层（eligibility 的 kind/operation）
+                // 读出本轮目标是否要求金额结论 —— 不新增关键词/正则意图识别，也不加第二次模型调用。
+                // 例：CONFIGURATION_OVERRIDE + DESCRIBE_CONFIGURATION（「这个配置用了哪些零件」）
+                //     → 不要求金额；同一能力 + PREVIEW_CONFIGURATION_COST → 要求金额。
+                // 该要求只约束**补全**；正文自己写了无依据金额时守卫照常纠正（安全与补全分离）。
+                const guard = moneyGuardDecision(finalContent, toolResults, turnMonetaryPresentation(eligibility));
+                if (guard.action === 'append') {
+                    finalContent = `${finalContent}\n\n${guard.appendable || guard.summary}`;
+                } else if (guard.action === 'replaceTable') {
+                    // 正文已有一张不完整的金额表：用 canonical 核对表替换该表本身，
+                    // 既不重复表头，也不丢缺失的正式金额行与口径上下文。
+                    finalContent = guard.appendable || guard.summary;
+                } else if (guard.action === 'replace') {
+                    finalContent = guard.summary;
                 }
                 break;
             }
@@ -911,6 +984,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 let args, result;
                 const toolStarted = Date.now();
                 const semanticMetadata = semanticCallMetadata.get(call.id);
+                // E1-B：软件已规划并执行过同一个正式比较时，模型再提议一次完全相同的调用是冗余读取。
+                // 只针对 E1-B 规划出来的比较调用，不影响其它任何重复读取语义。
+                if (!semanticMetadata && comparisonPlannedReadKeys.has(comparisonReadKey(call.function?.name, call.function?.arguments))) continue;
                 const deterministicRelationCall = relationCallIds.has(call.id);
                 const deterministicCompatibilityCall = compatibilityCallIds.has(call.id);
                 try {
@@ -1012,7 +1088,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 }
             }
             if (semanticEnforcementActive && semanticPlannedCallCount < MAX_SEMANTIC_EVIDENCE_CALLS) {
-                requiredSemanticEvidenceCalls = semanticToolCalls();
+                const replannedSemanticCalls = semanticToolCalls();
+                requiredSemanticEvidenceCalls = [...replannedSemanticCalls, ...deterministicComparisonCalls(replannedSemanticCalls)];
                 if (requiredSemanticEvidenceCalls.length) continue;
             }
             const dashboardOverview = formatDashboardOverview(latest.content, toolResults);
@@ -1105,6 +1182,19 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 answer: finalContent,
             });
             finalContent = compatibilityBoundary.answer;
+        }
+        // ── Part 2：面向用户的确定性展示规范化（最后一道内容处理） ──────────
+        // 位置是必须的：语义/影响/兼容边界都运行在 Money Guard 之后且仍会改写正文，
+        // 本层若放在它们之前就会被覆盖。放在这里也保证不与 Money Guard 形成循环处理。
+        // 只做展示变换（机器词汇→业务语言、结论先行、长清单摘要、清理未被请求的收尾邀约），
+        // 不新增/改动事实与金额，不隐藏缺失、不完整、歧义与策略警告。
+        // 对本地模型与远端 provider 是同一策略（旧实现只有本地分支做精简）。
+        // A05：清单压缩的关键性判据来自**本轮正式结果的结构化状态**（哪些对象缺料/未定价/
+        // 未完成/待选择），不再由展示层从最终文字里猜业务重要性。
+        if (!finalContentStreamed && process.env.DSH_DISABLE_PRESENTATION_NORMALIZER !== '1') {
+            finalContent = normalizeAnswerPresentation(finalContent, latest.content, {
+                criticality: buildListCriticality(toolResults),
+            });
         }
         if (toolResults.some(item => item.result?.success === false) && outcome === 'completed') outcome = 'partial';
         abortIfNeeded(input.signal);

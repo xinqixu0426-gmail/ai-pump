@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "testCases": [
+    {
+      "id": "N5R1-BACKUP-PRE-V88",
+      "expected": "backup a populated v87 disposable fixture",
+      "actual": "formal createDatabaseBackup",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-RESTORE-PRE-V88",
+      "expected": "restore retains full pre-migration fingerprint and lacks task tables",
+      "actual": "stable fingerprint equal; no v88 task tables",
+      "status": "PASS"
+    }
+  ],
+  "integrityCheck": "ok",
+  "foreignKeyViolations": 0
+}

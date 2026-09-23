@@ -1,0 +1,604 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "provider": {
+    "requested": "deepseek",
+    "actual": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0
+  },
+  "runsPerScenario": 2,
+  "scenariosPerRound": 10,
+  "totalScenarioRuns": 20,
+  "rounds": [
+    {
+      "round": 1,
+      "scenarios": [
+        {
+          "label": "customer-history-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "CUSTOMER_HISTORY",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "customer.identity",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.quotation_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 4,
+            "apiCalls": 5,
+            "activeMs": 2255
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "customer-all-history",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "CUSTOMER_HISTORY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "customer.identity",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.quotation_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.order_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 2,
+            "apiCalls": 3,
+            "activeMs": 3
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "order-readiness",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "ORDER_READINESS",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "order.identity",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            },
+            {
+              "predicate": "order.readiness",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            },
+            {
+              "predicate": "order.readiness_actions",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 4
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "quotation-query",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "QUOTATION_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "quotation.summary",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1124
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "management",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "MANAGEMENT_OVERVIEW",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "management.action_center",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1558
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "business-changes",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "BUSINESS_CHANGES",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "business.change_set",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1363
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "coil-catalogue",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "COIL_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "coil.variant_set",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 3
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "coil-inventory",
+          "state": "WAITING_INPUT",
+          "goals": [
+            {
+              "kind": "INVENTORY_QUERY",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "INVENTORY_COIL_AMBIGUOUS"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 2
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "part-inventory-gap",
+          "state": "UNSUPPORTED",
+          "goals": [
+            {
+              "kind": "INVENTORY_QUERY",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "N4.1A_CAPABILITY_GAP"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 1221
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "impact-gap",
+          "state": "UNSUPPORTED",
+          "goals": [
+            {
+              "kind": "IMPACT_INVESTIGATION",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "N4.1A_CAPABILITY_GAP"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 0
+          },
+          "answerMode": "DETERMINISTIC"
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "scenarios": [
+        {
+          "label": "customer-history-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "CUSTOMER_HISTORY",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "customer.identity",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.quotation_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 4,
+            "apiCalls": 5,
+            "activeMs": 1649
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "customer-all-history",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "CUSTOMER_HISTORY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "customer.identity",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.quotation_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            },
+            {
+              "predicate": "customer.order_history",
+              "entityType": "customer",
+              "entityId": "1",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 2,
+            "apiCalls": 3,
+            "activeMs": 3
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "order-readiness",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "ORDER_READINESS",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "order.identity",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            },
+            {
+              "predicate": "order.readiness",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            },
+            {
+              "predicate": "order.readiness_actions",
+              "entityType": "order",
+              "entityId": "101",
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 5
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "quotation-query",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "QUOTATION_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "quotation.summary",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1209
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "management",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "MANAGEMENT_OVERVIEW",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "management.action_center",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1349
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "business-changes",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "BUSINESS_CHANGES",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "business.change_set",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1614
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "coil-catalogue",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "COIL_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "coil.variant_set",
+              "entityType": "global",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 3
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "coil-inventory",
+          "state": "WAITING_INPUT",
+          "goals": [
+            {
+              "kind": "INVENTORY_QUERY",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "INVENTORY_COIL_AMBIGUOUS"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 1,
+            "activeMs": 1
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "part-inventory-gap",
+          "state": "UNSUPPORTED",
+          "goals": [
+            {
+              "kind": "INVENTORY_QUERY",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "N4.1A_CAPABILITY_GAP"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 1,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 1439
+          },
+          "answerMode": "DETERMINISTIC"
+        },
+        {
+          "label": "impact-gap",
+          "state": "UNSUPPORTED",
+          "goals": [
+            {
+              "kind": "IMPACT_INVESTIGATION",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "N4.1A_CAPABILITY_GAP"
+              ]
+            }
+          ],
+          "facts": [],
+          "metrics": {
+            "modelCalls": 0,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 0
+          },
+          "answerMode": "DETERMINISTIC"
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "safety": {
+    "database": "temporary SQLite fixture",
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "rawProviderLog": "logs/ai-task-structured-reads-v2-live-raw.json (gitignored)"
+  }
+}

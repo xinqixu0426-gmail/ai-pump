@@ -1,0 +1,16 @@
+{
+  "ticket": "N5.1B-R2",
+  "status": "REWORK",
+  "committedBaseline": "1fdd236d434c14a9e15176357085826fe3546e63",
+  "branch": "ai-native/v1",
+  "migration": 88,
+  "businessWrites": 0,
+  "commandExecutions": 0,
+  "productionChanged": false,
+  "DETACHED_CALL_COUNTER_AUTHORITY": "DURABLE_PRECALL_RESERVATION",
+  "CONTROLLER_CALL_COUNTER_ROLE": "EXECUTION_MIRROR_ONLY",
+  "CHECKPOINT_CAN_DECREMENT_CALL_COUNTER": "NO",
+  "CHECKPOINT_CAN_DOUBLE_COUNT_CALL": "NO",
+  "ACTIVE_MS_POLICY": "PREVIOUS_DURABLE + CURRENT_ITERATION",
+  "limitsAuthority": "DURABLE_TASK_BUDGET"
+}

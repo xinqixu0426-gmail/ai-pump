@@ -7,6 +7,10 @@ const {
 const {
     createRecipeQueries,
 } = require('../services/recipeQueries.cjs');
+const {
+    createRecipeScenarioComparison,
+} = require('../services/recipeScenarioComparison.cjs');
+const { createProfitabilityPreview } = require('../services/profitabilityPreview.cjs');
 const router = Router();
 const costLogger = createLogger('cost');
 const copperLogger = createLogger('copper');
@@ -53,6 +57,17 @@ const costQueries = createCostQueries({
     recipeRow,
     buildBomDraft: recipeQueries.getBomDraft,
 });
+const scenarioComparison = createRecipeScenarioComparison({
+    db,
+    recipeRow,
+    listCoils: dbGetAllCoils,
+    loadPartsData,
+    calculateRecipeCost,
+    getSetting,
+    getBomDraft: recipeQueries.getBomDraft,
+});
+const profitabilityPreview = createProfitabilityPreview({ scenarioComparison });
+
 
 function sendCostQueryError(res, error, fallbackStatus = 500) {
     res.status(error.statusCode || fallbackStatus).json({
@@ -198,6 +213,31 @@ router.post('/recipes/:id/cost-preview', (req, res) => {
     } catch (err) {
         costLogger.error(`DynamicCalc failed recipe=${baseRecipeId}: ${err.stack || err.message}`);
         sendCostQueryError(res, err);
+    }
+});
+
+// ── POST /recipes/:id/scenario-compare-preview ──
+// The saved-snapshot cost-preview above keeps its legacy contract.  This route
+// deliberately provides the separate, current-rebuilt same-read-set contract.
+router.post('/recipes/:id/scenario-compare-preview', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: scenarioComparison.compare(req.params.id, req.body || {}),
+        });
+    } catch (error) {
+        sendCostQueryError(res, error, 400);
+    }
+});
+
+// ── POST /cost/profitability-preview ──
+// Read-only, current-rebuilt gross-profit preview. It obtains all cost facts
+// from one internal Scenario Comparison read set.
+router.post('/cost/profitability-preview', (req, res) => {
+    try {
+        res.json({ success: true, data: profitabilityPreview.preview(req.body || {}) });
+    } catch (error) {
+        sendCostQueryError(res, error, 400);
     }
 });
 

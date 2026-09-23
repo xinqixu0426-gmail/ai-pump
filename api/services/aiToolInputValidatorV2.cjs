@@ -1,4 +1,5 @@
 const { AI_TOOLS } = require('../routes/ai/tools.cjs');
+const { AI_NATIVE_TOOLS_V2 } = require('./aiNativeToolDefinitionsV2.cjs');
 
 class AiToolInputValidationError extends Error {
     constructor(message, details = {}) {
@@ -9,7 +10,7 @@ class AiToolInputValidationError extends Error {
     }
 }
 
-const TOOL_SCHEMAS = new Map(AI_TOOLS.map(tool => [
+const TOOL_SCHEMAS = new Map([...AI_TOOLS, ...AI_NATIVE_TOOLS_V2].map(tool => [
     tool.function.name,
     tool.function.parameters || { type: 'object', properties: {} },
 ]));
@@ -58,6 +59,10 @@ function normalizeNumber(value, schema, path, integer = false) {
     return value;
 }
 
+function allowsNull(schema = {}) {
+    return schema?.type === 'null' || (Array.isArray(schema?.type) && schema.type.includes('null')) || (Array.isArray(schema?.oneOf) && schema.oneOf.some(item => allowsNull(item))) || (Array.isArray(schema?.anyOf) && schema.anyOf.some(item => allowsNull(item)));
+}
+
 function normalizeObject(value, schema, path) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         fail(`${path} 必须是对象`, path);
@@ -74,7 +79,7 @@ function normalizeObject(value, schema, path) {
     for (const field of schema.required || []) {
         if (
             !Object.hasOwn(value, field)
-            || value[field] === null
+            || (value[field] === null && !allowsNull(properties[field]))
             || value[field] === ''
             || (typeof value[field] === 'string' && !value[field].trim())
         ) {
@@ -82,7 +87,7 @@ function normalizeObject(value, schema, path) {
         }
     }
     for (const [key, raw] of Object.entries(value)) {
-        if (raw === undefined || raw === null) continue;
+        if (raw === undefined || (raw === null && !allowsNull(properties[key]))) continue;
         if (
             typeof raw === 'string'
             && raw.trim() === ''
@@ -165,23 +170,34 @@ function normalizeBySchema(value, schema = {}, path = 'args') {
         }
         fail(`${path} 不符合任何允许的输入形式`, path, { failures });
     }
+    let normalized;
     switch (schema.type) {
         case 'object':
-            return normalizeObject(value, schema, path);
+            normalized = normalizeObject(value, schema, path); break;
         case 'array':
-            return normalizeArray(value, schema, path);
+            normalized = normalizeArray(value, schema, path); break;
         case 'string':
-            return normalizeString(value, schema, path);
+            normalized = normalizeString(value, schema, path); break;
         case 'integer':
-            return normalizeNumber(value, schema, path, true);
+            normalized = normalizeNumber(value, schema, path, true); break;
         case 'number':
-            return normalizeNumber(value, schema, path, false);
+            normalized = normalizeNumber(value, schema, path, false); break;
         case 'boolean':
             if (typeof value !== 'boolean') fail(`${path} 必须是布尔值`, path);
-            return value;
+            normalized = value; break;
+        case 'null':
+            if (value !== null) fail(`${path} 必须为 null`, path);
+            normalized = null; break;
         default:
-            return value;
+            normalized = value;
     }
+    // Native tools use JSON Schema `const` to freeze protocol versions,
+    // request kinds and server-owned policies.  Type validation alone must
+    // not turn these into advisory documentation.
+    if (Object.hasOwn(schema, 'const') && normalized !== schema.const) {
+        fail(`${path} 必须为 ${JSON.stringify(schema.const)}`, path, { allowedValue: schema.const });
+    }
+    return normalized;
 }
 
 function validateAiToolArgs(toolName, rawArgs = {}) {

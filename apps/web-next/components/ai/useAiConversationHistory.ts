@@ -108,6 +108,7 @@ export function useAiConversationHistory(locked: boolean) {
           provider: message.metadata?.provider,
           metrics: message.metadata?.metrics,
           turnState: message.metadata?.turnState,
+          nativeTaskId: message.metadata?.nativeTaskId,
           persistedMessageId: message.id,
           historical: true,
         })),

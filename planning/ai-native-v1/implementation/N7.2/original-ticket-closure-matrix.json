@@ -1,0 +1,307 @@
+{
+  "version": 3,
+  "ticket": "N7.2",
+  "ticketStatus": "PASS",
+  "ticketTitle": "旧职责退出，而不是继续叠层",
+  "sourceAuthority": "CANONICAL_PLAN",
+  "canonicalPlanRecovered": true,
+  "canonicalPlanSource": "planning/ai-native-v1/AI-native实施总计划.md",
+  "canonicalPlanSourceCommit": "6150edfb8851d89dcd5e1e8d2a0ca22aaf6e533a",
+  "canonicalN72Section": "planning/ai-native-v1/AI-native实施总计划.md 第 1500-1506 行（与 05-分阶段实施.md 第 225-231 行同源）",
+  "authorityHistory": [
+    "v1（R01 期间）：按当时指令标记 SUPERVISOR_RECOVERED_HANDOFF。",
+    "v2（R08 期间）：Supervisor 裁定 canonical 已逐字节恢复，改为 CANONICAL_PLAN。",
+    "v3（本版）：N7.2 终稿，SOURCE_AUTHORITY=CANONICAL_PLAN，canonical commit 6150edf。RECOVERED-HANDOFF.md 仅保留为历史恢复记录。"
+  ],
+  "canonicalN72Text": {
+    "prerequisite": "N7.1试点证据满足对应切片的退出门槛。",
+    "action": "用既有legacy witness与冗余矩阵逐项证明新的责任覆盖；每次只迁移一个职责切片，如Native成本比较的跨目录/多方案后处理，不整组删除Money Guard或Legacy逻辑。先移除重复执行，再确认无调用方，最后才删除代码。",
+    "exit": "用户可感知用例不退化，关键安全突变仍拒绝，provider调用与答案重复无回升，Legacy/OUT_OF_SCOPE保护仍完整。无法证明冗余就保留并标明唯一作用范围，不为了少文件删除真实能力。"
+  },
+  "canonicalSliceOrderFinding": {
+    "canonicalDefinesOrderedSliceList": false,
+    "evidence": "canonical 包中 N7.2 只出现在同一小节的两处副本（05-分阶段实施.md:225、AI-native实施总计划.md:1500）及其 N7.3 前置引用；从未枚举切片清单或次序。",
+    "consequence": "N72-R01 / N72-R08 是执行管理编号，不是 canonical 自带编号；本文件不声称存在 canonical 下一片。"
+  },
+  "recoveredHandoff": "planning/ai-native-v1/RECOVERED-HANDOFF.md（仅历史恢复记录，非执行权威）",
+
+  "acceptedSlices": [
+    {
+      "sliceId": "N72-R01",
+      "title": "同一任务内正式基线情景成本（recipe.current_cost / CURRENT_REBUILT）去重",
+      "status": "PASS_ACCEPTED_BY_SUPERVISOR",
+      "acceptedCommit": "a47d2d91b6cf16504f4e516c15f919c41c608e1b",
+      "classificationBefore": "DUPLICATE_EXECUTION",
+      "classificationAfter": "FALLBACK",
+      "underlyingFormalCallsBefore": 2,
+      "underlyingFormalCallsAfter": 1,
+      "toolCallsBefore": 6,
+      "toolCallsAfter": 5,
+      "physicalDeletion": false,
+      "witnessSensitivity": "回退生产实现后 6/8 FAIL，恢复后 8/8 PASS（两次执行一致）"
+    },
+    {
+      "sliceId": "N72-R08",
+      "title": "Native 任务能力适配层的 preview_recipe_cost 投影责任退出",
+      "status": "PASS_ACCEPTED_BY_SUPERVISOR",
+      "acceptedCommit": "a8b92960bf4d04ab48c14c73ca214e5428547be6",
+      "classificationBefore": "DEAD",
+      "classificationAfter": "DEAD_REMOVED",
+      "staticExecutableCallersBefore": 1,
+      "staticExecutableCallersAfter": 0,
+      "dynamicExecutableCallersBefore": 0,
+      "dynamicExecutableCallersAfter": 0,
+      "globalDescriptorRemoved": false,
+      "physicalDeletion": true,
+      "deletedSymbols": ["api/services/aiTaskCapabilityAdapterV2.cjs CANONICAL_PROJECTORS.preview_recipe_cost"]
+    },
+    {
+      "sliceId": "N72-CONVERGENCE",
+      "title": "责任收敛与整票收口审计",
+      "status": "PASS_ACCEPTED_BY_SUPERVISOR",
+      "acceptedCommit": "ce80346d5da4b302f71e8f1bb21904282b78dd5a",
+      "artifact": "planning/ai-native-v1/implementation/N7.2/convergence-closure-audit.json"
+    }
+  ],
+
+  "finalClosureTicket": {
+    "sliceId": "N72-FINAL",
+    "title": "canonical deterministic deep-api gate + 整票收口",
+    "status": "PASS",
+    "deliverable": "默认 `npm run test:deep-api` 现在由仓库自身的版本化迁移构建确定性源数据库，不再复制本机 ./pump.db。",
+    "implementationEvidence": "scripts/run-deep-api-smoke.cjs 新增 buildCanonicalSourceDatabase / selectSourceDatabase，并在报告中输出 sourceMode / canonicalSource / localPumpDbUsed。",
+    "tests": "tests/n72CanonicalDeepApiGate.test.cjs（5 条）",
+    "witnessEvidence": "planning/ai-native-v1/implementation/N7.2/canonical-deep-api-gate.json"
+  },
+
+  "requirements": [
+    {
+      "id": "canonical_n7_2_scope_respected",
+      "requirement": "遵守 canonical N7.2 动作与退出原文，不整组删除 Money Guard 或 Legacy 逻辑",
+      "implementationEvidence": "N7.2 全程未删除任何 Legacy 能力；唯一删除是 Native 适配层中经证明不可达的投影键",
+      "witnessEvidence": "legacy-redundancy-matrix.json；convergence-closure-audit.json",
+      "testEvidence": "tests/legacyRedundancyAudit.test.cjs；全仓 2973/2973 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "existing_legacy_witness_reused",
+      "requirement": "复用既有 legacy witness 与冗余矩阵，而不是新造一套",
+      "implementationEvidence": "docs/legacy-redundancy-matrix-v1.json（SHA 800524e7…）、tests/fixtures/legacy-witness-corpus-v1.json（SHA 30045b77…）、legacyRedundancyHarness.cjs 全程未被修改",
+      "witnessEvidence": "本轮在其之外补充 N7.2 专属 witness（不同责任面）",
+      "testEvidence": "tests/legacyRedundancyAudit.test.cjs PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "responsibility_inventory_and_matrix",
+      "requirement": "以职责为单位建立 inventory 与 redundancy matrix，并逐项分类",
+      "implementationEvidence": "responsibility-inventory.md；legacy-redundancy-matrix.json（9 条职责）",
+      "witnessEvidence": "convergence-closure-audit.json A 节：AUTHORITATIVE 5 / WITNESS 1 / FALLBACK 1 / DUPLICATE_EXECUTION 0 / DEAD 0 / SHARED_INFRASTRUCTURE 2 / AMBIGUOUS_DUAL_AUTHORITY 0",
+      "testEvidence": "CALLER_GRAPH 测试固定调用方集合",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate_execution_removed_first",
+      "requirement": "先移除重复执行，而不是先删代码",
+      "implementationEvidence": "aiTaskControllerV2.cjs reuseProfitabilityBaseCost；正式能力调用 2→1",
+      "witnessEvidence": "legacy-witness-evidence.json N72-R01.measurement",
+      "testEvidence": "tests/aiTaskLegacyRetirementN72.test.cjs 4/4 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "caller_proof_before_deletion",
+      "requirement": "任何物理删除前必须证明静态与动态调用方清零",
+      "implementationEvidence": "R08 删除前证明：适配层唯一生产消费者是控制器；控制器执行的 12 个工具名不含该工具；Native 工具面仅 3 个工具；即使调用也 fail closed；该投影键从未被任何测试触发",
+      "witnessEvidence": "legacy-redundancy-matrix.json N72-R08.proofOfUnreachability",
+      "testEvidence": "删除后全部门禁全绿；tests/n72CanonicalDeepApiGate.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "off_shadow_owner_rollback_preserved",
+      "requirement": "保护 off / shadow / owner / rollback，且不得破坏 MCP 支持的读取能力",
+      "implementationEvidence": "rollout control plane（aiNativeRolloutPolicy.cjs、aiNativeQualityGate.cjs）、Owner 认证、MCP 目录全程零改动",
+      "witnessEvidence": "AI_NATIVE_MODE 默认仍 off；非法值仍 fail closed；AI_NATIVE_WRITE_ENABLED 默认仍 false",
+      "testEvidence": "tests/aiNativeRolloutPolicy.test.cjs、aiTaskLegacyRetirementModesN72.test.cjs（off/shadow/owner/rollback/非法值/Owner 隔离）PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "write_path_protected",
+      "requirement": "保护 PREPARE/EXECUTE、operationId、幂等、回执、UNKNOWN_EFFECT/RECONCILING",
+      "implementationEvidence": "N7.2 三个切片全部为只读或纯删除，未触及写路径文件",
+      "witnessEvidence": "WRITE_DUPLICATE_EFFECTS=0；PRODUCTION_NATIVE_WRITES=0",
+      "testEvidence": "tests/aiTaskWriteBridgeV2.test.cjs；tests/aiTaskLegacyRetirementModesN72.test.cjs WRITE_DUPLICATE_EFFECT PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "no_business_logic_fork",
+      "requirement": "禁止为删除 Legacy 而在 Native 新写成本/库存/报价/订单/采购/BOM/价格算法",
+      "implementationEvidence": "costEngine / recipeScenarioComparison / profitabilityPreview / virtualReadinessPreview / costQueries / 正式 API 执行器 全程零改动",
+      "witnessEvidence": "git diff 仅含 2 个文件（aiTaskControllerV2.cjs、aiTaskCapabilityAdapterV2.cjs）",
+      "testEvidence": "全仓 2973/2973 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "user_visible_cases_not_degraded",
+      "requirement": "用户可感知用例不退化",
+      "implementationEvidence": "R01 业务合同逐项对比（目标状态、事实口径、公共投影白名单不变）",
+      "witnessEvidence": "legacy-witness-evidence.json unchangedTermsEvidence",
+      "testEvidence": "全仓 2973/2973 PASS，含既有 N4.2A/N4.2C 复用回归",
+      "status": "PASS"
+    },
+    {
+      "id": "critical_safety_mutations_still_rejected",
+      "requirement": "关键安全突变仍拒绝",
+      "implementationEvidence": "R01 复用路径在 cost.complete!==true 时置 PARTIAL 并追加 COST_PREVIEW_INCOMPLETE",
+      "witnessEvidence": "legacy-witness-evidence.json failClosedEvidence",
+      "testEvidence": "N7.2 FAIL_CLOSED PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "provider_and_answer_duplication_not_rising",
+      "requirement": "provider 调用与答案重复无回升",
+      "implementationEvidence": "三个切片均未触碰模型调用面（answerModelCalls=0），tool 调用数未上升",
+      "witnessEvidence": "R01：toolCalls 6→5",
+      "testEvidence": "N7.2 LEGACY_WITNESS toolCalls 上限断言 PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "legacy_out_of_scope_protection_intact",
+      "requirement": "Legacy/OUT_OF_SCOPE 保护仍完整",
+      "implementationEvidence": "BUS-P6 五组保护组件全程零改动",
+      "witnessEvidence": "docs/legacy-redundancy-audit-v1.md 结论仍成立",
+      "testEvidence": "tests/legacyRedundancyAudit.test.cjs PASS",
+      "status": "PASS"
+    },
+    {
+      "id": "canonical_deterministic_deep_api_gate",
+      "requirement": "建立真正跨机器可复现的 canonical deterministic deep-api gate；默认命令不得隐式依赖本机 ./pump.db；保留扩展来源覆盖；不得硬编码计数、削弱断言、跳过检查或伪造铜价语义",
+      "implementationEvidence": "scripts/run-deep-api-smoke.cjs：无显式源时由 api/database/migrations.cjs 构建确定性源（migrationHead=88），报告输出 sourceMode/canonicalSource/localPumpDbUsed；设置 DEEP_API_SOURCE_DATABASE_PATH 时进入 EXTENDED_SOURCE_DB 分支",
+      "witnessEvidence": "planning/ai-native-v1/implementation/N7.2/canonical-deep-api-gate.json",
+      "testEvidence": "tests/n72CanonicalDeepApiGate.test.cjs 5/5 PASS；canonical 连跑两次均 489/489 failed 0；扩展来源 493/493 failed 0",
+      "status": "PASS"
+    },
+    {
+      "id": "whole_ticket_closure",
+      "requirement": "整票收口：DUPLICATE_EXECUTION=0、DEAD=0、AMBIGUOUS_DUAL_AUTHORITY=0、剩余 Legacy 责任均有明确唯一角色、无未解决 DEAD、模式与回退有效、witness 完整、canonical 强制要求满足",
+      "implementationEvidence": "convergence-closure-audit.json F 节 12 项条件全部 PASS",
+      "witnessEvidence": "legacy-witness-evidence.json（R01+R08 双切片证据）",
+      "testEvidence": "全仓 2973/2973；聚焦 N4–N7.1 回归 197/197",
+      "status": "PASS"
+    }
+  ],
+
+  "finalCounts": {
+    "MANDATORY_REQUIREMENTS_PASS": true,
+    "mandatoryRequirementsTotal": 14,
+    "PARTIAL_ITEMS": 0,
+    "UNPROVEN_ITEMS": 0,
+    "NOT_RUN_ITEMS": 1,
+    "NOT_RUN_detail": [
+      {
+        "item": "scripts/run-ai-native-quality-gate.cjs（N7.1 Native 质量摘要/发布门禁）",
+        "reason": "该 runner 的 rolloutSafety 维度会执行 scripts/run-ai-native-rollout-live.cjs，后者要求真实 DEEPSEEK_API_KEY 与 Owner 凭据；本机无该凭据，故无法生成新的质量摘要。canonical N7.2 的退出标准未要求该质量摘要（它属 N7.1 的发布门禁），因此按指令不计入 N7.2 强制项。",
+        "userActionNeeded": "如需刷新质量摘要，请在 .env 提供真实 DEEPSEEK_API_KEY 后运行 npm run verify:ai-native-release；该门禁的 deepApiDeterminism 维度已自动指向本轮的 canonical 确定性 deep-api gate（evidence 字段为 scripts/run-deep-api-smoke.cjs），不会再引用旧的非确定性结果。",
+        "staleEvidenceRejected": true,
+        "staleEvidenceMechanism": "api/services/aiNativeQualityGate.cjs:24 以 sourceRevision === currentRevision 判定，任何早于本轮 revision 的质量证据都会被判 stale=FAIL。"
+      }
+    ],
+    "productionAndLiveWorkExcludedFromMandatory": "真实模型 live drill、生产验收、deploy/push 均非 canonical N7.2 强制项，未计入 NOT_RUN_ITEMS。"
+  },
+
+  "deepApiDeltaAudit": {
+    "canonicalGate": {
+      "command": "npm run test:deep-api（不带 DEEP_API_SOURCE_DATABASE_PATH）",
+      "sourceMode": "CANONICAL_DETERMINISTIC",
+      "sourceConstruction": "由仓库版本化迁移构建（migrationHead=88, applied=88），不读取本机 ./pump.db",
+      "localPumpDbUsed": false,
+      "run1": "489/489 failed 0",
+      "run2": "489/489 failed 0",
+      "identitiesStable": true,
+      "temperatureIntegrity": "ok",
+      "foreignKeyViolations": 0,
+      "count": 489,
+      "countDerivation": "自然由确定性套件产生，未硬编码"
+    },
+    "extendedSource": {
+      "command": "DEEP_API_SOURCE_DATABASE_PATH=<本机 pump.db> npm run test:deep-api",
+      "sourceMode": "EXTENDED_SOURCE_DB",
+      "count": 493,
+      "failed": 0,
+      "classification": "EXTENDED_DATA_SHAPE_DEPENDENT_COVERAGE（合法地大于 canonical，不得作为通用基线）",
+      "extraChecks": ["GET纯度-订单详情", "订单正式状态筛选", "订单详情", "知识详情"],
+      "extraChecksGateEvidence": [
+        "run-deep-api-smoke.cjs:1061-1062 `const orderId = orders[0]?.id; if (orderId) …`（源库已有订单）",
+        "run-deep-api-smoke.cjs:1127 `if (orders[0]?.status) { … '订单正式状态筛选' }`（源库已有订单）",
+        "run-deep-api-smoke.cjs:1368 `if (orders.length > 0) await request('订单详情', …)`（源库已有订单）",
+        "run-deep-api-smoke.cjs:1369 `if (knowledge.length > 0) { await request('知识详情', …) }`（源库已有知识）"
+      ],
+      "classificationOfExtraChecks": {
+        "EXTENDED_DATA_SHAPE_ONLY": ["GET纯度-订单详情", "订单正式状态筛选", "订单详情", "知识详情"],
+        "CANONICAL_REQUIRED": [],
+        "OBSOLETE_OR_EQUIVALENTLY_COVERED": [],
+        "reason": "四项全部由“源库预先存在订单/知识”这一数据形状条件触发；canonical 源为空时其业务能力仍由无条件的同类检查覆盖（如 GET纯度-订单列表、报价正式状态筛选、知识搜索、工厂资料知识详情）。因此它们不属 canonical，也不表示 canonical 覆盖缺失：canonical run 的 check identity 集合是 extended run 的真子集（missing=0）。"
+      }
+    },
+    "historicalCountsExplained": {
+      "macOS_default_empty_489": "与本轮 canonical gate 完全一致（源库无预先订单/知识）。",
+      "macOS_populated_490": "在 489 基础上多命中“知识详情”这一条件分支。",
+      "windowsDSH_493": "在 489 基础上多命中 4 项订单/知识条件分支（实际为 489+4；此前 493 即为 extended 形状计数）。",
+      "note": "489→490→493 的差异全部归结为源库数据形状，不是代码 regression；本轮已验证 canonical 子集关系 missing=0。"
+    },
+    "crossMachine": {
+      "CROSS_MACHINE_EXECUTION": "NOT_RUN（本机无 macOS runner，不伪造）",
+      "CROSS_MACHINE_SOURCE_AMBIGUITY": "RESOLVED（canonical 源由仓库迁移在运行时构建，不含任何机器相关路径或本机数据）",
+      "portabilityEvidence": [
+        "canonical 源建立在 os.tmpdir() 下，文件名含 pid，无绝对盘符路径",
+        "runner 全文不含绝对 Windows 盘符路径（由测试断言保证）",
+        "不读取本机 ./pump.db（localPumpDbUsed=false，由测试断言保证）",
+        "无生产凭据参与；源库由迁移构建，不含业务数据",
+        "使用既有 Node + better-sqlite3 机制，macOS/Windows 均可运行"
+      ]
+    },
+    "productionSemanticsUnchanged": {
+      "fakeProductionCopperFallbackAdded": false,
+      "productionCopperSemanticsChanged": false,
+      "marketSnapshotFixturePreserved": "seedMcpDailyMarketSnapshotFixture 仍对临时库注入确定性 current-BJT 行情快照",
+      "checksSkipped": false,
+      "assertionsWeakened": false,
+      "expectedCountHardcoded": false,
+      "productionDatabaseTouched": false,
+      "extendedCoverageRemoved": false
+    },
+    "coverageRegression": "NO"
+  },
+
+  "finalGateResults": {
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2973/2973（N7.2 新增 5 条 canonical gate 测试）",
+    "deepApiDefault": "PASS 489/489（CANONICAL_DETERMINISTIC, localPumpDbUsed=false）",
+    "deepApiExtended": "PASS 493/493（EXTENDED_SOURCE_DB）",
+    "lint": "PASS",
+    "build": "PASS",
+    "focusedRegressionN4ToN71": "PASS 197/197",
+    "r01Regression": "PASS（正式基线情景调用仍为 1）",
+    "r08Regression": "PASS（投影键仍不存在，Native 可执行调用方 0，全局描述符完整）"
+  },
+
+  "productionBoundaries": {
+    "DATABASE_SCHEMA_CHANGED": false,
+    "NEW_MIGRATION_CREATED": false,
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "OWNER_TRIAL_STARTED": false,
+    "MASTER_WORKTREE_TOUCHED": false,
+    "AI_NATIVE_V1_MERGED": false
+  },
+
+  "notClaimed": [
+    "N7.3 / N8 路线图（canonical 未恢复前不推测下一阶段）",
+    "生产 rollout（N7.2 不是生产 rollout）",
+    "ai-native/v1 归并（等 Supervisor 单独的 branch integration ticket，且只允许 fast-forward-only）"
+  ]
+}

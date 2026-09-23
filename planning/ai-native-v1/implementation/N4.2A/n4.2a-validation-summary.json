@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R2",
+  "status": "BLOCKED",
+  "deterministicGates": {
+    "verify:api-contract": "PASS (27; final rerun pending in this report update)",
+    "npm test": "PASS (2877; final rerun pending in this report update)",
+    "test:deep-api": "BLOCKED: DEEP_API_EXTERNAL_COPPER_SOURCE_UNAVAILABLE after two final-gate retries",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "liveAcceptance": "PASS: 12 strict serial profitability families x2 plus two independent missing-price continuation tasks, 28 accepted tasks, DeepSeek deepseek-v4-flash, fallback 0, writes 0.",
+  "businessWrites": 0,
+  "productionChanged": false,
+  "databaseChanged": false,
+  "deployPerformed": false,
+  "pushPerformed": false,
+  "rollback": "No production change occurred. Revert the N4.2A-R2 phase commit after Supervisor direction.",
+  "planDeviations": [
+    "COMPLEX-04 was changed only under the recorded SUPERVISOR_APPROVED_BASELINE_CORRECTION; its original frozen expectation is retained in N4.2A-R2/complex-04-adjudication.json."
+  ],
+  "blocker": "DEEP_API_EXTERNAL_COPPER_SOURCE_UNAVAILABLE"
+}

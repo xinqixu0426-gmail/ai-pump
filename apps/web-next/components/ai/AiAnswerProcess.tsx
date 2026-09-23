@@ -54,6 +54,7 @@ export type ChatItem = {
   metrics?: AiTurnMetrics;
   turnState?: import('@/lib/ai').AiTurnStateV3;
   retryable?: boolean;
+  nativeTaskId?: string;
   startedAt?: number;
 };
 

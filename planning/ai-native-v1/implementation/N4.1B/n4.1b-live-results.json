@@ -1,0 +1,412 @@
+{
+  "version": 1,
+  "ticket": "N4.1B",
+  "provider": {
+    "requested": "deepseek",
+    "actual": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0
+  },
+  "runsPerScenario": 2,
+  "scenariosPerRound": 10,
+  "totalScenarioRuns": 20,
+  "metrics": {
+    "runs": 20,
+    "medianLatencyMs": 1352,
+    "p95LatencyMs": 2483,
+    "modelCalls": 22,
+    "toolCalls": 48,
+    "formalApiCalls": 74
+  },
+  "errors": [],
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "fileWrites": 0,
+  "database": "temporary SQLite fixture",
+  "rounds": [
+    {
+      "round": 1,
+      "scenarios": [
+        {
+          "label": "file-exact",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1019
+        },
+        {
+          "label": "file-plus-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 4,
+          "formalApiCalls": 5,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1541
+        },
+        {
+          "label": "file-number",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1268
+        },
+        {
+          "label": "knowledge-stale",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 2,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 2345
+        },
+        {
+          "label": "knowledge-injection",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1650
+        },
+        {
+          "label": "file-engineering-boundary",
+          "state": "PARTIAL",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "OTHER",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "GOAL_NOT_ENABLED_IN_N3_1"
+              ]
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1730
+        },
+        {
+          "label": "file-absence-boundary",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1639
+        },
+        {
+          "label": "file-current-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 4,
+          "formalApiCalls": 5,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1314
+        },
+        {
+          "label": "knowledge-source",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1463
+        },
+        {
+          "label": "file-repeatability",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1319
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "scenarios": [
+        {
+          "label": "file-exact",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1232
+        },
+        {
+          "label": "file-plus-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 4,
+          "formalApiCalls": 5,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1477
+        },
+        {
+          "label": "file-number",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1282
+        },
+        {
+          "label": "knowledge-stale",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 2,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 2674
+        },
+        {
+          "label": "knowledge-injection",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1330
+        },
+        {
+          "label": "file-engineering-boundary",
+          "state": "PARTIAL",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "OTHER",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "GOAL_NOT_ENABLED_IN_N3_1"
+              ]
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1668
+        },
+        {
+          "label": "file-absence-boundary",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1500
+        },
+        {
+          "label": "file-current-cost",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 4,
+          "formalApiCalls": 5,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1463
+        },
+        {
+          "label": "knowledge-source",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "KNOWLEDGE_QUERY",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 4,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1002
+        },
+        {
+          "label": "file-repeatability",
+          "state": "SUCCEEDED",
+          "goals": [
+            {
+              "kind": "FILE_INSPECT",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "sourceEvidenceCount": 1,
+          "modelCalls": 1,
+          "toolCalls": 2,
+          "formalApiCalls": 3,
+          "answerMode": "DETERMINISTIC",
+          "latencyMs": 1114
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "ticket": "N7.1",
+  "environment": "temporary SQLite HTTP fixture only",
+  "sequence": [
+    "off",
+    "shadow",
+    "owner(write=false)",
+    "off"
+  ],
+  "invariants": [
+    "legacy remains authoritative in off and shadow",
+    "owner delegation needs formal Owner JWT",
+    "business writes stay zero",
+    "final off restores legacy routing",
+    "no DB restore or schema rollback required"
+  ],
+  "rawProviderMaterial": "logs/ai-native-rollout-live-raw.json (gitignored)",
+  "summary": "logs/ai-native-rollout-live-latest.json (gitignored)"
+}

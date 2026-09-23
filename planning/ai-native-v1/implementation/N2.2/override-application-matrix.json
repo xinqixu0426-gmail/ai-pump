@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "application": [
+    {"fields": ["hasFloat", "floatWire", "floatAccessoryType"], "mode": "formal baseline application", "inheritance": "unmentioned fields preserved", "disabledDependency": "notApplied.reasonCode=FLOAT_NOT_ENABLED"},
+    {"fields": ["hasCable", "cableLength", "cableWire", "cableAccessoryType"], "mode": "formal baseline application", "inheritance": "unmentioned fields preserved", "disabledDependency": "notApplied.reasonCode=CABLE_NOT_ENABLED"},
+    {"fields": ["coilId"], "mode": "official coil record rehydration", "oldIdentityCleared": true},
+    {"fields": ["coilSheets"], "mode": "exact selected official coil assertion", "requires": "coilId", "mismatch": "COIL_SHEETS_MISMATCH"},
+    {"fields": ["customBarrelLength"], "mode": "formal baseline application"}
+  ],
+  "rejections": ["CLIENT_PRICE_FORBIDDEN", "UNSUPPORTED_OVERRIDE_FIELD", "COIL_SHEETS_REQUIRES_COIL_ID", "COIL_SCHEME_NOT_FOUND", "COIL_SHEETS_MISMATCH"],
+  "nullNotZero": "Cost output uses null for incomplete currentTotalCost and delta; zero is only a calculated comparable zero delta."
+}

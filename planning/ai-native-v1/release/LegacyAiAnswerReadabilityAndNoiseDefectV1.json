@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "artifact": "LegacyAiAnswerReadabilityAndNoiseDefectV1",
+  "defectId": "LEGACY-AI-ANSWER-005",
+  "defectClass": "PRESENTATION_DEFECT",
+  "title": "回答可读性不足：结论不突出、零件清单噪音、主动追加延伸邀约、远端无长度预算",
+  "type": "DEFECT_RECORD_LOCAL_ACCEPTANCE_FINDING",
+  "status": "REPORTED_ONLY_NO_CODE_CHANGED",
+  "severity": "HIGH - 可读性与信息密度：结论不突出、非所问内容与延伸邀约占掉大量篇幅",
+  "relatedRecords": [
+    "planning/ai-native-v1/release/LegacyAiMachineVocabularyInsteadOfBusinessLanguageDefectV1.json",
+    "planning/ai-native-v1/release/LegacyAiMoneyGuardDropsNonMonetaryAnswerDefectV1.json",
+    "planning/ai-native-v1/release/LegacyAiAnswerDuplicateMoneyTableDefectV1.json",
+    "planning/ai-native-v1/release/LegacyAiMoneyTableReadabilityDefectV1.json"
+  ],
+  "recordedDuring": "AI Native V1 production integration candidate - local manual acceptance",
+  "candidateUnderAcceptance": {
+    "commit": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+    "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "existsOnProductionBase": true,
+    "integrationImpact": "无 - 相关文件未被整合修改"
+  },
+  "userReport": "用户原话：最后值得优化的点：ai 返回的结果阅读性不高，没有突出重点，而且会在一些没必要的细节上喃喃自语。",
+  "measuredEvidence": {
+    "sample": "会话 42 + 41 的全部 18 条 AI 回答",
+    "length": {
+      "median": 340,
+      "mean": 350,
+      "max": 1258,
+      "min": 102,
+      "unit": "字符"
+    },
+    "structure": {
+      "answersUsingHeadingOrBoldForTheConclusionFirstLine": {
+        "hits": 9,
+        "total": 18
+      },
+      "answersEndingWithAnExtensionInvitation": {
+        "hits": 8,
+        "total": 18,
+        "pattern": "我可以继续…／需要时我重新查／告诉我即可／要不要我…／下一步…"
+      },
+      "answersWhoseBodyIsTheInternalMoneyTable": {
+        "hits": 2,
+        "total": 18
+      }
+    },
+    "worstCase": {
+      "messageId": 230,
+      "length": 1258,
+      "lines": 21,
+      "tableRows": 13,
+      "firstLine": "本轮正式查询金额如下（元）：",
+      "lastLine": "完整计算明细见本轮工具结果。",
+      "note": "用户问的是「12-200 换成 12-180 能省多少」，回答以内部金额表开头、以元话收尾，既无结论也无差额"
+    },
+    "ramblingExample": {
+      "messageId": 230,
+      "text": "「正式配置：800平刀切割泵壳（泵壳套件）、202（花板轴承）、203（油缸轴承）、14*28*38（机械油封）、14*28（骨架油封）、八角注塑提手带叫头（提手）、5*12-201-内六（提手螺丝）、5*12-201-内六（压板螺丝）、110*2.65（上帽O型圈）、110*2.65（油缸O型圈）、6*235（机筒螺丝）、6*20-201-内六-组合（泵头螺丝）、30μF（电容）、12-180（线圈转子）…」",
+      "note": "20+ 项零件逐项「型号（中文名）」连成一整段，占回答近半篇幅；用户既没要求完整清单，也没问零件构成"
+    }
+  },
+  "policyVsActualConflicts": [
+    {
+      "id": "RC-1",
+      "title": "提示词已要求「结论优先」，但金额守卫把核对表放到了答案最前面",
+      "prompt": {
+        "location": "api/services/aiPromptComposer.cjs:6",
+        "code": "使用简体中文回答，最终回复使用 Markdown；结论优先，不输出大段原始 JSON。"
+      },
+      "prompt2": {
+        "location": "api/services/aiPromptComposer.cjs:10",
+        "code": "默认只保留当前问题的结论和关键数字。风险、不确定性、异常和下一步仅在用户明确询问……时展示……不复述用户问题，不重复页面或折叠处理区已经展示的工具调用、完整明细和来源清单。"
+      },
+      "actual": {
+        "location": "api/services/aiMoneyGuard.cjs:65-70 与 api/services/aiAssistantRuntime.cjs:877/886",
+        "behaviour": "正文被替换或被追加时，最终答案以「本轮正式查询金额如下（元）：」开头，该表由 formatMoneySummary 生成，是内部核对表而非结论"
+      },
+      "conclusion": "提示词层面的「结论优先」在守卫替换路径上被代码覆盖；用户拿到的第一条信息是核对表。"
+    },
+    {
+      "id": "RC-2",
+      "title": "提示词禁止主动补「下一步／建议」，但回答普遍以延伸邀约结尾",
+      "prompt": {
+        "location": "api/services/aiPromptComposer.cjs:10",
+        "code": "……下一步仅在用户明确询问……时展示；普通列表查询不得主动补库存风险、相似项判断或建议。"
+      },
+      "prompt2": {
+        "location": "api/services/aiAssistantRuntime.cjs:63 LOCAL_RESPONSE_PROMPT",
+        "code": "……不要主动追加风险分析、建议、下一步或重复解释。",
+        "scope": "仅 isLocalAssistantMode 为真时生效；本机走 DeepSeek 远端模型，因此该条未生效"
+      },
+      "measured": "18 条回答中 8 条以「我可以继续…／需要时我重新查／下一步…」结尾（44%）",
+      "conclusion": "禁止条款只写在本地模型分支，远端（生产实际使用的）路径没有等价约束，于是延伸邀约成为默认收尾。"
+    },
+    {
+      "id": "RC-3",
+      "title": "「不得复述完整明细」与「只能按工具原项复述」两条规则叠加，产生长串配置罗列",
+      "prompt": {
+        "location": "api/services/aiPromptComposer.cjs:10",
+        "code": "不重复……完整明细和来源清单"
+      },
+      "prompt2": {
+        "location": "api/services/aiPromptComposer.cjs:92",
+        "code": "……除非用户明确要求完整逐项明细，否则不要重新分组；需要逐项展示时只能按 details 或正式 BOM 原项复述，禁止自行合并出工具没有返回的小计。"
+      },
+      "result": "两条规则都指向「按原项复述」，但没有任何一层负责摘要压缩，于是 20+ 项零件被整段列出（msg 230 的「正式配置：…」）",
+      "conclusion": "缺少「默认压缩到几项、超出时如何概括」的确定性规则。"
+    },
+    {
+      "id": "RC-4",
+      "title": "长度预算只对本地模型存在",
+      "prompt": {
+        "location": "api/services/aiAssistantRuntime.cjs:63",
+        "code": "默认最终回答不超过 300 个中文字符或 12 个短要点"
+      },
+      "scope": "仅 isLocalAssistantMode 为真",
+      "actual": "远端路径无任何长度上限；实测中位 340 字、最长 1258 字",
+      "conclusion": "生产实际使用的远端路径没有长度预算，也就没有「该收尾了」的机制。"
+    }
+  ],
+  "rootCauseSummary": {
+    "oneLine": "提示词层已经写了「结论优先、不主动补下一步、不复述完整明细」，但这些约束（a）部分只挂在本地模型分支、（b）会被金额守卫的呈现逻辑覆盖、（c）缺少确定性的摘要压缩层，于是「正确性靠工具、表达靠模型」的分工没有落在最终呈现上。",
+    "whyItMatters": "对一线用户而言，这不是风格问题：答案太长会掩盖结论，等于把「哪台泵、差多少、要不要停」这些决策信息埋掉。"
+  },
+  "suggestedFixDirection": [
+    "把呈现规则从「只提示模型」改为「提示模型 + 确定性后处理」：例如对超长回答做结构化约束（首句必须是结论；结论句不得含内部表头；尾部延伸邀约默认剥离，除非用户要求建议）。",
+    "把长度预算从本地模型分支提升为通用规则（远端同样适用），或至少给远端一个上限与超限时的压缩策略。",
+    "金额守卫的呈现位置调整：核对表默认放在答案末尾或折叠区，绝不放在结论之前；替换正文时也要先给一句人读结论，再给核对明细。",
+    "长清单压缩规则：默认最多列 N 项（如 5 项）+「其余 M 项见明细」，仅当用户明确要求完整清单时展开。",
+    "把「延伸邀约」从默认行为改为显式触发（用户问「还能做什么／建议」时才给）。",
+    "验收方式：同一批问题（订单查询、成本比较、规格差异、报价明细）的回答满足——首句即结论；首屏内能看到用户所问的关键数字或关键差异；不需要滚动就能判断「要不要处理」。"
+  ],
+  "priorityNote": {
+    "relationToOtherDefects": "本缺陷与前四条同属 legacy AI 呈现层。前四条（答案被删、重复、代号、不可读）属于「错了」，本条属于「对但难用」。修复顺序建议：先修答案被删（功能性丢失）→ 再修呈现层命名与压缩（可用性）。",
+    "blocksOffModeDeployment": "不阻塞。OFF 模式下 Legacy 行为与当前生产一致。",
+    "shouldBlockOwnerTrial": "建议在启用 Owner 之前排期修复。"
+  },
+  "dataHandling": {
+    "productionTouched": false,
+    "userOriginalDatabaseModified": false,
+    "evidenceSource": "候选工作区中用户 pump.db 的副本（已迁移至 schema 88）",
+    "credentialsPrinted": false
+  },
+  "abProof": {
+    "runtimeBehavioural": {
+      "method": "把同一段用户历史（会话 42 该轮之前的 7 条消息）原样复制到新会话，同一问题分别打到候选实例（ecc2b27, :3002）与从生产基线代码启动的隔离实例（e244bd75, :3003），两者使用同一份数据（用户 pump.db 的副本）",
+      "candidateResult": "复现：回答长度 1336，金额表出现 2 次，工具序列 search_coils→preview_recipe_cost×2→build_recipe_bom_draft→preview_recipe_cost→get_recipe_detail×2",
+      "productionBaseResult": "复现：回答长度 1258，金额表出现 2 次；与用户库中 msg 230 逐字一致（同为 1258 字、同两处重复）",
+      "conclusion": "两端行为一致，属既有缺陷"
+    },
+    "codeIdentity": {
+      "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+      "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+      "filesVerified": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "identical": true,
+          "blob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e"
+        },
+        {
+          "path": "api/services/aiMoneyGuard.cjs",
+          "identical": true,
+          "blob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "identical": true,
+          "blob": "b5942b5f4584df19492830566a889e7a1cbb2564"
+        },
+        {
+          "path": "api/services/aiPromptComposer.cjs",
+          "identical": true,
+          "blob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46"
+        },
+        {
+          "path": "api/services/aiBusinessRulebook.cjs",
+          "identical": true,
+          "blob": "94176772325d0fdf426aa28c35d50d24d1503446"
+        }
+      ],
+      "allIdentical": true,
+      "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+    },
+    "candidateReproduction": "会话 42+41 共 18 条 AI 回答：中位 340 字 / 最长 1258 字；44%（8/18）以「我可以继续…」类延伸邀约收尾；msg 230 含 20+ 项零件整段罗列",
+    "productionBaseReproduction": "LOCAL_RESPONSE_PROMPT（含 300 字预算与「不要主动追加下一步」）位于 aiAssistantRuntime.cjs:63，仅 isLocalAssistantMode 为真时生效，远端路径未生效；该文件在两分支逐字节相同 → 生产基线远端路径同样无长度预算"
+  },
+  "regressionTestRequirement": [
+    "断言超长回答受长度预算约束（远端路径同样受限）",
+    "断言默认不追加延伸邀约（用户问「建议/还能做什么」时才给）",
+    "断言长清单默认压缩为 N 项 + 余项提示，仅用户明确要求完整清单时展开",
+    "断言首句即结论，且金额核对表不得出现在结论之前"
+  ]
+}

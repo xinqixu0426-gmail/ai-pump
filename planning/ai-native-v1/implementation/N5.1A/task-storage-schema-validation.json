@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "tables": [
+    "ai_tasks",
+    "ai_task_steps",
+    "ai_task_evidence",
+    "ai_task_events"
+  ],
+  "invariants": [
+    "v2 schema CHECK",
+    "lease all-null/all-set constraint",
+    "per-task event sequence uniqueness",
+    "FACT/RECEIPT evidence shape checks"
+  ],
+  "testCases": [
+    {
+      "id": "N5R1-STORE-SCHEMA",
+      "expected": "four v88 tables and indexes available through formal migration",
+      "actual": "formal migration runner created all four tables",
+      "status": "PASS"
+    }
+  ]
+}

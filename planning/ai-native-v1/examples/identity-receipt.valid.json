@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "receiptId": "00000000-0000-4000-8000-000000000009",
+  "taskId": "00000000-0000-4000-8000-000000000006",
+  "stepId": null,
+  "planRevision": 1,
+  "toolName": "synthetic_identity_adapter",
+  "capabilityId": "synthetic.identity_projection",
+  "access": "QUERY",
+  "argsHash": "7f3977e54955c7fdf137a92e90d150e1ee3ce707f9cafc1aa97391dc3498ebfe",
+  "origin": "SERVER_EXECUTOR",
+  "observedAt": "2026-09-21T05:01:00Z",
+  "readSetId": null,
+  "sourceHash": "3ef22502e1c613f23939844b4d1e054ee1947044983f6e90bfb73213b3dde929",
+  "projectionVersion": 1,
+  "result": {
+    "success": true,
+    "data": {
+      "id": 101,
+      "name": "示例配方V550（非生产数据）"
+    },
+    "executionEvidence": {
+      "verified": true,
+      "kind": "formal_api_query",
+      "calls": [
+        {
+          "method": "POST",
+          "path": "/api/entity-lookup"
+        }
+      ]
+    }
+  }
+}

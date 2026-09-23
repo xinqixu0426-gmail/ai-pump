@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "preview": true,
+  "comparisonId": "00000000-0000-4000-8000-000000000001",
+  "recipe": {
+    "entityType": "recipe",
+    "entityId": "101",
+    "displayName": "示例配方V550（非生产数据）",
+    "updatedAt": "2026-09-21T05:00:00Z",
+    "recordHash": "38e02d64e69f8b2169bd2e31c32bded06adc3de8be1cdfc93e4191e77ebce912",
+    "schemeCode": null
+  },
+  "normalizedInput": {
+    "version": 1,
+    "baselinePolicy": "CURRENT_REBUILT",
+    "scenarios": [
+      {
+        "scenarioKey": "candidate1",
+        "label": "五米电缆方案",
+        "overrides": {
+          "cableLength": 5
+        }
+      }
+    ]
+  },
+  "readSetId": "00000000-0000-4000-8000-000000000002",
+  "readSetHash": "ce77da8123e84eca4a7402cf613e6932ec486c7ac41965a33715652d5c5fae7d",
+  "sourceVersions": [
+    {
+      "entityType": "recipe",
+      "entityId": "101",
+      "updatedAt": "2026-09-21T05:00:00Z",
+      "contentHash": "38e02d64e69f8b2169bd2e31c32bded06adc3de8be1cdfc93e4191e77ebce912"
+    }
+  ],
+  "calculatedAt": "2026-09-21T05:01:00Z",
+  "scenarios": [
+    {
+      "scenarioKey": "base",
+      "role": "BASE",
+      "configurationHash": "ae34ea9fe4a2ef2efe29a6e77df992a5d2d1a87cdd18c624a957790886a3a4a2",
+      "configuration": {
+        "hasCable": true,
+        "cableLength": 3
+      },
+      "requestedOverrides": {},
+      "appliedOverrides": {},
+      "notApplied": [],
+      "inheritedFields": [
+        "hasCable",
+        "cableLength"
+      ],
+      "cost": {
+        "complete": true,
+        "currentTotalCost": 200,
+        "partialTotalCost": 200,
+        "currency": "CNY",
+        "unit": "pump",
+        "costBasis": "CURRENT_REBUILT_BASE",
+        "missingParts": [],
+        "sourceOfTruth": "costEngine"
+      }
+    },
+    {
+      "scenarioKey": "candidate1",
+      "role": "CANDIDATE",
+      "configurationHash": "201bf0a622adcbedb4c3d0b31b455809879a2c47f6fce59184d195cbae42f187",
+      "configuration": {
+        "hasCable": true,
+        "cableLength": 5
+      },
+      "requestedOverrides": {
+        "cableLength": 5
+      },
+      "appliedOverrides": {
+        "cableLength": 5
+      },
+      "notApplied": [],
+      "inheritedFields": [
+        "hasCable"
+      ],
+      "cost": {
+        "complete": true,
+        "currentTotalCost": 206,
+        "partialTotalCost": 206,
+        "currency": "CNY",
+        "unit": "pump",
+        "costBasis": "CURRENT_REBUILT_SCENARIO",
+        "missingParts": [],
+        "sourceOfTruth": "costEngine"
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "baseScenarioKey": "base",
+      "candidateScenarioKey": "candidate1",
+      "status": "COMPARABLE",
+      "delta": 6,
+      "currency": "CNY",
+      "drivers": [
+        {
+          "costRole": "cable",
+          "description": "示例电缆长度不同",
+          "delta": 6,
+          "sourcePointers": [
+            "/scenarios/0/cost/currentTotalCost",
+            "/scenarios/1/cost/currentTotalCost"
+          ]
+        }
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "scenarioKey": "candidate1",
+      "field": "cableLength",
+      "from": 3,
+      "to": 5
+    }
+  ],
+  "warnings": [],
+  "sourceVersionCount": 1,
+  "sourceVersionsComplete": true
+}

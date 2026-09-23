@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "provider": {
+    "requested": "deepseek",
+    "actual": "deepseek",
+    "model": "deepseek-flash",
+    "configuredModel": "deepseek-v4-flash",
+    "fallbackCount": 0
+  },
+  "cases": {
+    "total": 13,
+    "deterministic": 8,
+    "modelAssisted": 5,
+    "pass": 13,
+    "fail": 0,
+    "liveCoreCases": 2,
+    "liveRounds": 2,
+    "liveExecutions": 4,
+    "livePass": 4
+  },
+  "goals": {
+    "expected": 17,
+    "captured": 17,
+    "missing": 0,
+    "extra": 0,
+    "liveExpected": 10,
+    "liveCaptured": 10,
+    "liveMissing": 0,
+    "liveExtra": 0
+  },
+  "budgets": {
+    "deterministicModelCalls": 0,
+    "maxNormalExtractionCallsPerCase": 1,
+    "maxFormatRepairCallsPerCase": 1,
+    "liveNormalExtractionCalls": 4,
+    "liveFormatRepairCalls": 0
+  },
+  "twoRunStability": {
+    "COMPLEX-01": ["CURRENT_COST", "INVENTORY_QUERY"],
+    "COMPLEX-02": ["CONFIGURATION_COMPARE", "INVENTORY_QUERY", "PROFITABILITY"]
+  },
+  "businessToolCalls": 0,
+  "businessApiCalls": 0,
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "rawProviderLog": "logs/ai-task-semantics-v2-live-raw.json (gitignored)"
+}

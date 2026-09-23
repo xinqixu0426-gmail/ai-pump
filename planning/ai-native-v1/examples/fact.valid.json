@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "factId": "00000000-0000-4000-8000-000000000004",
+  "key": {
+    "entityType": "recipe",
+    "entityId": "101",
+    "predicate": "recipe.unitCostDelta",
+    "temporalScope": "SCENARIO",
+    "scenarioKey": "candidate1",
+    "qualifiers": {
+      "basis": "CURRENT_REBUILT_COMPARISON",
+      "unit": "CNY/pump",
+      "currency": "CNY",
+      "snapshotVersion": null,
+      "queryScopeHash": null
+    }
+  },
+  "evidenceState": "VERIFIED_POSITIVE",
+  "value": 6,
+  "receiptId": "00000000-0000-4000-8000-000000000005",
+  "resultPointer": "/data/comparisons/0/delta",
+  "observedAt": "2026-09-21T05:01:00Z",
+  "sourceUpdatedAt": null,
+  "sourceHash": "24b60066c2c669468468ab7c034a32964b7733253798ff2042f0a418e52d1bf0",
+  "complete": true,
+  "supersedesFactId": null,
+  "planRevision": 1,
+  "readSetId": "00000000-0000-4000-8000-000000000002"
+}

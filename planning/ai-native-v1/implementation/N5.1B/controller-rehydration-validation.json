@@ -1,0 +1,9 @@
+{
+  "ticket": "N5.1B-R3",
+  "status": "PARTIAL",
+  "initialSource": "PASS",
+  "followUpSource": "PASS fixture",
+  "sourceOwnerConversationRole": "PASS query scope",
+  "missingFollowUp": "FAIL_CLOSED",
+  "modelCalls": 0
+}

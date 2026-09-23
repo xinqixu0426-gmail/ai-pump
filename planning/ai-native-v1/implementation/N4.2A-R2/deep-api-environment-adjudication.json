@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R2G",
+  "command": "npm run test:deep-api",
+  "attempts": [
+    {
+      "status": "PASS",
+      "passed": 482,
+      "failed": 0,
+      "note": "The current-day copper source was temporarily available."
+    },
+    {
+      "status": "ENVIRONMENT_FAILURE",
+      "error": "Hermes 2025 MCP get_copper_price: mcp_execution_evidence_missing; 今日行情获取失败，等待下一日更新"
+    },
+    {
+      "status": "ENVIRONMENT_FAILURE",
+      "error": "Hermes 2025 MCP get_copper_price: mcp_execution_evidence_missing; 今日行情获取失败，等待下一日更新"
+    },
+    {
+      "status": "PASS",
+      "passed": 482,
+      "failed": 0,
+      "exitCode": 0,
+      "durationMs": 5400,
+      "durationMeasurement": "functions.exec wall time for the formal gate invocation, including initial manifest generation",
+      "copperCapabilityResult": "PASS: Hermes 2025 MCP real read invocation status 200",
+      "note": "Single gate-only closeout rerun after the current-day copper source recovered."
+    }
+  ],
+  "finalAdjudication": "PASS",
+  "reason": "The gate-only closeout rerun passed 482/482 after the external copper source recovered. Previous environment failures remain retained as evidence; no source, test, fixture, configuration, or product behavior was changed for closeout."
+}

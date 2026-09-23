@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "ticket": "N5.1A",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence",
+    "tables": ["ai_tasks", "ai_task_steps", "ai_task_evidence", "ai_task_events"],
+    "runner": "api/database/migrations.cjs:runMigrations"
+  },
+  "storage": {
+    "module": "api/services/aiTaskStoreV2.cjs",
+    "writes": "safeInsert/safeUpdate only",
+    "optimisticConcurrency": "revision checked inside BEGIN IMMEDIATE transaction",
+    "events": "per-task ordered sequence allocated inside the same transaction",
+    "facts": "append-only evidence records backed by same-task receipt evidence",
+    "stateLimitBytes": 262144,
+    "receiptLimitBytes": 98304
+  },
+  "lifecycle": {
+    "module": "api/services/aiTaskLifecycleV2.cjs",
+    "runtimeIntegrated": false,
+    "workerImplemented": false,
+    "publicTaskApiImplemented": false,
+    "businessCommandsExecuted": false
+  },
+  "rollback": "Roll back application code; retain additive tables and task rows. No down migration is introduced."
+}

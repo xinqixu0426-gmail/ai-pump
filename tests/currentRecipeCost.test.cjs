@@ -6,6 +6,40 @@ const {
     calculateCurrentRecipeCost,
 } = require('../api/services/currentRecipeCost.cjs');
 const { buildRecipeBomDraft } = require('../api/services/recipeBomEngine.cjs');
+const {
+    buildLaborCostDetails,
+    calculateLaborTotal,
+} = require('../api/services/currentRecipeCost.cjs');
+
+// 生产整合保护回归（PHASE 5-R1）。
+//
+// 背景：AI Native 分支把表面处理成本写成
+//   (recipe.surfaceTreatmentMode || 'none') === 'none' ? 0 : (...)
+// 这会把「未设置 surfaceTreatmentMode」当成显式 none，从而把 legacy 的
+// paintingWage 静默归零。生产口径不是这样：api/db.cjs 的 recipeRow 与
+// templateCommands.normalizeSurfaceTreatmentMode 都从喷漆工资反推方式
+// （painting_wage != null ? 'painting' : 'none'）。只有显式 none 才是正式零成本配置。
+//
+// 本回归在错误实现下必须失败（{ paintingWage: 200 } 会得到 0），在整合候选上必须通过。
+test('当期人工成本：只有显式 none 才把表面处理成本归零，legacy 喷漆工资必须保留', () => {
+    const surfaceTreatment = recipe => buildLaborCostDetails(recipe, () => undefined)
+        .find(item => item.model === '__surface_treatment__');
+
+    // 显式 none 是正式零成本配置。
+    assert.equal(surfaceTreatment({ surfaceTreatmentMode: 'none', surfaceTreatmentCost: 200 }).subtotal, 0);
+    assert.equal(surfaceTreatment({ surfaceTreatmentMode: 'none', paintingWage: 200 }).subtotal, 0);
+
+    // legacy 行（没有显式方式）必须保留喷漆工资，不得被静默归零。
+    assert.equal(calculateLaborTotal({ paintingWage: 200 }, () => undefined), 200);
+    assert.equal(calculateLaborTotal({ surfaceTreatmentMode: null, paintingWage: 150 }, () => undefined), 150);
+    assert.equal(surfaceTreatment({ paintingWage: 200 }).subtotal, 200);
+    assert.equal(surfaceTreatment({ surfaceTreatmentMode: null, paintingWage: 150 }).subtotal, 150);
+
+    // 显式非 none 方式继续使用配置金额或喷漆工资回退。
+    assert.equal(calculateLaborTotal({ surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 120 }, () => undefined), 120);
+    assert.equal(calculateLaborTotal({ surfaceTreatmentMode: 'painting', paintingWage: 90 }, () => undefined), 90);
+    assert.equal(calculateLaborTotal({ surfaceTreatmentCost: 120 }, () => undefined), 120);
+});
 
 test('当日成本按当前零件价和线圈价重算完整配方成本', () => {
     const recipe = {

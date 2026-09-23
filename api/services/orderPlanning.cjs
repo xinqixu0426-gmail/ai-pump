@@ -166,6 +166,13 @@ function buildPurchaseList(items, partsCatalog, options = {}, resolvePart = reso
         const availableInventoryStock = Math.max(0, currentInventoryStock - alreadyReserved);
         const availableStock = Math.floor(availableInventoryStock / stockQtyPerUnit);
         const needToBuy = Math.max(0, totalQty - availableStock);
+        // These are the planner's own unit-normalized quantities.  Persisted
+        // order callers keep their legacy display fields above; read-only
+        // virtual readiness consumes this projection instead of redoing stock
+        // subtraction in an AI controller or response formatter.
+        const availableForPlanningQty = availableStock * stockQtyPerUnit;
+        const requiredStockQty = totalQty * stockQtyPerUnit;
+        const shortageStockQty = needToBuy * stockQtyPerUnit;
         reservedDemand.set(stockIdentityKey, alreadyReserved + totalQty * stockQtyPerUnit);
         const readSaved = resolvePart === resolveSavedInventoryPart;
         const currentName = readSaved ? (exactPart?.model || exactCoil?.schemeName || exactCoil?.scheme_name || part.model) : part.model;
@@ -194,6 +201,11 @@ function buildPurchaseList(items, partsCatalog, options = {}, resolvePart = reso
             identityKey,
             purchaseUnit: coilPart ? '套' : part.purchaseUnit || '',
             stockQtyPerUnit,
+            stockOnHandQty: currentInventoryStock,
+            reservedByActiveOrdersQty: alreadyReserved,
+            availableForPlanningQty,
+            requiredStockQty,
+            shortageStockQty,
             specification: part.specification || '',
             cableLength: part.cableLength,
             cableAccessoryType: part.cableAccessoryType,
@@ -235,7 +247,7 @@ function buildOrderPlan(items, partsCatalog, options = {}, resolvePart = resolve
     return { purchaseList, todos: buildTodos(purchaseList) };
 }
 
-function buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, resolvePart) {
+function buildBalancedOrderPlanningProjectionWithResolver(orders, partsCatalog, options, resolvePart) {
     const reservedDemand = new Map();
     const plans = new Map();
     const ordered = [...(orders || [])].sort((a, b) => {
@@ -256,7 +268,11 @@ function buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, reso
         plan.purchaseList = plan.purchaseList.map((item, index) => mergePurchasePlanItem(item, previousMatches[index]));
         plans.set(Number(order.id || order.Id), plan);
     }
-    return plans;
+    return { plans, reservedDemand };
+}
+
+function buildBalancedOrderPlansWithResolver(orders, partsCatalog, options, resolvePart) {
+    return buildBalancedOrderPlanningProjectionWithResolver(orders, partsCatalog, options, resolvePart).plans;
 }
 
 function buildBalancedOrderPlans(orders, partsCatalog, options = {}) {
@@ -275,5 +291,7 @@ module.exports = {
     buildTodos,
     buildOrderPlan,
     buildBalancedOrderPlans,
+    buildBalancedOrderPlanningProjection: (orders, partsCatalog, options = {}) =>
+        buildBalancedOrderPlanningProjectionWithResolver(orders, partsCatalog, options, resolveInventoryPart),
     buildSavedBalancedOrderPlanViews,
 };

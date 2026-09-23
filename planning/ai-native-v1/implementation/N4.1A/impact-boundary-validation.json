@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "status": "N4.1A_CAPABILITY_GAP",
+  "reason": "get_factory_rule_impact only accepts an already approved candidateId. Task semantics has no safe generic formal candidate binding at this stage.",
+  "answerRule": "No impact answer claims a committed change, an applied action, or an engineering conclusion without a verified formal impact receipt.",
+  "focusedWitness": "generic V550 impact request produces no tool/API call and an explicit capability-gap blocker"
+}

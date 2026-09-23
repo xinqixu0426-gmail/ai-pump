@@ -1,0 +1,15 @@
+{
+  "ticket": "N5.1B-R1",
+  "status": "REWORK",
+  "startCommit": "d3409182c30ffe96a67b3ab9e962538b58f07c90",
+  "actualStartCommit": "1fdd236d434c14a9e15176357085826fe3546e63",
+  "branch": "ai-native/v1",
+  "migration": 88,
+  "productionChanged": false,
+  "businessWrites": 0,
+  "commandExecutions": 0,
+  "reason": "Recovery checkpoint can overwrite a concurrently reserved tool budget; fresh-controller test sees 4 tool calls budgeted for 3 actual sends.",
+  "result": "REWORK",
+  "attemptLimit": "UNPROVEN",
+  "commandReplay": false
+}

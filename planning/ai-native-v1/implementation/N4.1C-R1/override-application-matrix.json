@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R1",
+  "status": "PASS",
+  "historicalNote": "R1 originally recorded open work. R3 supplies the closure evidence below; prior observations are retained only as a narrative, not a current matrix result.",
+  "cases": [
+    {
+      "id": "packing-remove",
+      "requested": "packingRemoval=珍珠棉",
+      "normalized": "qty=0 after formal binding",
+      "applied": "PASS: shared policy allows role or part-id authorized removal",
+      "notApplied": "PASS: shared policy rejects unauthorized removal",
+      "clarification": null,
+      "comparisonStatus": "COMPARABLE",
+      "deltaAllowed": true
+    },
+    {
+      "id": "packing-clear-all",
+      "requested": "packingClearAll=true",
+      "normalized": "packingParts=[]",
+      "applied": "PASS: only when allowClearAll=true",
+      "notApplied": "PASS: explicit default false rejects clear",
+      "clarification": null,
+      "comparisonStatus": "COMPARABLE",
+      "deltaAllowed": true
+    },
+    {
+      "id": "surface-missing-cost",
+      "requested": "mode=electrophoresis",
+      "normalized": "no cost",
+      "applied": "PASS after bound explicit 5 CNY follow-up",
+      "notApplied": "PASS: SURFACE_TREATMENT_COST_REQUIRED",
+      "clarification": "PASS: strict serial DeepSeek continuation x2",
+      "comparisonStatus": "COMPARABLE after formal preview",
+      "deltaAllowed": true
+    }
+  ]
+}

@@ -43,7 +43,7 @@ function semanticEligibility(input = {}) {
         signals: semantics.admissionSignals.slice(0, SemanticEligibilityBoundaryV1.limits.maxSignals), authority: 'LEGACY',
     });
     return deepFreeze({
-        version: 1, eligible: true, kind: semantics.kind,
+        version: 1, eligible: true, kind: semantics.kind, operation: semantics.operation,
         reason: trustedContext && semantics.admissionSignals.length === 0 ? 'TRUSTED_SUPPORTED_PAGE_CONTEXT' : REASONS[semantics.kind],
         signals: [...semantics.admissionSignals, ...(trustedContext ? ['TRUSTED_SUPPORTED_PAGE_CONTEXT'] : [])]
             .slice(0, SemanticEligibilityBoundaryV1.limits.maxSignals),

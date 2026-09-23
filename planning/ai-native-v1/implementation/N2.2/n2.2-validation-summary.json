@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "startCommit": "0ed9cf0022b353e57a4ee86461930e7e105fe8ef",
+  "endCommit": "HEAD (N2.2 repair evidence commit)",
+  "focusedTests": {
+    "command": "NODE_ENV=test node --test tests/recipeScenarioComparison.test.cjs tests/aiCapabilityRegistry.test.cjs tests/aiTaskCapabilityAdapterV2.test.cjs tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+    "passed": 39,
+    "failed": 0
+  },
+  "integration": {
+    "chain": "compare_recipe_scenarios -> validateAiToolArgs -> executeToolCall -> business executor -> POST formal API -> recipeScenarioComparison -> executionEvidence -> ExecutionReceiptV1",
+    "database": "per-test temporary SQLite database",
+    "formalBusinessApiCalls": 6,
+    "businessWrites": 0,
+    "auditDelta": 0,
+    "modelCalls": 0
+  },
+  "concurrency": {
+    "database": "isolated temporary SQLite in WAL mode",
+    "externalWrite": "P1 to P2 between base and candidate calculation",
+    "firstReadSet": "base=P1 and candidate=P1",
+    "secondReadSet": "base=P2 and candidate=P2",
+    "readSetHashChanged": true
+  },
+  "fullGates": {
+    "verifyApiContract": {"exitCode": 0, "passed": 27},
+    "npmTest": {"exitCode": 0, "passed": 2813, "failed": 0},
+    "deepApi": {"exitCode": 0, "passed": 490, "failed": 0, "database": "isolated temporary copy from declared source database"},
+    "lint": {"exitCode": 0},
+    "build": {"exitCode": 0}
+  },
+  "nativeFalseCompleteBlocker": {"id": "NATIVE-BLOCKER-FALSE-COMPLETE-001", "status": "OPEN", "requiredExitStage": "N3"},
+  "planDeviations": [
+    "The formal route is mounted in api/routes/cost.cjs because existing recipe current-cost and saved cost-preview routes are mounted there. The route contract remains /api/recipes/:id/scenario-compare-preview.",
+    "The Native tool definition is a restricted V2 surface in api/services/aiNativeToolDefinitionsV2.cjs. It uses the existing capability registry, strict input validator, and business executor, but is intentionally excluded from the frozen Legacy AI_TOOLS model surface and MCP surface.",
+    "A neutral stableJson module now owns canonical hashing shared by Task V2 evidence and the comparison read set; Task V2 retains compatibility exports."
+  ]
+}

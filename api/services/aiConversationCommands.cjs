@@ -81,6 +81,14 @@ function messageRow(dependencies, conversationId, messageId, owner) {
     `).get(messageId, conversationId, ownerKey(owner));
 }
 
+
+function assertNoActiveAiNativeTask(dependencies, conversationId, owner) {
+    const taskTable = dependencies.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ai_tasks'").get();
+    if (!taskTable) return;
+    const active = dependencies.db.prepare(`SELECT 1 FROM ai_tasks WHERE conversation_id=? AND owner_key=? AND state NOT IN ('SUCCEEDED','PARTIAL','UNSUPPORTED','FAILED','CANCELLED') LIMIT 1`).get(conversationId, ownerKey(owner));
+    if (active) throw conversationCommandError('ai_conversation_active_task', '会话存在进行中的后台任务，请先停止或等待完成', 409);
+}
+
 function versionWarnings(commandContext, expectedUpdatedAt, label) {
     return [
         ...(commandContext.warnings || []),
@@ -340,6 +348,10 @@ function executeDeleteAiConversation(
                 );
             }
             assertExpectedUpdatedAt(current, expectedUpdatedAt, 'AI 会话');
+            // A detached task owns durable evidence for this conversation.  Do
+            // not soft-delete its source while it is still executable; callers
+            // must stop it first, which keeps recovery owner/source checks true.
+            assertNoActiveAiNativeTask(dependencies, conversationId, owner);
             const writes = collectAudits();
             const deleted = deleteAiConversation(owner, conversationId, {
                 dbAccessors: dependencies,
@@ -446,6 +458,7 @@ function executeBatchDeleteAiConversations(
                     item.expectedUpdatedAt,
                     `AI 会话 ${item.id}`
                 );
+                assertNoActiveAiNativeTask(dependencies, item.id, owner);
                 return current;
             });
             const writes = collectAudits();

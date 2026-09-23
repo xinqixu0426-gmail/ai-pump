@@ -1,0 +1,136 @@
+{
+  "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+  "kind": "ai-native-release-evidence",
+  "status": "PARTIAL_ACCEPTANCE_PENDING",
+  "createdAt": "2026-09-23",
+  "audit": {
+    "report": "审计报告.md (Supervisor supplied)",
+    "auditedBranch": "ai-native/prod-integration-v1",
+    "auditedCommit": "8bc6ea74339b5a21243926b2b17339f7cf812872",
+    "remediationBranch": "ai-native/structural-remediation-v1",
+    "remediationBaseCommit": "8bc6ea74339b5a21243926b2b17339f7cf812872",
+    "baseSelectionRationale": "本机 checkout 位于 ai-native/v1@3b685b1，与审计提交 `git merge-base --all` 为空（互不相交的历史）；`git diff 8bc6ea7..HEAD` = 80 files / 88 insertions / 16700 deletions / 0 add，即 prod-integration-v1 是它的严格超集，且是仓库中唯一包含 A01–A08 全部目标代码的分支。整改以审计 lineage 为事实基准，用独立 git worktree 进行，未改动本机 ai-native/v1 checkout。"
+  },
+  "findings": {
+    "A01": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC1 事实身份丢失",
+      "evidence": "formatMoneySummary 的 seenDisplay=[name,label] 与 seenFact=[label,value] 都不含实体身份；同价不同实体（SCHEME-A/SCHEME-B 各 100）与同名不同 ID（同名列 100/200）各丢一条。",
+      "action": "FIXED：金额表改由 api/services/moneyFactProjection.cjs 渲染，去重键 = V2 FactKey(entity, predicate, basis) 稳定哈希 + 金额；同一实体同一 predicate 的不同金额保留冲突。"
+    },
+    "A02": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC1 事实身份丢失",
+      "evidence": "canonical 形状的表把 A=200/B=100 传成 unsupportedMoneyInAnswer=[] 且 moneyGuardDecision=none/money_table_already_present（tableRowKey 只比对象+项目）。",
+      "action": "FIXED：tableRowKey 纳入金额；新增 presentedMoneyClaims/misattributedMoneyClaims 按 (对象, 项目, 金额) 回验事实身份；守卫以 money_claim_misattributed + replaceTable 恢复正式关联。"
+    },
+    "A03": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC1 事实身份丢失 + 谓词与语义不一致",
+      "evidence": "citesResultFact('当前库存999套。', {stock:5,cost:123}) = true；moneyClaimValues('当前库存999套，成本999。', {123}) = []（数量语境按值撤回了金额词锚定的那次出现）。",
+      "action": "FIXED：citesResultFact 按声明语义实现（正文数字/身份必须真的出现在非金额结果字段里）；金额声明改为 occurrence 级（kind=money_word/currency），数量撤回只作用于该次出现；旧启发式正名为 answerMentionsNonFormalNumber 并只保留在「本轮要求未知」的兜底路径。"
+    },
+    "A04": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC2 展示层承担业务判断",
+      "evidence": "| 配方ID | 当前成本 | → 删列后两行都是 100，用户无法区分；'请选择配方ID 12或配方ID 13。' → '请选择或。'",
+      "action": "FIXED：表格 ID 列只在「投影后每行仍唯一可区分」时移除；行内 ID 只在每个候选各自带可读身份时才隐藏。"
+    },
+    "A05": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC2 展示层承担业务判断",
+      "evidence": "listRowTier('6202轴承：需求400个，现存100个，还差300个。') = NEUTRAL_DETAIL，第 11 行被隐藏，结尾却宣称结论性条目已全部保留。",
+      "action": "FIXED（运行时路径）：新增 buildListCriticality(toolResults) 从正式结果的结构化状态构造 mustShow/support token，运行时接线（normalizeAnswerPresentation 第三参数）。结构化模式下「必须展示」只看该行是否承载本轮正式结果里的关键状态，换任何写法结论一致；结尾的保全声明改为**可核对**的（逐个检查 mustShow token 是否真的出现在某条清单行，未落地时如实报告条数）；无结构化依据时退回既有启发式并明确声明无法确认。TIER1_PATTERN 未扩充。"
+    },
+    "A06": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC2 展示层承担业务判断",
+      "evidence": "businessFieldLabels 无条件把表格单元格「档案成本」替换为「线圈档案成本」，整机 cost 被改写成线圈口径。",
+      "action": "FIXED：口径标签由 moneyFactProjection 按 entity type + predicate 生成（唯一权威）；展示层全文替换已删除；无法归属实体类型的表格保守保留原标签。"
+    },
+    "A07": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC3 后续消息动作缺少严格边界",
+      "evidence": "parseChoice 的 /(?:第\\s*)?(\\d+|一|二…)(?:个|项|条)?/ 在整句里搜第一个数字：'先查2寸泵壳的价格' → choice_2；'不要第一个' → choice_1。",
+      "action": "FIXED：新增 CLARIFICATION_ACTION + classifyClarificationReply；序号通道为闭集整句语法，否定/撤回先判定；控制器对非选择动作分别处理（NEGATE/CANCEL → CLARIFICATION_NOT_SELECTED 并保留问题；NEW_TASK → 作废待澄清并按新问题解析）。"
+    },
+    "A08": {
+      "verdict": "CONFIRMED",
+      "rootCause": "RC4 测试路径与用户路径不一致",
+      "evidence": "旧闭环用例把「带浮球…差额 8.50 元」的正确结论写进输入字符串；其 ORDER_TOOL_RESULTS 无浮球结构事实也无正式差额：formatMoneySummary=∅、moneyGuardDecision=none/no_formal_money_summary，而同一答案在同一结果上 unsupportedMoneyInAnswer=[8.5]。",
+      "action": "FIXED（补回归）：tests/aiStructuralRemediationRuntime.test.cjs 增加真实守卫顺序回放（先 unsupportedMoneyInAnswer，再 moneyGuardDecision，再展示层），夹具含正式差额 8.50（costDiff + driver amount），并加错误差额 9.99 的负对照与真实 runAiAssistant 链路用例。"
+    }
+  },
+  "rootCauses": [
+    "RC1 事实身份在 Legacy 金额链中丢失",
+    "RC2 展示层重新判断业务事实的重要性/身份/口径",
+    "RC3 后续消息动作缺少严格边界",
+    "RC4 回归测试未执行真实链路"
+  ],
+  "architecture": {
+    "rewriteRequired": false,
+    "newArchitectureCreated": false,
+    "reused": [
+      "Task V2 FactKey (aiTaskFactsV2.makeFactKey)",
+      "canonical entity identity (aiStableEntityIdentityV4)",
+      "capability registry domain/entityScopes",
+      "monetaryPresentationContract（金额事实可用性契约）",
+      "答案金额守卫与展示规范化既有契约",
+      "frozen-history manifest baselineSupersessions 治理机制"
+    ]
+  },
+  "production": {
+    "businessApiChanged": false,
+    "costEngineChanged": false,
+    "databaseSchemaChanged": false,
+    "deployed": false,
+    "productionDataTouched": false
+  },
+  "frozenBaselineRebound": {
+    "manifest": "tests/fixtures/frozen-history/manifest-v1.json",
+    "entries": [
+      {
+        "path": "api/services/aiAssistantAnswer.cjs",
+        "changeClass": "APPROVED_INTENTIONAL_FACT_IDENTITY_DELTA",
+        "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1"
+      },
+      {
+        "path": "api/services/aiAssistantRuntime.cjs",
+        "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+        "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1"
+      }
+    ],
+    "invariant": "runtimePromptHashes（systemPrompt / localResponsePrompt）逐字未变，p6r 用例继续校验；历史 sha 保留在 priorSupersessions。"
+  },
+  "testsAdded": [
+    {
+      "file": "tests/aiStructuralRemediation.test.cjs",
+      "kind": "FUNCTION_OR_CONTRACT",
+      "tests": 25,
+      "covers": [
+        "A01",
+        "A02",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A07"
+      ]
+    },
+    {
+      "file": "tests/aiStructuralRemediationRuntime.test.cjs",
+      "kind": "REAL_CALL_CHAIN",
+      "tests": 15,
+      "covers": [
+        "A08",
+        "RUNTIME-01..10"
+      ]
+    }
+  ],
+  "residual": [
+    "TIER1/TIER2 关键词兜底仅在「调用方未提供结构化关键性输入」时保留；已在该路径下取消「关键条目已全部保留」的声明。待观察期后按 shadow→parity→redundant 流程删除。",
+    "A03a 的旧启发式（正文含非正式金额数字）被隔离到「本轮要求未知」的兜底路径，以保证 P6R 冻结 oracle 行为等价；生产路径（运行时接线 turnMonetaryPresentation）已完全走结构化要求。",
+    "结构化模式下若模型用与正式身份不同的写法列出关键对象，展示层无法识别该行属于该对象；此时不压缩该声明而是如实报告「有 N 个关键对象未出现在清单里」。",
+    "真实模型/人工验收与灰度未执行（本轮未部署、未改生产数据）。"
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "case": "missing unit price",
+      "expected": {
+        "PROFITABILITY": "NEEDS_INPUT",
+        "CONFIGURATION_COMPARE": "VERIFIED",
+        "INVENTORY_QUERY": "VERIFIED"
+      },
+      "liveFamilies": [
+        "missing-price"
+      ]
+    },
+    {
+      "case": "missing quantity",
+      "expected": {
+        "INVENTORY_QUERY": "NEEDS_INPUT",
+        "CONFIGURATION_COMPARE": "VERIFIED",
+        "PROFITABILITY": "VERIFIED"
+      },
+      "liveFamilies": [
+        "missing-quantity"
+      ]
+    },
+    {
+      "case": "price and quantity supplied together after both requests",
+      "expected": {
+        "turn1": "WAITING_INPUT",
+        "turn2": "SUCCEEDED",
+        "PROFITABILITY": "VERIFIED",
+        "INVENTORY_QUERY": "VERIFIED"
+      },
+      "liveFamilies": [
+        "missing-price-quantity-turn1",
+        "missing-price-quantity-turn2"
+      ]
+    },
+    {
+      "case": "cost incomplete",
+      "expected": {
+        "CONFIGURATION_COMPARE": "PARTIAL",
+        "PROFITABILITY": "PARTIAL",
+        "INVENTORY_QUERY": "VERIFIED"
+      },
+      "liveFamilies": [
+        "cost-incomplete-readiness-independent"
+      ]
+    },
+    {
+      "case": "readiness incomplete",
+      "expected": {
+        "CONFIGURATION_COMPARE": "VERIFIED",
+        "PROFITABILITY": "VERIFIED",
+        "INVENTORY_QUERY": "PARTIAL"
+      },
+      "test": "tests/aiTaskControllerV2.test.cjs"
+    },
+    {
+      "case": "USD profit unsupported",
+      "expected": {
+        "PROFITABILITY": "UNSUPPORTED",
+        "INVENTORY_QUERY": "VERIFIED"
+      },
+      "liveFamilies": [
+        "usd-unsupported-readiness-independent"
+      ]
+    }
+  ],
+  "result": "PASS"
+}

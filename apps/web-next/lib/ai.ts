@@ -201,6 +201,7 @@ export type AiConversationMessage = {
     provider?: AiProviderInfo;
     metrics?: AiTurnMetrics;
     turnState?: AiTurnStateV3;
+    nativeTaskId?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -1149,5 +1150,55 @@ export async function reviseAiToolConfirmation(
     body: JSON.stringify({ confirmationToken, toolName, args }),
   });
   if (!result.success || !result.data) throw new Error(result.error || '更新确认预览失败');
+  return result.data;
+}
+
+export type AiTaskState = 'NEW' | 'UNDERSTANDING' | 'RESOLVING' | 'RUNNING' | 'WAITING_INPUT' | 'WAITING_APPROVAL' | 'VERIFYING' | 'SUSPENDED' | 'RECONCILING' | 'SUCCEEDED' | 'PARTIAL' | 'UNSUPPORTED' | 'FAILED' | 'CANCELLED';
+export type AiTaskPublicView = {
+  version: 1;
+  taskId: string;
+  parentTaskId: string | null;
+  conversationId: string | null;
+  revision: number;
+  planRevision: number;
+  state: AiTaskState;
+  executionMode: 'FOREGROUND' | 'DETACHED';
+  userGoal: string;
+  goals: Array<{ goalKey: string; description: string; state: string; blockers: Array<{ code: string; message: string; questionId: string | null }> }>;
+  steps: Array<{ stepId: string; displayName: string; state: string; errorCode: string | null }>;
+  questions: Array<{ questionId: string; planRevision: number; goalKeys: string[]; prompt: string; reasonCode: string; choices: Array<{ choiceId: string; label: string; entity: unknown }>; candidateSetHash: string; expiresAt: string; answeredAt: string | null }>;
+  resultSummary: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type AiTaskAcknowledgement = { version: 1; taskId: string; revision: number; state: AiTaskState; executionMode: 'DETACHED'; statusPath: string };
+
+export async function startAiTask(conversationId: number, userMessageId: number): Promise<AiTaskAcknowledgement> {
+  const result = await proxyRequest<ApiResponse<AiTaskAcknowledgement>>('/api/ai/tasks', {
+    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-start') },
+    body: JSON.stringify({ version: 1, conversationId: `chat-${conversationId}`, userMessageId, executionMode: 'DETACHED' }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '创建后台任务失败');
+  return result.data;
+}
+export async function getAiTask(taskId: string): Promise<AiTaskPublicView> {
+  const result = await proxyRequest<ApiResponse<AiTaskPublicView>>(`/api/ai/tasks/${encodeURIComponent(taskId)}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取后台任务失败');
+  return result.data;
+}
+export async function resumeAiTask(task: AiTaskPublicView, answers: Array<{ questionId: string; choiceId: string | null; answerText: string | null }>): Promise<AiTaskAcknowledgement> {
+  const result = await proxyRequest<ApiResponse<AiTaskAcknowledgement>>(`/api/ai/tasks/${encodeURIComponent(task.taskId)}/resume`, {
+    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-resume') },
+    body: JSON.stringify({ version: 1, expectedRevision: task.revision, answers, executionMode: 'DETACHED' }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '继续后台任务失败');
+  return result.data;
+}
+export async function cancelAiTask(task: AiTaskPublicView, reason = ''): Promise<{ taskId: string; revision: number; state: AiTaskState }> {
+  const result = await proxyRequest<ApiResponse<{ taskId: string; revision: number; state: AiTaskState }>>(`/api/ai/tasks/${encodeURIComponent(task.taskId)}/cancel`, {
+    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-cancel') },
+    body: JSON.stringify({ version: 1, expectedRevision: task.revision, reason }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '停止后台任务失败');
   return result.data;
 }

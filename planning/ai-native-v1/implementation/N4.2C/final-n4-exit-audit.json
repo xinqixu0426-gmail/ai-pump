@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "ticket": "N4.2C",
+  "nativeBlockerFalseComplete001": "CLOSED (N3.2; unchanged)",
+  "n4_1": "PASS (prior stage evidence)",
+  "n4_2a": "PASS (prior stage evidence)",
+  "n4_2b": "PASS (prior stage evidence)",
+  "n4_2c": "PASS",
+  "mandatoryEvidence": {
+    "multiGoalRetention": true,
+    "scenarioIdentityFailClosed": true,
+    "previewReuse": true,
+    "independentPartialGoals": true,
+    "answerBoundary": true,
+    "liveProviderAcceptance": true,
+    "businessWrites": 0,
+    "productionChanged": false,
+    "databaseChanged": false,
+    "historicalCustomerPriceEvidence": true,
+    "sourceConfigurationAndPriceEvidence": true,
+    "orderIdempotencyReplay": true
+  },
+  "notRun": [],
+  "n4_2": "PASS",
+  "n4": "PASS",
+  "gateResults": {
+    "focusedTests": "PASS 82/82",
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2903/2903",
+    "deepApi": "PASS 482/482",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "liveAcceptance": {
+    "families": 14,
+    "runsPerFamily": 2,
+    "baseTaskResults": 28,
+    "continuationTaskResults": 4,
+    "acceptedTaskResults": 32,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "failures": 0
+  },
+  "planDeviations": [
+    {
+      "id": "N4.2C-IDEMPOTENCY-REPLAY-REPAIR",
+      "reason": "The required full npm gate exposed an existing replay failure: after a successful order became active, rebuilding its purchase plan changed the idempotency input before the stored receipt check. The minimal shared fix fingerprints the original normalised request; it preserves preview-hash enforcement, business write semantics, and audit behaviour."
+    }
+  ]
+}

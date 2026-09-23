@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "ticket": "N6.2",
+  "canonicalSection": "planning/ai-native-v1/AI-native实施总计划.md#N6.2-提交、失联对账与写后验收",
+  "scope": [
+    "adjust_part_stock",
+    "batch_update_prices"
+  ],
+  "requirements": [
+    {
+      "id": "N62-01",
+      "requirement": "Reuse the persistent command, operation/audit and formal readback framework without a second executor",
+      "implementationEvidence": "aiTaskWriteBridgeV2 delegates execution to executeConfirmedAiTool; aiTaskOperationReadbackV2 is a task-bound read model",
+      "testEvidence": "tests/aiTaskWriteBridgeV2.test.cjs; tests/commandExecution.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-02",
+      "requirement": "Persist operation association and idempotency before command dispatch",
+      "implementationEvidence": "appendProtectedCommandStep persists confirmation operationId and formal preflight idempotencyKey before executeConfirmedAiTool calls the executor",
+      "testEvidence": "N6.2 real-confirmation admission-order test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-03",
+      "requirement": "Lost command response becomes UNKNOWN_EFFECT and RECONCILING without a new key or command replay",
+      "implementationEvidence": "executeAiTaskConfirmedWriteV2 marks only non-4xx post-admission failures UNKNOWN_EFFECT then RECONCILING",
+      "testEvidence": "N6.2 response-lost reconciliation test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-04",
+      "requirement": "A completed formal operation is resolved by task-bound read-only operation lookup and trusted final receipt",
+      "implementationEvidence": "readTaskCommandOperationV2 binds the persisted command capability and idempotencyKey to the current task association; reconcileAiTaskCommandV2 completes only completed operation/audit receipts",
+      "testEvidence": "N6.2 response-lost reconciliation test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-05",
+      "requirement": "Absent, pending, or ambiguous operation evidence remains safely reconciling",
+      "implementationEvidence": "reconcileAiTaskCommandV2 emits COMMAND_RECONCILING and retains RECONCILING for MISSING/PENDING/AMBIGUOUS",
+      "testEvidence": "N6.2 response-lost reconciliation test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-06",
+      "requirement": "Formal business rejection is not retried as an unknown effect",
+      "implementationEvidence": "known 4xx command failure marks the admitted step and task FAILED",
+      "testEvidence": "N6.2 formal rejection test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-07",
+      "requirement": "Same-card concurrent/replayed delivery has no duplicate business effect",
+      "implementationEvidence": "existing confirmation consumption protocol serializes one token; task admission records one command step",
+      "testEvidence": "N6.2 real-confirmation replay test; tests/commandExecution.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-08",
+      "requirement": "Same idempotency key with different arguments is rejected and audit failure rolls back the command",
+      "implementationEvidence": "existing executePersistentCommand remains authoritative",
+      "testEvidence": "tests/commandExecution.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-09",
+      "requirement": "Cancellation after command admission preserves the known effect and reconciles rather than claiming cancellation/rollback",
+      "implementationEvidence": "cancel route persists cancellation when COMMAND is in flight; command completion routes to RECONCILING and reconciliation ends PARTIAL",
+      "testEvidence": "N6.2 cancellation-race test",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-10",
+      "requirement": "Only part stock and part price are in scope; no new configuration/order/quotation/CAD/print write slice",
+      "implementationEvidence": "N6_1_WRITE_TOOLS allowlist remains adjust_part_stock and batch_update_prices",
+      "testEvidence": "N6.1/N6.2 focused bridge tests and capability contract regression",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-11",
+      "requirement": "No direct model-visible write capability or direct business SQLite mutation path",
+      "implementationEvidence": "task routes are owner-bound server bridge endpoints; actual write stays under executeConfirmedAiTool and formal APIs",
+      "testEvidence": "tests/aiTaskWriteBridgeV2.test.cjs; npm run verify:api-contract",
+      "status": "PASS"
+    },
+    {
+      "id": "N62-12",
+      "requirement": "Final repository gates include the plain deterministic deep-api invocation without an external market dependency",
+      "implementationEvidence": "scripts/run-deep-api-smoke.cjs seeds a completed current-BJT daily market snapshot only into the temporary isolated SQLite clone before the API starts; production market service behavior is unchanged",
+      "testEvidence": "npm run test:deep-api: PASS 489/489",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "pass": 12,
+    "partial": 0,
+    "unproven": 0,
+    "notRun": 0,
+    "testCommandExecutions": 1,
+    "testBusinessWrites": "temporary SQLite only",
+    "productionCommandExecutions": 0,
+    "productionBusinessWrites": 0,
+    "deepApiDefaultInvocation": "PASS 489/489",
+    "deepApiSkippedForCopper": 0
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "caseId": "BU-07",
+  "question": "V900 的成本是多少",
+  "traceCapture": {
+    "rawLog": "logs/n0.2r-bu07-raw.json",
+    "rawLogGitIgnored": true,
+    "method": "Two isolated real DeepSeek executions, followed by white-box reconstruction from the captured tool receipts and current semantic-frame functions."
+  },
+  "runs": [
+    {
+      "run": 1,
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "semanticEligibility": {"eligible": true, "kind": "COST_QUERY", "reason": "SUPPORTED_COST_INTENT", "signals": ["RECIPE_IDENTIFIER"]},
+      "questionSemantics": {"requestedType": "recipe", "requestedToken": "V900", "canonicalIdentity": null, "identityStatus": "UNRESOLVED"},
+      "offeredTools": ["get_recipe_detail"],
+      "modelToolCalls": ["get_recipe_detail"],
+      "actualToolCalls": ["get_recipe_detail"],
+      "formalReads": [{"capability":"get_recipe_detail","apiPaths":["/api/recipes","/api/templates","/api/parts?keyword=V900"],"success":false,"verified":true,"collectionComplete":null,"empty":null,"resultCode":"AI_RESOURCE_NOT_FOUND"}],
+      "catalogCoverage": {"recipes":"INCOMPLETE","templates":"INCOMPLETE","parts":"INCOMPLETE"},
+      "executionEvidence": {"verified":true,"kind":"formal_api_query_failure","complete":null,"hasMore":null,"truncated":null},
+      "semanticPreFrame": {"completeness":"NEEDS_EVIDENCE","blockers":["RECIPE_CANONICAL_IDENTITY","RECIPE_CURRENT_FULL_COST"]},
+      "semanticPostFrame": {"completeness":"NEEDS_EVIDENCE","blockers":["RECIPE_CANONICAL_IDENTITY","RECIPE_CURRENT_FULL_COST"]},
+      "crossCatalog": {"status":"NO_VERIFIED_CANDIDATE","note":"The legacy helper treats failed or empty lookups as an empty candidate list and emits no per-catalog completeness receipt."},
+      "businessRulebook": "LEGACY_CHAIN_PROCEEDED",
+      "moneyGuard": "NO_PRICE_OR_COST_VALUE_ASSERTED",
+      "semanticAnswerBoundary": "NOT_EXECUTED_FLAG_OFF",
+      "impactBoundary": "NOT_APPLICABLE",
+      "presenter": "LEGACY_FINAL_TEXT_CONTAINED_SYSTEM_WIDE_ABSENCE_CLAIM",
+      "semanticCompleteness": "NEEDS_EVIDENCE",
+      "firstFalseCompleteStage": "LEGACY_MODEL_FINALIZATION",
+      "finalClaimClass": "LEGACY_FALSE_COMPLETE"
+    },
+    {
+      "run": 2,
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "semanticEligibility": {"eligible": true, "kind": "COST_QUERY", "reason": "SUPPORTED_COST_INTENT", "signals": ["RECIPE_IDENTIFIER"]},
+      "questionSemantics": {"requestedType": "recipe", "requestedToken": "V900", "canonicalIdentity": null, "identityStatus": "UNRESOLVED"},
+      "offeredTools": ["get_recipe_detail"],
+      "modelToolCalls": ["get_recipe_detail"],
+      "actualToolCalls": ["get_recipe_detail"],
+      "formalReads": [{"capability":"get_recipe_detail","apiPaths":["/api/recipes","/api/templates","/api/parts?keyword=V900"],"success":false,"verified":true,"collectionComplete":null,"empty":null,"resultCode":"AI_RESOURCE_NOT_FOUND"}],
+      "catalogCoverage": {"recipes":"INCOMPLETE","templates":"INCOMPLETE","parts":"INCOMPLETE"},
+      "executionEvidence": {"verified":true,"kind":"formal_api_query_failure","complete":null,"hasMore":null,"truncated":null},
+      "semanticPreFrame": {"completeness":"NEEDS_EVIDENCE","blockers":["RECIPE_CANONICAL_IDENTITY","RECIPE_CURRENT_FULL_COST"]},
+      "semanticPostFrame": {"completeness":"NEEDS_EVIDENCE","blockers":["RECIPE_CANONICAL_IDENTITY","RECIPE_CURRENT_FULL_COST"]},
+      "crossCatalog": {"status":"NO_VERIFIED_CANDIDATE","note":"The legacy helper treats failed or empty lookups as an empty candidate list and emits no per-catalog completeness receipt."},
+      "businessRulebook": "LEGACY_CHAIN_PROCEEDED",
+      "moneyGuard": "NO_PRICE_OR_COST_VALUE_ASSERTED",
+      "semanticAnswerBoundary": "NOT_EXECUTED_FLAG_OFF",
+      "impactBoundary": "NOT_APPLICABLE",
+      "presenter": "LEGACY_FINAL_TEXT_CONTAINED_SYSTEM_WIDE_ABSENCE_CLAIM",
+      "semanticCompleteness": "NEEDS_EVIDENCE",
+      "firstFalseCompleteStage": "LEGACY_MODEL_FINALIZATION",
+      "finalClaimClass": "LEGACY_FALSE_COMPLETE"
+    }
+  ],
+  "adjudication": {
+    "primaryRootCauseClass": "LEGACY_ORCHESTRATION_DEFECT",
+    "reason": "The formal receipt is a verified query failure and does not claim complete or empty catalogue coverage. The semantic frame still requires evidence. With the semantic answer boundary disabled in the existing legacy configuration, the model/finalizer turns that inadequate evidence into a system-wide absence claim.",
+    "strictVerifiedAbsence": false,
+    "legacyResult": "FAIL"
+  }
+}

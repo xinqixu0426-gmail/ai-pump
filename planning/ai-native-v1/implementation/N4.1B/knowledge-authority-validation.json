@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "authorityOrder": [
+    "LIVE_BUSINESS",
+    "FORMAL_BUSINESS_RULE",
+    "DOCUMENT_SOURCE",
+    "DERIVED_KNOWLEDGE"
+  ],
+  "rule": "Knowledge output is rendered as a snapshot source and explicitly cannot be a current live-business fact.",
+  "test": "N4.1B knowledge snapshot remains a source and cannot invoke commands from malicious content",
+  "compositeTest": "N4.1B keeps KNOWLEDGE_QUERY source evidence separate from ORDER_READINESS formal FactRecords in the same Task V2 task."
+}

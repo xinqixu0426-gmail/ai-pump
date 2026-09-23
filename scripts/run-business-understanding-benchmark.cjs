@@ -21,6 +21,9 @@ const oraclePath = path.join(root, 'tests/helpers/businessUnderstandingOracle.cj
 const reportPath = path.resolve(String(args.get('report') || path.join(root, 'logs/business-understanding-baseline-v1-raw.json')));
 const artifactPath = path.resolve(String(args.get('artifact') || path.join(root, 'docs/business-understanding-baseline-v1.json')));
 const definition = readDefinition(definitionPath);
+const selectedKeys = new Set(String(args.get('cases') || '').split(',').map(value => value.trim()).filter(Boolean));
+const cases = selectedKeys.size ? definition.coreCases.filter(item => selectedKeys.has(item.caseKey)) : definition.coreCases;
+if (!cases.length || (selectedKeys.size && cases.length !== selectedKeys.size)) throw new Error('BUSINESS_BENCHMARK_CASE_SELECTION_INVALID');
 
 function flatten(value, output = []) {
     if (Array.isArray(value)) for (const item of value) flatten(item, output);
@@ -151,14 +154,14 @@ async function main() {
     process.env.PORT = String(server.address().port); const baseUrl = `http://127.0.0.1:${server.address().port}`;
     const executions = [];
     try {
-        for (let runNumber = 1; runNumber <= 2; runNumber += 1) for (const testCase of definition.coreCases) {
+        for (let runNumber = 1; runNumber <= 2; runNumber += 1) for (const testCase of cases) {
             try { const raw = await streamCase(baseUrl, process.env.INTERNAL_SECRET, testCase, runNumber);
                 const actual = analyze(testCase, oracle.perCase[testCase.caseKey], raw);
                 executions.push({ runNumber, caseKey: testCase.caseKey, ...evaluateBusinessUnderstandingCase(testCase, oracle.perCase[testCase.caseKey], actual) });
             } catch (error) { executions.push({ runNumber, caseKey: testCase.caseKey, status: 'BLOCKED', failureClass: ['TOOL_FAILURE'], error: error.message }); }
         }
     } finally { await new Promise(resolve => server.close(resolve)); require('../api/db.cjs').stopBackupScheduler?.(); require('../api/db.cjs').db.close(); fixture.close(); }
-    const stability = definition.coreCases.map(item => { const statuses = executions.filter(run => run.caseKey === item.caseKey).map(run => run.status); return { caseKey: item.caseKey, statuses, stable: new Set(statuses).size === 1 }; });
+    const stability = cases.map(item => { const statuses = executions.filter(run => run.caseKey === item.caseKey).map(run => run.status); return { caseKey: item.caseKey, statuses, stable: new Set(statuses).size === 1 }; });
     for (const item of stability.filter(value => !value.stable)) for (const execution of executions.filter(run => run.caseKey === item.caseKey)) {
         execution.failureClass = [...new Set([...(execution.failureClass || []), 'MODEL_VARIANCE'])];
     }
@@ -185,7 +188,7 @@ async function main() {
         counts, criticalFailures, dimensionResults, failureClassification, stability, scaleSentinel, executions };
     fs.mkdirSync(path.dirname(reportPath), { recursive: true }); fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
     const artifact = { commit: report.commit, benchmarkVersion: report.benchmarkVersion, ...hashes, provider: actualProviders.join(',') || 'unknown', model: report.model,
-        generatedAt: report.generatedAt, aggregate: { coreCases: 10, executions: 20, ...counts, criticalFailures, dimensionResults, failureClassification,
+        generatedAt: report.generatedAt, aggregate: { coreCases: cases.length, executions: executions.length, ...counts, criticalFailures, dimensionResults, failureClassification,
             stableCases: stability.filter(item => item.stable).map(item => item.caseKey), unstableCases: stability.filter(item => !item.stable).map(item => item.caseKey) },
         scaleSentinel, cases: executions.map(item => ({ run: item.runNumber, caseKey: item.caseKey, status: item.status, dimensions: item.dimensions, failureClass: item.failureClass || [] })) };
     fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);

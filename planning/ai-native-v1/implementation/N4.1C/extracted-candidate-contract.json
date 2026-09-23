@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "items": {
+    "sourceBoundCandidates": "PASS",
+    "metadataOnlyDoesNotCompare": "PASS",
+    "partialSourceScope": "PASS",
+    "sourceToScenarioProvenance": "PASS",
+    "sourceEvidenceArgumentSource": "PASS",
+    "fakeUserSpanAbsent": "PASS",
+    "userGoalRequired": "PASS",
+    "documentCanStartScenario": "PASS"
+  },
+  "evidence": "tests/aiTaskControllerV2.test.cjs tests/aiTaskDocumentsV2.test.cjs tests/aiTaskValidationV2.test.cjs"
+}

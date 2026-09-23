@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "capability": "recipes.scenario_compare_preview",
+  "http": "POST /api/recipes/:id/scenario-compare-preview",
+  "aiTool": "compare_recipe_scenarios",
+  "service": "api/services/recipeScenarioComparison.cjs",
+  "baselinePolicy": "CURRENT_REBUILT",
+  "access": "PREVIEW",
+  "riskLevel": "low",
+  "confirmationRequired": false,
+  "scenarioLimit": 3,
+  "allowedOverrides": ["hasFloat", "floatWire", "floatAccessoryType", "hasCable", "cableLength", "cableWire", "cableAccessoryType", "coilId", "coilSheets", "customBarrelLength"],
+  "rejectedOverrideClasses": ["client_price_or_cost", "packing", "surface_treatment", "unsupported_fields"],
+  "response": {
+    "recipe": "CanonicalEntity(recipe)",
+    "changes": "{ scenarioKey, field, from, to }[]",
+    "readSet": "readSetId/readSetHash/sourceVersions",
+    "costBasis": ["CURRENT_REBUILT_BASE", "CURRENT_REBUILT_SCENARIO"]
+  },
+  "sameReadSet": "One synchronous SQLite read transaction constructs base and all candidates from one source snapshot.",
+  "resultLimits": {"maxBytes": 98304, "maxSourceVersionsReturned": 128},
+  "runtimeIntegrated": false,
+  "modelCalls": 0,
+  "businessWrites": 0
+}

@@ -1,0 +1,41 @@
+########## AUDITED BASELINE (8bc6ea7) ##########
+
+=== oracle @ /tmp/pump-baseline ===
+RED   A01a  两个不同实体金额相同，两条都保留
+      RED: 同价不同实体被吞掉
+RED   A01b  同名不同 ID、金额不同，两条都保留
+      RED: 同名不同身份被吞掉
+RED   A02   金额交换（A=200/B=100）被发现并纠正
+      RED: 关联错误未被上报 (actual=[] expected=[100,200])
+RED   A03a  citesResultFact('当前库存999套。') 不得为 true
+      RED: 编造的库存被当成已核实事实 (actual=true expected=false)
+RED   A03b  数量语境不得撤回同值的金额声明
+      RED: 金额词锚定的声明被数量语境撤回 (actual=[] expected=[999])
+RED   A04a  删掉 ID 列后两行无法区分时必须保留 ID 列
+      RED: ID 列被删除，用户失去区分候选的能力 (actual="| 当前成本 |\n| ---: |\n| 100 |\n| 100 |" expected="| 配方ID | 当前成本 |\n|---|---:|\n| 9 | 100 |\n| 8 | 100 |")
+RED   A04b  「请选择配方ID 12或配方ID 13。」不得变成「请选择或。」
+      RED: 候选唯一身份被删除 (actual="请选择或。" expected="请选择配方ID 12或配方ID 13。")
+RED   A05   结构化缺料项换写法后仍必须保留
+      RED: 缺少结构化关键性输入构造
+RED   A06   整机成本不得被改写成线圈口径；线圈成本必须带线圈口径
+      RED: 线圈档案成本缺少线圈口径
+RED   A07   澄清回复的动作边界：否定/新问题不得从句内抢数字当选择
+      RED: 旧实现没有澄清动作分类：句内第一个数字会被当成肯定选择（「不要第一个」→choice_1）
+
+summary: 0/10 GREEN, 10 RED
+
+########## REMEDIATION (fc0f279) ##########
+
+=== oracle @ /Users/dan/Documents/pump-ai-structural-remediation ===
+GREEN A01a  两个不同实体金额相同，两条都保留
+GREEN A01b  同名不同 ID、金额不同，两条都保留
+GREEN A02   金额交换（A=200/B=100）被发现并纠正
+GREEN A03a  citesResultFact('当前库存999套。') 不得为 true
+GREEN A03b  数量语境不得撤回同值的金额声明
+GREEN A04a  删掉 ID 列后两行无法区分时必须保留 ID 列
+GREEN A04b  「请选择配方ID 12或配方ID 13。」不得变成「请选择或。」
+GREEN A05   结构化缺料项换写法后仍必须保留
+GREEN A06   整机成本不得被改写成线圈口径；线圈成本必须带线圈口径
+GREEN A07   澄清回复的动作边界：否定/新问题不得从句内抢数字当选择
+
+summary: 10/10 GREEN, 0 RED

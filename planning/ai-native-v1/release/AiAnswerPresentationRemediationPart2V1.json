@@ -1,0 +1,159 @@
+{
+  "version": 2,
+  "artifact": "AiAnswerPresentationRemediationPart2V1",
+  "status": "PART2_R1_LONG_LIST_CONTRACT_CLOSED",
+  "ticket": "AI Answer Presentation Remediation V1 — Part 2 / 2-R1（确定性展示规范化层 + 长清单展示相关性契约）",
+  "branch": "ai-native/prod-integration-v1",
+  "acceptedHeadAtEntry": "e4200b66a938deabbb9916202b4b06e08fe4885e",
+  "scope": {
+    "defects": ["LEGACY-AI-ANSWER-002", "LEGACY-AI-ANSWER-005"],
+    "referenceRecords": [
+      "planning/ai-native-v1/release/LegacyAiMachineVocabularyInsteadOfBusinessLanguageDefectV1.json",
+      "planning/ai-native-v1/release/LegacyAiAnswerReadabilityAndNoiseDefectV1.json"
+    ]
+  },
+
+  "presentationLayer": {
+    "module": "api/services/aiPresentationNormalizer.cjs",
+    "entryPoint": "normalizeAnswerPresentation(answer, userText)",
+    "modelCalls": 0,
+    "isNot": [
+      "second planner", "second answer model", "second business-rule engine",
+      "entity resolver", "monetary guard"
+    ],
+    "mustNot": [
+      "add new business facts", "change verified facts", "change monetary values",
+      "calculate costs", "resolve entities", "call business APIs", "call LLMs",
+      "change task state", "change confirmation/write semantics",
+      "suppress policy / incomplete / ambiguity / reconciliation warnings"
+    ],
+    "pipelinePosition": {
+      "order": "verified semantic answer -> Money Guard -> semantic/impact/compatibility boundaries -> PRESENTATION NORMALIZER -> final user response",
+      "runtimeLocation": "api/services/aiAssistantRuntime.cjs，位于 enforceSemanticAnswerBoundary / enforceImpactAnswerBoundary / enforceCompatibilityAnswer 之后、emit('content') 之前",
+      "whyLast": "语义边界与影响边界运行在 Money Guard 之后且仍会改写正文；本层若放在它们之前，规范化结果会被覆盖。放在最后同时避免与 Money Guard 形成循环处理。",
+      "sharedAcrossProviders": "是的 —— 无条件执行，不再像旧的 stabilizeLocalAnswer 那样只在 isLocalAssistantMode 分支生效；远端 provider 走同一策略。"
+    },
+    "capabilities": {
+      "machineVocabulary": "工具显示名 → 业务对象名（有界、集中、可测试的映射表 TOOL_LABEL_TO_BUSINESS，键取自 registry 真实 displayName）",
+      "internalIds": "默认隐藏内部 ID 代号；用户显式要求、或该对象没有可读身份（歧义）、或调试模式时保留",
+      "fieldLabels": "内部口径词（档案成本/目录单价）→ 业务标签，且不改任何数值",
+      "conclusionFirst": "正文以机器形态（表格/内部金额表标题）开头时，把首个业务结论段提到最前；已有业务结论则完全不动",
+      "longListSummary": "默认摘要长清单；保留主结论、缺料项、缺失/不完整、歧义、策略拒绝等决策相关条目；提示省略项数",
+      "continuationCleanup": "移除未被请求的延伸邀约；保留必需澄清与下一步动作"
+    },
+    "presentationRequestExemptions": {
+      "wantsIds": "显式 ID 请求 → 不隐藏 ID",
+      "wantsDetail": "显式明细请求 → 不摘要、不清收尾",
+      "wantsRawPrecision": "原文精度请求 → 不改动任何数字",
+      "wantsMachineLanguage": "调试/诊断请求 → 保留机器语言，只做无副作用整理",
+      "source": "全部来自用户已表达的结构化请求，不做关键词意图推断"
+    }
+  },
+
+  "decisionRelevantPreservation": {
+    "rule": "压缩与收尾清理都不得删除会改变用户决策的已验证 proposition",
+    "decisionRelevantRe": "缺/待采购/未取得/无法/不完整/尚未/歧义/候选/请选择/需要你/不可用/未找到/已核实/警告/风险/异常/冲突/待确认/需复核",
+    "workedExample": "「缺 3 个 6202 轴承」在摘要后仍逐字保留，不会被压成「部分库存不足」",
+    "realRegressionCaught": "口径说明末句「…整机（成品）成本要按在售配方为基准重新核算，包含泵壳、零件、人工、包装等；需要的话我按你指定的配方继续算。」最初实现按整句删除，连带抹掉了决策相关的口径信息。改为只裁掉邀约分句，并在裁掉比例过高时才整块移除。"
+  },
+
+  "longListRelevanceContract": {
+    "trigger": "Supervisor 裁定：DEFAULT_LIST_LIMIT=8 实际上仍是「固定前 8 项」，没有「为什么是这 8 项」的确定性规则，属于被禁止的 arbitrary top-N。20 个库存项里第 11 项缺 300 个轴承会被隐藏 —— 答案更短但更差。",
+    "tiers": {
+      "DECISION_CRITICAL": "永远保留，不受展示容量限制。信号：缺/短少/欠/待采购/无货/没货/不足、未定价/尚未定价/未取得、不完整/未完成/尚未、无法/不能、失败/错误/异常/冲突、拒绝/不支持、歧义/候选/不一致/不符合、需要人工或复核或核对或确认、待确认/待核对/待复核、警告/风险/不可用/未找到/不存在",
+      "DIRECT_SUPPORT": "保留以支撑结论。信号：差异/差额/差价/差了、不同、变化/变动、相差/相比、对比句式（一个…一个 / 有的…有的 / 前者 / 后者）、合计/总计/总额/总成本/小计、货币标注",
+      "NEUTRAL_DETAIL": "只有这一层允许压缩：普通、重复、无异常信号的明细"
+    },
+    "capacity": {
+      "constant": "NEUTRAL_DETAIL_LIMIT = 8",
+      "appliesTo": "仅 Tier 3 中性明细",
+      "notARanking": "不声称这些是「最重要」的项；Tier 1/2 不受限制，因此最终可见条数可以超过 8"
+    },
+    "compressionRules": [
+      "保持源顺序（不做重排）",
+      "明确标注只展示了部分中性明细",
+      "报出未展开条数",
+      "不得使用「最重要/优先展示」措辞",
+      "所有决策相关行必须保留，即使最终答案超过展示容量"
+    ],
+    "implementation": "api/services/aiPresentationNormalizer.cjs 的 TIER1_PATTERN / TIER2_PATTERN / listRowTier / summarizeLongLists；分类只用行文本里已展示的语义，不新增事实、不做业务推断、0 次模型调用",
+    "regressionFoundDuringImplementation": "Tier1 的「缺」原写作 缺(?:少|货|料|项|件)，要求第二个字，于是真实缺料行「缺 300 个 6202 轴承」被判成中性明细 —— 正是本次要防的那类错误。已改为「缺」单独命中。"
+  },
+
+  "requiredLateRowFixtures": {
+    "file": "tests/aiPresentationNormalizer.test.cjs",
+    "cases": [
+      { "name": "第 11 行的缺料行必须保留", "rows": "12 行（10 中性 + 第 11 行「缺 300 个 6202 轴承」+ 第 12 行中性）", "asserts": "缺料行可见、报出未展开条数、不得出现「最重要」措辞、至少一个中性行被省略" },
+      { "name": "唯一差异行位于容量之后", "rows": "11 行（10 一致 + 第 11 行「与基准不同 —— 多了浮球」）", "asserts": "差异行与具体内容都保留" },
+      { "name": "位于容量之后的未定价项", "rows": "11 行（10 已定价 + 第 11 行「未定价的电缆，当前金额不是完整报价」）", "asserts": "未定价项与关联警告都完整保留" },
+      { "name": "带浮球差异不得被压成笼统摘要", "rows": "11 行（10 规格相同 + 第 11 行「一个带浮球，一个不带」）", "asserts": "该表述逐字保留" },
+      { "name": "Tier1 很多时可见条数可超过容量", "rows": "12 条缺料 + 12 条中性", "asserts": "12 条缺料全部保留，可见条数 > 8" },
+      { "name": "显式明细请求不压缩中性明细", "requests": ["列全部明细", "全部零件", "详细一点"], "asserts": "输出与输入逐字相同" }
+    ]
+  },
+
+  "inScopeTests": {
+    "presentationNormalizer": { "tests": 30, "pass": 30, "fail": 0 },
+    "aiMoneyGuard": { "tests": 10, "pass": 10, "fail": 0 },
+    "aiAssistantRuntime": { "tests": 86, "pass": 86, "fail": 0 },
+    "aiExecutorBehavior": { "tests": 126, "pass": 126, "fail": 0 },
+    "ontologyRoutingCanary": { "tests": 42, "pass": 42, "fail": 0 },
+    "npm test": { "tests": 3045, "pass": 3045, "fail": 0, "exitCode": 0, "note": "较 Part 1 的 3015 增加 30 条展示层测试（含 8 条 R1 长清单契约用例）" },
+    "npm run verify:api-contract": { "tests": 28, "pass": 28, "exitCode": 0 },
+    "npm run test:deep-api": { "exitCode": 0 },
+    "npm run lint": { "exitCode": 0 },
+    "npm run build": { "exitCode": 0 }
+  },
+
+  "idempotence": {
+    "contract": "NORMALIZE(NORMALIZE(x)) == NORMALIZE(x)",
+    "provedFor": [
+      "机器词汇替换", "收尾邀约清理", "长清单摘要", "结论先行重排", "内部 ID 隐藏"
+    ],
+    "method": "tests/aiPresentationNormalizer.test.cjs 的四条独立幂等用例 + 组合样本三次作用一致"
+  },
+
+  "part1Preservation": {
+    "moneyGuardIntact": "本层在 Money Guard 之后运行，不参与其决策；测试断言规范化后金额表仍只有一张、金额数值与来源精度逐字不变（166.7136 不被改写）",
+    "secondMoneyTableCreated": false,
+    "canonicalMonetaryValuesAltered": false
+  },
+
+  "frozenOracleVersioning": {
+    "newVersion": "tests/fixtures/ontology-coil-recipe-legacy-oracle-v4.json",
+    "supersedes": "ontology-coil-recipe-legacy-oracle-v3.json",
+    "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+    "changeReason": "LEGACY-AI-ANSWER-002",
+    "approvedBy": "Supervisor Part 2 authorization",
+    "delta": "仅金额表对象列的「工具显示名 → 业务对象名」两处替换（| 计算线圈成本 |→| 线圈成本 |、| 配方成本试算 |→| 配方成本 |），其余逐字节相同；selectedTools 与 modelCalls 均未改变",
+    "historicalImmutable": ["v1", "v2", "v3"],
+    "asserted": "canary 逐字节断言 V4 == V3 施加该两处替换，并断言 V3 仍保留工具显示名（证明规范化确实是新增的一层）"
+  },
+
+  "defectStatus": {
+    "LEGACY-AI-ANSWER-002": "FIXED",
+    "LEGACY-AI-ANSWER-005": "FIXED"
+  },
+
+  "notDoneDeferredToPart3": [
+    "五缺陷全量回归与实际用户问法 before/after",
+    "production parity 重新分类",
+    "candidate evidence 重绑",
+    "临时 pump.db 处理",
+    "最终部署就绪重新裁定"
+  ],
+  "notRun": {
+    "verify:release": "NOT_RUN_EXTERNAL_LIVE_GATE —— 需真实 DEEPSEEK_API_KEY，本机没有，未伪造"
+  },
+
+  "safety": {
+    "PRODUCTION_CHANGED": "NO",
+    "PRODUCTION_DATABASE_MIGRATED": "NO",
+    "PRODUCTION_SERVICE_RESTARTED": "NO",
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": "NO",
+    "PUSH_PERFORMED": "NO",
+    "CREDENTIALS_COPIED": "NO",
+    "note": "全部为本地改动；生产 master 仍为 e244bd75，ai-native/v1 仍为 579b44c8，未触碰"
+  }
+}

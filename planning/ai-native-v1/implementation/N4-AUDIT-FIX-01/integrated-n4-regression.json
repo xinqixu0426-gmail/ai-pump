@@ -1,0 +1,17 @@
+{
+  "suite": "tests/aiTaskControllerV2.test.cjs",
+  "compliantScenario": "PASS; configuration compare, profitability and readiness share one configuration hash",
+  "forbiddenScenario": "PASS; CONFIGURATION_COMPARE=FAILED, PROFITABILITY=PARTIAL, INVENTORY_QUERY=PARTIAL",
+  "baseProfitFallback": "CLOSED",
+  "businessWrites": 0,
+  "liveAcceptance": {
+    "families": 4,
+    "runsPerFamily": 2,
+    "totalRuns": 8,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "criticalFailures": 0,
+    "rawLog": "gitignored logs/ai-native-n4-audit-fix-01-live-raw.json"
+  }
+}

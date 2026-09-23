@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "taskId": "00000000-0000-4000-8000-000000000006",
+  "revision": 1,
+  "state": "NEW",
+  "executionMode": "DETACHED",
+  "statusPath": "/api/ai/tasks/00000000-0000-4000-8000-000000000006"
+}

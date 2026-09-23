@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "ticket": "N5.1B",
+  "startCommit": "d3409182c30ffe96a67b3ab9e962538b58f07c90",
+  "migrationHead": 88,
+  "actualStoreApisBefore": [
+    "createTask",
+    "mutateTask",
+    "appendStep",
+    "setStepState",
+    "appendEvidence",
+    "loadValidatedEvidence"
+  ],
+  "actualLifecycleApisBefore": [
+    "createTask",
+    "transition",
+    "suspend",
+    "appendPlannedStep",
+    "markStepRunning",
+    "completeStep",
+    "appendReceipt",
+    "appendFact"
+  ],
+  "leaseColumns": [
+    "lease_owner",
+    "lease_token",
+    "lease_expires_at"
+  ],
+  "stepRetrySemantics": "N5.1A append-only step records and evidence validation exist; continuation replay protection was absent.",
+  "budgetMutationApisBefore": [],
+  "volatileFactClassification": "recoveredFactRevalidation marks CURRENT and volatile predicates for revalidation.",
+  "decision": "Add lease operations to the existing Store/Lifecycle and a worker-only controller continuation; no migration or public route."
+}

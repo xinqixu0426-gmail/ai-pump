@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "expectedRevision": 5,
+  "answers": [
+    {
+      "questionId": "00000000-0000-4000-8000-000000000008",
+      "choiceId": "choice1",
+      "answerText": null
+    }
+  ],
+  "executionMode": "DETACHED"
+}

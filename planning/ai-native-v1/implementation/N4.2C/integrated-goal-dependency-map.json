@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "ticket": "N4.2C",
+  "taskInput": "V550现在成本多少？电缆改成5米以后成本多少？如果卖340毛利多少？如果现在做300台库存够不够、缺什么？先不要保存。",
+  "goalGraph": [
+    {
+      "goal": "CURRENT_COST",
+      "stateRequirement": "VERIFIED",
+      "dependency": "same profitability preview base scenario fact when a candidate comparison is present",
+      "invalidatedBy": [
+        "configuration change",
+        "plan revision"
+      ]
+    },
+    {
+      "goal": "CONFIGURATION_COMPARE",
+      "stateRequirement": "VERIFIED",
+      "dependency": "formal candidate scenario comparison carried by profitability preview",
+      "invalidatedBy": [
+        "configuration change",
+        "plan revision"
+      ]
+    },
+    {
+      "goal": "PROFITABILITY",
+      "stateRequirement": "VERIFIED",
+      "dependency": "formal candidate scenario + explicit CNY unit price",
+      "invalidatedBy": [
+        "unit price change",
+        "configuration change",
+        "plan revision"
+      ]
+    },
+    {
+      "goal": "INVENTORY_QUERY",
+      "stateRequirement": "VERIFIED",
+      "dependency": "formal scenario identity + explicit quantity",
+      "invalidatedBy": [
+        "quantity change",
+        "configuration change",
+        "plan revision"
+      ]
+    }
+  ],
+  "writePolicy": "FORBIDDEN",
+  "writePolicyEffect": "No COMMAND steps, operations, approvals, order creation, purchase creation, or inventory write are admitted."
+}

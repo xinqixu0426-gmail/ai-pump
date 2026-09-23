@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "artifact": "PresentationRemediationMoneyGuardImplementationContract",
+  "status": "PART_1_IN_PROGRESS_NOT_COMMITTED",
+  "ticket": "AI Answer Presentation Remediation V1（Supervisor 已批准方案 A/B，明确不回退）",
+  "baselineCommitted": "fa639ed9420ac89e41e0cab223ef172a9b2e0b55",
+  "uncommittedWorktreeFiles": [
+    "api/services/aiAssistantAnswer.cjs",
+    "api/services/aiMoneyGuard.cjs",
+    "api/services/aiAssistantRuntime.cjs",
+    "tests/aiMoneyGuard.test.cjs"
+  ],
+
+  "rootCauseAcceptedBySupervisor": "旧实现用「正文是否含 ¥/元」这一个代理信号同时回答两个不同问题：(i) 用户是否需要看到正式金额事实；(ii) 正文是否该被整段替换。两件事必须解耦。",
+
+  "implementedSoFar": {
+    "defect_001": "守卫不再以「没引用正式金额」为删除理由；仅「正文不可用」「含无依据金额」「配置未完成」才 replace。测试 tests/aiMoneyGuard.test.cjs 已按新契约重写（9/9 通过）。",
+    "defect_003": "结构化去重：按 markdown 表格「对象 + 项目」为键、数字归一到两位小数判定「正文是否已含该表」；缺行时用 replaceTable 替换那张不完整的表（不重复表头、不丢缺失行、不丢口径上下文）。实测 marker=1 / header=1 / 配置基准=1 / 结论在首=true。",
+    "defect_004": "金额展示精度集中到 formatMoneyDisplay（对齐项目权威约定 roundMoney + 前端 toFixed(2)）；区分「零金额」与「没有金额」（Number(null)===0 陷阱已修）。",
+    "includeQueries": "守卫 summary 统一 includeQueries:true，不再由调用点决定守卫能看到多少正式事实。"
+  },
+
+  "unresolvedRegressions": {
+    "suite": "tests/aiAssistantRuntime.test.cjs",
+    "before": "212/212 全绿（改动前）",
+    "now": "218/221（3 条失败，全部同源）",
+    "failures": [
+      {
+        "test": "formal decimal strings are valid evidence and omitted amounts render from the receipt",
+        "fixture": "compare_recipes({recipe1:'A',recipe2:'B'}) → {recipe1:{name:'A',cost:272.60}, recipe2:{name:'B',cost:292.24}, costDiff:'19.64'}；模型正文='两套方案的成本已给出，供你参考。'",
+        "expects": "finalContent 匹配 /A.*272.6/、/B.*292.24/、/19.64/",
+        "whyItBreaks": "正文不含任何金额数字，我改成「保留正文」后不再触发补表；旧行为靠「正文没有 ¥/元」触发整段替换才把表放进去"
+      },
+      {
+        "test": "invalid answer falls back to query receipt amounts with complete candidate identities",
+        "fixture": "search_coils({spec:'18'}) → [{schemeCode:'COIL-A',spec:'18',sheets:160,material:'钢带',slotType:'小眼',cost:166.7136},{schemeCode:'COIL-B',...,cost:195.84155}]；模型两轮都只回 '999元' / '998元'",
+        "expects": "finalContent 含 COIL-A.*18-160.*钢带.*小眼.*166.7136 与 COIL-B.*冷轧.*国标眼.*195.84155，且不含 999|998",
+        "whyItBreaks": "正文含无依据金额（999/998）→ 应走 SANITIZE_AND_COMPLETE 或 FULL_REPLACE；当前新逻辑没有把表放进去。注意该断言要求**全精度**（166.7136 而非 166.71）"
+      },
+      {
+        "test": "query cost fields do not overwrite a valid nonfinancial answer",
+        "fixture": "search_coils({spec:'18'}) → [{stock:5, cost:123}]；模型正文='当前库存5套。'",
+        "expects": "finalContent 严格等于 '当前库存5套。'（即：**不得**因为 query 结果里有 cost 就追加金额明细）",
+        "whyItBreaks": "我加入了 needsCurrencyNotationRepair 信号（正文有数字但无 ¥/元）→ 该正文含 '5'，被误判为需要补表"
+      }
+    ]
+  },
+
+  "implementationContractForPart1": {
+    "decisionRule": [
+      "0) 本轮没有正式金额事实 → NONE（不动）",
+      "1) 正文不可用（空 / 泄漏指令 / 配置未完成）→ FULL_REPLACE（canonical 表）",
+      "2) 正文含无依据金额且正文无法安全保留 → FULL_REPLACE；若能逐句安全剥离不安全片段 → SANITIZE_AND_COMPLETE（保留已核实非金额语义 + 去除/修正不安全金额 + 补 canonical 事实）",
+      "3) 正文已含全部 canonical 金额事实 → NONE（保证同一张表只出现一次，幂等）",
+      "4) 正文缺部分 canonical 事实：正文已有金额表 → REPLACE_TABLE（换为一张完整 canonical 表，保留表外语义正文）；正文无金额表 → APPEND_MISSING",
+      "5) 正文本身不含金额且问题非金额（如规格差异）→ 仅 APPEND_MISSING 的边界情形：只有当 canonical 金额事实【必须呈现】时才补，否则 NONE"
+    ],
+    "theUnresolvedKeyQuestion": "第 5 条的判据到底该用什么？三条失败测试把它逼出来了：",
+    "evidenceFromThreeTests": {
+      "test1_compare_recipes": "问题「对比成本」是金额问题；正文不含金额 → 必须补（否则用户拿不到 A/B/差额）",
+      "test3_search_coils_stock": "问题「线圈库存有多少」是非金额问题；正文='当前库存5套。' 且 query 结果里恰好带 cost=123 → **必须不补**",
+      "test_currencyFreeConclusion": "问题「12-120换成12-140成本是多少」是金额问题；正文含 285.8（有金额但无 ¥/元）→ 必须补",
+      "conclusion": "补表判据不能只看「正文有没有金额/货币符号」，也不能只看「toolResults 里有没有金额」，必须结合**用户问的是不是金额问题**（或等价地：问题是否要求金额结论）"
+    },
+    "proposedResolution": "给守卫传入用户问题文本（或一个由运行时计算的 needMoneyConclusion 布尔），并用「问题是否在索取金额结论」作为第 5 条的开关；同时把「正文已含全部 canonical 事实 → NONE」作为最高优先级的短路条件，从而天然满足 test3（不补）、test1（补）、currency-free（补）、以及我实测过的 6 条「每轮都追加」回归（不补）。",
+    "precisionTensionToResolve": "test2 断言要求**全精度** 166.7136；我的 004 改动把它渲染为 166.71。需要判定：保留 canonical 表原精度（并把 004 的『一致性』要求限定为『同一答案内同一事实只出现一次且精度一致』而非强制两位小数），还是该断言需随 004 重新界定。**建议前者**：表内沿用正式精度、同一事实只出现一次；两位小数只用于需要人类阅读的 ¥ 展示处。",
+    "supervisorExtraConstraint": "即使出现无依据金额，也不得默认整段 replace 而连带删除已核实的非金额结论；优先 SANITIZE_AND_COMPLETE，只有正文整体无法安全保留才 FULL_REPLACE。"
+  },
+
+  "approvedDesign": {
+    "approvedBy": "Supervisor（本轮）：精度口径批准；Part 1 剩余方案批准；明确不回退当前未提交修改；并追加硬约束：needMoneyConclusion 不得退化成关键词/正则意图识别器",
+    "precisionDecisionApproved": {
+      "invariant": "same canonical fact -> ONE consistent representation in one normal answer",
+      "notThis": "all money -> 2 decimals",
+      "rule": "精度以「事实字段合同 + 展示上下文」为准，不以「表格 vs 正文」为准；正式源值可保留高精度（如线圈 cost=166.7136），面向人的 ¥ 金额继续用现有 human-facing formatter（一般两位小数）；用户显式要求 raw/source precision 时才展示高精度并标注之。",
+      "forbidden": "同一事实在同一普通答案里同时出现 140.43 与 140.43062"
+    },
+    "requiredFactsSourceContract": {
+      "principle": "required canonical money facts 必须来自既有能力/业务语义契约，不得来自关键词或正则意图识别",
+      "evidenceInRepo": "api/capabilities/registry.cjs 已暴露 operation 语义字段：preview 类能力 = 金额展示义务；query 类能力 = 无金额展示义务",
+      "measuredValues": {
+        "compare_recipes": { "operation": "preview", "executorKey": "recipe", "displayName": "对比配方", "implies": "requiresMoney=true" },
+        "build_recipe_bom_draft": { "operation": "preview", "executorKey": "business", "dataMode": "derived", "implies": "requiresMoney=true" },
+        "preview_recipe_cost": { "operation": "preview", "executorKey": "business", "implies": "requiresMoney=true" },
+        "search_coils": { "operation": "query", "executorKey": "query", "displayName": "查询线圈库存", "implies": "requiresMoney=false（即使结果里带 cost:123）" },
+        "get_order_detail": { "operation": "query", "executorKey": "order", "implies": "requiresMoney=false" }
+      },
+      "howThisSatisfiesAllThreeFailures": {
+        "A_compare_recipes": "compare_recipes.operation=preview → requiredFacts={recipe1.cost, recipe2.cost, costDiff} → 正文未呈现 → APPEND_MISSING",
+        "B_search_coils_stock": "search_coils.operation=query → requiredFacts=[] → 最高优先 NONE → 输出严格保持 '当前库存5套。'（即使 tool result 带 cost:123）",
+        "C_currency_free_cost_question": "build_recipe_bom_draft.operation=preview → requiredFacts={currentTotalCost, partsCost, laborCost} → 正文只含 285.8 未满足合同 → 补 canonical 表",
+        "additionalBenefit": "同一短路条件同时满足我实测过的 6 条「每轮都追加明细」回归（那些轮次的 requiredFacts 已被正文完整呈现 → NONE）"
+      },
+      "factIdentity": "每个 fact 用「对象业务身份 + 业务字段 + 正式金额 + 来源上下文」构成稳定身份；不得只用渲染字符串或只用数值作为键（数值相同的两个不同事实仍是两个事实）"
+    },
+    "actionPriority": [
+      "1. NONE —— 所有 required canonical money facts 已完整且安全呈现（最高优先）",
+      "2. APPEND_MISSING —— 非金额正文正确，要求的正式金额事实仍有缺失 → 保留正文，仅补缺",
+      "3. REPLACE_TABLE —— 正文已有金额表但不完整/重复/stale/结构不一致 → 只替换金额表部分，保留表外正确正文",
+      "4. SANITIZE_AND_COMPLETE —— 正文含无依据金额但非金额结论可保留 → 保留语义正文 + 去掉/修正不安全金额 + 补 canonical facts",
+      "5. FULL_REPLACE —— 仅当正文整体无法安全保留时的最后手段；不得作为「有金额不安全」的默认反应"
+    ],
+    "part1AcceptanceCriteria": [
+      "正确非金额结论不会再被金额守卫吃掉",
+      "compare_recipes 的 A/B/差额不漏",
+      "inventory incidental money 不会被错误展示",
+      "已完整展示 required facts 时不再追加表",
+      "同一逻辑金额表最终只出现 1 次",
+      "同一 canonical fact 精度一致",
+      "GUARD(GUARD(x)) == GUARD(x) 幂等",
+      "unsupported money 仍被阻止/修正",
+      "salvageable 非金额正文仍被保留",
+      "aiMoneyGuard / aiAssistantRuntime / aiExecutorBehavior 三套件全 PASS 后才进 Part 2"
+    ]
+  },
+
+  "remainingWork": {
+    "part1": "按上面契约实现 5 类动作 + canonical 金额事实模型（含 compare_recipes/query 路径）+ 幂等性（GUARD(GUARD(x))==GUARD(x)）+ 004 精度一致性；跑绿 aiMoneyGuard / aiAssistantRuntime / aiExecutorBehavior 三套件与直接受影响的 answer 组装测试",
+    "part2": "新增确定性 presentation normalizer（已获批准，边界：不调 LLM、不产生新事实、不改金额、不做 entity resolution、不做 API 调用、不改写入语义、不隐藏 missing/incomplete/policy 警告、不做粗暴截断；只做业务语言映射、内部 ID/工具话术抑制、结论优先、长清单摘要、去无用延伸邀约、按显式请求展开），用于关闭 002 与 005",
+    "part3": "五条缺陷的可执行回归 + 负向对照（金额安全、显式明细、显式 ID、原始精度、missing/incomplete 警告、clarification 流程）；全量门禁；production parity 重跑并登记 APPROVED_INTENTIONAL_PRESENTATION_DELTA；人工 before/after 验收（用测试库副本）；候选证据重绑"
+  },
+
+  "safety": {
+    "codeCommitted": false,
+    "productionTouched": false,
+    "deployOrPush": false,
+    "userOriginalDbTouched": false,
+    "testCopyRetained": "pump.db 副本保留（gitignored），供本票人工验收与回归使用"
+  }
+}

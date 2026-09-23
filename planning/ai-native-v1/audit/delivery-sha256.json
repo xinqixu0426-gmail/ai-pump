@@ -1,0 +1,271 @@
+{
+  "version": 1,
+  "note": "File integrity for delivery. These hashes do not certify application behavior. The manifest excludes itself.",
+  "files": [
+    {
+      "path": "01-总体计划.md",
+      "bytes": 9449,
+      "sha256": "19f5c2109ca8ae69338f0b74e71ee4a88f8bb63ee463dcf9eb5199833c686991"
+    },
+    {
+      "path": "02-字段合同.md",
+      "bytes": 46528,
+      "sha256": "1fc339bf25bba51f547a32038094104d81edf117a4b5d856ce7f4888e97a80f9"
+    },
+    {
+      "path": "03-能力复用与接口.md",
+      "bytes": 17300,
+      "sha256": "d32054e77a9168bad112d1f4065c1502febdf0c9dbbb551acce26ba222e5cb3f"
+    },
+    {
+      "path": "04-持久化与状态机.md",
+      "bytes": 12514,
+      "sha256": "16413fb9cded0456ca48f923ec73be115ce980904cce7160c311922106ad233a"
+    },
+    {
+      "path": "05-分阶段实施.md",
+      "bytes": 21593,
+      "sha256": "b9067deabe60e9155f1b2c52dfb4af11cb2d41cb12a109dc3fb3b16d6d2fc853"
+    },
+    {
+      "path": "06-测试发布回滚.md",
+      "bytes": 9971,
+      "sha256": "c7328b89439b8b702b2d460b03342dac2b698199d211ad0a0eeec0e5efc32df7"
+    },
+    {
+      "path": "07-方案自审.md",
+      "bytes": 6523,
+      "sha256": "7523c50de019c2569dff28cd9d418cf767620b04b174ffce0a3f1e70a5252af4"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3195,
+      "sha256": "ae7c4169ef799a0f30a5b672184d59278f779e95c9a87ed68c3f2fe69a4f4b96"
+    },
+    {
+      "path": "audit/dictionary-stats.json",
+      "bytes": 58,
+      "sha256": "ce91b641692d9ef7497e5c42d034508e548ac1bfb60cb343a79d50fe1e050c19"
+    },
+    {
+      "path": "audit/plan-audit-results.json",
+      "bytes": 11393,
+      "sha256": "8c4d1901503ded2b3a4f2a713d5af80ea5a5aa8a9316609c2508da36f19e8147"
+    },
+    {
+      "path": "audit/source-index.json",
+      "bytes": 7510,
+      "sha256": "67eab014f32730a148a6f5873028f5535350ba6c85d3009f8e17de666470c79b"
+    },
+    {
+      "path": "audit/verify_plan.py",
+      "bytes": 27548,
+      "sha256": "94be76a66390eab68f72c09db515ab697ee42589956f9517cde72a8c9192ed96"
+    },
+    {
+      "path": "contracts/contracts.schema.json",
+      "bytes": 95782,
+      "sha256": "aaf76b142e7df4da83993002a116bb0b00b9c5d334415698546d94ec51e2aa62"
+    },
+    {
+      "path": "contracts/state-machine.json",
+      "bytes": 1447,
+      "sha256": "d646bbd484f3b21d2676667a1864fa02e2fbbeb743d15ce972728e7bf9acc0f0"
+    },
+    {
+      "path": "contracts/task-storage.sql",
+      "bytes": 3983,
+      "sha256": "921bebc8510a0f81bf286884feab1bb25440b58311f12ff122f1159d9970984a"
+    },
+    {
+      "path": "examples/README.md",
+      "bytes": 704,
+      "sha256": "422df65776d2ec65badb18e7e860b3ab08ae9aa98c37157d94350cf2ce14a780"
+    },
+    {
+      "path": "examples/answer-draft.valid.json",
+      "bytes": 452,
+      "sha256": "5be405a2264ced31231a4846c532b86c1df41549a78eb7333183a0e496f5a77c"
+    },
+    {
+      "path": "examples/compare-tool-input.valid.json",
+      "bytes": 237,
+      "sha256": "dc2ba2269c7908f73a993fca39cf7ac0d4c5947f680e741b3b0d192373eb5af8"
+    },
+    {
+      "path": "examples/comparison-receipt.valid.json",
+      "bytes": 4594,
+      "sha256": "f6cb55ccff4817792bb2516506daf2cd93d538cac86cf1348e3de07cc376aea7"
+    },
+    {
+      "path": "examples/fact.valid.json",
+      "bytes": 859,
+      "sha256": "8f991af15c639e66a22a39e89cf34204ced41db62a44e863af17a5d3c6f2aecb"
+    },
+    {
+      "path": "examples/foreground-context.valid.json",
+      "bytes": 43,
+      "sha256": "7db5988a97f1c3eaacc6c84f3ec6c6dfdd666a7c2befb3034595d184e5bccce2"
+    },
+    {
+      "path": "examples/identity-receipt.valid.json",
+      "bytes": 900,
+      "sha256": "1d695e0681d8fd0d5412f6c6173ab6e498894553fd55bde27827254b797decc7"
+    },
+    {
+      "path": "examples/scenario-request.valid.json",
+      "bytes": 218,
+      "sha256": "5cb53e36131de5ff658ddb96ddd2e8684628251832b517d338094bfb63d3762a"
+    },
+    {
+      "path": "examples/scenario-response.valid.json",
+      "bytes": 3183,
+      "sha256": "0fdc19d8f57d5a4127065b24f66307c7851e10e55ab791166e10413bcdcca6c6"
+    },
+    {
+      "path": "examples/task-acknowledgement.valid.json",
+      "bytes": 207,
+      "sha256": "621e7b77dbc69834860ca52dc820ffafef5c718916d526f0033a811ad75ef35a"
+    },
+    {
+      "path": "examples/task-cancel.valid.json",
+      "bytes": 78,
+      "sha256": "327a357a57e67b140fbe4d31eeee2daafc310eea7605ea39d4ab983ff05b0bdb"
+    },
+    {
+      "path": "examples/task-envelope.valid.json",
+      "bytes": 9641,
+      "sha256": "93b1ec9896c425a967a98093bca62d1cbc89b2603e672a1b632a556a98a9a208"
+    },
+    {
+      "path": "examples/task-events.valid.json",
+      "bytes": 340,
+      "sha256": "346d329616303e2c74a6aa877a044a93bedf319d4754039e2152cf0522ea1b46"
+    },
+    {
+      "path": "examples/task-proposal.valid.json",
+      "bytes": 1724,
+      "sha256": "01f1ab17eabdcaad74066cc2044ceb45eeb0e52933dac176d78538aa7b74d76a"
+    },
+    {
+      "path": "examples/task-public.valid.json",
+      "bytes": 829,
+      "sha256": "bcb5c1d713e505ffa9097186a0cd9db7af20342137d47b62f878e2cbd30f1649"
+    },
+    {
+      "path": "examples/task-resume.valid.json",
+      "bytes": 221,
+      "sha256": "8f942df67440e44955f135b01c89692642580513a2c9fa9a5648f5e3dbbbc8ae"
+    },
+    {
+      "path": "examples/task-start.valid.json",
+      "bytes": 106,
+      "sha256": "32649c3a5c0a8d249ff238d3526f1134f7619cc6ee1dde52d3ad8217bf2c4890"
+    },
+    {
+      "path": "plan-manifest.json",
+      "bytes": 3265,
+      "sha256": "40264fffae6a19c830dbac28d034ce9ad44123770d42e65f36f93c3d8cf434f8"
+    },
+    {
+      "path": "prompts/00-Codex总指令.md",
+      "bytes": 3380,
+      "sha256": "a18b93a0880f253539c3c0c4afe3807e2e11ee2b54661af08c072641302775d8"
+    },
+    {
+      "path": "prompts/01-阶段执行模板.md",
+      "bytes": 1118,
+      "sha256": "cd5dfad29535c656b52658f10edfe537d504611e4bb1977e0d51fa1adcf7aad2"
+    },
+    {
+      "path": "prompts/N0.1-开始.md",
+      "bytes": 1701,
+      "sha256": "ba518cab99bd269700fd1866d6bc50695dcb3e9ff98ce26b959e31e7ad27880c"
+    },
+    {
+      "path": "prompts/N0.2.md",
+      "bytes": 672,
+      "sha256": "b7cbcfaf23b9218683622442ede2b4020803ba0a81061a43516923f0c46dd231"
+    },
+    {
+      "path": "prompts/N1.1.md",
+      "bytes": 675,
+      "sha256": "fb9ba3b87f3cfd5190dd391c48c1031f36a862ebc38d06189ad6aa5b2a086fed"
+    },
+    {
+      "path": "prompts/N1.2.md",
+      "bytes": 675,
+      "sha256": "da72bb2299820c5e161a325a17cb4d78020ba791f8827a9eb5f7e5ea01fd0b57"
+    },
+    {
+      "path": "prompts/N2.1.md",
+      "bytes": 684,
+      "sha256": "97104e12ce2788468c048b3d057ceb83d89f76bb0a3b1023535bce3a1ce487e7"
+    },
+    {
+      "path": "prompts/N2.2.md",
+      "bytes": 684,
+      "sha256": "d34bd62936129bfd5850badf13891ee36a47f836a9d5681d06be7201127a36c7"
+    },
+    {
+      "path": "prompts/N3.1.md",
+      "bytes": 669,
+      "sha256": "7c16a30dec4aeb35d91f2cd1c57d74c15edcd767683219bea8ec5b98ef7458a0"
+    },
+    {
+      "path": "prompts/N3.2.md",
+      "bytes": 669,
+      "sha256": "274f024c7f59abd4eb055882b171e5537f9325f8c6d4e0962d71f3bc9de8a671"
+    },
+    {
+      "path": "prompts/N4.1.md",
+      "bytes": 678,
+      "sha256": "0afe38120a319ddebd862bf66933b1e4f8f12fefac0a6188ba7b6c242753321c"
+    },
+    {
+      "path": "prompts/N4.2.md",
+      "bytes": 678,
+      "sha256": "914a6b06f9de4b260d47e9531691b6a51e5320bfaa2ba75f6981051bd743f38d"
+    },
+    {
+      "path": "prompts/N4.3.md",
+      "bytes": 678,
+      "sha256": "28723949ab3c9ff68620e7e192ac2b5abc94b9c79df9a8e89b6202fd5deca4d9"
+    },
+    {
+      "path": "prompts/N5.1.md",
+      "bytes": 678,
+      "sha256": "8e039ed667c3e00c8c6a09f1412b99d3de191eee17d59cc2dc94ff1d39a7f445"
+    },
+    {
+      "path": "prompts/N5.2.md",
+      "bytes": 678,
+      "sha256": "16b888c910d06dcf4749a0b67739edc0bce9f6490ba2c562bc7928da1aa3e8c8"
+    },
+    {
+      "path": "prompts/N6.1.md",
+      "bytes": 666,
+      "sha256": "d581e62239333078fc4060bcb3652c3d1dbd60c9afcf4900a6532d0778b8b111"
+    },
+    {
+      "path": "prompts/N6.2.md",
+      "bytes": 666,
+      "sha256": "27208c5b3cac46d46f3d141641004cd4993b690922ee5592f1e4f68c0b1f41c8"
+    },
+    {
+      "path": "prompts/N7.1.md",
+      "bytes": 678,
+      "sha256": "cc9606bb1e1a8a67c8349c46363c02aecd6bd28cbd2f419ada81beb65365a162"
+    },
+    {
+      "path": "prompts/N7.2.md",
+      "bytes": 678,
+      "sha256": "42a9024d564e950a54224715308ac2dd5c7548c04226b0387e376c5a755468b3"
+    },
+    {
+      "path": "prompts/N7.3.md",
+      "bytes": 678,
+      "sha256": "d7cd3e91e280787c2274649bf27c60cc61887ebcf2c9433cfd411a3ecac3c861"
+    }
+  ]
+}

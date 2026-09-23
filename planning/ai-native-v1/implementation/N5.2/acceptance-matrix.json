@@ -1,0 +1,12 @@
+{
+  "ticket": "N5.2",
+  "cases": [
+    {"case":"start and idempotent repeat","result":"PASS","evidence":"tests/aiTaskRoutesV2.test.cjs"},
+    {"case":"public owner-bound projection","result":"PASS","evidence":"tests/aiTaskRoutesV2.test.cjs"},
+    {"case":"event cursor page is read-only","result":"PASS","evidence":"tests/aiTaskRoutesV2.test.cjs"},
+    {"case":"stale or unbound clarification rejected","result":"PASS","evidence":"tests/aiTaskRoutesV2.test.cjs"},
+    {"case":"durable clarification source rebinding","result":"PASS","evidence":"tests/aiTaskRoutesV2.test.cjs"},
+    {"case":"active-task conversation delete guard","result":"PASS","evidence":"tests/aiConversationCommands.test.cjs"},
+    {"case":"same-device refresh and cross-device conversation metadata","result":"PASS","evidence":"AiTaskWorkbench + AiView persisted nativeTaskId wiring"}
+  ]
+}

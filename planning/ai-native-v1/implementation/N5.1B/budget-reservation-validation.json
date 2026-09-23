@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "result": "PARTIAL",
+  "evidence": "tests/aiTaskWorkerV2.test.cjs and N5.1B live acceptance",
+  "assertions": [
+    "model/tool/api reservation occurs before configured provider or executor calls",
+    "failed sent call counted",
+    "argument failure without sent call not counted",
+    "live complex tasks retain model/tool/api counts"
+  ],
+  "unproven": [
+    "crash/restart budget continuation",
+    "activeMs/deadline monotonic recovery"
+  ]
+}

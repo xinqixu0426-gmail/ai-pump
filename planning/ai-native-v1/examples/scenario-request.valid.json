@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "baselinePolicy": "CURRENT_REBUILT",
+  "scenarios": [
+    {
+      "scenarioKey": "candidate1",
+      "label": "五米电缆方案",
+      "overrides": {
+        "cableLength": 5
+      }
+    }
+  ]
+}

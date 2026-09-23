@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "ticket": "N2.1",
+  "adapter": "api/services/aiTaskCapabilityAdapterV2.cjs",
+  "registrySource": "api/capabilities/registry.cjs",
+  "toolDefinitionSource": "api/routes/ai/tools.cjs",
+  "executorSource": "api/routes/ai/executor.cjs",
+  "descriptors": [
+    {
+      "toolName": "get_all_recipes",
+      "capabilityId": "ai.get_all_recipes",
+      "access": "QUERY",
+      "sourceOfTruth": "recipeService",
+      "formalCapabilityIds": ["recipes.list"],
+      "supportedOverrideFields": [],
+      "tested": true
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "capabilityId": "ai.calculate_coil_cost",
+      "access": "PREVIEW",
+      "sourceOfTruth": "costEngine",
+      "formalCapabilityIds": [],
+      "supportedOverrideFields": ["coilId"],
+      "tested": true
+    },
+    {
+      "toolName": "preview_recipe_cost",
+      "capabilityId": "ai.preview_recipe_cost",
+      "access": "PREVIEW",
+      "sourceOfTruth": "costEngine",
+      "formalCapabilityIds": [],
+      "supportedOverrideFields": ["customBarrelLength", "coilSheets", "hasFloat", "floatWire", "floatAccessoryType", "hasCable", "cableLength", "cableWire", "cableAccessoryType", "coilId"],
+      "tested": true
+    },
+    {
+      "toolName": "adjust_part_stock",
+      "capabilityId": "ai.adjust_part_stock",
+      "access": "COMMAND",
+      "sourceOfTruth": "partsService",
+      "formalCapabilityIds": ["inventory.parts.batch_adjust_stock"],
+      "supportedOverrideFields": [],
+      "executionStatus": "TASK_V2_COMMAND_NOT_ENABLED",
+      "tested": true
+    }
+  ],
+  "classification": {
+    "read/query": "QUERY",
+    "read/preview": "PREVIEW",
+    "write/command": "COMMAND",
+    "unknown": "CAPABILITY_CLASSIFICATION_INVALID"
+  },
+  "secondRegistryCreated": false,
+  "secondExecutorCreated": false,
+  "runtimeIntegrated": false
+}

@@ -243,6 +243,21 @@ function orderCreatePreviewHash(payload) {
     return orderSavePreviewHash(CREATE_CAPABILITY_ID, { ...payload, status: '待确认' });
 }
 
+function orderCreateRequestFingerprint(body = {}, previewHash = null) {
+    // A retry must retain the request identity that the caller submitted.  It
+    // must not be hashed from a newly rebuilt purchase plan, because the first
+    // successful order is then an active-order input to that later rebuild.
+    const input = normalizeOrderDraftInput(body);
+    return {
+        customerId: input.customerId ?? null,
+        customerName: input.customerName ?? null,
+        contractNo: input.contractNo ?? null,
+        remark: input.remark ?? null,
+        items: input.items,
+        previewHash,
+    };
+}
+
 function buildOrderSavePayloadDraft(dependencies, body = {}) {
     const {
         db,
@@ -420,19 +435,7 @@ function executeOrderCreate(dependencies, input = {}, commandContext = {}) {
         db,
         ...commandContext,
         businessChange: standardBusinessChange({ domain: 'order', eventType: 'created' }),
-        input: {
-            payload: {
-                customerId: draft.customerId,
-                customerName: draft.customerName,
-                contractNo: draft.contractNo,
-                remark: draft.remark,
-                status: '待确认',
-                itemsJson: draft.itemsJson,
-                purchaseListJson: draft.purchaseListJson,
-                todosJson: draft.todosJson,
-            },
-            previewHash: expectedPreviewHash,
-        },
+        input: orderCreateRequestFingerprint(input, expectedPreviewHash),
         warnings: [...(commandContext.warnings || []), ...compatibilityWarnings],
         execute: ({ auditContext }) => {
             assertPreviewHash(

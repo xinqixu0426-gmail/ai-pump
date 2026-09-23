@@ -1,0 +1,296 @@
+{
+  "evidenceVersion": 1,
+  "artifact": "ProductionIntegrationCandidateEvidenceV1",
+  "scope": "the production-master-based AI Native V1 integration candidate on branch ai-native/prod-integration-v1",
+  "historicalEvidenceUntouched": {
+    "note": "planning/ai-native-v1/release/ReleaseEvidenceV1.json remains the accepted ai-native/v1 N7.3 release evidence for product runtime ef895dc0 and was NOT overwritten. This artifact describes the production integration candidate instead.",
+    "acceptedNativeReleaseEvidence": "planning/ai-native-v1/release/ReleaseEvidenceV1.json",
+    "acceptedNativeClosureRecord": "planning/ai-native-v1/release/N7.3-closure-validation.json"
+  },
+
+  "productionBase": {
+    "commit": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "tree": "eacc2bc44b9a3877c44f1ce1c9d60178c3061be3",
+    "branch": "master",
+    "historiesHaveMergeBase": false,
+    "integrationMethod": "content- and responsibility-aware port plus manual semantic merge; no merge, rebase or whole-tree checkout was used at any point"
+  },
+
+  "nativeSource": {
+    "commit": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "tree": "359d0dad6091d13227067437340934f63eca9b7e",
+    "productRuntimeRevision": "ef895dc05d641a4c087dd6dfa919dbeb5f2f0dfe",
+    "implementationBase": "251f822491d677056f2d7b82f09473a51321d8e1"
+  },
+
+  "integrationCandidate": {
+    "CANDIDATE_PRODUCT_REVISION": "3eb2fef4e5d57547444957fcf3fe31b5f0436d64",
+    "CANDIDATE_PRODUCT_TREE": "1894e80de290a947c76c111ff8c6435996da259f",
+    "CANDIDATE_EVIDENCE_REVISION": "6bdc39f20d6c920e38df04c2e37ccde55e1647d3",
+    "CANDIDATE_EVIDENCE_TREE": "1757b0eb11426c13c240c840c737352f4f008753",
+    "bindingStrategy": "Two-baseline split under the accepted non-self-referential N7.3 pattern: CANDIDATE_PRODUCT_REVISION is the last commit that changed the product runtime (subsequent commits touch only tests and evidence), and CANDIDATE_EVIDENCE_REVISION is the commit recording this evidence. This artifact deliberately does not contain the hash of the commit that adds it.",
+    "circularHashClaim": false,
+    "productRuntimeDiffAtEvidenceTime": []
+  },
+
+  "integrationMatrix": {
+    "path": "planning/ai-native-v1/release/ProductionIntegrationCandidateMatrixV1.json",
+    "sha256": "bc67f5ad1403753e0c70e9d36bbd5ee72c65dfee59a18939c9ee173939a09066",
+    "reproducedClassification": "22 low-risk / 20 production-only shared files, exactly as the matrix recorded"
+  },
+
+  "phaseEvidence": {
+    "phase1_2": "planning/ai-native-v1/release/ProductionIntegrationCandidateMatrixV1.json",
+    "phase3Evidence": "planning/ai-native-v1/release/ProductionIntegrationPhase3PortRecordV1.json",
+    "phase4Evidence": "planning/ai-native-v1/release/ProductionIntegrationPhase4SharedAuditV1.json",
+    "phase5Evidence": [
+      "planning/ai-native-v1/release/ProductionIntegrationPhase5SemanticMergeV1.json",
+      "planning/ai-native-v1/release/ProductionIntegrationPhase5R1ClosureV1.json",
+      "planning/ai-native-v1/release/ProductionIntegrationPhase5R2BusinessSemanticsV1.json",
+      "planning/ai-native-v1/release/ProductionIntegrationPhase5R3FinalClosureV1.json"
+    ],
+    "phase7CheckScript": "planning/ai-native-v1/release/_phase7-composition-check.cjs",
+    "phase8aCheckScript": "planning/ai-native-v1/release/_phase8a-parity-coverage.cjs",
+    "phase3Result": { "NATIVE_NEW_FILES_PORTED": 316, "byteIdentical": true, "collisions": 0 },
+    "phase4Result": { "ADOPTED_NATIVE_SAFE": 12, "RECLASSIFIED_MANUAL_MERGE": 10 },
+    "phase5Result": { "UNRESOLVED_SHARED_CONFLICTS": 0, "sharedFilesResolved": 42, "scopeAdditionsDeclared": ["api/lib/evidenceHashing.cjs", "tests/orderCommands.test.cjs", "tests/ontologyRoutingCanary.test.cjs", "tests/catalogPriceStateContract.test.cjs"] }
+  },
+
+  "package": {
+    "DEPENDENCY_DELTA": "NONE",
+    "PACKAGE_LOCK_CHANGED": false,
+    "lockfileBlobMatchesProductionBase": true,
+    "SCRIPTS_ADDED": ["verify:ai-native-release"],
+    "SCRIPTS_REMOVED": [],
+    "SCRIPTS_CHANGED": ["verify:release"],
+    "VERIFY_RELEASE_BEHAVIOR": "npm audit && npm --prefix apps/web-next audit && npm run verify:api-contract && npm run lint && npm test && npm run test:deep-api && npm run build && npm run verify:ai-native-release && npm run verify:prod-env",
+    "VERIFY_AI_NATIVE_RELEASE_EXISTS": true,
+    "verifyReleaseIncludesNativeGate": true,
+    "authority": "planning/ai-native-v1/implementation/N7.1/native-quality-summary.json hardGate",
+    "verifyScriptExists": false,
+    "verifyScriptNote": "npm run verify does not exist in this repository; the real gates are listed under repositoryGates"
+  },
+
+  "routes": {
+    "ROUTES_PRODUCTION_BEFORE": 253,
+    "ROUTES_CANDIDATE_AFTER": 264,
+    "PRODUCTION_ROUTES_LOST": 0,
+    "NATIVE_ROUTES_ADDED": 11,
+    "nativeRoutesAddedList": [
+      "POST /api/ai/tasks",
+      "GET /api/ai/tasks/:taskId",
+      "GET /api/ai/tasks/:taskId/events",
+      "POST /api/ai/tasks/:taskId/resume",
+      "POST /api/ai/tasks/:taskId/cancel",
+      "POST /api/ai/tasks/:taskId/write-preview",
+      "POST /api/ai/tasks/:taskId/write-execute",
+      "POST /api/ai/tasks/:taskId/write-reconcile",
+      "POST /api/recipes/:id/scenario-compare-preview",
+      "POST /api/cost/profitability-preview",
+      "POST /api/inventory/virtual-readiness-preview"
+    ],
+    "DUPLICATE_ROUTE_REGISTRATIONS": 0,
+    "UNMOUNTED_ROUTE_FILES": 0,
+    "ROUTE_CONFLICTS": 0,
+    "method": "re-enumerated from both trees at Phase 7 time, not reused from Phase 5"
+  },
+
+  "schema": {
+    "targetVersion": 88,
+    "migrationCount": 88,
+    "versionsUnique": true,
+    "masterHighestMigration": 87,
+    "masterHasMigration88": false,
+    "migration88Name": "ai_native_durable_task_persistence",
+    "migration88Type": "purely additive db.exec(AI_TASK_PERSISTENCE_SCHEMA_SQL)",
+    "conflict": "NO",
+    "isolatedMigrationTest": {
+      "database": "throwaway in-memory SQLite",
+      "userVersion": 88,
+      "appliedCount": 88,
+      "aiTaskTables": ["ai_task_events", "ai_task_evidence", "ai_task_steps", "ai_tasks"],
+      "ok": true
+    },
+    "DATABASE_SCHEMA_CHANGED_IN_CODE": true,
+    "schemaChangeScope": "additive AI task persistence tables declared in the repository's versioned migrations; no production database was migrated",
+    "NEW_MIGRATION_CREATED_BY_THIS_TICKET": false,
+    "PRODUCTION_DATABASE_MIGRATED": false
+  },
+
+  "mode": {
+    "default": "off",
+    "writeDefault": false,
+    "invalidBehavior": "fail closed to off / legacy authority with modeValid=false",
+    "legacyAuthorityDefault": true,
+    "nativeWorkerDefault": "not enabled",
+    "ownerImpliesWrite": false
+  },
+
+  "registry": {
+    "aiCapabilities": 83,
+    "businessCapabilities": 137,
+    "writeCapabilities": 29,
+    "legacyTools": 80,
+    "nativeToolSurface": ["compare_recipe_scenarios", "preview_profitability", "preview_virtual_readiness"],
+    "mcpReadOnlyTools": 49,
+    "CAPABILITY_NOT_REGISTERED": 0,
+    "INVALID_AI_TOOL_INPUT": 0,
+    "orphanedCapabilityGuard": "PASS (preserved and strengthened: an exemption is honoured only when the name is both a registered capability and declared private-assistant-only)",
+    "unreachableRegistrations": [],
+    "unexpectedNativeExposure": []
+  },
+
+  "productionParity": {
+    "method": "the production base tree was materialised in a temporary directory and compared file by file and test name by test name against the candidate; the production suite itself was also executed on the production base",
+    "productionBaseSuite": "2772 tests, 2772 pass, 0 fail",
+    "productionTestFilesCompared": 290,
+    "productionTestNamesCompared": 2441,
+    "PARITY_EQUAL": "2441 production test names all still present, and the production suite passes on the production base",
+    "PARITY_INTENTIONAL_DELTA": 1,
+    "intentionalDelta": {
+      "item": "malformed catalogue-price handling in the authoritative costEngine",
+      "detail": "a non-finite or negative formal catalogue price is no longer accepted as-is. Production produced a NEGATIVE total for a negative catalogue price and NaN for null/undefined/non-numeric; the candidate contributes 0 and reports the part in missingParts so current cost reports incomplete. A valid zero price is UNCHANGED and byte-equivalent to production.",
+      "formalBasis": "parts.price is `REAL DEFAULT 0` with `CHECK(price IS NULL OR price >= 0)`; partCommands validates with parseNonNegativeNumber; partQueries uses a price filter lower bound of 0",
+      "approvedBy": "Supervisor adjudication in Phase 5-R2 / 5-R3",
+      "lockedBy": "tests/catalogPriceStateContract.test.cjs (18 cases)"
+    },
+    "PARITY_UNEXPLAINED_REGRESSION": 0,
+    "coverageLostDuringIntegrationFoundAndRestored": 1,
+    "restoredItem": "tests/recipeConfigurationPolicy.test.cjs '表面处理必须同时匹配允许的方式和成本' - a production surface-treatment whitelist case that the native incremental version did not carry; restored verbatim",
+    "productionParityCases": [
+      "legacy AI chat routing and OFF-mode authority (tests/aiChatRoute.test.cjs incl. the N7.1 off/shadow/owner assertion)",
+      "AI conversation commands incl. the active-task delete guard (tests/aiConversationCommands.test.cjs)",
+      "cost calculation semantics (tests/costEngine.test.cjs, tests/currentRecipeCost.test.cjs, tests/costDifference.test.cjs)",
+      "catalogue price state incl. zero vs missing (tests/catalogPriceStateContract.test.cjs)",
+      "recipe/BOM reads (tests/recipeBomEngine.test.cjs, tests/recipeQueries.test.cjs)",
+      "recipe configuration policy incl. the surfaceTreatmentOptions whitelist (tests/recipeConfigurationPolicy.test.cjs)",
+      "inventory reads (tests/partQueries.test.cjs, tests/partsCommands.test.cjs)",
+      "order command and idempotency behaviour (tests/orderCommands.test.cjs, tests/commandExecution.test.cjs)",
+      "confirmation and write protections (tests/aiToolConfirmation.test.cjs, tests/aiProtectedCommandRoute.test.cjs)",
+      "market-data behaviour (tests/dailyMarketSnapshot.test.cjs via the deep-api market fixture path)",
+      "MCP supported read paths (tests/mcp.test.cjs)",
+      "API health/readiness and route governance (tests/apiContractGovernance.test.cjs)",
+      "capability registry integrity (tests/aiCapabilityRegistry.test.cjs)",
+      "executionContext propagation (tests/aiTaskControllerV2.test.cjs, tests/aiTaskWriteBridgeV2.test.cjs)",
+      "deployment automation and release-script semantics (tests/deploymentAutomation.test.cjs)",
+      "frozen history/oracle guards (tests/ontologyRoutingCanary.test.cjs, tests/frozenHistoryManifest.test.cjs)",
+      "catalog_ / ai_personal_ table access via the SAFE_TABLES surface (tests/apiContractGovernance.test.cjs + the schema composition check)"
+    ],
+    "comparisonBasis": "formal status, business facts, identities, amounts, error classes, write admission and API evidence - not merely HTTP 200"
+  },
+
+  "nativeRegression": {
+    "NATIVE_INTEGRATION_REGRESSION": "PASS",
+    "method": "the 27 ported Native test files executed together on the final candidate: 209 tests, 209 pass, 0 fail",
+    "N4_REGRESSION": "PASS (aiTaskControllerV2 52 + capability adapter 10 + adapter integration 1; capability/surface policy, identity and evidence protections, explicit-price bypass fix)",
+    "N5_1A_REGRESSION": "PASS (aiTaskPersistenceV2 7 + R1 6; durable Task Store, lifecycle, revision concurrency, storage schema)",
+    "N5_1B_REGRESSION": "PASS (aiTaskWorkerV2 17; leased single-slot worker, lease_token fencing, heartbeat, stale-result discard, bounded QUERY/PREVIEW retry with COMMAND not retried, budget and deadline, checkpoint idempotency, restart recovery, cancel unknown-effect to RECONCILING)",
+    "N5_2_REGRESSION": "PASS (aiTaskRoutesV2 5 + task API/public projection/resume/cancel coverage)",
+    "N6_1_REGRESSION": "PASS (aiTaskWriteBridgeV2; preview/confirmation separation, server-native context, pending APPLY_CHANGE, rejection of unapproved tools/stale revisions/model authority)",
+    "N6_2_REGRESSION": "PASS (aiTaskWriteBridgeV2; server-bound admission, durable operation association, concurrent replay with no second business effect, formal readback reconciliation, cancellation race safety)",
+    "N7_1_REGRESSION": "PASS (aiNativeRolloutPolicy 4 + aiNativeQualityGate 3 + aiNativeBaseline 3; modes off/shadow/owner, default off, invalid fail closed, write default false, owner does not imply write, owner auth isolation, quality-gate freshness)",
+    "N7_2_REGRESSION": "PASS (aiTaskLegacyRetirementN72 4 + ModesN72 4 + n72CanonicalDeepApiGate 5; duplicate execution 0, dead projector removed, intentional Legacy fallback/witness/shared roles retained)",
+    "N7_3_EVIDENCE_REGRESSION": "PASS (n73ApiReferenceCoverage 7 + n73HandoffDocumentation 8; artifact integrity allMatch, hash drift 0, no circular self-hash, rollout truth preserved)",
+    "supportingSuites": "aiTaskAnswerV2 1, aiTaskContractV2 5, aiTaskDocumentsV2 6, aiTaskSemanticsV2 10, aiTaskSemanticsV2Provider 6, aiTaskValidationV2 7, frozenHistoryManifest 2"
+  },
+
+  "writeProtection": {
+    "TEST_BUSINESS_WRITES": "only inside isolated temporary SQLite databases (the write-bridge suites run on an in-memory Database)",
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DUPLICATE_BUSINESS_EFFECT": 0,
+    "localPumpDbPresent": false,
+    "ownerPlusWriteDisabledYieldsBusinessWrites": 0
+  },
+
+  "repositoryGates": {
+    "NPM_TEST": { "command": "npm test", "result": "PASS", "exitCode": 0, "tests": 3010, "pass": 3010, "fail": 0 },
+    "VERIFY_API_CONTRACT": { "command": "npm run verify:api-contract", "result": "PASS", "tests": 28, "pass": 28, "fail": 0 },
+    "DEEP_API": {
+      "command": "npm run test:deep-api",
+      "result": "PASS",
+      "exitCode": 0,
+      "sourceMode": "CANONICAL_DETERMINISTIC",
+      "canonicalSource": true,
+      "localPumpDbUsed": false,
+      "passed": 489,
+      "failed": 0,
+      "tempDatabaseIntegrity": "ok",
+      "tempDatabaseForeignKeyViolations": 0
+    },
+    "LINT": { "command": "npm run lint", "result": "PASS", "exitCode": 0 },
+    "BUILD": { "command": "npm run build", "result": "PASS", "exitCode": 0 },
+    "note": "all five were run fresh on the final candidate; no Phase 5 result was reused"
+  },
+
+  "deepApi": {
+    "sourceMode": "CANONICAL_DETERMINISTIC",
+    "localPumpDbUsed": false,
+    "count": 489,
+    "acceptedNativeCount": 489,
+    "countDelta": 0,
+    "deltaExplained": "the default invocation builds its source from the repository's own versioned migrations and seeds a deterministic current-BJT market snapshot into the temporary clone, so the check set is machine-independent and matches the accepted Native canonical count exactly",
+    "DEEP_API_COVERAGE_REGRESSION": "NO"
+  },
+
+  "liveQuality": {
+    "LIVE_QUALITY_GATE": "PENDING_POST_DEPLOY_OFF_MODE_ON_MAC_MINI",
+    "reason": "verify:ai-native-release requires a real DEEPSEEK_API_KEY; credentials intentionally remain on the Mac mini and were not copied to this machine and no live PASS is claimed",
+    "verifyAiNativeReleaseRunHere": false
+  },
+
+  "productionSafety": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "PRODUCTION_BACKUP_CREATED": false,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "MAIN_WORKTREE_UNTOUCHED": true,
+    "AI_NATIVE_V1_WORKTREE_UNTOUCHED": true,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3,
+    "DEEPSEEK_CREDENTIAL_COPIED_TO_DSH": false,
+    "OWNER_CREDENTIAL_COPIED_TO_DSH": false
+  },
+
+  "unresolvedIssues": {
+    "HIGH_RISK": [],
+    "MEDIUM_OR_LOWER": [
+      "包装零件「数量为零即移除对应角色」尚未实现，已在 docs/technical-debt.md §8.4 记为未实现/待排期；当前候选按现状拒绝数量为零",
+      "npm run verify 在本仓库不存在，发布门禁由 verify:release 及其组成脚本承担",
+      "verify:release 现在包含 Native 硬门禁，因此发布机需要可用的 DEEPSEEK_API_KEY；发布脚本只在干净检出上运行该门禁并按 commit 复用通过证据",
+      "跨机器 canonical 门禁的第二机器执行未验证（既有技术债）",
+      "本机为 CRLF 检出，证据哈希统一走 GIT_BLOB_CANONICAL，因此与平台无关"
+    ]
+  },
+
+  "readyForOffModeProductionDeployment": {
+    "value": true,
+    "conditions": {
+      "productionParityPass": true,
+      "nativeIntegrationRegressionPass": true,
+      "repositoryGatesPass": true,
+      "schemaMigrationCompatibilityPass": true,
+      "routesPreserved": true,
+      "dependencyDeltaUnderstood": "NONE",
+      "defaultModeOff": true,
+      "writeDefaultFalse": true,
+      "nativeWorkerNotAutomaticallyAuthoritative": true,
+      "productionUntouched": true,
+      "candidateEvidenceValid": true,
+      "noUnresolvedHighRiskIssue": true
+    },
+    "liveGateNote": "LIVE_QUALITY_GATE is PENDING and is deliberately not a blocker for an OFF-mode deployment; it must be satisfied before any Owner trial"
+  },
+
+  "noSecrets": {
+    "containsApiKeys": false,
+    "containsOwnerCredentials": false,
+    "scanPolicy": "no key-shaped or credential-shaped value is present in this artifact",
+    "untrustedContentPolicy": "this artifact contains no externally sourced text"
+  }
+}

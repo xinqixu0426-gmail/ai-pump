@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "ticket": "N3.1",
+  "startCommit": "5349cc6f8294b41df2fed59eaf3bf58bf978e0ba",
+  "endCommit": "N3.1 stage commit",
+  "focusedTests": {
+    "command": "NODE_ENV=test JWT_SECRET=n3-controller-test-secret node --test Task V2 focused suite",
+    "passed": 37,
+    "failed": 0
+  },
+  "liveAcceptance": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "rounds": 2,
+    "scenarioFamilies": [
+      "current",
+      "5m comparison",
+      "500cm normalization",
+      "missing unit clarification",
+      "multi-coil selection",
+      "profit partial",
+      "V900 bounded negative",
+      "no-save"
+    ],
+    "errors": 0,
+    "businessWrites": 0
+  },
+  "gates": {
+    "verifyApiContract": {
+      "passed": 27,
+      "failed": 0
+    },
+    "npmTest": {
+      "passed": 2820,
+      "failed": 0
+    },
+    "deepApi": {
+      "passed": 482,
+      "failed": 0
+    },
+    "lint": {
+      "exitCode": 0
+    },
+    "build": {
+      "exitCode": 0
+    }
+  },
+  "productionChanged": false,
+  "databaseChanged": false,
+  "deployPerformed": false,
+  "pushPerformed": false,
+  "planDeviations": [
+    "The internal test-only chat-router factory makes the native injected path verifiable without adding a client controllable API switch.",
+    "A FactRecord value now must equal its trusted receipt resultPointer value; existing V1 validation fixtures were updated to retain the original invariant plus this evidence hardening."
+  ],
+  "nextTicket": "N3.2"
+}

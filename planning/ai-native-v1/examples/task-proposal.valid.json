@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "goalSummary": "V550电缆改成5米，其他不变，比较当前成本，不要保存。",
+  "subjects": [
+    {
+      "subjectKey": "pump",
+      "mention": "V550",
+      "typeHints": [
+        "recipe"
+      ],
+      "sources": [
+        {
+          "messageRef": "request:user:1",
+          "start": 0,
+          "end": 4,
+          "text": "V550"
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "scenarioKey": "candidate1",
+      "label": "五米电缆方案",
+      "baseSubjectKey": "pump",
+      "overrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m",
+          "sources": [
+            {
+              "messageRef": "request:user:1",
+              "start": 8,
+              "end": 10,
+              "text": "5米"
+            }
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "messageRef": "request:user:1",
+          "start": 0,
+          "end": 28,
+          "text": "V550电缆改成5米，其他不变，比较当前成本，不要保存。"
+        }
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "goalKey": "compare",
+      "kind": "CONFIGURATION_COMPARE",
+      "description": "比较基准配置与5米电缆方案的当前完整成本",
+      "subjectKeys": [
+        "pump"
+      ],
+      "scenarioKeys": [
+        "candidate1"
+      ],
+      "dependsOn": [],
+      "requestedBasis": "CURRENT",
+      "sources": [
+        {
+          "messageRef": "request:user:1",
+          "start": 0,
+          "end": 28,
+          "text": "V550电缆改成5米，其他不变，比较当前成本，不要保存。"
+        }
+      ],
+      "quantity": null,
+      "unitPrice": null
+    }
+  ],
+  "unparsedSpans": []
+}

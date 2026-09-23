@@ -1,0 +1,19 @@
+{
+  "version":1,
+  "commit":"efff4ce202bc5c84dab48031dcc46ac5d5ca252b",
+  "evidenceCommit":"eb8e916f1e73d3d48aaf7a40079ee0b641b31b1a",
+  "provider":{"requested":"deepseek","actual":"deepseek","model":"deepseek-v4-flash","fallbackCount":0,"availability":"AVAILABLE","runs":74,"rawReports":"logs/n0.2-*-raw.json (gitignored)"},
+  "featureFlags":{"processEnvironment":{"AI_DEV_FRAMEWORK_ROOT":"/Users/dan/Developer/ai-development-framework"},"aiFeatureFlagsDetected":{},"persistedRuntimeSettings":"NOT_READ: no source database exists in this AI worktree and N0.2 does not modify production configuration."},
+  "runs":{
+    "legacyFrozen":{"status":"BLOCKED","reason":"The retired legacy release suite currently has zero cases; historical 64/64 is not reused as a current result."},
+    "businessUnderstanding":{"status":"REWORK","v1":{"historicalFullRun":{"PASS":8,"PARTIAL":5,"FAIL":7,"BLOCKED":0,"criticalFailures":2},"n0_2rBu07Rerun":{"PASS":0,"PARTIAL":0,"FAIL":2,"BLOCKED":0,"criticalFailures":2,"result":"KNOWN_BASELINE_DEFECT_FALSE_COMPLETE"}},"v2":{"PASS":22,"PARTIAL":0,"FAIL":0,"BLOCKED":0,"criticalFailures":0},"deterministicFixtureOracle":"PASS"},
+    "syntheticBusiness":{"status":"PARTIAL","PASS":31,"PARTIAL":1,"FAIL":0,"BLOCKED":0,"criticalFailures":0,"businessWrites":0,"deterministicFixtureOracle":"PASS"},
+    "aiNativeV1":{"status":"BLOCKED","caseCount":24,"liveModelRuns":0,"reason":"The future corpus is committed, but current formal scenario, readiness, and profitability APIs needed for an auditable runner do not yet exist. No model output is misrepresented as an evaluated Native result."}
+  },
+  "metrics":{"modelRequests":144,"toolCalls":177,"formalApiCalls":177,"medianLatencyMs":1728,"p95LatencyMs":5827,"firstStatusMedianMs":2387,"finalAnswerMedianMs":1728,"measurementNotes":"First-content timing is available for 42 Business Understanding runs. Synthetic runner exposes final latency but not first-content timing."},
+  "safety":{"businessWrites":0,"unauthorizedWrites":0,"auditDelta":0,"operationDelta":0,"fileSideEffects":0},
+  "baselineExecutionStatus":"PASS",
+  "legacyProductQualityStatus":"FAIL",
+  "criticalFailures":["BU-07 returned a False Complete Claim in both N0.2R V1 DeepSeek runs; its primary cause is LEGACY_ORCHESTRATION_DEFECT and its Native exit requirement is NATIVE-BLOCKER-FALSE-COMPLETE-001."],
+  "rawModelAnswers":"Stored only in gitignored logs/n0.2-*-raw.json."
+}

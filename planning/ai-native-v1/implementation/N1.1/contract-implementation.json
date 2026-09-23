@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "ticket": "N1.1",
+  "startCommit": "001b1bccb8f2ca05a505ae2d455742205585bfd4",
+  "implementation": [
+    {"contractObject":"Versioned enums and canonical hash","implementationExport":"api/services/aiTaskContractV2.cjs","fieldCount":18,"validationType":"frozen enum plus canonical JSON SHA-256","runtimeIntegrated":false},
+    {"contractObject":"TaskProposalV1 and SourceSpan","implementationExport":"validateTaskProposalV1, validateSourceSpan","fieldCount":6,"validationType":"strict structural, reference, DAG, UTF-16 source-map validation","runtimeIntegrated":false},
+    {"contractObject":"CanonicalEntity, SubjectBinding, ArgumentSource, ScenarioOverridesV1","implementationExport":"validateCanonicalEntity, validateSubjectBinding, validateArgumentSource, validateScenarioOverridesV1","fieldCount":4,"validationType":"strict structural and cross-field validation","runtimeIntegrated":false},
+    {"contractObject":"FactKey, FactRecordV1, FactRequirement","implementationExport":"validateFactKey, validateFactRecordV1, validateFactRequirement, factSatisfiesRequirement","fieldCount":3,"validationType":"trusted-receipt context and full-dimension matcher","runtimeIntegrated":false},
+    {"contractObject":"GoalState, TaskStep, TaskEnvelopeV2, transition","implementationExport":"validateGoalState, validateTaskStep, validateTaskEnvelopeV2, validateTaskTransitionV2","fieldCount":4,"validationType":"strict structural, state-machine, budget, write-policy and serialized-byte validation","runtimeIntegrated":false}
+  ],
+  "legacyCompatibility":{"aiTaskEnvelopeV1Modified":false,"aiExecutionEvidenceModified":false,"runtimeIntegrated":false,"providerCalls":false,"toolExecution":false,"apiChanged":false,"databaseChanged":false},
+  "planDeviations":[],
+  "n0CriticalDefect":{"id":"NATIVE-BLOCKER-FALSE-COMPLETE-001","status":"UNCHANGED","requiredExitStage":"N3","mustPassBeforeOwnerCanary":true}
+}

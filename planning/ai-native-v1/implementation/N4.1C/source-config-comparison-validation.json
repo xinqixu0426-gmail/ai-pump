@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "items": {
+    "match": "PASS",
+    "mismatch": "PASS",
+    "unresolved": "PASS",
+    "metadataOnly": "PASS",
+    "partial": "PASS",
+    "sourceEvidenceArgumentSource": "PASS"
+  },
+  "evidence": "R3 focused controller/validation/document tests and source-scenario DeepSeek x2"
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "readSetHashInputs": [
+    "recipe",
+    "bound template",
+    "exact part stock rows",
+    "exact coil stock rows",
+    "active-order reservation source rows"
+  ],
+  "stability": "same snapshot produces same hash; readSetId is per invocation",
+  "bounds": {
+    "sourceVersionsMax": 128,
+    "sourceVersionsComplete": "false when exposed list is bounded while readSetHash remains over all source versions"
+  },
+  "validatedBy": [
+    "focused stable/stock mutation/reservation mutation/bounded-source tests"
+  ]
+}

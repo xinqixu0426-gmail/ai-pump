@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "result": "PARTIAL",
+  "deterministicIntegration": "Existing controller continuation persists final steps, receipts, facts, budget, result, terminal state, and releases lease.",
+  "realContinuation": "Four isolated DeepSeek runs completed.",
+  "unproven": [
+    "mid-task restart preserving prior successful step and continuing remaining work"
+  ]
+}

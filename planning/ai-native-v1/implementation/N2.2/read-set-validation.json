@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "readSet": {
+    "id": "per-response UUID",
+    "hash": "SHA-256 of sorted actual source-version records",
+    "sources": ["recipe", "bound template", "BOM-used parts", "scenario-selected coils", "settings read by the cost path"],
+    "transaction": "one synchronous better-sqlite3 read transaction",
+    "boundedOutput": true,
+    "completeFlag": "sourceVersionsComplete is false when output exceeds 128; readSetHash still covers the full ordered source set"
+  },
+  "validated": [
+    "base and empty candidate use equal CURRENT_REBUILT totals",
+    "base agrees with GET /api/recipes/current-costs",
+    "one response returns one readSetId and one readSetHash",
+    "driver source pointers resolve against the response",
+    "a second SQLite connection changes P1 to P2 after base calculation; the candidate remains P1, while the next comparison sees P2 and a distinct hash",
+    "audit log count is unchanged by the preview"
+  ],
+  "concurrentPriceIsolation": "PASS: isolated WAL test uses an external SQLite writer between base and candidate calculations."
+}

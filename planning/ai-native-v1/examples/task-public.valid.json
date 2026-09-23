@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "taskId": "00000000-0000-4000-8000-000000000006",
+  "parentTaskId": null,
+  "conversationId": "chat-101",
+  "revision": 5,
+  "planRevision": 1,
+  "state": "SUCCEEDED",
+  "executionMode": "FOREGROUND",
+  "userGoal": "V550电缆改成5米，其他不变，比较当前成本，不要保存。",
+  "goals": [
+    {
+      "goalKey": "compare",
+      "description": "比较两种配置",
+      "state": "VERIFIED",
+      "blockers": []
+    }
+  ],
+  "steps": [
+    {
+      "stepId": "00000000-0000-4000-8000-000000000007",
+      "displayName": "配置成本方案比较",
+      "state": "SUCCEEDED",
+      "errorCode": null
+    }
+  ],
+  "questions": [],
+  "resultSummary": "合成示例：成本差额6元/台，没有保存配置。",
+  "createdAt": "2026-09-21T05:00:00Z",
+  "updatedAt": "2026-09-21T05:01:00Z"
+}

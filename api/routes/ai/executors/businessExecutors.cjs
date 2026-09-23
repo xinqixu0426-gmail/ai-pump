@@ -215,6 +215,46 @@ async function executeBusinessTool(toolName, args, internalFetch) {
             };
         }
 
+        case 'compare_recipe_scenarios': {
+            const data = await postJson(
+                internalFetch,
+                `/api/recipes/${args.recipeId}/scenario-compare-preview`,
+                {
+                    version: args.version,
+                    baselinePolicy: args.baselinePolicy,
+                    scenarios: args.scenarios,
+                },
+                '同口径情景成本比较失败'
+            );
+            return {
+                success: true,
+                intent: 'recipe_scenario_compare_preview',
+                summary: `已在同一读取集合中比较 ${Array.isArray(data.comparisons) ? data.comparisons.length : 0} 个候选配置。`,
+                display: { mode: 'compact', title: '同口径情景成本比较' },
+                data,
+            };
+        }
+
+        case 'preview_profitability': {
+            const data = await postJson(internalFetch, '/api/cost/profitability-preview', args, '正式毛利试算失败');
+            return {
+                success: true, intent: 'profitability_preview',
+                summary: data.costComplete ? '已按当前正式成本完成毛利试算。' : '当前正式成本不完整，未给出毛利。',
+                display: { mode: 'compact', title: '正式毛利试算' }, data,
+            };
+        }
+
+        case 'preview_virtual_readiness': {
+            const data = await postJson(internalFetch, '/api/inventory/virtual-readiness-preview', args, '虚拟齐料预览失败');
+            return {
+                success: true, intent: 'virtual_readiness_preview',
+                summary: data.status === 'READY' ? '当前库存齐料口径未发现短缺。'
+                    : data.status === 'SHORTAGE' ? '当前库存齐料口径存在短缺。'
+                        : '当前库存齐料口径尚未完整形成。',
+                display: { mode: 'compact', title: '虚拟齐料预览' }, data,
+            };
+        }
+
         case 'preview_pump_shell_cost': {
             const customBarrelLength = Number(args.customBarrelLength);
             if (!Number.isFinite(customBarrelLength) || customBarrelLength <= 0) {

@@ -22,6 +22,8 @@ const { buildPdfBuffer } = require('../tests/helpers/pdfFixture.cjs');
 const { MCP_READ_ONLY_TOOL_NAMES } = require('../api/mcp/catalog.cjs');
 const { auditCatalogReferences } = require('../api/services/catalogReferenceAudit.cjs');
 const { readCatalogSource } = require('../api/services/catalogSources.cjs');
+const { bjtDateKey } = require('../api/services/marketSync.cjs');
+const { MARKET_SOURCES } = require('../api/services/marketData.cjs');
 
 require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
@@ -29,6 +31,9 @@ const root = process.cwd();
 const sourceDatabasePath = path.resolve(
     process.env.DEEP_API_SOURCE_DATABASE_PATH || path.join(root, 'pump.db')
 );
+// Set by selectSourceDatabase(): CANONICAL_DETERMINISTIC or EXTENDED_SOURCE_DB.
+let sourceMode = null;
+let canonicalSourcePath = null;
 const MCP_EXPECTED_TOOL_NAMES = MCP_READ_ONLY_TOOL_NAMES;
 const results = [];
 let child = null;
@@ -77,6 +82,47 @@ const DEEP_API_SCOPE = readScope(process.argv.slice(2));
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
+}
+
+const DEEP_API_MARKET_SNAPSHOT_FIXTURE = Object.freeze({
+    copperPricePerTon: 87650,
+    aluminumPricePerTon: 18765,
+    usdCnyRate: 7.1,
+    sources: MARKET_SOURCES,
+});
+
+// The deep gate runs against a temporary SQLite clone. Seed its daily market
+// receipt before the isolated API starts so the gate exercises the read-only
+// copper capability without depending on the current network/day market job.
+function seedMcpDailyMarketSnapshotFixture(databasePath, now = new Date()) {
+    const db = new Database(databasePath);
+    try {
+        const timestamp = new Date(now).toISOString();
+        const dateKey = bjtDateKey(now);
+        const state = {
+            runId: 'deep-api-market-snapshot-fixture-v1',
+            lastAttemptDate: dateKey,
+            startedAt: timestamp,
+            completedAt: timestamp,
+            status: 'completed',
+            changedCount: 0,
+            lastError: null,
+            snapshot: {
+                ...DEEP_API_MARKET_SNAPSHOT_FIXTURE,
+                exchangeRateSourceDate: dateKey,
+                fetchedAt: timestamp,
+            },
+        };
+        db.prepare(`
+            INSERT INTO system_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = excluded.updated_at
+        `).run('market_snapshot_daily_cache', JSON.stringify(state), timestamp);
+    } finally {
+        db.close();
+    }
 }
 
 function seedMcpCoilProfileFixture(databasePath) {
@@ -2069,7 +2115,11 @@ async function testCrossModuleWriteFlow(baseResources) {
                     slotType: baseCoil.slotType,
                 }
                 : part
-        ))),
+        )).concat([{
+            name: '深度验收采购缺料件', model: part.model, supplier: part.supplier,
+            partId: part.id, qty: Math.max(1, Number(part.stock || 0) + 1),
+            snapshotPrice: Number(part.price || 0),
+        }])),
     };
     const recipe = (await request(
         '新增配方',
@@ -2832,6 +2882,7 @@ async function testCrossModuleWriteFlow(baseResources) {
     const purchaseItem = purchaseList.find(
         item => Number(item.plannedQty || item.needToBuy || 0) > 0
     );
+    assert(purchaseItem, '采购中心验收夹具没有形成待采购项');
     if (purchaseItem) {
         const plannedQty = Number(purchaseItem.plannedQty || purchaseItem.needToBuy);
         const batchPayload = {
@@ -3935,6 +3986,52 @@ async function testCrossModuleWriteFlow(baseResources) {
     await request('删除测试客户', 'DELETE', `/api/customers/${customer.id}`);
 }
 
+// ── Canonical deterministic source ───────────────────────────────────────────
+// The suite's executed check count depends on the *shape* of the source SQLite
+// database, because several checks are legitimately gated on pre-existing
+// business records.  Copying whatever ./pump.db happens to exist on the machine
+// therefore makes the release gate machine-dependent.
+//
+// Canonical gate: when no explicit source is supplied, build the source from the
+// repository's own versioned migrations, so the check set is identical on every
+// machine and contains no production or user data.
+// Extended run: setting DEEP_API_SOURCE_DATABASE_PATH explicitly keeps the old
+// behaviour and additionally exercises data-shape dependent checks.  Extended
+// coverage is never authoritative for release readiness.
+function buildCanonicalSourceDatabase(targetPath) {
+    const { runMigrations } = require(path.join(root, 'api', 'database', 'migrations.cjs'));
+    const db = new Database(targetPath);
+    try {
+        db.pragma('journal_mode = WAL');
+        db.pragma('foreign_keys = ON');
+        const state = runMigrations(db);
+        return state;
+    } finally {
+        db.close();
+    }
+}
+
+function selectSourceDatabase() {
+    if (process.env.DEEP_API_SOURCE_DATABASE_PATH) {
+        return {
+            path: sourceDatabasePath,
+            mode: 'EXTENDED_SOURCE_DB',
+            detail: `显式源数据库（扩展数据形状覆盖）: ${sourceDatabasePath}`,
+        };
+    }
+    const canonicalPath = path.join(os.tmpdir(), `pump-deep-canonical-source-${process.pid}.db`);
+    for (const suffix of ['', '-wal', '-shm']) {
+        try { fs.rmSync(canonicalPath + suffix, { force: true }); } catch { /* ignore */ }
+    }
+    const state = buildCanonicalSourceDatabase(canonicalPath);
+    canonicalSourcePath = canonicalPath;
+    return {
+        path: canonicalPath,
+        mode: 'CANONICAL_DETERMINISTIC',
+        detail: `由仓库版本化迁移构建的确定性源（不读取本机 ./pump.db）: migrationHead=${state.currentVersion}, applied=${state.appliedVersions.length}`,
+    };
+}
+
 async function run() {
     const tempPrefix = DEEP_API_SCOPE === 'mcp' ? 'pump-mcp-local-' : 'pump-deep-test-';
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), tempPrefix));
@@ -3944,12 +4041,16 @@ async function run() {
         fs.cpSync(path.join(root, 'shared'), path.join(temp, 'shared'), { recursive: true });
         fs.copyFileSync(path.join(root, 'api.cjs'), path.join(temp, 'api.cjs'));
         fs.mkdirSync(path.join(temp, 'public', 'drawings'), { recursive: true });
-        if (!fs.existsSync(sourceDatabasePath)) {
-            throw new Error(`深度 API 测试源数据库不存在: ${sourceDatabasePath}`);
+        const source = selectSourceDatabase();
+        sourceMode = source.mode;
+        console.log(source.detail);
+        if (!fs.existsSync(source.path)) {
+            throw new Error(`深度 API 测试源数据库不存在: ${source.path}`);
         }
-        const sourceDb = new Database(sourceDatabasePath, { readonly: true });
+        const sourceDb = new Database(source.path, { readonly: true });
         await sourceDb.backup(path.join(temp, 'pump.db'));
         sourceDb.close();
+        seedMcpDailyMarketSnapshotFixture(path.join(temp, 'pump.db'));
         seedMcpCoilProfileFixture(path.join(temp, 'pump.db'));
         seedMcpReadResourceFixtures(path.join(temp, 'pump.db'));
 
@@ -4107,6 +4208,9 @@ async function run() {
         const slowest = [...results].sort((left, right) => right.ms - left.ms).slice(0, 8);
         console.log(JSON.stringify({
             scope: DEEP_API_SCOPE,
+            sourceMode,
+            canonicalSource: sourceMode === 'CANONICAL_DETERMINISTIC',
+            localPumpDbUsed: sourceMode !== 'CANONICAL_DETERMINISTIC',
             passed: results.length,
             failed: 0,
             tempDatabaseIntegrity: integrity,
@@ -4118,6 +4222,11 @@ async function run() {
         }
     } finally {
         if (child && !child.killed) child.kill();
+        if (canonicalSourcePath) {
+            for (const suffix of ['', '-wal', '-shm']) {
+                try { fs.rmSync(canonicalSourcePath + suffix, { force: true }); } catch { /* ignore */ }
+            }
+        }
         if (temp.startsWith(os.tmpdir()) && path.basename(temp).startsWith(tempPrefix)) {
             for (let attempt = 0; attempt < 20; attempt += 1) {
                 try {

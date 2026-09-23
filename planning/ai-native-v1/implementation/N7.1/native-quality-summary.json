@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "ticket": "N7.1",
+  "sourceBinding": "git HEAD revision and tree; a dirty source fails rolloutSafety",
+  "statuses": [
+    "PASS",
+    "FAIL",
+    "MISSING",
+    "NOT_RUN"
+  ],
+  "criteria": [
+    "contracts",
+    "surfaceSafety",
+    "durableTasks",
+    "leaseFencing",
+    "retryDeadline",
+    "restartRecovery",
+    "confirmationIntegrity",
+    "commandIdempotency",
+    "reconciliation",
+    "regressionGates",
+    "deepApiDeterminism",
+    "rolloutSafety"
+  ],
+  "hardGate": "npm run verify:ai-native-release, included by npm run verify:release",
+  "freshness": "sourceRevision must equal currentRevision; missing evidence and dirty-source rollout evidence fail closed",
+  "report": "logs/ai-native-quality-gate-latest.json (gitignored)"
+}

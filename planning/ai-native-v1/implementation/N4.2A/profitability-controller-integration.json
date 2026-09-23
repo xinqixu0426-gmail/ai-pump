@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "result": "PARTIAL",
+  "implemented": [
+    "Native-only preview_profitability tool",
+    "same-receipt configuration comparison/profit facts",
+    "deterministic answer template from profitability fact"
+  ],
+  "finding": "R1 repaired ungrounded model-extra profitability admission and two protocol/projection defects. The existing 20-run isolated DeepSeek safety sweep now passes; the dedicated original 10-family profitability matrix still does not exist.",
+  "requiredRepair": "Implement the required 10-family ×2 strict serial profitability acceptance before this ticket may PASS."
+}

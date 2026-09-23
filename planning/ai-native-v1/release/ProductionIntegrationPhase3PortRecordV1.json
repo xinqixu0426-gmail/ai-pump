@@ -1,0 +1,192 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase3PortRecordV1",
+  "phase": "PHASE_3_PORT_NATIVE_NEW_FILES",
+  "status": "PASS",
+  "generatedAt": "local session, no clock authority claimed",
+  "authority": {
+    "matrix": "planning/ai-native-v1/release/ProductionIntegrationCandidateMatrixV1.json",
+    "matrixWorkingTreeSha256": "bc67f5ad1403753e0c70e9d36bbd5ee72c65dfee59a18939c9ee173939a09066",
+    "matrixBlobSha": "2109c1495b6c40423b7f9da6030536b109ce363e"
+  },
+
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "PRODUCTION_BASE_TREE": "eacc2bc44b9a3877c44f1ce1c9d60178c3061be3",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "NATIVE_SOURCE_TREE": "359d0dad6091d13227067437340934f63eca9b7e",
+    "INTEGRATION_START_HEAD": "2447c785049a5fb6c5ff6b6e25ed17baedd680b5",
+    "INTEGRATION_START_TREE": "d7167d92c190db34081d83dada8f9f1ec130849d",
+    "INTEGRATION_PHASE3_END_COMMIT": "f85c0f0b0e331dd27b021cadc6ea673abd7f69eb",
+    "INTEGRATION_PHASE3_END_TREE": "5c6b49429b215a55bd18c8074f9360c21ef3b284",
+    "HISTORIES_HAVE_MERGE_BASE": false
+  },
+
+  "portMethod": {
+    "commandShape": "git checkout ai-native/v1 -- <316 explicit paths>",
+    "notUsed": [
+      "git merge",
+      "git rebase",
+      "git cherry-pick",
+      "git checkout ai-native/v1 -- . (whole-tree replacement)",
+      "git reset / restore / clean / stash"
+    ],
+    "reason": "master and ai-native/v1 share no ancestry; integration is content- and responsibility-aware.",
+    "pathListSource": "git -c core.quotepath=false diff --name-only -z --diff-filter=A master ai-native/v1"
+  },
+
+  "portResult": {
+    "NATIVE_NEW_FILES_PORTED": 316,
+    "OTHER_FILES_TOUCHED_BY_PHASE_3": 0,
+    "STAGED_DELETIONS": 0,
+    "STAGED_MODIFICATIONS": 0,
+    "PRE_FLIGHT_COLLISIONS_WITH_CANDIDATE_WORKTREE": 0,
+    "COLLISIONS_WITH_MASTER_PATHS": 0,
+    "BYTE_IDENTITY": {
+      "method": "for every ported path, git rev-parse ':<path>' compared to git rev-parse 'ai-native/v1:<path>'",
+      "checked": 316,
+      "mismatches": 0
+    },
+    "breakdownByTopLevel": {
+      "planning/ai-native-v1/**": 240,
+      "tests/**": 31,
+      "api/services/**": 24,
+      "api/routes/**": 2,
+      "scripts/**": 16,
+      "docs/**": 2,
+      "apps/web-next/**": 1
+    }
+  },
+
+  "requiredCoreRuntimeManifest": {
+    "required": 26,
+    "presentInCandidate": 26,
+    "missing": [],
+    "files": [
+      "api/services/aiNativeRolloutPolicy.cjs",
+      "api/services/aiNativeQualityGate.cjs",
+      "api/services/aiNativeToolDefinitionsV2.cjs",
+      "api/services/aiTaskControllerV2.cjs",
+      "api/services/aiTaskStoreV2.cjs",
+      "api/services/aiTaskWorkerV2.cjs",
+      "api/services/aiTaskRecoveryV2.cjs",
+      "api/services/aiTaskLifecycleV2.cjs",
+      "api/services/aiTaskContractV2.cjs",
+      "api/services/aiTaskEnvelope.cjs",
+      "api/services/aiTaskValidationV2.cjs",
+      "api/services/aiTaskPublicV2.cjs",
+      "api/services/aiTaskSessionV2.cjs",
+      "api/services/aiTaskFactsV2.cjs",
+      "api/services/aiTaskAnswerV2.cjs",
+      "api/services/aiTaskSemanticsV2.cjs",
+      "api/services/aiTaskCapabilityAdapterV2.cjs",
+      "api/services/aiTaskWriteBridgeV2.cjs",
+      "api/services/aiTaskOperationReadbackV2.cjs",
+      "api/services/aiTaskDocumentsV2.cjs",
+      "api/services/aiTaskStructuredReadsV2.cjs",
+      "api/services/aiProtectedCommandRoute.cjs",
+      "api/services/recipeScenarioComparison.cjs",
+      "api/services/profitabilityPreview.cjs",
+      "api/services/virtualReadinessPreview.cjs",
+      "api/services/stableJson.cjs"
+    ],
+    "note": "aiConfirmedToolExecution.cjs is in the coordinator's required list but is NOT a Native-new file; it exists on master and on ai-native/v1 and is one of the 42 shared/modified files. It is scheduled for PHASE 5 responsibility-aware merge, not PHASE 3 port.",
+    "portedRuntimeFileCount": 26,
+    "portedRuntimeBlobMapSha256": "d77ea699735c2e356d7ab214f25a2d59fcf6ece8a48cd0c215159db54f24e11f"
+  },
+
+  "staticValidation": {
+    "relativeImportResolution": {
+      "scannedJsFiles": 70,
+      "resolvedRelativeRefs": 209,
+      "unresolved": 0
+    },
+    "packageSpecifierSatisfaction": {
+      "scannedJsFiles": 70,
+      "unsatisfiedSpecifiers": 0,
+      "method": "every bare require/import root resolved against root package.json dependencies+devDependencies+optionalDependencies and apps/web-next/package.json, minus node builtins"
+    },
+    "syntaxCheck": {
+      "method": "node --check on every ported .cjs/.js/.mjs",
+      "checked": 70,
+      "failures": 0
+    },
+    "tsPathAlias": {
+      "alias": "@/components/ai/AiTaskWorkbench",
+      "tsconfigPaths": "@/* -> ./*",
+      "resolvesTo": "apps/web-next/components/ai/AiTaskWorkbench.tsx",
+      "exists": true
+    }
+  },
+
+  "newRequireEdgesIntroduced": [
+    { "from": "api.cjs", "to": ["api/services/aiNativeRolloutPolicy.cjs", "api/routes/inventory.cjs"] },
+    { "from": "api/routes/ai.cjs", "to": ["api/routes/ai/tasks.cjs"] },
+    { "from": "api/routes/ai/chat.cjs", "to": ["api/services/aiNativeRolloutPolicy.cjs"] },
+    { "from": "api/routes/cost.cjs", "to": ["api/services/recipeScenarioComparison.cjs", "api/services/profitabilityPreview.cjs"] },
+    { "from": "api/services/aiDispatcherV3.cjs", "to": ["api/services/aiTaskControllerV2.cjs"] },
+    { "from": "api/services/aiToolInputValidatorV2.cjs", "to": ["api/services/aiNativeToolDefinitionsV2.cjs"] },
+    { "from": "tests/aiCapabilityRegistry.test.cjs", "to": ["api/services/aiNativeToolDefinitionsV2.cjs"] },
+    { "from": "tests/ontologyRoutingCanary.test.cjs", "to": ["tests/helpers/frozenHistoryManifest.cjs"] }
+  ],
+  "newRequireEdgesNote": "All of these edges live in shared files that PHASE 4/5 must merge; they are recorded here only to bound the remaining work. PHASE 3 did not touch any shared file.",
+
+  "routeSurfaceAddedByPortedFiles": {
+    "api/routes/ai/tasks.cjs": [
+      "POST /api/ai/tasks",
+      "GET /api/ai/tasks/:taskId",
+      "GET /api/ai/tasks/:taskId/events",
+      "POST /api/ai/tasks/:taskId/resume",
+      "POST /api/ai/tasks/:taskId/cancel",
+      "POST /api/ai/tasks/:taskId/write-preview",
+      "POST /api/ai/tasks/:taskId/write-execute",
+      "POST /api/ai/tasks/:taskId/write-reconcile"
+    ],
+    "api/routes/inventory.cjs": [
+      "POST /api/inventory/virtual-readiness-preview"
+    ],
+    "duplicateRegistrationCheck": {
+      "masterExistingApiAiTasksPaths": 0,
+      "masterExistingApiInventoryPaths": 0,
+      "result": "NO_DUPLICATE_ROUTE_REGISTRATIONS_INTRODUCED"
+    },
+    "routeNote": "The router files are ported but NOT yet mounted: mounting happens in api/routes/ai.cjs and api.cjs, both of which are shared files owned by PHASE 5. The candidate is therefore still route-equivalent to production at the end of PHASE 3."
+  },
+
+  "intermediateStateDeclaration": {
+    "candidateRunnable": false,
+    "reason": "Shared seams (api/db.cjs, api.capabilities/registry.cjs, api/routes/ai/executor.cjs, api.cjs, package.json, ...) are deliberately unmerged until PHASE 4/5.",
+    "commitMarkedIntegrationWip": true,
+    "knownBrokenIntroduced": false,
+    "note": "All 316 ported files are self-consistent and byte-identical to an accepted revision. The candidate is not yet a runnable application, which is the expected and declared intermediate state."
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "MASTER_WORKTREE_TOUCHED": false,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3,
+    "DEEPSEEK_CREDENTIAL_COPIED_TO_DSH": false,
+    "OWNER_CREDENTIAL_COPIED_TO_DSH": false
+  },
+
+  "notRun": [
+    "npm test",
+    "npm run test:deep-api",
+    "npm run verify:api-contract",
+    "npm run lint",
+    "npm run build",
+    "any Native N4-N7.2 regression suite"
+  ],
+  "notRunReason": "PHASE 3 is a declared intermediate state: the shared seams are not merged yet, so repository gates cannot express meaningful results. Gates are scheduled for PHASE 7/8/9.",
+
+  "nextPhase": "PHASE_4_LOW_RISK_SHARED_FILES_22"
+}

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "goals": [
+    {
+      "goalKind": "CURRENT_COST",
+      "requirements": [
+        "recipe.current_cost / selected recipe / CURRENT / CURRENT_REBUILT / pump / CNY / complete"
+      ],
+      "verification": "same-read-set compare preview base scenario"
+    },
+    {
+      "goalKind": "CONFIGURATION_COMPARE",
+      "requirements": [
+        "recipe.current_cost",
+        "scenario.cost",
+        "scenario.override_application",
+        "scenario.cost_comparison"
+      ],
+      "verification": "same trusted comparison receipt and formal readSet"
+    },
+    {
+      "goalKind": "PREPARE_CHANGE",
+      "requirements": "same verified preview facts when a configuration comparison is available",
+      "verification": "preview only; no operation/approval/write"
+    },
+    {
+      "goalKind": "PROFITABILITY",
+      "requirements": [],
+      "state": "UNSUPPORTED",
+      "blocker": "GOAL_NOT_ENABLED_IN_N3_1"
+    },
+    {
+      "goalKind": "APPLY_CHANGE",
+      "requirements": [],
+      "state": "UNSUPPORTED",
+      "blocker": "WRITE_EXECUTION_NOT_ENABLED"
+    }
+  ]
+}

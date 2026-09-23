@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "artifact": "AiAnswerPresentationRemediationPart3R1Plan",
+  "status": "AWAITING_EXECUTION",
+  "supervisorDirective": "PART 3-R1 — REAL ACCEPTANCE / PARITY / EVIDENCE FINAL CLOSURE（完整正文在 C:\\Users\\Dan\\Documents\\chatgpt-relay\\relay-out.md，12782 字符）",
+  "branch": "ai-native/prod-integration-v1",
+  "checkpointHead": "b2fcd07f7e2040a654d3d9a204747ae7bd770b32",
+  "supervisorState": {
+    "part1": "PASS",
+    "part2": "PASS (incl. 2-R1)",
+    "part3AutomatedDefectMatrix": "PASS checkpoint",
+    "overall": "IN PROGRESS"
+  },
+
+  "frozenImplementation": {
+    "rule": "禁止为了让人工验收结果更好看而继续改回答/展示逻辑；除非剩余必测用例证明对已批准的五个缺陷存在真实回归",
+    "frozenFiles": [
+      "api/services/aiMoneyGuard.cjs",
+      "api/services/aiAssistantAnswer.cjs",
+      "api/services/aiAssistantRuntime.cjs",
+      "api/services/aiPresentationNormalizer.cjs",
+      "api/capabilities/monetaryPresentationContract.cjs"
+    ],
+    "newUnrelatedUxPreferences": "单独记录，不扩大本票"
+  },
+
+  "executionOrder": [
+    {
+      "step": 1,
+      "name": "人工验收（真实问题 before/after）",
+      "constraints": [
+        "只用保留的测试副本 pump.db；绝不使用或修改生产 pump.db",
+        "绝不把消息追加进用户原始生产会话；必须新建专用测试副本会话",
+        "使用五个缺陷记录里记录过的真实问题"
+      ],
+      "perCaseFields": [
+        "CASE_ID", "DEFECT_ID", "QUESTION",
+        "PRODUCTION_BASELINE_BEFORE", "CANDIDATE_AFTER",
+        "FORMAL_FACTS_BEFORE", "FORMAL_FACTS_AFTER", "FORMAL_FACTS_CHANGED",
+        "MONETARY_FACTS_BEFORE", "MONETARY_FACTS_AFTER", "MONETARY_FACTS_CHANGED",
+        "ENTITY_FACTS_CHANGED", "ERROR_CLASS_CHANGED", "COMPLETENESS_STATUS_CHANGED",
+        "PRESENTATION_CHANGED", "EXPECTED_PRESENTATION_DELTA", "FINAL_PASS"
+      ],
+      "artifact": "planning/ai-native-v1/release/AiAnswerPresentationRemediationManualAcceptanceV1.json",
+      "artifactMustExclude": ["API keys", "JWTs", "cookies", ".env 内容", "不必要的敏感生产数据"]
+    },
+    {
+      "step": 2,
+      "name": "production parity 重分类",
+      "productionBaseline": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "compareFormal": ["business facts", "amounts", "identity", "evidence", "error classes", "missing/incomplete status", "policy result", "write admission", "business effects"],
+      "required": "PARITY_UNEXPLAINED_BUSINESS_REGRESSION = 0",
+      "allowedDifferences": "五处展示修复标记为 APPROVED_INTENTIONAL_PRESENTATION_DELTA（不要求文本相等）",
+      "preserve": "Phase 8A 生产测试覆盖保护（MISSING_PRODUCTION_TEST_FILES=0 / MISSING_PRODUCTION_TEST_NAMES=0）"
+    },
+    {
+      "step": 3,
+      "name": "Native 集成回归",
+      "protect": ["N4 surface/evidence/explicit-price", "N5 durable tasks/Worker/retry/budgets/recovery/task APIs",
+        "N6 preview/confirmation/operationId/idempotency/UNKNOWN_EFFECT/reconciliation",
+        "N7 off/shadow/owner policy/write=false default/Owner auth/rollback/quality freshness/N7.2 retirement/canonical deep-api/N7.3 evidence"],
+      "required": "NATIVE_INTEGRATION_REGRESSION = PASS"
+    },
+    {
+      "step": 4,
+      "name": "fresh 门禁 + canonical deep-api",
+      "commands": ["npm run verify", "npm test", "npm run test", "npm run lint", "npm run build"],
+      "deepApiMustReport": { "sourceMode": "CANONICAL_DETERMINISTIC", "localPumpDbUsed": false, "integrity": "ok", "foreignKeyViolations": 0 },
+      "deepApiCount": "必须解释与当前 489 的任何差异；DEEP_API_COVERAGE_REGRESSION = NO",
+      "doNotReuse": "不得复用 checkpoint 的结果"
+    },
+    {
+      "step": 5,
+      "name": "候选产品提交 + 证据绑定",
+      "record": ["NEW_CANDIDATE_PRODUCT_REVISION", "NEW_CANDIDATE_PRODUCT_TREE"],
+      "rules": ["不得把证据绑定到脏工作区", "保留 ProductionIntegrationCandidateEvidenceV1 作为历史",
+        "按仓库现有约定新增后继/版本化证据包", "使用 GIT_BLOB_CANONICAL 计算版本化产物哈希",
+        "明确区分 CANDIDATE_PRODUCT_REVISION 与 CANDIDATE_EVIDENCE_REVISION"],
+      "required": { "EVIDENCE_INTEGRITY": "PASS", "HASH_DRIFT": 0 }
+    },
+    {
+      "step": 6,
+      "name": "清理",
+      "delete": ["pump.db（测试副本）", "pump.db-wal", "pump.db-shm"],
+      "verify": ["TEMP_PUMP_DB_DELETED = YES", "生产库未被触碰", "无残留 .env 凭据副本",
+        "无残留临时基线/候选测试服务", "无残留临时复现工作区"],
+      "order": "必须在人工验收已记录、parity 已完成、Native 回归已完成、证据已绑定之后"
+    }
+  ],
+
+  "requiredFinalStates": {
+    "LEGACY-AI-ANSWER-001": "FIXED（不接受 PARTIAL）",
+    "LEGACY-AI-ANSWER-002": "FIXED",
+    "LEGACY-AI-ANSWER-003": "FIXED",
+    "LEGACY-AI-ANSWER-004": "FIXED",
+    "LEGACY-AI-ANSWER-005": "FIXED",
+    "TEMP_PUMP_DB_DELETED": "YES",
+    "LIVE_QUALITY_GATE": "PENDING_POST_DEPLOY_OFF_MODE_ON_MAC_MINI（不阻塞 OFF 模式部署就绪；但 Owner 试用前必须完成）",
+    "ANSWER_PRESENTATION_REMEDIATION_COMPLETE": "YES（若全部 PASS）",
+    "OWNER_TRIAL_PRESENTATION_BLOCKER": "CLOSED",
+    "OWNER_PRESENTATION_READY": "YES",
+    "READY_FOR_OFF_MODE_PRODUCTION_DEPLOYMENT": "YES（若全部 PASS）",
+    "READY_FOR_OWNER_READONLY_TRIAL": "NO —— 直到运维前置完成",
+    "OWNER_TRIAL_OPERATIONAL_PREREQUISITES": "OFF/FALSE 模式部署候选 + 经授权的 schema 迁移 + Legacy 生产验收 + Mac mini fresh verify PASS + 用户显式授权 Owner 试用",
+    "PRODUCTION_CHANGED": "NO",
+    "PRODUCTION_DATABASE_MIGRATED": "NO",
+    "PRODUCTION_SERVICE_RESTARTED": "NO",
+    "PRODUCTION_NATIVE_OWNER_ENABLED": "NO",
+    "PRODUCTION_NATIVE_WRITE_ENABLED": "NO",
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": "NO",
+    "PUSH_PERFORMED": "NO"
+  },
+
+  "userOwnedUntrackedFiles": ["NEXT-SESSION-PROMPT.md（保留，不提交、不删除）"],
+
+  "currentVerifiedCheckpointState": {
+    "worktree": "clean",
+    "head": "b2fcd07f7e2040a654d3d9a204747ae7bd770b32",
+    "npmTest": "3053/3053 exit 0",
+    "verifyApiContract": "28/28",
+    "deepApi": "exit 0, sourceMode=CANONICAL_DETERMINISTIC, localPumpDbUsed=false",
+    "lint": "exit 0",
+    "build": "exit 0",
+    "presentationTests": "30/30",
+    "defectClosureTests": "8/8",
+    "moneyGuard": "10/10",
+    "assistantRuntime": "86/86",
+    "executorBehavior": "126/126",
+    "frozenOracleGate": "15/15",
+    "ontologyCanary": "42/42",
+    "productionHead": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "aiNativeV1": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "pushed": "NO（无 upstream）",
+    "testCopyDb": "pump.db 36.82 MB 保留，WAL/SHM 保留，等待验收后删除"
+  },
+
+  "whyNotExecutedInThisSession": "人工验收需要针对两个代码修订各起一次服务、使用专用测试副本会话重跑真实问题并逐例比对业务事实，是完整一轮工作量。为避免在预算不足时启动后被迫中途放弃而留下无法复核的中间态，本轮在 checkpoint 处停止并如实上报，未伪造任何验收结果。"
+}

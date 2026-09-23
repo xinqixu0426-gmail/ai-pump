@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "ticket": "N7.1",
+  "sourceRevision": "6246568ed54cb67745761d1fc3660db995a5bedf",
+  "canonicalPlan": "planning/ai-native-v1/AI-native实施总计划.md",
+  "requirements": [
+    {
+      "id": "canonical_n7_1",
+      "requirement": "Canonical N7.1 scope and non-goals preserved",
+      "implementationEvidence": "planning/ai-native-v1/AI-native实施总计划.md#N7.1",
+      "executableTestEvidence": "closure review",
+      "status": "PASS"
+    },
+    {
+      "id": "mode_contract",
+      "requirement": "AI_NATIVE_MODE accepts off|shadow|owner, defaults off, invalid values fail closed",
+      "implementationEvidence": "api/services/aiNativeRolloutPolicy.cjs",
+      "executableTestEvidence": "tests/aiNativeRolloutPolicy.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "off_authority",
+      "requirement": "OFF retains Legacy authority without Native delegation or extra calls",
+      "implementationEvidence": "api/routes/ai/chat.cjs",
+      "executableTestEvidence": "tests/aiNativeRolloutPolicy.test.cjs; tests/aiChatRoute.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "shadow_authority",
+      "requirement": "SHADOW leaves Legacy answer authoritative and admits no Native writes",
+      "implementationEvidence": "api/services/aiNativeRolloutPolicy.cjs",
+      "executableTestEvidence": "tests/aiNativeRolloutPolicy.test.cjs; scripts/run-ai-native-rollout-live.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "owner_isolation",
+      "requirement": "OWNER delegation is limited to formal Owner JWT, not header/internal/shared admin",
+      "implementationEvidence": "api/services/aiNativeRolloutPolicy.cjs",
+      "executableTestEvidence": "tests/aiNativeRolloutPolicy.test.cjs; tests/aiChatRoute.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "write_kill_switch",
+      "requirement": "AI_NATIVE_WRITE_ENABLED defaults false and is independent of mode",
+      "implementationEvidence": "api/services/aiNativeRolloutPolicy.cjs; api/routes/ai/tasks.cjs",
+      "executableTestEvidence": "tests/aiNativeRolloutPolicy.test.cjs; tests/aiTaskRoutesV2.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "quality_summary",
+      "requirement": "Objective Native quality summary covers N4–N6 and rollout dimensions",
+      "implementationEvidence": "api/services/aiNativeQualityGate.cjs",
+      "executableTestEvidence": "tests/aiNativeQualityGate.test.cjs; scripts/run-ai-native-quality-gate.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "hard_gate",
+      "requirement": "Release runner invokes Native quality gate and rejects failed/missing evidence",
+      "implementationEvidence": "package.json; scripts/run-ai-native-quality-gate.cjs",
+      "executableTestEvidence": "tests/aiNativeQualityGate.test.cjs; tests/deploymentAutomation.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "freshness",
+      "requirement": "Quality evidence is bound to current commit and rejects stale source revision",
+      "implementationEvidence": "api/services/aiNativeQualityGate.cjs; scripts/run-ai-native-quality-gate.cjs",
+      "executableTestEvidence": "tests/aiNativeQualityGate.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "rollback_trial",
+      "requirement": "Isolated off→shadow→owner(write=false)→off drill restores legacy without DB/schema rollback",
+      "implementationEvidence": "scripts/run-ai-native-rollout-live.cjs",
+      "executableTestEvidence": "scripts/run-ai-native-rollout-live.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "owner_write_false",
+      "requirement": "Owner reads may enter V2 while write=false blocks before N6 mutation",
+      "implementationEvidence": "api/routes/ai/tasks.cjs",
+      "executableTestEvidence": "tests/aiTaskRoutesV2.test.cjs; scripts/run-ai-native-rollout-live.cjs",
+      "status": "PASS"
+    },
+    {
+      "id": "accepted_regressions",
+      "requirement": "Accepted N4, N5.1A/B, N5.2, N6.1, N6.2 invariants remain covered",
+      "implementationEvidence": "scripts/run-ai-native-quality-gate.cjs",
+      "executableTestEvidence": "native-focused quality suite",
+      "status": "PASS"
+    },
+    {
+      "id": "deep_api",
+      "requirement": "Default deep API runner remains deterministic and covers copper check",
+      "implementationEvidence": "scripts/run-deep-api-smoke.cjs",
+      "executableTestEvidence": "npm run test:deep-api",
+      "status": "PASS"
+    },
+    {
+      "id": "production_boundary",
+      "requirement": "No production configuration, worker, DB or deployment mutation",
+      "implementationEvidence": "N7.1 process boundary",
+      "executableTestEvidence": "git review; isolated SQLite runner",
+      "status": "PASS"
+    },
+    {
+      "id": "readiness",
+      "requirement": "Readiness only becomes READY_FOR_OWNER_TRIAL when all mandatory checks pass; trial is not started",
+      "implementationEvidence": "api/services/aiNativeQualityGate.cjs",
+      "executableTestEvidence": "tests/aiNativeQualityGate.test.cjs",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "mandatoryRequirements": 15,
+    "pass": 15,
+    "partial": 0,
+    "unproven": 0,
+    "notRun": 0
+  },
+  "finalEvidence": {
+    "focused": "NODE_ENV=test node --test N4/N5/N6/N7 focused suite: PASS 109/109",
+    "verifyApiContract": "npm run verify:api-contract: PASS 27/27",
+    "npmTest": "npm test: PASS 2960/2960",
+    "deepApi": "npm run test:deep-api: PASS 489/489; isolated temporary SQLite; copper check executed",
+    "lint": "npm run lint: PASS",
+    "build": "npm run build: PASS",
+    "qualityGate": "Post-commit npm run verify:ai-native-release is required for fresh source-bound report."
+  }
+}

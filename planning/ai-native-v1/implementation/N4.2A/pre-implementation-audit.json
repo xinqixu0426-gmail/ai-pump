@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "ticket": "N4.2A",
+  "status": "COMPLETE",
+  "existingCapability": null,
+  "findings": [
+    "Existing quotation/order margin is a historical price-to-cost multiplier; it is not a same-read-set profitability preview.",
+    "recipes.scenario_compare_preview is the formal source of complete current-rebuilt scenario cost."
+  ],
+  "decision": "Add a read-only shared profitability preview; do not reuse historical margin."
+}

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "testCases": [
+    {
+      "id": "N5R1-RECEIPT-PAYLOAD-TAMPER",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-RECEIPT-SOURCE-HASH-TAMPER",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-FACT-VALUE-TAMPER",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-FACT-KEY-HASH-TAMPER",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-CROSS-TASK-RECEIPT",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-SUPERSEDES-WRONG-KEY",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-SUPERSEDES-CROSS-TASK",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-SUPERSEDES-RECEIPT",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-SUPERSEDES-A-B-C",
+      "status": "PASS"
+    }
+  ],
+  "recoveredTrust": "ExecutionReceiptV1 and FactRecordV1 validators rerun from SQLite rows; bad evidence fails closed."
+}

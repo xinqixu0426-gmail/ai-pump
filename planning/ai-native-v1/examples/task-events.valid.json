@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "taskId": "00000000-0000-4000-8000-000000000006",
+  "events": [
+    {
+      "seq": 1,
+      "type": "TASK_STATE",
+      "occurredAt": "2026-09-21T05:01:00Z",
+      "state": "SUCCEEDED",
+      "goalKey": null,
+      "stepId": null,
+      "message": "合成任务已完成"
+    }
+  ],
+  "nextSeq": 1,
+  "hasMore": false
+}

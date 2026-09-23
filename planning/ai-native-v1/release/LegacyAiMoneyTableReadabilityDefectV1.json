@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "artifact": "LegacyAiMoneyTableReadabilityDefectV1",
+  "defectId": "LEGACY-AI-ANSWER-004",
+  "defectClass": "PRESENTATION_DEFECT",
+  "title": "金额核对表对用户不可读（同一量两种精度、工具名当对象、无口径表头）",
+  "type": "DEFECT_RECORD_LOCAL_ACCEPTANCE_FINDING",
+  "status": "REPORTED_ONLY_NO_CODE_CHANGED",
+  "relatedRecord": "planning/ai-native-v1/release/LegacyAiAnswerDuplicateMoneyTableDefectV1.json（金额表重复缺陷；本条是可读性/口径缺陷，两者同源同表但成因不同）",
+  "recordedDuring": "AI Native V1 production integration candidate - local manual acceptance",
+  "candidateUnderAcceptance": {
+    "commit": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+    "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "existsOnProductionBase": true,
+    "note": "该表在生产基线上就存在且形态一致，不是整合引入"
+  },
+  "userReport": "用户原话：他给我的表格「对象/项目/金额」我根本看不懂什么意思。",
+  "whatTheUserSaw": [
+    [
+      "COIL-0004 / 钢带 / 小眼",
+      "总成本",
+      "140.43"
+    ],
+    [
+      "生成 BOM 草稿",
+      "当前总成本",
+      "322.59"
+    ],
+    [
+      "生成 BOM 草稿",
+      "零件成本",
+      "301.59"
+    ],
+    [
+      "生成 BOM 草稿",
+      "人工成本",
+      "21"
+    ],
+    [
+      "COIL-0004 / 12-180 / 钢带 / 小眼",
+      "档案成本",
+      "140.43062"
+    ]
+  ],
+  "actualMeaning": {
+    "row1": "线圈方案 COIL-0004（12-180 / 钢带 / 小眼）的线圈成本 = 140.43",
+    "row2": "以该线圈整机重算 BOM 后的整机当前总成本 = 322.59",
+    "row3": "上一条整机成本中的零件部分 = 301.59",
+    "row4": "上一条整机成本中的人工部分 = 21（安装 6 + 打包 2.5 + 表面处理 7.5 + 管理费 5）",
+    "row5": "线圈档案中存储的成本 = 140.43062（与 row1 是同一个对象、同一个量，仅精度不同）",
+    "conclusion": "这张表没有任何一行回答用户真正问的「12-200 换成 12-180 能省多少」；它给的是 12-180 这一侧的若干绝对金额。"
+  },
+  "defects": [
+    {
+      "id": "UX-1",
+      "severity": "HIGH_USER_VISIBLE",
+      "title": "同一对象同一量以两种精度重复出现，看起来像两个不同的数",
+      "evidence": "row1「总成本 140.43」与 row5「档案成本 140.43062」是同一个线圈成本",
+      "cause": "formatMoneySummary 对同一对象同时收集 totalCost 与 cost 两个字段（aiAssistantAnswer.cjs:30 的 labels 映射与 :44 的逐字段走访），没有按语义去重",
+      "impact": "用户无法判断这是两个数字还是一个数字的两种写法，会怀疑数据不一致"
+    },
+    {
+      "id": "UX-2",
+      "severity": "HIGH_USER_VISIBLE",
+      "title": "「对象」列使用内部工具显示名，不是业务对象",
+      "evidence": "「生成 BOM 草稿」出现了 3 次，被当作金额的归属对象",
+      "cause": "aiAssistantAnswer.cjs:68 在走访工具结果时用 capability.displayName 作为 label，工具名于是直接进入表格",
+      "impact": "金额归属读起来像操作日志（“生成草稿”不是东西，是动作），用户无法据此判断钱花在哪台泵上"
+    },
+    {
+      "id": "UX-3",
+      "severity": "MEDIUM_USER_VISIBLE",
+      "title": "「对象」列用方案编码+材质拼串，不是人话",
+      "evidence": "「COIL-0004 / 钢带 / 小眼」",
+      "cause": "aiAssistantAnswer.cjs:43 的 name 由 name/recipeName/model/schemeCode + spec-sheets + material + slotType 拼成",
+      "impact": "一线人员说的是 12-180 / 钢带 / 小眼，方案编码 COIL-0004 需要额外换算"
+    },
+    {
+      "id": "UX-4",
+      "severity": "MEDIUM",
+      "title": "字段名到中文的硬映射产生业务上不存在的概念",
+      "evidence": "labels 映射里 cost → 「档案成本」、totalCost → 「总成本」",
+      "cause": "aiAssistantAnswer.cjs:30",
+      "impact": "「档案成本」不是团队日常用语，容易被读成“归档成本/仓储成本”"
+    },
+    {
+      "id": "UX-5",
+      "severity": "MEDIUM",
+      "title": "表格缺少单位归属、口径与时间基准",
+      "evidence": "表头只有「对象/项目/金额」，没有“单位：元/台”“按当日正式价”“口径=当前重算”",
+      "cause": "表头在 aiAssistantAnswer.cjs:80 固定为三列",
+      "impact": "金额没有口径锚点，无法与保存成本或报价单对比"
+    },
+    {
+      "id": "UX-6",
+      "severity": "HIGH",
+      "title": "内部核对表被直接当作答案主体",
+      "evidence": "整段回答以该表为主体，唯一的口径说明是「配置基准…」「正式配置…」的长串，再以「完整计算明细见本轮工具结果。」收尾",
+      "cause": "该表由金额守卫（aiMoneyGuard）在正文不可用或引用非正式金额时生成，设计用途是“核对与兜底”，但会被整段当作最终答案输出（aiAssistantRuntime.cjs:877 与 :886）",
+      "impact": "用户拿到的是开发者的核对产物，而不是对问题的回答"
+    }
+  ],
+  "rootCauseSummary": {
+    "singleTableServesTwoAudiences": "formatMoneySummary（api/services/aiAssistantAnswer.cjs:28-81）同时承担两个互相冲突的职责：给金额守卫提供“可核对的正式金额集合”，以及给用户呈现金额回答。前者要求内部完备（字段级、逐工具、可追溯），后者要求业务可读。当前用同一份文本满足两者，于是内部完备性泄漏成了对用户的不可读。",
+    "whyNotJustDelete": "该表同时是防编造金额的保护：正文引用非正式金额时，守卫会用它整段替换掉模型回答。不能取消，只能分离呈现与核对。"
+  },
+  "suggestedFixDirection": [
+    "拆分职责：保留一份机器可核对的结构化金额集合（供守卫比对），另生成一份面向业务的可读摘要。",
+    "把「对象」列从工具显示名改成业务对象：泵型号/配方名 +（如需）情景标识；不要出现“生成 BOM 草稿”这类动作名。",
+    "方案身份优先用人可读的 spec-sheets + 材质 + 槽眼（12-180 / 钢带 / 小眼），方案编码 COIL-0004 仅作副标注。",
+    "同一对象同一量必须去重：线圈成本只出现一次，并统一精度；不要同时出现 totalCost 与 cost。",
+    "补口径与单位表头：例如“金额单位：元/台；口径：按当日正式价当前重算”，并在表前用一句话直接回答问题（本例应为“换 12-180 后整机成本由 X 变为 Y，差额 Z”）。",
+    "若确实需要保留内部核对表，应放在可折叠的“明细/证据”位置，而不是答案主体。"
+  ],
+  "productObservation": {
+    "missingCapability": "本轮回答没有给出 12-200 与 12-180 在同一读取集合下的成本差额，用户原问题（能省多少）实际未被回答。",
+    "note": "候选已具备同口径差额能力：POST /api/recipes/:id/scenario-compare-preview 会返回 comparisons[].delta；但本次回答走的是 legacy 单点预览路径（preview_recipe_cost + build_recipe_bom_draft），没有使用该口径。可评估在 legacy 路径补一个“同口径差额”表达。"
+  },
+  "scopeStatement": {
+    "codeChanged": false,
+    "reason": "位于 legacy AI 助手呈现层，不属于本次生产整合 ticket 范围；按用户决定仅记录，待单独排期。",
+    "integrationImpact": "无。候选未引入、未放大，且该缺陷不影响任何候选门禁结论。"
+  },
+  "dataHandling": {
+    "productionTouched": false,
+    "userOriginalDatabaseModified": false,
+    "evidenceSource": "候选工作区中用户 pump.db 的副本（已由候选迁移至 schema 88）",
+    "credentialsPrinted": false
+  },
+  "abProof": {
+    "runtimeBehavioural": {
+      "method": "把同一段用户历史（会话 42 该轮之前的 7 条消息）原样复制到新会话，同一问题分别打到候选实例（ecc2b27, :3002）与从生产基线代码启动的隔离实例（e244bd75, :3003），两者使用同一份数据（用户 pump.db 的副本）",
+      "candidateResult": "复现：回答长度 1336，金额表出现 2 次，工具序列 search_coils→preview_recipe_cost×2→build_recipe_bom_draft→preview_recipe_cost→get_recipe_detail×2",
+      "productionBaseResult": "复现：回答长度 1258，金额表出现 2 次；与用户库中 msg 230 逐字一致（同为 1258 字、同两处重复）",
+      "conclusion": "两端行为一致，属既有缺陷"
+    },
+    "codeIdentity": {
+      "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+      "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+      "filesVerified": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "identical": true,
+          "blob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e"
+        },
+        {
+          "path": "api/services/aiMoneyGuard.cjs",
+          "identical": true,
+          "blob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "identical": true,
+          "blob": "b5942b5f4584df19492830566a889e7a1cbb2564"
+        },
+        {
+          "path": "api/services/aiPromptComposer.cjs",
+          "identical": true,
+          "blob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46"
+        },
+        {
+          "path": "api/services/aiBusinessRulebook.cjs",
+          "identical": true,
+          "blob": "94176772325d0fdf426aa28c35d50d24d1503446"
+        }
+      ],
+      "allIdentical": true,
+      "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+    },
+    "candidateReproduction": "msg 230：同一线圈同时出现「总成本 140.43」与「档案成本 140.43062」；「生成 BOM 草稿」作为对象出现 3 次；表头固定为「对象|项目|金额」无单位口径",
+    "productionBaseReproduction": "生成逻辑在 aiAssistantAnswer.cjs:28-81（labels 映射于 :30，对象取值于 :43，表头于 :80），该文件在两分支逐字节相同 → 生产基线同样不可读",
+    "independentFactVerification": "实测 COIL-0004 档案：cost = 140.43062、spec=12、sheets=180、material=钢带、slotType=小眼、isDefault=true；证明 140.43 与 140.43062 是同一量不同精度"
+  },
+  "regressionTestRequirement": [
+    "断言同一对象同一量在答案内只出现一次，且精度一致",
+    "断言表头含单位与口径（如「单位：元/台；口径：按当日正式价当前重算」）",
+    "断言对象列优先业务身份，不出现动作名",
+    "断言长清单按 N 项截断并给出「其余 M 项见明细」"
+  ]
+}

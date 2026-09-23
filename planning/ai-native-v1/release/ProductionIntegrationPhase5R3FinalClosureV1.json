@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase5R3FinalClosureV1",
+  "phase": "PHASE_5_R3_MISSING_PRICE_STATE_AND_DOCUMENTATION_FINAL_CLOSURE",
+  "status": "PASS",
+  "historyPreserved": [
+    "planning/ai-native-v1/release/ProductionIntegrationCandidateMatrixV1.json (phases 1-2)",
+    "planning/ai-native-v1/release/ProductionIntegrationPhase3PortRecordV1.json",
+    "planning/ai-native-v1/release/ProductionIntegrationPhase4SharedAuditV1.json",
+    "planning/ai-native-v1/release/ProductionIntegrationPhase5SemanticMergeV1.json",
+    "planning/ai-native-v1/release/ProductionIntegrationPhase5R1ClosureV1.json",
+    "planning/ai-native-v1/release/ProductionIntegrationPhase5R2BusinessSemanticsV1.json"
+  ],
+
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "PHASE_5_R3_START_HEAD": "f95e74ebc2f095061090ad7afeec1adf8dbbad64",
+    "PHASE_5_R3_COMMITS": [
+      "3eb2fef  R3 product-runtime fix: missing-price state + documentation correction",
+      "6e9ae33  R3 first evidence rebinding (superseded: sourceRevision collapsed onto the attested runtime)",
+      "8c80928  R3 closure record for that binding (superseded)",
+      "5c095fa  R3 docs-only commit that restores the non-self-referential invariant",
+      "36add3d  R3 final evidence binding",
+      "46d0f06  R3 final closure record"
+    ],
+    "PHASE_5_R3_END_COMMIT": "46d0f06a3c0018902f9e2b502a07da26f159f8af",
+    "PHASE_5_R3_END_TREE": "66d06f680d7f7815bf52207896bfd091fa8dbcc9",
+    "END_TREE_NOTE": "66d06f68 is the tree of the final handoff package commit 36add3d; the end commit 46d0f06 adds only the closure record on top of it"
+  },
+
+  "firstNullToZeroLayer": {
+    "FIRST_NULL_TO_ZERO_LAYER": "api/services/partsDataCache.cjs, in the read() loop: `const price = record.price || 0;`",
+    "NULL_TO_ZERO_ROOT_CAUSE": "That expression is the first place where a formal catalogue NULL price silently becomes numeric 0, and it produces `partsByModel`, which is exactly the input costEngine resolves prices from. Because 0 is correctly a VALID formal price (schema `REAL DEFAULT 0` plus `CHECK(price IS NULL OR price >= 0)`, partCommands parseNonNegativeNumber, partQueries price filter lower bound 0), the coercion destroyed the distinction between 'unpriced' and 'zero cost'. An unpriced part therefore contributed 0 with missingParts empty, cost.complete became true, and same-read-set scenario comparison fabricated a COMPARABLE result with a non-null delta.",
+    "howItWasFound": "A direct trace of the failing fixture into calculateRecipeCost showed the packing row arriving with NO snapshotPrice field at all, which meant the price could only come from partsByModel, and partsByModel is built by partsDataCache.",
+    "NULL_TO_ZERO_FIX": [
+      "api/services/partsDataCache.cjs - partsByModel now preserves null/undefined exactly; zero passes through untouched; non-numeric values are left for the formal rule to judge. partsCache (the per-model single-value index read by box_type inference and similar existing callers, all of which read it through `Number(x || 0)`) keeps its previous 0 semantics, so that behaviour is deliberately unchanged.",
+      "api/services/costEngine.cjs - hasUsableCatalogPrice() and catalogPriceSourceLabel() are now EXPORTED so the price rule has exactly one definition (verified: exactly one `function hasUsableCatalogPrice` exists in api/).",
+      "api/services/dynamicCostPreview.cjs - buildPackingSnapshotParts no longer fabricates `snapshotPrice: 0` from an unusable catalogue price, and consumes the shared rule instead of an inline duplicate.",
+      "api/services/recipeBomEngine.cjs - the optional-part row and the packing row no longer fabricate a snapshotPrice from an unusable catalogue price; the local duplicate of the price rule is deleted. This includes the catalogue-identity site that the failing fixture actually uses."
+    ],
+    "noNewRuntimeFieldIntroduced": true,
+    "representationNote": "No hasPrice / priceState / isPriced marker was added. The existing `null` value in the existing `partsByModel[].price` field carries the missing state, and the existing `missingParts` channel carries it outward. A new field was therefore unnecessary and a DB schema/migration change was avoided."
+  },
+
+  "priceStateContract": {
+    "PRICE_STATE_REPRESENTATION": "the raw numeric value, with `null`/`undefined` preserved as the missing state and non-finite or negative values judged invalid by the single shared rule",
+    "PRICE_POSITIVE_POLICY": "VALID_PRICE - contribution price x qty, missingParts empty, source 精确匹配 or 型号回退(取最低价)",
+    "PRICE_ZERO_POLICY": "VALID_PRICE - contribution 0, missingParts empty. Zero is a legal zero-cost catalogue price and is NEVER treated as missing merely because it is zero. Identical outcome to production master.",
+    "PRICE_NEGATIVE_POLICY": "INVALID_DATA - contribution 0, reported in missingParts, source 正式目录价格无效. Production master instead produced a negative total.",
+    "PRICE_NULL_POLICY": "MISSING_PRICE - contribution 0, reported in missingParts, source 正式目录未定价, costComplete false",
+    "PRICE_UNDEFINED_POLICY": "MISSING_PRICE - same as null",
+    "PRICE_NON_NUMERIC_POLICY": "INVALID_DATA - a NaN or non-numeric price contributes 0 and is reported in missingParts. Production master produced NaN in the detail price and NaN in the total.",
+    "ZERO_PRICE_PRESERVED": true,
+    "NULL_PRICE_PRESERVED": true,
+    "noTruthinessChecks": "verified - the rule is `value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0`, so a valid zero is never dropped by a falsy check",
+    "SUPPLIER_FALLBACK_ZERO_CASE": "PASS - [10, 0, null] selects 0; [3, 0] selects 0; [0, 0] selects 0",
+    "SUPPLIER_FALLBACK_ALL_MISSING_CASE": "PASS - [null, undefined], [-1, null] and ['abc', null] all yield no available formal price, contribute 0 and report the part in missingParts",
+    "supplierFallbackOtherCases": "[-1, 5] selects 5 (invalid row ignored); ['abc', 4] selects 4",
+    "MISSING_PARTS_SEMANTICS": "unchanged formal channel - currentRecipeCost derives costComplete from missingParts.length === 0 and keeps the existing warning text",
+    "PARTIAL_COST_SEMANTICS": "unchanged - partialTotalCost is still returned, currentTotalCost stays null while incomplete",
+    "singleCostImplementation": "costEngine remains the only formal cost implementation; no second algorithm and no fork in scenarioComparison"
+  },
+
+  "qtyDecision": {
+    "QTY_ZERO_POLICY": "REJECT - restored production semantics; api/services/configuredRecipeSnapshot.cjs uses parsePositiveNumber and differs from production master only by an explanatory comment",
+    "QTY_ZERO_SILENTLY_BECOMES_ONE": "NO - the regression asserts qty=0 is rejected with the positive-number error and explicitly that it is NOT rejected by the non-negative rule, so it cannot be accepted and then coerced to 1 downstream",
+    "qtyOtherStates": "negative and non-numeric rejected; null/undefined/'' fall back to the default 1; positive accepted",
+    "QTY_DOCUMENTATION_CORRECTED": "YES - docs/api-reference.md no longer claims `qty=0 移除对应角色` for POST /api/recipes/bom-draft; it now states qty must be positive, that qty=0 is rejected, that the removal capability is NOT implemented, and that clearing all packing requires allowClearAll=true when packingRemovalPolicy is present",
+    "QTY_FUTURE_GAP_RECORDED": "YES - docs/technical-debt.md section 8.4 records the unimplemented removal capability as DESIRED/DEFERRED (never as current capability), together with the price-state representation rule fixed in R3",
+    "removeRoleFeatureImplemented": false
+  },
+
+  "evidenceRebinding": {
+    "N7_3_EVIDENCE_REBOUND": "YES - docs/api-reference.md and docs/technical-debt.md are both attested handoff artifacts, so correcting the false capability claim necessarily changed their hashes",
+    "model": {
+      "PRODUCT_RUNTIME_BASELINE": "3eb2fef4e5d57547444957fcf3fe31b5f0436d64 - the R3 product-runtime commit; unresolvedProductRuntimeDiffAtGeneration is EMPTY",
+      "HANDOFF_DOCUMENTATION_PACKAGE": "36add3d6f2d0496fef340a054c73f06951f08ac4, tree 66d06f680d7f7815bf52207896bfd091fa8dbcc9",
+      "CLOSURE_VALIDATION": "46d0f06a3c0018902f9e2b502a07da26f159f8af",
+      "circularHashClaim": false
+    },
+    "invariantPreserved": "the generator records HEAD as sourceRevision (provenance only) and the accepted model requires that revision to differ from the attested product runtime revision. The first R3 binding collapsed the two onto the R3 runtime commit and the N7.3 closure test correctly rejected it ('sourceRevision is provenance only'); that is why commit 5c095fa adds the candidate rebinding note to planning/ai-native-v1/release/N7.3-release-evidence.md - an honest record AND the docs-only commit that restores the invariant. Nothing was rewritten.",
+    "GIT_BLOB_CANONICAL": "continued - one hash contract in api/lib/evidenceHashing.cjs",
+    "ARTIFACT_INTEGRITY": "PASS - checked 6, allMatch true",
+    "HASH_DRIFT": 0,
+    "corporaVerified": 11,
+    "sideFileMatches": true,
+    "finalPayloadSha256": "644bcf7a051c2e6698bf9147cc5e948d10ff04d88ead18b2c486f07e52e0519a",
+    "historicalNativeEvidenceUntouched": "the accepted ai-native/v1 N7.3 package was not mutated"
+  },
+
+  "regressions": {
+    "N4_1C_R3": "PASS - tests/recipeScenarioComparison.test.cjs:489 passes with its original intent intact and its assertions unmodified",
+    "PRICE_MATRIX_TESTS": "PASS - tests/catalogPriceStateContract.test.cjs, 18 cases: 8 price states asserting validity/detail price/total/missingParts, the zero-vs-missing completeness distinction, the partsDataCache null-preservation contract, and 8 supplier-fallback selection cases",
+    "PAINTING_WAGE_REGRESSION": "PASS",
+    "ORDER_IDEMPOTENCY_REGRESSION": "PASS",
+    "N7_3_EVIDENCE_REGRESSION": "PASS - tests/n73ApiReferenceCoverage.test.cjs + tests/n73HandoffDocumentation.test.cjs = 15/15",
+    "qtyRegression": "PASS - tests/recipeConfigurationPolicy.test.cjs"
+  },
+
+  "gateResults": {
+    "NPM_TEST": { "command": "npm test", "result": "PASS", "tests": 3009, "pass": 3009, "fail": 0 },
+    "VERIFY_API_CONTRACT": { "command": "npm run verify:api-contract", "result": "PASS", "tests": 28, "pass": 28, "fail": 0 },
+    "DEEP_API": { "command": "npm run test:deep-api", "result": "PASS", "passed": 489, "failed": 0, "sourceMode": "CANONICAL_DETERMINISTIC", "canonicalSource": true, "localPumpDbUsed": false, "tempDatabaseIntegrity": "ok" },
+    "LINT": { "command": "npm run lint", "result": "PASS", "exitCode": 0 },
+    "BUILD": { "command": "npm run build", "result": "PASS", "exitCode": 0 },
+    "FOCUSED": { "tests": 185, "pass": 185, "fail": 0, "files": ["catalogPriceStateContract", "recipeScenarioComparison", "costEngine", "currentRecipeCost", "dynamicCostPreview", "dynamicConfigCost", "recipeBomEngine", "recipeConfigurationPolicy", "orderCommands", "aiCapabilityRegistry", "n73ApiReferenceCoverage", "n73HandoffDocumentation"] }
+  },
+
+  "finalSignals": {
+    "CAPABILITY_NOT_REGISTERED": 0,
+    "INVALID_AI_TOOL_INPUT": 0,
+    "UNMOUNTED_ROUTE_FILES": 0,
+    "MIGRATION_88_CONFLICT": "NO",
+    "UNRESOLVED_SHARED_CONFLICTS": 0,
+    "AI_NATIVE_MODE_DEFAULT": "off",
+    "AI_NATIVE_WRITE_ENABLED_DEFAULT": false,
+    "LEGACY_AUTHORITY_DEFAULT": true
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "PRODUCTION_BACKUP_CREATED": false,
+    "MAIN_WORKTREE_UNTOUCHED": true,
+    "AI_NATIVE_V1_WORKTREE_UNTOUCHED": true,
+    "USER_STASH_COUNT": 3,
+    "CREDENTIALS_COPIED": false
+  },
+
+  "notRun": [
+    "npm run verify - that script does not exist in this repository; the real gates were run individually",
+    "npm run verify:ai-native-release - requires a real DEEPSEEK_API_KEY, which is not available here and must not be provisioned by this ticket; no live PASS is claimed"
+  ],
+  "planDeviations": [
+    "api/lib/evidenceHashing.cjs is a new file introduced in R1 for the cross-platform hash contract (out of the original 316+42 path sets) - declared in the R1 record",
+    "tests/orderCommands.test.cjs and tests/ontologyRoutingCanary.test.cjs were outside the original 30-file list - declared in the phase 5 record",
+    "tests/catalogPriceStateContract.test.cjs is new in R3 - required by the R3 instruction to lock the price matrix",
+    "one extra docs-only commit (5c095fa) exists solely to keep sourceRevision distinct from the attested product runtime revision"
+  ],
+
+  "readyForPhase7And8": true,
+  "nextAction": "Phase 7 combination validation, then Phase 8 production-parity and Native-invariant regressions, then Phase 9 candidate evidence - each only after Supervisor authorisation"
+}

@@ -421,3 +421,13 @@ test('AI 会话命令：批量删除拒绝空列表、重复目标和超过 50 �
         fixture.db.close();
     }
 });
+
+test('AI 会话命令：进行中的 AI Native 任务阻止删除其恢复来源', () => {
+    const fixture = createFixture();
+    try {
+        const conversation = executeCreateAiConversation(fixture.dependencies, 'admin', { title: '后台任务来源' }, context('ai-conversation-create-task-guard'));
+        const message = executeAppendAiConversationMessage(fixture.dependencies, 'admin', conversation.id, { role: 'user', content: 'V550成本' }, context('ai-conversation-append-task-guard'));
+        fixture.db.prepare(`INSERT INTO ai_tasks (task_key,owner_key,conversation_id,user_message_id,schema_version,revision,plan_revision,state,execution_mode,input_hash,spec_json,budget_json,created_at,updated_at,expires_at) VALUES (?,?,?,?,2,1,1,'SUSPENDED','DETACHED',?,?,?, ?,?,?)`).run('11111111-1111-4111-8111-111111111111', 'admin', conversation.id, message.id, 'a'.repeat(64), '{}', '{}', '2026-08-03T12:00:00.000Z', '2026-08-03T12:00:00.000Z', '2026-08-04T12:00:00.000Z');
+        assert.throws(() => executeDeleteAiConversation(fixture.dependencies, 'admin', conversation.id, { expectedUpdatedAt: fixture.db.prepare('SELECT updated_at FROM ai_conversations WHERE id=?').get(conversation.id).updated_at }, context('ai-conversation-delete-task-guard')), /进行中的后台任务/);
+    } finally { fixture.db.close(); }
+});

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "EXTERNAL_LIVE_DATA_RELEASE_GATE_FLAKINESS",
+  "status": "OPEN_NON_BLOCKING_TECHNICAL_DEBT",
+  "observedIn": "N4.2A-R2",
+  "observation": "The deep-api gate couples current-day external copper-price availability to overall release-gate completion, so an unrelated code stage can be blocked when the live source is unavailable.",
+  "currentDecision": "No gate was weakened, skipped, mocked, or supplied with stale copper data during N4.2A-R2G.",
+  "futureDesignDirection": "Design separate hermetic API/contract correctness and external freshness/availability acceptance signals in a dedicated test-infrastructure ticket.",
+  "resolvedByThisTicket": false
+}

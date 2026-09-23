@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R2G",
+  "status": "PASS",
+  "startCommit": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+  "oracleAdjudication": "SUPERVISOR_APPROVED_BASELINE_CORRECTION",
+  "liveMatrix": "live-profitability-matrix.json",
+  "strictSerialFamilies": 12,
+  "runsPerFamily": 2,
+  "acceptedTasks": 28,
+  "mandatoryEvidence": {
+    "partialItems": 0,
+    "unprovenItems": 0,
+    "notRunItems": 0
+  },
+  "safety": {
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "auditDelta": 0,
+    "operationDelta": 0,
+    "fileWrites": 0,
+    "fileSideEffects": 0
+  },
+  "deepApi": "PASS: N4.2A-R2G single formal rerun passed 482/482 after copper source recovery.",
+  "notes": [
+    "The incomplete-cost family intentionally reached PROFITABILITY=PARTIAL and Task=FAILED; it is counted as an accepted safe rejection, not an incomplete implementation item.",
+    "The USD family intentionally reached PROFITABILITY=UNSUPPORTED without a preview call; it is counted as an accepted safe rejection.",
+    "Raw DeepSeek payloads are gitignored at logs/ai-native-n4-2a-r2-live-raw.json."
+  ],
+  "blocker": null,
+  "gateCloseout": {
+    "priorDeepApiPassApplicable": false,
+    "finalDeepApiResult": "PASS 482/482",
+    "productAndTestContentChangedDuringGateCloseout": false,
+    "worktreeManifest": "gate-closeout-worktree-manifest.json",
+    "priorPassAdjudication": "deep-api-prior-pass-adjudication.json"
+  }
+}

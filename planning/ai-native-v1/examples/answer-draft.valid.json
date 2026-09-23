@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "sections": [
+    {
+      "goalKey": "compare",
+      "claimType": "COMPARISON",
+      "factIds": [
+        "00000000-0000-4000-8000-000000000010",
+        "00000000-0000-4000-8000-000000000011",
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "templateKey": "scenario_compare_complete",
+      "analysisText": "此示例只展示成本比较；配置变化说明需另有正式变化事实后再输出。"
+    }
+  ]
+}

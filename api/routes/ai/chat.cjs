@@ -19,6 +19,7 @@ const {
     isOwnerScopedAiCanaryRequestEligible,
     isTrustedInternalAiRequest,
 } = require('../../services/ontologyRelationCanaryEligibility.cjs');
+const { resolveAiNativeRollout } = require('../../services/aiNativeRolloutPolicy.cjs');
 const {
     loadAiConversationContinuation,
     loadAiRecentPartWrite,
@@ -198,6 +199,12 @@ async function handleAiChat(req, res, options = {}) {
 
     try {
         const runtimeEnv = options.env || process.env;
+        // This is a server-owned, request-start snapshot.  Neither the body,
+        // headers nor model output can select the Native answer owner.
+        const nativeRollout = (options.resolveAiNativeRollout || resolveAiNativeRollout)({
+            request: req,
+            env: runtimeEnv,
+        });
         const trustedInternalRequest = isTrustedInternalAiRequest(req, runtimeEnv);
         const ownerKey = trustedInternalRequest ? 'internal' : (req.user?.role || 'admin');
         const persistedConversationContext = (options.loadAiConversationContinuation || loadAiConversationContinuation)(
@@ -225,6 +232,17 @@ async function handleAiChat(req, res, options = {}) {
             onProvider,
             signal: controller.signal,
             requestId: req.requestId || null,
+            ownerKey,
+        }, {
+            // Native responsibility is selected only by the rollout snapshot.
+            // SHADOW deliberately observes the legacy result without a second
+            // model request; only an authenticated Owner may enter TASK_V2.
+            nativeTaskDelegation: nativeRollout.nativeTaskDelegation || options.nativeTaskDelegation === true,
+            runAiTaskControllerV2: options.runAiTaskControllerV2,
+            sessionStore: options.taskSessionStoreV2,
+            executeToolCall: options.executeToolCall,
+            provider: options.taskSemanticsProvider,
+            ownerKey,
         });
         const durationMs = Date.now() - startedAt;
         sendFinal('metrics', buildAiTurnMetrics(result?.telemetry, {
@@ -289,6 +307,14 @@ async function handleAiChat(req, res, options = {}) {
 }
 
 router.post('/api/ai/chat', confirmAuth, handleAiChat);
+
+// A server-only test harness can mount just the chat transport with explicit
+// dependencies.  Production continues to use the singleton router above.
+function createAiChatRouter(options = {}) {
+    const scopedRouter = express.Router();
+    scopedRouter.post('/api/ai/chat', confirmAuth, (req, res) => handleAiChat(req, res, options));
+    return scopedRouter;
+}
 
 router.post('/api/ai/confirm-tool/preview', confirmAuth, async (req, res) => {
     const confirmationSubject = confirmationSubjectForRequest(req);
@@ -385,6 +411,7 @@ module.exports = {
     DEFAULT_SSE_HEARTBEAT_MS,
     aiChatTimeoutMs,
     buildAiTurnMetrics,
+    createAiChatRouter,
     handleAiChat,
     processAiChat,
     router,

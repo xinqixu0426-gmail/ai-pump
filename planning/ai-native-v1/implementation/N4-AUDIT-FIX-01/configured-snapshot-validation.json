@@ -1,0 +1,9 @@
+{
+  "suite": "tests/orderCommands.test.cjs",
+  "path": "buildConfiguredRecipeSnapshot",
+  "exactPair": "PASS",
+  "wrongCost": "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED",
+  "unknownMode": "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED",
+  "policyAbsentExplicitHypothetical": "PASS",
+  "sharedPolicyHelper": "assertRecipeConfigurationAllowed"
+}

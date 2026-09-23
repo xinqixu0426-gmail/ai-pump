@@ -1457,12 +1457,12 @@ const AI_TOOLS = [
         type: 'function',
         function: {
             name: 'compare_recipes',
-            description: '按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。名称必须唯一匹配，缺价时明确失败。当用户说"对比V750和V550"时使用',
+            description: '按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。选择器优先使用配方ID（已 canonical 解析时不得退回名称）；名称必须唯一匹配，多匹配或缺价时明确失败。当用户说"对比V750和V550"时使用',
             parameters: {
                 type: 'object',
                 properties: {
-                    recipe1: { type: 'string', description: '配方1名称' },
-                    recipe2: { type: 'string', description: '配方2名称' }
+                    recipe1: { type: 'string', description: '配方1选择器：优先配方ID（如 "13"），其次名称' },
+                    recipe2: { type: 'string', description: '配方2选择器：优先配方ID（如 "11"），其次名称' }
                 },
                 required: ['recipe1', 'recipe2']
             }

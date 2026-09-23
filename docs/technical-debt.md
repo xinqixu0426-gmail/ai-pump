@@ -184,6 +184,8 @@
 | 复杂调查覆盖 | 补齐客户分页、页内选择、过期引用和复杂跨业务长链的真实模型矩阵；工具开放不等于所有自然语言场景通过 |
 | 回答质量 | 已验收整体可用性，但仍可能冗长或遗漏比较条件；金额检查已覆盖显式货币及表格金额列；仍不能穷尽所有自然语言金额表达和配置理解 |
 | 金额守卫的两条路径 | 2026-09-19 生产会话 58 复盘：金额格式守卫已区分“依据”与“格式”，正文引用本轮正式金额时改为追加明细而非整段替换。仍保留的路径是“模型给出四舍五入或正式字段之外的金额 → 纠错轮后仍不达标 → 回退成纯正式金额表”（同会话 msg 325：1 次工具调用 + 3 次模型请求证明走过纠错轮）。这段回退是安全选择：正文里的金额无法核对时不展示该结论。若要同时保住结论措辞，需要先定义可接受的舍入容忍度与措辞级证据，不能只放宽守卫 |
+| 答案展示层的业务语言与内部词汇 | 已解决（Part 2）：新增确定性展示规范化层 `api/services/aiPresentationNormalizer.cjs`，位于所有语义边界之后、对外发送之前，对本地与远端 provider 同一策略。覆盖工具显示名→业务对象名、内部 ID 默认隐藏（显式请求/歧义/调试保留）、内部口径词→业务标签、结论先行、长清单摘要（保留缺料与不完整/歧义/策略警告）、清理未被请求的收尾邀约（保留必需澄清）。并入 `BR-PRESENT-*` 四条已强制规矩。**残余**：摘要上限是全局常量（`DEFAULT_LIST_LIMIT=8`），尚无按场景的相关性排序契约；`wantsDetail` 等展示偏好来自用户已表达措辞的结构化匹配，若后续需要更细的分级应进入既有业务语义层 |
+| 金额展示义务的按次声明 | 已解决（Part 1-R2）：金额补全改为**轮次级**——能力只声明"能提供哪些金额事实"（`availableMoneyFacts`），本轮是否要求金额由既有已解析目标（`api/business-semantics` 的 kind/operation）决定，`operation=preview` 不再产生任何补全。同一能力下「用了哪些零件」（`DESCRIBE_CONFIGURATION`）不补表、「一共多少钱」（`PREVIEW_CONFIGURATION_COST`）才补。**残余**：`describe` 类目标目前仍主要依赖问法里出现"零件/配置"等资源词才能解析出 `DESCRIBE_CONFIGURATION`；解析不到目标时按 unknown 退回能力可用性层（保持既有行为，不静默变化）。若要让"哪些零件"这类目标解析得更稳，应扩充既有业务语义层的目标枚举，而不是在金额守卫里加关键词 |
 | 本人确认业务写入 | 当前聊天未启用；须另行明确业务范围后贯通 Preview、确认和正式回执 |
 | 生产登录兼容服务自启动 | 2026-09-08 已迁移为 system 域 LaunchDaemon，以 dan 身份运行；进程退出自动恢复、本机和公网实际登录及身份检查均通过，API/Web 与 .env 未变。未执行整机重启验收；3104 兼容程序仍是运行依赖，不能随旧框架删除，操作见运行手册 |
 | 发布验收状态 | 历史 4/9、6/9 等失败已经修复并归档；当前补丁、专项结果和回滚均以发布检查清单为准，不据历史数量判断当前版本 |
@@ -392,3 +394,54 @@ Web新增和复制由规格表单生成名称；模板编辑按绑定ID显示真
 | 库存、预留与入库 | `purchaseInventory`、库存命令、订单状态机 | 采购平衡、配方库存、准备度 | 主库存 ID，预留由活动订单需求派生 | 公共身份校验；价格/显示名称变化不改变预留及扣减对象 |
 | 转子关联文本、文件关联标签 | 转子档案/文件归档命令 | 出图历史、文件归档目标查询 | `linked_pump_model` 文本、文件类型化目标 ID | 文本保留原文，关联标签用现名；非结构化文本不猜绑定 |
 | 搜索、AI/MCP、知识、导出 | 正式 API client 与各导出入口 | `entityLookupService`、AI executors、MCP | 目录查词、ID 回执、历史知识候选 | 正式查询使用现名或固定 ID；知识与历史消息不提供写身份；原文件不回写 |
+
+## 8. AI Native V1（N0–N7.3）当前债务状态
+
+本节记录 AI Native V1 阶段收口时的**真实**债务状态。交接与运行细节见 [AI Native V1 交接文档](ai-native-v1-handoff.md)；发布证据见 `planning/ai-native-v1/release/ReleaseEvidenceV1.json`。
+
+### 8.1 已解决（不要再当作当前阻塞项）
+
+| 事项 | 结论 |
+|---|---|
+| `N4-AUDIT-FINDING-001`（`SURFACE_POLICY_EXPLICIT_PRICE_BYPASS`） | 已修复，不得重新引入 |
+| `NATIVE-BLOCKER-FALSE-COMPLETE-001` | CLOSED |
+| N4 能力/路由/实体边界、surface policy、身份与证据保障、GitHub 独立审计 | PASS |
+| N5.1A durable Task Store（migration 88） | PASS |
+| N5.1B leased 单槽 Worker、DETACHED 执行、租约 fencing、心跳、陈旧结果丢弃、有界 QUERY/PREVIEW 重试（上限 2）、写入台账预留、`activeMs`、检查点幂等、`TaskSpec`/`sourceMessages` 恢复、Fact/Receipt 恢复、成功步骤复用、`argsHash`/`planRevision` 守卫、取消未知效果 → `RECONCILING`、崩溃重启恢复 | PASS |
+| N5.2 受保护任务 API、公共投影、resume/cancel、工作台、持久澄清来源、所有权/会话绑定 | PASS |
+| N6.1 预览/确认桥、正式 preflight 复用、服务端任务上下文、陈旧/所有者/参数/目标/过期拒绝、重启校验 | PASS |
+| N6.2 受保护正式命令执行（`adjust_part_stock`、`batch_update_prices`）、服务端 operationId、持久幂等、重复效果 0、`UNKNOWN_EFFECT` → `RECONCILING`、正式读回、重启不新建键、不盲目重放 | PASS |
+| N7.1 rollout control plane（`off`/`shadow`/`owner`，默认 `off`，非法值 fail closed，写开关默认 `false`）、质量门禁、新鲜度绑定、Owner 认证隔离、回退演练 | PASS |
+| N7.2 冗余职责退出：同一任务内正式基线情景成本重复执行（2 → 1）、Native 适配层不可达投影键删除、责任收敛（DUPLICATE_EXECUTION 0 / DEAD 0 / AMBIGUOUS_DUAL_AUTHORITY 0） | PASS |
+| N7.2 canonical 确定性 deep-api 门禁（源由仓库迁移构建，不再依赖本机 `./pump.db`） | PASS |
+| 历史 deep-api 计数歧义（489 / 490 / 493） | 已解释为源库数据形状差异，非代码回归；canonical 与 extended 已分类 |
+
+### 8.2 生产发布待办（PRODUCTION ROLLOUT PENDING，不是代码缺陷）
+
+| 事项 | 状态 | 说明 |
+|---|---|---|
+| 生产 Owner 试点 | **未启动** | `READY_FOR_OWNER_TRIAL = YES`，`OWNER_TRIAL_ACTUALLY_STARTED = NO` |
+| Native 生产写入 | **未启用** | `AI_NATIVE_WRITE_ENABLED` 默认 `false` |
+| fresh live 质量证据 | **REQUIRES_FRESH_PRE_OWNER_TRIAL_RUN** | `npm run verify:ai-native-release` 需真实 `DEEPSEEK_API_KEY` + Owner 凭据；新鲜度绑定 revision，旧证据会 `stale = FAIL` |
+
+### 8.3 接受的设计限制（ACCEPTED LIMITATION，不是债务）
+
+| 事项 | 为什么保留 |
+|---|---|
+| 剩余 Legacy 回答保护层（Money Guard、跨目录候选、线圈变体披露、业务规则披露、线圈→配方关系修复） | `AI_NATIVE_MODE` 默认 `off`，Legacy 仍是生产权威；BUS-P6 判定无组件可全局删除。**不是债务，是明确的 FALLBACK/WITNESS 职责。** |
+| `preview_recipe_cost`、`full_calculate`、`build_recipe_bom_draft` 等 Legacy 专有工具 | Legacy 工具面与 MCP 读取目录仍真实需要；两者各自直连不同正式端点，不是重复执行 |
+| MCP 读取能力 | 独立受支持的对外契约，不因 Native 未使用而失效；MCP 不是 Native 架构的必要条件 |
+| Native 规划器只暴露 3 个工具 | 刻意约束：Native 工具面不追加进 Legacy `AI_TOOLS`，以保证迁移期 Legacy 工具目录冻结 |
+
+### 8.4 真实技术债（REAL TECHNICAL DEBT）
+
+| 事项 | 影响 | 状态 |
+|---|---|---|
+| N7.3 之后 canonical 计划未定义后续阶段；生产 Owner 试点授权属运维决策 | 无代码影响 | 待决策 |
+| 跨机器 canonical 门禁的实际第二机器执行 | 未验证 | `CROSS_MACHINE_EXECUTION = NOT_RUN`（本机无 macOS runner，未伪造）。源已仓库化，结构性可移植性已由测试断言保证 |
+| **包装零件「数量为零即移除对应角色」的指令尚未实现（DESIRED / DEFERRED，不是当前能力）** | `POST /api/recipes/bom-draft` 的 `packingParts` 曾把该行为写成当前能力，实际不存在：`recipeBomEngine`、`dynamicCostPreview.buildPackingSnapshotParts` 与 `calculatePackingPartsCost` 一律使用 `Number(part.qty \|\| 1)`，因此数量为零不会移除角色，反而会变成 1。生产整合候选已按现状收紧为「数量必须为正数」，并同步修正 `docs/api-reference.md` 的当前时态描述。`configurationPolicyJson.packingRemovalPolicy` 的 `CLEAR_ALL` 分支（`packingParts=[]` + `allowClearAll`）**已实现且生效**；其按角色删除的分支只有在实现真正的移除语义之后才有意义 | **未实现 / 待排期**。若要做：需在 `recipeBomEngine` 与 `dynamicCostPreview` 中真正丢弃或归零该角色并补端到端验收；在此之前不得放开数量为零的写法 |
+| 正式目录价格状态（零价 vs 未定价）的跨层表示 | `api/services/partsDataCache.cjs` 曾用 `record.price \|\| 0` 把正式目录的 NULL 价格压成 0，导致 costEngine 无法区分「未定价」与「合法零成本」，未定价零件被算进完整成本。现已改为 `partsByModel` 保留 NULL、`partsCache` 保持既有 0 语义；判定统一收敛到 `costEngine.hasUsableCatalogPrice`，契约由 `tests/catalogPriceStateContract.test.cjs` 锁定 | 已修复。后续若新增读取正式目录价格的中间层，必须保持 NULL 不被数值默认值吞掉 |
+
+### 8.5 不要做（未来会话）
+
+见 [AI Native V1 交接文档](ai-native-v1-handoff.md) §14。要点：不要把 `AI_NATIVE_MODE` 生产设为 `owner`、不要打开 `AI_NATIVE_WRITE_ENABLED`、不要删除仍有唯一职责的 Legacy、不要用旧质量证据证明发布就绪、不要把 `493` 当作 deep-api 固定期望值。

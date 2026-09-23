@@ -45,7 +45,25 @@ function calculateLaborTotal(recipe, getSetting = () => undefined) {
 }
 
 function buildLaborCostDetails(recipe, getSetting = () => undefined) {
-    const surfaceTreatmentCost = recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0;
+    // An EXPLICIT `none` is a formal zero-cost configuration.  Keeping this
+    // normalization here makes current-cost and same-read-set scenario previews
+    // share the same business basis.
+    //
+    // An ABSENT mode is not the same thing and must keep the pre-existing
+    // production fallback: the production recipe row adapter
+    // (api/db.cjs:recipeRow) derives the mode from the legacy painting wage
+    // (`painting_wage != null ? 'painting' : 'none'`), and templateCommands
+    // uses the same rule.  Treating a missing mode as `none` would silently
+    // drop the legacy painting wage from every current-cost basis that is
+    // built from a raw row, which is a production regression, not a Native
+    // requirement.  Only a surfaced mode is therefore allowed to zero the cost.
+    const rawMode = recipe.surfaceTreatmentMode;
+    const normalizedMode = String(rawMode ?? '').trim() || 'none';
+    const surfaceTreatmentCost = normalizedMode === 'none'
+        ? (rawMode === null || rawMode === undefined || String(rawMode).trim() === ''
+            ? (recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0)
+            : 0)
+        : (recipe.surfaceTreatmentCost ?? recipe.paintingWage ?? 0);
     const managementFee = recipe.managementFee ?? getSetting('management_fee') ?? 0;
     return [
         {

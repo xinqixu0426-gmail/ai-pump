@@ -1,0 +1,769 @@
+{
+  "version": 1,
+  "ticket": "N3.1",
+  "provider": {
+    "requested": "deepseek",
+    "actual": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0
+  },
+  "isolatedEnvironment": {
+    "database": "per-run temporary SQLite fixture",
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "productionChanged": false
+  },
+  "runs": [
+    {
+      "round": 1,
+      "cases": [
+        {
+          "label": "current",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 0,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 32
+          }
+        },
+        {
+          "label": "cable-5m",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "PREPARE_CHANGE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 2083
+          }
+        },
+        {
+          "label": "cable-500cm",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 2168
+          }
+        },
+        {
+          "label": "cable-missing-unit",
+          "state": "WAITING_INPUT",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "PREPARE_CHANGE",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "CABLE_LENGTH_UNIT_REQUIRED"
+              ]
+            }
+          ],
+          "facts": [],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 1527
+          }
+        },
+        {
+          "label": "cable-unit-answer",
+          "state": "SUCCEEDED",
+          "planRevision": 2,
+          "goals": [
+            {
+              "kind": "PREPARE_CHANGE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 10
+          }
+        },
+        {
+          "label": "coil-choice",
+          "state": "WAITING_INPUT",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "COIL_AMBIGUOUS"
+              ]
+            }
+          ],
+          "facts": [],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 3788
+          }
+        },
+        {
+          "label": "coil-choice-answer",
+          "state": "SUCCEEDED",
+          "planRevision": 2,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 5,
+            "apiCalls": 5,
+            "activeMs": 9
+          }
+        },
+        {
+          "label": "profit",
+          "state": "PARTIAL",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "PROFITABILITY",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "GOAL_NOT_ENABLED_IN_N3_1"
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 2548
+          }
+        },
+        {
+          "label": "v900",
+          "state": "UNSUPPORTED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CURRENT_COST",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "RECIPE_NOT_FOUND"
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.catalog_match",
+              "entityType": "recipe",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 3,
+            "activeMs": 6
+          }
+        },
+        {
+          "label": "no-save",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 1950
+          }
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "cases": [
+        {
+          "label": "current",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CURRENT_COST",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 0,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 6
+          }
+        },
+        {
+          "label": "cable-5m",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 3559
+          }
+        },
+        {
+          "label": "cable-500cm",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 2976
+          }
+        },
+        {
+          "label": "cable-missing-unit",
+          "state": "WAITING_INPUT",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "PREPARE_CHANGE",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "CABLE_LENGTH_UNIT_REQUIRED"
+              ]
+            }
+          ],
+          "facts": [],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 0,
+            "apiCalls": 0,
+            "activeMs": 1423
+          }
+        },
+        {
+          "label": "cable-unit-answer",
+          "state": "SUCCEEDED",
+          "planRevision": 2,
+          "goals": [
+            {
+              "kind": "PREPARE_CHANGE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 9
+          }
+        },
+        {
+          "label": "coil-choice",
+          "state": "WAITING_INPUT",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "NEEDS_INPUT",
+              "blockers": [
+                "COIL_AMBIGUOUS"
+              ]
+            }
+          ],
+          "facts": [],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 3604
+          }
+        },
+        {
+          "label": "coil-choice-answer",
+          "state": "SUCCEEDED",
+          "planRevision": 2,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 5,
+            "apiCalls": 5,
+            "activeMs": 8
+          }
+        },
+        {
+          "label": "profit",
+          "state": "PARTIAL",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            },
+            {
+              "kind": "PROFITABILITY",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "GOAL_NOT_ENABLED_IN_N3_1"
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 1,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 2632
+          }
+        },
+        {
+          "label": "v900",
+          "state": "UNSUPPORTED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CURRENT_COST",
+              "state": "UNSUPPORTED",
+              "blockers": [
+                "RECIPE_NOT_FOUND"
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.catalog_match",
+              "entityType": "recipe",
+              "entityId": null,
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 0,
+            "toolCalls": 1,
+            "apiCalls": 3,
+            "activeMs": 5
+          }
+        },
+        {
+          "label": "no-save",
+          "state": "SUCCEEDED",
+          "planRevision": 1,
+          "goals": [
+            {
+              "kind": "CONFIGURATION_COMPARE",
+              "state": "VERIFIED",
+              "blockers": []
+            }
+          ],
+          "facts": [
+            {
+              "predicate": "recipe.current_cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.override_application",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            },
+            {
+              "predicate": "scenario.cost_comparison",
+              "entityType": "recipe",
+              "entityId": "301",
+              "complete": true
+            }
+          ],
+          "budget": {
+            "modelCalls": 2,
+            "toolCalls": 2,
+            "apiCalls": 2,
+            "activeMs": 3473
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "rawProviderLog": "gitignored logs/ai-task-controller-v2-live-raw.json"
+}

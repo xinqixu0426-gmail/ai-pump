@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "artifact": "AiAnswerPresentationRemediationPart3V1",
+  "status": "PART3_IN_PROGRESS_FINAL_ACCEPTANCE_PENDING",
+  "ticket": "AI Answer Presentation Remediation V1 — Part 3（最终回归、人工验收、parity 重分类、候选证据重绑）",
+  "branch": "ai-native/prod-integration-v1",
+  "acceptedHeadAtEntry": "49f32f1a331720d1f3b83e6b1ab5f9fa96048dc2",
+  "part1": "PASS",
+  "part2": "PASS (R1 closed)",
+
+  "defectMatrix": {
+    "note": "历史缺陷记录 planning/ai-native-v1/release/LegacyAi*DefectV1.json 保持原样未改写；闭环结论由本文件与 tests/aiAnswerPresentationDefectClosure.test.cjs 承载。",
+    "executableEvidence": "tests/aiAnswerPresentationDefectClosure.test.cjs（8 条，逐缺陷 ID 命名，含负向对照，失败即回退告警）",
+    "defects": {
+      "LEGACY-AI-ANSWER-001": {
+        "symptom": "用户问「这两项产品规格有什么不同」，回答只剩一张内部金额表，正确结论被删除",
+        "rootCause": "aiMoneyGuard 以「正文没写 ¥/元」为前置条件整段替换正文",
+        "fix": "是否保留正文完全由 evaluateAnswerMoney 决定（正文不可用或含无依据金额才替换；非金额结论永不删）",
+        "automatedRegression": "缺陷闭环测试「已修：金额问题不得删除已验证的非金额结论」+「真实实例：浮球差异必须明说」",
+        "negativeControl": "空正文 / 泄漏内部指令时仍必须 replace",
+        "status": "FIXED"
+      },
+      "LEGACY-AI-ANSWER-002": {
+        "symptom": "回答以内部工具名（读取订单知识包/生成 BOM 草稿）、内部 ID（配方ID/COIL-xxxx）、机器表词汇作为对象主体",
+        "rootCause": "aiAssistantAnswer 的 visit() 在结果缺可读身份时回退用 capability.displayName 当对象名；展示层缺失",
+        "fix": "确定性展示规范化层：集中映射表把工具显示名换成业务对象名；内部 ID 默认隐藏；口径词换业务标签",
+        "automatedRegression": "缺陷闭环测试「正常回答不得暴露工具显示名/内部 ID/机器表词汇」",
+        "negativeControl": "显式 ID 请求可见；调试/诊断请求保留机器语言",
+        "status": "FIXED"
+      },
+      "LEGACY-AI-ANSWER-003": {
+        "symptom": "1258 字回答里同一张金额表出现两次（生产会话 msg 230）",
+        "rootCause": "用「整块文本是否被正文包含」判断表格是否已出现，模型写出的任何变体都判定失败并整块追加",
+        "fix": "按结构化「对象 + 项目」键去重，数字归一化后视为同一行；缺失行仍补齐，口径上下文不丢",
+        "automatedRegression": "缺陷闭环测试「同一逻辑金额表只出现一次」（完整表/同值不同精度/带旁注三种变体）",
+        "negativeControl": "真的少一行时仍必须 replaceTable 补齐",
+        "status": "FIXED"
+      },
+      "LEGACY-AI-ANSWER-004": {
+        "symptom": "金额表可读性差：同一笔钱同时出现两种精度，正式源精度被截断，口径词看不懂",
+        "rootCause": "formatMoneyDisplay 一律 toFixed(2)",
+        "fix": "保留来源有效精度（只清浮点尾差）；同值取最高精度表示统一其余叫法；口径词换业务标签",
+        "automatedRegression": "缺陷闭环测试「同一 canonical fact 只有一种表示，且保留来源精度」（含 166.7136 / 195.84155、null 不渲染为 0、272.6 与 272.60 不得并存）",
+        "negativeControl": "用户要求原始精度时同样不改任何数字",
+        "status": "FIXED"
+      },
+      "LEGACY-AI-ANSWER-005": {
+        "symptom": "回答以内部金额表开头、以元话收尾；20+ 项零件连成一段；8/18 条以延伸邀约收尾",
+        "rootCause": "展示层缺失；既有精简逻辑只在本地模型分支生效（远端 provider 无展示策略）",
+        "fix": "确定性展示规范化层（对本地与远端同一策略）：结论先行、长清单分层摘要、清理未被请求的邀约",
+        "automatedRegression": "缺陷闭环测试「结论先行、长清单摘要、无未被请求的延伸邀约」",
+        "negativeControl": "显式明细请求保留全部；必需澄清与缺失/不完整/歧义/策略拒绝信息一律保留",
+        "status": "FIXED"
+      }
+    }
+  },
+
+  "crossInvariants": {
+    "presentationDoesNotAlterGuard": "展示层在金额守卫之后运行，断言规范化后金额表仍只有一张、被补齐的正式金额不丢失、规范化幂等",
+    "safetyCompletionSeparation": "描述配置类目标不补金额表，但正文自写「价值 ¥9999」仍被纠正（unsafe money 与补全相互独立）"
+  },
+
+  "repositoryGates": {
+    "npm test": { "tests": 3053, "pass": 3053, "fail": 0, "exitCode": 0 },
+    "note": "较 Part 2-R1 的 3045 增加 8 条缺陷闭环测试"
+  },
+
+  "stillPendingForPart3Closure": [
+    "人工验收：在保留的测试库副本上重跑记录过的真实问题，逐例记录 QUESTION / BEFORE_BASELINE / AFTER_CANDIDATE / FORMAL_FACTS_BEFORE / FORMAL_FACTS_AFTER / FORMAL_FACTS_CHANGED / PRESENTATION_CHANGED / FINAL_PASS（须使用专用测试副本会话，不得写入用户原始生产会话）",
+    "production parity 重分类：e244bd75 基线与当前候选对比，把五处展示修复标为 APPROVED_INTENTIONAL_PRESENTATION_DELTA，要求 UNEXPLAINED_BUSINESS_REGRESSION=0",
+    "Native 集成回归：N4 表面/证据、N5 持久任务/恢复、N6 preview/write/reconcile 安全、N7 灰度控制、canonical deep-api、N7.3 证据契约",
+    "candidate evidence 重绑：使用非自指绑定模型与 GIT_BLOB_CANONICAL，产出 ProductionIntegrationCandidateEvidence 的后继版本，记录 productionBaseCommit / nativeSourceCommit / previousCandidateRevision / newCandidateProductRevision / newCandidateProductTree，并区分 CANDIDATE_PRODUCT_REVISION 与 CANDIDATE_EVIDENCE_REVISION",
+    "清理：删除保留的临时候选 pump.db 及其 WAL/SHM（须在人工验收与全部自动回归通过之后）",
+    "最终裁定：READY_FOR_OFF_MODE_PRODUCTION_DEPLOYMENT / OWNER_TRIAL_OPERATIONAL_PREREQUISITES"
+  ],
+
+  "prerequisitesVerified": {
+    "testCopyDb": "pump.db 36.82 MB 存在且已被 .gitignore 忽略；WAL/SHM 亦存在",
+    "noEnvFile": "仅有 .env.example，无 .env",
+    "candidateEvidenceLineage": "ProductionIntegrationCandidateEvidenceV1.json 与 ProductionIntegrationCandidateMatrixV1.json 仍在，可供后继版本引用",
+    "defectScopedTests": "五个缺陷均已具备按 ID 命名的可执行回归与负向对照"
+  },
+
+  "safety": {
+    "PRODUCTION_CHANGED": "NO",
+    "PRODUCTION_DATABASE_MIGRATED": "NO",
+    "PRODUCTION_SERVICE_RESTARTED": "NO",
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": "NO",
+    "PUSH_PERFORMED": "NO",
+    "TEMP_PUMP_DB_DELETED": "NO —— 按裁定须在人工验收与自动回归全部通过之后再删除，故本轮保留",
+    "note": "全部本地改动；生产 master 仍为 e244bd75，ai-native/v1 仍为 579b44c8"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "ticket": "N7.1",
+  "status": "PASS",
+  "acceptedStart": "6246568ed54cb67745761d1fc3660db995a5bedf",
+  "deliverables": [
+    "api/services/aiNativeRolloutPolicy.cjs",
+    "api/services/aiNativeQualityGate.cjs",
+    "scripts/run-ai-native-quality-gate.cjs",
+    "scripts/run-ai-native-rollout-live.cjs",
+    "original-ticket-closure-matrix.json",
+    "native-quality-summary.json",
+    "rollout-trial-validation.json"
+  ],
+  "production": {
+    "changed": false,
+    "databaseMigrated": false,
+    "workerEnabled": false,
+    "deployed": false,
+    "pushed": false
+  },
+  "nextTicket": {
+    "id": "N7.2",
+    "title": "旧职责退出，而不是继续叠层",
+    "dependency": "N7.1 trial evidence meets the matching responsibility-slice exit threshold"
+  },
+  "finalEvidence": {
+    "focused": "NODE_ENV=test node --test N4/N5/N6/N7 focused suite: PASS 109/109",
+    "verifyApiContract": "npm run verify:api-contract: PASS 27/27",
+    "npmTest": "npm test: PASS 2960/2960",
+    "deepApi": "npm run test:deep-api: PASS 489/489; isolated temporary SQLite; copper check executed",
+    "lint": "npm run lint: PASS",
+    "build": "npm run build: PASS",
+    "qualityGate": "Post-commit npm run verify:ai-native-release is required for fresh source-bound report."
+  },
+  "productionConfig": {
+    "before": "NOT_ACCESSED",
+    "after": "NOT_ACCESSED",
+    "automaticallyChanged": false
+  },
+  "readiness": {
+    "maximum": "READY_FOR_OWNER_TRIAL",
+    "ownerTrialActuallyStarted": false
+  },
+  "planDeviation": "The historical frozen package manifest previously compared the complete package.json. N7.1 must add a release script, so the frozen invariant now compares the dependency/package-manager surface plus byte-for-byte package-lock; no dependency changed."
+}

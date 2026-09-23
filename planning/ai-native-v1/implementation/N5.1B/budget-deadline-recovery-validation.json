@@ -1,0 +1,26 @@
+{
+  "ticket": "N5.1B-R5",
+  "status": "PASS",
+  "policy": "previous durable activeMs + current iteration activeMs; call counters are durable pre-call reservations",
+  "checkpoint": {
+    "activeMsBefore": 12000,
+    "iterationActiveMs": 3500,
+    "activeMsAfterFirstCheckpoint": 15500,
+    "activeMsAfterRepeatedCheckpoint": 15500,
+    "remainingActiveMs": 44500
+  },
+  "exhaustedWorker": {
+    "activeMs": 60000,
+    "maxActiveMs": 60000,
+    "modelExternalCalls": 0,
+    "toolExternalCalls": 0,
+    "apiExternalCalls": 0,
+    "taskState": "SUSPENDED",
+    "reason": "ACTIVE_BUDGET_EXHAUSTED"
+  },
+  "wallClock": {
+    "waitingInputActiveIncrement": 0,
+    "suspendedActiveIncrement": 0
+  },
+  "focusedTest": "node --test tests/aiTaskWorkerV2.test.cjs (17/17)"
+}

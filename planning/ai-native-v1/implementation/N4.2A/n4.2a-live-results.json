@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "runsExecuted": 20,
+  "result": "REWORK",
+  "errors": [
+    "cable-5m: expected SUCCEEDED, got FAILED",
+    "cable-500cm: expected SUCCEEDED, got FAILED",
+    "cable-unit-answer: expected SUCCEEDED, got FAILED",
+    "coil-choice-answer: expected SUCCEEDED, got FAILED",
+    "no-save: expected SUCCEEDED, got FAILED",
+    "cable-5m: expected SUCCEEDED, got FAILED",
+    "cable-500cm: expected SUCCEEDED, got FAILED",
+    "cable-unit-answer: expected SUCCEEDED, got FAILED",
+    "coil-choice-answer: expected SUCCEEDED, got FAILED",
+    "no-save: expected SUCCEEDED, got FAILED"
+  ],
+  "businessWrites": 0,
+  "rawLog": "gitignored logs/ai-task-controller-v2-live-raw.json"
+}

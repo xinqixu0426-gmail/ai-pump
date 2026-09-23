@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "startCommit": "676f816b6abe803211501fbcad8869cd1f104f1b",
+  "endCommit": "eb8e916f1e73d3d48aaf7a40079ee0b641b31b1a",
+  "runtime": {"node":"v24.16.0","npm":"11.13.0","platform":"darwin arm64"},
+  "commands": [
+    {"name":"verify:api-contract","command":"npm run verify:api-contract","exitCode":0,"status":"PASS","durationMs":43,"passed":27,"failed":0,"notes":["Re-run after locked dependency installation."]},
+    {"name":"npm test","command":"npm test","exitCode":0,"status":"PASS","durationMs":5412,"passed":2777,"failed":0,"notes":["N0.2R replaced the test's local Git object lookup with a validated, self-contained frozen-history manifest without changing the protected invariant."]},
+    {"name":"deep-api","command":"DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api","exitCode":0,"status":"PASS","durationMs":5200,"passed":490,"failed":0,"notes":["Read-only local source database was copied by the runner to a temporary SQLite test database; source fingerprint was unchanged."]},
+    {"name":"lint","command":"npm run lint","exitCode":0,"status":"PASS","durationMs":4400,"passed":null,"failed":null,"notes":["The repository linter does not publish individual assertion counts."]},
+    {"name":"build","command":"npm run build","exitCode":0,"status":"PASS","durationMs":14814,"passed":null,"failed":null,"notes":["Next.js production build completed."]},
+    {"name":"ai-architecture","command":"npm run test:ai-architecture","exitCode":0,"status":"PASS","durationMs":281,"passed":120,"failed":0,"notes":["AI-chain deterministic acceptance used PUMP_TEST_DATABASE_PATH in a temporary directory."]},
+    {"name":"business-understanding-and-synthetic-oracle","command":"PUMP_TEST_DATABASE_PATH=/tmp/pump-ai-native-n02-{pid}.db node --test tests/businessUnderstandingBenchmark.test.cjs tests/businessUnderstandingBenchmarkV2.test.cjs tests/syntheticBusinessAcceptanceV1.test.cjs","exitCode":0,"status":"PASS","durationMs":304,"passed":19,"failed":0,"notes":["This validates current fixtures, formal Oracles, evaluator mutations, and temporary SQLite safety; it is not a live model result."]},
+    {"name":"ai-native-v1-corpus","command":"node --test tests/aiNativeBaseline.test.cjs","exitCode":0,"status":"PASS","durationMs":34,"passed":3,"failed":0,"notes":["Validates fixture presence, nonzero case count, required fields, and frozen-asset separation; it does not execute a provider."]},
+    {"name":"business-understanding-v1-bu07-live","command":"node scripts/run-business-understanding-benchmark.cjs --cases=BU-07 (DeepSeek process env; raw report gitignored)","exitCode":0,"status":"RECORDED","durationMs":null,"passed":0,"failed":2,"notes":["N0.2R re-ran BU-07 twice against DeepSeek: PASS 0, PARTIAL 0, FAIL 2, BLOCKED 0. The known legacy False Complete result remains a product-quality FAIL and is adjudicated in implementation/N0.2R/bu07-trace.json."]},
+    {"name":"business-understanding-v2-live","command":"node scripts/run-business-understanding-benchmark-v2.cjs --env-file=.env (raw report gitignored)","exitCode":0,"status":"PASS","durationMs":null,"passed":22,"failed":0,"notes":["N0.2R rerun: 22 real DeepSeek executions: PASS 22, PARTIAL 0, FAIL 0, BLOCKED 0."]},
+    {"name":"synthetic-business-live","command":"node scripts/run-synthetic-business-acceptance.cjs --provider=deepseek --runs=1 --timeout-ms=180000 (raw report gitignored)","exitCode":2,"status":"PARTIAL","durationMs":null,"passed":31,"failed":0,"notes":["N0.2R rerun: 32 real DeepSeek executions: PASS 31, PARTIAL 1, FAIL 0, BLOCKED 0; zero critical failures and zero business writes."]},
+    {"name":"verify:api-contract-n0.2r","command":"npm run verify:api-contract","exitCode":0,"status":"PASS","durationMs":170,"passed":27,"failed":0,"notes":["N0.2R final deterministic rerun."]},
+    {"name":"deep-api-n0.2r","command":"DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api","exitCode":0,"status":"PASS","durationMs":15147,"passed":490,"failed":0,"notes":["N0.2R final deterministic rerun used a temporary SQLite copy; source fingerprint was unchanged."]},
+    {"name":"lint-n0.2r","command":"npm run lint","exitCode":0,"status":"PASS","durationMs":3801,"passed":null,"failed":null,"notes":["N0.2R final deterministic rerun."]},
+    {"name":"build-n0.2r","command":"npm run build","exitCode":0,"status":"PASS","durationMs":11695,"passed":null,"failed":null,"notes":["N0.2R final deterministic rerun."]}
+  ],
+  "preparationAttempts": [{"name":"npm test before npm ci","exitCode":1,"status":"ENVIRONMENT_FAILURE","reason":"Locked dependencies were absent. npm ci and apps/web-next npm ci then completed without lockfile changes."}],
+  "databaseSafety": {
+    "source":"/Users/dan/Documents/水泵工厂管理助手/pump.db (read-only local source; not production)",
+    "productionUsedForWrites":false,
+    "businessWrites":0,
+    "auditDelta":0,
+    "operationDelta":0,
+    "fileSideEffects":0,
+    "beforeAfterFingerprint":{"sha256":"d62ec73e31cee5e069c10c34ecf4aa2444657e39ec0992c0faa6da40f807e668","userVersion":85,"tables":{"parts":89,"coils":14,"recipes":1,"orders":0,"quotations":0,"audit_log":5409,"api_operations":1478,"business_change_events":145,"factory_files":5}}
+  },
+  "baselineExecutionStatus":"PASS",
+  "legacyProductQualityStatus":"FAIL",
+  "overallStatus":"PASS",
+  "blockers":["Legacy Business Understanding V1 BU-07 remains FAIL: it makes a system-wide absence claim without verified complete recipe, template, and part coverage. This is frozen as NATIVE-BLOCKER-FALSE-COMPLETE-001 for the N3 exit gate."]
+}

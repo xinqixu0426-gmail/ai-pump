@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "ticket": "N5.1A",
+  "focused": {
+    "command": "node --test tests/aiTaskPersistenceV2.test.cjs tests/aiTaskContractV2.test.cjs tests/aiTaskValidationV2.test.cjs",
+    "status": "PASS",
+    "passed": 7,
+    "failed": 0
+  },
+  "isolatedMigration": {
+    "status": "PASS",
+    "method": "formal migration runner from synthetic v87 schema, then createDatabaseBackup and restoreDatabaseBackup to a second temporary path",
+    "businessWrites": 0,
+    "productionDatabaseUsed": false
+  },
+  "notRun": [
+    "real provider acceptance: no provider or runtime path is introduced by N5.1A",
+    "background worker or lease recovery: reserved for N5.1B/N5.1C"
+  ],
+  "status": "PASS",
+  "remainingRequiredEvidence": [],
+  "stage": "N5.1A-R1 persistence recovery and concurrency closure",
+  "r1Closure": {
+    "fourGoalRecovery": "PASS",
+    "revisionConcurrency": "PASS",
+    "planRevisionConcurrency": "PASS",
+    "supersedesValidation": "PASS",
+    "businessDataFingerprint": "PASS",
+    "finalGates": "PASS"
+  }
+}

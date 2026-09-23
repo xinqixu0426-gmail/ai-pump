@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "rules": [
+    "search_customers formally resolves the candidate before search_customer_history receives customerId.",
+    "MULTIPLE produces a clarification and does not read history.",
+    "The selected choice is revalidated against the formal directory before history is read.",
+    "Returned history customer identity must equal the selected formal customer.",
+    "Historical quotation facts and current-cost facts use different temporal/basis fields and answer sections."
+  ],
+  "focusedWitnesses": [
+    "unique customer plus current cost",
+    "multiple customer clarification",
+    "choice revalidation",
+    "identity mismatch rejection",
+    "incomplete all-history answer boundary"
+  ],
+  "result": "PASS"
+}

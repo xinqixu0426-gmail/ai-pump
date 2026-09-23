@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "result": "PASS",
+  "rejections": [
+    "client unitCost",
+    "client grossProfit",
+    "client margin/markup",
+    "USD",
+    "unknown fields",
+    "unknown scenarioKey",
+    "quantity zero",
+    "incomplete cost profit claims"
+  ],
+  "netProfitCalculated": false
+}

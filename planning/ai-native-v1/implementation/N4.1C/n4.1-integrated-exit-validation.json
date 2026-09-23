@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "runs": {
+    "customerHistoryPlusCurrentCost": "5/5 strict serial PASS",
+    "orderBlockerPlusNextAction": "5/5 strict serial PASS",
+    "reportVsLiveConfiguration": "9 strict serial PASS (MATCH/MISMATCH/UNRESOLVED: 3/3/3)",
+    "r3SurfaceContinuation": "2/2 strict serial PASS",
+    "r3SourceScenario": "2/2 strict serial PASS",
+    "r3PackingPolicy": "8/8 strict serial PASS including deny fail-closed outcomes"
+  },
+  "source": "n4.1c-live-results.json",
+  "remainingGap": null,
+  "matrixStatus": {
+    "unproven": 0,
+    "partial": 0,
+    "notRun": 0
+  }
+}

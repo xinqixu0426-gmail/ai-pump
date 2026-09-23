@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "goalKind": "INVENTORY_QUERY",
+  "tool": "preview_virtual_readiness",
+  "receiptAccess": "PREVIEW",
+  "quantityProvenance": [
+    "USER_SPAN",
+    "SOURCE_EVIDENCE",
+    "FORMAL_RECEIPT"
+  ],
+  "continuation": "missing quantity remains NEEDS_INPUT and binds only pending quantity question",
+  "configurationHash": "cost scenario and readiness response must match before merge",
+  "validatedBy": [
+    "controller tests",
+    "real isolated HTTP adapter/executor integration",
+    "live continuation x2"
+  ]
+}

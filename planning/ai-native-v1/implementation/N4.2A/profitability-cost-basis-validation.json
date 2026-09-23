@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "result": "PASS",
+  "invariant": "Profitability re-runs Scenario Comparison and selects only selected scenario cost.currentTotalCost when complete.",
+  "readSet": "response readSetId/readSetHash comes from that one comparison."
+}

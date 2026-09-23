@@ -64,7 +64,14 @@ function buildBusinessEvidencePlan({ userText, toolResults = [], plannedCallCoun
     const aliasResolved = ['CANONICAL_NAME_MATCH', 'FORMAL_ALIAS_MATCH'].includes(identityResolution?.state) && recipes.length === 1;
     const aliasBlocked = semantics.requestedIdentity.aliasConcern && !aliasResolved;
     let extraFacts = [];
-    if (semantics.operation === 'READ_COPPER_PRICE') {
+    if (semantics.kind === 'COST_COMPARISON' && Array.isArray(semantics.comparisonSubjects) && semantics.comparisonSubjects.length === 2) {
+        // E1-B：语义层已确定「两个 canonical 主体 + 成本比较」时，由软件规划正式比较能力。
+        // 计划里只有这一条调用，模型没有「要不要调用 compare_recipes」的决定权。
+        const [left, right] = semantics.comparisonSubjects;
+        add(call('compare_recipes', { recipe1: left, recipe2: right },
+            { recipe1: 'USER_EXPLICIT_VALUE', recipe2: 'USER_EXPLICIT_VALUE' }, [],
+            'Cost comparison between two explicit subjects requires the formal recipe comparison capability'));
+    } else if (semantics.operation === 'READ_COPPER_PRICE') {
         if (!has('get_copper_price')) add(call('get_copper_price', {}, {}, [], 'Read the current formal copper-price basis'));
     } else if (aliasBlocked && semantics.requestedType === 'recipe' && token && !identityResolution) {
         recipeLookup();

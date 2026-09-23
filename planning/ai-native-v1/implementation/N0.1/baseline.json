@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "ticket": "N0.1",
+  "capturedAt": "2026-09-21T21:21:08+08:00",
+  "git": {
+    "baselineCommit": "251f822491d677056f2d7b82f09473a51321d8e1",
+    "baselineTree": "UNKNOWN_NOT_CAPTURED_BEFORE_PLAN_COMMIT",
+    "head": "bf9d7cae54f84b973b4728032880a70c41fa9f92",
+    "tree": "c28566b5dc17623dd3ab891257a58dc16040a913",
+    "branch": "ai-native/v1",
+    "dirty": false,
+    "dirtyFingerprint": null,
+    "remote": "https://github.com/xinqixu0426-gmail/ai-pump.git",
+    "baselineToHead": {
+      "ahead": 1,
+      "behind": 0,
+      "changedPaths": ["planning/ai-native-v1/**"],
+      "meaning": "The only committed difference from the frozen GitHub snapshot is the 55-file AI Native plan package."
+    },
+    "historicalObjects": {
+      "251f822491d677056f2d7b82f09473a51321d8e1": "available",
+      "ca3e506386a76fa0d5faaa641caaa4836c32e3df": "available",
+      "a9d9c4919626a821d9da193798a7526ded907170": "available",
+      "finding": "The required baseline object is present. The GitHub repository is a snapshot history, so no predecessor history was assumed."
+    }
+  },
+  "runtime": {
+    "node": "v24.16.0",
+    "npm": "11.13.0",
+    "rootLockfile": "package-lock.json",
+    "webLockfile": "apps/web-next/package-lock.json",
+    "dependencyChanges": "none"
+  },
+  "database": {
+    "migrationHead": { "version": 87, "name": "recipes_name_identity_lookup", "migrationCount": 87 },
+    "safeUpdate": {
+      "source": "api/db.cjs:704-784",
+      "tables": "SAFE_TABLES is an explicit allow-list; dynamic updates validate SAFE_COL_RE and use safeUpdate()."
+    },
+    "production": "UNKNOWN: no production connection, schema query, migration, or write was attempted."
+  },
+  "qualityCommands": [
+    "npm run verify:api-contract",
+    "npm test",
+    "npm run test:deep-api",
+    "npm run lint",
+    "npm run build",
+    "npm run verify:ai-release"
+  ],
+  "commandsRun": [],
+  "notRun": [
+    {
+      "scope": "repository and live-model quality commands",
+      "reason": "N0.1 authorizes source and configuration audit only. N0.2 owns isolated test, build, and serial real-provider baselines."
+    }
+  ],
+  "productionChanged": false,
+  "databaseChanged": false,
+  "deployPerformed": false,
+  "pushPerformed": false
+}

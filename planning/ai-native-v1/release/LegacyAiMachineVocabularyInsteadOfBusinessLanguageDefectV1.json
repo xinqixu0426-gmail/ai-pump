@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "artifact": "LegacyAiMachineVocabularyInsteadOfBusinessLanguageDefectV1",
+  "defectId": "LEGACY-AI-ANSWER-002",
+  "defectClass": "PRESENTATION_DEFECT",
+  "title": "内部工具名 / 内部 ID / 方案编码泄漏为用户回答的对象主体",
+  "type": "DEFECT_RECORD_LOCAL_ACCEPTANCE_FINDING",
+  "status": "REPORTED_ONLY_NO_CODE_CHANGED",
+  "severity": "HIGH - 面向用户的输出以内部代号为主体，人类需要翻译才能读",
+  "relatedRecords": [
+    "planning/ai-native-v1/release/LegacyAiMoneyGuardDropsNonMonetaryAnswerDefectV1.json",
+    "planning/ai-native-v1/release/LegacyAiAnswerDuplicateMoneyTableDefectV1.json",
+    "planning/ai-native-v1/release/LegacyAiMoneyTableReadabilityDefectV1.json"
+  ],
+  "recordedDuring": "AI Native V1 production integration candidate - local manual acceptance",
+  "candidateUnderAcceptance": {
+    "commit": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+    "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "existsOnProductionBase": true,
+    "integrationImpact": "无 - 相关文件未被整合修改"
+  },
+  "userReport": "用户原话：另外，ai 返回的对象基本上都是「明细1」「读取订单知识包」还有型号代码之类的。我需要的是提供给人类阅读的文字，不是这种看了云里雾里的代号。",
+  "measuredNotGuessed": {
+    "scope": "会话 42 的全部 11 条 AI 回答",
+    "patterns": {
+      "工具显示名被当作对象（读取…/生成…/查询…）": {
+        "hits": 5,
+        "total": 11,
+        "messages": [
+          224,
+          230,
+          234,
+          236,
+          244
+        ]
+      },
+      "内部表头「对象 | 项目 | 金额」": {
+        "hits": 2,
+        "total": 11,
+        "messages": [
+          230,
+          244
+        ]
+      },
+      "明细 N（模型自编号）": {
+        "hits": 1,
+        "total": 11,
+        "messages": [
+          226
+        ]
+      },
+      "方案编码 COIL-xxxx": {
+        "hits": 1,
+        "total": 11,
+        "messages": [
+          230
+        ]
+      },
+      "字段名中文硬映射（档案成本／目录单价）": {
+        "hits": 1,
+        "total": 11,
+        "messages": [
+          230
+        ]
+      },
+      "内部 ID 代号（配方ID／模板ID／订单ID）": {
+        "hits": "多轮",
+        "messages": [
+          228,
+          234,
+          236,
+          238,
+          240,
+          242
+        ]
+      }
+    },
+    "conclusion": "不是偶发措辞，而是默认表达方式：近半数回答以内部工具名或内部 ID 作为对象主体。"
+  },
+  "exactProvenance": {
+    "toolDisplayNamesUsedAsObjects": {
+      "location": "api/services/aiAssistantAnswer.cjs:68 -> visit(item.result, capability.displayName)",
+      "fallbackLocation": "api/services/aiAssistantAnswer.cjs:43 末尾 `|| label`：当结果里没有 name/recipeName/model/schemeCode 时，直接用传入的 label（即工具显示名）作为对象名",
+      "actualDisplayNamesFromRegistry": {
+        "get_order_knowledge_package": "读取订单知识包",
+        "get_order_detail": "读取订单详情",
+        "get_recent_orders": "读取最近订单",
+        "build_recipe_bom_draft": "生成 BOM 草稿",
+        "preview_recipe_cost": "配方成本试算",
+        "get_recipe_detail": "读取配方明细",
+        "search_coils": "查询线圈库存"
+      },
+      "note": "这些 displayName 是给工具选择/审计用的，本来就是动作名（“读取/生成/查询”），不是业务对象名；把它们当表格的「对象」列，用户看到的就是操作日志。"
+    },
+    "schemeCodeAndSpecConcatenation": {
+      "location": "api/services/aiAssistantAnswer.cjs:43",
+      "code": "[value.name || value.recipeName || value.model || value.schemeCode, `${spec}-${sheets}`, material, slotType].filter(Boolean).join(' / ')",
+      "example": "COIL-0004 / 钢带 / 小眼",
+      "note": "优先取 name/recipeName/model，取不到时才退回 schemeCode；线圈对象往往没有 name，于是编码成为主体，人读名称（12-180）反而被放进次位拼接。"
+    },
+    "internalIdCodes": {
+      "observation": "回答里频繁以「配方ID 7」「模板ID 4」「订单ID 1」「配方ID 8」作为对象的指称",
+      "cause": "工具结果以内部 ID 作为主键返回，而提示词要求「只能按工具原项复述」（见下），于是 ID 成为模型唯一可引用的稳定标识"
+    },
+    "promptPolicyThatEnforcesIt": {
+      "location": "api/services/aiPromptComposer.cjs:92",
+      "code": "成本工具返回 costPreview 时，总成本只引用 currentTotalCost；只需概括时最多引用工具直接给出的 partsCost 和 laborCost。除非用户明确要求完整逐项明细，否则不要重新分组；需要逐项展示时只能按 details 或正式 BOM 原项复述，禁止自行合并出工具没有返回的小计。",
+      "also": "api/services/aiPromptComposer.cjs:10 要求「默认只保留当前问题的结论和关键数字……不复述……完整明细」，却没有要求把内部字段名或代号翻译成业务语言",
+      "meaning": "提示词在金额层面严格禁止模型形成自己的表达（这是为了防编造，方向正确），但同一策略没有配套「面向人的命名层」，结果是：字段名、工具名、内部 ID、方案编码全部原样进入用户视野。"
+    }
+  },
+  "rootCauseSummary": {
+    "oneLine": "系统的「可核对性」约束很强，但「可读性」没有对应责任方：金额与标识必须原样引用工具事实（正确且要保留），却没有任何一层负责把这些事实翻译成人类语言。",
+    "whyNotJustTellTheModelToRewrite": "不能简单让模型自由改写：金额一旦允许模型转述就会重新引入编造风险，而金额守卫正是为堵这个风险存在的。所以正确的方向不是放松金额约束，而是新增一个「呈现层」——由确定性代码把内部事实翻译为业务表达，模型只负责组织语言，不得产生新的数字。",
+    "evidenceOfHarm": "用户明确表示看不懂；且在前面已记录的三条缺陷里，同一根因导致金额表重复、非金额答案被整段替换、金额表不可读。"
+  },
+  "suggestedFixDirection": [
+    "引入业务语言映射层（确定性、可测试）：内部标识 → 人读名称。至少覆盖：方案编码 COIL-xxxx → 规格-片数（12-180）+ 材质 + 槽眼；工具显示名 → 业务对象名（get_order_knowledge_package 不应出现，应表达为「订单 #1」）；字段名 → 业务口径（cost 不应叫「档案成本」，应叫「线圈成本」）。",
+    "对象优先用业务身份，内部 ID 降为副标注：例如「800直出水切割泵（配方 #7）」，而不是「配方ID 7」；订单用「邱焕的订单（#1）」而不是「订单ID 1」。",
+    "禁止把动作名当对象：任何以「读取/生成/查询/试算」开头的字符串都不得出现在对象位置。",
+    "产品行必须能表达配置差异：本例两个明细的正确人读表达应能显示「带浮球 / 不带浮球」，而不是同一名称两次；这是用户实际提问所依赖的信息。",
+    "保留全部金额约束（引用 currentTotalCost/partsCost/laborCost、禁止自行小计、金额守卫防编造），只新增呈现翻译，不放松核对。",
+    "验收方式：同一批问题（订单列表、订单明细、报价明细、成本比较、规格差异）在业务人员阅读下不需任何翻译即可理解，且所有金额仍可逐项回溯到工具事实。"
+  ],
+  "relationshipToOtherRecords": {
+    "commonRoot": "formatMoneySummary（api/services/aiAssistantAnswer.cjs:28-81）同时承担机器核对与用户呈现两种职责；本缺陷是同一根因在「命名与语言」层面的表现。",
+    "distinctDefect": "与重复、整段替换不同：即使不发生重复、也不发生替换，只要呈现层的命名继续来自内部标识，用户读到的仍然是代号。"
+  },
+  "dataHandling": {
+    "productionTouched": false,
+    "userOriginalDatabaseModified": false,
+    "evidenceSource": "候选工作区中用户 pump.db 的副本（已迁移至 schema 88）",
+    "credentialsPrinted": false
+  },
+  "abProof": {
+    "runtimeBehavioural": {
+      "method": "把同一段用户历史（会话 42 该轮之前的 7 条消息）原样复制到新会话，同一问题分别打到候选实例（ecc2b27, :3002）与从生产基线代码启动的隔离实例（e244bd75, :3003），两者使用同一份数据（用户 pump.db 的副本）",
+      "candidateResult": "复现：回答长度 1336，金额表出现 2 次，工具序列 search_coils→preview_recipe_cost×2→build_recipe_bom_draft→preview_recipe_cost→get_recipe_detail×2",
+      "productionBaseResult": "复现：回答长度 1258，金额表出现 2 次；与用户库中 msg 230 逐字一致（同为 1258 字、同两处重复）",
+      "conclusion": "两端行为一致，属既有缺陷"
+    },
+    "codeIdentity": {
+      "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+      "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+      "filesVerified": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "identical": true,
+          "blob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e"
+        },
+        {
+          "path": "api/services/aiMoneyGuard.cjs",
+          "identical": true,
+          "blob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "identical": true,
+          "blob": "b5942b5f4584df19492830566a889e7a1cbb2564"
+        },
+        {
+          "path": "api/services/aiPromptComposer.cjs",
+          "identical": true,
+          "blob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46"
+        },
+        {
+          "path": "api/services/aiBusinessRulebook.cjs",
+          "identical": true,
+          "blob": "94176772325d0fdf426aa28c35d50d24d1503446"
+        }
+      ],
+      "allIdentical": true,
+      "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+    },
+    "candidateReproduction": "会话 42 的 11 条 AI 回答中：工具显示名出现 5 条（msg 224/230/234/236/244），内部表头「对象|项目|金额」2 条，方案编码 COIL-0004 1 条，内部 ID 代号多轮（msg 228/234/236/238/240/242）",
+    "productionBaseReproduction": "工具显示名与方案编码来自 registry.displayName 与 aiAssistantAnswer.cjs:43/68 的取值逻辑；两文件在两分支逐字节相同 → 生产基线同样泄漏"
+  },
+  "regressionTestRequirement": [
+    "断言对象位置不得出现以「读取/生成/查询/试算」开头的字符串",
+    "断言方案编码 COIL-xxxx 不作为对象主体（应表达为规格-片数 + 材质 + 槽眼，编码仅副标注）",
+    "断言内部 ID 以业务身份承载（「配方 #7」不得单独作为对象名出现）",
+    "断言字段名硬映射不产生业务不存在的词（如「档案成本」应表达为「线圈成本」）"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "basis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+  "validatedBy": [
+    "tests/virtualReadinessPreview.test.cjs ready/shortage/repeated-preview tests",
+    "N4.2B live base-ready/base-shortage"
+  ],
+  "ignoreReservationsAccepted": false,
+  "virtualDemandPersisted": false
+}

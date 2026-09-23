@@ -1,0 +1,119 @@
+{
+  "ticket": "N5.1B-R5",
+  "status": "PASS",
+  "executor": "deterministic formal executor through aiTaskControllerV2 and Capability Adapter",
+  "task": {
+    "sameTaskKey": true,
+    "goals": {
+      "CURRENT_COST": "VERIFIED",
+      "CONFIGURATION_COMPARE": "VERIFIED",
+      "PROFITABILITY": "VERIFIED",
+      "INVENTORY_QUERY": "VERIFIED"
+    },
+    "finalState": "SUCCEEDED",
+    "finalLease": null
+  },
+  "crash": {
+    "workerA": "destroyed after preview_profitability success",
+    "cleanLeaseRelease": false,
+    "successfulStepsAtLeast": 2,
+    "receiptDurable": true,
+    "factDurable": true,
+    "budgetDurable": true
+  },
+  "recovery": {
+    "leaseExpiryTransition": [
+      "RUNNING",
+      "SUSPENDED",
+      "RESOLVING"
+    ],
+    "freshWorker": true,
+    "freshDbConnection": true,
+    "freshStore": true,
+    "freshLifecycle": true,
+    "freshRecoveryAdapter": true,
+    "freshSession": true,
+    "rehydrationModelCalls": 0
+  },
+  "reuse": {
+    "successfulStepsReused": 2,
+    "underlyingCallsBeforeAndAfter": {
+      "get_all_recipes": [
+        1,
+        1
+      ],
+      "preview_profitability": [
+        1,
+        1
+      ]
+    },
+    "modelBudgetIncrement": 0,
+    "toolBudgetIncrement": 0,
+    "apiBudgetIncrement": 0,
+    "avoidedRepeatToolCalls": 2
+  },
+  "budgetTimeline": [
+    {
+      "point": "T0 create",
+      "modelCalls": 0,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "activeMs": 0
+    },
+    {
+      "point": "T1 before first external call",
+      "modelCalls": 0,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "activeMs": 0
+    },
+    {
+      "point": "T2 after successful get_all_recipes",
+      "modelCalls": 0,
+      "toolCalls": 1,
+      "apiCalls": 1,
+      "activeMs": 0,
+      "increment": "durable pre-call reservation"
+    },
+    {
+      "point": "T3 after successful preview_profitability / crash",
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "activeMs": 0,
+      "increment": "durable pre-call reservation"
+    },
+    {
+      "point": "T4 recovery claim",
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "activeMs": 0,
+      "increment": "none"
+    },
+    {
+      "point": "T5 successful-Step reuse",
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "activeMs": 0,
+      "increment": "none"
+    },
+    {
+      "point": "T6 preview_virtual_readiness",
+      "modelCalls": 0,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "activeMs": 0,
+      "increment": "durable pre-call reservation"
+    },
+    {
+      "point": "T7 final",
+      "modelCalls": 0,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "activeMs": 0
+    }
+  ],
+  "focusedTest": "node --test tests/aiTaskWorkerV2.test.cjs (17/17)"
+}

@@ -1,0 +1,119 @@
+{
+  "version": "LegacyWitnessN72V1",
+  "ticket": "N7.2",
+  "slices": [
+    {
+      "sliceId": "N72-R01",
+      "sliceTitle": "同一任务内正式基线情景成本（recipe.current_cost / CURRENT_REBUILT）",
+      "status": "PASS_ACCEPTED_BY_SUPERVISOR",
+      "acceptedCommit": "a47d2d91b6cf16504f4e516c15f919c41c608e1b",
+      "responsibility": "在同一个 Native 任务里，正式基线情景成本只被正式能力执行一次；用户可见结论、事实口径与安全拒绝行为不变。",
+      "witnessKind": "BUSINESS_CONTRACT_COMPARISON",
+      "witnessNotCodeShape": true,
+      "comparedTerms": [
+        "capability resolution（请求了哪些正式能力）",
+        "canonical identity（配方项目身份与 entityId 绑定）",
+        "formal API calls（正式能力调用次数与情景键）",
+        "evidence / provenance（receipt 来源、read set、指针语义；公开投影不外泄）",
+        "result facts（recipe.current_cost / profitability.preview 的时态、口径、单位、币种、complete）",
+        "error class（不完整正式成本必须不得变成 VERIFIED）",
+        "task / result state（task 与逐目标状态）",
+        "write admission（写能力为 0）",
+        "public result（公共投影字段白名单）"
+      ],
+      "explicitlyNotCompared": [
+        "自然语言回答是否与旧版逐字相似（canonical 06 章禁止以此作为成功条件）",
+        "代码行数或文件数（canonical N7.2 明确不以删除 LOC 为成功指标）"
+      ],
+      "harness": {
+        "files": [
+          "tests/aiTaskLegacyRetirementN72.test.cjs",
+          "tests/aiTaskLegacyRetirementModesN72.test.cjs"
+        ],
+        "kind": "test-only，不新增生产开关、不新增运行时分支、不改正式业务 API",
+        "fixture": "单次正式读取集合；基线成本 108.5、候选成本 108.5、售价 340；资料档案含 cableLength=5 配置字段以触发资料核对责任"
+      },
+      "businessQuestion": "V550技术档案里的价格算现在成本和毛利，卖340一台",
+      "measurement": {
+        "legacyBaseline_underlyingScenarioCapabilityCalls": 2,
+        "after_underlyingScenarioCapabilityCalls": 1,
+        "legacyBaseline_toolSequence": ["get_all_recipes", "get_recipe_technical_files", "compare_recipe_scenarios", "get_all_recipes", "preview_profitability", "compare_recipe_scenarios"],
+        "after_toolSequence": ["get_all_recipes", "get_recipe_technical_files", "compare_recipe_scenarios", "get_all_recipes", "preview_profitability"],
+        "legacyBaseline_toolCalls": 6,
+        "after_toolCalls": 5,
+        "explanation": "去重前：资料核对触发一次正式情景比较；随后 preview_profitability 内嵌同一正式基线情景，而 CURRENT_COST 目标又单独重建了一次基线情景。去重后 CURRENT_COST 复用已接受的盈利能力回执内 scenarioContext.scenarios[0]，不再发出第二次基线情景重建。"
+      },
+      "unchangedTermsEvidence": {
+        "taskState": "SUCCEEDED（前后一致）",
+        "goalStates": {
+          "CURRENT_COST": "VERIFIED",
+          "FILE_INSPECT": "VERIFIED",
+          "PROFITABILITY": "VERIFIED"
+        },
+        "currentCostFact": {
+          "predicate": "recipe.current_cost",
+          "temporalScope": "CURRENT",
+          "basis": "CURRENT_REBUILT",
+          "unit": "pump",
+          "currency": "CNY",
+          "complete": true
+        },
+        "publicFactProjectionKeys": ["complete", "evidenceState", "key", "planRevision"],
+        "writeCapabilitiesInvoked": 0,
+        "ownerOrReceiptLeak": "无（publicTask 投影不含 ownerKey / receiptId / resultPointer）"
+      },
+      "failClosedEvidence": {
+        "case": "正式基线情景 cost.complete=false",
+        "result": "CURRENT_COST 不得成为 VERIFIED，且不得存在 complete=true 的 recipe.current_cost 事实"
+      },
+      "witnessDoesActuallyWitness": {
+        "method": "只回退被修改的生产文件（api/services/aiTaskControllerV2.cjs）到 accepted baseline，测试文件保持不变，重新运行 8 条 N7.2 聚焦测试。共执行两次（改动前、lint 清理后各一次），结论一致。",
+        "result": "6/8 FAIL（LEGACY_WITNESS、NO_DUPLICATE_EXECUTION、AUTHORITY、FAIL_CLOSED、CALLER_GRAPH×1、WRITE_DUPLICATE_EFFECT 失败；MODES 与 CALLER_GRAPH 另一条通过），证明 witness 对“重复执行是否退出”真实敏感，不是恒真断言。",
+        "restoredAfterwards": true,
+        "restoreVerified": "git stash pop 成功，工作区恢复为已修复状态，8/8 PASS；用户既有 stash（chore/retire-wps-integration 等 3 条）未被触碰。"
+      },
+      "r08Note": "本切片已由 R08 复核确认：未重新打开，未改写。"
+    },
+    {
+      "sliceId": "N72-R08",
+      "sliceTitle": "Native 任务能力适配层的 preview_recipe_cost 投影责任退出",
+      "status": "PENDING_FINAL_GATES",
+      "responsibility": "Native 任务适配层中“把 preview_recipe_cost 的单配方当前重建成本结果投影为 canonical recipe 实体”的这一小块责任。",
+      "witnessKind": "RESPONSIBILITY_GRAPH_PROOF",
+      "witnessNotCodeShape": true,
+      "whyThisIsNotABigDelete": "全局 preview_recipe_cost 描述符被 Legacy 运行时、能力注册表、MCP 目录、prompt 与发布脚本真实需要，因此**保留**。本切片只退出 Native 适配层中那一小块、经证明在生产与测试中都不可达的投影键。",
+      "proofOfUnreachability": [
+        "projectCanonicalEntities 只由 bindSubject 调用，且以 receipt.toolName 为索引。",
+        "aiTaskCapabilityAdapterV2.cjs 的唯一生产消费者是 aiTaskControllerV2.cjs（全仓仅此一处 createTaskCapabilityAdapterV2）。",
+        "控制器实际执行的工具名为固定 12 个：compare_recipe_scenarios / get_all_recipes / get_factory_knowledge_detail / get_order_knowledge_package / get_recipe_technical_files / preview_profitability / preview_virtual_readiness / search_coils / search_customer_history / search_customers / search_factory_knowledge / search_parts，其中不含 preview_recipe_cost。",
+        "控制器调用 bindSubject 时只传 get_all_recipes / search_customers / search_coils。",
+        "AI_NATIVE_TOOLS_V2（Native 模型工具面）只含 compare_recipe_scenarios / preview_profitability / preview_virtual_readiness；Native 规划器无法选择 preview_recipe_cost。",
+        "即使被调用也会失败：projectCanonicalEntities 会因 receipt.toolName !== toolName 抛 CANONICAL_PROJECTION_RECEIPT_TOOL_MISMATCH。",
+        "测试侧从未触发该键：全仓无任何断言引用 CANONICAL_PROJECTORS；tests/aiTaskCapabilityAdapterV2.test.cjs 中的 preview_recipe_cost 用例走的是 buildCapabilityDescriptorV2 / validateRequest / executeCapability 机制测试，均不经过 projectCanonicalEntities。"
+      ],
+      "measurement": {
+        "rawReferenceCount": 274,
+        "rawReferenceFiles": 98,
+        "executableOccurrenceCount": 207,
+        "note": "RAW 与 EXECUTABLE 相差 67，均为注释/文档散文/测试期望字符串中的提及，不构成调用方。R01 记录的“约 177 处”是在更窄的文件集合（api/scripts/tests）下统计的结果；本轮按 SPEC 要求的全仓口径为 274 处。两者都不等于调用方数量。",
+        "responsibilitySpecificEntrypointsRemoved": 1,
+        "productionCallersBefore": 0,
+        "productionCallersAfter": 0,
+        "testPathReachabilityBefore": 0,
+        "testPathReachabilityAfter": 0
+      },
+      "unchangedByThisSlice": [
+        "全局 preview_recipe_cost 能力描述符（api/capabilities/registry.cjs）",
+        "Legacy AI 工具面（api/routes/ai/tools.cjs、api/routes/ai/executors/businessExecutors.cjs）",
+        "MCP 读取目录（api/mcp/catalog.cjs）",
+        "Legacy 语义/影响边界对 preview_recipe_cost 结果的消费（api/business-semantics/*, api/business-impact/*）",
+        "prompt 与发布/基准脚本中的工具引用",
+        "正式业务服务 costEngine / recipeScenarioComparison / profitabilityPreview / virtualReadinessPreview / costQueries"
+      ]
+    }
+  ],
+  "notRun": [
+    "真实模型 provider 回放：canonical N7.2 未要求，且两个切片均未触碰模型调用面，故本轮不消耗真实模型容量。",
+    "生产验收：N7.2 不是生产 rollout，本轮无生产权限。"
+  ]
+}

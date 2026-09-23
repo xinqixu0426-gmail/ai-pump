@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "testCases": [
+    {
+      "id": "N5R1-STATE-EVENT-ATOMIC",
+      "expected": "successful lifecycle update increments revision and appends one event in one transaction",
+      "actual": "PASS via two-connection race fixture",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-FAILED-WRITER-NO-STATE",
+      "expected": "stale revision writes no task/event/evidence data",
+      "actual": "revision loser returned TASK_REVISION_CONFLICT and event sequence remained [1,2]/[1,2,3]",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-TERMINAL-REOPEN",
+      "expected": "terminal task does not re-enter RUNNING",
+      "actual": "rejected by existing focused suite",
+      "status": "PASS"
+    }
+  ]
+}

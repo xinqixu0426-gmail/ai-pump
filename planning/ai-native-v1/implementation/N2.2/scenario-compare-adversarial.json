@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "cases": [
+    {"case": "client copper price", "expected": "CLIENT_PRICE_FORBIDDEN"},
+    {"case": "unknown or unimplemented override", "expected": "UNSUPPORTED_OVERRIDE_FIELD"},
+    {"case": "coil sheets without coil id", "expected": "COIL_SHEETS_REQUIRES_COIL_ID"},
+    {"case": "coil sheets inconsistent with official selected coil", "expected": "COIL_SHEETS_MISMATCH"},
+    {"case": "dependent cable override while cable disabled", "expected": "notApplied.reasonCode=CABLE_NOT_ENABLED"},
+    {"case": "dependent float override while float disabled", "expected": "notApplied.reasonCode=FLOAT_NOT_ENABLED"},
+    {"case": "candidate with bound packaging and same-model supplier alternatives", "expected": "preserves packaging, recipe wage, management fee and bound supplier identity"},
+    {"case": "unknown recipe", "expected": "RECIPE_NOT_FOUND"},
+    {"case": "oversized result", "expected": "PAYLOAD_LIMIT and no truncated successful response"},
+    {"case": "incomplete cost", "expected": "INCOMPLETE and null comparable delta"},
+    {"case": "cross-connection price change", "expected": "base/candidate remain P1; subsequent read sees P2 with distinct readSetHash"}
+  ]
+}

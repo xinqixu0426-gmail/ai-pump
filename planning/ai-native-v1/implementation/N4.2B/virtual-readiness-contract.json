@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "request": "VirtualReadinessRequestV1",
+  "endpoint": "POST /api/inventory/virtual-readiness-preview",
+  "requestShape": {
+    "version": 1,
+    "basisRef": {
+      "kind": "RECIPE_SCENARIO",
+      "recipeId": "positive integer",
+      "comparisonInput": "ScenarioCompareRequestV1",
+      "scenarioKey": "base or declared scenario"
+    },
+    "quantity": "integer 1..100000"
+  },
+  "additionalProperties": "rejected at every request object",
+  "responseStatusRules": {
+    "READY": "complete coverage and zero shortages",
+    "SHORTAGE": "complete coverage and one or more shortages",
+    "INCOMPLETE": "unresolved identity, formal scenario failure, or incomplete coverage"
+  },
+  "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+  "writesAllowed": false
+}

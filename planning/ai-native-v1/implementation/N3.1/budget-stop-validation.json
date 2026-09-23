@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "constraints": {
+    "maxModelCalls": 7,
+    "maxToolCalls": 10,
+    "maxToolResultBytes": 98304,
+    "maxTaskStateBytes": 262144,
+    "maxApiCalls": 32,
+    "maxActiveMs": 60000
+  },
+  "enforced": [
+    "budget counters use actual semantic model calls, executor tool calls and execution-evidence formal calls",
+    "AbortSignal forwarded into executor",
+    "one technical retry only",
+    "COMMAND rejected before execution",
+    "state serialization validator rejects oversize task"
+  ],
+  "focusedTests": "37 passed"
+}

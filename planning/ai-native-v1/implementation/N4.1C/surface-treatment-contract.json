@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "checks": {
+    "enum": "PASS",
+    "noneZero": "PASS",
+    "conflict": "PASS",
+    "policyCost": "PASS",
+    "oldCostNonInheritance": "PASS",
+    "missingCost": "PASS",
+    "clarificationContinuation": "PASS"
+  },
+  "evidence": [
+    "tests/recipeScenarioComparison.test.cjs",
+    "tests/recipeConfigurationPolicy.test.cjs",
+    "R3 DeepSeek surface-continuation x2"
+  ]
+}

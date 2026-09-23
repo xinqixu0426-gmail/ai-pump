@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "ticket": "N4.2B",
+  "status": "PASS",
+  "focusedTests": "PASS 96",
+  "liveAcceptance": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "families": 10,
+    "runsPerFamily": 2,
+    "acceptedLiveTurns": 22,
+    "criticalFailures": 0,
+    "metrics": {
+      "medianLatencyMs": 2444,
+      "p95LatencyMs": 2797,
+      "firstStatusMedianMs": 2444,
+      "finalAnswerMedianMs": 2444,
+      "admissionMedianMs": 2444,
+      "admissionP95Ms": 2797
+    }
+  },
+  "safety": {
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "orderCreates": 0,
+    "purchaseCreates": 0,
+    "inventoryWrites": 0,
+    "auditDelta": 0,
+    "operationDelta": 0,
+    "fileSideEffects": 0
+  },
+  "planDeviations": [
+    "The live report counts 22 accepted turns: 9 single-turn families x2 plus the mandatory missing-quantity family as two independent two-turn tasks.",
+    "The virtual readiness request permits an empty ScenarioCompareRequestV1 scenarios array for the explicit base scenario; ScenarioCompareRequestV1 itself remains otherwise unchanged."
+  ],
+  "blocker": null,
+  "deterministicGates": {
+    "focused": "PASS 96",
+    "verify:api-contract": "PASS 27",
+    "npm test": "PASS 2896",
+    "test:deep-api": "PASS 482",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "mandatoryEvidence": {
+    "partialItems": 0,
+    "unprovenItems": 0,
+    "notRunItems": 0
+  }
+}

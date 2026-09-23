@@ -429,6 +429,38 @@ function partsCatalogFromPartsByModel(partsByModel) {
     ));
 }
 
+// PHASE 5-R2 — 正式目录价格语义（本整合候选的最终契约）。
+//
+// 依据（均为仓库内可核对的形式化事实，不是推测）：
+//   1. schema：parts.price 为 `REAL DEFAULT 0` 且约束为 `CHECK(price IS NULL OR price >= 0)`。
+//      零是列默认值，负数被数据库直接拒绝。
+//   2. 正式零件 API：partCommands.cjs 的 create / update / batch_update_prices 全部使用
+//      parseNonNegativeNumber，即 `price >= 0` 合法，`price < 0` 非法。
+//   3. 正式列表过滤：partQueries.cjs 的 normalizeOptionalNumber(..., { min: 0 }) 说明
+//      价格过滤的下界就是 0，零价格零件是普通可检索数据。
+//   4. 文档口径：docs/api-reference.md 在“缺少价格”语境下使用 missingParts，而 0 是
+//      目录里一个正常的存储值——它表示零成本项，不表示未定价。
+//
+// 因此零价不是“缺价”，而是合法的零成本价。真正不可用的是：
+//   - 负数（数据破坏：会产出负总额）
+//   - 非有限值 / 非数值（null、undefined、NaN、'abc' 等：会产出 NaN 总额）
+// 这两类必须被显式识别，否则成本系统会静默给出错误总额。
+//
+// 注意：缺失（未定价）仍然由“目录里根本没有该型号”分支负责，语义不变。
+function hasUsableCatalogPrice(value) {
+    if (value === null || value === undefined || value === '') return false;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return false;
+    return numeric >= 0;
+}
+
+function catalogPriceSourceLabel(value) {
+    return value !== null && value !== undefined && value !== ''
+        && Number.isFinite(Number(value)) && Number(value) < 0
+        ? '正式目录价格无效'
+        : '正式目录未定价';
+}
+
 function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options = {}) {
     const getSetting = options.getSetting || (() => undefined);
     let totalCost = 0;
@@ -505,11 +537,30 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
             }
         } else if (match && p.supplier) {
             price = match.price;
-            source = '精确匹配';
+            if (!hasUsableCatalogPrice(price)) {
+                const declaredPrice = price;
+                missingParts.push(p.model);
+                price = 0;
+                source = catalogPriceSourceLabel(declaredPrice);
+            } else source = '精确匹配';
         } else if (suppliers.length > 0) {
-            const fb = suppliers.reduce((min, c) => c.price < min.price ? c : min, suppliers[0]);
-            price = fb.price;
-            source = '型号回退(取最低价)';
+            // PHASE 5-R2: pick the lowest USABLE catalogue price.  A row with a
+            // missing/invalid price must not win the minimum and then hide the
+            // shortage; the validity rule itself is defined by
+            // hasUsableCatalogPrice (see its comment for the formal evidence).
+            const usableSuppliers = suppliers.filter(candidate => hasUsableCatalogPrice(candidate.price));
+            if (usableSuppliers.length > 0) {
+                const fb = usableSuppliers.reduce(
+                    (min, c) => Number(c.price) < Number(min.price) ? c : min,
+                    usableSuppliers[0]
+                );
+                price = fb.price;
+                source = '型号回退(取最低价)';
+            } else {
+                missingParts.push(p.model);
+                price = 0;
+                source = catalogPriceSourceLabel(suppliers[0]?.price);
+            }
         } else if ((p.name === '线圈转子' || p.name === '电容') && p.snapshotPrice !== undefined) {
             price = p.snapshotPrice;
             source = '快照价格';
@@ -700,6 +751,10 @@ module.exports = {
     getFloatAccessoryDelta,
     isFloatPart,
     partsCatalogFromPartsByModel,
+    // PHASE 5-R3：正式目录价格可用性判定只有这一份实现，其他模块必须复用，
+    // 不得各自复制一份规则。
+    hasUsableCatalogPrice,
+    catalogPriceSourceLabel,
     calculateRecipeCost,
     renderRecipeCostSnapshot,
     buildRecipeCostDraft,

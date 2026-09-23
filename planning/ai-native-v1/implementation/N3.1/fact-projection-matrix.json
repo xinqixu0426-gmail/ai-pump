@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "source": "trusted ExecutionReceiptV1 from aiTaskCapabilityAdapterV2 only",
+  "facts": [
+    {
+      "predicate": "recipe.current_cost",
+      "pointer": "/data/scenarios/0/cost/currentTotalCost",
+      "scope": "CURRENT",
+      "basis": "CURRENT_REBUILT"
+    },
+    {
+      "predicate": "scenario.cost",
+      "pointer": "/data/scenarios/<candidate>/cost/currentTotalCost",
+      "scope": "SCENARIO",
+      "basis": "CURRENT_REBUILT"
+    },
+    {
+      "predicate": "scenario.override_application",
+      "pointer": "/data/scenarios/<candidate>/appliedOverrides",
+      "scope": "SCENARIO",
+      "basis": "CURRENT_REBUILT"
+    },
+    {
+      "predicate": "scenario.cost_comparison",
+      "pointer": "/data/comparisons/<candidate>",
+      "scope": "SCENARIO",
+      "basis": "CURRENT_REBUILT",
+      "admission": "status=COMPARABLE and both costs complete"
+    },
+    {
+      "predicate": "recipe.catalog_match",
+      "pointer": "/data",
+      "scope": "CURRENT",
+      "basis": "RECIPE_CATALOGUE_QUERY",
+      "evidenceState": "VERIFIED_NEGATIVE",
+      "admission": "complete recipe catalogue empty, entityId=null, queryScopeHash required"
+    }
+  ],
+  "rejections": [
+    "unverified executor result",
+    "wrong task/revision/hash",
+    "missing pointer",
+    "pointer value mismatch",
+    "incomplete cost",
+    "override not applied",
+    "global absence inference"
+  ]
+}

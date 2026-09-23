@@ -4,6 +4,7 @@ const {
     lengthPricedPartSubtotal,
     buildRecipeCostDraft,
     calculateCompleteCableCost,
+    hasUsableCatalogPrice,
 } = require('./costEngine.cjs');
 const {
     DEFAULT_COIL_MATERIAL,
@@ -195,9 +196,21 @@ function buildPackingSnapshotParts(packingPartsJson, partsCatalog) {
         .filter(part => part?.model)
         .map(part => {
             const matched = resolveCatalogPartIdentity(partsCatalog, part, { field: 'packingPartsJson' });
+            // PHASE 5-R2：正式目录“未定价”的判定。
+            //
+            // 目录价 0 是合法价格（schema 为 `REAL DEFAULT 0`，正式零件 API 用
+            // parseNonNegativeNumber，列表价格过滤下界也是 0），所以 0 不得被当成
+            // 未定价。但目录行“没有可用价格”（NULL / 非数值）就是未定价，此时既不
+            // 能伪造 snapshotPrice 0，也不能让它按合法零价通过；必须让 costEngine
+            // 自己把这些行判定为未定价并计入 missingParts。
+            //
+            // 调用方显式给出的 part.snapshotPrice 仍然优先（那是它自己声明的价格）。
+            const catalogPriceUsable = Boolean(matched) && hasUsableCatalogPrice(matched.price);
             const snapshotPrice = part.snapshotPrice !== undefined
                 ? Number(part.snapshotPrice || 0)
-                : Number(matched?.price || 0);
+                : catalogPriceUsable
+                    ? Number(matched.price)
+                    : undefined;
             return {
                 ...part,
                 partId: partIdOf(matched),
@@ -205,7 +218,7 @@ function buildPackingSnapshotParts(packingPartsJson, partsCatalog) {
                 name: String(part.name || part.model),
                 supplier: String(part.supplier || matched?.supplier || ''),
                 qty: Number(part.qty || 1),
-                snapshotPrice,
+                ...(snapshotPrice === undefined ? {} : { snapshotPrice }),
                 packingRole: inferPackingRole(part),
             };
         });

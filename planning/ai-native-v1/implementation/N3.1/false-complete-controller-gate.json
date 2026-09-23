@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "defectId": "NATIVE-BLOCKER-FALSE-COMPLETE-001",
+  "legacyStatus": "FAIL",
+  "n3_1Status": "PROTECTED_AT_CONTROLLER",
+  "case": "V900 的成本是多少",
+  "rules": [
+    "complete recipe catalogue empty may create only recipe-scoped VERIFIED_NEGATIVE with queryScopeHash",
+    "incomplete/technical recipe read creates no negative fact",
+    "controller never creates a global verified absence fact",
+    "templates and parts are not read or inferred in N3.1"
+  ],
+  "liveRuns": 2,
+  "globalVerifiedNegativeFacts": 0,
+  "requiredExitStage": "N3",
+  "closure": "N3.2 answer boundary proof still required"
+}

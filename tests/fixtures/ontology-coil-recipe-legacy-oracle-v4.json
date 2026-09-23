@@ -1,0 +1,3080 @@
+{
+    "version": 4,
+    "sourceCommit": "08bb566a933acc0e7259223a2d46bcc0c85823a9",
+    "generatedFromCommit": "13f71c8322c2aa077d9720bf78fc3199b4ad8c26",
+    "providerMode": "local",
+    "supersedes": "ontology-coil-recipe-legacy-oracle-v3.json",
+    "reason": "LEGACY-AI-ANSWER-002 presentation remediation: the user-visible money table labels its subject with a business object name instead of the internal tool display name.",
+    "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+    "changeReason": "LEGACY-AI-ANSWER-002",
+    "approvedBy": "Supervisor Part 2 authorization",
+    "previousBaselineSha": "faee25304a6446151cd044e8e274e2818cfde51a2a019529ad511133352d8c5b",
+    "affectedCases": [
+        "coil-cost",
+        "recipe-cost",
+        "cost-compare",
+        "mixed-cost-compare-relation"
+    ],
+    "vocabularyDelta": [
+        {
+            "from": "| 计算线圈成本 |",
+            "to": "| 线圈成本 |"
+        },
+        {
+            "from": "| 配方成本试算 |",
+            "to": "| 配方成本 |"
+        }
+    ],
+    "historicalOraclesImmutable": [
+        "ontology-coil-recipe-legacy-oracle-v1.json",
+        "ontology-coil-recipe-legacy-oracle-v2.json",
+        "ontology-coil-recipe-legacy-oracle-v3.json"
+    ],
+    "versionHistory": [
+        {
+            "version": 2,
+            "change": "ONT-P8L legacy local-mode relation repair bugfix"
+        },
+        {
+            "version": 3,
+            "change": "LEGACY-AI-ANSWER-001：保留关系结论与正式金额表，正文不再只剩金额表"
+        },
+        {
+            "version": 4,
+            "change": "LEGACY-AI-ANSWER-002：金额表对象列由工具显示名改为业务对象名"
+        }
+    ],
+    "cases": [
+        {
+            "caseId": "coil-short",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-explicit",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-name",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-pronoun",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-name",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-explicit",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-pronoun",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-boss",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-cost",
+            "catalogs": [
+                [
+                    "calculate_coil_cost"
+                ],
+                [
+                    "calculate_coil_cost"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\n\n本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| 线圈成本 | 总成本 | 100 |\n\n完整计算明细见本轮工具结果。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "calculate_coil_cost"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "calculate_coil_cost"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-stock",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "search_factory_knowledge",
+                    "search_parts"
+                ],
+                [
+                    "search_coils",
+                    "search_factory_knowledge",
+                    "search_parts"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-cost",
+            "catalogs": [
+                [
+                    "preview_recipe_cost",
+                    "get_all_recipes",
+                    "build_recipe_bom_draft",
+                    "search_templates",
+                    "preview_pump_shell_cost",
+                    "compare_recipes"
+                ],
+                [
+                    "preview_recipe_cost",
+                    "get_all_recipes",
+                    "build_recipe_bom_draft",
+                    "search_templates",
+                    "preview_pump_shell_cost",
+                    "compare_recipes"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "preview_recipe_cost",
+                    "args": {
+                        "recipeId": 301,
+                        "useRecipeBaseline": true
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\n\n本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| 配方成本 | 总成本 | 100 |\n\n完整计算明细见本轮工具结果。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "preview_recipe_cost"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "preview_recipe_cost",
+                    "args": {
+                        "recipeId": 301,
+                        "useRecipeBaseline": true
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "preview_recipe_cost"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "cost-compare",
+            "catalogs": [
+                [
+                    "calculate_coil_cost"
+                ],
+                [
+                    "calculate_coil_cost"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "13",
+                        "sheets": 120
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\n\n本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| 线圈成本 | 总成本 | 100 |\n\n完整计算明细见本轮工具结果。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "calculate_coil_cost",
+                "calculate_coil_cost"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "13",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "calculate_coil_cost"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-write",
+            "catalogs": [
+                [
+                    "search_coils"
+                ],
+                [
+                    "search_coils"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-write",
+            "catalogs": [
+                [
+                    "get_recipe_technical_files",
+                    "get_all_recipes",
+                    "analyze_recipe_configuration",
+                    "get_recipe_detail",
+                    "get_template_detail",
+                    "search_templates"
+                ],
+                [
+                    "get_recipe_technical_files",
+                    "get_all_recipes",
+                    "analyze_recipe_configuration",
+                    "get_recipe_detail",
+                    "get_template_detail",
+                    "search_templates"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "get_recipe_technical_files",
+                    "args": {
+                        "recipeId": 301
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "get_recipe_technical_files"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "get_recipe_technical_files",
+                    "args": {
+                        "recipeId": 301
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "get_recipe_technical_files"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "similar",
+            "catalogs": [
+                [
+                    "search_coils"
+                ],
+                [
+                    "search_coils"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "semantic",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "two-coils",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "two-recipes",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "ambiguous-root",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "unsupported",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recent_orders"
+                ],
+                [
+                    "search_coils",
+                    "get_recent_orders"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "mixed-recipe-coil-cost",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "mixed-recipe-coil-stock",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "mixed-cost-compare-relation",
+            "catalogs": [
+                [
+                    "calculate_coil_cost"
+                ],
+                [
+                    "calculate_coil_cost"
+                ],
+                [
+                    "calculate_coil_cost"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "13",
+                        "sheets": 120
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\n\n本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| 线圈成本 | 总成本 | 100 |\n\n完整计算明细见本轮工具结果。",
+            "modelCalls": 3,
+            "selectedTools": [
+                "calculate_coil_cost",
+                "calculate_coil_cost"
+            ],
+            "deterministicRepair": true,
+            "results": [
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "13",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "calculate_coil_cost",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [],
+                        "count": 0,
+                        "totalCost": 100,
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils/cost-preview"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "search_coils",
+                    "result": {
+                        "success": false,
+                        "code": "AI_TOOL_NOT_ALLOWED",
+                        "error": "本轮只开放已登记的只读业务工具；业务修改需要本人确认，当前未启用。"
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "calculate_coil_cost"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "mixed-write-relation",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "recipe-configuration",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "bom-configuration",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {
+                        "spec": "12",
+                        "sheets": 120
+                    },
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "coil-comparison",
+            "catalogs": [
+                [
+                    "compare_recipes"
+                ],
+                [
+                    "compare_recipes"
+                ]
+            ],
+            "executed": [],
+            "finalContent": "**本轮没有取得正式业务 API 的有效结果。**\n\n- args.recipe1 为必填字段\n\n因此不能给出业务数据或执行成功结论；请重试。",
+            "modelCalls": 2,
+            "selectedTools": [],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "compare_recipes",
+                    "result": {
+                        "success": false,
+                        "code": "INVALID_AI_TOOL_INPUT",
+                        "error": "args.recipe1 为必填字段"
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        },
+        {
+            "caseId": "configuration-query",
+            "catalogs": [
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ],
+                [
+                    "search_coils",
+                    "get_recipes_by_coil",
+                    "get_recipe_detail"
+                ]
+            ],
+            "executed": [
+                {
+                    "name": "search_coils",
+                    "args": {}
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    }
+                }
+            ],
+            "finalContent": "已核实：Shadow配方甲使用Shadow线圈甲（12-120）。",
+            "modelCalls": 2,
+            "selectedTools": [
+                "search_coils",
+                "get_recipes_by_coil"
+            ],
+            "deterministicRepair": false,
+            "results": [
+                {
+                    "name": "search_coils",
+                    "args": {},
+                    "result": {
+                        "success": true,
+                        "data": [
+                            {
+                                "id": 501,
+                                "schemeName": "Shadow线圈甲",
+                                "schemeCode": "SHADOW-501",
+                                "spec": "12",
+                                "sheets": 120
+                            }
+                        ],
+                        "count": 1,
+                        "filters": {
+                            "keyword": ""
+                        },
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "GET",
+                                    "path": "/api/coils"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "get_recipes_by_coil",
+                    "args": {
+                        "coilId": 501
+                    },
+                    "result": {
+                        "success": true,
+                        "count": 1,
+                        "relation": "coil.recipes",
+                        "semantics": "CURRENT_RECIPE_COIL_REFERENCES",
+                        "rootCoilId": 501,
+                        "totalCount": 1,
+                        "returnedCount": 1,
+                        "hasMore": false,
+                        "complete": true,
+                        "setCompleteness": "COMPLETE",
+                        "pagesFetched": 1,
+                        "serializedBytes": 0,
+                        "unconfirmedLegacyReferences": {
+                            "ambiguous": [],
+                            "incomplete": []
+                        },
+                        "data": [
+                            {
+                                "recipeId": 301,
+                                "recipeName": "Shadow配方301"
+                            }
+                        ],
+                        "executionEvidence": {
+                            "verified": true,
+                            "kind": "formal_api_query",
+                            "calls": [
+                                {
+                                    "method": "POST",
+                                    "path": "/api/relations/read"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "evidence": {
+                "version": 1,
+                "taskVersion": 1,
+                "presentation": "conversation",
+                "configuredBom": null,
+                "knowledge": [],
+                "verifiedToolNames": [
+                    "search_coils",
+                    "get_recipes_by_coil"
+                ],
+                "warnings": []
+            },
+            "repairPrompts": [
+                [],
+                []
+            ]
+        }
+    ]
+}

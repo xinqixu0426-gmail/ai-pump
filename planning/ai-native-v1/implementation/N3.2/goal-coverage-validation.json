@@ -1,0 +1,7 @@
+{
+  "ticket": "N3.2",
+  "status": "PASS",
+  "evidence": "Focused deterministic boundary tests plus 24x5 isolated DeepSeek runs",
+  "answerModelCalls": 0,
+  "businessWrites": 0
+}

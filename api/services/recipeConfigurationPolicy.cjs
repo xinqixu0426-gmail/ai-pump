@@ -3,6 +3,7 @@ const {
     parseNonNegativeNumber,
     parsePositiveId,
 } = require('./validation.cjs');
+const { inferPackagingSemantics, PACKING_ROLES } = require('./packagingSemantics.cjs');
 
 const CONFIGURATION_POLICY_VERSION = 1;
 const CONFIGURATION_POLICY_FIELD_TYPES = Object.freeze({
@@ -106,6 +107,7 @@ function normalizeRecipeConfigurationPolicy(value, field = 'configurationPolicyJ
         'version',
         'fields',
         'packingPartIds',
+        'packingRemovalPolicy',
         'surfaceTreatmentOptions',
     ].includes(key));
     if (unknownKeys.length > 0) {
@@ -167,6 +169,40 @@ function normalizeRecipeConfigurationPolicy(value, field = 'configurationPolicyJ
             }
             return parsed;
         }))];
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'packingRemovalPolicy')) {
+        const removal = source.packingRemovalPolicy;
+        if (!removal || typeof removal !== 'object' || Array.isArray(removal)) {
+            throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy 必须是对象`);
+        }
+        const unknownRemovalKeys = Object.keys(removal).filter(key => !['removableRoles', 'removablePartIds', 'allowClearAll'].includes(key));
+        if (unknownRemovalKeys.length) {
+            throw policyError('RECIPE_CONFIGURATION_POLICY_UNKNOWN_FIELD', `${field}.packingRemovalPolicy 包含不支持的字段：${unknownRemovalKeys.join('、')}`);
+        }
+        if (!Array.isArray(removal.removableRoles) || removal.removableRoles.length > 4) {
+            throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy.removableRoles 必须是最多 4 项的数组`);
+        }
+        const removableRoles = [...new Set(removal.removableRoles.map((role, index) => {
+            const normalizedRole = String(role || '').trim();
+            if (!PACKING_ROLES.has(normalizedRole)) {
+                throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy.removableRoles[${index}] 不支持`);
+            }
+            return normalizedRole;
+        }))];
+        if (!Array.isArray(removal.removablePartIds) || removal.removablePartIds.length > MAX_ALLOWED_VALUES) {
+            throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy.removablePartIds 必须是最多 ${MAX_ALLOWED_VALUES} 项的数组`);
+        }
+        const removablePartIds = [...new Set(removal.removablePartIds.map((partId, index) => {
+            const parsed = parsePositiveId(partId);
+            if (!parsed) {
+                throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy.removablePartIds[${index}] 必须是有效零件ID`);
+            }
+            return parsed;
+        }))];
+        if (typeof removal.allowClearAll !== 'boolean') {
+            throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field}.packingRemovalPolicy.allowClearAll 必须是布尔值`);
+        }
+        normalized.packingRemovalPolicy = { removableRoles, removablePartIds, allowClearAll: removal.allowClearAll };
     }
     if (Object.prototype.hasOwnProperty.call(source, 'surfaceTreatmentOptions')) {
         if (!Array.isArray(source.surfaceTreatmentOptions)) {
@@ -239,8 +275,70 @@ function packingIdentity(part = {}) {
     return `legacy:${String(part.model || '').trim()}::${String(part.supplier || '').trim()}`;
 }
 
+function packingRole(part = {}) {
+    return inferPackagingSemantics(part).packingRole;
+}
+
+function findBaselinePackingForRemoval(baselineParts, patch) {
+    const partId = parsePositiveId(patch.partId);
+    if (partId) {
+        const matches = baselineParts.filter(item => parsePositiveId(item.partId) === partId);
+        if (matches.length === 1) return matches[0];
+        return null;
+    }
+    const model = String(patch.model || '').trim();
+    const supplier = String(patch.supplier || '').trim();
+    if (!model || !supplier) return null;
+    const matches = baselineParts.filter(item => String(item.model || '').trim() === model && String(item.supplier || '').trim() === supplier);
+    return matches.length === 1 ? matches[0] : null;
+}
+
+// This returns only server-owned policy decisions. It does not mutate a BOM
+// and cannot turn a packaging document or model proposal into an allowance.
+function evaluatePackingRemovalPolicy({ baseline, overrides, policy }) {
+    const baselineParts = parseJsonArray(baseline?.packingPartsJson);
+    if (!policy || !Object.prototype.hasOwnProperty.call(policy, 'packingRemovalPolicy')) {
+        return { mode: 'legacy_open', operations: [] };
+    }
+    if (!Object.prototype.hasOwnProperty.call(overrides || {}, 'packingPartsJson')) {
+        return { mode: 'explicit', operations: [] };
+    }
+    const patches = parseJsonArray(overrides.packingPartsJson);
+    const removal = policy.packingRemovalPolicy;
+    if (patches.length === 0) {
+        return { mode: 'explicit', operations: [{ operation: 'CLEAR_ALL', role: null, partId: null, allowed: removal.allowClearAll, reasonCode: removal.allowClearAll ? 'PACKING_CLEAR_ALL_ALLOWED' : 'PACKING_CLEAR_ALL_NOT_ALLOWED' }] };
+    }
+    const operations = [];
+    for (const patch of patches) {
+        if (Number(patch?.qty) !== 0) continue;
+        const original = findBaselinePackingForRemoval(baselineParts, patch);
+        if (!original) {
+            operations.push({ operation: 'REMOVE', role: null, partId: parsePositiveId(patch?.partId) || null, allowed: false, reasonCode: 'PACKING_REMOVAL_IDENTITY_UNRESOLVED' });
+            continue;
+        }
+        const partId = parsePositiveId(original.partId);
+        const role = packingRole(original);
+        const allowed = removal.removableRoles.includes(role) || (partId !== null && removal.removablePartIds.includes(partId));
+        operations.push({ operation: 'REMOVE', role, partId: partId || null, allowed, reasonCode: allowed ? 'PACKING_REMOVAL_ALLOWED' : 'PACKING_REMOVAL_NOT_ALLOWED' });
+    }
+    return { mode: 'explicit', operations };
+}
+
 function assertRecipeConfigurationAllowed({ baseline, overrides, policy }) {
     if (!policy) return;
+    const removalDecision = evaluatePackingRemovalPolicy({ baseline, overrides, policy });
+    for (const operation of removalDecision.operations) {
+        if (operation.allowed) continue;
+        if (operation.operation === 'CLEAR_ALL') {
+            throw policyError('RECIPE_CONFIGURATION_PACKING_CLEAR_ALL_NOT_ALLOWED', '当前配方政策不允许清空全部包装', 422, operation);
+        }
+        throw policyError(
+            operation.reasonCode === 'PACKING_REMOVAL_IDENTITY_UNRESOLVED' ? 'RECIPE_CONFIGURATION_PACKING_REMOVAL_IDENTITY_UNRESOLVED' : 'RECIPE_CONFIGURATION_PACKING_REMOVAL_NOT_ALLOWED',
+            operation.reasonCode === 'PACKING_REMOVAL_IDENTITY_UNRESOLVED' ? '包装删除必须绑定唯一正式身份' : '当前配方政策不允许删除该包装',
+            422,
+            operation
+        );
+    }
     for (const [key, allowedValues] of Object.entries(policy.fields || {})) {
         if (!Object.prototype.hasOwnProperty.call(overrides, key)) continue;
         const nextValue = overrides[key];
@@ -292,10 +390,10 @@ function assertRecipeConfigurationAllowed({ baseline, overrides, policy }) {
             : Number(baseline.surfaceTreatmentCost || 0);
         if (nextMode !== baseline.surfaceTreatmentMode
             || nextCost !== Number(baseline.surfaceTreatmentCost || 0)) {
-            const allowed = policy.surfaceTreatmentOptions.some(option => (
+            const allowedByPolicy = policy.surfaceTreatmentOptions.some(option => (
                 option.mode === nextMode && Number(option.cost || 0) === nextCost
             ));
-            if (!allowed) {
+            if (!allowedByPolicy) {
                 throw policyError(
                     'RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED',
                     '表面处理方式或费用不在当前配方允许范围内',
@@ -310,6 +408,7 @@ function assertRecipeConfigurationAllowed({ baseline, overrides, policy }) {
 module.exports = {
     CONFIGURATION_POLICY_FIELD_TYPES,
     CONFIGURATION_POLICY_VERSION,
+    evaluatePackingRemovalPolicy,
     assertRecipeConfigurationAllowed,
     normalizeRecipeConfigurationPolicy,
     recipeConfigurationPolicyFromRecord,

@@ -88,7 +88,7 @@
 约束：
 
 - 配方页面可通过 `POST /api/recipes/cost-draft` 展示成本草稿；正式 `save-payload-draft` 必须根据表单、模板、具体 `coilId` 和所选零件重建权威 BOM 与保存快照，不能采用客户端草稿中的零件价格或合计。同组合只有一个正式候选时页面自动选择，多候选时必须人工选定。
-- 模板的 `configurationPolicyJson` 是新建配方的默认规则；创建时复制到配方，之后模板与配方各自演进。历史模板或配方该字段为空时按 `legacy_open` 开放模式读取，避免升级后改变既有业务。
+- 模板的 `configurationPolicyJson` 是新建配方的默认规则；创建时复制到配方，之后模板与配方各自演进。历史模板或配方该字段为空时按 `legacy_open` 开放模式读取，避免升级后改变既有业务。规则可用 `packingPartIds` 控制包装新增和同角色替换；若显式提供 `packingRemovalPolicy`，则 `qty=0` 删除和 `packingParts=[]` 清空必须分别由其 role/part ID 与 `allowClearAll` 授权。
 - 显式规则为版本化白名单：只限制已配置的字段，配方当前基线值始终有效。包装白名单使用稳定 `partId`，表面处理以“工艺 + 成本”成对限制；不在范围内的报价或订单覆盖返回 `422`。
 - 配方保存 payload 和正式写入口必须检查完整 BOM；任一项目的快照单价缺失、无效或小于等于 0 时阻止保存，并提示先补齐零件型号和单价。
 - 新保存的 BOM 每行带明确 `costRole` 和 `configurationDependencies`。浮球、电缆、包材、线圈、电容、机筒和长螺丝不再由报价/订单各自猜测；线圈规格或片数变化时必须按目标线圈方案同步重算电容。

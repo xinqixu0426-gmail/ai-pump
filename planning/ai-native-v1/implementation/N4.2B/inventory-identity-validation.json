@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "partIdentity": "partId and supplier retained from formal BOM/planner rows",
+  "coilIdentity": "specific official coilId; no same-spec aggregation",
+  "cableIdentity": "exact partId with stockQtyPerUnit meter conversion",
+  "unresolved": "INCOMPLETE; no inventory availability inferred",
+  "validatedBy": [
+    "focused exact supplier/coil/unresolved identity tests",
+    "live exact-coil x2",
+    "live unresolved-identity x2"
+  ]
+}

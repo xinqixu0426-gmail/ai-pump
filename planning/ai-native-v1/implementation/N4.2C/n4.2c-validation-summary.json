@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "ticket": "N4.2C",
+  "status": "PASS",
+  "startCommit": "27150f65ea0bbeb9de33fcf6ca74c8af8f3f4912",
+  "productChanges": [
+    "profitability preview configurationHash response field",
+    "Task V2 scenario identity admission and cost fact reuse",
+    "multi-goal semantic retention for explicit current cost",
+    "multi-parameter clarification binding",
+    "formal customer-history quotation item price admission with exact recipe matching",
+    "order-create idempotency request fingerprint stabilisation"
+  ],
+  "newBusinessApi": false,
+  "newBusinessAlgorithm": false,
+  "databaseSchemaChanged": false,
+  "businessWrites": 0,
+  "productionChanged": false,
+  "databaseChanged": false,
+  "deployPerformed": false,
+  "pushPerformed": false,
+  "live": {
+    "families": 14,
+    "runsPerFamily": 2,
+    "baseTasks": 28,
+    "continuations": 4,
+    "accepted": 32,
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "failures": 0
+  },
+  "focusedTests": "PASS 82/82 (Task V2, profitability, answer, readiness, semantics)",
+  "gates": {
+    "focused": "PASS 82/82",
+    "verify:api-contract": "PASS 27/27",
+    "npm test": "PASS 2903/2903",
+    "test:deep-api": "PASS 482/482",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "planDeviations": [
+    {
+      "id": "N4.2C-IDEMPOTENCY-REPLAY-REPAIR",
+      "reason": "The required full npm gate exposed an existing replay failure: after a successful order became active, rebuilding its purchase plan changed the idempotency input before the stored receipt check. The minimal shared fix fingerprints the original normalised request; it preserves preview-hash enforcement, business write semantics, and audit behaviour."
+    }
+  ]
+}

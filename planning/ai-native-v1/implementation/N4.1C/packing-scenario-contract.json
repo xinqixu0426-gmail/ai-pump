@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "checks": {
+    "formalIdentity": "PASS",
+    "category": "PASS",
+    "supplier": "PASS",
+    "role": "PASS",
+    "fixedPreservation": "PASS",
+    "qtyZeroAuthorized": "PASS",
+    "emptyArrayClearPolicy": "PASS",
+    "ambiguity": "PASS",
+    "policy": "PASS",
+    "missingPrice": "PASS"
+  },
+  "evidence": [
+    "tests/recipeScenarioComparison.test.cjs",
+    "tests/recipeConfigurationPolicy.test.cjs",
+    "tests/aiTaskControllerV2.test.cjs"
+  ]
+}

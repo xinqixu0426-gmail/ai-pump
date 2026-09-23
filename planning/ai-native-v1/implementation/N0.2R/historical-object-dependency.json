@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "missingObject": "31cac79170802f508c7e904258770b31fd186737",
+  "failingTest": "tests/ontologyRoutingCanary.test.cjs — P6R no prompt, answer composer, binder, graph, tool catalog, schema or dependency changes",
+  "protectedInvariant": "The P6/P8 routing migration may only add the sanctioned identity resources and reverse-read tools while the listed core AI files, prompts, resource ordering, and dependency boundary remain frozen.",
+  "requiredPaths": [
+    "api/ontology/bindingMetadata.cjs",
+    "api/services/aiCapabilityGraphV3.cjs",
+    "api/services/aiAssistantAnswer.cjs",
+    "api/services/aiEvidenceBundle.cjs",
+    "api/services/aiResponsePresenter.cjs",
+    "package.json",
+    "package-lock.json",
+    "api/routes/ai/tools.cjs",
+    "api/services/aiAssistantRuntime.cjs"
+  ],
+  "currentDependencyMechanism": "The canary used git show <sourceCommit>:<path> during npm test. The source commit is referenced by tests/fixtures/ontology-coil-recipe-legacy-oracle-v2.json.",
+  "reasonObjectMissing": "The AI Native worktree was created from the GitHub snapshot, whose object database does not contain the private Gitee-history commit. The original local Gitee repository retains it on local refs.",
+  "sourceRecovery": {
+    "repository": "/Users/dan/Documents/水泵工厂管理助手",
+    "sourceCommit": "31cac79170802f508c7e904258770b31fd186737",
+    "sourceCommitSubject": "docs(ontology): record P6 semantic migration preflight rework",
+    "readOnly": true
+  },
+  "replacementStrategy": "tests/fixtures/frozen-history/manifest-v1.json stores only the historical blob identifiers and normalized SHA-256 fingerprints that the canary needs. The test validates the manifest before comparing current protected content, so it no longer reads local Git history.",
+  "freshCloneVerification": {"commit":"eb8e916f1e73d3d48aaf7a40079ee0b641b31b1a","historicalObjectPresent":false,"npmCi":"PASS","relatedFrozenGate":"PASS 43/43"},
+  "frozenContentHashes": [
+    {"path":"api/ontology/bindingMetadata.cjs","sourceBlobSha":"cc95b04264c65873f84c02bb5b8447c6fb997944","sha256":"678bb8c01447f161d2997f9cc2fb0baba338e4b6dd774a105509537b18aae6ec"},
+    {"path":"api/services/aiCapabilityGraphV3.cjs","sourceBlobSha":"4b9ad6033b0fb4873f5f943bb9934148b95703e1","sha256":"07be145e57c4bfb1835423132bacaf0a53441f8b4965a2e1bd0a54308f9291ef"},
+    {"path":"api/services/aiAssistantAnswer.cjs","sourceBlobSha":"ae48002f8870475c8bff405ebfeaae55c0e60b3e","sha256":"9d98d5bab2ae9610309ca1778ce44263bc86c708586e7298747292eea680eb9b"},
+    {"path":"api/services/aiEvidenceBundle.cjs","sourceBlobSha":"7bd0371d65fc277a47bc4fe185ff538c96c411ec","sha256":"85b85cca8857618feb44b93919d7053f615d78f7b89d22cafbee0519d8a5d393"},
+    {"path":"api/services/aiResponsePresenter.cjs","sourceBlobSha":"184a8f7263bab13486cbaafd624c978296b7b526","sha256":"c0b112aef08c355dc32dc5e4e7f2c8fda42a52f816ffbebaa32e375847157840"},
+    {"path":"package.json","sourceBlobSha":"b2da3b09a06ad932445ffb80c1a987ef73de123f","sha256":"70dcc5e274962cc8abe433a060b8bd33db8779b733a1f78885716dbccc13b79a"},
+    {"path":"package-lock.json","sourceBlobSha":"18297d82a93c4024f3de376fb016c7ce1dfd1f3e","sha256":"f0a196a9216bd919f2b2c823d191a91f30f6f5ffc2097615d9dc1b9305ded2df"},
+    {"path":"api/routes/ai/tools.cjs","sourceBlobSha":"90fdc472c627b14b80435ea94588920744fda7d1","sha256":"212e942cd8f0005d085d0ee71a583d4a83d2e6b34c9efb705784727c3c3559e2"},
+    {"path":"api/services/aiAssistantRuntime.cjs","sourceBlobSha":"484f651ae43abf0b4f209f219cf42c35aa1b9ef4","sha256":"2dab66e98350957d5b9f02a7493274f3b521eff6de1af0a546f5d11dee0e0af0"}
+  ]
+}

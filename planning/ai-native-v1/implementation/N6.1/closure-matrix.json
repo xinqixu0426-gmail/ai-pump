@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "ticket": "N6.1",
+  "scope": "Verified protected-write preview and confirmation bridge for part stock and part price only; no command dispatch.",
+  "requirements": [
+    {"id":"N61-01","requirement":"Reuse existing WRITE_PREFLIGHTS and server-issued confirmation protocol","evidence":"aiTaskWriteBridgeV2 invokes executeToolCall with allowWrite=false; executor preserves authoritative formal preflight context","status":"PASS"},
+    {"id":"N61-02","requirement":"Only part stock and part price slices are exposed","evidence":"N6_1_WRITE_TOOLS allowlist: adjust_part_stock, batch_update_prices","status":"PASS"},
+    {"id":"N61-03","requirement":"Bind server executionContext.nativeTask={taskId,planRevision,goalKey} and persist operation association","evidence":"nativeTaskContext plus approvalOperationIds; token/context never persisted","status":"PASS"},
+    {"id":"N61-04","requirement":"Approval is a current server token, not model text or user phrase","evidence":"existing issue/consume confirmation protocol; bridge accepts no approval/allowWrite fields","status":"PASS"},
+    {"id":"N61-05","requirement":"All targets are formally uniquely bound before a card","evidence":"existing part stock/price preflights resolve formal targets and fail closed; bridge invokes them before issue","status":"PASS"},
+    {"id":"N61-06","requirement":"Card prepares only; APPLY_CHANGE is not successful in N6.1","evidence":"bridge changes PREPARE_CHANGE to VERIFIED only, leaves APPLY_CHANGE PENDING, does not call executeConfirmedAiTool","status":"PASS"},
+    {"id":"N61-07","requirement":"Expired/wrong subject/version/drift/old or edited card/restart reject and re-preflight","evidence":"existing confirmation tests cover token binding, expiry, revision supersession, payload drift and process-local restart; bridge pins task revision and plan revision","status":"PASS"},
+    {"id":"N61-08","requirement":"Do not expose direct command tool through read-only model surface","evidence":"no AI tool registry expansion; bridge is owner-authenticated task HTTP preflight only","status":"PASS"}
+  ],
+  "summary": {"pass":8,"partial":0,"unproven":0,"notRun":0,"businessWrites":0,"commandExecutions":0}
+}

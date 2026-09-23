@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase5R2BusinessSemanticsV1",
+  "phase": "PHASE_5_R2_BUSINESS_SEMANTICS_CLOSURE",
+  "status": "REWORK",
+  "statusDetail": "Both business-semantic questions are answered from formal repository evidence and implemented. One pre-existing Native acceptance test is still RED because the answer to the price question exposed a genuine data-flow defect that this supervisor round has not yet authorised a fix for. Details in residualRedTest.",
+  "supersedes": "nothing - R1 records are kept as history (ProductionIntegrationPhase5SemanticMergeV1.json, ProductionIntegrationPhase5R1ClosureV1.json)",
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "PHASE_5_R2_START_HEAD": "5b02b7fcc66c93e30ff466113719689a41914e91",
+    "PHASE_5_R2_END_COMMIT": "pending - worktree carries the R2 changes at report time"
+  },
+
+  "qtyDecision": {
+    "QTY_ZERO_COMPLETE_IMPLEMENTATION": "NO. Measured on the integrated candidate: no layer removes a qty=0 packing row. recipeBomEngine applies `qty: Number(part.qty || 1)`, dynamicCostPreview.buildPackingSnapshotParts applies `qty: Number(part.qty || 1)`, and calculatePackingPartsCost applies `Number(part.qty || 1)`. An accepted qty=0 therefore survives as qty 1.",
+    "QTY_ZERO_END_TO_END_EFFECT": "NONE. Probe: packingParts=[{model:'木箱', qty:0}, {model:'珍珠棉', qty:1}] through buildRecipeBomDraft produced [{'木箱', qty 1}, {'珍珠棉', qty 1}] - the qty=0 row was neither removed nor zeroed, it became qty 1.",
+    "MASTER_QTY_POLICY": "REJECT qty=0 - configuredRecipeSnapshot.normalizePackingPartsOverride used parsePositiveNumber ('qty 必须是正数'). Measured by swapping master's configuredRecipeSnapshot.cjs in place.",
+    "NATIVE_QTY_POLICY": "ACCEPT qty=0 and preserve it - parseNonNegativeNumber.",
+    "FINAL_QTY_POLICY": "REJECT qty=0 (production semantics restored). api/services/configuredRecipeSnapshot.cjs is back to parsePositiveNumber; the file differs from production master only by an explanatory comment. Verified by diff against master: the only delta is the comment block.",
+    "rationale": "Accepting an instruction the system does not carry out is worse than rejecting it. No formal business implementation of '0 = remove role' exists, so this integration ticket must not open a half-implemented feature.",
+    "QTY_DOCUMENTATION_CORRECTED": "NO - not yet. docs/api-reference.md still contains the current-tense claim '空数组清空包装，qty=0 移除对应角色' for POST /api/recipes/bom-draft. That sentence is present on PRODUCTION MASTER, so it is a pre-existing false claim about current capability, not something this integration introduced. Correcting it touches a hash-attested handoff artifact, so it is left as an explicit open item rather than edited silently at the end of this round.",
+    "QTY_FUTURE_GAP_RECORDED": "PARTIALLY - recorded here in the integration evidence. It is NOT yet recorded in docs/technical-debt.md.",
+    "gapStatement": "DESIRED/FUTURE, NOT CURRENTLY SUPPORTED: 'qty=0 removes the corresponding packing role' is unimplemented in recipeBomEngine, dynamicCostPreview and costEngine. packingRemovalPolicy is only partially effective: its CLEAR_ALL branch (packingParts=[], allowClearAll) IS reachable and enforced, while its qty=0 REMOVE branch can only be reached through paths that do not perform the removal.",
+    "FINAL_QTY_BEHAVIOR": "qty must be > 0; qty=0, negative and non-numeric are rejected; null/undefined/'' fall back to the default 1",
+    "QTY_SEMANTICS_PRESERVED": "YES - identical to production"
+  },
+
+  "priceValidity": {
+    "PRICE_CONTRACT_SOURCES": [
+      "schema: api/database/schema.cjs parts table -> `price REAL DEFAULT 0` plus `CHECK(price IS NULL OR price >= 0)`. Zero is the column DEFAULT and a negative price is rejected by the database itself.",
+      "formal parts API: api/services/partCommands.cjs lines 161, 510, 1217 all validate with parseNonNegativeNumber, i.e. price >= 0 is legal and price < 0 is illegal, for create, update and batch_update_prices.",
+      "formal list filter: api/services/partQueries.cjs line 59 normalizeOptionalNumber(input.priceAbove, 'priceAbove', { min: 0 }) - the price-filter lower bound IS 0, so a zero-priced part is ordinary searchable catalogue data.",
+      "documentation: docs/api-reference.md uses missingParts for the unpriced case, and 0 is a normal stored catalogue value.",
+      "existing tests: no production test asserts that a zero catalogue price must be treated as missing; production tests only assert missingParts for a genuinely absent catalogue entry or a cable with no metre price."
+    ],
+    "CAN_A_FORMAL_PRICE_BE_ZERO": "YES. Zero is a legal catalogue price meaning a genuine zero-cost item; it is NOT a synonym for unpriced.",
+    "PRICE_POSITIVE_POLICY": "VALID_PRICE - contributes price x qty, not in missingParts, source 精确匹配 or 型号回退(取最低价)",
+    "PRICE_ZERO_POLICY": "VALID_PRICE (LEGACY_COMPATIBILITY included) - contributes 0, NOT in missingParts, source 精确匹配. This restores the master-equivalent outcome: a zero-priced catalogue part yields total 0 with missingParts [].",
+    "PRICE_NULL_POLICY": "MISSING_PRICE - catalogue row exists but carries no price; contributes 0 and IS reported in missingParts so current cost reports incomplete",
+    "PRICE_UNDEFINED_POLICY": "MISSING_PRICE - same as NULL",
+    "PRICE_NAN_POLICY": "INVALID_DATA - a non-numeric catalogue price is not usable; contributes 0 and IS reported in missingParts",
+    "PRICE_NEGATIVE_POLICY": "INVALID_DATA - rejected by the database constraint and by the formal parts API; contributes 0 and IS reported in missingParts. Master instead produced a NEGATIVE total.",
+    "MASTER_PRICE_POLICY": "any value taken as-is: 0 accepted silently, negative produced a negative total, null/undefined/non-numeric produced NaN in the detail price and NaN in the total",
+    "NATIVE_PRICE_POLICY": "every non-finite or non-positive value treated as an unusable price",
+    "FINAL_PRICE_POLICY": "positive and zero are usable prices; null, undefined, non-numeric and negative are not. Implemented as hasUsableCatalogPrice() / catalogPriceSourceLabel() in api/services/costEngine.cjs with the formal evidence in the comment. The supplier fallback now picks the lowest USABLE price instead of letting a missing/invalid row win the minimum.",
+    "BEHAVIOR_DELTA_VS_MASTER": [
+      "zero price: NO CHANGE - master and the final candidate both accept it and both report missingParts []",
+      "negative price: master produced a negative total, final candidate contributes 0 and reports the part as 价格无效",
+      "null / undefined / non-numeric price: master produced NaN in detail price and NaN in the total, final candidate contributes 0 and reports the part as 未定价",
+      "supplier fallback: master could select a row with a missing price as the minimum, final candidate selects the lowest usable price"
+    ],
+    "FORMAL_BUSINESS_SEMANTICS_PRESERVED": "YES - the only changes are to malformed-data handling, and zero-price behaviour is byte-equivalent to production",
+    "MISSING_PARTS_SEMANTICS": "missingParts is the existing formal channel (currentRecipeCost derives costComplete from missingParts.length === 0, and the warning text is '当前成本不完整，N 个 BOM 型号缺少价格'); the final candidate only routes genuinely unusable prices into it",
+    "PARTIAL_COST_SEMANTICS": "unchanged - partialTotalCost is still returned, currentTotalCost stays null while incomplete, and the existing warnings text is preserved"
+  },
+
+  "residualRedTest": {
+    "test": "tests/recipeScenarioComparison.test.cjs:489 - N4.1C-R3：缺少正式包装价格时情景金额和差额均不伪造为零",
+    "npmTestState": "2991 total, 2990 pass, 1 fail - this test is the only failure",
+    "whatItAsserts": "a packing part whose formal catalogue row has price NULL must yield cost.complete=false, currentTotalCost=null and an INCOMPLETE comparison",
+    "whatHappensNow": "cost.complete=true, missingParts=[] - the NULL catalogue price is read as a valid zero price, which under the formal contract above IS a valid price, so the part is not reported as unpriced",
+    "rootCauseNarrowed": "some layer still coerces a NULL catalogue price to 0 before calculateRecipeCost sees it, so the final rule never observes the NULL. Two obvious conversion sites are already eliminated in this round: recipeBomEngine's packing row (was `Number(matchedPart.price || 0)`) and dynamicCostPreview.buildPackingSnapshotParts (was `Number(matched?.price || 0)`); both now omit snapshotPrice when the catalogue price is unusable. The remaining conversion is inside the cost-basis data flow and was NOT located before this round ended - the instrumented runs that would have identified it did not fire, which means it must be isolated with a dedicated trace rather than a guess.",
+    "whyNotFixedBlindly": "the two candidate fixes (a) threading an explicit unpriced marker through the cost basis, or (b) rejecting a zero price again, are opposite policies and the second would contradict the formal evidence above. Choosing either under time pressure inside an integration ticket is exactly the silent cost-policy decision the Supervisor prohibited.",
+    "classification": "OPEN - needs one dedicated trace plus a policy-consistent fix, then this test goes green",
+    "notWeakened": "the test was NOT edited, skipped or relaxed"
+  },
+
+  "implementation": {
+    "filesChangedInR2": [
+      "api/services/configuredRecipeSnapshot.cjs - qty reverted to parsePositiveNumber (production semantics), explanatory comment added",
+      "api/services/costEngine.cjs - hasUsableCatalogPrice() and catalogPriceSourceLabel() encode the price contract; the exact-match and supplier-fallback branches use them; the fallback now picks the lowest usable price",
+      "api/services/dynamicCostPreview.cjs - buildPackingSnapshotParts no longer fabricates snapshotPrice 0 from a NULL catalogue price",
+      "api/services/recipeBomEngine.cjs - usablePackingPrice() helper; the optional-part and packing rows no longer fabricate a snapshotPrice from an unusable catalogue price",
+      "tests/recipeConfigurationPolicy.test.cjs - the qty regression now asserts production semantics (qty=0 rejected, and it must not silently become 1) and keeps the CLEAR_ALL policy coverage"
+    ],
+    "testsStillNeeded": [
+      "price validity focused tests covering positive / zero / negative / null / undefined / non-numeric at the costEngine level with the FINAL contract as the assertion",
+      "a fix plus regression for the residual red test"
+    ]
+  },
+
+  "gateResultsAtReportTime": {
+    "NPM_TEST": { "tests": 2991, "pass": 2990, "fail": 1, "failing": "the residual red test above" },
+    "VERIFY_API_CONTRACT": { "result": "PASS", "tests": 28, "pass": 28, "fail": 0 },
+    "LINT": { "result": "PASS", "exitCode": 0 },
+    "DEEP_API": { "result": "PASS at the R1 head", "passed": 489, "sourceMode": "CANONICAL_DETERMINISTIC", "localPumpDbUsed": false, "note": "not re-run after the R2 price-rule edit; the R2 edit does not touch the deep-api runner, but a fresh run is required before R2 can be called closed" },
+    "BUILD": { "result": "PASS at the R1 head", "note": "not re-run after the R2 edit" }
+  },
+
+  "preservedFromR1": {
+    "GIT_BLOB_CANONICAL": "untouched",
+    "N7_3_EVIDENCE_INTEGRITY": "untouched by R2 so far, but it WILL need regeneration if the R2 source edits are committed, because the handoff package attests scripts and docs by content; the evidence generator and closure writer make that a mechanical step",
+    "VERIFY_DOCUMENTATION": "the corrected verify:release documentation from R1 is preserved",
+    "ORDER_IDEMPOTENCY": "untouched",
+    "PAINTING_WAGE_FIX": "untouched",
+    "CAPABILITY_REGISTRATION": "untouched",
+    "INVENTORY_MOUNT": "untouched",
+    "MIGRATION_88": "untouched, conflict NO"
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "MAIN_WORKTREE_UNTOUCHED": true,
+    "AI_NATIVE_V1_WORKTREE_UNTOUCHED": true,
+    "USER_STASH_COUNT": 3,
+    "CREDENTIALS_COPIED": false
+  },
+
+  "notRun": [
+    "npm run verify - that script does not exist in this repository",
+    "npm run verify:ai-native-release - requires a real DEEPSEEK_API_KEY",
+    "a fresh canonical deep-api and build after the R2 price-rule edit"
+  ],
+  "nextAction": "Decide and implement the unpriced-state fix for the residual red test, add the focused price-validity tests against the FINAL contract, regenerate the N7.3 evidence for the committed R2 sources, re-run every gate, then close Phase 5."
+}

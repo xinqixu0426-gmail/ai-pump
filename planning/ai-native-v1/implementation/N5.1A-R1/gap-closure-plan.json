@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "items": [
+    {
+      "requirement": "REVISION_CONCURRENCY",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/revision-concurrency-validation.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "PLAN_REVISION_CONCURRENCY",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/revision-concurrency-validation.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "SUPERSEDES_VALIDATION",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": true,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/n5.1a-validation-summary.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "RECOVERY_ROUNDTRIP",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": true,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/recovery-roundtrip-validation.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "FULL_N4_FOUR_GOAL_RECOVERY",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/recovery-roundtrip-validation.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "BUSINESS_DATA_FINGERPRINT",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/migration-validation.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "FINAL_REPOSITORY_GATES",
+      "startingStatus": "NOT_RUN",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/n5.1a-validation-summary.json"
+      ],
+      "finalStatus": "PASS"
+    },
+    {
+      "requirement": "MANDATORY_REPORT_MATRIX",
+      "startingStatus": "PARTIAL",
+      "implementationChangeRequired": false,
+      "testsRequired": [
+        "tests/aiTaskPersistenceV2R1.test.cjs"
+      ],
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N5.1A/n5.1a-validation-summary.json"
+      ],
+      "finalStatus": "PASS"
+    }
+  ],
+  "pendingCount": 0
+}

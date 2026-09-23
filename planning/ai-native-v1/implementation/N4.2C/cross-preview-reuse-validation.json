@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "primaryPreviews": [
+    "cost.profitability_preview",
+    "inventory.virtual_readiness_preview"
+  ],
+  "fullTaskExpectedPrimaryPreviewCalls": 2,
+  "fullTaskObserved": [
+    {
+      "run": 1,
+      "toolCalls": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "scenarioCompareCalls": 0
+    },
+    {
+      "run": 2,
+      "toolCalls": [
+        "get_all_recipes",
+        "preview_profitability",
+        "preview_virtual_readiness"
+      ],
+      "scenarioCompareCalls": 0
+    }
+  ],
+  "reuseRules": [
+    "Current-cost goal reuses the profitability preview base fact.",
+    "Configuration-compare goal reuses the profitability preview scenario context.",
+    "Virtual readiness receives the same scenario input and validates configurationHash before its fact is admitted."
+  ],
+  "avoidedDuplicateScenarioComparisonCalls": 2,
+  "result": "PASS"
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "capability": "cost.profitability_preview",
+  "route": "POST /api/cost/profitability-preview",
+  "access": "preview",
+  "currency": [
+    "CNY"
+  ],
+  "basis": "fresh recipes.scenario_compare_preview",
+  "quantity": "null or positive integer",
+  "forbiddenInputs": [
+    "unitCost",
+    "grossProfit",
+    "grossMargin",
+    "markup",
+    "margin",
+    "cost",
+    "copperPrice"
+  ],
+  "writes": false
+}

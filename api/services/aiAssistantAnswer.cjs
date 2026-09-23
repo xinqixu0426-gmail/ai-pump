@@ -25,59 +25,108 @@ function monetaryValues(toolResults = []) {
     return values;
 }
 
-function formatMoneySummary(toolResults = [], { includeQueries = false } = {}) {
-    const { getAiCapability } = require('../capabilities/registry.cjs');
-    const labels = { currentTotalCost: '当前总成本', totalCost: '总成本', totalRevenue: '总收入', totalProfit: '总利润', cost: '档案成本', price: '目录单价', costDiff: '成本差额（后者减前者）', totalDiff: '成本差额（后者减前者）', partsCost: '零件成本', laborCost: '人工成本' };
+// ── 金额展示契约（LEGACY-AI-ANSWER-004）─────────────────────────────────────
+// 项目权威约定是「金额两位小数」：后端 api/services/costEngine.cjs 的 roundMoney()
+// 金额展示格式。
+//
+// 原实现一律 toFixed(2)：这会把「同一 canonical fact 只能有一种展示表示」这条不变式
+// 变成「所有金额都必须两位小数」，于是正式来源里本身带高精度、且**精度承载候选身份**
+// 的金额被截断 —— 实例：search_coils 返回
+//   COIL-A cost 166.7136 / COIL-B cost 195.84155
+// 两位小数后两个候选变成 166.71 / 195.84，用户核对库存档案时无法与正式来源对齐。
+//
+// 现行契约（Supervisor 已裁定）：
+// - 精度以**事实字段合同**为准，不以「表格 vs 正文」为准。
+// - 同一 canonical fact 在同一答案里只能有一种一致的展示表示。
+// - 面向人的 ¥ 金额沿用原有观感；高精度正式来源按来源精度展示。
+// 因此这里改为「最少且忠实」：保留来源有效精度，只清掉浮点尾差（10 位以内），
+// 同时由 addRow 保证同一 fact 不会同时出现两种表示。
+function formatMoneyDisplay(value) {
+    // 展示表示的唯一定义在 moneyFactProjection.moneyDisplayValue（金额事实投影），
+    // 保证「同一 canonical fact 只有一种展示表示」在渲染与校验两侧是同一个函数。
+    return require('./moneyFactProjection.cjs').moneyDisplayValue(value);
+}
+
+// 结构化的 markdown 表格行：把一张表解析为表头 + 规范化后的数据行。
+// 用于「同一张金额表是否已经在正文里」的结构判定，避免依赖整块文本逐字相等。
+// 只读取首尾竖线包围的行；比较用值会把数字归一化到两位小数，
+// 因此模型写 140.43、核对表写 140.43062 时会被认定为同一行，而不是两行。
+function markdownTableRows(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    const cell = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map(part => part.replace(/[*_`]/g, '').trim());
+    const normalizeCell = value => {
+        const numeric = Number(String(value).replaceAll(',', ''));
+        return Number.isFinite(numeric) && /^-?\d[\d,]*(?:\.\d+)?$/u.test(String(value).trim())
+            ? numeric.toFixed(2)
+            : String(value).trim();
+    };
     const rows = [];
-    const seenRows = new Set();
-    const configurations = [];
+    for (let i = 0; i < lines.length; i += 1) {
+        if (!lines[i].includes('|')) continue;
+        if (!/^\s*\|?\s*:?-{3,}/.test(lines[i + 1] || '')) continue;
+        const header = cell(lines[i]).map(normalizeCell);
+        let row = i + 2;
+        for (; row < lines.length && lines[row].includes('|'); row += 1) {
+            // cells 是**显示归一化**后的单元格（数值两位小数），用于「同一张表是否已出现」的比较；
+            // rawCells 是原始单元格，用于金额**数值**比较 —— 真实高精度成本（143.82775）
+            // 不能被显示归一化改写，否则正确答案会被判成挂错对象（PHASE-D-DEFECT-04）。
+            const rawCells = cell(lines[row]);
+            const cells = rawCells.map(normalizeCell);
+            if (cells.every(part => part === '')) continue;
+            rows.push({ header, cells, rawCells });
+        }
+        i = row - 1;
+    }
+    return rows;
+}
+
+// 金额表的展示容量。它只是展示容量，不是事实排序：
+// 超出容量时必须显式报出未展开的正式事实条数，不得静默丢行。
+const MONEY_TABLE_ROW_CAP = 12;
+
+function formatMoneySummary(toolResults = [], { includeQueries = false } = {}) {
+    const { projectMoneyFacts } = require('./moneyFactProjection.cjs');
+    const { getAiCapability } = require('../capabilities/registry.cjs');
     const escape = value => String(value).replaceAll('|', '\\|').replace(/[\r\n]/g, ' ');
-    function addRow(name, key, item) {
-        const signature = JSON.stringify([name, labels[key], Number(item)]);
-        if (seenRows.has(signature)) return;
-        seenRows.add(signature);
-        rows.push(`| ${escape(name)} | ${labels[key]} | ${escape(item)} |`);
-    }
-    function visit(value, label, depth = 0) {
-        if (!value || typeof value !== 'object' || depth > 3) return;
-        const name = [value.name || value.recipeName || value.model || value.schemeCode, value.spec && value.sheets ? `${value.spec}-${value.sheets}` : '', value.material, value.slotType].filter(Boolean).join(' / ') || label;
-        for (const [key, item] of Object.entries(value)) {
-            if (labels[key] && /^-?\d+(?:\.\d+)?$/.test(String(item))) addRow(name, key, item);
-            else if (item && typeof item === 'object' && !['executionEvidence', 'provenance', 'comparison'].includes(key)) visit(item, name, depth + 1);
-        }
-    }
-    // A completed preview must remain visible even after a broad catalog query.
-    const orderedResults = [...toolResults].sort((a, b) =>
-        Number(getAiCapability(b.name)?.operation === 'preview') - Number(getAiCapability(a.name)?.operation === 'preview'));
-    for (const item of orderedResults) {
+    const configurations = [];
+    for (const item of toolResults) {
+        // 口径上下文（配方/配置基准、正式配置、未定价告警）与金额表一样只在**本轮可展示的正式结果**
+        // 上生成：preview 永远参与，query 需 includeQueries。判据与金额事实投影保持一致。
         const capability = getAiCapability(item.name);
-        if (item.result?.success !== false && hasVerifiedExecution(item.result) && !item.result?.data?.requiresVariantSelection && capability?.access === 'read' && (capability.operation === 'preview' || (includeQueries && capability.operation === 'query'))) {
-            if (item.name === 'get_dashboard_summary') {
-                const summary = item.result.summary || item.result.data?.summary || item.result.data;
-                visit({
-                    totalRevenue: summary?.financials?.totalRevenue,
-                    totalCost: summary?.financials?.totalCost,
-                    totalProfit: summary?.financials?.totalProfit,
-                }, '订单总盘');
-                if (Number(summary?.orders?.completed || 0) > 0) visit({
-                    totalRevenue: summary?.financials?.completed?.totalRevenue,
-                    totalCost: summary?.financials?.completed?.totalCost,
-                    totalProfit: summary?.financials?.completed?.totalProfit,
-                }, '已完成订单');
-            } else {
-                visit(item.result, capability.displayName);
+        if (!(item.result?.success !== false && hasVerifiedExecution(item.result) && capability?.access === 'read'
+            && (capability.operation === 'preview' || (includeQueries && capability.operation === 'query')))) continue;
+        const data = item.result.data;
+        if (data?.costPreview && Array.isArray(data.parts)) {
+            if (data.configurationBasis) {
+                const note = String(data.configurationBasis.note ?? '').trim();
+                // 口径文案与展示层 aiResponsePresenter.presentConfiguredBom 保持一致：
+                // 同一事实（配方基准）在同一个答案里只用一种说法，不出现「配置基准」与
+                // 「配方基准」两种措辞。
+                const base = data.configurationBasis.source === 'recipe' && String(data.configurationBasis.recipeName ?? '').trim()
+                    ? `配方基准「${escape(data.configurationBasis.recipeName)}」`
+                    : '配置基准';
+                // note 缺失时不得渲染出 "配方基准「v550-tokoy」；undefined"。
+                if (note) configurations.push(`${base}；${escape(note)}`);
+                else configurations.push(base);
             }
-            const data = item.result.data;
-            if (data?.costPreview && Array.isArray(data.parts)) {
-                if (data.configurationBasis) configurations.push(data.configurationBasis.source === 'recipe' ? `配置基准：${escape(data.configurationBasis.recipeName)}；${escape(data.configurationBasis.note)}` : escape(data.configurationBasis.note));
-                const names = data.parts.slice(0, 50).map(part => [part.model, part.name].filter(Boolean).join('（') + (part.model && part.name ? '）' : ''));
-                configurations.push(`正式配置：${names.map(escape).join('、')}${data.parts.length > 50 ? '；其余配置见明细' : ''}。`);
-                if (data.costPreview.pricingComplete === false) configurations.push('配置尚未全部定价，当前金额不是完整报价。');
-            }
+            const names = data.parts.slice(0, 50).map(part => [part.model, part.name].filter(Boolean).join('（') + (part.model && part.name ? '）' : ''));
+            configurations.push(`正式配置：${names.map(escape).join('、')}${data.parts.length > 50 ? '；其余配置见明细' : ''}。`);
+            if (data.costPreview.pricingComplete === false) configurations.push('配置尚未全部定价，当前金额不是完整报价。');
         }
     }
-    if (!rows.length) return '';
-    return `本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n${rows.slice(0, 12).join('\n')}\n\n${configurations.join('\n\n')}${configurations.length ? '\n\n' : ''}完整计算明细见本轮工具结果。`;
+    // 金额表 = 正式金额事实的投影。每一行绑定一个带身份的事实（entity + predicate + basis），
+    // 不再按「显示名 + 项目」或「金额 + 项目」去重 —— 那会吞掉同价不同实体与同名不同实体。
+    const facts = projectMoneyFacts(toolResults, { includeQueries });
+    if (!facts.length) return '';
+    const tableRows = facts.slice(0, MONEY_TABLE_ROW_CAP)
+        .map(fact => `| ${escape(fact.objectLabel)} | ${fact.label} | ${escape(fact.displayValue)} |`)
+        .join('\n');
+    // 展示容量不是事实完整性：被截断时明确报出未展开的正式事实条数，而不是静默丢行。
+    const hidden = facts.length - Math.min(facts.length, MONEY_TABLE_ROW_CAP);
+    const truncationNote = hidden > 0
+        ? `\n\n（以上为部分明细：本轮正式金额事实共 ${facts.length} 条，已展示 ${MONEY_TABLE_ROW_CAP} 条，另有 ${hidden} 条未展开；需要完整清单请明确说明。）`
+        : '';
+    return `本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n${tableRows}${truncationNote}\n\n${configurations.join('\n\n')}${configurations.length ? '\n\n' : ''}完整计算明细见本轮工具结果。`;
 }
 
 function formatDashboardOverview(userText, toolResults = []) {
@@ -216,7 +265,90 @@ function unsupportedMoneyInAnswer(answer, toolResults) {
             });
         }
     }
+    // 关联校验（A02 根因）：数字合法不等于数字属于正确对象。
+    // 渲染出的金额表里，若某一行的「对象 + 项目」能唯一对应到正式事实，但金额与之不符，
+    // 该行就是把两个真实数字挂错了对象 —— 必须与「凭空编造」同样被上报。
+    for (const claim of misattributedMoneyClaims(answer, toolResults)) unsupported.add(claim.value);
     return [...unsupported];
+}
+
+// ── 金额声明的关联校验（A02）────────────────────────────────────────
+// 「金额在正式集合里出现过」只证明数字真实，不证明它属于这一行。
+// 事实身份由 moneyFactProjection 提供（entity + predicate + basis），这里把
+// 渲染出的表格行反向解析成 (对象, 项目, 金额) 声明并逐行比对。
+
+/** 表格里的金额列标题 → 归一化项目名（去掉括号补充说明）。 */
+function normalizeMoneyLabel(label) {
+    return String(label ?? '').replace(/[（(].*$/u, '').trim();
+}
+
+/**
+ * 从答案的 markdown 金额表里解析出金额声明。
+ * 只读「有金额列」的表格；非金额表格不参与。
+ *
+ * 表格有两种被实际使用的形状，两种都要能解析：
+ *   A. 金额表：  | 对象 | 项目 | 金额 |   → 对象在第 0 列，项目在「项目」列，金额在「金额」列
+ *   B. 明细表：  | 线圈 | 档案成本 | …    → 对象在第 0 列，项目就是金额列的表头
+ * 因此项目名优先取「项目/口径」列的单元格，没有该列时才退回表头。
+ *
+ * `canonical` 表示该声明来自「对象列 + 项目列」都被显式分开的表格 —— 只有这种形状
+ * 才能把金额**绑定到对象与口径**，因此也只有它能参与关联校验（A02）。
+ * 其它形状仍由「金额是否在正式集合内」的既有校验负责（保守，不放宽安全性）。
+ * @returns {{ object: string, label: string, value: number, raw: string, canonical: boolean }[]}
+ */
+function presentedMoneyClaims(answer) {
+    const claims = [];
+    for (const row of markdownTableRows(answer)) {
+        const moneyColumns = row.header
+            .map((header, index) => (/金额|成本|单价|价格|费用|工资|[（(]元[）)]|[¥￥]/u.test(header)
+                && !/率|占比|比例|数量|编号/u.test(header) ? index : -1))
+            .filter(index => index >= 0);
+        if (!moneyColumns.length) continue;
+        const objectColumn = row.header.findIndex(header => /对象|主体|名称|型号|零件|配方|线圈|方案/u.test(header));
+        const predicateColumn = row.header.findIndex(header => /项目|口径|科目|费用项/u.test(header));
+        const object = String(row.cells[objectColumn >= 0 ? objectColumn : 0] ?? '').trim();
+        if (!object) continue;
+        const canonical = objectColumn >= 0 && predicateColumn >= 0;
+        for (const column of moneyColumns) {
+            // 金额必须按**原始单元格**解析，保留来源精度；不允许显示归一化参与数值比较。
+            const raw = String(row.rawCells?.[column] ?? row.cells[column] ?? '').replaceAll(',', '').trim();
+            if (!/^-?\d+(?:\.\d+)?$/u.test(raw)) continue;
+            const label = predicateColumn >= 0 ? String(row.cells[predicateColumn] ?? '').trim() : String(row.header[column] ?? '').trim();
+            if (!label) continue;
+            claims.push({ object, label, value: Number(raw), raw, canonical });
+        }
+    }
+    return claims;
+}
+
+/**
+ * 答案中「对象 + 项目」有正式事实、但金额与之不符的声明。
+ *
+ * 只在 (对象, 项目) 能唯一确定一组正式金额时才判定 —— 找不到对应事实时不做推断，
+ * 交由既有的「金额是否在正式集合内」校验兜底（保守，不放宽安全性）。
+ */
+function misattributedMoneyClaims(answer, toolResults = []) {
+    const { projectMoneyFacts, moneyPredicateFamilyOfLabel } = require('./moneyFactProjection.cjs');
+    const facts = projectMoneyFacts(toolResults, { includeQueries: true });
+    if (!facts.length) return [];
+    const factsByObject = new Map();
+    for (const fact of facts) {
+        const key = String(fact.objectLabel).trim();
+        if (!factsByObject.has(key)) factsByObject.set(key, []);
+        factsByObject.get(key).push(fact);
+    }
+    return presentedMoneyClaims(answer).filter(claim => {
+        if (!claim.canonical) return false;
+        const candidates = factsByObject.get(claim.object);
+        if (!candidates || !candidates.length) return false;
+        const label = normalizeMoneyLabel(claim.label);
+        // 行的项目名要么直接等于某个正式项目的业务标签，要么反解到同一个 predicate 族。
+        // 两者都匹配不到时不做推断。
+        const family = moneyPredicateFamilyOfLabel(claim.label);
+        const matched = candidates.filter(fact => normalizeMoneyLabel(fact.label) === label || (family && fact.predicate === family));
+        if (!matched.length) return false;
+        return !matched.some(fact => fact.value === claim.value);
+    });
 }
 
 function semanticOnlyKnowledgeRelationReply(userText, toolResults = []) {
@@ -286,4 +418,4 @@ function stabilizeLocalAnswer(answer, userText = '') {
     return selected.join('\n\n') || [...deduplicated].slice(0, 600).join('');
 }
 
-module.exports = { monetaryValues, unsupportedMoneyInAnswer, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, verifiedEmptyQuery, unfinishedReply, missingPreviewTotals, semanticOnlyKnowledgeRelationReply, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer };
+module.exports = { MONEY_TABLE_ROW_CAP, monetaryValues, formatMoneyDisplay, markdownTableRows, unsupportedMoneyInAnswer, normalizeMoneyLabel, presentedMoneyClaims, misattributedMoneyClaims, formatMoneySummary, formatDashboardOverview, formatCoilCostComparison, verifiedMissingTarget, verifiedEmptyQuery, unfinishedReply, missingPreviewTotals, semanticOnlyKnowledgeRelationReply, guardedKnowledgeRelationReply, appendMissingCoilIdentities, appendMissingTechnicalFileConclusion, stabilizeLocalAnswer };

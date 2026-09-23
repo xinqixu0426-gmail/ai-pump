@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R3 closure of N4.1C-R2 findings",
+  "startHead": "fd8fd2fa5b8e73c12a67cf07993dc8976d6e8546",
+  "requirements": [
+    {
+      "requirement": "PACKING_SUPPLIER_VALIDATION",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "tests/recipeScenarioComparison.test.cjs:N4.1C packaging identity fail-closed"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "PACKING_ROLE_VALIDATION",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "tests/recipeScenarioComparison.test.cjs:N4.1C packaging role fail-closed"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "PACKING_POLICY_ENFORCEMENT",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "api/services/recipeConfigurationPolicy.cjs",
+        "tests/recipeConfigurationPolicy.test.cjs",
+        "tests/recipeScenarioComparison.test.cjs"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "PACKING_MISSING_PRICE",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "api/services/costEngine.cjs",
+        "tests/recipeScenarioComparison.test.cjs:N4.1C-R3 missing formal packaging price"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "SURFACE_CLARIFICATION_CONTINUATION",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": true,
+      "evidenceFiles": [
+        "scripts/run-ai-native-n4-1c-r3-live.cjs: surface-continuation-1/2"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "REQUESTED_APPLIED_NOT_APPLIED_MATRIX",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N4.1C-R1/override-application-matrix.json"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "READ_SET_HASH",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "tests/recipeScenarioComparison.test.cjs:N4.1C-R3 shared policy/readset regression"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "EXTRACTED_CANDIDATE_MATRIX",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N4.1C/extracted-candidate-contract.json"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "METADATA_ONLY_NOT_COMPARED",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "tests/aiTaskControllerV2.test.cjs:N4.1C-R3 metadata-only source boundary"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "PARTIAL_SOURCE_SCOPE",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "tests/aiTaskDocumentsV2.test.cjs:N4.1B source coverage boundary"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "SOURCE_TO_SCENARIO_PROVENANCE",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": true,
+      "evidenceFiles": [
+        "tests/aiTaskValidationV2.test.cjs: SOURCE_EVIDENCE",
+        "scripts/run-ai-native-n4-1c-r3-live.cjs: source-scenario-1/2"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    },
+    {
+      "requirement": "MANDATORY_MATRIX_FILES_COMPLETE",
+      "implementationNeeded": false,
+      "testNeeded": true,
+      "liveNeeded": false,
+      "evidenceFiles": [
+        "planning/ai-native-v1/implementation/N4.1C-R3/final-n4.1-exit-audit.json"
+      ],
+      "finalStatus": "PASS",
+      "historicalStatusAtR2Start": "GAP_RECORDED"
+    }
+  ],
+  "status": "PASS",
+  "matrixCounts": {
+    "unproven": 0,
+    "partial": 0,
+    "notRun": 0
+  }
+}

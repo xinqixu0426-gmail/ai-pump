@@ -1,0 +1,39 @@
+{
+  "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+  "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+  "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+  "files": [
+    {
+      "path": "api/services/aiAssistantAnswer.cjs",
+      "productionBaseBlob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e",
+      "candidateBlob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e",
+      "identical": true
+    },
+    {
+      "path": "api/services/aiMoneyGuard.cjs",
+      "productionBaseBlob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107",
+      "candidateBlob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107",
+      "identical": true
+    },
+    {
+      "path": "api/services/aiAssistantRuntime.cjs",
+      "productionBaseBlob": "b5942b5f4584df19492830566a889e7a1cbb2564",
+      "candidateBlob": "b5942b5f4584df19492830566a889e7a1cbb2564",
+      "identical": true
+    },
+    {
+      "path": "api/services/aiPromptComposer.cjs",
+      "productionBaseBlob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46",
+      "candidateBlob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46",
+      "identical": true
+    },
+    {
+      "path": "api/services/aiBusinessRulebook.cjs",
+      "productionBaseBlob": "94176772325d0fdf426aa28c35d50d24d1503446",
+      "candidateBlob": "94176772325d0fdf426aa28c35d50d24d1503446",
+      "identical": true
+    }
+  ],
+  "allIdentical": true,
+  "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+}

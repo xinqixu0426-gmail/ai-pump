@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "artifact": "LegacyAiMoneyGuardDropsNonMonetaryAnswerDefectV1",
+  "defectId": "LEGACY-AI-ANSWER-001",
+  "defectClass": "FUNCTIONAL_ANSWER_DEFECT",
+  "title": "金额守卫整段替换掉正确的非金额结论（用户问规格差异，答案被换成核对表）",
+  "type": "DEFECT_RECORD_LOCAL_ACCEPTANCE_FINDING",
+  "status": "REPORTED_ONLY_NO_CODE_CHANGED",
+  "severity": "HIGH - 用户可见的答案丢失（不是措辞问题，是正确的答案被整段删除）",
+  "relatedRecords": [
+    "planning/ai-native-v1/release/LegacyAiAnswerDuplicateMoneyTableDefectV1.json（同一张表的重复）",
+    "planning/ai-native-v1/release/LegacyAiMoneyTableReadabilityDefectV1.json（同一张表的可读性）"
+  ],
+  "recordedDuring": "AI Native V1 production integration candidate - local manual acceptance",
+  "candidateUnderAcceptance": {
+    "commit": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+    "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "existsOnProductionBase": true,
+    "note": "守卫逻辑在生产基线上完全相同（该文件未被整合修改），因此是既有缺陷，整合未引入、未放大"
+  },
+  "userReport": "用户原话：我问他这个订单两个产品，这两个产品的售价是不同的，那么他的产品规格有什么不同？答案应该是：一个是带浮球的，一个是不带浮球。",
+  "userIsCorrect": {
+    "verified": true,
+    "method": "直接解析订单 #1 两个明细各自的 partsJson 做差集",
+    "lineItem1": {
+      "recipeId": 7,
+      "recipeName": "800直出水切割泵",
+      "qty": 50,
+      "unitCost": 326.5,
+      "unitPrice": 359.15,
+      "partRows": 21,
+      "partsSubtotal": 305.5
+    },
+    "lineItem2": {
+      "recipeId": 7,
+      "recipeName": "800直出水切割泵",
+      "qty": 50,
+      "unitCost": 318,
+      "unitPrice": 349.8,
+      "partRows": 20,
+      "partsSubtotal": 297
+    },
+    "soleDifference": "明细1 独有『浮球-新界式 / 浮球-线径1 × 1 @ ¥8.50』；明细2 无浮球。除此之外两行的零件、数量、单价逐项相同。",
+    "arithmeticProof": "326.50 − 318.00 = 8.50 = 该浮球小计；359.15 − 349.80 = 9.35 = 8.50 × 1.1（利润率）",
+    "conclusion": "售价不同（359.15 / 349.80）的唯一原因是：一个有浮球、一个没有浮球。用户的答案是正确的，AI 没有给出。"
+  },
+  "whatTheAiActuallyAnswered": {
+    "conversation": 42,
+    "userTurn": {
+      "messageId": 243,
+      "at": "06:49:53",
+      "content": "这两项产品规格有什么不同"
+    },
+    "assistantTurn": {
+      "messageId": 244,
+      "at": "06:49:58"
+    },
+    "answerText": "本轮正式查询金额如下（元）：\n\n| 对象 | 项目 | 金额 |\n|---|---|---:|\n| 读取订单知识包 | 总成本 | 32225 |\n| 读取订单知识包 | 总利润 | 3222.5 |\n\n完整计算明细见本轮工具结果。",
+    "containsFloat": false,
+    "contains850": false,
+    "toolCalls": [
+      "get_all_recipes {\"keyword\":\"800直出水切割泵\"}",
+      "get_order_knowledge_package {\"orderId\":1}"
+    ],
+    "assessment": "回答被替换为一张内部核对表。既没有回答规格差异，也没有读取两个明细各自的配置。"
+  },
+  "rootCause": {
+    "mechanism": "金额守卫的『整段替换』分支把模型正文整体丢弃",
+    "chain": [
+      {
+        "location": "api/services/aiAssistantRuntime.cjs:883",
+        "code": "if (toolResults.some(... configurationComplete === false) || missingPreviewTotals(finalContent, toolResults) || !/[¥￥]|\\d\\s*元/.test(finalContent) || /仅修正文案|请再修正|未受正式金额字段|不要再调用工具/.test(finalContent))",
+        "note": "条件之一是『正文里没有 ¥ 或「元」』。回答规格差异这类非金额问题，正文天然不含金额，于是被送进守卫判定。"
+      },
+      {
+        "location": "api/services/aiMoneyGuard.cjs:52-70",
+        "code": "const append = text.trim() !== '' && !unusable && unsupportedClaims.length === 0 && citesFormalAmount; return { action: append ? 'append' : 'replace', ... }",
+        "note": "citesFormalAmount 为假时（正文没有引用本轮正式金额），action 变为 replace。"
+      },
+      {
+        "location": "api/services/aiAssistantRuntime.cjs:886",
+        "code": "finalContent = guard.action === 'append' ? `${finalContent}\\n\\n${guard.summary}` : guard.summary;",
+        "note": "replace 时模型正文被整段丢弃，只剩金额表。用户的规格问题因此消失。"
+      }
+    ],
+    "designIntent": "守卫的初衷是防止模型编造金额：正文出现无依据金额时用正式金额表替换，避免把假数字给用户。",
+    "actualHarm": "它无法区分『这笔金额没有依据』与『这个问题本来就不涉及金额』。对非金额问题，正确回答被当成违规正文删除。",
+    "isIntentionalPerExistingTest": {
+      "test": "tests/aiMoneyGuard.test.cjs:48",
+      "name": "金额守卫：正文没有引用任何本轮正式金额时仍然整段替换",
+      "meaning": "该行为被测试固化，属刻意设计而非疏漏；因此修复必须连同这条测试的意图一起重新界定，不能只改代码。"
+    },
+    "secondaryContribution": "该轮模型也没有调用能回答问题的工具（未对两个明细分别读取配置，如 get_recipe_detail / 订单明细的配置对比），只要读了两边的 partsJson 就能立刻看出浮球差异。工具选择与守卫替换是两个独立问题，需要分别记录。"
+  },
+  "suggestedFixDirection": [
+    "守卫替换必须区分问题类型：用户问的是非金额问题（规格/配置/差异/清单）时，不得因为『正文没有金额』就整段替换；应当保留正文，或仅追加可核对金额而非替换。",
+    "把『正文没有 ¥ 或元』从『必须进入替换判定』的触发条件里降级：它可以作为『正文缺少金额』的信号用于追加核对表，但不该成为删除正文的依据。",
+    "保留原有的防编造保护：正文出现『本轮正式金额之外』的金额时，仍应替换或要求重写（tests/aiMoneyGuard.test.cjs:36 的意图要保留）。",
+    "修复需覆盖：非金额问题（不得替换）、金额问题且金额有据（追加）、金额问题且金额无据（替换/重写）、正文泄漏内部指令（替换）四类。",
+    "工具选择层面：『两个产品有什么不同』这类问题应触发对两侧配置的正式读取（订单明细各自的 partsJson / 配方配置），并规定必须给出逐项差异，而不是只报总成本。"
+  ],
+  "impactAssessment": {
+    "userVisible": "极高 - 提问完全得不到答案，且用户无法察觉是被替换所致",
+    "relatedToIntegration": "无 - 生产基线行为相同",
+    "blocksOffModeDeployment": "不阻塞。OFF 模式下 Legacy 行为与当前生产完全一致；本缺陷在部署前后同样存在。",
+    "shouldBlockOwnerTrial": "建议在启用 Owner 之前先排期修复：这属于基础可用性问题，会让用户认为系统『答非所问』。"
+  },
+  "dataHandling": {
+    "productionTouched": false,
+    "userOriginalDatabaseModified": false,
+    "evidenceSource": "候选工作区中用户 pump.db 的副本（已由候选迁移至 schema 88）",
+    "credentialsPrinted": false
+  },
+  "abProof": {
+    "runtimeBehavioural": "未对生产基线复跑同一轮（该轮依赖模型当次工具选择，属模型输出波动）",
+    "codeIdentity": {
+      "method": "git rev-parse <rev>:<path> 逐文件比较 blob 哈希；哈希相同即两侧文件内容逐字节一致",
+      "productionBase": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+      "candidate": "ecc2b27e3e3bb7cf5b6c8410c1ca66fb75dfe2f7",
+      "filesVerified": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "identical": true,
+          "blob": "ae48002f8870475c8bff405ebfeaae55c0e60b3e"
+        },
+        {
+          "path": "api/services/aiMoneyGuard.cjs",
+          "identical": true,
+          "blob": "b9c3058ff715945f58b3dc5cd2da0eb5b740a107"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "identical": true,
+          "blob": "b5942b5f4584df19492830566a889e7a1cbb2564"
+        },
+        {
+          "path": "api/services/aiPromptComposer.cjs",
+          "identical": true,
+          "blob": "f1be6cefbd1a93cf3d85d8c2d359eeccfde7dc46"
+        },
+        {
+          "path": "api/services/aiBusinessRulebook.cjs",
+          "identical": true,
+          "blob": "94176772325d0fdf426aa28c35d50d24d1503446"
+        }
+      ],
+      "allIdentical": true,
+      "conclusion": "呈现层与守卫的四个源文件在生产基线与候选上逐字节相同 → 这些缺陷由代码逻辑决定，两端必然同样发生；缺陷非整合引入，也非整合放大。"
+    },
+    "whyCodeIdentityIsTheStrongerProof": "替换逻辑是纯确定性代码路径（aiAssistantRuntime.cjs:883 → aiMoneyGuard.cjs:52-70 → :886）。四个相关源文件在两分支逐字节相同，因此相同输入必然产生相同替换行为，无需依赖模型可复现性。",
+    "candidateReproduction": "会话 42：用户 msg 243「这两项产品规格有什么不同」→ 候选 AI msg 244 输出「本轮正式查询金额如下…读取订单知识包 | 总成本 | 32225…」，全文不含「浮球」「8.50」；工具仅调 get_all_recipes + get_order_knowledge_package",
+    "productionBaseReproduction": "由 codeIdentity 证明：守卫与运行时文件在 e244bd75 上完全相同，故生产基线上同样的正文同样会被替换",
+    "independentFactVerification": "正确结论经正式数据核实：订单 #1 两明细 partsJson 差集 → 明细1 独有『浮球-新界式 / 浮球-线径1 ×1 @ ¥8.50』；326.50−318.00 = 8.50；359.15−349.80 = 9.35 = 8.50×1.1"
+  },
+  "regressionTestRequirement": [
+    "非金额问题（规格/配置/差异/清单）的正文不得因「正文没有 ¥ 或元」被整段替换",
+    "金额问题且正文金额有据 → 追加核对表，不替换正文",
+    "金额问题且正文金额无据 → 替换或要求重写（保留 tests/aiMoneyGuard.test.cjs:36 的原意）",
+    "正文泄漏内部指令（仅修正文案/请再修正等）→ 仍整段替换",
+    "必须同时改 tests/aiMoneyGuard.test.cjs:48 那条现有断言所固化的意图，否则修复与测试互相矛盾",
+    "回归需证明：同一条「规格差异」问题在修复后必须包含配置差异结论，且金额仍可逐项回溯到工具事实"
+  ]
+}

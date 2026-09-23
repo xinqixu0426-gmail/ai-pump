@@ -1,0 +1,321 @@
+{
+  "version": 2,
+  "taskId": "00000000-0000-4000-8000-000000000006",
+  "parentTaskId": null,
+  "ownerKey": "synthetic-owner",
+  "conversationId": "chat-101",
+  "requestId": "synthetic-request-1",
+  "revision": 5,
+  "planRevision": 1,
+  "state": "SUCCEEDED",
+  "answerOwner": "TASK_V2",
+  "executionMode": "FOREGROUND",
+  "userGoal": "V550电缆改成5米，其他不变，比较当前成本，不要保存。",
+  "inputHash": "44398412a083a88fa03df252b4c5636e6714934d2d102d97cd8dbc339e78276c",
+  "createdAt": "2026-09-21T05:00:00Z",
+  "updatedAt": "2026-09-21T05:01:00Z",
+  "constraints": {
+    "businessWritePolicy": "FORBIDDEN",
+    "maxModelCalls": 7,
+    "maxToolCalls": 10,
+    "maxToolResultBytes": 98304,
+    "maxTaskStateBytes": 262144,
+    "deadlineAt": "2026-09-21T05:03:00Z",
+    "maxApiCalls": 32,
+    "maxActiveMs": 180000
+  },
+  "subjects": [
+    {
+      "subjectKey": "pump",
+      "mention": "V550",
+      "resolution": "UNIQUE",
+      "selected": {
+        "entityType": "recipe",
+        "entityId": "101",
+        "displayName": "示例配方V550（非生产数据）",
+        "updatedAt": "2026-09-21T05:00:00Z",
+        "recordHash": "38e02d64e69f8b2169bd2e31c32bded06adc3de8be1cdfc93e4191e77ebce912",
+        "schemeCode": null
+      },
+      "candidates": [
+        {
+          "entityType": "recipe",
+          "entityId": "101",
+          "displayName": "示例配方V550（非生产数据）",
+          "updatedAt": "2026-09-21T05:00:00Z",
+          "recordHash": "38e02d64e69f8b2169bd2e31c32bded06adc3de8be1cdfc93e4191e77ebce912",
+          "schemeCode": null
+        }
+      ],
+      "candidateSetComplete": true,
+      "selectionBasis": "EXACT",
+      "receiptIds": [
+        "00000000-0000-4000-8000-000000000009"
+      ]
+    }
+  ],
+  "goals": [
+    {
+      "goalKey": "compare",
+      "kind": "CONFIGURATION_COMPARE",
+      "description": "比较两种配置",
+      "subjectKeys": [
+        "pump"
+      ],
+      "scenarioKeys": [
+        "base",
+        "candidate1"
+      ],
+      "dependsOn": [],
+      "state": "VERIFIED",
+      "factIds": [
+        "00000000-0000-4000-8000-000000000010",
+        "00000000-0000-4000-8000-000000000011",
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "blockers": [],
+      "requirements": [
+        {
+          "requirementKey": "1",
+          "predicate": "recipe.currentUnitCost",
+          "subjectKey": "pump",
+          "scenarioKey": "base",
+          "temporalScope": "CURRENT",
+          "basis": "CURRENT_REBUILT_BASE",
+          "requireComplete": true,
+          "unit": "CNY/pump",
+          "currency": "CNY"
+        },
+        {
+          "requirementKey": "2",
+          "predicate": "recipe.scenarioUnitCost",
+          "subjectKey": "pump",
+          "scenarioKey": "candidate1",
+          "temporalScope": "SCENARIO",
+          "basis": "CURRENT_REBUILT_SCENARIO",
+          "requireComplete": true,
+          "unit": "CNY/pump",
+          "currency": "CNY"
+        },
+        {
+          "requirementKey": "3",
+          "predicate": "recipe.unitCostDelta",
+          "subjectKey": "pump",
+          "scenarioKey": "candidate1",
+          "temporalScope": "SCENARIO",
+          "basis": "CURRENT_REBUILT_COMPARISON",
+          "requireComplete": true,
+          "unit": "CNY/pump",
+          "currency": "CNY"
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "scenarioKey": "base",
+      "label": "当前基准",
+      "baseSubjectKey": "pump",
+      "basis": "CURRENT_REBUILT",
+      "priceContext": "FORMAL_READ_SET",
+      "overrides": {},
+      "readSetId": "00000000-0000-4000-8000-000000000002"
+    },
+    {
+      "scenarioKey": "candidate1",
+      "label": "五米电缆方案",
+      "baseSubjectKey": "pump",
+      "basis": "CURRENT_REBUILT",
+      "priceContext": "FORMAL_READ_SET",
+      "overrides": {
+        "cableLength": 5
+      },
+      "readSetId": "00000000-0000-4000-8000-000000000002"
+    }
+  ],
+  "steps": [
+    {
+      "stepId": "00000000-0000-4000-8000-000000000007",
+      "goalKeys": [
+        "compare"
+      ],
+      "toolName": "compare_recipe_scenarios",
+      "capabilityId": "recipes.scenario_compare_preview",
+      "access": "PREVIEW",
+      "arguments": {
+        "recipeId": 101,
+        "version": 1,
+        "baselinePolicy": "CURRENT_REBUILT",
+        "scenarios": [
+          {
+            "scenarioKey": "candidate1",
+            "label": "五米电缆方案",
+            "overrides": {
+              "cableLength": 5
+            }
+          }
+        ]
+      },
+      "argumentSources": [
+        {
+          "fieldPath": "/recipeId",
+          "kind": "FORMAL_RECEIPT",
+          "sourceRef": "00000000-0000-4000-8000-000000000009",
+          "pointer": "/data/id",
+          "span": null
+        },
+        {
+          "fieldPath": "/version",
+          "kind": "FORMAL_POLICY",
+          "sourceRef": "native-scenario-contract-v1",
+          "pointer": null,
+          "span": null
+        },
+        {
+          "fieldPath": "/baselinePolicy",
+          "kind": "FORMAL_POLICY",
+          "sourceRef": "native-current-comparison-v1",
+          "pointer": null,
+          "span": null
+        },
+        {
+          "fieldPath": "/scenarios/0/scenarioKey",
+          "kind": "FORMAL_POLICY",
+          "sourceRef": "native-local-scenario-key-v1",
+          "pointer": null,
+          "span": null
+        },
+        {
+          "fieldPath": "/scenarios/0/label",
+          "kind": "USER_SPAN",
+          "sourceRef": "request:user:1",
+          "pointer": null,
+          "span": {
+            "messageRef": "request:user:1",
+            "start": 0,
+            "end": 28,
+            "text": "V550电缆改成5米，其他不变，比较当前成本，不要保存。"
+          }
+        },
+        {
+          "fieldPath": "/scenarios/0/overrides/cableLength",
+          "kind": "USER_SPAN",
+          "sourceRef": "request:user:1",
+          "pointer": null,
+          "span": {
+            "messageRef": "request:user:1",
+            "start": 8,
+            "end": 10,
+            "text": "5米"
+          }
+        }
+      ],
+      "argsHash": "5e608a788fb7fbbe06d37c9d1af1756a2efdc66e734b22ecca1e7f35f8068ea3",
+      "state": "SUCCEEDED",
+      "attempt": 1,
+      "startedAt": "2026-09-21T05:00:30Z",
+      "finishedAt": "2026-09-21T05:01:00Z",
+      "receiptId": "00000000-0000-4000-8000-000000000005",
+      "operationId": null,
+      "errorCode": null
+    }
+  ],
+  "facts": [
+    {
+      "version": 1,
+      "factId": "00000000-0000-4000-8000-000000000010",
+      "key": {
+        "entityType": "recipe",
+        "entityId": "101",
+        "predicate": "recipe.currentUnitCost",
+        "temporalScope": "CURRENT",
+        "scenarioKey": "base",
+        "qualifiers": {
+          "basis": "CURRENT_REBUILT_BASE",
+          "unit": "CNY/pump",
+          "currency": "CNY",
+          "snapshotVersion": null,
+          "queryScopeHash": null
+        }
+      },
+      "evidenceState": "VERIFIED_POSITIVE",
+      "value": 200,
+      "receiptId": "00000000-0000-4000-8000-000000000005",
+      "resultPointer": "/data/scenarios/0/cost/currentTotalCost",
+      "observedAt": "2026-09-21T05:01:00Z",
+      "sourceUpdatedAt": null,
+      "sourceHash": "24b60066c2c669468468ab7c034a32964b7733253798ff2042f0a418e52d1bf0",
+      "complete": true,
+      "supersedesFactId": null,
+      "planRevision": 1,
+      "readSetId": "00000000-0000-4000-8000-000000000002"
+    },
+    {
+      "version": 1,
+      "factId": "00000000-0000-4000-8000-000000000011",
+      "key": {
+        "entityType": "recipe",
+        "entityId": "101",
+        "predicate": "recipe.scenarioUnitCost",
+        "temporalScope": "SCENARIO",
+        "scenarioKey": "candidate1",
+        "qualifiers": {
+          "basis": "CURRENT_REBUILT_SCENARIO",
+          "unit": "CNY/pump",
+          "currency": "CNY",
+          "snapshotVersion": null,
+          "queryScopeHash": null
+        }
+      },
+      "evidenceState": "VERIFIED_POSITIVE",
+      "value": 206,
+      "receiptId": "00000000-0000-4000-8000-000000000005",
+      "resultPointer": "/data/scenarios/1/cost/currentTotalCost",
+      "observedAt": "2026-09-21T05:01:00Z",
+      "sourceUpdatedAt": null,
+      "sourceHash": "24b60066c2c669468468ab7c034a32964b7733253798ff2042f0a418e52d1bf0",
+      "complete": true,
+      "supersedesFactId": null,
+      "planRevision": 1,
+      "readSetId": "00000000-0000-4000-8000-000000000002"
+    },
+    {
+      "version": 1,
+      "factId": "00000000-0000-4000-8000-000000000004",
+      "key": {
+        "entityType": "recipe",
+        "entityId": "101",
+        "predicate": "recipe.unitCostDelta",
+        "temporalScope": "SCENARIO",
+        "scenarioKey": "candidate1",
+        "qualifiers": {
+          "basis": "CURRENT_REBUILT_COMPARISON",
+          "unit": "CNY/pump",
+          "currency": "CNY",
+          "snapshotVersion": null,
+          "queryScopeHash": null
+        }
+      },
+      "evidenceState": "VERIFIED_POSITIVE",
+      "value": 6,
+      "receiptId": "00000000-0000-4000-8000-000000000005",
+      "resultPointer": "/data/comparisons/0/delta",
+      "observedAt": "2026-09-21T05:01:00Z",
+      "sourceUpdatedAt": null,
+      "sourceHash": "24b60066c2c669468468ab7c034a32964b7733253798ff2042f0a418e52d1bf0",
+      "complete": true,
+      "supersedesFactId": null,
+      "planRevision": 1,
+      "readSetId": "00000000-0000-4000-8000-000000000002"
+    }
+  ],
+  "questions": [],
+  "approvalOperationIds": [],
+  "resultSummary": "合成示例：成本差额6元/台，没有保存配置。",
+  "budgetUsage": {
+    "modelCalls": 2,
+    "toolCalls": 2,
+    "apiCalls": 2,
+    "activeMs": 18000
+  }
+}

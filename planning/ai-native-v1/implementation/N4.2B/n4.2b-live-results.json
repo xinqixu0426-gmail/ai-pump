@@ -1,0 +1,2619 @@
+{
+  "ticket": "N4.2B",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "liveFamilies": 10,
+  "runsPerFamily": 2,
+  "totalAcceptedLiveRuns": 22,
+  "missingQuantityContinuations": 2,
+  "businessToolCalls": 0,
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "orderCreates": 0,
+  "purchaseCreates": 0,
+  "inventoryWrites": 0,
+  "auditDelta": 0,
+  "operationDelta": 0,
+  "fileSideEffects": 0,
+  "metrics": {
+    "medianLatencyMs": 2444,
+    "p95LatencyMs": 2797,
+    "firstStatusMedianMs": 2444,
+    "finalAnswerMedianMs": 2444,
+    "admissionMedianMs": 2444,
+    "admissionP95Ms": 2797
+  },
+  "failures": [],
+  "accepted": [
+    {
+      "label": "base-ready",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "4070bef0-fe36-4388-adc3-4608d318b246",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "d794b9ab-a282-4a2a-96bb-3a967266a5b6",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:11.911Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2797,
+      "firstStatusMs": 2797,
+      "finalAnswerMs": 2797,
+      "admissionMs": 2797
+    },
+    {
+      "label": "base-ready",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "0acfa89b-f7c6-47dd-9306-c83ebdf28cec",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "0a9ce5cd-2e16-4dcc-9800-c3084776ebe5",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:14.357Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2444,
+      "firstStatusMs": 2444,
+      "finalAnswerMs": 2444,
+      "admissionMs": 2444
+    },
+    {
+      "label": "base-shortage",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "a8801a51-38f2-4980-ae7d-5e1d0415696c",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "SHORTAGE",
+        "readSetId": "8bacdfbc-babe-4b12-8cd5-69c2d538c159",
+        "readSetHash": "d0f5361267fbb30dc5bc8358c5a89aef55c890c307e26be3c0a184f2c84a08a0",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "e77a189839950f189e5dd4edb7703887a95df0d403c8da6bf896e9116ccf255f"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 1,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 100,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 100,
+            "shortageQty": 200,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "inventoryUnit": "piece",
+            "virtualRequiredQty": 300,
+            "availableForVirtualQty": 100,
+            "shortageQty": 200
+          }
+        ],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:17.115Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料存在短缺：Shadow零件甲需要300件，现可用于这批需求100件，短缺200件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2757,
+      "firstStatusMs": 2757,
+      "finalAnswerMs": 2757,
+      "admissionMs": 2757
+    },
+    {
+      "label": "base-shortage",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "18418717-af87-4325-836e-e00c39a5ec15",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "SHORTAGE",
+        "readSetId": "e3237644-782d-4e03-b9cf-433ba260c506",
+        "readSetHash": "d0f5361267fbb30dc5bc8358c5a89aef55c890c307e26be3c0a184f2c84a08a0",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "e77a189839950f189e5dd4edb7703887a95df0d403c8da6bf896e9116ccf255f"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 1,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 100,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 100,
+            "shortageQty": 200,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "inventoryUnit": "piece",
+            "virtualRequiredQty": 300,
+            "availableForVirtualQty": 100,
+            "shortageQty": 200
+          }
+        ],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:19.948Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料存在短缺：Shadow零件甲需要300件，现可用于这批需求100件，短缺200件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2832,
+      "firstStatusMs": 2832,
+      "finalAnswerMs": 2832,
+      "admissionMs": 2832
+    },
+    {
+      "label": "active-reservation-shortage",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "4ddd72ae-d7e8-4cfe-8f44-261f09e2c6f9",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "SHORTAGE",
+        "readSetId": "a02d2c4a-7f64-455a-88bd-aa60aba28516",
+        "readSetHash": "b5f45d2c2c860f6746a2e9ed8d2368b4e820b1db4a91de99fb6ea23a5648c66d",
+        "sourceVersions": [
+          {
+            "entityType": "active_order_reservation",
+            "entityId": "101",
+            "updatedAt": null,
+            "contentHash": "ab8c821ca1ee29db9f04b885ef031bf0dd3627bb1368d6e3995011c9a7a301fb"
+          },
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "de4ff4220958166ae848a309e7a77c24429bd81fb950c35be4df11f9b07bc61f"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 5,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 1,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 500,
+            "reservedByActiveOrdersQty": 250,
+            "availableForVirtualQty": 250,
+            "shortageQty": 50,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "inventoryUnit": "piece",
+            "virtualRequiredQty": 300,
+            "availableForVirtualQty": 250,
+            "shortageQty": 50
+          }
+        ],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:22.464Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料存在短缺：Shadow零件甲需要300件，现可用于这批需求250件，短缺50件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2517,
+      "firstStatusMs": 2517,
+      "finalAnswerMs": 2517,
+      "admissionMs": 2517
+    },
+    {
+      "label": "active-reservation-shortage",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "4bf6b777-9176-4815-a5d4-87b9862a13a2",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "SHORTAGE",
+        "readSetId": "fc2d7e8c-2d79-4759-a19e-afefb52e12eb",
+        "readSetHash": "b5f45d2c2c860f6746a2e9ed8d2368b4e820b1db4a91de99fb6ea23a5648c66d",
+        "sourceVersions": [
+          {
+            "entityType": "active_order_reservation",
+            "entityId": "101",
+            "updatedAt": null,
+            "contentHash": "ab8c821ca1ee29db9f04b885ef031bf0dd3627bb1368d6e3995011c9a7a301fb"
+          },
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "de4ff4220958166ae848a309e7a77c24429bd81fb950c35be4df11f9b07bc61f"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 5,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 1,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 500,
+            "reservedByActiveOrdersQty": 250,
+            "availableForVirtualQty": 250,
+            "shortageQty": 50,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "inventoryUnit": "piece",
+            "virtualRequiredQty": 300,
+            "availableForVirtualQty": 250,
+            "shortageQty": 50
+          }
+        ],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:24.287Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料存在短缺：Shadow零件甲需要300件，现可用于这批需求250件，短缺50件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1821,
+      "firstStatusMs": 1821,
+      "finalAnswerMs": 1821,
+      "admissionMs": 1821
+    },
+    {
+      "label": "cable-five-meter",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "b531dd2b-8ad7-43fa-b330-df8a5fccad85",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "b24234e8b453888559b09463a8c4afdab2254bf27b973838771b236fe9d7dbcc",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "83620e8b-6675-4bca-a0e8-bf4af9c33544",
+        "readSetHash": "ac87a19143d43601b3375cab82e9822bffc7c3a6ff042fc771fd27818c260215",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "603",
+            "updatedAt": null,
+            "contentHash": "984bd315dfd1eba229e18452ef81ba7e799d40bc38b1adc973adc31ae1b142d5"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "b24234e8b453888559b09463a8c4afdab2254bf27b973838771b236fe9d7dbcc"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "f9b7f482a2502c0dd1d327e8bef25034eb08a2b7afd807b195fb5c67cf1d5d6d"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:603|configuration:[\"根\",5,5,\"standard\",null]",
+            "resourceType": "PART",
+            "partId": 603,
+            "coilId": null,
+            "model": "电缆-线径1.5",
+            "supplier": "线缆厂",
+            "schemeCode": null,
+            "inventoryUnit": "meter",
+            "quantityPerPump": 5,
+            "virtualRequiredQty": 1500,
+            "stockOnHandQty": 1500,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1500,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:26.528Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2239,
+      "firstStatusMs": 2239,
+      "finalAnswerMs": 2239,
+      "admissionMs": 2239
+    },
+    {
+      "label": "cable-five-meter",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "345ade41-4ddc-433a-b309-b5ab292b2698",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "b24234e8b453888559b09463a8c4afdab2254bf27b973838771b236fe9d7dbcc",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "5d1eeba0ab801769ce36ef0b2c29d8163336b57f79cc674f0c9b698628a4786d",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "272104c5-7ce4-4890-8a56-99c28820a3d4",
+        "readSetHash": "ac87a19143d43601b3375cab82e9822bffc7c3a6ff042fc771fd27818c260215",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "603",
+            "updatedAt": null,
+            "contentHash": "984bd315dfd1eba229e18452ef81ba7e799d40bc38b1adc973adc31ae1b142d5"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "b24234e8b453888559b09463a8c4afdab2254bf27b973838771b236fe9d7dbcc"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "f9b7f482a2502c0dd1d327e8bef25034eb08a2b7afd807b195fb5c67cf1d5d6d"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:603|configuration:[\"根\",5,5,\"standard\",null]",
+            "resourceType": "PART",
+            "partId": 603,
+            "coilId": null,
+            "model": "电缆-线径1.5",
+            "supplier": "线缆厂",
+            "schemeCode": null,
+            "inventoryUnit": "meter",
+            "quantityPerPump": 5,
+            "virtualRequiredQty": 1500,
+            "stockOnHandQty": 1500,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1500,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:29.065Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2538,
+      "firstStatusMs": 2538,
+      "finalAnswerMs": 2538,
+      "admissionMs": 2538
+    },
+    {
+      "label": "exact-coil",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "88eb80a6-4b09-4592-8696-a7382ae3b9f2",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "9112d219-0f0c-4e46-8ae0-eb7c08405290",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:31.792Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥0.00。已正式应用的临时配置：coilId=501。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2726,
+      "firstStatusMs": 2726,
+      "finalAnswerMs": 2726,
+      "admissionMs": 2726
+    },
+    {
+      "label": "exact-coil",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "ab5da166-0267-4ed5-99e7-c37c402c3ddf",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "89d0adb7-1071-4c74-a72a-7259069e54cb",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:34.556Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥0.00。已正式应用的临时配置：coilId=501。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2764,
+      "firstStatusMs": 2764,
+      "finalAnswerMs": 2764,
+      "admissionMs": 2764
+    },
+    {
+      "label": "packing-scenario",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "fa5ab510-be51-43f4-bcf2-59bf5869d3d5",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "12ba3fa6-7f42-4e77-bcad-82f58183d391",
+        "readSetHash": "3e865cdd727d3adf8f22b5caff05c03f1504d3020e3ee153780e35df3b374da1",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "part",
+            "entityId": "604",
+            "updatedAt": null,
+            "contentHash": "fc7b898b77cb9699f394096b5317e7a6e12a9f0c66645119a9b26306ad8eb8d3"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 5,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 3,
+          "evaluatedCount": 3,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          },
+          {
+            "requirementKey": "part:604",
+            "resourceType": "PART",
+            "partId": 604,
+            "coilId": null,
+            "model": "木箱",
+            "supplier": "包装厂",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/2"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:36.637Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。临时方案完整成本为 ¥42.00，较当前 增加 ¥12.00。已正式应用的临时配置：packingParts=木箱×1。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 2081,
+      "firstStatusMs": 2081,
+      "finalAnswerMs": 2081,
+      "admissionMs": 2081
+    },
+    {
+      "label": "packing-scenario",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "9a57bf93-5d56-4569-be87-52fbabaaa5f6",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "candidate_1",
+        "configurationHash": "9b012a28eac0175e391668f623d2802e9d11ba7e652949110a7a45215a5dd99e",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "e94f09b9-0572-4e06-943d-55d2ee56ad92",
+        "readSetHash": "3e865cdd727d3adf8f22b5caff05c03f1504d3020e3ee153780e35df3b374da1",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "part",
+            "entityId": "604",
+            "updatedAt": null,
+            "contentHash": "fc7b898b77cb9699f394096b5317e7a6e12a9f0c66645119a9b26306ad8eb8d3"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 5,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 3,
+          "evaluatedCount": 3,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          },
+          {
+            "requirementKey": "part:604",
+            "resourceType": "PART",
+            "partId": 604,
+            "coilId": null,
+            "model": "木箱",
+            "supplier": "包装厂",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/2"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:38.598Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。临时方案完整成本为 ¥42.00，较当前 增加 ¥12.00。已正式应用的临时配置：packingParts=木箱×1。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 4,
+      "apiCalls": 4,
+      "durationMs": 1960,
+      "firstStatusMs": 1960,
+      "finalAnswerMs": 1960,
+      "admissionMs": 1960
+    },
+    {
+      "label": "missing-price-readiness",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "758afb67-1986-4f36-baf2-6c5617e736ae",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "784c91f5-9a7e-4880-bc88-8075a05912f4",
+        "readSetHash": "2fc774949f8d07b483bcbcea92c5f6ad263159ec9fc2303f2d0cdf55de8d1dac",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "26d3b926ea4de8f1dacb5d1416aeb502259b3e56c7da8bbe4a185ae6b0151c60"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:40.760Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2162,
+      "firstStatusMs": 2162,
+      "finalAnswerMs": 2162,
+      "admissionMs": 2162
+    },
+    {
+      "label": "missing-price-readiness",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "337eba21-10bc-49e5-aafd-690e8dda756c",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "94c84a91-ddcc-45be-a037-82de7b402d4e",
+        "readSetHash": "2fc774949f8d07b483bcbcea92c5f6ad263159ec9fc2303f2d0cdf55de8d1dac",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "26d3b926ea4de8f1dacb5d1416aeb502259b3e56c7da8bbe4a185ae6b0151c60"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:43.380Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2621,
+      "firstStatusMs": 2621,
+      "finalAnswerMs": 2621,
+      "admissionMs": 2621
+    },
+    {
+      "label": "unresolved-identity",
+      "run": 1,
+      "taskState": "FAILED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "PARTIAL",
+          "blockers": [
+            "VIRTUAL_READINESS_INCOMPLETE"
+          ]
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "0c198be0-3c8d-4a8c-8617-c873114792ab",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": null,
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "INCOMPLETE",
+        "readSetId": "61982e91-06a4-4b07-a24f-d871f03b15d6",
+        "readSetHash": "980cf98ee0c91b69972910f7e92e289a565aac34fe46f22d86eae0947ad2e3a7",
+        "sourceVersions": [
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "5dbb2979a7fa95682b0e96686f0a3df4c7ec1e8993834b657ee2aece2cb95589"
+          }
+        ],
+        "sourceVersionCount": 2,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 0,
+          "evaluatedCount": 0,
+          "shortageCount": 0,
+          "unresolvedCount": 1,
+          "excludedCount": 0,
+          "complete": false
+        },
+        "requirements": [],
+        "shortages": [],
+        "unresolvedRequirements": [
+          {
+            "code": "BOM_PART_IDENTITY_NOT_FOUND",
+            "message": "parts[0] 的零件“未绑定库存零件”（未知供应商）在零件库中不存在"
+          }
+        ],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:45.662Z",
+        "warnings": [
+          "FORMAL_SCENARIO_PREVIEW_FAILED"
+        ]
+      },
+      "answer": "V550的本次正式查询已返回部分可用结果；但该集合未证明完整，因此不能据此称为全部历史或完整目录。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2280,
+      "firstStatusMs": 2280,
+      "finalAnswerMs": 2280,
+      "admissionMs": 2280
+    },
+    {
+      "label": "unresolved-identity",
+      "run": 2,
+      "taskState": "FAILED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "PARTIAL",
+          "blockers": [
+            "VIRTUAL_READINESS_INCOMPLETE"
+          ]
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "6a0f4aad-8b51-4abb-bdcf-66f35620ba95",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": null,
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "INCOMPLETE",
+        "readSetId": "c29869d0-6311-4456-aaaa-9effd626ae15",
+        "readSetHash": "980cf98ee0c91b69972910f7e92e289a565aac34fe46f22d86eae0947ad2e3a7",
+        "sourceVersions": [
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "5dbb2979a7fa95682b0e96686f0a3df4c7ec1e8993834b657ee2aece2cb95589"
+          }
+        ],
+        "sourceVersionCount": 2,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 0,
+          "evaluatedCount": 0,
+          "shortageCount": 0,
+          "unresolvedCount": 1,
+          "excludedCount": 0,
+          "complete": false
+        },
+        "requirements": [],
+        "shortages": [],
+        "unresolvedRequirements": [
+          {
+            "code": "BOM_PART_IDENTITY_NOT_FOUND",
+            "message": "parts[0] 的零件“未绑定库存零件”（未知供应商）在零件库中不存在"
+          }
+        ],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:48.343Z",
+        "warnings": [
+          "FORMAL_SCENARIO_PREVIEW_FAILED"
+        ]
+      },
+      "answer": "V550的本次正式查询已返回部分可用结果；但该集合未证明完整，因此不能据此称为全部历史或完整目录。",
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2680,
+      "firstStatusMs": 2680,
+      "finalAnswerMs": 2680,
+      "admissionMs": 2680
+    },
+    {
+      "label": "cost-plus-readiness",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "d4583d9c-e35d-416c-89a7-102963b1079b",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "e109d753-9ac8-484e-b746-1c2c475f2a90",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:50.902Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。本次只读查询，没有修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2565,
+      "firstStatusMs": 2565,
+      "finalAnswerMs": 2565,
+      "admissionMs": 2565
+    },
+    {
+      "label": "cost-plus-readiness",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "59329b8f-eb0a-483a-b0d2-22d36ce09679",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "3efb020a-3716-4043-b01a-16aef32b2c2b",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:53.485Z",
+        "warnings": []
+      },
+      "answer": "V550当前完整成本为 ¥30.00。本次只读查询，没有修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2581,
+      "firstStatusMs": 2581,
+      "finalAnswerMs": 2581,
+      "admissionMs": 2581
+    },
+    {
+      "label": "missing-quantity-turn1",
+      "run": 1,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        }
+      ],
+      "readiness": null,
+      "answer": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+      "modelCalls": 0,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "durationMs": 11,
+      "firstStatusMs": 11,
+      "finalAnswerMs": 11,
+      "admissionMs": 0
+    },
+    {
+      "label": "missing-quantity-turn2",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "f857f96a-7da4-4db5-a483-eb45c1d0fbd5",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "20106249-448b-472d-b6a7-487b9868d379",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:53.503Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 9,
+      "firstStatusMs": 9,
+      "finalAnswerMs": 9,
+      "admissionMs": 0
+    },
+    {
+      "label": "missing-quantity-turn1",
+      "run": 2,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "VIRTUAL_READINESS_QUANTITY_REQUIRED"
+          ]
+        }
+      ],
+      "readiness": null,
+      "answer": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+      "modelCalls": 0,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "durationMs": 7,
+      "firstStatusMs": 7,
+      "finalAnswerMs": 7,
+      "admissionMs": 0
+    },
+    {
+      "label": "missing-quantity-turn2",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "INVENTORY_QUERY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "readiness": {
+        "version": 1,
+        "preview": true,
+        "readinessId": "6fcdb9d0-271a-4867-8034-7b0e4831de7a",
+        "recipe": {
+          "entityType": "recipe",
+          "entityId": "301",
+          "displayName": "V550",
+          "updatedAt": null,
+          "recordHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf",
+          "schemeCode": null
+        },
+        "scenarioKey": "base",
+        "configurationHash": "d04b223b8fb21c3d09ddbab2d9f0d0161984445b268ca35cace0576fca0d8ab8",
+        "quantity": 300,
+        "inventoryBasis": "CURRENT_STOCK_AFTER_ACTIVE_ORDER_RESERVATIONS",
+        "status": "READY",
+        "readSetId": "ce08c7d7-1050-4bdd-9f1b-c5397fa2f384",
+        "readSetHash": "cda7fa676f16300dae31d0001fb37c1830eac928648b93aaac2d24ce6b65d42d",
+        "sourceVersions": [
+          {
+            "entityType": "coil",
+            "entityId": "501",
+            "updatedAt": null,
+            "contentHash": "0920ed1b89f4b6ec7dda7becbbc6039e2c0c91fbb926b6530ee7556faa74d45f"
+          },
+          {
+            "entityType": "part",
+            "entityId": "601",
+            "updatedAt": null,
+            "contentHash": "c6dd5ebd4952f760b167d776e8ab98b671310a5cca743ceacdf5572c9246b0cc"
+          },
+          {
+            "entityType": "recipe",
+            "entityId": "301",
+            "updatedAt": null,
+            "contentHash": "214e6c43981a2ced5245650531b34640f421db8c7c9c6dd32bc025114488aabf"
+          },
+          {
+            "entityType": "template",
+            "entityId": "401",
+            "updatedAt": null,
+            "contentHash": "e07ea8caf9235049e065daec472f3560cb4c1a6036b48a34e82cb465eabd9cf3"
+          }
+        ],
+        "sourceVersionCount": 4,
+        "sourceVersionsComplete": true,
+        "coverage": {
+          "requirementCount": 2,
+          "evaluatedCount": 2,
+          "shortageCount": 0,
+          "unresolvedCount": 0,
+          "excludedCount": 0,
+          "complete": true
+        },
+        "requirements": [
+          {
+            "requirementKey": "coil:501|configuration:[\"套\",1,null,null,null]",
+            "resourceType": "COIL",
+            "partId": null,
+            "coilId": 501,
+            "model": "12-220",
+            "supplier": "",
+            "schemeCode": null,
+            "inventoryUnit": "set",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/0"
+            ]
+          },
+          {
+            "requirementKey": "part:601",
+            "resourceType": "PART",
+            "partId": 601,
+            "coilId": null,
+            "model": "Shadow零件甲",
+            "supplier": "供应甲",
+            "schemeCode": null,
+            "inventoryUnit": "piece",
+            "quantityPerPump": 1,
+            "virtualRequiredQty": 300,
+            "stockOnHandQty": 1000,
+            "reservedByActiveOrdersQty": 0,
+            "availableForVirtualQty": 1000,
+            "shortageQty": 0,
+            "complete": true,
+            "sourcePointers": [
+              "/requirements/1"
+            ]
+          }
+        ],
+        "shortages": [],
+        "unresolvedRequirements": [],
+        "excludedRequirements": [],
+        "calculatedAt": "2026-09-22T05:22:53.510Z",
+        "warnings": []
+      },
+      "answer": "按当前库存并扣除现有活动订单占用，300台V550的库存管理物料目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。",
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 7,
+      "firstStatusMs": 7,
+      "finalAnswerMs": 7,
+      "admissionMs": 0
+    }
+  ],
+  "rawLog": "gitignored logs/ai-native-n4-2b-live-raw.json",
+  "familyDefinitions": [
+    "base READY",
+    "base SHORTAGE",
+    "active-order reservation SHORTAGE",
+    "cable 5m x300",
+    "exact official coil",
+    "packing configuration",
+    "missing price readiness",
+    "unresolved identity INCOMPLETE",
+    "current cost plus readiness",
+    "missing quantity continuation x2"
+  ],
+  "formalApiCalls": 52
+}

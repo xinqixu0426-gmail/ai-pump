@@ -1,0 +1,76 @@
+{
+  "initial": "NEW",
+  "terminal": [
+    "SUCCEEDED",
+    "PARTIAL",
+    "UNSUPPORTED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "transitions": {
+    "NEW": [
+      "UNDERSTANDING",
+      "CANCELLED",
+      "FAILED"
+    ],
+    "UNDERSTANDING": [
+      "RESOLVING",
+      "WAITING_INPUT",
+      "UNSUPPORTED",
+      "CANCELLED",
+      "FAILED"
+    ],
+    "RESOLVING": [
+      "RUNNING",
+      "WAITING_INPUT",
+      "VERIFYING",
+      "CANCELLED",
+      "FAILED"
+    ],
+    "RUNNING": [
+      "RUNNING",
+      "RESOLVING",
+      "WAITING_INPUT",
+      "WAITING_APPROVAL",
+      "VERIFYING",
+      "SUSPENDED",
+      "RECONCILING",
+      "CANCELLED",
+      "FAILED"
+    ],
+    "WAITING_INPUT": [
+      "RESOLVING",
+      "CANCELLED"
+    ],
+    "WAITING_APPROVAL": [
+      "RESOLVING",
+      "RUNNING",
+      "CANCELLED"
+    ],
+    "VERIFYING": [
+      "SUCCEEDED",
+      "PARTIAL",
+      "UNSUPPORTED",
+      "WAITING_INPUT",
+      "WAITING_APPROVAL",
+      "RECONCILING",
+      "FAILED",
+      "CANCELLED"
+    ],
+    "SUSPENDED": [
+      "RESOLVING",
+      "CANCELLED"
+    ],
+    "RECONCILING": [
+      "VERIFYING",
+      "WAITING_APPROVAL",
+      "SUSPENDED"
+    ],
+    "SUCCEEDED": [],
+    "PARTIAL": [],
+    "UNSUPPORTED": [],
+    "FAILED": [],
+    "CANCELLED": []
+  },
+  "note": "任何状态进入CANCELLED前必须确认没有未知已提交副作用；有则先RECONCILING。terminal不可复活，继续调查创建parentTaskId子任务。"
+}

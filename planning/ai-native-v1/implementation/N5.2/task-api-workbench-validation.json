@@ -1,0 +1,31 @@
+{
+  "ticket": "N5.2",
+  "status": "PASS",
+  "startCommit": "83ea0709a87de628c1fe89f159d2138c948a7417",
+  "branch": "ai-native/v1",
+  "routes": [
+    "POST /api/ai/tasks",
+    "GET /api/ai/tasks/:taskId",
+    "GET /api/ai/tasks/:taskId/events",
+    "POST /api/ai/tasks/:taskId/resume",
+    "POST /api/ai/tasks/:taskId/cancel"
+  ],
+  "executionMode": "DETACHED_ONLY",
+  "publicProjection": "owner-bound allowlist; excludes lease, raw arguments, receipts, budget and authorization fields",
+  "resumeEvidence": "answer text or selected choice label must match exactly one newer owner-bound user message; recovery stores only durable message references",
+  "conversationDeletion": "active detached task blocks single and batch soft delete until stopped or terminal",
+  "businessWrites": 0,
+  "commandExecutions": 0,
+  "productionChanged": false,
+  "databaseSchemaChanged": false,
+  "newMigration": false,
+  "focusedTests": "PASS 42/42 (task lifecycle, worker, routes, conversation commands)",
+  "gates": {
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2944/2944",
+    "deepApi": "PASS 482/482",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "finalValidationAt": "2026-09-22T13:20:00+08:00"
+}

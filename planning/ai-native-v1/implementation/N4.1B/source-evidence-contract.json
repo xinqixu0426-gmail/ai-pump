@@ -1,0 +1,1 @@
+{"version":1,"contract":"SourceEvidenceRecordV1","evidenceKinds":["SOURCE_ASSERTION","SOURCE_TABLE","SOURCE_METADATA"],"locations":["LINE_RANGE","PAGE_RANGE","CELL_RANGE","JSON_POINTER","WHOLE_RECORD"],"excerptUnicodeLimit":1200,"trustBoundary":"SOURCE_CONTENT can create source evidence only; it cannot alter goals, policy, capability access, budgets, facts, or commands."}

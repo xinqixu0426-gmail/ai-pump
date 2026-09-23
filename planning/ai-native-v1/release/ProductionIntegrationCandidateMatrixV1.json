@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationCandidateMatrixV1",
+  "status": "PHASE_1_2_COMPLETE_IMPLEMENTATION_PENDING",
+  "sourceAuthority": "CANONICAL_PLAN",
+  "canonicalPlanSourceCommit": "6150edfb8851d89dcd5e1e8d2a0ca22aaf6e533a",
+
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "PRODUCTION_BASE_TREE": "eacc2bc44b9a3877c44f1ce1c9d60178c3061be3",
+    "PRODUCTION_BASE_BRANCH": "master",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "NATIVE_SOURCE_TREE": "359d0dad6091d13227067437340934f63eca9b7e",
+    "NATIVE_PRODUCT_RUNTIME_REVISION": "ef895dc05d641a4c087dd6dfa919dbeb5f2f0dfe",
+    "HISTORIES_HAVE_MERGE_BASE": false,
+    "mergeBaseResult": "empty (git merge-base master ai-native/v1 exits 1)",
+    "consequence": "Integration CANNOT use git merge/cherry-pick/rebase. It must be content- and responsibility-aware."
+  },
+
+  "integrationWorktree": {
+    "path": "C:\\Users\\Dan\\Documents\\pump-ai-native-prod-integration",
+    "branch": "ai-native/prod-integration-v1",
+    "base": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "baseTree": "eacc2bc44b9a3877c44f1ce1c9d60178c3061be3",
+    "candidateInitiallyEqualsProductionTree": true,
+    "nativeCodePresentAtBase": false
+  },
+
+  "AI_NATIVE_IMPLEMENTATION_BASE": {
+    "value": "251f822491d677056f2d7b82f09473a51321d8e1",
+    "evidence": [
+      "ai-native/v1 first commit is 251f822 'Sync current project snapshot'",
+      "planning/ai-native-v1/plan-manifest.json declares baseCommit 251f822491d677056f2d7b82f09473a51321d8e1",
+      "planning/ai-native-v1/AI-native实施总计划.md declares the same base commit"
+    ],
+    "usableAsProductionMergeBase": false,
+    "reason": "master and ai-native/v1 share no ancestry; 251f822 is the Native lineage's own snapshot point, not a common ancestor. The two lineages are separate imports of the same project.",
+    "usage": "Only to determine the INTENDED Native delta."
+  },
+
+  "contentRelationship": {
+    "method": "git ls-tree blob comparison of the two trees (no ancestry required)",
+    "MASTER_FILES": 1215,
+    "NATIVE_FILES": 1531,
+    "IDENTICAL_BLOB": 1173,
+    "ONLY_IN_MASTER": 0,
+    "ONLY_IN_NATIVE": 316,
+    "DIFFERING": 42,
+    "keyFinding": "Every file on production master also exists on ai-native/v1, and 1173 of 1215 (96.5%) are byte-identical. master is a strict content subset of ai-native/v1. The integration delta is therefore small and bounded: 316 additions plus 42 modified files."
+  },
+
+  "categories": {
+    "A_NATIVE_NEW_FILE": {
+      "count": 316,
+      "breakdown": {
+        "planning/ai-native-v1/**": 240,
+        "tests/**": 31,
+        "api/services/**": 24,
+        "scripts/**": 16,
+        "api/routes/**": 2,
+        "apps/web-next/**": 1,
+        "docs/**": 2
+      },
+      "note": "planning count includes one filename whose git ls-tree output is quoted (CJK), so 229 + 11 quoted = 240.",
+      "integrationAction": "PORT_WHOLESALE",
+      "conflictRisk": "LOW"
+    },
+    "B_SHARED_FILE_NATIVE_MODIFICATION": {
+      "count": 42,
+      "note": "All differing files are 'M' (modified) or 'A' (added) relative to master; there are no master-only files to lose.",
+      "integrationAction": "RESPONSIBILITY_AWARE_MERGE",
+      "conflictRisk": "MIXED — see conflictAnalysis"
+    },
+    "C_PRODUCTION_NEWER_OR_DIVERGENT": {
+      "count": 20,
+      "note": "Modified files whose master version contains at least one non-empty line that does NOT appear in the native version. These are the only files that can lose production content.",
+      "integrationAction": "MANUAL_REVIEW_REQUIRED"
+    },
+    "D_DOCUMENTATION_PLANNING_ONLY": {
+      "count": 8,
+      "files": [
+        "docs/README.md",
+        "docs/ai-native-v1-handoff.md",
+        "docs/api-reference.md",
+        "docs/business-flow.md",
+        "docs/database-schema.md",
+        "docs/relay-reply-read-rootcause.md",
+        "docs/technical-debt.md",
+        "planning/ai-native-v1/release/*"
+      ],
+      "integrationAction": "PORT_WITH_CONTENT_MERGE",
+      "conflictRisk": "LOW_MEDIUM"
+    },
+    "E_TEST_ONLY": {
+      "count": 31,
+      "integrationAction": "PORT",
+      "conflictRisk": "MEDIUM — some native tests encode the native lineage's expectations and may need adaptation to the production base"
+    },
+    "F_MIGRATION": {
+      "count": 3,
+      "files": [
+        "api/database/migrations.cjs",
+        "api/database/schema.cjs",
+        "api/db.cjs"
+      ],
+      "integrationAction": "MERGE_MIGRATION_88_ADDITIVELY",
+      "conflictRisk": "MEDIUM — see migrationAudit"
+    },
+    "G_SHARED_BUSINESS_INFRASTRUCTURE": {
+      "count": 14,
+      "files": [
+        "api/services/costEngine.cjs",
+        "api/services/currentRecipeCost.cjs",
+        "api/services/configuredRecipeSnapshot.cjs",
+        "api/services/recipeConfigurationPolicy.cjs",
+        "api/services/orderCommands.cjs",
+        "api/services/orderPlanning.cjs",
+        "api/services/aiConfirmedToolExecution.cjs",
+        "api/services/aiConversationCommands.cjs",
+        "api/services/aiDispatcherV3.cjs",
+        "api/services/aiToolInputValidatorV2.cjs",
+        "api/capabilities/registry.cjs",
+        "api/routes/cost.cjs",
+        "api/routes/ai/executor.cjs",
+        "api/routes/ai/executors/businessExecutors.cjs"
+      ],
+      "integrationAction": "NEVER_REPLACE_WHOLESALE — merge Native responsibility into the CURRENT production implementation",
+      "conflictRisk": "HIGH"
+    }
+  },
+
+  "conflictAnalysis": {
+    "method": "For each of the 42 modified files, compute the set of non-empty trimmed lines present in the master version but absent from the native version.",
+    "MODIFIED_TOTAL": 42,
+    "MASTER_CONTENT_FULLY_CONTAINED_IN_NATIVE": 22,
+    "FILES_WITH_PRODUCTION_ONLY_CONTENT": 20,
+    "cleanAdoptionCandidates": "22 files — master's content is a strict line-subset of the native version, so adopting the native file loses nothing.",
+    "reviewRequired": [
+      { "file": "tests/ontologyRoutingCanary.test.cjs", "productionOnlyLines": 9, "risk": "LOW", "note": "test-only; production adds git-object oracle reads" },
+      { "file": "api/services/aiToolInputValidatorV2.cjs", "productionOnlyLines": 8, "risk": "MEDIUM", "note": "runtime validator; production has schema-normalisation helpers (normalizeObject/Array/String/Number)" },
+      { "file": "docs/api-reference.md", "productionOnlyLines": 5, "risk": "LOW", "note": "production documents 253 Express routes and 80 AI tools / 134 business capabilities; numbers differ between lineages and must be re-derived after integration" },
+      { "file": "tests/helpers/ontologyHttpRuntimeFixture.cjs", "productionOnlyLines": 5, "risk": "LOW", "note": "test helper; production wires BUSINESS_ROUTES" },
+      { "file": "scripts/run-deep-api-smoke.cjs", "productionOnlyLines": 4, "risk": "MEDIUM", "note": "production copy lacks the canonical-deterministic source construction added in N7.2; the native version is the intended one, but the production file may carry other lineage-specific checks" },
+      { "file": "scripts/run-business-understanding-benchmark.cjs", "productionOnlyLines": 3, "risk": "LOW", "note": "benchmark runner" },
+      { "file": "tests/aiCapabilityRegistry.test.cjs", "productionOnlyLines": 3, "risk": "MEDIUM", "note": "asserts AI_CAPABILITY_REGISTRY length === AI_TOOLS length; native branch intentionally adds a native-only tool surface, so this assertion must be re-derived" },
+      { "file": "api/services/configuredRecipeSnapshot.cjs", "productionOnlyLines": 2, "risk": "HIGH", "note": "runtime; production uses parsePositiveNumber for qty; must not be reverted" },
+      { "file": "api/services/recipeConfigurationPolicy.cjs", "productionOnlyLines": 2, "risk": "HIGH", "note": "runtime; production has surfaceTreatmentOptions allow-listing" },
+      { "file": "api/capabilities/registry.cjs", "productionOnlyLines": 1, "risk": "HIGH", "note": "production has an orphaned-capability completeness check" },
+      { "file": "api/db.cjs", "productionOnlyLines": 1, "risk": "HIGH", "note": "production SAFE_TABLES includes catalog_* and ai_personal_* tables added on master" },
+      { "file": "api/routes/ai/executor.cjs", "productionOnlyLines": 1, "risk": "HIGH", "note": "production passes executionContext through" },
+      { "file": "package.json", "productionOnlyLines": null, "risk": "HIGH", "note": "script/dependency merge required; see packageAudit" },
+      { "file": "api.cjs", "productionOnlyLines": null, "risk": "HIGH", "note": "route mounting; both lineages add routes" }
+    ],
+    "notYetReviewed": "The remaining files in the 20 (not enumerated above) still need per-file review; the list above is ordered by production-only line count and covers the highest-risk runtime files.",
+    "unresolvedSharedConflicts": "NOT_YET_RESOLVED — implementation phase has not started"
+  },
+
+  "migrationAudit": {
+    "REPOSITORY_SCHEMA_VERSION_NATIVE": 88,
+    "PRODUCTION_SCHEMA_VERSION_OBSERVED": 87,
+    "MASTER_MIGRATIONS_FILE_PRESENT": true,
+    "PRODUCTION_MIGRATION_88_CONFLICT": "NOT_YET_VERIFIED",
+    "requiredChecks": [
+      "does master's api/database/migrations.cjs already define version 88 (possibly for something else)?",
+      "does master's highest migration version exceed 87?",
+      "is migration 88 additive and safe (AI task persistence tables)?"
+    ],
+    "neverRenumber": true,
+    "migrationNotExecuted": true
+  },
+
+  "packageAudit": {
+    "packageJsonDiffers": true,
+    "packageLockDiffers": false,
+    "note": "package-lock.json is among the 1173 identical files, so dependencies are unchanged between lineages. Only package.json scripts/metadata need merging.",
+    "dependencyDeltaExpected": "NONE",
+    "lockfileReplaceForbidden": true
+  },
+
+  "routeAudit": {
+    "PRODUCTION_ADDED_ROUTE_FILES": [
+      "api/routes/ai/tasks.cjs",
+      "api/routes/inventory.cjs"
+    ],
+    "PRODUCTION_ROUTES_LOST_EXPECTED": "NONE — master has zero files of its own, so no route file disappears",
+    "PRODUCTION_ROUTES_LOST": "NOT_YET_MEASURED",
+    "NATIVE_ROUTES_ADDED": ["POST /api/ai/tasks", "GET /api/ai/tasks/:taskId", "GET /api/ai/tasks/:taskId/events", "POST /api/ai/tasks/:taskId/resume", "POST /api/ai/tasks/:taskId/cancel", "POST /api/ai/tasks/:taskId/write-preview", "POST /api/ai/tasks/:taskId/write-execute", "POST /api/ai/tasks/:taskId/write-reconcile"],
+    "routeConflicts": "NOT_YET_MEASURED"
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "PRODUCTION_BACKUP_CREATED": false,
+    "DEEPSEEK_CREDENTIAL_COPIED_TO_DSH": false,
+    "OWNER_CREDENTIAL_COPIED_TO_DSH": false,
+    "MASTER_WORKTREE_TOUCHED": false,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3
+  },
+
+  "productionObservationsReadOnly": {
+    "method": "read-only SSH to macmini (danmini.local) via Cloudflare; no values printed, no changes made",
+    "PRODUCTION_CURRENT_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "PRODUCTION_CURRENT_BRANCH": "master",
+    "PRODUCTION_WORKTREE_DIRTY_COUNT": 0,
+    "PRODUCTION_AI_NATIVE_MODE_KEY": "ABSENT (defaults off)",
+    "PRODUCTION_AI_NATIVE_WRITE_ENABLED_KEY": "ABSENT (defaults false)",
+    "PRODUCTION_LACKS_NATIVE_CODE": "api/services/aiNativeRolloutPolicy.cjs and scripts/run-ai-native-quality-gate.cjs both absent on production",
+    "PRODUCTION_MISSING_ACCEPTED_REVISION_OBJECT": true,
+    "PRODUCTION_CREDENTIAL_PRESENCE": {
+      "DEEPSEEK_API_KEY": "PRESENT (value never read or printed)",
+      "PUMP_OWNER_ACCESS_PASSWORD": "PRESENT (value never read or printed)",
+      "PUMP_OWNER_SUBJECT": "PRESENT",
+      "AI_V5_OWNER_SUBJECTS": "PRESENT"
+    },
+    "PRODUCTION_BACKUP_COUNT": 25,
+    "DECISION": "Credentials stay on the Mac mini and were NOT copied to DSH."
+  },
+
+  "nextSteps": [
+    "PHASE 3: port the 316 native additions into the candidate, excluding planning-only churn if the maintainers prefer.",
+    "PHASE 4: merge the 42 shared/modified files responsibility-by-responsibility, starting with the 22 whose master content is a strict subset.",
+    "PHASE 5: resolve the 20 files carrying production-only content, preserving every production behaviour listed above.",
+    "PHASE 6: verify migration 88 has no conflict with master and is additive.",
+    "PHASE 7: reconcile package.json scripts and re-derive documented counts (routes, AI tools, business capabilities).",
+    "PHASE 8: production-parity regression with AI_NATIVE_MODE unset (must stay Legacy-authoritative), then N4-N7.2 native regressions and the canonical deep-api gate.",
+    "PHASE 9: generate ProductionIntegrationCandidateEvidenceV1 bound to the candidate revision/tree."
+  ]
+}

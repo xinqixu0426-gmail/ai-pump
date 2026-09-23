@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "ticket": "N2.1",
+  "rule": "Every normalized executable argument leaf has exactly one provenance record.",
+  "coverage": [
+    {
+      "kind": "USER_SPAN",
+      "verification": "N1.1 authoritative UTF-16 SourceSpan validation against the server message map",
+      "tests": ["invalid UTF-16 source span rejects", "isolated executor integration query and preview"]
+    },
+    {
+      "kind": "FORMAL_RECEIPT",
+      "verification": "Closure-held current task and plan receipt plus RFC 6901 pointer equality",
+      "tests": ["pointer value match", "foreign receipt reject", "unknown forged id reject", "old plan reject"]
+    },
+    {
+      "kind": "USER_CHOICE",
+      "verification": "Closure-held trusted choice value only",
+      "tests": ["multiple coil selection requires trusted user choice"]
+    },
+    {
+      "kind": "FORMAL_POLICY",
+      "verification": "Fixed allow-list of stable server policy identifiers",
+      "tests": ["unsupported policy id rejects"]
+    },
+    {
+      "kind": "BASELINE_INHERITANCE",
+      "verification": "Only NATIVE_BASELINE_INHERITANCE_V1 is accepted",
+      "tests": ["fixed server inheritance provenance accepted"]
+    }
+  ],
+  "negativeCoverage": ["missing source", "duplicate source", "source for non-leaf path", "wrong receipt pointer value", "untrusted source span"],
+  "businessWrites": 0
+}

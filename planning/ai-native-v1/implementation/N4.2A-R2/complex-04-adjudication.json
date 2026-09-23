@@ -1,0 +1,16 @@
+{
+  "caseId": "COMPLEX-04",
+  "question": "V550，12-200线圈，5米电缆，做300台，340元一台",
+  "frozenAtCommit": "93839c6382bc4f17dc51a153083d527d09af47f5",
+  "originalExpectedGoals": [
+    "INVENTORY_QUERY",
+    "PROFITABILITY"
+  ],
+  "correctedExpectedGoals": [
+    "INVENTORY_QUERY"
+  ],
+  "adjudication": "SUPERVISOR_APPROVED_BASELINE_CORRECTION",
+  "reason": "Price information without explicit profitability intent must not create a PROFITABILITY goal.",
+  "correctedExpectedUnitPrice": null,
+  "supervisorApproval": "N4.2A-R2 Supervisor Adjudication — COMPLEX-04"
+}

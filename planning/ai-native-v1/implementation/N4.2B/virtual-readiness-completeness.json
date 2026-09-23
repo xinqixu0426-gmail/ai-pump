@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "rules": {
+    "READY": "coverage.complete true, shortageCount 0, unresolvedCount 0",
+    "SHORTAGE": "coverage.complete true, shortageCount > 0, unresolvedCount 0",
+    "INCOMPLETE": "coverage.complete false or unresolvedCount > 0"
+  },
+  "answerRule": "Only READY and SHORTAGE claims may be rendered as complete inventory conclusions. INCOMPLETE uses the structured partial boundary.",
+  "validatedBy": [
+    "focused INCOMPLETE controller test",
+    "live unresolved-identity x2"
+  ]
+}

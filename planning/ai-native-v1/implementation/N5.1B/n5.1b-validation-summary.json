@@ -1,0 +1,38 @@
+{
+  "ticket": "N5.1B-R5",
+  "status": "PASS",
+  "committedBaseline": "1fdd236d434c14a9e15176357085826fe3546e63",
+  "branch": "ai-native/v1",
+  "migration": 88,
+  "databaseSchemaChanged": false,
+  "newMigrationCreated": false,
+  "workerArchitectureRewritten": false,
+  "focusedTests": "PASS 17/17",
+  "closureMatrix": "PASS",
+  "partialItems": 0,
+  "unprovenItems": 0,
+  "notRunItems": 0,
+  "businessWrites": 0,
+  "commandExecutions": 0,
+  "productionChanged": false,
+  "productionWorkerEnabled": false,
+  "deployPerformed": false,
+  "pushPerformed": false,
+  "gates": {
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2939/2939",
+    "deepApi": "PASS 490/490",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "live": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "families": 2,
+    "runs": 4,
+    "criticalFailures": 0,
+    "finalWorktree": true
+  },
+  "finalValidationAt": "2026-09-22T12:20:52+08:00"
+}

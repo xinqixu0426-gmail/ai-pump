@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/n73-generate-release-evidence.cjs",
+  "sourceRevision": {
+    "branch": "ai-native/prod-integration-v1",
+    "commit": "81eb540d13c7e2f290321557a7bb75d8a2f1f836",
+    "tree": "c2f4b6cb909af6f7f9d18184013628d000ca965f",
+    "worktreeClean": true
+  },
+  "attestsTo": {
+    "productRuntimeRevision": "5aafbaba2ae950d1825f78be0ded4f1304e9f270",
+    "productRuntimeTree": "eba6e8cef874e3ca3178fe2bb4bd5158d23e0535",
+    "scope": "Runtime behaviour of the accepted N7.2 product code on branch ai-native/v1.",
+    "documentationStage": "N7.3",
+    "documentationStageChangesRuntime": false,
+    "unresolvedProductRuntimeDiffAtGeneration": [],
+    "selfReferencePolicy": "This file deliberately does NOT contain the hash of the commit that adds it. It attests (A) the stable product runtime revision above, and (B) deterministic sha256 hashes of the N7.3 documentation/handoff artifacts it describes. finalization of the N7.3 handoff package (its final commit and tree) is bound by planning/ai-native-v1/release/N7.3-closure-validation.json, which is written after the N7.3 package commit exists and therefore can name it. No circular hash is claimed."
+  },
+  "handoffArtifacts": [
+    {
+      "role": "ARCHITECTURE_AND_HANDOFF",
+      "path": "docs/ai-native-v1-handoff.md",
+      "blobSha": "c4060f2ad8be6909651208ffe2219aba1c94a66c",
+      "sha256": "6409ca9df428e4c3dd57f009a8c8bc8de4aeb1d225115c8338c1f938641e7be7",
+      "bytes": 26054
+    },
+    {
+      "role": "API_REFERENCE",
+      "path": "docs/api-reference.md",
+      "blobSha": "00c25d46bfcba72f55d0663ed302ee899ab90538",
+      "sha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
+      "bytes": 320998
+    },
+    {
+      "role": "TECHNICAL_DEBT",
+      "path": "docs/technical-debt.md",
+      "blobSha": "684501f80aa9a527217195e3effca14cd7d7c05a",
+      "sha256": "d1af3626b2ca3cb98c6fecd41f15e4b4f60d3857ce38d7d138184764f3a8b92a",
+      "bytes": 53674
+    },
+    {
+      "role": "RELEASE_EVIDENCE_EXPLAINER",
+      "path": "planning/ai-native-v1/release/N7.3-release-evidence.md",
+      "blobSha": "0b4917914160806f012e02ea7d2c2c507af9599d",
+      "sha256": "10c38a2c39f6cb581f6e24ab56ae8606f5687b18d745e1d50d3d3752f1e618c5",
+      "bytes": 10413
+    },
+    {
+      "role": "HANDOFF_VALIDATOR_TEST",
+      "path": "tests/n73HandoffDocumentation.test.cjs",
+      "blobSha": "3772762e6fedb42f7ce82c01ee9cdaea9519502f",
+      "sha256": "7c4bf2ef4c239261fd607afd21fea4c32ddffc397547fe4c9f249d6ea3eab043",
+      "bytes": 8791
+    },
+    {
+      "role": "EVIDENCE_GENERATOR",
+      "path": "scripts/n73-generate-release-evidence.cjs",
+      "blobSha": "fbe25560796dcb880aa183997435bb323f48d179",
+      "sha256": "ac8539eda797d61c17325a2b9c7dfcaac8ab398fddb2ef1a6a19abdafc94c5ba",
+      "bytes": 13103
+    }
+  ],
+  "schema": {
+    "migrationHead": 88,
+    "migrationCount": 88,
+    "migrationSource": "api/database/migrations.cjs",
+    "migrationsSha256": "f6c08d050530c63dd502ad566b91a14ff5a8006204d7cd301eab1b5c38341976"
+  },
+  "contracts": {
+    "aiCapabilityCount": 83,
+    "businessCapabilityCount": 137,
+    "writeCapabilityCount": 29,
+    "writeCapabilities": [
+      "execute_order_readiness_action",
+      "execute_factory_workflow_step",
+      "sync_factory_knowledge",
+      "set_recipe_analysis_feedback",
+      "refresh_factory_rule_candidates",
+      "review_factory_rule_candidate",
+      "restore_factory_rule_event",
+      "generate_purchase_list",
+      "save_order_requirement_draft",
+      "save_order_execution_draft",
+      "create_order",
+      "update_order_status",
+      "add_recipe_to_order",
+      "remove_recipe_from_order",
+      "update_order_item",
+      "delete_order",
+      "archive_factory_file",
+      "create_recipe",
+      "update_recipe",
+      "delete_recipe",
+      "adjust_coil_stock",
+      "create_part",
+      "batch_create_parts",
+      "adjust_part_stock",
+      "update_part",
+      "delete_part",
+      "batch_update_prices",
+      "generate_rotor_drawing",
+      "print_rotor_drawing"
+    ],
+    "capabilityRegistrySha256": "440bd1dcb73434c86ced4cfd9b0e0a821c5d0f25c1239f4340813910d6eb6dfe",
+    "legacyToolCount": 80,
+    "legacyToolsSha256": "746478d708d1182be17b58d072f5dea89f87dc5b56e046afd2c8d284a256849f",
+    "nativeToolCount": 3,
+    "nativeTools": [
+      "compare_recipe_scenarios",
+      "preview_profitability",
+      "preview_virtual_readiness"
+    ],
+    "nativeToolsSha256": "61ffe936055c649f97f12eb8ccf9d5ea5e7c9309a426bbd379a66747fabaf1c4",
+    "mcpReadOnlyToolCount": 49,
+    "mcpCatalogSha256": "76e3b79e0fc30ec7097b26e72d6ed42881e35747cd40806262c3fdbce0401451",
+    "promptComposer": "api/services/aiPromptComposer.cjs",
+    "promptComposerSha256": "2b0b9cf580491971091521ed2dcda77160c53bd2ec1aff7f3fa7c5fd828a9167"
+  },
+  "rollout": {
+    "modes": [
+      "off",
+      "shadow",
+      "owner"
+    ],
+    "defaultMode": "off",
+    "modeSource": "default",
+    "writeEnabledDefault": false,
+    "writeSource": "default",
+    "invalidModeFailsClosed": true,
+    "productionOwnerTrialStarted": false
+  },
+  "runtimeParameters": {
+    "leaseDurationMs": 30000,
+    "leaseRenewIntervalMs": 10000,
+    "pollIntervalMs": 1000,
+    "workerEnabledByDefault": false,
+    "readRetryMaxAttempts": 2,
+    "maxModelCalls": 7,
+    "maxToolCalls": 10,
+    "maxApiCalls": 32,
+    "maxToolResultBytes": 98304,
+    "maxTaskStateBytes": 262144,
+    "defaultActiveMs": 60000
+  },
+  "corpora": [
+    {
+      "path": "tests/fixtures/legacy-witness-corpus-v1.json",
+      "sha256": "30045b773a26f99eb339d3adb3e3f6ac9eab0b280e94e0e192bde4605db20f05",
+      "bytes": 2049
+    },
+    {
+      "path": "tests/fixtures/ontology-coil-recipe-legacy-oracle-v1.json",
+      "sha256": "6c3bfe19d1e79d9decdd8d8eba6ce68af8339ea1e5112ef2a7c39c64a6927a0d",
+      "bytes": 78672
+    },
+    {
+      "path": "tests/fixtures/ontology-coil-recipe-legacy-oracle-v2.json",
+      "sha256": "ead6df8c1478dcead94a2c409c1b5a7e67378bbd259c0efa1fa84fa3d56e7120",
+      "bytes": 106439
+    },
+    {
+      "path": "tests/fixtures/business-semantic-frame-oracle-v1.json",
+      "sha256": "d184d294c4366ff3a8a5035f4aebd9a387fb689388057b6d0e6177f5655ed82c",
+      "bytes": 3617
+    },
+    {
+      "path": "tests/fixtures/ai-native-baseline-v1.json",
+      "sha256": "efaebee0d8e993302b185e3d1146d168482428072e5b45b00fcb947d94d5ebec",
+      "bytes": 7995
+    },
+    {
+      "path": "tests/fixtures/synthetic-business-acceptance-v1.json",
+      "sha256": "e93875d12b5555162057e498b97e594289484d6af554853ed1e116c9aba255e4",
+      "bytes": 9846
+    },
+    {
+      "path": "tests/fixtures/production-shape-regression-v1.json",
+      "sha256": "5e4d8217f956c6b40431a40bf6717daec585238026bd8e9b85f887c6611ca0f6",
+      "bytes": 828
+    },
+    {
+      "path": "docs/legacy-redundancy-matrix-v1.json",
+      "sha256": "800524e75819d7c6eff6642ca8a96e1c223314367d554477d498e38850a3741a",
+      "bytes": 7105
+    },
+    {
+      "path": "planning/ai-native-v1/contracts/contracts.schema.json",
+      "sha256": "aaf76b142e7df4da83993002a116bb0b00b9c5d334415698546d94ec51e2aa62",
+      "bytes": 95782
+    },
+    {
+      "path": "planning/ai-native-v1/contracts/state-machine.json",
+      "sha256": "d646bbd484f3b21d2676667a1864fa02e2fbbeb743d15ce972728e7bf9acc0f0",
+      "bytes": 1447
+    },
+    {
+      "path": "planning/ai-native-v1/contracts/task-storage.sql",
+      "sha256": "921bebc8510a0f81bf286884feab1bb25440b58311f12ff122f1159d9970984a",
+      "bytes": 3983
+    }
+  ],
+  "groups": {
+    "authoritative": 5,
+    "witness": 1,
+    "fallback": 1,
+    "duplicateExecution": 0,
+    "dead": 0,
+    "sharedInfrastructure": 2,
+    "ambiguousDualAuthority": 0
+  }
+}

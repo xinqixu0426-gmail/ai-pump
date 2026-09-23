@@ -1,0 +1,1 @@
+{"version":1,"rules":{"fullContent":"can support scoped source absence only when complete and not truncated","partialContent":"cannot support whole-document absence","metadataOnly":"cannot claim content read","unavailable":"cannot claim absence"},"tests":"tests/aiTaskDocumentsV2.test.cjs"}

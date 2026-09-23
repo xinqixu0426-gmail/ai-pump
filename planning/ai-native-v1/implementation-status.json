@@ -1,0 +1,1400 @@
+{
+  "planVersion": "AI Native V1",
+  "baseCommit": "251f822491d677056f2d7b82f09473a51321d8e1",
+  "workingBranch": "ai-native/v1",
+  "currentTicket": "N7.2",
+  "tickets": [
+    {
+      "id": "N0.1",
+      "status": "PASS",
+      "startCommit": "bf9d7cae54f84b973b4728032880a70c41fa9f92",
+      "endCommit": "HEAD (N0.1 evidence commit)",
+      "changedFiles": [
+        "planning/ai-native-v1/implementation-status.json",
+        "planning/ai-native-v1/implementation/N0.1/baseline.json",
+        "planning/ai-native-v1/implementation/N0.1/api_inventory.json",
+        "planning/ai-native-v1/implementation/N0.1/business-authority-matrix.json",
+        "planning/ai-native-v1/implementation/N0.1/gap-register.json"
+      ],
+      "reusedSymbols": [
+        "getAiCapability",
+        "getAiToolInputSchema",
+        "validateAiToolArgs",
+        "executeToolCall",
+        "recipeConfigurationBaseline",
+        "buildConfiguredRecipeSnapshot",
+        "costEngine",
+        "buildCurrentRecipeCostBasis"
+      ],
+      "tests": [],
+      "blockers": [
+        "Production state is UNKNOWN by design; no production connection was used.",
+        "verify:ai-release has an explicitly retired, zero-case core suite and is not AI-quality evidence."
+      ],
+      "nextTicket": "N0.2"
+    },
+    {
+      "id": "N0.2",
+      "status": "PASS",
+      "startCommit": "676f816b6abe803211501fbcad8869cd1f104f1b",
+      "endCommit": "eb8e916f1e73d3d48aaf7a40079ee0b641b31b1a",
+      "changedFiles": [
+        "planning/ai-native-v1/implementation-status.json",
+        "planning/ai-native-v1/implementation/N0.2/baseline-tests.json",
+        "planning/ai-native-v1/implementation/N0.2/baseline-live.json",
+        "planning/ai-native-v1/implementation/N0.2/baseline-coverage-matrix.json",
+        "planning/ai-native-v1/implementation/N0.2/failure-classification.json",
+        "tests/fixtures/ai-native-baseline-v1.json",
+        "tests/aiNativeBaseline.test.cjs"
+      ],
+      "reusedSymbols": [
+        "run-ai-architecture-acceptance.cjs",
+        "businessUnderstandingFixture",
+        "SyntheticBusinessAcceptanceV1",
+        "costEngine",
+        "coilCost"
+      ],
+      "tests": [
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "npm run test:ai-architecture",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "node --test tests/aiNativeBaseline.test.cjs",
+          "exitCode": 0,
+          "reportPath": "planning/ai-native-v1/implementation/N0.2/baseline-tests.json"
+        },
+        {
+          "command": "node scripts/run-business-understanding-benchmark.cjs",
+          "exitCode": 0,
+          "reportPath": "logs/n0.2-business-understanding-v1-raw.json"
+        },
+        {
+          "command": "node scripts/run-business-understanding-benchmark-v2.cjs --env-file=.env",
+          "exitCode": 0,
+          "reportPath": "logs/n0.2-business-understanding-v2-raw.json"
+        },
+        {
+          "command": "node scripts/run-synthetic-business-acceptance.cjs --provider=deepseek --runs=1 --timeout-ms=180000",
+          "exitCode": 2,
+          "reportPath": "logs/n0.2-synthetic-business-raw.json"
+        }
+      ],
+      "blockers": [
+        "Legacy Business Understanding V1 remains product-quality FAIL for BU-07: a system-wide absence claim lacked verified complete recipe, template, and part coverage. N0.2R records it as a required N3 Native exit gate."
+      ],
+      "nextTicket": "N1.1"
+    },
+    {
+      "id": "N0.2R",
+      "status": "PASS",
+      "startCommit": "efff4ce202bc5c84dab48031dcc46ac5d5ca252b",
+      "endCommit": "eb8e916f1e73d3d48aaf7a40079ee0b641b31b1a",
+      "changedFiles": [
+        "planning/ai-native-v1/implementation-status.json",
+        "planning/ai-native-v1/implementation/N0.2/*.json",
+        "planning/ai-native-v1/implementation/N0.2R/*.json",
+        "tests/fixtures/frozen-history/manifest-v1.json",
+        "tests/helpers/frozenHistoryManifest.cjs",
+        "tests/frozenHistoryManifest.test.cjs",
+        "tests/ontologyRoutingCanary.test.cjs",
+        "scripts/run-business-understanding-benchmark.cjs"
+      ],
+      "reusedSymbols": [
+        "semanticEligibility",
+        "buildBusinessSemanticFrame",
+        "get_recipe_detail",
+        "withCrossCatalogCandidates"
+      ],
+      "tests": [
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2777,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        },
+        {
+          "command": "BU-07 real DeepSeek x2",
+          "exitCode": 0,
+          "passed": 0,
+          "failed": 2
+        }
+      ],
+      "baselineExecutionStatus": "PASS",
+      "legacyProductQualityStatus": "FAIL",
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 must pass before Owner Canary at N3."
+      ],
+      "nextTicket": "N1.1"
+    },
+    {
+      "id": "N1.1",
+      "status": "PASS",
+      "startCommit": "001b1bccb8f2ca05a505ae2d455742205585bfd4",
+      "endCommit": "N1.1 evidence commit (pending commit)",
+      "changedFiles": [
+        "api/services/aiTaskContractV2.cjs",
+        "api/services/aiTaskValidationV2.cjs",
+        "tests/aiTaskContractV2.test.cjs",
+        "tests/aiTaskValidationV2.test.cjs",
+        "planning/ai-native-v1/implementation/N1.1/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "runtimeIntegrated": false,
+      "tests": [
+        {
+          "command": "node --test tests/aiTaskContractV2.test.cjs tests/aiTaskValidationV2.test.cjs",
+          "exitCode": 0,
+          "passed": 11,
+          "failed": 0
+        },
+        {
+          "command": "node --test tests/aiTaskPresentation.test.cjs tests/aiExecutionEvidence.test.cjs",
+          "exitCode": 0,
+          "passed": 13,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2788,
+          "failed": 0
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "planDeviations": [],
+      "nextTicket": "N1.2"
+    },
+    {
+      "id": "N1.2",
+      "status": "PASS",
+      "startCommit": "36dea9f1423ae71557f43673f0cfcf1494785ace",
+      "endCommit": "N1.2 stage commit",
+      "changedFiles": [
+        "api/services/aiTaskSemanticsV2.cjs",
+        "scripts/run-ai-task-semantics-v2-live.cjs",
+        "tests/aiTaskSemanticsV2.test.cjs",
+        "tests/aiTaskSemanticsV2Provider.test.cjs",
+        "tests/fixtures/ai-task-semantics-v2-cases.json",
+        "planning/ai-native-v1/implementation/N1.2/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "runtimeIntegrated": false,
+      "businessApiCalls": 0,
+      "businessToolCalls": 0,
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "node --test tests/aiTaskSemanticsV2.test.cjs tests/aiTaskSemanticsV2Provider.test.cjs",
+          "exitCode": 0,
+          "passed": 8,
+          "failed": 0
+        },
+        {
+          "command": "node scripts/run-ai-task-semantics-v2-live.cjs",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "fallbackCount": 0,
+          "runs": 4
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2796,
+          "failed": 0
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "planDeviations": [
+        "Provider vocabulary is deterministically normalized only into frozen TaskProposal V1 syntax before strict validation; unrecognized or privileged fields remain rejected."
+      ],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 remains required at N3 before Owner Canary."
+      ],
+      "nextTicket": "N2.1"
+    },
+    {
+      "id": "N2.1",
+      "status": "PASS",
+      "startCommit": "93839c6382bc4f17dc51a153083d527d09af47f5",
+      "endCommit": "N2.1 stage commit",
+      "changedFiles": [
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "tests/aiTaskCapabilityAdapterV2.test.cjs",
+        "tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+        "planning/ai-native-v1/implementation/N2.1/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "reusedSymbols": [
+        "AI_TOOLS",
+        "getAiCapability",
+        "validateAiToolArgs",
+        "executeToolCall",
+        "attachVerifiedExecutionEvidence"
+      ],
+      "runtimeIntegrated": false,
+      "businessApiCalls": 5,
+      "businessWrites": 0,
+      "modelCalls": 0,
+      "tests": [
+        {
+          "command": "NODE_ENV=test node --test tests/aiTaskCapabilityAdapterV2.test.cjs tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+          "exitCode": 0,
+          "passed": 11,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2807,
+          "failed": 0
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "planDeviations": [],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 remains OPEN and required at N3 before Owner Canary."
+      ],
+      "nextTicket": "N2.2"
+    },
+    {
+      "id": "N2.2",
+      "status": "PASS",
+      "startCommit": "0ed9cf0022b353e57a4ee86461930e7e105fe8ef",
+      "endCommit": "HEAD (N2.2 repair evidence commit)",
+      "changedFiles": [
+        "api/services/recipeScenarioComparison.cjs",
+        "api/services/aiNativeToolDefinitionsV2.cjs",
+        "api/capabilities/registry.cjs",
+        "api/routes/cost.cjs",
+        "api/routes/ai/executors/businessExecutors.cjs",
+        "api/services/aiToolInputValidatorV2.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "api/services/aiTaskContractV2.cjs",
+        "api/services/stableJson.cjs",
+        "docs/api-reference.md",
+        "tests/recipeScenarioComparison.test.cjs",
+        "tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+        "tests/helpers/ontologyHttpRuntimeFixture.cjs",
+        "planning/ai-native-v1/implementation/N2.2/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "runtimeIntegrated": false,
+      "modelCalls": 0,
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "NODE_ENV=test node --test tests/recipeScenarioComparison.test.cjs tests/aiCapabilityRegistry.test.cjs tests/aiTaskCapabilityAdapterV2.test.cjs tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+          "exitCode": 0,
+          "passed": 39,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2813,
+          "failed": 0
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "planDeviations": [
+        "Restricted Native tool surface preserves frozen Legacy AI_TOOLS and MCP exposure while reusing the formal capability registry, strict validator, and business executor.",
+        "A neutral stableJson module now owns canonical hashing shared by Task V2 evidence and the comparison read set; Task V2 retains compatibility exports."
+      ],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 remains OPEN and required at N3 before Owner Canary."
+      ],
+      "nextTicket": "N3.1"
+    },
+    {
+      "id": "N3.1",
+      "status": "PASS",
+      "startCommit": "5349cc6f8294b41df2fed59eaf3bf58bf978e0ba",
+      "endCommit": "N3.1 stage commit",
+      "changedFiles": [
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskFactsV2.cjs",
+        "api/services/aiTaskSessionV2.cjs",
+        "api/services/aiDispatcherV3.cjs",
+        "api/routes/ai/chat.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "api/services/aiTaskValidationV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "tests/aiTaskControllerV2Route.test.cjs",
+        "scripts/run-ai-task-controller-v2-live.cjs",
+        "planning/ai-native-v1/implementation/N3.1/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "runtimeIntegrated": "server-side injected test path only; default legacy path remains unchanged",
+      "businessWrites": 0,
+      "modelCalls": "0 simple fast path; live complex cases 1 normal + up to 1 format repair",
+      "tests": [
+        {
+          "command": "focused Task V2 suite",
+          "exitCode": 0,
+          "passed": 37,
+          "failed": 0
+        },
+        {
+          "command": "N3.1 live DeepSeek isolated acceptance x2",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2820,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 is PROTECTED_AT_CONTROLLER and remains open pending N3.2 answer-boundary proof."
+      ],
+      "planDeviations": [
+        "Internal server-only test injection was added to the existing chat transport to prove V2 dispatch without exposing a production flag or client switch."
+      ],
+      "nextTicket": "N3.2"
+    },
+    {
+      "id": "N3.2",
+      "status": "PASS",
+      "startCommit": "6f8bc4d36d70beb642a85f9f82cbaa22eab7b979",
+      "endCommit": "N3.2 stage commit",
+      "runtimeIntegrated": "server-side injected test path only; default legacy path remains unchanged",
+      "businessWrites": 0,
+      "answerModelCalls": 0,
+      "tests": [
+        {
+          "command": "N3.2 focused answer boundary suite",
+          "exitCode": 0,
+          "passed": 8
+        },
+        {
+          "command": "DeepSeek Native corpus",
+          "exitCode": 0,
+          "cases": 24,
+          "runsPerCase": 5,
+          "totalRuns": 120,
+          "criticalFailures": 0
+        },
+        {
+          "command": "BU-07 scoped-negative",
+          "exitCode": 0,
+          "runs": 10,
+          "falseCompleteCount": 0
+        }
+      ],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 CLOSED"
+      ],
+      "nextTicket": "N4.1"
+    },
+    {
+      "id": "N4.1A",
+      "status": "PASS",
+      "startCommit": "7361eb86cd2e5a009843282af4c892f66203c2e5",
+      "endCommit": "N4.1A stage commit",
+      "changedFiles": [
+        "api/services/aiTaskStructuredReadsV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "api/services/aiTaskAnswerV2.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "tests/aiTaskSemanticsV2.test.cjs",
+        "tests/helpers/ontologyHttpRuntimeFixture.cjs",
+        "scripts/run-ai-task-structured-reads-v2-live.cjs",
+        "planning/ai-native-v1/implementation/N4.1A/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "runtimeIntegrated": "server-side injected test path only; default legacy path remains unchanged",
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "N4.1A focused Task V2 suite",
+          "exitCode": 0,
+          "passed": 34,
+          "failed": 0
+        },
+        {
+          "command": "N4.1A live DeepSeek isolated acceptance x2",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "scenarioRuns": 20
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2833,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "capabilityGaps": [
+        "Generic impact investigation requires an already approved formal rule-candidate binding.",
+        "Part inventory requires a safe formal part-binding path; N4.1A does not guess or aggregate inventory."
+      ],
+      "planDeviations": [
+        "A model candidate ending in the generic label 客户 is normalized to the referenced customer name before formal lookup; its original user SourceSpan is retained.",
+        "The isolated HTTP fixture now mounts existing read-only workbench and business-change routes for N4.1A validation only."
+      ],
+      "blockers": [
+        "NATIVE-BLOCKER-FALSE-COMPLETE-001 remains CLOSED from N3.2 and is not modified by this ticket."
+      ],
+      "nextTicket": "N4.1B"
+    },
+    {
+      "id": "N4.1B",
+      "status": "PASS",
+      "startCommit": "eb7381122b2330dbb0dcee3eb9f7a69d4c360fba",
+      "changedFiles": [
+        "api/services/aiTaskDocumentsV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskAnswerV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "tests/aiTaskDocumentsV2.test.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "planning/ai-native-v1/implementation/N4.1B/*.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "nextTicket": "N4.1C",
+      "endCommit": "24159b0291995c9576948c83bee46f81d34bdae0",
+      "tests": [
+        {
+          "command": "N4.1B focused suite",
+          "exitCode": 0,
+          "passed": 42,
+          "failed": 0
+        },
+        {
+          "command": "N4.1B live DeepSeek isolated acceptance x2",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "scenarioRuns": 20
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2842,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": []
+    },
+    {
+      "id": "N4.1C",
+      "status": "PASS",
+      "startCommit": "9cd2a89c3619b098c1680aa052ba1688d6dba1ad",
+      "endCommit": "HEAD (N4.1C-R3 stage commit)",
+      "changedFiles": [
+        "api/services/aiNativeToolDefinitionsV2.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskDocumentsV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "api/services/aiTaskValidationV2.cjs",
+        "api/services/configuredRecipeSnapshot.cjs",
+        "api/services/costEngine.cjs",
+        "api/services/currentRecipeCost.cjs",
+        "api/services/recipeConfigurationPolicy.cjs",
+        "api/services/recipeScenarioComparison.cjs",
+        "docs/api-reference.md",
+        "planning/ai-native-v1/implementation/N4.1C-R3/*.json",
+        "planning/ai-native-v1/implementation/N4.1C/*.json",
+        "scripts/run-ai-native-n4-1c-r3-live.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "tests/aiTaskDocumentsV2.test.cjs",
+        "tests/aiTaskSemanticsV2.test.cjs",
+        "tests/recipeConfigurationPolicy.test.cjs",
+        "tests/recipeScenarioComparison.test.cjs"
+      ],
+      "businessWrites": 0,
+      "nextTicket": "N4.2",
+      "blockers": [],
+      "tests": [
+        {
+          "command": "N4.1C-R3 focused suite",
+          "exitCode": 0,
+          "passed": 75,
+          "failed": 0
+        },
+        {
+          "command": "N4.1C-R3 strict serial DeepSeek acceptance",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "newAcceptedRuns": 12,
+          "priorAcceptedRuns": 39,
+          "totalAcceptedRuns": 51
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2866,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "planDeviations": [
+        "packingRemovalPolicy is an optional backward-compatible configurationPolicyJson v1 extension; omitted policy preserves legacy open behavior.",
+        "DeepSeek initial complex extraction required the permitted single format-repair call; provider fallback remained zero."
+      ]
+    },
+    {
+      "id": "N4.2A",
+      "status": "REWORK",
+      "startCommit": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+      "endCommit": null,
+      "changedFiles": [
+        "api/services/profitabilityPreview.cjs",
+        "api/routes/cost.cjs",
+        "api/services/aiNativeToolDefinitionsV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskAnswerV2.cjs",
+        "planning/ai-native-v1/implementation/N4.2A/*.json"
+      ],
+      "tests": [
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [
+        "The required 10-family strict serial DeepSeek profitability acceptance was not completed. Existing two-round isolated live script shows model-extra/missing-price profitability goals can degrade non-profit scenario tasks."
+      ],
+      "nextTicket": "N4.2A-R1"
+    },
+    {
+      "id": "N4.2A-R1",
+      "status": "REWORK",
+      "startCommit": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+      "endCommit": null,
+      "changedFiles": [
+        "api/services/aiTaskSemanticsV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "tests/aiTaskSemanticsV2Provider.test.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "planning/ai-native-v1/implementation/N4.2A/*.json"
+      ],
+      "tests": [
+        {
+          "command": "N4.2A-R1 focused Task V2/semantics/profitability suite",
+          "exitCode": 0,
+          "passed": 53,
+          "failed": 0
+        },
+        {
+          "command": "Existing isolated DeepSeek safety sweep (10 scenarios x2)",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "scenarioRuns": 20,
+          "businessWrites": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2875,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 1,
+          "classification": "ENVIRONMENT_FAILURE",
+          "reason": "get_copper_price current-day source unavailable"
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [
+        "The required original N4.2A 10-family strict serial DeepSeek profitability acceptance matrix has not been implemented or run.",
+        "npm run test:deep-api currently fails because the current-day copper price source is unavailable; no production configuration or business behavior was changed.",
+        "COMPLEX-04 frozen oracle semantics needs Supervisor adjudication before a PASS commit."
+      ],
+      "nextTicket": "N4.2A-R2"
+    },
+    {
+      "id": "N4.2A-R2",
+      "status": "PASS",
+      "startCommit": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+      "endCommit": null,
+      "changedFiles": [
+        "api/services/profitabilityPreview.cjs",
+        "api/routes/cost.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskDocumentsV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "api/services/aiNativeToolDefinitionsV2.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "api/services/aiTaskAnswerV2.cjs",
+        "tests/profitabilityPreview.test.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "tests/aiTaskSemanticsV2Provider.test.cjs",
+        "tests/fixtures/ai-task-semantics-v2-cases.json",
+        "scripts/run-ai-native-n4-2a-r2-live.cjs",
+        "planning/ai-native-v1/implementation/N4.2A-R2/*.json"
+      ],
+      "runtimeIntegrated": "server-side injected test path only; default legacy path remains unchanged",
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "N4.2A-R2 focused Task V2/semantics/profitability suite",
+          "exitCode": 0,
+          "passed": 56,
+          "failed": 0
+        },
+        {
+          "command": "N4.2A-R2 strict serial DeepSeek profitability acceptance",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "strictSerialFamilies": 12,
+          "runsPerFamily": 2,
+          "acceptedTasks": 28
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2877,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run test:deep-api final retry #1",
+          "exitCode": 1,
+          "classification": "ENVIRONMENT_FAILURE"
+        },
+        {
+          "command": "npm run test:deep-api final retry #2",
+          "exitCode": 1,
+          "classification": "ENVIRONMENT_FAILURE"
+        },
+        {
+          "command": "N4.2A-R2G npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0,
+          "classification": "PASS_AFTER_EXTERNAL_SOURCE_RECOVERY"
+        }
+      ],
+      "oracleCorrection": {
+        "caseId": "COMPLEX-04",
+        "originalExpectedGoals": [
+          "INVENTORY_QUERY",
+          "PROFITABILITY"
+        ],
+        "correctedExpectedGoals": [
+          "INVENTORY_QUERY"
+        ],
+        "status": "SUPERVISOR_APPROVED_BASELINE_CORRECTION"
+      },
+      "blockers": [],
+      "nextTicket": "N4.2B",
+      "gateCloseout": {
+        "priorDeepApiPassApplicable": false,
+        "finalDeepApiResult": "PASS 482/482",
+        "productAndTestContentChangedDuringGateCloseout": false,
+        "externalLiveDataReleaseGateFlakiness": "OPEN_NON_BLOCKING_TECHNICAL_DEBT"
+      }
+    },
+    {
+      "id": "N4.2A-R2G",
+      "status": "PASS",
+      "startCommit": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+      "endCommit": null,
+      "changedFiles": [
+        "planning/ai-native-v1/implementation/N4.2A-R2/gate-closeout-worktree-manifest.json",
+        "planning/ai-native-v1/implementation/N4.2A-R2/deep-api-prior-pass-adjudication.json",
+        "planning/ai-native-v1/implementation/N4.2A-R2/deep-api-environment-adjudication.json",
+        "planning/ai-native-v1/implementation/N4.2A-R2/external-live-data-release-gate-flakiness.json",
+        "planning/ai-native-v1/implementation/N4.2A-R2/n4.2a-r2-summary.json",
+        "planning/ai-native-v1/implementation-status.json"
+      ],
+      "tests": [
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        }
+      ],
+      "gateOnly": true,
+      "productAndTestContentChanged": false,
+      "businessWrites": 0,
+      "nextTicket": "N4.2B"
+    },
+    {
+      "id": "N4.2B",
+      "status": "PASS",
+      "startCommit": "360d29790352b2d79242a795bc20058dd5f957eb",
+      "endCommit": "N4.2B stage commit",
+      "changedFiles": [
+        "api/services/virtualReadinessPreview.cjs",
+        "api/services/orderPlanning.cjs",
+        "api/routes/inventory.cjs",
+        "api/services/aiNativeToolDefinitionsV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "tests/virtualReadinessPreview.test.cjs",
+        "tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+        "scripts/run-ai-native-n4-2b-live.cjs",
+        "planning/ai-native-v1/implementation/N4.2B/*.json"
+      ],
+      "reusedSymbols": [
+        "buildBalancedOrderPlanningProjection",
+        "buildOrderPlan",
+        "ACTIVE_ORDERS_SQL",
+        "ScenarioCompareRequestV1",
+        "validateAiToolArgs",
+        "executeToolCall",
+        "trusted ExecutionReceiptV1"
+      ],
+      "tests": [
+        {
+          "command": "N4.2B focused test suite",
+          "exitCode": 0,
+          "passed": 96
+        },
+        {
+          "command": "N4.2B DeepSeek live acceptance",
+          "exitCode": 0,
+          "acceptedTurns": 22,
+          "families": 10
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2896
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [],
+      "nextTicket": "N4.2C"
+    },
+    {
+      "id": "N4.2C",
+      "status": "PASS",
+      "startCommit": "27150f65ea0bbeb9de33fcf6ca74c8af8f3f4912",
+      "endCommit": "N4.2C stage commit",
+      "changedFiles": [
+        "api/services/profitabilityPreview.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskSemanticsV2.cjs",
+        "api/capabilities/registry.cjs",
+        "docs/api-reference.md",
+        "tests/aiTaskControllerV2.test.cjs",
+        "tests/profitabilityPreview.test.cjs",
+        "scripts/run-ai-native-n4-2c-live.cjs",
+        "planning/ai-native-v1/implementation/N4.2C/*.json",
+        "planning/ai-native-v1/implementation-status.json",
+        "api/services/orderCommands.cjs"
+      ],
+      "runtimeIntegrated": "server-side injected test path only; default legacy path remains unchanged",
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "N4.2C focused Task V2 suite",
+          "exitCode": 0,
+          "passed": 82,
+          "failed": 0
+        },
+        {
+          "command": "N4.2C strict serial DeepSeek integrated acceptance",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "families": 14,
+          "runsPerFamily": 2,
+          "baseTaskResults": 28,
+          "continuationTaskResults": 4,
+          "acceptedTaskResults": 32
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2903,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [],
+      "planDeviations": [
+        {
+          "id": "N4.2C-IDEMPOTENCY-REPLAY-REPAIR",
+          "reason": "The required full npm gate exposed an existing replay failure: after a successful order became active, rebuilding its purchase plan changed the idempotency input before the stored receipt check. The minimal shared fix fingerprints the original normalised request; it preserves preview-hash enforcement, business write semantics, and audit behaviour."
+        }
+      ],
+      "nextTicket": "N5.1"
+    },
+    {
+      "id": "N5.1A",
+      "status": "PASS",
+      "startCommit": "9229c625e0bcb3dfb4aa2bd406a1a14e2101cb95",
+      "endCommit": "HEAD (N5.1A-R1 stage commit)",
+      "changedFiles": [
+        "api/database/schema.cjs",
+        "api/database/migrations.cjs",
+        "api/db.cjs",
+        "api/services/aiTaskStoreV2.cjs",
+        "api/services/aiTaskLifecycleV2.cjs",
+        "docs/database-schema.md",
+        "tests/aiTaskPersistenceV2.test.cjs",
+        "planning/ai-native-v1/implementation/N5.1A/*.json",
+        "planning/ai-native-v1/implementation-status.json",
+        "tests/aiTaskPersistenceV2R1.test.cjs",
+        "planning/ai-native-v1/implementation/N5.1A-R1/gap-closure-plan.json"
+      ],
+      "runtimeIntegrated": false,
+      "workerImplemented": false,
+      "publicTaskApiImplemented": false,
+      "businessWrites": 0,
+      "tests": [
+        {
+          "command": "node --test tests/aiTaskPersistenceV2.test.cjs tests/aiTaskPersistenceV2R1.test.cjs",
+          "exitCode": 0,
+          "passed": 13,
+          "failed": 0
+        },
+        {
+          "command": "node --test tests/aiTaskControllerV2.test.cjs",
+          "exitCode": 0,
+          "passed": 51,
+          "failed": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2916,
+          "failed": 0
+        },
+        {
+          "command": "npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 482,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "blockers": [],
+      "nextTicket": "N5.1B"
+    },
+    {
+      "id": "N5.1A-R1",
+      "status": "PASS",
+      "startCommit": "055a59360a870dc3e73ad33f1eeed911ea02fd40",
+      "endCommit": "HEAD (N5.1A-R1 stage commit)",
+      "changedFiles": [
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskLifecycleV2.cjs",
+        "api/services/aiTaskStoreV2.cjs",
+        "tests/aiTaskPersistenceV2R1.test.cjs",
+        "planning/ai-native-v1/implementation/N5.1A/*.json",
+        "planning/ai-native-v1/implementation/N5.1A-R1/gap-closure-plan.json"
+      ],
+      "blockers": [],
+      "nextTicket": "N5.1B"
+    },
+    {
+      "id": "N4-AUDIT-FIX-01",
+      "status": "PASS",
+      "startCommit": "9229c625e0bcb3dfb4aa2bd406a1a14e2101cb95",
+      "endCommit": null,
+      "changedFiles": [
+        "api/services/recipeConfigurationPolicy.cjs",
+        "api/services/recipeScenarioComparison.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "docs/api-reference.md",
+        "tests/recipeConfigurationPolicy.test.cjs",
+        "tests/recipeScenarioComparison.test.cjs",
+        "tests/orderCommands.test.cjs",
+        "tests/virtualReadinessPreview.test.cjs",
+        "tests/aiTaskControllerV2.test.cjs",
+        "scripts/run-ai-native-n4-audit-fix-01-live.cjs",
+        "planning/ai-native-v1/implementation/N4-AUDIT-FIX-01/*.json"
+      ],
+      "finding": "N4-AUDIT-FINDING-001 closed: strict authoritative surface-treatment mode/cost pair enforcement restored and verified.",
+      "nextTicket": "WAIT_FOR_SUPERVISOR_GITHUB_AUDIT",
+      "tests": [
+        {
+          "command": "N4-AUDIT-FIX-01 focused regression suite",
+          "exitCode": 0,
+          "passed": 124,
+          "failed": 0
+        },
+        {
+          "command": "N4-AUDIT-FIX-01 strict serial DeepSeek live acceptance",
+          "exitCode": 0,
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "fallbackCount": 0,
+          "families": 4,
+          "runsPerFamily": 2,
+          "totalRuns": 8,
+          "criticalFailures": 0
+        },
+        {
+          "command": "npm run verify:api-contract",
+          "exitCode": 0,
+          "passed": 27,
+          "failed": 0
+        },
+        {
+          "command": "npm test",
+          "exitCode": 0,
+          "passed": 2909,
+          "failed": 0
+        },
+        {
+          "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+          "exitCode": 0,
+          "passed": 490,
+          "failed": 0
+        },
+        {
+          "command": "npm run lint",
+          "exitCode": 0
+        },
+        {
+          "command": "npm run build",
+          "exitCode": 0
+        }
+      ],
+      "businessWrites": 0,
+      "unauthorizedWrites": 0,
+      "schemaChanged": false,
+      "migrationCreated": false,
+      "publicApiChanged": false
+    },
+    {
+      "id": "N5.1B",
+      "status": "PASS",
+      "startCommit": "d3409182c30ffe96a67b3ab9e962538b58f07c90",
+      "endCommit": null,
+      "changedFiles": [
+        "api/services/aiTaskWorkerV2.cjs",
+        "api/services/aiTaskStoreV2.cjs",
+        "api/services/aiTaskLifecycleV2.cjs",
+        "api/services/aiTaskControllerV2.cjs",
+        "api/services/aiTaskCapabilityAdapterV2.cjs",
+        "tests/aiTaskWorkerV2.test.cjs",
+        "scripts/run-ai-native-n5-1b-live.cjs",
+        "planning/ai-native-v1/implementation/N5.1B/*.json"
+      ],
+      "blockers": [],
+      "nextTicket": "WAIT_FOR_SUPERVISOR",
+      "finding": "N5.1B-R5 closure passed: bounded retry, active deadline, four-goal fresh restart, final gates and DeepSeek smoke all passed."
+    },
+    {
+      "id": "N5.2",
+      "status": "PASS",
+      "startCommit": "83ea0709a87de628c1fe89f159d2138c948a7417",
+      "endCommit": "79a182d28ba37bcb53451d104151f5afb62c8a8f",
+      "changedFiles": [
+        "api/routes/ai/tasks.cjs",
+        "api/services/aiTaskPublicV2.cjs",
+        "apps/web-next/components/ai/AiTaskWorkbench.tsx",
+        "planning/ai-native-v1/implementation/N5.2/task-api-workbench-validation.json",
+        "planning/ai-native-v1/implementation/N5.2/acceptance-matrix.json"
+      ],
+      "tests": [
+        "node --test focused task/persistence/worker/routes suite: PASS 34/34",
+        "node --test tests/aiConversationCommands.test.cjs: PASS 8/8",
+        "npm run verify:api-contract: PASS 27/27",
+        "npm test: PASS 2944/2944",
+        "npm run test:deep-api: PASS 482/482",
+        "npm run lint: PASS",
+        "npm run build: PASS"
+      ],
+      "nextTicket": "N6.1",
+      "closureAudit": {
+        "status": "PASS",
+        "deepApiCountDeltaExplained": true,
+        "deepApiCoverageRegression": false,
+        "matrix": "planning/ai-native-v1/implementation/N5.2/original-ticket-closure-matrix.json"
+      }
+    },
+    {
+      "id": "N6.1",
+      "status": "PASS",
+      "startCommit": "548ee716383031be7b3a1770eb9c0de223b19b33",
+      "endCommit": "72dfced113bc70821ac23b5f21ca32b894416e9d",
+      "changedFiles": [
+        "api/services/aiTaskWriteBridgeV2.cjs",
+        "api/routes/ai/tasks.cjs",
+        "api/routes/ai/executor.cjs",
+        "api/services/aiTaskStoreV2.cjs",
+        "tests/aiTaskWriteBridgeV2.test.cjs",
+        "planning/ai-native-v1/implementation/N6.1/closure-matrix.json"
+      ],
+      "tests": [
+        "node --test tests/aiTaskWriteBridgeV2.test.cjs tests/aiToolConfirmation.test.cjs tests/aiTaskRoutesV2.test.cjs tests/aiConversationCommands.test.cjs: PASS 28/28",
+        "npm run verify:api-contract: PASS 27/27",
+        "npm run lint: PASS"
+      ],
+      "nextTicket": "N6.2",
+      "finding": "N6.1 binds task-local server context to existing protected write confirmations for part stock and price previews only. It does not execute commands; N6.2 owns commit and reconciliation."
+    },
+    {
+      "id": "N6.2",
+      "status": "PASS",
+      "startCommit": "b287d37c9c6b6fbf127617ede7ee82f8e4a630a7",
+      "endCommit": "HEAD (N6.2 closure commit)",
+      "changedFiles": [
+        "api/services/aiConfirmedToolExecution.cjs",
+        "api/services/aiTaskWriteBridgeV2.cjs",
+        "api/services/aiTaskOperationReadbackV2.cjs",
+        "api/services/aiTaskStoreV2.cjs",
+        "api/services/aiTaskLifecycleV2.cjs",
+        "api/routes/ai/tasks.cjs",
+        "docs/api-reference.md",
+        "tests/aiTaskWriteBridgeV2.test.cjs",
+        "planning/ai-native-v1/implementation/N6.2/original-ticket-closure-matrix.json",
+        "planning/ai-native-v1/implementation/N6.2/validation-summary.json",
+        "scripts/run-deep-api-smoke.cjs"
+      ],
+      "tests": [
+        "node --test tests/dailyMarketSnapshot.test.cjs: PASS 5/5",
+        "node --test tests/aiTaskWriteBridgeV2.test.cjs tests/commandExecution.test.cjs tests/aiTaskRoutesV2.test.cjs tests/aiToolConfirmation.test.cjs: PASS 31/31",
+        "npm run verify:api-contract: PASS 27/27",
+        "npm test: PASS 2951/2951",
+        "npm run test:deep-api: PASS 489/489 (plain default invocation; copper check executed)",
+        "npm run lint: PASS",
+        "npm run build: PASS"
+      ],
+      "nextTicket": "N7.1",
+      "finding": "N6.2 preserves protected part stock/price command admission and reconciliation. The default deep-api gate is deterministic: its temporary SQLite clone is seeded with a completed current-BJT market snapshot before isolated API startup, while production missing-market behavior remains unchanged. The accepted default coverage remains 489/489 and executes the copper MCP check."
+    },
+    {
+      "id": "N7.1",
+      "status": "PASS",
+      "startCommit": "6246568ed54cb67745761d1fc3660db995a5bedf",
+      "endCommit": "N7.1 closure commit",
+      "changedFiles": [
+        "api/services/aiNativeRolloutPolicy.cjs",
+        "api/services/aiNativeQualityGate.cjs",
+        "api/routes/ai/chat.cjs",
+        "api/routes/ai/tasks.cjs",
+        "scripts/run-ai-native-quality-gate.cjs",
+        "scripts/run-ai-native-rollout-live.cjs",
+        "docs/api-reference.md",
+        "planning/ai-native-v1/implementation/N7.1/*.json"
+      ],
+      "tests": [
+        "N7.1 focused policy/quality/router/task/deployment tests: final result recorded in N7.1 validation summary",
+        "N7.1 hard quality gate: final clean-commit result recorded in ignored logs/ai-native-quality-gate-latest.json",
+        "repository gates: final N7.1 results recorded in supervisor return"
+      ],
+      "nextTicket": "N7.2",
+      "finding": "Native rollout is default-off, Owner JWT scoped and protected by an independent false-by-default write switch. Production rollout remains separately authorized."
+    }
+  ],
+  "n4ExitStatus": "PASS",
+  "n4_2Status": "PASS"
+}

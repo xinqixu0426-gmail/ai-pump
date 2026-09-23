@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "testCases": [
+    {
+      "id": "N5R1-MIGRATION-FULL-FINGERPRINT",
+      "expected": "all preexisting business table rowCount and stableRowHash remain unchanged through v88",
+      "actual": "all discovered preexisting tables unchanged; task tables excluded",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-MIGRATION-IDEMPOTENCE",
+      "expected": "second runner invocation applies no migration or data change",
+      "actual": "0 applied versions and identical post-v88 fingerprint",
+      "status": "PASS"
+    },
+    {
+      "id": "N5R1-MIGRATION-INTEGRITY",
+      "expected": "integrity_check ok and foreign_key_check empty",
+      "actual": "ok / 0 violations before, after and restored",
+      "status": "PASS"
+    }
+  ]
+}

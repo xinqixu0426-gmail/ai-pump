@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "ticket": "N5.2-CLOSURE-AUDIT",
+  "comparison": {
+    "acceptedN51BCommit": "83ea0709a87de628c1fe89f159d2138c948a7417",
+    "n52Commit": "79a182d28ba37bcb53451d104151f5afb62c8a8f",
+    "runnerChangedBetweenCommits": false,
+    "runnerBlobAtBothCommits": "3d29adf4b691cc3366617201c701502708076eb4",
+    "routeCapabilityManifestOrSkipChangeFound": false
+  },
+  "runs": {
+    "acceptedN51B": {
+      "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+      "passed": 490
+    },
+    "reportedN52": {
+      "command": "npm run test:deep-api",
+      "passed": 482
+    },
+    "finalDefaultWorktree": {
+      "command": "npm run test:deep-api",
+      "passed": 489
+    },
+    "finalHistoricalSourceCompatibility": {
+      "command": "DEEP_API_SOURCE_DATABASE_PATH=/Users/dan/Documents/水泵工厂管理助手/pump.db npm run test:deep-api",
+      "passed": 490
+    }
+  },
+  "rootCause": "The runner was byte-identical at both commits. N5.1B explicitly selected the populated original source database; N5.2 used the worktree default source. The original source had 253 knowledge entries, 89 parts, and 1 recipe while the worktree source had no knowledge entries, parts, or recipes. Eight checks were conditional data-shape branches, not deleted routes, capabilities, manifests, or skips.",
+  "checks": [
+    {
+      "oldCheck": "知识详情",
+      "newStatus": "EQUIVALENT_COVERAGE",
+      "reason": "This generic catalog detail call is conditional on pre-existing knowledge and remains conditional. The default isolated run always executes the stronger factory-document knowledge-detail check, including a content assertion; the current historical source compatibility run executes both and totals 490."
+    },
+    {
+      "oldCheck": "采购中心批量下单正式预览",
+      "newStatus": "RESTORED",
+      "reason": "The quotation-to-order fixture now deterministically adds a formally bound shortage part and asserts a purchase item exists before the branch."
+    },
+    {
+      "oldCheck": "采购中心批量下单持久化命令",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the formal command check reachable."
+    },
+    {
+      "oldCheck": "采购中心批量下单同键重放",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the idempotency replay check reachable."
+    },
+    {
+      "oldCheck": "登记采购进度正式预览",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the formal preview check reachable."
+    },
+    {
+      "oldCheck": "登记采购进度持久化命令",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the command check reachable."
+    },
+    {
+      "oldCheck": "登记采购进度同键重放",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the replay check reachable."
+    },
+    {
+      "oldCheck": "登记采购进度旧版本拒绝",
+      "newStatus": "RESTORED",
+      "reason": "Same deterministic shortage fixture keeps the stale-version rejection check reachable."
+    }
+  ],
+  "deepApiCountDeltaExplained": true,
+  "deepApiCoverageRegression": false,
+  "coverageRestoredOrEquivalent": true,
+  "businessWrites": "temporary isolated deep-api database only",
+  "productionChanged": false
+}

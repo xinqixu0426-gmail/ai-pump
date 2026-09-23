@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "owner": "TASK_V2",
+  "modes": [
+    "FINAL",
+    "PARTIAL",
+    "CLARIFICATION",
+    "UNSUPPORTED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "allowedClaimKinds": [
+    "VERIFIED_FACT",
+    "VERIFIED_NEGATIVE",
+    "LIMITATION",
+    "ACTION_STATUS",
+    "CLARIFICATION"
+  ],
+  "answerModelCalls": 0,
+  "rawModelContentExposed": false
+}

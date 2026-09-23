@@ -1,0 +1,406 @@
+{
+  "ticket": "AI-NATIVE-PHASE-E2-COVERAGE-EXPANSION-WAVE-1",
+  "kind": "native-coverage-expansion-wave-1",
+  "status": "PARTIAL_DELIVERED_HONEST_SCOPE",
+  "createdAt": "2026-09-23T14:06:15Z",
+  "baseline": {
+    "e1EndHead": "20c35b695d0c6c8e0354a170928a6682d67bd43a",
+    "e2Head": "f04e07b838108897707b5f0b00dc04aca2f49ef5",
+    "branch": "ai-native/prod-integration-v1",
+    "e2Commits": [
+      "66af8a7 ai-native(E2): coverage expansion wave 1 — coil cost / coil inventory",
+      "f04e07b ai-native(E2): canary admission eligibility parity + lint fix"
+    ],
+    "artifactCommit": "本文件（证据归档，docs-only；发布门禁在代码 head f04e07b838108897707b5f0b00dc04aca2f49ef5 的干净树上执行）"
+  },
+  "scope": {
+    "requestedFamilies": [
+      "FAMILY-01 配方成本比较",
+      "FAMILY-02 线圈成本",
+      "FAMILY-03 线圈库存"
+    ],
+    "deliveredFamilies": [
+      "FAMILY-02 线圈成本",
+      "FAMILY-03 线圈库存"
+    ],
+    "notDeliveredFamilies": [
+      "FAMILY-01 配方成本比较"
+    ],
+    "forbiddenExpansionsHonoured": [
+      "规格差异",
+      "经营概况",
+      "其它新业务域"
+    ],
+    "newArchitecture": false,
+    "businessApiChanges": 0,
+    "costEngineChanges": 0,
+    "databaseSchemaChanges": 0
+  },
+  "coverageTrace": {
+    "method": "真实 provider（DeepSeek）+ production-shaped 数据库只读副本 + 真实业务 HTTP 面；先 trace 后实现",
+    "before": [
+      {
+        "family": "FAMILY-01",
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "questions": []
+      },
+      {
+        "family": "FAMILY-01",
+        "question": "v550-tokoy比v750-tokoy成本高多少？",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "questions": []
+      },
+      {
+        "family": "FAMILY-01",
+        "question": "比较一下这两个配方的成本。",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "questions": []
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-120成本多少？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "questions": []
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-200多少钱？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [],
+        "questions": [
+          "COIL_COST_AMBIGUOUS"
+        ]
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-200现在是什么成本？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [],
+        "questions": [
+          "COIL_COST_AMBIGUOUS"
+        ]
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-120还有多少？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "questions": []
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-200有库存吗？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [],
+        "questions": [
+          "INVENTORY_COIL_AMBIGUOUS"
+        ]
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-140现在库存多少？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "questions": []
+      }
+    ],
+    "after": [
+      {
+        "family": "FAMILY-01",
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "entityIds": [],
+        "questions": [],
+        "tools": [],
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "family": "FAMILY-01",
+        "question": "v550-tokoy比v750-tokoy成本高多少？",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "entityIds": [],
+        "questions": [],
+        "tools": [],
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "family": "FAMILY-01",
+        "question": "比较一下这两个配方的成本。",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "taskState": "UNSUPPORTED",
+        "factPredicates": [],
+        "entityIds": [],
+        "questions": [],
+        "tools": [],
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-120成本多少？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "questions": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥98.39。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-200多少钱？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [
+          "cost",
+          "cost"
+        ],
+        "entityIds": [
+          "coil:5",
+          "coil:12"
+        ],
+        "questions": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "family": "FAMILY-02",
+        "question": "12-200现在是什么成本？",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [
+          "cost",
+          "cost"
+        ],
+        "entityIds": [
+          "coil:5",
+          "coil:12"
+        ],
+        "questions": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-120还有多少？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "questions": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0001 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-200有库存吗？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "WAITING_INPUT",
+        "factPredicates": [
+          "cost",
+          "cost"
+        ],
+        "entityIds": [
+          "coil:5",
+          "coil:12"
+        ],
+        "questions": [
+          "INVENTORY_COIL_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "“12-200”有多个正式线圈方案，请选择一个后再查询对应库存。"
+      },
+      {
+        "family": "FAMILY-03",
+        "question": "12-140现在库存多少？",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "taskState": "SUCCEEDED",
+        "factPredicates": [
+          "cost"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "questions": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0002 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      }
+    ],
+    "conclusion": {
+      "FAMILY-02": "自然语言 → COIL_COST goal → search_coils → canonical coil 绑定 → coil.current_cost Fact → COIL_COST 回答；多候选澄清，不汇总、不自行计算",
+      "FAMILY-03": "自然语言 → INVENTORY_QUERY + 线圈主体 → inventory.coil Fact → INVENTORY_V1 回答（补了线圈可用量口语说法作为 admission grounding）",
+      "FAMILY-01": "Native 无 COST_COMPARISON goal kind ⇒ 落到 OTHER/UNSUPPORTED；本阶段只把「用其中一个配方的当前成本冒充比较结果」改为 fail-closed"
+    }
+  },
+  "coverageManifest": {
+    "total": 9,
+    "supported": 5,
+    "partial": 1,
+    "unsupported": 3,
+    "canaryScope": [
+      "当前成本（单个在售配方）",
+      "配置变更 + 毛利 + 齐料（多目标）",
+      "虚拟齐料 / 缺料预览",
+      "线圈档案成本",
+      "线圈库存"
+    ],
+    "excludedScope": [
+      "两个方案的成本差额（比较）",
+      "规格 / 配置差异（非金额）",
+      "经营概况 / 看板",
+      "不存在的对象（负向探测）"
+    ],
+    "validation": "validateCoverageAgainstCapabilities() → consistent=true, problems=[]"
+  },
+  "residualClosed": {
+    "id": "BOM_IDENTITY_RESIDUAL (E1)",
+    "capability": "build_recipe_bom_draft",
+    "before": "costPreview 金额无身份字段 ⇒ IDENTITY_INCOMPLETE/PRIMARY_KEY_ABSENT（E1-C-17）",
+    "after": "同一正式回执内唯一身份节点（configurationBasis.recipeName）+ 正式回执「业务键→主键」唯一映射 ⇒ CANONICAL recipe:<id>（resolvedBy=FORMAL_RECEIPT_BINDING）",
+    "failClosedPreserved": "映射不唯一 ⇒ 仍 IDENTITY_INCOMPLETE（reasonCode=AMBIGUOUS_BUSINESS_KEY，不绑定任一候选）；单回执无映射 ⇒ 行为与 E1-C-17 完全一致",
+    "tests": [
+      "E2-BOM-IDENTITY-1",
+      "E2-BOM-IDENTITY-2",
+      "E1-C-17（行为不变）"
+    ]
+  },
+  "canaryAdmission": {
+    "api": "canaryAdmission({ questionFamily, structuralReady })",
+    "wiring": "与 ownerTrialCoverageSummary().canaryEligible 同源；未支持族一律 FAMILY_NOT_SUPPORTED；结构未就绪一律 STRUCTURAL_NOT_READY",
+    "productionCanaryExecuted": false,
+    "reason": "E2 不部署、不做生产灰度；admission 是代码层判定，canaryScope 已进入发布门禁报告"
+  },
+  "liveRuns": {
+    "runner": "scripts/phase-e2/run-wave1-live.cjs",
+    "families": 3,
+    "questionsPerFamily": 3,
+    "runs": 9,
+    "provider": {
+      "requested": "deepseek",
+      "model": "deepseek-v4-flash",
+      "apiKeyPresent": true
+    },
+    "database": {
+      "source": "/Users/dan/Documents/水泵工厂管理助手/backups/macmini-before-catalog-clear/pump-safety-2026-09-16T01-14-48-791Z.db",
+      "clonePath": "/var/folders/2r/cwrv1mld7j921cx99l_hw2pr0000gn/T/e2-wave1-jXZffA/phase-d-clone.db",
+      "cloneSha256": "e6e39152303c63eb4fecd8f94b4745920d90160432acc13fd38b9b1100e66550",
+      "sourceTouched": false
+    },
+    "metrics": {
+      "runs": 9,
+      "unsafeDeliveredRuns": 0,
+      "wrongCanonicalBinding": 0,
+      "unexplainedBusinessRegression": 0
+    },
+    "states": {
+      "FAMILY-01|v550-tokoy和v750-tokoy成本差多少？": "UNSUPPORTED",
+      "FAMILY-01|v550-tokoy比v750-tokoy成本高多少？": "UNSUPPORTED",
+      "FAMILY-01|比较一下这两个配方的成本。": "UNSUPPORTED",
+      "FAMILY-02|12-120成本多少？": "SUCCEEDED",
+      "FAMILY-02|12-200多少钱？": "WAITING_INPUT",
+      "FAMILY-02|12-200现在是什么成本？": "WAITING_INPUT",
+      "FAMILY-03|12-120还有多少？": "SUCCEEDED",
+      "FAMILY-03|12-200有库存吗？": "WAITING_INPUT",
+      "FAMILY-03|12-140现在库存多少？": "SUCCEEDED"
+    },
+    "verdict": "unsafeDeliveredRuns=0, wrongCanonicalBinding=0, unexplainedBusinessRegression=0（判据由本轮正式回执推导，非硬编码 baseline）"
+  },
+  "notCompleted": [
+    "FAMILY-01 配方成本比较：Task V2 未新增 COST_COMPARISON goal kind 与双主体 requirement，因此保持 UNSUPPORTED（只做 fail-closed，manifest 未改数字）",
+    "跨轮主体继承：成功任务不保留 session，因此「这个线圈还有库存吗？」的上一轮 canonical 主体继承未实现",
+    "生产灰度：productionReadiness=NOT_READY，未部署、未改生产数据"
+  ],
+  "gates": {
+    "npm test": "PASS 3159/3159（E1 head: 3143；新增 16 条 E2 契约测试）",
+    "verify:api-contract": "PASS 28/28",
+    "test:deep-api": "PASS exit 0",
+    "lint": "PASS exit 0",
+    "build": "PASS exit 0",
+    "verify:ai-native-release": "PASS @ sourceRevision=f04e07b838108897707b5f0b00dc04aca2f49ef5 — structuralReadiness=STRUCTURALLY_READY, ownerTrialCoverageReadiness=READY_WITHIN_SUPPORTED_SCOPE, productionReadiness=NOT_READY（E2 不部署）",
+    "ontologyRoutingCanary": "PASS 42/42",
+    "structuralRemediationOracle(A01-A07)": "GREEN 10/10（冻结不变量未被 E2 改动破坏）"
+  }
+}

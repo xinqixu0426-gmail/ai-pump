@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "items": {
+    "sameReadSet": "PASS",
+    "hashPriceMutation": "PASS",
+    "hashPolicyMutation": "PASS",
+    "sourceVersions": "PASS",
+    "packingPolicyMutation": "PASS",
+    "surfacePolicyMutation": "PASS"
+  },
+  "evidence": "tests/recipeScenarioComparison.test.cjs"
+}

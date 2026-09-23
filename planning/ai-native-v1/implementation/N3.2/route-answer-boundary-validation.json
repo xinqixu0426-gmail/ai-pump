@@ -1,0 +1,11 @@
+{
+  "nativeSse": [
+    "status",
+    "content",
+    "detail",
+    "done"
+  ],
+  "validatedContentOnly": true,
+  "legacyPostprocessorsUsedOnNative": false,
+  "rawLeakage": false
+}

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "defects": [
+    {
+      "id": "NATIVE-BLOCKER-FALSE-COMPLETE-001",
+      "sourceCase": "BU-07",
+      "class": "COMPLETENESS",
+      "legacyStatus": "FAIL",
+      "rootCauseLayer": "LEGACY_ORCHESTRATION_DEFECT",
+      "nativeRequirement": "Never claim system-wide absence without verified complete recipe+template+part catalogue coverage.",
+      "requiredExitStage": "N3",
+      "mustPassBeforeOwnerCanary": true,
+      "status": "CLOSED",
+      "closedAtStage": "N3.2",
+      "closureEvidence": "N3.2 deterministic answer boundary and isolated DeepSeek 10/10 recipe-scoped V900 checks."
+    }
+  ]
+}

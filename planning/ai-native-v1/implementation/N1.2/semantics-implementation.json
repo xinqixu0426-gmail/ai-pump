@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "ticket": "N1.2",
+  "startCommit": "36dea9f1423ae71557f43673f0cfcf1494785ace",
+  "runtimeIntegrated": false,
+  "businessApiCalls": 0,
+  "businessToolCalls": 0,
+  "businessWrites": 0,
+  "modules": [
+    {
+      "path": "api/services/aiTaskSemanticsV2.cjs",
+      "exports": [
+        "EXTRACTION_TOOL",
+        "extractTaskSemanticsV2",
+        "scanCriticalUserSpansV2",
+        "parseProviderCandidate",
+        "rebindCandidate",
+        "normalizeCandidateSyntax"
+      ],
+      "responsibility": "Candidate TaskProposalV1 extraction, server-owned write directives, authoritative SourceSpan rebinding, critical-condition coverage and bounded format repair."
+    },
+    {
+      "path": "scripts/run-ai-task-semantics-v2-live.cjs",
+      "responsibility": "Isolated DeepSeek function-calling acceptance runner using only the non-executable proposal submission protocol. Raw responses are written only under gitignored logs/."
+    }
+  ],
+  "proposalContract": "TaskProposalV1 is validated by aiTaskValidationV2.cjs with the authoritative message map; this stage does not alter the V1 runtime or invoke entity resolution.",
+  "providerProtocol": {
+    "tool": "submit_ai_task_proposal_candidate_v1",
+    "registeredBusinessTool": false,
+    "businessCapability": false,
+    "normalExtractionCallsMax": 1,
+    "formatRepairCallsMax": 1,
+    "totalCallsMax": 2
+  },
+  "serverOwnedDirectives": [
+    "businessWritePolicy",
+    "businessWritePolicySources",
+    "scenarioInheritance:PRESERVE_UNMENTIONED_BASE_CONFIGURATION"
+  ],
+  "planDeviations": [
+    {
+      "item": "Provider response normalization",
+      "reason": "The current DeepSeek function schema returns provider vocabulary such as product/model, 台 and 元/台. The module deterministically narrows type hints to the frozen V1 enum, maps direct unit spellings to the V1 units, moves write-only OTHER goals into server directives, and derives HYPOTHETICAL/CURRENT requestedBasis from the scenario shape. Privilege fields and unknown contract fields remain rejected."
+    }
+  ]
+}

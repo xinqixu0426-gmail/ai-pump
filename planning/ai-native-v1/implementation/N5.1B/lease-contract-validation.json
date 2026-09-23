@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "result": "PARTIAL",
+  "tests": [
+    "claim uses BEGIN IMMEDIATE",
+    "DETACHED only",
+    "eligible states",
+    "token rotation",
+    "renew/release owner+token fencing",
+    "claim leaves planRevision unchanged"
+  ],
+  "passed": true,
+  "unproven": [
+    "expired successful-step continuation reuse"
+  ]
+}

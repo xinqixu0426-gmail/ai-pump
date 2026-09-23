@@ -1,0 +1,16 @@
+{
+  "findingId": "N4-AUDIT-FINDING-001",
+  "severity": "HIGH",
+  "preN4Commit": "7361eb86cd2e5a009843282af4c892f66203c2e5",
+  "n4FinalCommit": "9229c625e0bcb3dfb4aa2bd406a1a14e2101cb95",
+  "preN4Behavior": "STRICT_POLICY_PAIR",
+  "n4Behavior": "EXPLICIT_PAIR_BYPASS",
+  "sharedCallersAffected": [
+    "recipeScenarioComparison",
+    "configuredRecipeSnapshot",
+    "orderCommands"
+  ],
+  "fixStrategy": "STRICT_WHEN_SURFACE_POLICY_PRESENT",
+  "rootCause": "The shared policy helper permitted any explicit surface mode + cost after N4, and the scenario layer misclassified a policy-disallowed mode as a missing-cost request.",
+  "postFixBehavior": "A present surfaceTreatmentOptions allow-list requires an exact mode + cost pair. A missing allow-list permits only an explicit read-only hypothetical pair."
+}

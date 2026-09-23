@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "ticket": "N2.1",
+  "startCommit": "93839c6382bc4f17dc51a153083d527d09af47f5",
+  "focusedTests": {
+    "command": "NODE_ENV=test node --test tests/aiTaskCapabilityAdapterV2.test.cjs tests/aiTaskCapabilityAdapterV2Integration.test.cjs",
+    "passed": 11,
+    "failed": 0,
+    "status": "PASS"
+  },
+  "integration": {
+    "database": "temporary ontology HTTP runtime fixture",
+    "formalBusinessApiCalls": 5,
+    "businessWrites": 0,
+    "modelCalls": 0,
+    "queryReceipt": "verified",
+    "previewReceipt": "verified",
+    "completeEmptyBinding": "NOT_FOUND"
+  },
+  "runtimeIntegrated": false,
+  "apiChanged": false,
+  "databaseSchemaChanged": false,
+  "legacyRuntimeChanged": false,
+  "nativeFalseCompleteBlocker": {
+    "id": "NATIVE-BLOCKER-FALSE-COMPLETE-001",
+    "status": "OPEN",
+    "requiredExitStage": "N3"
+  },
+  "fullGates": {
+    "verifyApiContract": {"exitCode": 0, "passed": 27, "failed": 0},
+    "npmTest": {"exitCode": 0, "passed": 2807, "failed": 0},
+    "deepApi": {"exitCode": 0, "passed": 490, "failed": 0, "database": "temporary copy from declared source database"},
+    "lint": {"exitCode": 0},
+    "build": {"exitCode": 0}
+  }
+}

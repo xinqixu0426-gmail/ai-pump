@@ -1,0 +1,16 @@
+{
+  "suite": "tests/orderCommands.test.cjs",
+  "path": "buildOrderSavePayloadDraft -> buildConfiguredRecipeSnapshot -> assertRecipeConfigurationAllowed",
+  "FORMAL_ORDER_CONFIG_POLICY_BYPASS": "CLOSED",
+  "forbiddenOverride": {
+    "surfaceTreatmentMode": "painting",
+    "surfaceTreatmentCost": 6
+  },
+  "result": "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED",
+  "safeInsertOrdersReached": false,
+  "ordersDelta": 0,
+  "auditDelta": 0,
+  "operationDelta": 0,
+  "inventoryDelta": 0,
+  "idempotencyRegression": "PASS (existing orderCommands suite)"
+}

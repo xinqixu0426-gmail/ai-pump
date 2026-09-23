@@ -1,0 +1,499 @@
+{
+  "schemaVersion": 1,
+  "scope": "DESIGN_PACKAGE_ONLY",
+  "generatedAt": "2026-09-21T07:28:36.358824+00:00",
+  "baseCommit": "251f822491d677056f2d7b82f09473a51321d8e1",
+  "status": "PASS",
+  "checks": 95,
+  "passed": 95,
+  "failed": 0,
+  "schemaDefinitions": 41,
+  "positiveExampleFiles": 16,
+  "sqliteVersion": "3.46.1",
+  "applicationTestsExecuted": false,
+  "realProviderExecuted": false,
+  "productionChanged": false,
+  "limitations": [
+    "DDL tested with mock parent tables, not the real migration runner or safeUpdate implementation.",
+    "Semantic validators are design checks, not the factory production validator.",
+    "The cost values are synthetic; no actual cost engine was run.",
+    "Sources were read via GitHub connector; no full checkout was available in this sandbox."
+  ],
+  "results": [
+    {
+      "check": "schema: draft structure",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-proposal",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: scenario-request",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: scenario-response",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: fact",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-envelope",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-start",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-resume",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-cancel",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: answer-draft",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: comparison-receipt",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: identity-receipt",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: compare-tool-input",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-acknowledgement",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-public",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: task-events",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "example: foreground-context",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "examples: every json assigned a schema",
+      "scope": "SCHEMA",
+      "status": "PASS"
+    },
+    {
+      "check": "semantics: proposal references and original text",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "semantics: scenario consistency",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "semantics: task facts/requirements/arguments",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "semantics: resume answer exclusivity",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "semantics: public projection",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "manifest: 18 tickets and prerequisites",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "states: enum, reachability and terminality",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "spans: UTF-16 emoji case",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "spans: reject code-point indexing",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: model cannot set allowWrite",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: model cannot set canonical id",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject numeric cableWire",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject copper override",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject string boolean",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject negative length",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject non-chat conversation id",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject foreground detached API",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject owner in start input",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject approved in resume",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject private public payload",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: reject readSet in FactKey",
+      "scope": "SCHEMA_NEGATIVE",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: missing goal reference",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: duplicate goal",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: cyclic goal",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: model claims base scenario",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: span changed",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: delta changed",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: override dropped",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: applied value changed",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: incomplete total remains numeric",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: cost falsely complete",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: not applied called comparable",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: false source count",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: task false success",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: old plan current facts reused",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong scenario fact",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong entity fact",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong temporal scope",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong amount fact",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong value pointer",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: missing required fact",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: same predicate wrong unit",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: readonly command",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: wrong argsHash",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: excess model budget",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: false identity uniqueness",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: selected while unresolved",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: forged receipt origin",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: both resume values",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "mutation: no resume values",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "storage: spec/budget split",
+      "scope": "DESIGN",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: create four tables",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: valid task insert",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: unknown task state rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: invalid json rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: foreign conversation rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: duplicate task key rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: partial lease rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: valid receipt",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: valid linked fact",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: missing receipt FK rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: fact without receipt rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: first event",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: duplicate event sequence rejected",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: step goal links column exists",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "ddl: FK integrity",
+      "scope": "DDL_MOCK",
+      "status": "PASS"
+    },
+    {
+      "check": "document: README.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 01-总体计划.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 02-字段合同.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 03-能力复用与接口.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 04-持久化与状态机.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 05-分阶段实施.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 06-测试发布回滚.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "document: 07-方案自审.md",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "corpus: 24 declared case classes",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "dictionary: every definition documented",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    },
+    {
+      "check": "sources: baseline and SHA formatting",
+      "scope": "PACKAGE",
+      "status": "PASS"
+    }
+  ]
+}

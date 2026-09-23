@@ -61,6 +61,7 @@ function collectHttpEndpoints() {
         'modelVariants.cjs': '/api/model-variants',
         'orders.cjs': '/api/orders',
         'coils.cjs': '/api/coils',
+        'inventory.cjs': '/api/inventory',
         'rotor.cjs': '/api/rotor',
         'settings.cjs': '/api/settings',
         'customers.cjs': '/api/customers',

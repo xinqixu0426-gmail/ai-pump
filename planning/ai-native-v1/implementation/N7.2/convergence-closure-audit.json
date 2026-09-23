@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "ticket": "N7.2",
+  "artifact": "N7.2 Whole-Ticket Closure Audit（收敛审计 + canonical gate 对照）",
+  "sourceAuthority": "CANONICAL_PLAN",
+  "canonicalPlanSource": "planning/ai-native-v1/AI-native实施总计划.md",
+  "canonicalPlanSourceCommit": "6150edfb8851d89dcd5e1e8d2a0ca22aaf6e533a",
+  "canonicalSliceOrderNote": "canonical N7.2 未枚举固定切片次序。N72-R01 / N72-R08 是执行管理编号，不是 canonical 自带编号。本文件不再声称存在 canonical 下一片。",
+
+  "A. 责任收敛审计": {
+    "RESPONSIBILITY_INVENTORY_REVALIDATED": true,
+    "REDUNDANCY_MATRIX_REVALIDATED": true,
+    "revalidatedFrom": [
+      "planning/ai-native-v1/implementation/N7.2/responsibility-inventory.md",
+      "planning/ai-native-v1/implementation/N7.2/legacy-redundancy-matrix.json"
+    ],
+    "TOTAL_RESPONSIBILITIES": 9,
+    "counts": {
+      "AUTHORITATIVE_COUNT": 5,
+      "WITNESS_COUNT": 1,
+      "FALLBACK_COUNT": 1,
+      "DUPLICATE_EXECUTION_COUNT": 0,
+      "DEAD_COUNT": 0,
+      "SHARED_INFRASTRUCTURE_COUNT": 2,
+      "AMBIGUOUS_DUAL_AUTHORITY_COUNT": 0
+    },
+    "countNotes": "WITNESS_COUNT 与 FALLBACK_COUNT 同为 N72-R01（同一责任在 native 侧保留为比较见证、在 off 侧保留为回退路径，两重角色均需保留）。AUTHORITATIVE 含 N72-R02/R03/R04/R05/R07；SHARED_INFRASTRUCTURE 含 N72-R06/R09。",
+    "responsibilitiesRevalidated": [
+      { "id": "N72-R01", "classification": "FALLBACK", "secondaryRole": "WITNESS", "duplicateExecution": "REMOVED_BY_ACCEPTED_SLICE", "actionableRetirement": false, "keepReason": "AI_NATIVE_MODE 默认 off，Legacy 仍是正式权威；删除会破坏 off 与 rollback。正式调用已由 R01 从 2 降到 1。" },
+      { "id": "N72-R02", "classification": "AUTHORITATIVE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "资料核对责任的唯一证据来源；删除会破坏 FILE_INSPECT 证据链。" },
+      { "id": "N72-R03", "classification": "AUTHORITATIVE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "两个执行点服务互不重叠的目标形态，未观测到同一任务内重复。" },
+      { "id": "N72-R04", "classification": "AUTHORITATIVE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "同读取集合比较责任的正式来源，删除会退化 N4.2A 口径一致性保护。" },
+      { "id": "N72-R05", "classification": "AUTHORITATIVE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "服务层进程内复用比较逻辑，无额外正式调用；N4.2C 已锁定零 compare 调用。" },
+      { "id": "N72-R06", "classification": "SHARED_INFRASTRUCTURE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "共享正式业务基础设施；canonical 禁止当 Legacy 删除，也禁止在 Native 重写算法。" },
+      { "id": "N72-R07", "classification": "AUTHORITATIVE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "回答“两个配方之间的价差”，与 Native 同读取集合情景比较不是同一责任。" },
+      { "id": "N72-R08", "classification": "DEAD_REMOVED_BY_ACCEPTED_SLICE", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "责任特定的不可达入口已删除；全局描述符保留（Legacy/off/MCP/注册表/发布门禁需要）。" },
+      { "id": "N72-R09", "classification": "SHARED_INFRASTRUCTURE", "secondaryRole": "REQUIRED_SAFETY", "duplicateExecution": "NONE", "actionableRetirement": false, "keepReason": "BUS-P6 已判定无组件可全局删除；canonical N7.2 明示不整组删除 Money Guard 或 Legacy 逻辑。本轮零改动。" }
+    ],
+    "ACTIONABLE_CANDIDATES": [],
+    "CONVERGENCE_OUTCOME": "READY_FOR_N7_2_CLOSURE",
+    "NEXT_SLICE_REQUIRED": false,
+    "outcomeRationale": "两类真正可行动的责任已经被两个 accepted slice 各自消费完：R01 消费了唯一的真实 DUPLICATE_EXECUTION，R08 消费了唯一的责任特定 DEAD entrypoint。剩余全部责任都有明确的唯一角色，且 DUPLICATE_EXECUTION=0、AMBIGUOUS_DUAL_AUTHORITY=0。按 Supervisor 规则，此时不得继续制造 slice。"
+  },
+
+  "B. full_calculate 与 preview_recipe_cost 关系判定": {
+    "SUPERVISOR_PROMPT": "Determine whether it is compatibility alias / delegation / duplicate orchestration / duplicate formal execution / fallback / separate responsibility / shared surface.",
+    "FULL_CALCULATE_CLASSIFICATION": "SEPARATE_RESPONSIBILITY + DOCUMENTED_COMPATIBILITY_PREDECESSOR",
+    "PREVIEW_RECIPE_COST_CLASSIFICATION": "SEPARATE_RESPONSIBILITY + CURRENT_SUPPORTED_SURFACE",
+    "relationship": "兼容迁移关系（compatibility migration pointer），不是 alias，也不是 delegation：两者各自直连**不同的正式端点**。",
+    "FULL_CALCULATE_ACTUAL_DUPLICATE_EXECUTION": "NO",
+    "evidence": {
+      "distinctFormalEndpoints": {
+        "full_calculate": "POST /api/cost/full-estimate（api/routes/ai/executors/costExecutors.cjs:56-59，直接 postJson）",
+        "preview_recipe_cost": "按 overrides 分派到 /api/recipes/current-costs 或 /api/recipes/bom-draft 或 /api/recipes/:id/cost-preview（api/routes/ai/executors/businessExecutors.cjs:161-203）"
+      },
+      "documentedCompatibilityPointer": "api/services/costQueries.cjs:445-449 返回 compatibility{ deprecatedTool: 'full_calculate', replacement: 'preview_recipe_cost', managedRolesReplacedOnce: true }——这是给旧调用方的迁移提示，不是运行时双路径。",
+      "exposure": "两个工具同时出现在 Legacy 工具面（api/routes/ai/tools.cjs:30 与 :808）与 MCP 读取目录（api/mcp/catalog.cjs:6 与 :19），分别服务不同的用户问法；模型按任务类型选择其一。",
+      "perTaskInvocation": "同一次请求只执行其中一个工具，不存在对同一正式成本责任的两次执行。"
+    },
+    "UNDERLYING_FORMAL_CALL_COUNT": "单次工具调用对应单次正式端点调用；不存在因两者并存而增加的底层调用。",
+    "OFF_MODE_REQUIREMENT": "两者都在 off 模式的工具面内，移除任一都会缩减 Legacy 已验收的正式读取能力。",
+    "MCP_REQUIREMENT": "两者都在 MCP 读取目录内，且 scripts/verify-mcp-production-read.cjs 对 preview_recipe_cost 有正式产物断言（costBasis=currentFullCost / overridePreview、sourceOfTruth=costEngine）。",
+    "RETIREMENT_ELIGIBLE": false,
+    "retirementRationale": "canonical N7.2 退出标准：“无法证明冗余就保留并标明唯一作用范围，不为了少文件删除真实能力。” 两者职责不同、端点不同、都被 Legacy 与 MCP 需要，无法证明冗余。"
+  },
+
+  "C. canonical deterministic deep-api gate（跨机器歧义处理）": {
+    "CROSS_MACHINE_AMBIGUITY_RESOLVED": true,
+    "resolutionKind": "GATE_CLASSIFICATION（不是把计数统一成某个数字）",
+    "observedCounts": {
+      "acceptedMacOSEmptyWorktreeSource_489": "N5.2 final default worktree（源库为空：无 knowledge/part/recipe）",
+      "acceptedMacOSPopulatedSource_490": "N5.1B 显式指向已填充源库（253 knowledge / 89 parts / 1 recipe）",
+      "currentWindowsDSH_493": "本机 N7.2 工作区，源库为主检出 pump.db（38.6MB，SHA-256 868837C9…3E25）",
+      "R08_beforeAfter": "493 → 493（同机同源库，delta 0）"
+    },
+    "documentedRootCause（来自既有 N5.2 审计 artifacts）": {
+      "source": "planning/ai-native-v1/implementation/N5.2/deep-api-count-delta-audit.json",
+      "summary": "runner 在两个 commit 间逐字节相同（blob 3d29adf4b691cc3366617201c701502708076eb4）；差异来自**源库数据形状**，不是被删除的路由、能力、清单或 skip。8 项检查是数据形状条件分支，已在 N5.2 由确定性短缺件 fixture 恢复或判定为等价覆盖。"
+    },
+    "runnerMechanism": {
+      "sourceSelection": "scripts/run-deep-api-smoke.cjs:31-33 —— DEEP_API_SOURCE_DATABASE_PATH 或工作区 ./pump.db",
+      "isolation": "runner 用 better-sqlite3 backup() 把源库复制到 os.tmpdir() 下的临时目录（:3998-4000），再注入确定性 fixture，并在结束时校验 integrity_check=ok 与 foreign_key_check=0",
+      "countMeaning": "报告中的 passed 即本次实际执行的断言条目数（results.length，:4159）；条件分支越多命中，计数越大",
+      "conditionalGatesFound": [
+        "scripts/run-deep-api-smoke.cjs:1368 —— `if (orders.length > 0) await request('订单详情', …)`",
+        "scripts/run-deep-api-smoke.cjs:1369 —— `if (knowledge.length > 0) { await request('知识详情', …) }`",
+        "scripts/run-deep-api-smoke.cjs:1062 —— `if (orderId) await request('GET纯度-订单详情', …)`",
+        "scripts/run-deep-api-smoke.cjs:1192-1193 —— `if (detail?.content?.includes(String(expectedPrice))) { results.push(…) }`（唯一在条件内直接 push 的条目）"
+      ],
+      "honestLimitation": "489→490→493 三档之间仍有 3 项未能逐条还原：原始 macOS 源库（/Users/dan/Documents/水泵工厂管理助手/pump.db）在本机不可得，且 runner 自 N5.2 之后又经过 5 个 ticket 的演进。本文件不虚构这 3 项的归因。"
+    },
+    "CANONICAL_DEEP_API_INPUT": {
+      "status": "PROPOSED_AND_PARTIALLY_EXISTING",
+      "definition": "以**确定性 canonical 源**代替“工作区里恰好存在的 pump.db”，使同一 accepted revision 在不同机器上得到同一 canonical check set。",
+      "alreadyExistingPieces": [
+        "DEEP_API_SOURCE_DATABASE_PATH 环境变量（:31-33）允许把源库指向任意确定性快照",
+        "临时 SQLite 克隆 + 确定性 fixture 注入（:3998-4003）",
+        "确定性 current-BJT 行情快照注入（seedMcpDailyMarketSnapshotFixture）",
+        "临时库 integrity / 外键校验（:4150-4154）"
+      ],
+      "missingPiece": "仓库内没有 checked-in 的 canonical 源库 fixture；默认回退到工作区 ./pump.db，因此默认行为天然依赖本机数据形状。",
+      "recommendedDefinition": "canonical gate = 用一个 checked-in 的确定性源库快照（或最小 schema+seed 生成器）作为 DEEP_API_SOURCE_DATABASE_PATH，配合既有确定性 fixture 与固定 runner 配置；其 passed 计数即为跨机器可复现的 canonical 基线。",
+      "explicitlyRejectedAlternatives": [
+        "把 expected 数字硬编码",
+        "把 493 强行改成 489",
+        "削弱业务断言",
+        "跳过检查",
+        "伪造生产铜价行为",
+        "改动生产数据库",
+        "删除扩展数据形状覆盖"
+      ]
+    },
+    "CANONICAL_DEEP_API_COUNT": "待确定（需要先建立 checked-in 确定性源快照；本轮未建立，故不编造数字）",
+    "CANONICAL_DEEP_API_REPRODUCIBLE": false,
+    "reproducibleRationale": "在缺少 checked-in 确定性源之前，canonical 基线不能在跨机器意义上复现；这是 N7.2 收口前的唯一未决项，已如实登记。",
+    "EXTENDED_SOURCE_DB_COUNT": 493,
+    "EXTENDED_SOURCE_DB_CLASSIFICATION": "EXTENDED_DATA_SHAPE_DEPENDENT_COVERAGE —— 由本机更丰富的业务数据额外启用的检查；合法地大于 canonical 计数，**不得**当作全仓通用基线呈现。",
+    "DEEP_API_COVERAGE_REGRESSION": "NO",
+    "coverageRegressionEvidence": "同一 DSH 环境、同一源库：R08 前 493/493、R08 后 493/493，failed 0，未新增或跳过条目，未引入 fake copper fallback。"
+  },
+
+  "D. accepted slices 回归确认": {
+    "R01_REGRESSION": "PASS —— tests/aiTaskLegacyRetirementN72.test.cjs 4/4 PASS，正式能力调用仍为 1（去重保持有效）",
+    "R08_REGRESSION": "PASS —— CANONICAL_PROJECTORS 中 preview_recipe_cost 键仍不存在；Native 任务路径无可执行调用方；全局 preview_recipe_cost 在 Legacy 工具面、能力注册表、MCP 目录中仍完整可用",
+    "N7_1_REGRESSION": "PASS",
+    "N6_2_REGRESSION": "PASS",
+    "N6_1_REGRESSION": "PASS",
+    "N5_2_REGRESSION": "PASS",
+    "N5_1B_REGRESSION": "PASS",
+    "N5_1A_REGRESSION": "PASS",
+    "N4_REGRESSION": "PASS"
+  },
+
+  "E. canonical N7.2 强制要求对照": {
+    "N7_2_CANONICAL_REQUIREMENTS_PASS": true,
+    "requirements": [
+      { "canonicalText": "用既有 legacy witness 与冗余矩阵逐项证明新的责任覆盖", "status": "PASS", "evidence": "复用 BUS-P6 冻结资产未修改；在其之外补充 N7.2 专属 witness 与矩阵，覆盖 9 条责任。" },
+      { "canonicalText": "每次只迁移一个职责切片", "status": "PASS", "evidence": "本轮为审计轮，未新增实现；两个 accepted slice 各自只处理一个责任。" },
+      { "canonicalText": "不整组删除 Money Guard 或 Legacy 逻辑", "status": "PASS", "evidence": "N72-R09 零改动；Legacy 运行时/工具面/MCP 目录零改动。" },
+      { "canonicalText": "先移除重复执行", "status": "PASS", "evidence": "N72-R01：正式能力调用 2→1。" },
+      { "canonicalText": "再确认无调用方", "status": "PASS", "evidence": "N72-R08：静态/动态可执行调用方 1/0 → 0/0。" },
+      { "canonicalText": "最后才删除代码", "status": "PASS", "evidence": "唯一删除是经证明不可达的 Native 投影键。" },
+      { "canonicalText": "用户可感知用例不退化", "status": "PASS", "evidence": "R01 witness 业务合同对比；全仓 2968/2968。" },
+      { "canonicalText": "关键安全突变仍拒绝", "status": "PASS", "evidence": "FAIL_CLOSED 测试；非法模式 fail closed；Owner 隔离测试。" },
+      { "canonicalText": "provider 调用与答案重复无回升", "status": "PASS", "evidence": "两个 slice 均未触碰模型调用面（answerModelCalls=0），tool 调用数未上升。" },
+      { "canonicalText": "Legacy/OUT_OF_SCOPE 保护仍完整", "status": "PASS", "evidence": "BUS-P6 五组保护组件零改动；legacyRedundancyAudit 测试 PASS。" },
+      { "canonicalText": "无法证明冗余就保留并标明唯一作用范围", "status": "PASS", "evidence": "N72-R06/R07/R09 与 full_calculate 均保留并逐项标明唯一作用范围。" },
+      { "canonicalText": "不为了少文件删除真实能力", "status": "PASS", "evidence": "全局 preview_recipe_cost 描述符保留；full_calculate 保留；本轮 0 处能力删除。" }
+    ]
+  },
+
+  "F. 整票收口条件": {
+    "N7_2_WHOLE_CLOSURE_READY": true,
+    "conditions": [
+      { "condition": "unresolved duplicate execution = 0", "status": "PASS", "value": 0 },
+      { "condition": "ambiguous dual authority = 0", "status": "PASS", "value": 0 },
+      { "condition": "every remaining Legacy responsibility has explicit unique role", "status": "PASS", "evidence": "9/9 责任均已分类并给出 KEEP_REASON" },
+      { "condition": "no known DEAD responsibility remains unresolved", "status": "PASS", "value": 0 },
+      { "condition": "off mode valid", "status": "PASS" },
+      { "condition": "shadow mode valid", "status": "PASS" },
+      { "condition": "owner mode valid", "status": "PASS" },
+      { "condition": "rollback valid", "status": "PASS" },
+      { "condition": "Native write default false", "status": "PASS" },
+      { "condition": "no duplicate business effects", "status": "PASS", "value": "WRITE_DUPLICATE_EFFECTS=0；PRODUCTION_NATIVE_WRITES=0" },
+      { "condition": "witness evidence complete", "status": "PASS" },
+      { "condition": "canonical mandatory requirements satisfied", "status": "PASS" }
+    ],
+    "N7_2_CLOSURE_BLOCKERS": [
+      "canonical deterministic deep-api 源快照尚未建立，因此跨机器 canonical 基线数字仍待确定（见 C 节）。这不阻塞「责任退出」已完成的结论，但需要在正式宣告 N7.2 收口前解决，否则会留下跨机器数字歧义。"
+    ],
+    "closureBlockerClassification": "GATE_DEFINITION_PENDING，非架构矛盾，非 BLOCKED。"
+  }
+}

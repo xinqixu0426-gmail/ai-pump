@@ -11,11 +11,56 @@ const {
     listBusinessCapabilities,
 } = require('../api/capabilities/registry.cjs');
 const { executeToolCall } = require('../api/routes/ai/executor.cjs');
+const { AI_NATIVE_TOOLS_V2 } = require('../api/services/aiNativeToolDefinitionsV2.cjs');
+
+// The accepted AI Native V1 design gives Task V2 its own deliberately
+// constrained tool surface (N2.2) and deliberately keeps it OUT of the frozen
+// Legacy AI_TOOLS catalogue.  Those registrations are therefore legitimately
+// absent from AI_TOOLS.  This list is a structural contract, not a convenient
+// number: every entry must still be a registered capability, must be declared
+// private-assistant-only, and must really exist in the native tool surface.
+const NATIVE_ONLY_TOOL_NAMES = Object.freeze([
+    'compare_recipe_scenarios',
+    'preview_profitability',
+    'preview_virtual_readiness',
+]);
 
 test('AI 能力注册表：全部工具唯一登记且具备强制契约字段', () => {
+    // The registry is exactly the frozen Legacy catalogue plus the accepted
+    // native-only surface.  This still fails on a missing registration and on
+    // any unreachable registration on either side of that boundary, which a
+    // bare `registry.length === AI_TOOLS.length` no longer can.
     assert.equal(assertAiToolRegistryComplete(AI_TOOLS), true);
-    assert.equal(Object.keys(AI_CAPABILITY_REGISTRY).length, AI_TOOLS.length);
-    assert.equal(listAiCapabilities().length, AI_TOOLS.length);
+    assert.equal(
+        Object.keys(AI_CAPABILITY_REGISTRY).length,
+        AI_TOOLS.length + NATIVE_ONLY_TOOL_NAMES.length
+    );
+    assert.equal(
+        listAiCapabilities().length,
+        AI_TOOLS.length + NATIVE_ONLY_TOOL_NAMES.length
+    );
+
+    const nativeToolSurface = new Set(
+        AI_NATIVE_TOOLS_V2.map(tool => tool?.function?.name).filter(Boolean)
+    );
+    for (const name of NATIVE_ONLY_TOOL_NAMES) {
+        const capability = getAiCapability(name);
+        assert.ok(capability, `${name} 未登记到能力注册表`);
+        assert.ok(nativeToolSurface.has(name), `${name} 不在已接受的 Native 工具面内`);
+        assert.equal(
+            capability.mcpExposure,
+            'private_assistant_only',
+            `${name} 必须保持私有助理边界，不得进入对外 MCP 目录`
+        );
+        assert.ok(
+            !AI_TOOLS.some(tool => tool.function.name === name),
+            `${name} 不得进入冻结的 Legacy AI_TOOLS 目录`
+        );
+        assert.ok(
+            capability.access === 'read' && capability.operation === 'preview',
+            `${name} 必须是只读 preview 能力`
+        );
+    }
 
     for (const tool of AI_TOOLS) {
         const name = tool.function.name;
@@ -64,6 +109,44 @@ test('AI 能力注册表：全部工具唯一登记且具备强制契约字段',
 test('AI 能力注册表：Ontology 配方零件关系能力保持私有助理边界', () => {
     assert.equal(getAiCapability('get_recipe_parts').mcpExposure, 'private_assistant_only');
     assert.equal(getAiCapability('get_recipes_by_part').mcpExposure, 'private_assistant_only');
+});
+
+test('AI 能力注册表：Native 工具面与 Legacy 目录的边界由结构不变量守护', () => {
+    // 1. Legacy contract: the frozen catalogue is unchanged by Native work.
+    const legacyNames = AI_TOOLS.map(tool => tool.function.name);
+    assert.equal(new Set(legacyNames).size, legacyNames.length, 'Legacy AI_TOOLS 出现重复工具名');
+    assert.equal(legacyNames.length, 80, '冻结的 Legacy AI_TOOLS 目录规模发生变化');
+    for (const name of NATIVE_ONLY_TOOL_NAMES) {
+        assert.ok(!legacyNames.includes(name), `${name} 不得进入冻结的 Legacy AI_TOOLS 目录`);
+    }
+
+    // 2. Missing registration still fails: dropping any registration is caught
+    //    by the registry's own completeness guard.
+    assert.equal(assertAiToolRegistryComplete(AI_TOOLS), true);
+
+    // 3. Unexpected Native exposure still fails: a native-only exemption that
+    //    is not a registered private-assistant-only capability is rejected.
+    const privateOnly = listAiCapabilities()
+        .filter(capability => capability.mcpExposure === 'private_assistant_only')
+        .map(capability => capability.toolName);
+    assert.deepEqual(
+        privateOnly.filter(name => !legacyNames.includes(name)).sort(),
+        [...NATIVE_ONLY_TOOL_NAMES].sort(),
+        'Native 私有边界发生了变化：只允许已接受的 Native 工具面处于 private_assistant_only'
+    );
+
+    // 4. Every registered capability is reachable, either through the frozen
+    //    Legacy catalogue or through the accepted Native tool surface.
+    const nativeSurface = new Set(AI_NATIVE_TOOLS_V2.map(tool => tool?.function?.name).filter(Boolean));
+    const reachable = new Set([...legacyNames, ...nativeSurface]);
+    const unreachable = Object.keys(AI_CAPABILITY_REGISTRY).filter(name => !reachable.has(name));
+    assert.deepEqual(unreachable, [], `存在不可达的能力登记: ${unreachable.join(', ')}`);
+
+    // 5. The two surfaces stay intentionally separate.
+    for (const name of nativeSurface) {
+        assert.ok(getAiCapability(name), `${name} 未登记到能力注册表`);
+        assert.ok(!legacyNames.includes(name), `${name} 不应出现在 Legacy 目录中`);
+    }
 });
 
 test('AI 工具目录：人类可读 schema 使用规范业务术语且保留稳定字段名', () => {
@@ -161,6 +244,13 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'rotor.template_draft',
         'rotor.recipe_draft',
         'cost.recipe_difference',
+        // Accepted Native V1 additions (N2.2 / N4.1C / N4.2A / N4.2B): one
+        // same-read-set scenario comparison and the two previews that must
+        // share its read set. They are registered formal preview capabilities
+        // and carry the same strict contract as every other preview below.
+        'recipes.scenario_compare_preview',
+        'cost.profitability_preview',
+        'inventory.virtual_readiness_preview',
         'collections.read',
         'relations.read',
         'recipes.by_coil',
@@ -311,7 +401,17 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             assert.ok(capability.outputSchema);
             assert.ok(capability.sourceOfTruth);
             assert.equal(capability.idempotency, 'inherent');
-            assert.equal(capability.transactionality, 'not_applicable');
+            // `not_applicable` means the preview takes no part in a business
+            // write transaction.  The accepted Native read-set previews
+            // (N2.2/N4.1C/N4.2A/N4.2B) additionally declare that all of their
+            // cost facts must come from ONE read transaction -
+            // `read_transaction` is already the established value for that
+            // meaning on the query capabilities above.  Both are read-only
+            // declarations; a write transactionality is still rejected.
+            assert.ok(
+                ['not_applicable', 'read_transaction'].includes(capability.transactionality),
+                `${capabilityId} 的 preview transactionality 非法: ${capability.transactionality}`
+            );
             assert.equal(capability.audit, 'none');
             continue;
         }

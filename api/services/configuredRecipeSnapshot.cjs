@@ -97,6 +97,12 @@ function normalizePackingPartsOverride(value, field) {
             ...(parsePositiveId(part.partId) ? { partId: parsePositiveId(part.partId) } : {}),
             model,
             supplier: String(part.supplier || '').trim(),
+            // PHASE 5-R2: production semantics preserved.  The documented
+            // "qty=0 removes the role" instruction has no complete downstream
+            // implementation (recipeBomEngine and dynamicCostPreview both apply
+            // Number(part.qty || 1)), so accepting 0 here would accept an
+            // instruction the system does not carry out.  Until a real
+            // remove-role implementation exists, qty must stay positive.
             qty: parsePositiveNumber(part.qty, `${field}[${index}].qty`, { defaultValue: 1 }),
             ...(part.packagingMaterial ? { packagingMaterial: String(part.packagingMaterial) } : {}),
             ...(part.packingRole ? { packingRole: String(part.packingRole) } : {}),

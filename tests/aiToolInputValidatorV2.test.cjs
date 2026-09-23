@@ -108,6 +108,27 @@ test('V2 工具输入：未知字段、非法枚举和缺失必填统一在执�
     }
 });
 
+test('N4.2B Native virtual readiness tool has one strict, server-owned inventory request shape', () => {
+    const args = {
+        version: 1,
+        basisRef: {
+            kind: 'RECIPE_SCENARIO', recipeId: 7,
+            comparisonInput: { version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [] },
+            scenarioKey: 'base',
+        },
+        quantity: 300,
+    };
+    assert.deepEqual(validateAiToolArgs('preview_virtual_readiness', args), args);
+    for (const invalid of [
+        { ...args, stock: 500 },
+        { ...args, quantity: 0 },
+        { ...args, quantity: 1.5 },
+        { ...args, basisRef: { ...args.basisRef, ignoreExistingOrders: true } },
+        { ...args, basisRef: { ...args.basisRef, kind: 'ORDER' } },
+        { ...args, basisRef: { ...args.basisRef, comparisonInput: { ...args.basisRef.comparisonInput, scenarios: [{ scenarioKey: 'candidate', label: '候选', overrides: {}, stock: 1 }] } } },
+    ]) assert.throws(() => validateAiToolArgs('preview_virtual_readiness', invalid), AiToolInputValidationError);
+});
+
 test('V2 写工具输入：拒绝空白目标、空批次、零变动和冲突调价方式', () => {
     assert.throws(
         () => validateAiToolArgs('update_recipe', { clearSpec: true }),

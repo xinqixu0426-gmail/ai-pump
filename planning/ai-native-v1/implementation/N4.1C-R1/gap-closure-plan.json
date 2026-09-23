@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R1",
+  "startCommit": "3369200cff1840068fa1f2e0aa92d761e1f52e55",
+  "actualHeadAtAudit": "fd8fd2fa5b8e73c12a67cf07993dc8976d6e8546",
+  "missingImplementation": [
+    "Explicit packing role removal has no TaskProposal/controller representation; qty=0 cannot yet be sourced from an authoritative user span.",
+    "Explicit all-packing clear intent is not represented separately from omitted packing overrides.",
+    "Surface missing-cost follow-up has no bound clarification continuation."
+  ],
+  "missingFocusedTests": [
+    "Supplier and role mismatch matrix evidence.",
+    "Removal, clear-all, policy, missing-price, read-set hash, source-version, and source comparison adversarial matrices."
+  ],
+  "missingIntegrationTests": [
+    "Explicit removal and clear-all controller flows.",
+    "Surface cost clarification continuation.",
+    "Metadata-only and partial source comparison answer boundaries."
+  ],
+  "missingMatrices": [
+    "All ten mandatory N4.1C evidence JSON files are incomplete or absent.",
+    "N4.1C-R1 override-application and extracted-candidate matrices are absent."
+  ],
+  "missingLiveCases": [
+    "Dedicated strict-serial 12-family x2 corpus plus 3 extra runs for each N4.1 exit family (33 runs total)."
+  ],
+  "alreadySatisfied": [
+    "Scenario API/native adapter accepts packingParts and surface fields.",
+    "Formal packing identity/category/role checks and fixed-role merge exist.",
+    "Mode=none zero policy and no cross-mode cost inheritance exist.",
+    "Source evidence, extracted candidate, and source/live comparison primitives exist.",
+    "Full repository gates were green at the prior N4.1C checkpoint."
+  ]
+}

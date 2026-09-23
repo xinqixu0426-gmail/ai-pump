@@ -1,0 +1,159 @@
+{
+  "ticket": "N5.1B-R5",
+  "status": "PASS",
+  "mandatoryRequirements": [
+    {
+      "requirement": "single-slot DETACHED Worker",
+      "implementationEvidence": "worker-single-slot-validation.json",
+      "testEvidence": "N5.1B worker focused cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "lease claim race and token rotation",
+      "implementationEvidence": "lease-contract-validation.json",
+      "testEvidence": "two independent connections case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "lease fencing and stale result discard",
+      "implementationEvidence": "lease-fencing-validation.json",
+      "testEvidence": "fencing case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "heartbeat and no long SQLite transaction",
+      "implementationEvidence": "worker-single-slot-validation.json",
+      "testEvidence": "slow remote case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "durable pre-call model/tool/API reservation",
+      "implementationEvidence": "budget-reservation-validation.json",
+      "testEvidence": "budget reservation case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "monotonic detached checkpoint budget",
+      "implementationEvidence": "budget-checkpoint-merge-validation.json",
+      "testEvidence": "R5 focused active/budget cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "activeMs/deadline recovery",
+      "implementationEvidence": "budget-deadline-recovery-validation.json",
+      "testEvidence": "node --test tests/aiTaskWorkerV2.test.cjs (17/17)",
+      "status": "PASS"
+    },
+    {
+      "requirement": "expired lease recovery",
+      "implementationEvidence": "restart-recovery-validation.json",
+      "testEvidence": "fresh recovery cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "source and TaskSpec rehydration",
+      "implementationEvidence": "controller-rehydration-validation.json",
+      "testEvidence": "R1/R3 focused cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "trusted receipt and fact rehydration",
+      "implementationEvidence": "controller-rehydration-validation.json",
+      "testEvidence": "fresh recovery cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "succeeded step reuse",
+      "implementationEvidence": "successful-step-reuse-validation.json",
+      "testEvidence": "four-goal restart case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "PLANNED step recovery",
+      "implementationEvidence": "interrupted-read-retry-validation.json",
+      "testEvidence": "R5 retry coverage",
+      "status": "PASS"
+    },
+    {
+      "requirement": "interrupted QUERY bounded retry",
+      "implementationEvidence": "interrupted-read-retry-validation.json",
+      "testEvidence": "R5 QUERY Worker dispatch",
+      "status": "PASS"
+    },
+    {
+      "requirement": "interrupted PREVIEW bounded retry",
+      "implementationEvidence": "interrupted-read-retry-validation.json",
+      "testEvidence": "R5 PREVIEW Worker dispatch",
+      "status": "PASS"
+    },
+    {
+      "requirement": "retry exhaustion has no third call",
+      "implementationEvidence": "interrupted-read-retry-validation.json",
+      "testEvidence": "R5 PREVIEW third-attempt block",
+      "status": "PASS"
+    },
+    {
+      "requirement": "COMMAND recovery safety",
+      "implementationEvidence": "command-recovery-boundary.json",
+      "testEvidence": "recovery and cancellation cases",
+      "status": "PASS"
+    },
+    {
+      "requirement": "cancellation unknown effect",
+      "implementationEvidence": "cancellation-unknown-effect-validation.json",
+      "testEvidence": "R4 cancellation integration",
+      "status": "PASS"
+    },
+    {
+      "requirement": "WAITING_INPUT lease release/no spin",
+      "implementationEvidence": "worker-single-slot-validation.json",
+      "testEvidence": "waiting input case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "same-task DETACHED resume",
+      "implementationEvidence": "four-goal-restart-validation.json",
+      "testEvidence": "fresh Worker B case",
+      "status": "PASS"
+    },
+    {
+      "requirement": "four-goal crash/restart",
+      "implementationEvidence": "four-goal-restart-validation.json",
+      "testEvidence": "R5 real Controller integration",
+      "status": "PASS"
+    },
+    {
+      "requirement": "real DeepSeek DETACHED smoke",
+      "implementationEvidence": "n5.1b-live-results.json",
+      "testEvidence": "two families / four successful runs",
+      "status": "PASS"
+    },
+    {
+      "requirement": "N5.1A regression",
+      "implementationEvidence": "n5.1b-validation-summary.json",
+      "testEvidence": "final npm test",
+      "status": "PASS"
+    },
+    {
+      "requirement": "N4 regression",
+      "implementationEvidence": "n5.1b-validation-summary.json",
+      "testEvidence": "final npm test",
+      "status": "PASS"
+    },
+    {
+      "requirement": "repository gates",
+      "implementationEvidence": "n5.1b-validation-summary.json",
+      "testEvidence": "final gates",
+      "status": "PASS"
+    },
+    {
+      "requirement": "business and production safety",
+      "implementationEvidence": "n5.1b-validation-summary.json",
+      "testEvidence": "temporary SQLite only; no deployment/push",
+      "status": "PASS"
+    }
+  ],
+  "partialItems": 0,
+  "unprovenItems": 0,
+  "notRunItems": 0
+}

@@ -368,7 +368,15 @@ async function executeToolCallImplementation(toolName, args, options = {}) {
                 return buildWriteConfirmation(toolName, args, {
                     ...options,
                     confirmationRows: prepared.confirmationRows,
-                    executionContext: prepared.executionContext,
+                    // Formal preflight data remains authoritative.  A caller may
+                    // add a server-owned task reference, but cannot replace the
+                    // preflight context used by the protected command.
+                    executionContext: {
+                        ...(prepared.executionContext || {}),
+                        ...(options.executionContext?.nativeTask
+                            ? { nativeTask: options.executionContext.nativeTask }
+                            : {}),
+                    },
                 });
             } catch (error) {
                 if (options.signal?.aborted || error?.name === 'AbortError'

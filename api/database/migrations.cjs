@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { CATALOG_IDENTITY_SCHEMA_SQL } = require('./catalogSchema.cjs');
 const {
     PERSONAL_MEMORY_SCHEMA_SQL,    BUSINESS_CHANGE_INDEXES_SQL,
+    AI_TASK_PERSISTENCE_SCHEMA_SQL,
     BUSINESS_CHANGE_SCHEMA_SQL,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
@@ -3862,6 +3863,14 @@ const MIGRATIONS = Object.freeze([
                 CREATE INDEX IF NOT EXISTS idx_recipes_name_active
                     ON recipes(name) WHERE deleted_at IS NULL;
             `);
+        },
+    },
+    {
+        version: 88,
+        name: 'ai_native_durable_task_persistence',
+        signature: 'ai-tasks-steps-evidence-events-task-v2-v1',
+        up(db) {
+            db.exec(AI_TASK_PERSISTENCE_SCHEMA_SQL);
         },
     },
 ]);

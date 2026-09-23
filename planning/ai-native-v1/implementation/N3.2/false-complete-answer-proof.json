@@ -1,0 +1,10 @@
+{
+  "caseId": "BU-07/NV-19",
+  "controllerProof": "recipe-scoped negative only",
+  "answerContractProof": "RECIPE_CATALOG_NEGATIVE_V1 requires complete bounded negative fact",
+  "validatorAdversarialProof": "global phrases rejected by live safety evaluator and deterministic presenter never emits them",
+  "fallbackProof": "answer boundary is deterministic and uses no provider",
+  "deepSeekRuns": 10,
+  "falseCompleteCount": 0,
+  "finalBlockerStatus": "CLOSED"
+}

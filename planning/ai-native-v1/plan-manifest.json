@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "baseCommit": "251f822491d677056f2d7b82f09473a51321d8e1",
+  "repo": "xinqixu0426-gmail/ai-pump",
+  "implementationVerified": false,
+  "productionAuthorized": false,
+  "startOnly": "N0.1",
+  "stages": [
+    {
+      "id": "N0",
+      "title": "现状盘点与可复现基线",
+      "dependsOn": [],
+      "tickets": [
+        "N0.1",
+        "N0.2"
+      ]
+    },
+    {
+      "id": "N1",
+      "title": "完整目标合同与增量理解",
+      "dependsOn": [
+        "N0"
+      ],
+      "tickets": [
+        "N1.1",
+        "N1.2"
+      ]
+    },
+    {
+      "id": "N2",
+      "title": "正式能力适配与同口径情景比较",
+      "dependsOn": [
+        "N1"
+      ],
+      "tickets": [
+        "N2.1",
+        "N2.2"
+      ]
+    },
+    {
+      "id": "N3",
+      "title": "首个AI-native只读闭环",
+      "dependsOn": [
+        "N2"
+      ],
+      "tickets": [
+        "N3.1",
+        "N3.2"
+      ]
+    },
+    {
+      "id": "N4",
+      "title": "跨业务调查与业务能力缺口",
+      "dependsOn": [
+        "N3"
+      ],
+      "tickets": [
+        "N4.1",
+        "N4.2",
+        "N4.3"
+      ]
+    },
+    {
+      "id": "N5",
+      "title": "任务持久化、恢复与工作台",
+      "dependsOn": [
+        "N3"
+      ],
+      "tickets": [
+        "N5.1",
+        "N5.2"
+      ]
+    },
+    {
+      "id": "N6",
+      "title": "既有写入协议接入",
+      "dependsOn": [
+        "N4",
+        "N5"
+      ],
+      "tickets": [
+        "N6.1",
+        "N6.2"
+      ]
+    },
+    {
+      "id": "N7",
+      "title": "生产渐进发布与旧职责退出",
+      "dependsOn": [
+        "N3"
+      ],
+      "tickets": [
+        "N7.1",
+        "N7.2",
+        "N7.3"
+      ]
+    }
+  ],
+  "releaseSlices": {
+    "readOnlyPilot": [
+      "N0",
+      "N1",
+      "N2",
+      "N3",
+      "N7"
+    ],
+    "crossDomain": [
+      "N4",
+      "N7"
+    ],
+    "durableTasks": [
+      "N5",
+      "N7"
+    ],
+    "writes": [
+      "N6",
+      "N7"
+    ]
+  },
+  "newHttpPaths": [
+    {
+      "method": "POST",
+      "path": "/api/recipes/:id/scenario-compare-preview",
+      "stage": "N2",
+      "classification": "PROPOSED_NEW"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/tasks",
+      "stage": "N5",
+      "classification": "PROPOSED_NEW"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/tasks/:taskId",
+      "stage": "N5",
+      "classification": "PROPOSED_NEW"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/tasks/:taskId/events",
+      "stage": "N5",
+      "classification": "PROPOSED_NEW"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/tasks/:taskId/resume",
+      "stage": "N5",
+      "classification": "PROPOSED_NEW"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/tasks/:taskId/cancel",
+      "stage": "N5",
+      "classification": "PROPOSED_NEW"
+    }
+  ],
+  "modifiedHttpPaths": [
+    {
+      "method": "POST",
+      "path": "/api/ai/chat",
+      "stage": "N5",
+      "classification": "PROPOSED_OPTIONAL_FIELD",
+      "field": "nativeTaskContext",
+      "schema": "ForegroundTaskContextV1"
+    }
+  ],
+  "designAuditStatus": "PASS",
+  "startAuthorization": "Only when the owner gives the N0.1 prompt to Codex; no automatic implementation or production change."
+}

@@ -1,0 +1,223 @@
+{
+  "version": 3,
+  "artifact": "AiAnswerPresentationRemediationPart1V1",
+  "status": "PART1_R2_TURN_LEVEL_OBLIGATION_CLOSED",
+  "ticket": "AI Answer Presentation Remediation V1 — Part 1-R2（轮次级金额展示要求 + 安全/补全分离）",
+  "branch": "ai-native/prod-integration-v1",
+  "worktree": "C:\\Users\\Dan\\Documents\\pump-ai-native-prod-integration",
+  "baselineCommitted": "fa639ed9420ac89e41e0cab223ef172a9b2e0b55",
+  "supervisorAuthority": {
+    "precisionDecisionApproved": "同一 canonical fact -> 一种展示表示；不强制所有金额两位小数；正式源值可保留精度；raw precision 仅在显式请求时展示并标注",
+    "part1DesignApproved": "requiredFacts 契约 + 五级动作优先级",
+    "hardConstraint": "needMoneyConclusion 不得退化为关键词/正则意图识别器",
+    "antiRecurrenceRule": "不得因为金额问题删除已验证的非金额结论；优先 SANITIZE_AND_COMPLETE，FULL_REPLACE 仅作最后手段",
+    "doNotRollBack": "当前未提交修改为阶段内工作，不得回退"
+  },
+
+  "implementedContract": {
+    "principle": "requiredFacts 来自既有能力语义契约（api/capabilities/registry.cjs 的 operation 字段），不是关键词/正则意图识别",
+    "capabilitySemantics": {
+      "operation_preview": "本轮目的就是给出金额结论 → 有金额展示义务（compare_recipes / build_recipe_bom_draft / preview_recipe_cost）",
+      "operation_query": "本轮目的是查询事实 → 附带 cost 字段默认没有展示义务（search_coils / get_order_detail）",
+      "operation_command_maintenance": "无金额展示义务"
+    },
+    "decisionPriority": [
+      "1. replace —— 正文不可用（空/泄漏内部指令），安全性优先于一切",
+      "2. replace —— 正文声称了无依据金额（unsupported_money_claim）",
+      "3. none —— 正文已含完整金额表（money_table_already_present）",
+      "4. replaceTable —— 正文有不完整金额表，只替换表本身，保留表外正文",
+      "5. none —— required canonical money facts 已完整呈现（no_money_detail_obligation）",
+      "6. append —— 有金额展示义务但正文未写出全部正式金额"
+    ],
+    "presentedFactsShortCircuit": "presentedMoneyFacts(answer, toolResults)：本轮全部正式金额是否都已出现在正文中；成立时直接 none，这是「required facts fully presented → NONE」的最高优先短路",
+    "quantityVsMoneyBinding": "moneyClaimValues 现在按「数字与量词/数量名词的绑定」判定：5套/3个/2天 或 库存5 是数量不是金额；带货币单位或金额词前缀（成本285.8）仍是金额声明。正式金额集合参与裁决，避免把「零件 12-140，总成本 116.99」里的 12 与 116.99 一起误判"
+  },
+
+  "defectsAddressedByPart1": {
+    "LEGACY-AI-ANSWER-001": "非金额结论不再被删除：验证过的语义正文保留，金额问题只走 append/replaceTable",
+    "LEGACY-AI-ANSWER-003": "模型写出的表变体（少行/多行/同值不同精度/带旁注）按结构化「对象+项目」键去重，不再整块重复追加",
+    "LEGACY-AI-ANSWER-004": "同一 canonical fact 只有一种展示表示：formatMoneyDisplay 保留来源精度（166.7136 / 195.84155 不再被截断为两位小数），并按同值取最高精度表示统一其余叫法",
+    "LEGACY-AI-ANSWER-005": "查询类能力附带的 cost 字段不再覆盖正确非金额结论（「当前库存5套。」保持原样）"
+  },
+
+  "filesChanged": [
+    "api/services/aiMoneyGuard.cjs",
+    "api/services/aiAssistantAnswer.cjs",
+    "api/services/aiAssistantRuntime.cjs",
+    "tests/aiMoneyGuard.test.cjs",
+    "tests/fixtures/ontology-coil-recipe-legacy-oracle-v2.json",
+    "tests/fixtures/frozen-history/manifest-v1.json"
+  ],
+
+  "newGuardContract": {
+    "moneyGuardDecision": "返回 { action, summary, appendable, unsupportedClaims, citesFormalAmount, reason }；action ∈ none | append | replaceTable | replace",
+    "exportedHelpers": [
+      "moneyClaimValues(answer, formalValues)",
+      "evaluateAnswerMoney",
+      "moneyGuardDecision",
+      "moneyDetailObligation(answer, toolResults)",
+      "presentedMoneyFacts(answer, toolResults)",
+      "citesResultFact(answer, toolResults)",
+      "requiresMoneyDetail(toolResults)"
+    ],
+    "runtimeCallSite": "aiAssistantRuntime.cjs 第 879-906 段：调用方不再自行重复实现守卫判据，统一交给 moneyGuardDecision 决定 none/append/replaceTable/replace"
+  },
+
+  "testEvidence": {
+    "tests/aiMoneyGuard.test.cjs": { "tests": 10, "pass": 10, "fail": 0 },
+    "tests/aiAssistantRuntime.test.cjs": { "tests": 86, "pass": 86, "fail": 0 },
+    "tests/aiExecutorBehavior.test.cjs": { "tests": 126, "pass": 126, "fail": 0 },
+    "tests/ontologyRoutingCanary.test.cjs": { "tests": 42, "pass": 42, "fail": 0, "note": "含新增的 V2 不可变 / V3 展示 delta 用例" },
+    "tests/n73ApiReferenceCoverage.test.cjs + tests/n73HandoffDocumentation.test.cjs": { "tests": 15, "pass": 15, "fail": 0, "note": "冻结 oracle / 版本化 gate；闭合记录已按新的 runtime revision 重新绑定" },
+    "npm test": { "tests": 3015, "pass": 3015, "fail": 0, "exitCode": 0, "note": "本次未改动任何既有用例的语义；仅新增守卫/契约/冻结版本化用例" },
+    "npm run verify:api-contract": { "tests": 28, "pass": 28, "fail": 0, "exitCode": 0 },
+    "npm run test:deep-api": { "exitCode": 0 },
+    "npm run lint": { "exitCode": 0, "note": "清理了本轮迭代产生的未使用符号（missingPreviewTotals / evaluateAnswerMoney / summaryContextLines / presentedPrimaryMoney+primaryMoneyValues / requiresMoneyDetail / getAiCapability）" },
+    "npm run build": { "exitCode": 0 },
+    "idempotence": {
+      "assertion": "GUARD(GUARD(x)) == GUARD(x)",
+      "method": "planning/ai-native-v1/release/_money-guard-idempotence.cjs",
+      "cases": ["partial-append", "chitchat-append", "query-no-obligation", "unsupported-replace"],
+      "result": "all idempotent, table count <= 1 for every case"
+    }
+  },
+
+  "frozenCanaryRebinding": {
+    "why": "P6R 冻结语料记录的正是缺陷状态本身（finalContent 只有一张内部金额表，没有关系结论）。修复后答案多出已验证的「Shadow配方甲使用Shadow线圈甲（12-120）」结论，四例的 finalContent 因此改变。",
+    "scope": "仅 finalContent 一个字段",
+    "verified": "四例均确定性（两次运行字节一致）；catalogs / executed / modelCalls / selectedTools / results / evidence / repairPrompts 全部未变",
+    "delta": "86 -> 121 chars，新增前缀「已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\\n\\n」；表格与口径上下文原样保留",
+    "judgement": "APPROVED_INTENTIONAL_PRESENTATION_DELTA —— 由「只有表」变为「结论 + 表」，正是缺陷 001/005 要求的修复方向",
+    "artifactRebinding": "api/services/aiAssistantAnswer.cjs 冻结 sha256 由 9d98d5ba... 重绑为 faee2530...；manifest purpose 字段记录了重绑原因与凭据路径"
+  },
+
+  "notYetDone": {
+    "part2_presentationLayer": "业务语言映射、内部 ID/工具词汇抑制、结论先行、长列表摘要、去掉未被请求的续问邀请 —— 尚未开始",
+    "part3_regressionsAndGates": "五个缺陷的可执行回归与负向对照、生产走查重跑并记录 APPROVED_INTENTIONAL_PRESENTATION_DELTA、测试库上的人工前后验收 —— 尚未开始",
+    "gatesNotYetRun": ["npm run verify:release（需要真实 DEEPSEEK_API_KEY，本机没有；不伪造）"],
+    "commit": "Part 1 修改与证据文件一并提交于本阶段"
+  },
+
+  "part1R1ContractClosure": {
+    "trigger": "Supervisor 裁定 REWORK：不接受 operation=preview 作为全局金额义务；不接受原地改写冻结 oracle 历史",
+    "headAfterClosure": "见 git log — 本记录随 Part 1-R1 收口一并提交",
+    "moneyPresentationContract": {
+      "module": "api/capabilities/monetaryPresentationContract.cjs",
+      "exposedVia": "registry 的 capability.monetaryPresentation（AI 能力 83 项不变）",
+      "failClosed": "未显式登记的能力 requiredFacts=[]，且不因 operation=preview 或结果含金额字段而推导义务",
+      "registered": {
+        "compare_recipes": ["recipe1.cost", "recipe2.cost", "costDiff"],
+        "build_recipe_bom_draft": ["costPreview.currentTotalCost", "costPreview.partsCost", "costPreview.laborCost"],
+        "preview_recipe_cost": ["currentTotalCost", "partsCost", "laborCost"],
+        "calculate_coil_cost": ["totalCost"]
+      },
+      "pathSource": "正式执行器输出（recipeExecutors.cjs 第 755-779 行、businessExecutors.cjs preview_recipe_cost、coilCost.cjs），不是渲染字符串",
+      "negativeControl": "preview_pump_shell_cost 是 preview 能力但未登记 → 不产生金额表（场景 I）"
+    },
+    "frozenOracleVersioning": {
+      "historicalV2Restored": true,
+      "restoredFrom": "fa639ed9420ac89e41e0cab223ef172a9b2e0b55（08bb566 曾把 v2 就地改写，本阶段用基于历史内容的新提交恢复，未改写 git 历史）",
+      "v2NowContains": "「只有一张内部金额表」的历史事实（coil-cost finalContent 长度 86，不含「已核实」）",
+      "newVersion": "tests/fixtures/ontology-coil-recipe-legacy-oracle-v3.json",
+      "supersedes": "ontology-coil-recipe-legacy-oracle-v2.json",
+      "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+      "changeReason": "LEGACY-AI-ANSWER-001",
+      "v3HeaderFields": ["supersedes", "reason", "changeClass", "changeReason", "approvedBy", "previousBaselineSha", "affectedCases", "historicalOraclesImmutable"],
+      "v1V2Immutable": true,
+      "deltaAsserted": "V3 == 「已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\\n\\n」+ V2 原 finalContent，逐字节；其余 24 例 deepEqual 于 v2"
+    },
+    "frozenShaVersionBump": {
+      "previousSha256": "9d98d5bab2ae9610309ca1778ce44263bc86c708586e7298747292eea680eb9b",
+      "currentSha256": "faee25304a6446151cd044e8e274e2818cfde51a2a019529ad511133352d8c5b",
+      "mechanism": "manifest-v1.json 的 baselineSupersessions 记录（path/previousSha256/currentSha256/changeReason/changeClass/approvedBy/approvedAt/ticket/evidence）",
+      "historyPreserved": "历史 sha 保留在 supersessions 记录中，未抹除、未改写旧审计记录",
+      "validation": "frozenHistoryManifest.cjs 校验记录自洽：路径合法、两个 sha 合法且不同、currentSha256 必须等于当前生效基线、必须带 changeReason/changeClass/approvedBy；已用负向对照验证（把 previous 改成 current 会抛 FROZEN_HISTORY_MANIFEST_SUPERSESSION_NOOP）"
+    },
+    "scenarioEvidence": {
+      "file": "planning/ai-native-v1/release/_money-presentation-contract.cjs",
+      "exitCodeOnFailure": 1,
+      "scenarios": ["0a fail-closed 默认", "0b compare_recipes 显式事实", "0c 未声明能力不产生事实", "A 缺 required 补齐 A/B/差额", "B 库存数量不出现金额表", "C what-if 补齐", "D 已完整 NONE", "E 非金额结论保留", "F 重复表只留一张", "G 无依据金额修正且保留语义", "H 同 fact 一种表示 + 源精度 166.7136 保留", "I 非金额 PREVIEW 负向对照", "J 幂等且表 <=1", "K 数量量词不算金额声明"],
+      "result": "全部通过（exit 0）"
+    },
+    "remainingResidual": "build_recipe_bom_draft 的契约目前是**每次调用都要求**金额展示义务（monetary: true）。若用户只问「这个配置用了哪些零件」，按 Supervisor 的一般原则本不该自动补金额表；实现这一层需要调用方/目标层的按次声明，而按次声明不得退化为关键词意图识别。本阶段未实现，作为 Part 2 前置残余项记录，不隐藏。"
+  },
+
+  "part1R2TurnLevelClosure": {
+    "trigger": "Supervisor 裁定 REWORK：capability 级 monetaryPresentation.requiredFacts 仍然过粗；build_recipe_bom_draft 每次调用都要求金额，无法区分「用了哪些零件」与「一共多少钱」",
+    "aCapabilityAvailabilityModel": {
+      "name": "availableMoneyFacts（能力元数据：这个能力能提供哪些正式金额事实）",
+      "module": "api/capabilities/monetaryPresentationContract.cjs",
+      "registered": {
+        "compare_recipes": ["recipe1.cost", "recipe2.cost", "costDiff"],
+        "build_recipe_bom_draft": ["costPreview.currentTotalCost", "costPreview.partsCost", "costPreview.laborCost"],
+        "preview_recipe_cost": ["currentTotalCost", "partsCost", "laborCost", "totalCost"],
+        "calculate_coil_cost": ["totalCost", "data.totalCost"]
+      },
+      "failClosed": "未登记能力 availableMoneyFacts=[]，且不再由 operation=preview 推导",
+      "pathGrounding": "路径取自正式执行器输出；preview_recipe_cost 声明了三条真实输出形状（无覆盖 / 有覆盖摊平 / 仅总额 totalCost），calculate_coil_cost 兼容根级与 data 级"
+    },
+    "bTurnMonetaryRequirementModel": {
+      "name": "turnMonetaryPresentation（本轮已解析目标是否要求金额结论）",
+      "source": "既有业务语义层 api/business-semantics/eligibilityBoundary.cjs 的 kind/operation；为实现本要求把 classifyQuestion 已产出的 operation 透出到 semanticEligibility",
+      "monetaryOperations": ["READ_COST", "READ_OR_PREVIEW_COST", "PREVIEW_CONFIGURATION_COST"],
+      "nonMonetaryOperations": ["READ_INVENTORY", "LOOKUP", "DESCRIBE_CONFIGURATION", "READ_COPPER_PRICE"],
+      "unknownGoal": "OUT_OF_SCOPE / 未接线 → monetary=null(unknown)，补全退回能力可用性层，避免分类器未覆盖某问法时静默改变已验证行为",
+      "keywordIntentClassifierAdded": false,
+      "secondLlmCallAdded": false,
+      "operationPreviewGlobalTrigger": "已彻底移除：preview 类型本身不产生任何金额补全"
+    },
+    "cSeparatedResponsibilities": {
+      "monetarySafety": "正文自己写了金额就必须验证依据 —— 永远运行，与本轮是否要求金额无关，由 evaluateAnswerMoney 的 unusable / unsupported_money_claim 分支承担，它们排在所有补全判断之前",
+      "monetaryCompletion": "要不要主动补金额表 —— 只由「本轮要求 ∧ 能力可提供」决定",
+      "proof": "场景 N：库存目标（requiredMoneyFacts=[]）下正文写「价值 ¥9999」仍被纠正"
+    },
+    "safetyHoleFoundAndFixed": {
+      "description": "场景 N 首次运行时暴露：UNIT_CLAIM_RE 只认**后缀**货币单位（100元 / 100¥），前缀写法「¥9999」「￥1,268.23」完全逃过安全校验，而不是被纠正",
+      "rootCause": "const UNIT_CLAIM_RE = /(-?\\d[\\d,]*(?:\\.\\d+)?)\\s*(?:元|¥|￥)/gu —— 货币符号在数字之后才算金额声明",
+      "fix": "改为双分支：前缀 (?:¥|￥)\\s*(数字) 或后缀 (数字)\\s*(?:元|¥|￥)；moneyClaimValues 取命中的那一组捕获",
+      "impact": "这是本轮之外的真实安全缺口，由轮次级契约的必测场景发现；修复后场景 N 通过"
+    },
+    "turnRequirementPlumbing": {
+      "runtime": "aiAssistantRuntime.cjs 第 901 行把 turnMonetaryPresentation(eligibility) 作为第三个参数传入 moneyGuardDecision",
+      "guardSignature": "moneyGuardDecision(answer, toolResults, turnRequirement)",
+      "optionalParameter": "turnRequirement 省略时退回能力可用性层，保持向后兼容"
+    },
+    "requiredScenarios": {
+      "file": "planning/ai-native-v1/release/_money-presentation-contract.cjs",
+      "covered": ["compare_recipes 货币目标 → A/B/差额", "库存数量 → 不出现金额表", "成本 what-if → 补齐", "已完整 → NONE", "非金额结论保留", "重复表 → 一张", "无依据金额 → 纠正且保留语义", "精度一致", "非金额 PREVIEW → 不自动补表", "build_recipe_bom_draft 只问零件 → 不补金额表", "build_recipe_bom_draft 问成本 → 补金额", "requiredFacts=[] + 正文无依据金额 → 安全仍生效", "守卫幂等"],
+      "extras": ["0a fail-closed 默认", "0b compare_recipes 显式事实", "0c 未声明能力不产生事实", "0d 能力可用性 ≠ 本轮要求", "0e 要求来源是既有已解析目标", "K 数量量词不算金额声明"],
+      "result": "全部通过（exit 0）"
+    },
+    "frozenOracleDecision": {
+      "v4Created": false,
+      "reason": "轮次级契约**没有**改变 P6R 语料输出。这四项问法（「12-120线圈成本多少？」「Shadow配方甲成本多少？」「比较…成本」「比较…成本，哪些配方在用」）本身就被已解析目标判为 COST_QUERY / READ_COST，即 monetary=true，金额表是应答题的。",
+      "action": "按 Supervisor「若本 R2 未改变冻结文件，不要制造新的 baseline 升级」的裁定，未新增 oracle 版本，当前 oracle 仍为 v3；已生成的 v4 草稿与生成脚本已删除。",
+      "verified": "四项逐条打印 kind/operation 均为 COST_QUERY / READ_COST",
+      "historicalOraclesImmutable": ["v1", "v2"],
+      "frozenShaBumpForR2": "无（aiAssistantAnswer.cjs 冻结 sha 未因 R2 再次变化）"
+    },
+    "threeFocusSuites": {
+      "aiMoneyGuard": "10/10",
+      "aiAssistantRuntime": "86/86",
+      "aiExecutorBehavior": "126/126"
+    },
+    "testEvidenceR2": {
+      "focusedTotal": "264/264（含 ontologyRoutingCanary 42/42 作为 frozen-oracle/versioning gate）",
+      "npm test": "3015/3015，exit 0"
+    }
+  },
+
+  "safety": {
+    "PRODUCTION_CHANGED": "NO",
+    "PRODUCTION_DATABASE_MIGRATED": "NO",
+    "PRODUCTION_SERVICE_RESTARTED": "NO",
+    "PRODUCTION_WORKER_ENABLED": "NO",
+    "PRODUCTION_NATIVE_OWNER_ENABLED": "NO",
+    "PRODUCTION_NATIVE_WRITE_ENABLED": "NO",
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": "NO",
+    "PUSH_PERFORMED": "NO",
+    "CREDENTIALS_COPIED": "NO",
+    "note": "本轮全部为本地改动：集成 worktree 分支 ai-native/prod-integration-v1；生产 master 仍为 e244bd75，未触碰"
+  }
+}

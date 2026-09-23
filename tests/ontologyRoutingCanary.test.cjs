@@ -1,12 +1,15 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path');
+const { artifactHash, loadFrozenHistoryManifest, sha256Normalized } = require('./helpers/frozenHistoryManifest.cjs');
 const router = require('../api/ontology/relationRoutingCanary.cjs');
 const { cases, negativeClasses, seedResults, runCase } = require('./helpers/ontologyRoutingCorpus.cjs');
 // ONT-P8L: V1 stays as the historical P6/P7 frozen baseline and is never overwritten; V2 is the current
 // official legacy baseline after the sanctioned Legacy relation-repair bugfix.
-const oracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
+const oracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v4.json');
 const historicalOracle = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
+const historicalOracleV2 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
+const historicalOracleV3 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v3.json');
 const { runAiAssistant, assistantReadTools } = require('../api/services/aiAssistantRuntime.cjs');
 const { currentFactsForBinding } = require('../api/ontology/bindingCurrentFacts.cjs');
 const { verifiedRows } = require('../api/ontology/relationBinder.cjs');
@@ -96,10 +99,16 @@ test('P6R default/OFF retains the repaired legacy relation sequence with explici
  * still exist with its recorded aggregate-reading sequence, and V2 must differ from it ONLY by the
  * sanctioned bounded read replacing that aggregate.
  */
-test('P8L the historical legacy oracle V1 is preserved and differs from V2 only by the sanctioned bugfix', () => {
+test('P8L the historical legacy oracle V1 is preserved and differs from the current oracle only by sanctioned bugfixes', () => {
     assert.equal(historicalOracle.version ?? 1, 1);
-    assert.equal(oracle.version, 2);
-    assert.equal(oracle.supersedes, 'ontology-coil-recipe-legacy-oracle-v1.json');
+    // 当前 oracle 是 v4（Part 2 展示层规范化：金额表对象列用业务对象名）。
+    // v1/v2/v3 都是历史证据，不再原地改写；版本链必须始终可追。
+    assert.equal(oracle.version, 4);
+    assert.equal(oracle.supersedes, 'ontology-coil-recipe-legacy-oracle-v3.json');
+    assert.equal(historicalOracleV3.version, 3);
+    assert.equal(historicalOracleV3.supersedes, 'ontology-coil-recipe-legacy-oracle-v2.json');
+    assert.equal(historicalOracleV2.version, 2);
+    assert.equal(historicalOracleV2.supersedes, 'ontology-coil-recipe-legacy-oracle-v1.json');
     assert.equal(historicalOracle.cases.length, oracle.cases.length);
     const aggregateCases = ['coil-short', 'coil-explicit'];
     for (const caseId of aggregateCases) {
@@ -115,8 +124,48 @@ test('P8L the historical legacy oracle V1 is preserved and differs from V2 only 
         assert.ok(after.modelCalls <= before.modelCalls, `${caseId}: provider calls must not increase (${before.modelCalls} -> ${after.modelCalls})`);
     }
 });
-test('P8L-FINAL the recipe-rooted direction offers only bounded reads, never the whole catalogue', () => {
-    // Supervisor ruling ONT-P8L-FINAL: `recipe -> coil` must resolve through a bounded formal read. The
+test('P8L the historical V2/V3 oracles stay immutable and V4 differs from V3 only by the approved vocabulary delta', () => {
+    // Supervisor Part 1-R1 / Part 2: 冻结语料的旧版本只增不改。
+    // v2 必须仍然是「只有一张内部金额表」的历史事实 —— 否则以后无法证明
+    // LEGACY-AI-ANSWER-001 曾经真实存在。
+    for (const caseId of ['coil-cost', 'recipe-cost', 'cost-compare', 'mixed-cost-compare-relation']) {
+        const v2 = historicalOracleV2.cases.find(entry => entry.caseId === caseId);
+        const v3 = historicalOracleV3.cases.find(entry => entry.caseId === caseId);
+        assert.ok(v2.finalContent.startsWith('本轮正式查询金额如下'),
+            `${caseId}: V2 必须保留「只有金额表」的历史事实`);
+        assert.equal(v2.finalContent.includes('已核实：'), false, `${caseId}: V2 不得含修复后的关系结论`);
+        // V3 = 已验证的关系结论 + V2 原有的正式金额表，逐字节成立。
+        assert.equal(v3.finalContent, `已核实：Shadow配方甲使用Shadow线圈甲（12-120）。\n\n${v2.finalContent}`,
+            `${caseId}: V3 必须等于「关系结论 + V2 原金额表」`);
+    }
+    // V4 = V3 把工具显示名换成业务对象名（语料里两处），其余逐字节相同。
+    // 这是 Part 2（LEGACY-AI-ANSWER-002）唯一允许的展示差异。
+    const vocabularyDelta = [['| 计算线圈成本 |', '| 线圈成本 |'], ['| 配方成本试算 |', '| 配方成本 |']];
+    for (const before of historicalOracleV3.cases) {
+        const expected = vocabularyDelta.reduce(
+            (text, [from, to]) => text.replaceAll(from, to),
+            String(before.finalContent || ''),
+        );
+        const after = oracle.cases.find(entry => entry.caseId === before.caseId);
+        assert.equal(after.finalContent, expected,
+            `${before.caseId}: V4 只能有「工具显示名 → 业务对象名」这一处展示差异`);
+        assert.equal(after.selectedTools.join(','), before.selectedTools.join(','), `${before.caseId}: 工具选择不得改变`);
+        assert.equal(after.modelCalls, before.modelCalls, `${before.caseId}: provider 调用数不得改变`);
+    }
+    // 历史版本必须仍然保留「计算线圈成本」这个工具显示名 —— 证明规范化确实是新增的一层。
+    assert.ok(historicalOracleV3.cases.find(entry => entry.caseId === 'coil-cost')
+        .finalContent.includes('| 计算线圈成本 |'), 'V3 必须保留工具显示名（历史事实）');
+    assert.equal(oracle.changeClass, 'APPROVED_INTENTIONAL_PRESENTATION_DELTA');
+    assert.equal(oracle.changeReason, 'LEGACY-AI-ANSWER-002');
+    assert.equal(historicalOracleV3.changeReason, 'LEGACY-AI-ANSWER-001');
+    assert.deepEqual(oracle.historicalOraclesImmutable, [
+        'ontology-coil-recipe-legacy-oracle-v1.json',
+        'ontology-coil-recipe-legacy-oracle-v2.json',
+        'ontology-coil-recipe-legacy-oracle-v3.json',
+    ]);
+    assert.deepEqual(oracle.versionHistory.map(entry => entry.version), [2, 3, 4]);
+});
+test('P8L-FINAL the recipe-rooted direction offers only bounded reads, never the whole catalogue', () => {    // Supervisor ruling ONT-P8L-FINAL: `recipe -> coil` must resolve through a bounded formal read. The
     // deterministic required read for that direction already returns the recipe's bound coil identity, so
     // the whole-catalogue read must not be offered on this direction at all.
     const profile = router.profiles[0];
@@ -219,7 +268,7 @@ test('P6R routing telemetry is low-sensitive and survives a failing exporter', a
     } finally { await o.resetObservabilityForTesting(); }
 });
 test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dependency changes', () => {
-    const { execFileSync } = require('node:child_process');
+    const frozen = loadFrozenHistoryManifest(path.join(__dirname, 'fixtures', 'frozen-history', 'manifest-v1.json'));
     // ONT-P8R sanctions exactly one tool-catalog change: the bounded reverse read. It is verified below
     // as a pure single insertion so no other catalog edit, prompt edit or schema edit can hide in it.
     // ONT-P8L-FINAL sanctions exactly one binder change: per-record ownership (see the dedicated test
@@ -230,9 +279,8 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
     // sanctions exactly one addition there — the bounded identity read that resolves a relation root
     // BEFORE binding — so it is asserted as an exact single-entry addition instead of byte equality.
     const metadataNow = fs.readFileSync(path.resolve('api/ontology/bindingMetadata.cjs'), 'utf8').replace(/\r\n/g, '\n');
-    const metadataBefore = execFileSync('git', ['show', `${oracle.sourceCommit}:api/ontology/bindingMetadata.cjs`], { encoding: 'utf8' }).replace(/\r\n/g, '\n');
     const resourceNames = text => [...text.matchAll(/tool:\s*'([a-z0-9_]+)'/gu)].map(match => match[1]);
-    const resourcesBefore = resourceNames(metadataBefore);
+    const resourcesBefore = frozen.bindingResources;
     const resourcesNow = resourceNames(metadataNow);
     const addedIdentityReads = ['resolve_recipe_identity', 'resolve_part_identity'];
     assert.deepEqual(resourcesNow.filter(name => !resourcesBefore.includes(name)), addedIdentityReads,
@@ -243,16 +291,23 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
         'the existing provenance sources and their order must be unchanged');
     for (const file of ['api/services/aiCapabilityGraphV3.cjs',
         'api/services/aiAssistantAnswer.cjs', 'api/services/aiEvidenceBundle.cjs', 'api/services/aiResponsePresenter.cjs',
-        'package.json', 'package-lock.json']) {
-        assert.equal(fs.readFileSync(path.resolve(file), 'utf8').replace(/\r\n/g, '\n'), execFileSync('git', ['show', `${oracle.sourceCommit}:${file}`], { encoding: 'utf8' }).replace(/\r\n/g, '\n'));
+        'package-lock.json']) {
+        assert.equal(sha256Normalized(fs.readFileSync(path.resolve(file), 'utf8')), artifactHash(frozen, file), `frozen content changed: ${file}`);
     }
+    // The historical fixture protects dependencies, not the scripts catalogue.
+    // N7.1 adds a release-gate script without changing any dependency or lock.
+    const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+    const ordered = value => Object.fromEntries(Object.entries(value || {}).sort(([left], [right]) => left.localeCompare(right)));
+    const dependencySurface = JSON.stringify({ dependencies: ordered(pkg.dependencies), devDependencies: ordered(pkg.devDependencies),
+        optionalDependencies: ordered(pkg.optionalDependencies), engines: ordered(pkg.engines), packageManager: pkg.packageManager || null });
+    assert.equal(sha256Normalized(dependencySurface), frozen.packageDependencySurfaceSha256, 'frozen dependency surface changed');
     // ONT-P8R/P8L sanction exactly one tool-catalog change: the bounded reverse read (added, then narrowed
     // to a `coilId`-only schema). The name set is asserted exactly and in order, because catalog order
     // feeds the locally scored shortlist. Per-tool text equality for the pre-existing tools is covered by
     // the API-contract, capability-registry and MCP catalog suites, which all cross-check every tool.
     const normalize = value => value.replace(/\r\n/g, '\n');
     const namesOf = text => [...text.matchAll(/name:\s*'([a-z0-9_]+)'\s*,/gu)].map(match => match[1]);
-    const namesBefore = namesOf(normalize(execFileSync('git', ['show', `${oracle.sourceCommit}:api/routes/ai/tools.cjs`], { encoding: 'utf8' })));
+    const namesBefore = frozen.toolNames;
     const namesNow = namesOf(normalize(fs.readFileSync(path.resolve('api/routes/ai/tools.cjs'), 'utf8')));
     const ADDED_TOOL = 'get_recipes_by_coil';
     const ADDED_TOOLS = [ADDED_TOOL, 'get_recipe_parts', 'get_recipes_by_part'];
@@ -265,9 +320,9 @@ test('P6R no prompt, answer composer, binder, graph, tool catalog, schema or dep
         'the bounded reverse read must expose no pagination control to the model');
     assert.deepEqual(bounded.function.parameters.required, ['coilId']);
     const runtime = fs.readFileSync(path.resolve('api/services/aiAssistantRuntime.cjs'), 'utf8');
-    const previous = execFileSync('git', ['show', `${oracle.sourceCommit}:api/services/aiAssistantRuntime.cjs`], { encoding: 'utf8' });
-    for (const pattern of [/const SYSTEM_PROMPT = `[\s\S]+?`;/u, /const LOCAL_RESPONSE_PROMPT = '[^\n]+/u])
-        assert.equal(runtime.match(pattern)[0].replace(/\r/g, ''), previous.match(pattern)[0].replace(/\r/g, ''));
+    const promptPatterns = [[/const SYSTEM_PROMPT = `[\s\S]+?`;/u, 'systemPrompt'], [/const LOCAL_RESPONSE_PROMPT = '[^\n]+/u, 'localResponsePrompt']];
+    for (const [pattern, name] of promptPatterns)
+        assert.equal(sha256Normalized(runtime.match(pattern)[0].replace(/\r/g, '')), frozen.runtimePromptHashes[name], `frozen prompt changed: ${name}`);
     assert.doesNotMatch(runtime, /ontology\/(?:resolver|traversal|bindingCurrentFacts)\.cjs/u);
 });
 test('P6R eligible requests never invoke either legacy shortlist or detector (isolated dependency trap)', () => {

@@ -1,0 +1,2423 @@
+{
+  "ticket": "AI-NATIVE-S1-SUPPORTED-SCOPE-STABILITY-CLOSURE",
+  "kind": "owner-read-canary-s1-stability",
+  "status": "PASS",
+  "createdAt": "2026-09-23T15:14:23Z",
+  "baseline": {
+    "startHead": "86f3d29911dd25ee9c20ffffbee141cb2cd98b94",
+    "codeHead": "0affe52",
+    "evidenceRebindHeads": [
+      "e3f396c",
+      "5a14f8f"
+    ],
+    "branch": "ai-native/prod-integration-v1",
+    "note": "证据归档为 docs/evidence-only 提交；门禁在干净树上执行（见 gates.releaseGateSourceRevision）。"
+  },
+  "compareCanonicalSelector": {
+    "status": "FIXED",
+    "businessApiChanged": false,
+    "audit": "底层 `/api/cost/recipe-difference` → costDifference.buildCostDifference → resolveRecipe 已经把全数字选择器当正式主键匹配，服务端 409 文案自身要求「请使用配方ID或完整名称」；因此无需改 Business API，只需 Native 层与 capability 契约。",
+    "canonicalIdPreferred": true,
+    "sameNameDifferentId": "对比按主键执行，同名不同主键不再整体失败（S1-A2 / R1-CMP-9）",
+    "ambiguityFailClosed": "名称命中多条且没有 canonical ID 时正式失败（RECIPE_SELECTOR_AMBIGUOUS），不模糊选择、不取第一条",
+    "argumentProvenance": "FORMAL_RECEIPT 参数来源指向回执主键字段；同一数值的 number/string 视为同一证据，其它差异仍拒绝",
+    "tests": [
+      "tests/compareCanonicalSelector.test.cjs（S1-A1…A6）",
+      "tests/nativeCoverageWave1R1.test.cjs R1-CMP-1/9"
+    ]
+  },
+  "supportedScopeBaseline": {
+    "families": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "questionFamily": "当前成本（单个在售配方）",
+        "goalKind": "CURRENT_COST",
+        "subjectTypes": [
+          "recipe"
+        ],
+        "requiredCapabilities": [
+          "preview_recipe_cost",
+          "get_recipe_detail"
+        ],
+        "requiredFacts": [
+          "recipe.current_cost"
+        ],
+        "ambiguityPolicy": "配方目录多匹配 → RECIPE_AMBIGUOUS 澄清；缺失 → 正式负结果",
+        "answerContract": "CURRENT_COST_V1",
+        "canaryEligible": true
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "questionFamily": "配置变更 + 毛利 + 齐料（多目标）",
+        "goalKind": [
+          "CURRENT_COST",
+          "CONFIGURATION_COMPARE",
+          "PROFITABILITY",
+          "INVENTORY_QUERY"
+        ],
+        "subjectTypes": [
+          "recipe"
+        ],
+        "requiredCapabilities": [
+          "preview_recipe_cost",
+          "compare_recipe_scenarios",
+          "preview_profitability",
+          "preview_virtual_readiness"
+        ],
+        "requiredFacts": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.cost_comparison",
+          "profitability.preview",
+          "inventory.virtual_readiness"
+        ],
+        "ambiguityPolicy": "主体/包装/线圈任一多候选都先澄清；缺单价或数量时只补参数，不默认值",
+        "answerContract": "CONFIGURATION_COMPARE_V1 / PROFITABILITY_V1 / VIRTUAL_READINESS_V1",
+        "canaryEligible": true
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "questionFamily": "虚拟齐料 / 缺料预览",
+        "goalKind": "INVENTORY_QUERY",
+        "subjectTypes": [
+          "recipe"
+        ],
+        "requiredCapabilities": [
+          "preview_virtual_readiness"
+        ],
+        "requiredFacts": [
+          "inventory.virtual_readiness"
+        ],
+        "ambiguityPolicy": "缺数量先问数量；配置未验证则不给齐料结论",
+        "answerContract": "VIRTUAL_READINESS_V1",
+        "canaryEligible": true
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "questionFamily": "两个方案的成本差额（比较）",
+        "goalKind": "RECIPE_COST_COMPARISON",
+        "subjectTypes": [
+          "recipe"
+        ],
+        "requiredCapabilities": [
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "requiredFacts": [
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "ambiguityPolicy": "逐主体解析，按 A→B 有界可恢复澄清；任一主体不唯一即 WAITING_INPUT",
+        "answerContract": "RECIPE_COST_COMPARISON_V1（两个主体成本 + 正式差额；方向按 costDiff=配方2−配方1）",
+        "canaryEligible": true
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "questionFamily": "线圈档案成本",
+        "goalKind": "COIL_COST",
+        "subjectTypes": [
+          "coil"
+        ],
+        "requiredCapabilities": [
+          "search_coils"
+        ],
+        "requiredFacts": [
+          "coil.current_cost"
+        ],
+        "ambiguityPolicy": "线圈多候选 → COIL_COST_AMBIGUOUS 澄清；不汇总、不默认第一套",
+        "answerContract": "CATALOG_V1（单一 canonical 线圈时输出该方案自己的 cost 数值）",
+        "canaryEligible": true
+      },
+      {
+        "familyId": "coil-inventory",
+        "questionFamily": "线圈库存",
+        "goalKind": "INVENTORY_QUERY",
+        "subjectTypes": [
+          "coil"
+        ],
+        "requiredCapabilities": [
+          "search_coils"
+        ],
+        "requiredFacts": [
+          "inventory.coil"
+        ],
+        "ambiguityPolicy": "线圈多候选 → INVENTORY_COIL_AMBIGUOUS 澄清；指代无唯一焦点 → CONTINUATION_FOCUS_AMBIGUOUS",
+        "answerContract": "INVENTORY_V1（单一 canonical 线圈时输出该方案自己的库存数值）",
+        "canaryEligible": true
+      }
+    ],
+    "suspendedFamilies": [],
+    "counts": {
+      "supported": 6,
+      "partial": 1,
+      "unsupported": 2,
+      "suspended": 0
+    },
+    "suspensionMechanism": "suspendFamily(familyId, reason) → SUPPORTED→SUSPENDED 并记录原因；reinstateFamily 可恢复；总族数不减（不静默删除、不伪装成从未支持）"
+  },
+  "ownerCanaryScope": {
+    "eligible": [
+      "当前成本（单个在售配方）",
+      "配置变更 + 毛利 + 齐料（多目标）",
+      "虚拟齐料 / 缺料预览",
+      "两个方案的成本差额（比较）",
+      "线圈档案成本",
+      "线圈库存"
+    ],
+    "ineligible": [
+      "规格 / 配置差异（非金额）",
+      "经营概况 / 看板",
+      "不存在的对象（负向探测）(PARTIAL)",
+      "未知 family",
+      "写请求"
+    ],
+    "gate": "ownerReadCanaryAdmission({goalKinds, businessWritePolicy, structuralReady}) —— 只接受已落定计划，不接受 questionFamily/请求头/页面参数/prompt；dispatcher 在判定不合格时把本轮交回既有正式路径（默认路由与 AI_NATIVE_MODE=off 行为不变）。"
+  },
+  "liveRuns": {
+    "runner": "scripts/phase-s1/run-owner-stability-live.cjs",
+    "provider": {
+      "requested": "deepseek",
+      "model": "deepseek-v4-flash",
+      "apiKeyPresent": true
+    },
+    "database": {
+      "source": "/Users/dan/Documents/水泵工厂管理助手/backups/macmini-before-catalog-clear/pump-safety-2026-09-16T01-14-48-791Z.db",
+      "clonePath": "/var/folders/2r/cwrv1mld7j921cx99l_hw2pr0000gn/T/s1-live-QhdUAR/phase-d-clone.db",
+      "cloneSha256": "e6e39152303c63eb4fecd8f94b4745920d90160432acc13fd38b9b1100e66550",
+      "sourceTouched": false
+    },
+    "metrics": {
+      "totalOwnerCanaryRuns": 112,
+      "nativeSucceeded": 70,
+      "waitingInput": 12,
+      "partial": 0,
+      "negativeResult": 12,
+      "safeFallback": 0,
+      "outOfAdmissionScope": 17,
+      "failed": 1,
+      "supportedFamilyHitRate": 0.8482,
+      "correctCanonicalBindRate": 1,
+      "formalFactDeliveryRate": 1,
+      "repeatStabilityRate": 1,
+      "businessWrites": 0,
+      "unsafeDeliveredRuns": 0,
+      "wrongCanonicalBinding": 0,
+      "selfCalculatedMoney": 0,
+      "unexplainedBusinessRegression": 0,
+      "writeAdmission": 0
+    },
+    "byFamily": {
+      "single-recipe-current-cost": {
+        "runs": 10,
+        "succeeded": 4,
+        "waitingInput": 0,
+        "partial": 0,
+        "negativeResult": 1,
+        "fallback": 5,
+        "failed": 0
+      },
+      "multi-goal-config-profit-readiness": {
+        "runs": 10,
+        "succeeded": 6,
+        "waitingInput": 0,
+        "partial": 0,
+        "negativeResult": 3,
+        "fallback": 1,
+        "failed": 0
+      },
+      "virtual-readiness-preview": {
+        "runs": 10,
+        "succeeded": 5,
+        "waitingInput": 0,
+        "partial": 0,
+        "negativeResult": 2,
+        "fallback": 2,
+        "failed": 1
+      },
+      "recipe-cost-comparison": {
+        "runs": 10,
+        "succeeded": 8,
+        "waitingInput": 0,
+        "partial": 0,
+        "negativeResult": 1,
+        "fallback": 1,
+        "failed": 0
+      },
+      "coil-catalogue-cost": {
+        "runs": 10,
+        "succeeded": 7,
+        "waitingInput": 1,
+        "partial": 0,
+        "negativeResult": 1,
+        "fallback": 1,
+        "failed": 0
+      },
+      "coil-inventory": {
+        "runs": 10,
+        "succeeded": 7,
+        "waitingInput": 1,
+        "partial": 0,
+        "negativeResult": 1,
+        "fallback": 1,
+        "failed": 0
+      }
+    },
+    "repeat": {
+      "cases": 15,
+      "runs": 45,
+      "goalStable": 15,
+      "subjectStable": 15,
+      "factStable": 15,
+      "planStable": 15,
+      "valueStable": 15
+    }
+  },
+  "familyMatrix": {
+    "single-recipe-current-cost": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-direct-a",
+        "question": "v550-tokoy现在成本多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.current_cost"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-direct-b",
+        "question": "PHASED-浮球-有当前成本是多少？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-direct-c",
+        "question": "帮我查一下 PHASED-浮球-无 的成本",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-colloquial-a",
+        "question": "v550-tokoy现在做一套大概要多少钱？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.current_cost"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-colloquial-b",
+        "question": "PHASED-浮球-有现在成本高不高，大概多少",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-followup",
+        "question": "v550-tokoy现在成本多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.current_cost"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-followup",
+        "question": "那这个成本包含工资吗？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.current_cost"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-boundary",
+        "question": "PHASED-浮球-无 的成本是多少来着",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-direct-d",
+        "question": "PHASED-浮球-有 的当前完整成本是多少？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "f1-missing",
+        "question": "查一下 V999不存在的配方 的成本",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.catalog_match"
+        ],
+        "entityIds": [],
+        "tools": [
+          "get_all_recipes"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ],
+    "multi-goal-config-profit-readiness": [
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-direct-a",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST",
+          "CONFIGURATION_COMPARE"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.override_application",
+          "scenario.cost_comparison"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "267.63",
+          "4.35"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-direct-b",
+        "question": "PHASED-浮球-有当前成本多少？卖340毛利多少？",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "PROFITABILITY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-direct-c",
+        "question": "v550-tokoy 如果做300台库存够不够？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-colloquial-a",
+        "question": "v550-tokoy电缆改5米要多少钱，卖340能赚多少，先不要保存",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CONFIGURATION_COMPARE",
+          "PROFITABILITY"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.override_application",
+          "scenario.cost_comparison",
+          "profitability.preview"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_profitability"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "267.63",
+          "4.35",
+          "340.00",
+          "72.37",
+          "21.29",
+          "27.04"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-colloquial-b",
+        "question": "PHASED-浮球-有现在成本多少，电缆改8米呢，做200台够料吗",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-followup",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？卖340毛利多少？做300台库存够不够？先不要保存",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST",
+          "CONFIGURATION_COMPARE",
+          "INVENTORY_QUERY",
+          "PROFITABILITY"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.override_application",
+          "scenario.cost_comparison",
+          "profitability.preview",
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_profitability",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "267.63",
+          "4.35",
+          "340.00",
+          "72.37",
+          "21.29",
+          "27.04",
+          "80289.00",
+          "102000.00",
+          "21711.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-boundary",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？卖340呢？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST",
+          "CONFIGURATION_COMPARE"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.override_application",
+          "scenario.cost_comparison"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "267.63",
+          "4.35"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-direct-d",
+        "question": "PHASED-浮球-无现在成本多少？做500台库存够不够？",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-colloquial-c",
+        "question": "v550-tokoy 换电缆到8米，成本差多少，卖360能赚吗",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CONFIGURATION_COMPARE"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "scenario.cost",
+          "scenario.override_application",
+          "scenario.cost_comparison"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:1",
+          "recipe:1",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "0.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "f2-missing",
+        "question": "V999不存在 电缆改5米成本多少，卖340毛利多少",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "CONFIGURATION_COMPARE",
+          "PROFITABILITY"
+        ],
+        "predicates": [
+          "recipe.catalog_match"
+        ],
+        "entityIds": [],
+        "tools": [
+          "get_all_recipes"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ],
+    "virtual-readiness-preview": [
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-direct-a",
+        "question": "如果现在再做300台 v550-tokoy 库存够不够？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-direct-b",
+        "question": "再做100台 PHASED-浮球-有 库存够不够？",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-direct-c",
+        "question": "如果做500台 v550-tokoy 够料吗？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-colloquial-a",
+        "question": "v550-tokoy 再做300台的话，料够吗？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-colloquial-b",
+        "question": "PHASED-浮球-无 再来200台，缺什么料？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-followup",
+        "question": "再做300台 v550-tokoy 库存够不够？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-followup",
+        "question": "那再做500台呢？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-boundary",
+        "question": "再做1台 v550-tokoy 库存够不够？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.virtual_readiness"
+        ],
+        "entityIds": [
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "preview_virtual_readiness"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-direct-d",
+        "question": "如果做50台 PHASED-浮球-无 库存够吗？",
+        "state": "UNSUPPORTED",
+        "outcome": "FAILED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "f3-missing",
+        "question": "再做300台 V999不存在的配方 库存够不够？",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "recipe.catalog_match"
+        ],
+        "entityIds": [],
+        "tools": [
+          "get_all_recipes"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ],
+    "recipe-cost-comparison": [
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-direct-a",
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:2",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "291.48",
+          "19.50"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-direct-b",
+        "question": "PHASED-浮球-有和PHASED-浮球-无差多少钱？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:11",
+          "recipe:12",
+          "recipe:11"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "263.98",
+          "8.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-direct-c",
+        "question": "对比 v550-tokoy 和 PHASED-浮球-有 的成本",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:11",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "0.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-colloquial-a",
+        "question": "帮我比较一下 v550-tokoy 和 PHASED-浮球-有 哪个成本高一点，高多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:11",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "0.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-colloquial-b",
+        "question": "v550-tokoy 比 PHASED-浮球-无 贵多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:12",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "263.98",
+          "8.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-followup",
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:1",
+          "recipe:2",
+          "recipe:1"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "271.98",
+          "291.48",
+          "19.50"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-followup",
+        "question": "第二个现在完整成本呢？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "CURRENT_COST"
+        ],
+        "predicates": [
+          "recipe.current_cost"
+        ],
+        "entityIds": [
+          "recipe:2"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "questions": [],
+        "amounts": [
+          "291.48"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-boundary",
+        "question": "PHASED-浮球-有和PHASED-浮球-有成本差多少？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-direct-d",
+        "question": "PHASED-浮球-无和PHASED-浮球-有哪个成本高？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "entityIds": [
+          "recipe:12",
+          "recipe:11",
+          "recipe:12"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "questions": [],
+        "amounts": [
+          "263.98",
+          "271.98",
+          "8.00"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "f4-missing",
+        "question": "v550-tokoy和V999不存在的配方成本差多少？",
+        "state": "UNSUPPORTED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ],
+    "coil-catalogue-cost": [
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-direct-a",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "98.39"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-direct-b",
+        "question": "12-140的成本是多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "115.29"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-direct-c",
+        "question": "帮我查12-140线圈成本",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "115.29"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-colloquial-a",
+        "question": "12-120这个线圈现在多少钱？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "98.39"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-colloquial-b",
+        "question": "12-140现在做一套线圈要多少钱",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "115.29"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-followup",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "98.39"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-followup",
+        "question": "那12-140呢？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-ambiguous",
+        "question": "12-200现在是什么成本？",
+        "state": "WAITING_INPUT",
+        "outcome": "WAITING_INPUT",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-direct-d",
+        "question": "12-120这个方案的成本是多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [
+          "coil.current_cost"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [
+          "98.39"
+        ],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "f5-missing",
+        "question": "12-999成本多少？",
+        "state": "FAILED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "COIL_COST"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ],
+    "coil-inventory": [
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-direct-a",
+        "question": "12-120还有多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-direct-b",
+        "question": "12-140现在库存多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-direct-c",
+        "question": "12-120的库存是多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-colloquial-a",
+        "question": "12-120还有货吗？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-colloquial-b",
+        "question": "12-140还剩多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:2"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-followup",
+        "question": "12-120还有多少？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-followup",
+        "question": "那12-140呢？",
+        "state": "UNSUPPORTED",
+        "outcome": "OUT_OF_ADMISSION_SCOPE",
+        "kinds": [
+          "OTHER"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": false,
+          "reason": "FAMILY_NOT_SUPPORTED",
+          "decision": "LEGACY_SAFE_PATH"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-ambiguous",
+        "question": "12-200有库存吗？",
+        "state": "WAITING_INPUT",
+        "outcome": "WAITING_INPUT",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [
+          "INVENTORY_COIL_AMBIGUOUS"
+        ],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-direct-d",
+        "question": "12-120现在有多少库存？",
+        "state": "SUCCEEDED",
+        "outcome": "NATIVE_SUCCEEDED",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [
+          "inventory.coil"
+        ],
+        "entityIds": [
+          "coil:1"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "f6-missing",
+        "question": "12-999有库存吗？",
+        "state": "FAILED",
+        "outcome": "NEGATIVE_RESULT",
+        "kinds": [
+          "INVENTORY_QUERY"
+        ],
+        "predicates": [],
+        "entityIds": [],
+        "tools": [
+          "search_coils"
+        ],
+        "questions": [],
+        "amounts": [],
+        "admission": {
+          "eligible": true,
+          "reason": "SUPPORTED_AND_READ_ONLY",
+          "decision": "NATIVE_CANARY"
+        },
+        "problems": []
+      }
+    ]
+  },
+  "continuationChains": [
+    {
+      "familyId": null,
+      "scenarioKey": "chain-coil",
+      "question": "12-200成本多少？",
+      "state": "WAITING_INPUT",
+      "outcome": "WAITING_INPUT",
+      "kinds": [
+        "COIL_COST"
+      ],
+      "predicates": [],
+      "entityIds": [],
+      "tools": [
+        "search_coils"
+      ],
+      "questions": [
+        "COIL_COST_AMBIGUOUS"
+      ],
+      "amounts": [],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-coil",
+      "question": "第二个",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "COIL_COST"
+      ],
+      "predicates": [
+        "coil.current_cost"
+      ],
+      "entityIds": [
+        "coil:12"
+      ],
+      "tools": [
+        "search_coils"
+      ],
+      "questions": [
+        "COIL_COST_AMBIGUOUS"
+      ],
+      "amounts": [
+        "144.90"
+      ],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-coil",
+      "question": "这个还有库存吗？",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "INVENTORY_QUERY"
+      ],
+      "predicates": [
+        "inventory.coil"
+      ],
+      "entityIds": [
+        "coil:12"
+      ],
+      "tools": [
+        "search_coils"
+      ],
+      "questions": [],
+      "amounts": [],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-coil",
+      "question": "12-140成本多少？",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "COIL_COST"
+      ],
+      "predicates": [
+        "coil.current_cost"
+      ],
+      "entityIds": [
+        "coil:2"
+      ],
+      "tools": [
+        "search_coils"
+      ],
+      "questions": [],
+      "amounts": [
+        "115.29"
+      ],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-recipe",
+      "question": "v550-tokoy和v750-tokoy差多少钱？",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "RECIPE_COST_COMPARISON"
+      ],
+      "predicates": [
+        "recipe.current_cost",
+        "recipe.current_cost",
+        "recipe.cost_difference"
+      ],
+      "entityIds": [
+        "recipe:1",
+        "recipe:2",
+        "recipe:1"
+      ],
+      "tools": [
+        "get_all_recipes",
+        "get_all_recipes",
+        "compare_recipes"
+      ],
+      "questions": [],
+      "amounts": [
+        "271.98",
+        "291.48",
+        "19.50"
+      ],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-recipe",
+      "question": "第二个现在完整成本呢？",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "CURRENT_COST"
+      ],
+      "predicates": [
+        "recipe.current_cost"
+      ],
+      "entityIds": [
+        "recipe:2"
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios"
+      ],
+      "questions": [],
+      "amounts": [
+        "291.48"
+      ],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    },
+    {
+      "familyId": null,
+      "scenarioKey": "chain-recipe",
+      "question": "那第一个呢？",
+      "state": "SUCCEEDED",
+      "outcome": "NATIVE_SUCCEEDED",
+      "kinds": [
+        "CURRENT_COST"
+      ],
+      "predicates": [
+        "recipe.current_cost"
+      ],
+      "entityIds": [
+        "recipe:1"
+      ],
+      "tools": [
+        "get_all_recipes",
+        "compare_recipe_scenarios"
+      ],
+      "questions": [],
+      "amounts": [
+        "271.98"
+      ],
+      "admission": {
+        "eligible": true,
+        "reason": "SUPPORTED_AND_READ_ONLY",
+        "decision": "NATIVE_CANARY"
+      },
+      "problems": []
+    }
+  ],
+  "failureInjection": {
+    "providerFailure": "S1-I1：provider 抛错时正式事实仍只来自回执（比较链路 SUCCEEDED 且只输出回执金额）",
+    "formalApiFailure": "S1-I2：正式能力未验证回执 → 无金额、无事实，不用历史事实替代",
+    "ambiguousIdentity": "S1-I3：12-200 多候选 → WAITING_INPUT/INVENTORY_COIL_AMBIGUOUS，不默认不汇总",
+    "emptyResult": "S1-I4：正式空结果 → 无库存数值、无金额",
+    "incompletePricing": "S1-I5：定价不完整 → 不声称完整成本、无金额",
+    "staleSession": "S1-I6：会话过期 → 不继承旧 canonical 主体，无事实无金额",
+    "tests": "tests/nativeS1CanaryScope.test.cjs S1-I1…I6"
+  },
+  "parity": {
+    "sample": [
+      {
+        "question": "v550-tokoy现在成本多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "271.98"
+        ],
+        "legacyAmounts": [
+          "271.89"
+        ],
+        "completenessDelta": false,
+        "basisDelta": true,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": true,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "PHASED-浮球-有当前成本是多少？",
+        "nativeState": null,
+        "nativeAmounts": null,
+        "legacyAmounts": [],
+        "completenessDelta": false,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "271.98",
+          "267.63",
+          "4.35"
+        ],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "PHASED-浮球-有当前成本多少？卖340毛利多少？",
+        "nativeState": null,
+        "nativeAmounts": null,
+        "legacyAmounts": [],
+        "completenessDelta": false,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "如果现在再做300台 v550-tokoy 库存够不够？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "再做100台 PHASED-浮球-有 库存够不够？",
+        "nativeState": null,
+        "nativeAmounts": null,
+        "legacyAmounts": [],
+        "completenessDelta": false,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "271.98",
+          "291.48",
+          "19.50"
+        ],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "PHASED-浮球-有和PHASED-浮球-无差多少钱？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "271.98",
+          "263.98",
+          "8.00"
+        ],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "12-120成本多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "98.39"
+        ],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "12-140的成本是多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [
+          "115.29"
+        ],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "12-120还有多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      },
+      {
+        "question": "12-140现在库存多少？",
+        "nativeState": "SUCCEEDED",
+        "nativeAmounts": [],
+        "legacyAmounts": [],
+        "completenessDelta": true,
+        "basisDelta": false,
+        "roundingDelta": false,
+        "legacyStaleDisclosure": false,
+        "valueConflict": false,
+        "basisConflict": false
+      }
+    ],
+    "valueConflict": 0,
+    "basisConflict": 0,
+    "completenessDelta": 8,
+    "basisDelta": 1,
+    "roundingDelta": 0,
+    "legacyStaleDisclosure": 1
+  },
+  "fallbackObservation": {
+    "legacyRuns": 12,
+    "tier1Tier2": {
+      "present": true,
+      "decisionCriticalHits": 5,
+      "directSupportHits": 5
+    },
+    "answerMentionsNonFormalNumber": {
+      "present": true,
+      "hits": 12
+    },
+    "fallbackPreventedRegression": 12,
+    "fallbackNeverNeeded": 0,
+    "semanticFallbackTypes": [],
+    "redundancyCandidates": []
+  },
+  "gates": {
+    "npm test": "PASS 3209/3209",
+    "verify:api-contract": "PASS 28/28",
+    "test:deep-api": "PASS exit 0",
+    "lint": "PASS exit 0",
+    "build": "PASS exit 0",
+    "verify:ai-native-release": "PASS @ sourceRevision=5a14f8ffe80ae0dd435923257dae3712e6b5c166 — structuralReadiness=STRUCTURALLY_READY, ownerTrialCoverageReadiness=READY_WITHIN_SUPPORTED_SCOPE, productionReadiness=NOT_READY",
+    "ontologyRoutingCanary": "PASS 42/42",
+    "structuralRemediationOracle(A01-A07)": "GREEN 10/10",
+    "n73ApiReferenceCoverage": "PASS 7/7（docs/api-reference.md 变更后按既有流程重绑 N7.3 存证哈希）"
+  },
+  "constraints": {
+    "newCoverageFamilies": false,
+    "ontologyChanges": false,
+    "newGoalFamily": false,
+    "newParallelRuntime": false,
+    "writeRollout": false,
+    "tier1Tier2Removed": false,
+    "answerMentionsNonFormalNumberRemoved": false,
+    "productionChanged": false,
+    "deployed": false,
+    "generalProductionRouteChanged": false
+  },
+  "remainingStabilityBlockers": [
+    "非 V 命名的配方（如 PHASED-*）在「单个配方当前成本 / 虚拟齐料 / 配置变更」路径上没有进入业务语义 admission：这些问法稳定地落到 LEGACY_SAFE_PATH（17/112），不是错误答案，但属于覆盖边界（S1 明确不扩覆盖）。",
+    "虚拟齐料族 1 条真实问法（「如果做50台 PHASED-浮球-无 库存够吗？」）在族内失败（无金额、无绑定），根因同上（非 V 命名无法在齐料路径解析主体）。",
+    "legacy 在 1/12 抽样里用自述为历史快照的档案成本作答（271.89 vs Native 当前 271.98）——Native 更当前；该差异按口径差记录（basisDelta），并由 answerMentionsNonFormalNumber 兜底命中。"
+  ],
+  "nextRecommendation": [
+    "进入 Owner Read Canary 连续观察（只读、owner-only、AI_NATIVE_MODE=owner），保留 canaryAdmission 作为唯一闸门与即时关闭手段。",
+    "下一阶段若扩覆盖：把「非 V 命名配方」纳入业务语义 admission（复用 E1-B 命名资源判定），而不是放宽 canary admission。",
+    "TIER1/TIER2 与 answerMentionsNonFormalNumber 在 12/12 抽样 legacy 轮次中都有命中（确实拦下了非正式金额声明），本阶段不删。"
+  ]
+}

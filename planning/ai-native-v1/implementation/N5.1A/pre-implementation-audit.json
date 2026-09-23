@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "ticket": "N5.1A",
+  "startCommit": "9229c625e0bcb3dfb4aa2bd406a1a14e2101cb95",
+  "currentMigrationHead": 87,
+  "nextMigrationSelected": 88,
+  "safeInsertAvailable": true,
+  "safeUpdateAvailable": true,
+  "safeTablesLocation": "api/db.cjs: SAFE_TABLES",
+  "backupMechanism": "api/services/databaseBackup.cjs:createDatabaseBackup",
+  "restoreMechanism": "api/services/databaseRestore.cjs:restoreDatabaseBackup",
+  "existingTaskLikeTables": [
+    "ai_conversations",
+    "ai_conversation_messages",
+    "factory_workflow_runs"
+  ],
+  "duplicatePersistenceCapabilityFound": false,
+  "databaseScope": "Disposable SQLite databases only; no production database was opened or written."
+}

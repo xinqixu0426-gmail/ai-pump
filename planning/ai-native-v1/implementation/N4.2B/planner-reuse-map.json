@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "sharedCore": "buildBalancedOrderPlanningProjection in api/services/orderPlanning.cjs",
+  "orderReadiness": "api/services/activeOrderReadiness.cjs invokes the same balanced planner projection",
+  "virtualReadiness": "api/services/virtualReadinessPreview.cjs calls buildBalancedOrderPlanningProjection then buildOrderPlan with the planner-produced reservedDemand",
+  "secondInventoryAlgorithmCreated": false,
+  "directDbBypass": false
+}

@@ -1,0 +1,139 @@
+{
+  "repo": "xinqixu0426-gmail/ai-pump",
+  "commit": "251f822491d677056f2d7b82f09473a51321d8e1",
+  "sourcePolicy": "本次与上次同SHA代码读取；Git blobSHA不是运行通过证据。文档可能滞后，运行器及实现优先。",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "gitBlobSha": "bb98b5a76b7a0d924117066281ed3942da4161e6",
+      "purpose": "开发与API变更规约",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/AGENTS.md"
+    },
+    {
+      "path": "docs/api-contract.md",
+      "gitBlobSha": null,
+      "purpose": "只读、证据、强审计、API登记",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/docs/api-contract.md"
+    },
+    {
+      "path": "docs/api-sop.md",
+      "gitBlobSha": null,
+      "purpose": "不强制两阶段规划、通用只读、不重启历史运行器",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/docs/api-sop.md"
+    },
+    {
+      "path": "api/routes/ai/chat.cjs",
+      "gitBlobSha": "49fc6e98e813bcd71c2d1c0a2ca141afbf60bca6",
+      "purpose": "SSE、鉴权、超时、客户端断开取消",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/routes/ai/chat.cjs"
+    },
+    {
+      "path": "api/routes/ai/tools.cjs",
+      "gitBlobSha": "5f570457275fe41573e4ca427d3eb5dfb8f13de5",
+      "purpose": "真实工具字段及上限",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/routes/ai/tools.cjs"
+    },
+    {
+      "path": "api/routes/ai/executor.cjs",
+      "gitBlobSha": "759768b779b87bc3c97ba29c720dfd66bb844c51",
+      "purpose": "单一分发、预检、确认、结果证据",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/routes/ai/executor.cjs"
+    },
+    {
+      "path": "api/routes/ai/executors/businessExecutors.cjs",
+      "gitBlobSha": "e3a147dd25888074954b4bdb941fbd7f021ad452",
+      "purpose": "成本预览三分支与参数传递",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/routes/ai/executors/businessExecutors.cjs"
+    },
+    {
+      "path": "api/services/aiConversations.cjs",
+      "gitBlobSha": "d0608ec4475a331e0610b91ead2b754193093718",
+      "purpose": "chat-N转换、会话所属、客户端metadata边界",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/aiConversations.cjs"
+    },
+    {
+      "path": "api/services/aiExecutionEvidence.cjs",
+      "gitBlobSha": "15b8a42a2ce68e9e18e026611dbe85017b7ff5e5",
+      "purpose": "实际receipt字段，非版本快照",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/aiExecutionEvidence.cjs"
+    },
+    {
+      "path": "api/services/currentRecipeCost.cjs",
+      "gitBlobSha": "a562126aafcf62d974cb4e383891f3b382ee5a8a",
+      "purpose": "costComplete、当前成本/保存成本、人工费用",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/currentRecipeCost.cjs"
+    },
+    {
+      "path": "api/services/configuredRecipeSnapshot.cjs",
+      "gitBlobSha": "58e6277454987a3c1a17f07d2edfa06333555366",
+      "purpose": "真实覆盖字段集合、类型、保存快照",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/configuredRecipeSnapshot.cjs"
+    },
+    {
+      "path": "api/services/recipeConfigurationBaseline.cjs",
+      "gitBlobSha": "4c8faa57307159c144dbadae52bda5c9858a5423",
+      "purpose": "继承、线圈身份失效、包装按角色替换",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/recipeConfigurationBaseline.cjs"
+    },
+    {
+      "path": "api/services/aiToolConfirmation.cjs",
+      "gitBlobSha": "61e90a2db07dd3625503ca426ab074276fc24642",
+      "purpose": "5分钟内存token、重启不继续执行",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/aiToolConfirmation.cjs"
+    },
+    {
+      "path": "api/services/commandExecution.cjs",
+      "gitBlobSha": "3f07ca3f1098086c1a66a31cd2ee30f770dbc821",
+      "purpose": "幂等、operation、事务强审计",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/commandExecution.cjs"
+    },
+    {
+      "path": "api/services/quotationDraft.cjs",
+      "gitBlobSha": "0d3eafbb9e647dd8b4c4c6c59a0c20bf5e7692b9",
+      "purpose": "margin实际为售价/成本倍率，数量未知null",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/quotationDraft.cjs"
+    },
+    {
+      "path": "docs/synthetic-business-acceptance-v1.md",
+      "gitBlobSha": "3ce406e585b6a09dfabc34f18a799ef148a273d9",
+      "purpose": "既有32题假数据与64次历史验收",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/docs/synthetic-business-acceptance-v1.md"
+    },
+    {
+      "path": "api/business-semantics/questionSemantics.cjs",
+      "gitBlobSha": "6c51cd6328bfe43af979775e14c46b2ed8765de4",
+      "purpose": "上一轮已直接读取：单kind关键词分类",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/business-semantics/questionSemantics.cjs"
+    },
+    {
+      "path": "api/business-semantics/evidencePlanner.cjs",
+      "gitBlobSha": "04d401ef15c93ffd7f22df5026c1f9db533930d4",
+      "purpose": "上一轮已直接读取：三次有界证据读取",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/business-semantics/evidencePlanner.cjs"
+    },
+    {
+      "path": "api/capabilities/registry.cjs",
+      "gitBlobSha": "74aa84fe6082a0736450886a167b9c7356ad4cc6",
+      "purpose": "上一轮已直接读取：唯一能力目录",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/capabilities/registry.cjs"
+    },
+    {
+      "path": "api/services/aiAssistantRuntime.cjs",
+      "gitBlobSha": "b5942b5f4584df19492830566a889e7a1cbb2564",
+      "purpose": "上一轮已直接读取：10calls、7rounds、多个回答处理器",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/aiAssistantRuntime.cjs"
+    },
+    {
+      "path": "api/services/orderPlanning.cjs",
+      "gitBlobSha": "aa8f4061fcc3e5811cad7569f2a2104f0d8355d1",
+      "purpose": "上一轮已直接读取：共享库存分配和单位换算",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/orderPlanning.cjs"
+    },
+    {
+      "path": "api/services/costDifference.cjs",
+      "gitBlobSha": "a77595fa7a96bb81ea05a5259aae54c057ba883c",
+      "purpose": "上一轮已直接读取：正式金额差异与驱动项",
+      "url": "https://github.com/xinqixu0426-gmail/ai-pump/blob/251f822491d677056f2d7b82f09473a51321d8e1/api/services/costDifference.cjs"
+    }
+  ]
+}

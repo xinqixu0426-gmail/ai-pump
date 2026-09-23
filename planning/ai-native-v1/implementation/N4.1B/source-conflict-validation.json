@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "classes": [
+    "VALUE_MISMATCH",
+    "VERSION_MISMATCH",
+    "STATUS_MISMATCH"
+  ],
+  "resolution": "UNRESOLVED_SOURCE_CONFLICT unless an independently formal authoritative supersession is supplied",
+  "test": "tests/aiTaskDocumentsV2.test.cjs mutation witnesses + Task V2 answer contract",
+  "contract": "SourceConflictV1 validates both evidence references and exposes an explicit SOURCE_CONFLICT allowed claim; unresolved conflicts cannot be silently selected."
+}

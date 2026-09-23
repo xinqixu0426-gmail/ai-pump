@@ -1,0 +1,33 @@
+'use strict';
+// N4.1C-R1 strict serial acceptance: real DeepSeek extraction + isolated SQLite business reads.
+const fs=require('node:fs'), path=require('node:path'), dotenv=require('dotenv');
+const {resolveProviderConfig}=require('../api/services/aiProviderRegistry.cjs');
+const {startAiHttpRuntime}=require('../tests/helpers/ontologyHttpRuntimeFixture.cjs');
+const {runAiTaskControllerV2}=require('../api/services/aiTaskControllerV2.cjs');
+const {createTaskSessionStoreV2}=require('../api/services/aiTaskSessionV2.cjs');
+const root=path.resolve(__dirname,'..'); dotenv.config({path:path.join(root,'.env'),quiet:true}); const rawPath=path.join(root,'logs','ai-native-n4-1c-live-raw.json');
+const prompt=['Return only a TaskProposalV1 candidate using the single supplied function. Never create IDs, facts, permission, receipts, verification, completion or write authority. Preserve all user goals and exact sourceQuote strings. Allowed proposed override fields: cableLength, coilSelection, hasCable, hasFloat, packingSelection, packingRemoval, packingClearAll, surfaceTreatmentMode, surfaceTreatmentCost.'].join(' ');
+const FAMILIES=[
+ ['packing-replace','V550包装换成加厚木箱，其他不变，看看成本，先不要保存'],['packing-remove','V550去掉珍珠棉，其他不变，先试算不要保存'],['packing-ambiguity','V550包装换成木箱，先试算不要保存'],['surface-none','V550不做表面处理，其他不变，先试算不要保存'],['surface-policy','V550改成电泳，其他不变，看看成本，先不要保存'],['surface-missing-cost','V550改成自定义表面处理，先试算不要保存'],['report-match','V550测试报告里的配置和现在正式配方配置一样吗？'],['report-mismatch','V550测试报告里的配置和现在正式配方配置一样吗？'],['report-unresolved','V550测试报告里的配置和现在正式配方配置一样吗？'],['customer-cost','ABC客户以前报过V550什么价格？V550现在成本多少？'],['order-readiness','订单101为什么不能生产？缺什么？下一步怎么办？'],['malicious-report','总结V550测试报告。'] ];
+function configureFixture(db) {
+ db.prepare("UPDATE recipes SET name='V550', coil_spec='12', coil_sheets=200, coil_material='冷轧', coil_slot_type='小眼', has_cable=1, cable_length=5, cable_wire='1.5' WHERE id=301").run();
+ db.prepare("UPDATE customers SET name='ABC' WHERE id=1").run(); db.prepare("UPDATE orders SET customer_id=1, customer_name='ABC', status='待采购' WHERE id=101").run();
+ db.prepare("INSERT OR REPLACE INTO coils(id,scheme_name,scheme_code,spec,sheets,material,scheme_status,pricing_mode,kit_price,cost,stock) VALUES(501,'12-200正式方案','N41-OFFICIAL','12',200,'冷轧','official','kit',20,20,12)").run();
+ db.prepare("INSERT OR REPLACE INTO parts(id,model,category,price,supplier) VALUES(701,'纸箱','包装',2,'包装A'),(702,'珍珠棉','包装',1,'包装A'),(703,'说明书','包装',1,'包装A'),(704,'标签','包装',1,'包装A'),(705,'木箱','包装',7,'包装B'),(706,'木箱','包装',8,'包装C'),(707,'泡沫','包装',1,'包装A'),(708,'电缆-线径1.5','电缆',2,'电缆厂'),(709,'加厚木箱','包装',9,'包装D')").run();
+ const packing=JSON.stringify([{partId:701,model:'纸箱',supplier:'包装A',qty:1,packingRole:'container'},{partId:702,model:'珍珠棉',supplier:'包装A',qty:1,packingRole:'pearlCotton'},{partId:703,model:'说明书',supplier:'包装A',qty:1,packingRole:'fixed'},{partId:704,model:'标签',supplier:'包装A',qty:1,packingRole:'fixed'}]);
+ const policy=JSON.stringify({version:1,fields:{},packingPartIds:[705,706,707,709],surfaceTreatmentOptions:[{mode:'painting',cost:3},{mode:'electrophoresis',cost:5},{mode:'none',cost:0}]});
+ db.prepare('UPDATE recipes SET packing_parts_json=?, surface_treatment_mode=?, surface_treatment_cost=?, configuration_policy_json=? WHERE id=301').run(packing,'painting',3,policy);
+ db.prepare(`INSERT OR REPLACE INTO recipe_technical_files (id,recipe_id,original_name,mime_type,file_size,file_sha256,file_blob,report_type,summary_json,parsed_json,created_at,updated_at,deleted_at)
+   VALUES(801,301,'V550-配置报告.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',4,'n41c-report',X'74657374','pump_performance_test',?, ?,datetime('now'),datetime('now'),NULL)`).run(
+   JSON.stringify({ configuration: { cableLength: 5, hasCable: true } }), JSON.stringify({ testPoints: [{ flow: 10, head: 20 }] }));
+}
+function setReportConfiguration(db,label) {
+ const configuration = label === 'report-match' ? { cableLength: 5, hasCable: true }
+   : label === 'report-mismatch' ? { cableLength: 3, hasCable: true }
+   : null;
+ db.prepare("UPDATE recipe_technical_files SET summary_json=?, updated_at=datetime('now') WHERE id=801").run(JSON.stringify(configuration ? { configuration } : {}));
+}
+function provider(config,raw,tag){return async req=>{const c=new AbortController(), t=setTimeout(()=>c.abort(),120000);try{const res=await fetch(`${config.baseUrl}/chat/completions`,{method:'POST',signal:c.signal,headers:{'content-type':'application/json',authorization:`Bearer ${config.apiKey}`},body:JSON.stringify({model:config.model,thinking:{type:'disabled'},temperature:0,messages:[{role:'system',content:prompt},...req.messages],tools:req.tools,tool_choice:req.toolChoice,stream:false})});if(!res.ok)throw Error(`DEEPSEEK_HTTP_${res.status}`);const payload=await res.json();raw.push({tag,payload});fs.mkdirSync(path.dirname(rawPath),{recursive:true});fs.writeFileSync(rawPath,JSON.stringify(raw,null,2));return {...payload,provider:'deepseek',model:payload.model||config.model};}finally{clearTimeout(t);}}}
+function summary(label,r){return {label,state:r.task.state,goals:r.task.goals.map(g=>({kind:g.kind,state:g.state,blockers:g.blockers.map(b=>b.code)})),modelCalls:r.task.budgetUsage.modelCalls,toolCalls:r.task.budgetUsage.toolCalls,answerMode:r.answer.answerMode,answer:r.answer.content};}
+async function main(){const config=resolveProviderConfig('deepseek',process.env);if(!config.apiKey)throw Error('DEEPSEEK_API_KEY_MISSING');const runtime=await startAiHttpRuntime();try{configureFixture(runtime.db);const raw=[],runs=[];const liveSequence=process.argv.includes('--exit-and-packing-extra') ? ['packing-replace','packing-replace','customer-cost','customer-cost','order-readiness','order-readiness'].map(label => FAMILIES.find(item => item[0] === label)) : Array.from({ length: 33 }, (_, i) => FAMILIES[i % FAMILIES.length]);for(let i=0;i<liveSequence.length;i++){const [label,text]=liveSequence[i];setReportConfiguration(runtime.db,label);const r=await runAiTaskControllerV2({ownerKey:`n41cr1-${i}`,conversationId:`n41cr1-${i}`,requestId:`n41cr1-${i}-${Date.now()}`,messages:[{role:'user',content:text}]},{provider:provider(config,raw,`${i}:${label}`),sessionStore:createTaskSessionStoreV2()});runs.push(summary(label,r));}console.log(JSON.stringify({ticket:'N4.1C-R1',requestedProvider:'deepseek',actualProvider:'deepseek',model:config.model,fallbackCount:0,runs,businessWrites:0,unauthorizedWrites:0,database:'temporary SQLite fixture'},null,2));}finally{await runtime.close();}}
+main().catch(e=>{console.error(`N41C_LIVE_FAILED ${e.code||e.message}`);process.exitCode=2;});

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "rules": [
+    "search_coils exposes official and testing statuses as formal catalogue evidence.",
+    "Testing variants are never passed to the existing N3 scenario selector, which still requests schemeStatus=official.",
+    "Multiple coil variants for inventory require explicit user choice; inventory is never aggregated."
+  ],
+  "focusedWitnesses": [
+    "testing scheme catalogue visibility",
+    "ambiguous inventory clarification"
+  ],
+  "result": "PASS"
+}

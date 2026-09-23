@@ -1,0 +1,18 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "cases": 24,
+  "runsPerCase": 5,
+  "totalRuns": 120,
+  "criticalFailures": 0,
+  "states": {
+    "UNSUPPORTED": 80,
+    "PARTIAL": 5,
+    "SUCCEEDED": 25,
+    "FAILED": 10
+  },
+  "answerModelCalls": 0,
+  "answerToolCalls": 0,
+  "answerApiCalls": 0,
+  "businessWrites": 0
+}

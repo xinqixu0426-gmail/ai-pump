@@ -1,0 +1,52 @@
+{
+  "suite": "tests/recipeScenarioComparison.test.cjs",
+  "matrix": [
+    [
+      "policy absent",
+      "electrophoresis only",
+      "SURFACE_TREATMENT_COST_REQUIRED"
+    ],
+    [
+      "policy absent",
+      "electrophoresis + 6",
+      "PASS hypothetical"
+    ],
+    [
+      "policy present electro=5",
+      "electrophoresis only",
+      "PASS; formal cost 5 derived"
+    ],
+    [
+      "policy present electro=5",
+      "electrophoresis + 5",
+      "PASS"
+    ],
+    [
+      "policy present electro=5",
+      "electrophoresis + 6",
+      "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED"
+    ],
+    [
+      "policy present painting=5",
+      "electrophoresis + 6",
+      "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED"
+    ],
+    [
+      "policy present painting=5",
+      "electrophoresis only",
+      "RECIPE_CONFIGURATION_SURFACE_NOT_ALLOWED"
+    ],
+    [
+      "any policy",
+      "none + 0",
+      "PASS"
+    ],
+    [
+      "any policy",
+      "none + nonzero",
+      "SURFACE_TREATMENT_COST_CONFLICT"
+    ]
+  ],
+  "policyDerivedCostProvenance": "FORMAL_POLICY; candidate.requestedOverrides omits surfaceTreatmentCost when it was derived.",
+  "fakeUserSpanPresent": false
+}

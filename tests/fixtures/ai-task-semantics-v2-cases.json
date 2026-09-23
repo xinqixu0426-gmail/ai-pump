@@ -1,0 +1,348 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "caseId": "SIMPLE-01",
+      "text": "V550当前成本",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "CURRENT_COST"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-02",
+      "text": "V550的成本",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "CURRENT_COST"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-03",
+      "text": "老板想查V550成本",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "CURRENT_COST"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-04",
+      "text": "12-200库存",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "INVENTORY_QUERY"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "12-200"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-05",
+      "text": "12-200还有货吗",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "INVENTORY_QUERY"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "12-200"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-06",
+      "text": "12-200有哪些正式方案",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "COIL_QUERY"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "12-200"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-07",
+      "text": "😊，V550成本？",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "CURRENT_COST"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "SIMPLE-08",
+      "text": "老V550经典款成本多少",
+      "expectedExtractionMode": "DETERMINISTIC",
+      "expectedGoalKinds": [
+        "CURRENT_COST"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 0
+    },
+    {
+      "caseId": "COMPLEX-01",
+      "text": "V550现在成本多少，库存还有多少？",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "CURRENT_COST",
+        "INVENTORY_QUERY"
+      ],
+      "expectedGoalCount": 2,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 0,
+      "expectedOverrides": [],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1,
+      "core": true
+    },
+    {
+      "caseId": "COMPLEX-02",
+      "text": "V550电缆改成5米，其他不变，和现在成本比一下，够不够做300台，卖340元一台利润多少，先不要保存。",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "CONFIGURATION_COMPARE",
+        "INVENTORY_QUERY",
+        "PROFITABILITY"
+      ],
+      "expectedGoalCount": 3,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 1,
+      "expectedOverrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m"
+        }
+      ],
+      "expectedQuantity": {
+        "value": 300,
+        "unit": "pump"
+      },
+      "expectedUnitPrice": {
+        "value": 340,
+        "unit": "CNY"
+      },
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": "PRESERVE_UNMENTIONED_BASE_CONFIGURATION",
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1,
+      "core": true
+    },
+    {
+      "caseId": "COMPLEX-03",
+      "text": "把V550正式配方改成5米电缆",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "PREPARE_CHANGE"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 1,
+      "expectedOverrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m"
+        }
+      ],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "CONFIRMATION_REQUIRED",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1
+    },
+    {
+      "caseId": "COMPLEX-04",
+      "text": "V550，12-200线圈，5米电缆，做300台，340元一台",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "INVENTORY_QUERY"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550",
+        "12-200"
+      ],
+      "expectedScenarioCount": 1,
+      "expectedOverrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m"
+        },
+        {
+          "field": "coilSelection",
+          "value": "12-200",
+          "unit": null
+        }
+      ],
+      "expectedQuantity": {
+        "value": 300,
+        "unit": "pump"
+      },
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1
+    },
+    {
+      "caseId": "COMPLEX-06",
+      "text": "V550，12-200线圈，5米电缆，做300台，340元一台，毛利多少？",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "INVENTORY_QUERY",
+        "PROFITABILITY"
+      ],
+      "expectedGoalCount": 2,
+      "expectedSubjectMentions": [
+        "V550",
+        "12-200"
+      ],
+      "expectedScenarioCount": 1,
+      "expectedOverrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m"
+        },
+        {
+          "field": "coilSelection",
+          "value": "12-200",
+          "unit": null
+        }
+      ],
+      "expectedQuantity": {
+        "value": 300,
+        "unit": "pump"
+      },
+      "expectedUnitPrice": {
+        "value": 340,
+        "unit": "CNY"
+      },
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1
+    },
+    {
+      "caseId": "COMPLEX-05",
+      "text": "V550电缆换成500cm，如果这样成本多少",
+      "expectedExtractionMode": "MODEL_ASSISTED",
+      "expectedGoalKinds": [
+        "CONFIGURATION_COMPARE"
+      ],
+      "expectedGoalCount": 1,
+      "expectedSubjectMentions": [
+        "V550"
+      ],
+      "expectedScenarioCount": 1,
+      "expectedOverrides": [
+        {
+          "field": "cableLength",
+          "value": 5,
+          "unit": "m"
+        }
+      ],
+      "expectedQuantity": null,
+      "expectedUnitPrice": null,
+      "expectedWritePolicy": "FORBIDDEN",
+      "expectedInheritancePolicy": null,
+      "expectedUnparsedQuotes": [],
+      "maxModelCalls": 1
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "artifact": "N7.3 final closure validation",
+  "generatedBy": "scripts/n73-write-closure-validation.cjs",
+  "bindingModel": "ReleaseEvidenceV1 attests the product runtime revision and the sha256 of each N7.3 handoff artifact. It deliberately does not name the commit that adds it. This record is written afterwards and therefore binds the N7.3 handoff package revision/tree plus the evidence payload hash. No circular hash is claimed.",
+  "productRuntime": {
+    "revision": "5aafbaba2ae950d1825f78be0ded4f1304e9f270",
+    "tree": "eba6e8cef874e3ca3178fe2bb4bd5158d23e0535",
+    "scope": "Runtime behaviour described by the N7.3 documentation package."
+  },
+  "handoffPackage": {
+    "revision": "e3f396c1112411cd3569b441ecadff87ae5633c9",
+    "tree": "e0a4e911150818da52ae963249459634bebb8163",
+    "subject": "chore(ai-native): rebind the N7.3 release evidence to the S1 api-reference update"
+  },
+  "releaseEvidence": {
+    "path": "planning/ai-native-v1/release/ReleaseEvidenceV1.json",
+    "blobSha": "9bc713d50bb30b96c9e8a3acd6223db14961c800",
+    "payloadSha256": "90618f7107d8eb1409dd23da788d12e5058638a9ff3578cbfb5c3f8a5dc7f23d",
+    "payloadSha256SideFile": "planning/ai-native-v1/release/ReleaseEvidenceV1.payload.sha256",
+    "sideFileMatches": true,
+    "attestsProductRuntimeRevision": "5aafbaba2ae950d1825f78be0ded4f1304e9f270",
+    "hashingPolicy": "sha256 over canonical git blob content (api/lib/evidenceHashing.cjs), never over checkout bytes"
+  },
+  "handoffArtifactIntegrity": {
+    "checked": 6,
+    "allMatch": true,
+    "mismatches": [],
+    "hashingPolicy": "sha256 over canonical git blob content of every artifact; each artifact is committed inside the handoff package",
+    "artifacts": [
+      {
+        "role": "ARCHITECTURE_AND_HANDOFF",
+        "path": "docs/ai-native-v1-handoff.md",
+        "attestedSha256": "6409ca9df428e4c3dd57f009a8c8bc8de4aeb1d225115c8338c1f938641e7be7",
+        "diskSha256": "6409ca9df428e4c3dd57f009a8c8bc8de4aeb1d225115c8338c1f938641e7be7",
+        "hashSource": "git_blob",
+        "matches": true
+      },
+      {
+        "role": "API_REFERENCE",
+        "path": "docs/api-reference.md",
+        "attestedSha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
+        "diskSha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
+        "hashSource": "git_blob",
+        "matches": true
+      },
+      {
+        "role": "TECHNICAL_DEBT",
+        "path": "docs/technical-debt.md",
+        "attestedSha256": "d1af3626b2ca3cb98c6fecd41f15e4b4f60d3857ce38d7d138184764f3a8b92a",
+        "diskSha256": "d1af3626b2ca3cb98c6fecd41f15e4b4f60d3857ce38d7d138184764f3a8b92a",
+        "hashSource": "git_blob",
+        "matches": true
+      },
+      {
+        "role": "RELEASE_EVIDENCE_EXPLAINER",
+        "path": "planning/ai-native-v1/release/N7.3-release-evidence.md",
+        "attestedSha256": "10c38a2c39f6cb581f6e24ab56ae8606f5687b18d745e1d50d3d3752f1e618c5",
+        "diskSha256": "10c38a2c39f6cb581f6e24ab56ae8606f5687b18d745e1d50d3d3752f1e618c5",
+        "hashSource": "git_blob",
+        "matches": true
+      },
+      {
+        "role": "HANDOFF_VALIDATOR_TEST",
+        "path": "tests/n73HandoffDocumentation.test.cjs",
+        "attestedSha256": "7c4bf2ef4c239261fd607afd21fea4c32ddffc397547fe4c9f249d6ea3eab043",
+        "diskSha256": "7c4bf2ef4c239261fd607afd21fea4c32ddffc397547fe4c9f249d6ea3eab043",
+        "hashSource": "git_blob",
+        "matches": true
+      },
+      {
+        "role": "EVIDENCE_GENERATOR",
+        "path": "scripts/n73-generate-release-evidence.cjs",
+        "attestedSha256": "ac8539eda797d61c17325a2b9c7dfcaac8ab398fddb2ef1a6a19abdafc94c5ba",
+        "diskSha256": "ac8539eda797d61c17325a2b9c7dfcaac8ab398fddb2ef1a6a19abdafc94c5ba",
+        "hashSource": "git_blob",
+        "matches": true
+      }
+    ]
+  },
+  "handoffPackageWorktree": {
+    "cleanAtValidation": true,
+    "dirtyPaths": [],
+    "note": "The closure validation record is the only file added after the handoff package commit; its own revision is recorded by the next commit."
+  },
+  "apiReference": {
+    "status": "COMPLETE",
+    "auditedBy": "tests/n73ApiReferenceCoverage.test.cjs",
+    "handoffEntrypointCount": 13,
+    "missingCount": 0,
+    "referenceEdited": false,
+    "reason": "canonical N7.3 added no routes; coverage of every current AI Native entrypoint is proven by executable audit instead of asserted"
+  },
+  "rollout": {
+    "aiNativeModeDefault": "off",
+    "writeEnabledDefault": false,
+    "ownerTrialStarted": false,
+    "productionNativeWrites": 0,
+    "liveQualityEvidenceStatus": "REQUIRES_FRESH_PRE_OWNER_TRIAL_RUN"
+  },
+  "selfReference": {
+    "claimsOwnCommitHash": false,
+    "note": "This record is the binding artifact. It may be added in a later commit than the package it binds, which is the intended, satisfiable structure."
+  }
+}

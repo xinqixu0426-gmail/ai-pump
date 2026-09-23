@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "rejections": [
+    "unknown request fields",
+    "unsupported version",
+    "ORDER basis",
+    "absent scenarioKey",
+    "quantity 0/fraction/>100000",
+    "client stock/reservation fields",
+    "ignore existing orders policy",
+    "unresolved inventory identity",
+    "configuration hash mismatch"
+  ],
+  "answerBoundaries": [
+    "no inventory arithmetic in answer",
+    "no production capacity or delivery claim",
+    "no complete shortage claim for INCOMPLETE"
+  ],
+  "validatedBy": [
+    "tests/virtualReadinessPreview.test.cjs",
+    "tests/aiTaskControllerV2.test.cjs",
+    "tests/aiToolInputValidatorV2.test.cjs"
+  ]
+}

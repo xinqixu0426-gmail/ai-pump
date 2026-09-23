@@ -1,0 +1,282 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase4SharedAuditV1",
+  "phase": "PHASE_4_LOW_RISK_SHARED_FILES",
+  "status": "PASS_WITH_RECLASSIFICATION",
+  "authority": {
+    "matrix": "planning/ai-native-v1/release/ProductionIntegrationCandidateMatrixV1.json",
+    "matrixWorkingTreeSha256": "bc67f5ad1403753e0c70e9d36bbd5ee72c65dfee59a18939c9ee173939a09066",
+    "reviewMethod": "semantic per-file review of the full master->native diff; trimmed non-empty line containment recomputed and cross-checked against the matrix classification, which reproduced exactly 22 low-risk / 20 production-only files"
+  },
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "PHASE_4_START_HEAD": "fa2e407938497897e1648a0acad70cd56d9290e4"
+  },
+
+  "counts": {
+    "SHARED_FILES_TOTAL": 42,
+    "LOW_RISK_SHARED_EXPECTED": 22,
+    "LOW_RISK_SHARED_PROCESSED": 22,
+    "ADOPTED_NATIVE_SAFE": 12,
+    "RECLASSIFIED_MANUAL_MERGE": 10,
+    "LOW_RISK_LEFT_UNPROCESSED": 0
+  },
+
+  "adoptionRule": {
+    "rule": "Native version adopted only when every production behaviour remains represented, no production validation/route/export/default is lost, no ordering-sensitive side effect changes, error semantics do not regress, and the Native addition is accepted AI Native responsibility.",
+    "textualContainmentInsufficient": true,
+    "method": "full diff read for every file; route/export/default/order/side-effect/error-semantics checked individually; focused production tests executed where an existing one covers the behaviour"
+  },
+
+  "adopted": [
+    { "path": "api/routes/ai.cjs", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "requires ./ai/tasks.cjs and mounts tasksRouter before chatModule.router", "productionBehaviourPreserved": "all pre-existing router.use lines unchanged and still registered; only one additive line added", "orderSensitivity": "tasksRouter mounted before chatModule.router, matching Native; chat absolute paths are /api/ai/chat so no shadowing of the legacy route", "testEvidence": "tests/aiChatRoute.test.cjs PASS 11/11" },
+    { "path": "api/routes/ai/chat.cjs", "risk": "MEDIUM", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "server-owned rollout snapshot (resolveAiNativeRollout) + ownerKey forwarded + createAiChatRouter export", "productionBehaviourPreserved": "legacy reply path unchanged; nativeTaskDelegation is false unless the rollout snapshot says otherwise; nothing is selected from body/headers/model output", "configSemantics": "AI_NATIVE_MODE read server-side only, absent -> off", "testEvidence": "tests/aiChatRoute.test.cjs PASS 11/11 including the N7.1 off/shadow/owner Legacy-authority assertion" },
+    { "path": "api/routes/ai/executors/businessExecutors.cjs", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "three new switch cases: compare_recipe_scenarios, preview_profitability, preview_virtual_readiness", "productionBehaviourPreserved": "no existing case modified, no reordering, no deletion (diff is +40/-0)", "sideEffectSemantics": "new cases only reachable through the new native tool names", "dependencyNote": "the HTTP targets are produced by the Phase 3 port; preview_virtual_readiness needs the api.cjs /api/inventory mount owned by PHASE 5" },
+    { "path": "api/routes/cost.cjs", "risk": "MEDIUM", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "2 new routes: POST /api/recipes/:id/scenario-compare-preview and POST /api/cost/profitability-preview", "productionBehaviourPreserved": "the saved-snapshot POST /recipes/:id/cost-preview contract is untouched; both new routes are additional", "errorSemantics": "new routes use the existing sendCostQueryError helper with status 400", "businessInfrastructure": true },
+    { "path": "api/services/aiConfirmedToolExecution.cjs", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "optional onAdmission/onCompleted hooks; executionError.statusCode now honours result.statusCode before falling back to 502", "productionBehaviourPreserved": "hooks are no-ops when not supplied, which is every existing caller except the N6.2 write bridge; the statusCode fallback keeps 502 whenever the executor does not report one", "errorSemantics": "strictly a wider, non-regressing propagation of an error already produced by the executor", "testEvidence": "tests/aiToolConfirmation.test.cjs PASS within the 74/74 focused run" },
+    { "path": "api/services/aiConversationCommands.cjs", "risk": "MEDIUM", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "assertNoActiveAiNativeTask guard on single and batch conversation delete", "productionBehaviourPreserved": "the guard returns immediately when the ai_tasks table does not exist, so current production behaviour is byte-for-byte unchanged until migration 88 is applied", "validationAdded": "an active detached task now blocks deletion of its recovery source with 409 ai_conversation_active_task", "testEvidence": "tests/aiConversationCommands.test.cjs existing 7/7 PASS (the Native-only new test is deferred, see reclassified)" },
+    { "path": "api/services/aiDispatcherV3.cjs", "risk": "MEDIUM", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "injected nativeTaskDelegation branch delegating to runAiTaskControllerV2", "productionBehaviourPreserved": "legacy runtime is still returned for every call that does not inject nativeTaskDelegation === true; the flag is an injected server dependency and is never read from payload, header, page context or environment", "orderSensitivity": "the delegation branch is evaluated before the legacy runtime but is gated on an injected flag AND !commandRoute, so protected-command traffic still takes the legacy command runtime" },
+    { "path": "apps/web-next/components/ai/AiAnswerProcess.tsx", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "optional nativeTaskId field on the ChatItem type", "productionBehaviourPreserved": "type-only addition; no render logic, no ordering, no side effect" },
+    { "path": "apps/web-next/components/ai/useAiConversationHistory.ts", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "carries message.metadata.nativeTaskId into the rebuilt history item", "productionBehaviourPreserved": "all pre-existing fields (provider/metrics/turnState/persistedMessageId/historical) unchanged; undefined when the metadata key is absent" },
+    { "path": "apps/web-next/lib/ai.ts", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "optional nativeTaskId on AiConversationMessage.metadata; AiTaskState/AiTaskPublicView/AiTaskAcknowledgement types; startAiTask/getAiTask/resumeAiTask/cancelAiTask calling /api/ai/tasks*", "productionBehaviourPreserved": "purely additive exports; every new request goes through proxyRequest as the project rule requires; no existing client call changed" },
+    { "path": "docs/technical-debt.md", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "new section 8 documenting the real AI Native V1 debt state (solved items, production-rollout pending items, accepted limitations, real debt, do-not-do list)", "productionBehaviourPreserved": "append-only; no existing debt entry edited or removed", "docNote": "links to docs/ai-native-v1-handoff.md which already exists in the candidate from the Phase 3 port" },
+    { "path": "tests/aiChatRoute.test.cjs", "risk": "LOW", "decision": "ADOPTED_NATIVE_SAFE", "nativeDelta": "one new test asserting off/shadow stay Legacy-authoritative and only an authenticated Owner JWT is admitted to Native delegation", "productionBehaviourPreserved": "append-only; the four existing N7.1 assertions all pass", "testEvidence": "node --test tests/aiChatRoute.test.cjs PASS 11/11" }
+  ],
+
+  "reclassified": [
+    {
+      "path": "api/database/migrations.cjs",
+      "risk": "MEDIUM",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "The file is database/migration infrastructure. The coordinator requires an explicit migration-number reverification before any Phase 4 adoption and prefers manual integration. Migration 88 also creates the ai_tasks tables that two Phase 4 test files depend on, so adopting it here would pull migration ownership into Phase 4.",
+      "containmentVerified": true,
+      "nativeDelta": "+9/-0 only: require AI_TASK_PERSISTENCE_SCHEMA_SQL from ./schema.cjs, then append version 88 'ai_native_durable_task_persistence' calling db.exec(AI_TASK_PERSISTENCE_SCHEMA_SQL)",
+      "facts": {
+        "MASTER_HIGHEST_MIGRATION": 87,
+        "MASTER_DEFINES_VERSION_88": false,
+        "NATIVE_MIGRATION_88": "ai_native_durable_task_persistence, purely additive DDL",
+        "MIGRATION_88_CONFLICT": "NO"
+      },
+      "ownsPhase": "PHASE_5_OR_6"
+    },
+    {
+      "path": "api/database/schema.cjs",
+      "risk": "MEDIUM",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Explicitly listed by the coordinator as a migration/schema file to keep in manual integration when any production-specific difference may exist. Reclassified out of conservatism and because it is the sole provider of AI_TASK_PERSISTENCE_SCHEMA_SQL.",
+      "containmentVerified": true,
+      "nativeDelta": "+80/-0 only: new AI_TASK_PERSISTENCE_SCHEMA_SQL constant (ai_tasks, ai_task_steps, ai_task_evidence, ai_task_events), four new APPLICATION_TABLES entries, one new module export",
+      "sideEffectAnalysis": "APPLICATION_TABLES is only defined and exported in this file; no consumer enumerates it, so the widened list has no runtime side effect today",
+      "ownsPhase": "PHASE_5_OR_6"
+    },
+    {
+      "path": "api/services/orderCommands.cjs",
+      "risk": "HIGH",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Changes persistent idempotency behaviour of a formal business command and moves three production-only content lines; the coordinator requires manual review for shared business algorithms.",
+      "nativeDelta": "adds orderCreateRequestFingerprint(); executeOrderCreate now fingerprints the ORIGINAL normalised request instead of the rebuilt draft payload",
+      "orderSensitive": true,
+      "behaviourChange": {
+        "before": "idempotency fingerprint input = { payload: { customerId, customerName, contractNo, remark, status, itemsJson, purchaseListJson, todosJson }, previewHash } taken from the rebuilt draft",
+        "after": "idempotency fingerprint input = { customerId, customerName, contractNo, remark, items from the original request body, previewHash }",
+        "whyItMatters": "this is the N4.2C-IDEMPOTENCY-REPLAY-REPAIR: rebuilding the purchase plan of an already-active order changed the fingerprint and broke replay. The repair is a real defect fix, but it changes the stored command fingerprint for order creation, so it must be an explicit production decision rather than a silent Phase 4 adoption.",
+        "previewHashEnforcementPreserved": "assertPreviewHash(expectedPreviewHash, draft.previewHash) is unchanged"
+      },
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "api/services/costEngine.cjs",
+      "risk": "HIGH",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Formal cost engine, explicitly named by the coordinator for conservative treatment. Changes a shared business algorithm's price-source semantics.",
+      "nativeDelta": "adds a validity check: a catalogue exact match or a supplier fallback whose price is not finite or <= 0 is now treated as 正式目录缺少有效价格, pushes the model into missingParts and forces price 0; the supplier fallback reduce is also coerced through Number()",
+      "behaviourChange": "a part whose catalogue row exists with price 0 or a non-numeric price previously produced source='精确匹配'/'型号回退(取最低价)' at whatever price was stored; it now reports a missing valid price and contributes 0",
+      "businessInfrastructure": true,
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "api/services/aiToolInputValidatorV2.cjs",
+      "risk": "MEDIUM",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "The matrix already records 8 production-only lines (the normalize* helpers). The Native version additionally folds the native tool surface into the shared validator map, which is a responsibility merge rather than a low-risk adoption.",
+      "nativeDelta": "adds require('./aiNativeToolDefinitionsV2.cjs') and validates against new Map([...AI_TOOLS, ...AI_NATIVE_TOOLS_V2])",
+      "behaviourChange": "previously unknown tool names now validate; the production-only normalize helpers must be preserved explicitly during the merge",
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "tests/aiToolInputValidatorV2.test.cjs",
+      "risk": "LOW_BUT_COUPLED",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Cross-phase dependency: the added test asserts strict validation of preview_virtual_readiness, which only exists once aiToolInputValidatorV2.cjs is merged. Adopting the test before the code would add a failing test.",
+      "nativeDelta": "+21/-0, one new test only",
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "tests/aiConversationCommands.test.cjs",
+      "risk": "LOW_BUT_COUPLED",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Cross-phase dependency: the added test INSERTs directly into ai_tasks, which does not exist until migration 88 is merged. Adopted-then-rolled-back after the failure was reproduced.",
+      "nativeDelta": "+10/-0, one new test only",
+      "evidenceOfRollback": "node --test tests/aiConversationCommands.test.cjs failed with { code: 'SQLITE_ERROR' } while this file carried the Native version, and returned to PASS 7/7 after the rollback",
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "tests/deploymentAutomation.test.cjs",
+      "risk": "LOW_BUT_COUPLED",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Cross-phase dependency on package.json. The added assertions require verify:release to reference verify:ai-native-release and require verify:ai-native-release to exist. package.json is a PHASE 5 responsibility.",
+      "nativeDelta": "+2/-0, two assert.match calls",
+      "evidenceOfRollback": "node --test tests/deploymentAutomation.test.cjs failed with AssertionError /verify:ai-native-release/ while this file carried the Native version, and returned to PASS 3/3 after the rollback",
+      "ownsPhase": "PHASE_5"
+    },
+    {
+      "path": "tests/apiContractGovernance.test.cjs",
+      "risk": "LOW_BUT_COUPLED",
+      "decision": "RECLASSIFIED_MANUAL_MERGE",
+      "reason": "Cross-phase dependency on api.cjs. The added mountPrefixes entry only becomes complete once api.cjs mounts /api/inventory and docs/api-reference.md documents the endpoint; both are PHASE 5/7 responsibilities.",
+      "nativeDelta": "+1/-0, one mountPrefixes entry: 'inventory.cjs': '/api/inventory'",
+      "evidenceOfRollback": "adopting it while api.cjs does not mount the router makes the endpoint-set comparison fail against the unmerged api-reference; rolled back",
+      "ownsPhase": "PHASE_5"
+    }
+  ],
+
+  "checksLeavingPhase4NotGreen": [
+    {
+      "check": "node --test tests/apiContractGovernance.test.cjs",
+      "result": "FAIL 4/5",
+      "failure": "route file inventory.cjs has HTTP endpoints but no documented mount prefix",
+      "introducedBy": "PHASE_3 (the port added api/routes/inventory.cjs; the file is deliberately not yet mounted because api.cjs is a PHASE 5 shared file)",
+      "notIntroducedByPhase4": true,
+      "resolutionOwner": "PHASE_5 (mount /api/inventory in api.cjs + adopt the mountPrefixes entry + document the endpoint in docs/api-reference.md)",
+      "phase3RecordUnderstated": "the Phase 3 record claimed the candidate was route-equivalent to production at the end of Phase 3 and did not note that apiContractGovernance scans the route directory directly and therefore fails on an unmounted new route file. Corrected here."
+    }
+  ],
+
+  "focusedTests": [
+    { "command": "node --test tests/aiChatRoute.test.cjs tests/aiConversationCommands.test.cjs tests/orderCommands.test.cjs tests/aiToolConfirmation.test.cjs tests/aiProtectedCommandRoute.test.cjs", "result": "PASS 74/74", "failures": 0 }
+  ],
+
+  "staticValidation": {
+    "blobIdentityVsNativeSource": { "checked": 12, "mismatches": 0 },
+    "nodeCheck": { "checked": 11, "failures": 0 },
+    "relativeImportResolution": { "unresolved": 0 }
+  },
+
+  "migrationFactsReverified": {
+    "method": "git show master:api/database/migrations.cjs max version vs git show ai-native/v1:api/database/migrations.cjs",
+    "MASTER_HIGHEST_MIGRATION": 87,
+    "MASTER_MIGRATION_88_EXISTS": false,
+    "NATIVE_MIGRATION_88": "ai_native_durable_task_persistence",
+    "NATIVE_MIGRATION_88_BODY": "db.exec(AI_TASK_PERSISTENCE_SCHEMA_SQL) - purely additive CREATE TABLE/INDEX ... IF NOT EXISTS",
+    "PRODUCTION_MIGRATION_88_CONFLICT": "NO",
+    "migrationFilesTouchedByPhase4": [],
+    "migrationExecuted": false
+  },
+
+  "handoffToPhase5": {
+    "sharedFilesRemainingForPhase5": 30,
+    "highRiskSharedTotalAfterReclassification": 30,
+    "arithmetic": "42 shared/modified files total = 12 ADOPTED_NATIVE_SAFE in Phase 4 + 30 remaining for Phase 5. The 30 are the 20 originally classified production-only plus the 10 Phase 4 reclassifications (migrations.cjs, schema.cjs, orderCommands.cjs, costEngine.cjs, aiToolInputValidatorV2.cjs, aiToolInputValidatorV2.test.cjs, aiConversationCommands.test.cjs, deploymentAutomation.test.cjs, apiContractGovernance.test.cjs). api.cjs was already in the original manual set, so its role as the /api/inventory mount point adds no new path.",
+    "originalManualSet": [
+      "api/capabilities/registry.cjs",
+      "api/db.cjs",
+      "api/routes/ai/executor.cjs",
+      "api/services/currentRecipeCost.cjs",
+      "api/services/orderPlanning.cjs",
+      "apps/web-next/components/ai-view.tsx",
+      "docs/business-flow.md",
+      "docs/database-schema.md",
+      "docs/README.md",
+      "package.json",
+      "tests/recipeConfigurationPolicy.test.cjs",
+      "api/services/configuredRecipeSnapshot.cjs",
+      "api/services/recipeConfigurationPolicy.cjs",
+      "scripts/run-business-understanding-benchmark.cjs",
+      "tests/aiCapabilityRegistry.test.cjs",
+      "scripts/run-deep-api-smoke.cjs",
+      "docs/api-reference.md",
+      "tests/helpers/ontologyHttpRuntimeFixture.cjs",
+      "api/services/aiToolInputValidatorV2.cjs",
+      "tests/ontologyRoutingCanary.test.cjs"
+    ],
+    "addedByPhase4Reclassification": [
+      "api/database/migrations.cjs",
+      "api/database/schema.cjs",
+      "api/services/orderCommands.cjs",
+      "api/services/costEngine.cjs",
+      "api/services/aiToolInputValidatorV2.cjs",
+      "tests/aiToolInputValidatorV2.test.cjs",
+      "tests/aiConversationCommands.test.cjs",
+      "tests/deploymentAutomation.test.cjs",
+      "tests/apiContractGovernance.test.cjs"
+    ],
+    "packageJsonDecisionPending": {
+      "script": "verify:release",
+      "master": "npm audit && npm --prefix apps/web-next audit && npm run verify:api-contract && npm run lint && npm test && npm run test:deep-api && npm run build && npm run verify:prod-env",
+      "native": "same chain plus && npm run verify:ai-native-release before verify:prod-env, and a new verify:ai-native-release script",
+      "phase4Stance": "not decided by Phase 4; recorded so PHASE 5 does not silently change the production release gate while additively adding verify:ai-native-release"
+    }
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "MASTER_WORKTREE_TOUCHED": false,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3,
+    "CREDENTIALS_COPIED": false
+  },
+
+  "candidateStateFullTestRun": {
+    "command": "npm test",
+    "executedOnPhase4WorkingTree": true,
+    "result": "exit 1, 2982 tests, 2879 pass, 103 fail",
+    "purpose": "characterise the intentional intermediate state; NOT a Phase 4 pass claim",
+    "failureGrouping": {
+      "CAPABILITY_NOT_REGISTERED_native_tools": 38,
+      "detail": "compare_recipe_scenarios x28, preview_profitability x7, preview_virtual_readiness x3 - all thrown by aiTaskCapabilityAdapterV2 because api/capabilities/registry.cjs (PHASE 5 shared file) is not yet merged",
+      "value_assertions": 11,
+      "configurationPolicyJson_rejects_packingRemovalPolicy": 1,
+      "typeError_undefined_quantity_fields": 2,
+      "apiReference_documentation_gaps": 3,
+      "n72CanonicalDeepApiGate_and_deep_api_plumbing": 7,
+      "apiContractGovernance_unmounted_inventory": 2,
+      "other": "remaining entries are downstream of the same unmerged seams"
+    },
+    "failingFiles": [
+      "tests/aiTaskControllerV2.test.cjs (31)",
+      "tests/virtualReadinessPreview.test.cjs (10)",
+      "tests/aiTaskLegacyRetirementN72.test.cjs (8)",
+      "tests/n72CanonicalDeepApiGate.test.cjs (5)",
+      "tests/recipeScenarioComparison.test.cjs (4)",
+      "tests/n73ApiReferenceCoverage.test.cjs (4)",
+      "tests/apiContractGovernance.test.cjs (2)",
+      "tests/aiTaskPersistenceV2R1.test.cjs (2)",
+      "tests/aiTaskControllerV2Route.test.cjs (1)",
+      "tests/aiTaskCapabilityAdapterV2Integration.test.cjs (1)",
+      "tests/n73HandoffDocumentation.test.cjs (1)",
+      "tests/aiTaskPersistenceV2.test.cjs (1)",
+      "tests/aiTaskLegacyRetirementModesN72.test.cjs (1)"
+    ],
+    "rootCause": "Every failing file is either a Phase 3 ported Native test whose subject depends on an unmerged PHASE 5 shared seam, or a production test whose subject is a PHASE 5 shared file. Directly verified: the candidate registry does not contain compare_recipe_scenarios, preview_profitability or preview_virtual_readiness.",
+    "directlyVerified": "node -e require('./api/capabilities/registry.cjs') string search for the three native tool names returned false for all three",
+    "noOutputOfPhase4": "No failure was introduced by a Phase 4 adoption: the 12 adopted files were each verified with blob identity, node --check and a 74/74 focused test run, and the three coupled test files were rolled back when they failed."
+  },
+
+  "notRun": [
+    "npm run test:deep-api (requires a source database; the default candidate invocation has none)",
+    "npm run verify:api-contract",
+    "npm run lint",
+    "npm run build",
+    "Native N4-N7.2 regression suites as a deliberate suite"
+  ],
+  "notRunReason": "The candidate is still an intentional intermediate state: 30 shared seams remain unmerged, including api/capabilities/registry.cjs which 38 of the 103 current failures depend on. Full gates are scheduled for PHASE 7/8/9."
+}

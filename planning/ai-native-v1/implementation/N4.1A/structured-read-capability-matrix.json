@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "startCommit": "7361eb86cd2e5a009843282af4c892f66203c2e5",
+  "entries": [
+    {
+      "goalKind": "CUSTOMER_HISTORY",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "customers.list",
+        "customers.history"
+      ],
+      "tools": [
+        "search_customers",
+        "search_customer_history"
+      ],
+      "apiPaths": [
+        "/api/customers?name=",
+        "/api/customers/:id/context"
+      ],
+      "identityRule": "directory binding before customerId history read",
+      "collectionRule": "all requests require complete formal scope"
+    },
+    {
+      "goalKind": "QUOTATION_QUERY",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "quotations.list"
+      ],
+      "tools": [
+        "search_quotations"
+      ],
+      "apiPaths": [
+        "/api/quotations"
+      ],
+      "collectionRule": "query receipt controls bounded collection claim"
+    },
+    {
+      "goalKind": "ORDER_READINESS",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "orders.knowledge_package"
+      ],
+      "tools": [
+        "get_order_knowledge_package"
+      ],
+      "apiPaths": [
+        "/api/orders/:id/knowledge-package"
+      ],
+      "identityRule": "explicit order ID resolves as a single formal resource",
+      "requiredSections": [
+        "order",
+        "readiness",
+        "actionPlan"
+      ]
+    },
+    {
+      "goalKind": "INVENTORY_QUERY",
+      "status": "PARTIAL_CAPABILITY",
+      "formalCapabilities": [
+        "coils.list"
+      ],
+      "tools": [
+        "search_coils"
+      ],
+      "apiPaths": [
+        "/api/coils"
+      ],
+      "supportedScope": "single formally selected coil variant",
+      "limitations": [
+        "multiple coil variants require user choice; no aggregate stock",
+        "unbound part inventory is N4.1A_CAPABILITY_GAP"
+      ]
+    },
+    {
+      "goalKind": "MANAGEMENT_OVERVIEW",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "workbench.action_center"
+      ],
+      "tools": [
+        "get_management_action_center"
+      ],
+      "apiPaths": [
+        "/api/workbench/action-center"
+      ],
+      "collectionRule": "single authoritative action-center resource; no collection-completeness assertion"
+    },
+    {
+      "goalKind": "BUSINESS_CHANGES",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "business_changes.list"
+      ],
+      "tools": [
+        "search_business_changes"
+      ],
+      "apiPaths": [
+        "/api/business-changes"
+      ],
+      "collectionRule": "query receipt controls bounded event-set claim"
+    },
+    {
+      "goalKind": "IMPACT_INVESTIGATION",
+      "status": "N4.1A_CAPABILITY_GAP",
+      "formalCapabilities": [
+        "quality.rule_candidate_impact"
+      ],
+      "tools": [
+        "get_factory_rule_impact"
+      ],
+      "apiPaths": [
+        "/api/quality/rule-candidates/:candidateId/impact"
+      ],
+      "limitations": [
+        "existing capability requires an approved candidateId; generic natural-language target has no safe formal binding"
+      ]
+    },
+    {
+      "goalKind": "COIL_QUERY",
+      "status": "SUPPORTED",
+      "formalCapabilities": [
+        "coils.list"
+      ],
+      "tools": [
+        "search_coils"
+      ],
+      "apiPaths": [
+        "/api/coils"
+      ],
+      "collectionRule": "query receipt controls catalogue claim; testing records are visible only as catalogue evidence"
+    }
+  ]
+}

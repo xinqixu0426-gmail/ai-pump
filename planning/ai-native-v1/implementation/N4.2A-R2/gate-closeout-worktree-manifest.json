@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R2G",
+  "head": "e02b4b1f943d8af68ff921cb181714eb47d83b8b",
+  "initialGitStatus": [
+    " M api/capabilities/registry.cjs",
+    " M api/routes/ai/executors/businessExecutors.cjs",
+    " M api/routes/cost.cjs",
+    " M api/services/aiNativeToolDefinitionsV2.cjs",
+    " M api/services/aiTaskAnswerV2.cjs",
+    " M api/services/aiTaskCapabilityAdapterV2.cjs",
+    " M api/services/aiTaskControllerV2.cjs",
+    " M api/services/aiTaskDocumentsV2.cjs",
+    " M api/services/aiTaskFactsV2.cjs",
+    " M api/services/aiTaskSemanticsV2.cjs",
+    " M api/services/aiToolInputValidatorV2.cjs",
+    " M docs/api-reference.md",
+    " M planning/ai-native-v1/implementation-status.json",
+    " M scripts/run-ai-task-controller-v2-live.cjs",
+    " M tests/aiCapabilityRegistry.test.cjs",
+    " M tests/aiTaskControllerV2.test.cjs",
+    " M tests/aiTaskSemanticsV2Provider.test.cjs",
+    " M tests/fixtures/ai-task-semantics-v2-cases.json",
+    " M tests/helpers/ontologyHttpRuntimeFixture.cjs",
+    "?? api/services/profitabilityPreview.cjs",
+    "?? planning/ai-native-v1/implementation/N4.2A-R2/",
+    "?? planning/ai-native-v1/implementation/N4.2A/",
+    "?? scripts/run-ai-native-n4-2a-r2-live.cjs",
+    "?? tests/profitabilityPreview.test.cjs"
+  ],
+  "files": [
+    {
+      "path": "api/capabilities/registry.cjs",
+      "sha256": "bf8a2b4b715fd6de94f1e86596694b540e59f457430d2b8598e5aa3809f4425b"
+    },
+    {
+      "path": "api/routes/ai/executors/businessExecutors.cjs",
+      "sha256": "978300f54743e59bdfe0f34da22c0658cb511ac7b0d5b1d28ecbabcf39505f33"
+    },
+    {
+      "path": "api/routes/cost.cjs",
+      "sha256": "04a7bdb5fd4779ac4e645b8df844c22c0dcd039f8d39c918b93386e3f02cd628"
+    },
+    {
+      "path": "api/services/aiNativeToolDefinitionsV2.cjs",
+      "sha256": "d8dc3d3cc041909fccd9ed417823109989519ad172e1121e49a9688e57fde56d"
+    },
+    {
+      "path": "api/services/aiTaskAnswerV2.cjs",
+      "sha256": "bfe51a260a15566243a097277285d0d221d578191ffab94bc90c9bc1e4ec951b"
+    },
+    {
+      "path": "api/services/aiTaskCapabilityAdapterV2.cjs",
+      "sha256": "61bce8daccbf59219327e5311df16f49f7721f75b9fcfd7b54cda19c2ade5224"
+    },
+    {
+      "path": "api/services/aiTaskControllerV2.cjs",
+      "sha256": "f3ba5efcd23d20f5e2e26cc82cec7650e228270d6da26341c4dd0a1ca304c836"
+    },
+    {
+      "path": "api/services/aiTaskDocumentsV2.cjs",
+      "sha256": "a5d1270961b975316204ba9bcf8ef7ff692efe33a5af3f99810bf179badedad0"
+    },
+    {
+      "path": "api/services/aiTaskFactsV2.cjs",
+      "sha256": "7ad249acbc3c3be196c16d2faf915d8d8119b0d146ef5eb08d8f763958d4e6e0"
+    },
+    {
+      "path": "api/services/aiTaskSemanticsV2.cjs",
+      "sha256": "4621cc5f25062e181d247fd1b47759a13b95d50239cde9d7fec35c49afe270bd"
+    },
+    {
+      "path": "api/services/aiToolInputValidatorV2.cjs",
+      "sha256": "d073bc7ab62680053438fe857893d5c08ea8f814bef4cfcda938b5a827812f4e"
+    },
+    {
+      "path": "api/services/profitabilityPreview.cjs",
+      "sha256": "376954ee2d6872078a3c8e02b530b00a719117daca7de8c714e4ae907fdf39f8"
+    },
+    {
+      "path": "docs/api-reference.md",
+      "sha256": "b67f76f5aa15262d1f028026a302d5e857ef1c8eec42e61d1606c62ec1ec5465"
+    },
+    {
+      "path": "scripts/run-ai-native-n4-2a-r2-live.cjs",
+      "sha256": "ab5aa12aa46ebeb77efb6a7fb44f4115ae4faaa6b58b19086c075fec4ac7fb1a"
+    },
+    {
+      "path": "scripts/run-ai-task-controller-v2-live.cjs",
+      "sha256": "356082b0ff0e693105cbcc3ac6c64bb5735dd32876d56c2e1ea9b7ef20a55222"
+    },
+    {
+      "path": "tests/aiCapabilityRegistry.test.cjs",
+      "sha256": "957607ddd179488e262984b7b9ade4b1fe1fccf0fc5ea13d19563775d5d9f8f0"
+    },
+    {
+      "path": "tests/aiTaskControllerV2.test.cjs",
+      "sha256": "b9634e63d9ca797b79f2b59cfd4cb530ece243c18ac4581d0d6100a45195af25"
+    },
+    {
+      "path": "tests/aiTaskSemanticsV2Provider.test.cjs",
+      "sha256": "c79bb51ccc09affb42843a18bc07d53027c8b2c3c0ab659e5fc0455280c946f3"
+    },
+    {
+      "path": "tests/fixtures/ai-task-semantics-v2-cases.json",
+      "sha256": "981941c6761fdee1ad2de8de193d1c6ecd56fe63ed7b46cde08980024006beee"
+    },
+    {
+      "path": "tests/helpers/ontologyHttpRuntimeFixture.cjs",
+      "sha256": "7b1886bb233db864ed9035f8b6dda5c090576db18ba090208baf10dc139cebb3"
+    },
+    {
+      "path": "tests/profitabilityPreview.test.cjs",
+      "sha256": "2dbf753c08ef3abc82c5bbd8e59187b4887b49d6ec9a195c1161fc880d8044be"
+    }
+  ],
+  "manifestHash": "c727c5a0fd8b10abebc18da76c5daeebb158ebdce62435ac2ba493567446ddf0",
+  "finalFiles": [
+    {
+      "path": "api/capabilities/registry.cjs",
+      "sha256": "bf8a2b4b715fd6de94f1e86596694b540e59f457430d2b8598e5aa3809f4425b"
+    },
+    {
+      "path": "api/routes/ai/executors/businessExecutors.cjs",
+      "sha256": "978300f54743e59bdfe0f34da22c0658cb511ac7b0d5b1d28ecbabcf39505f33"
+    },
+    {
+      "path": "api/routes/cost.cjs",
+      "sha256": "04a7bdb5fd4779ac4e645b8df844c22c0dcd039f8d39c918b93386e3f02cd628"
+    },
+    {
+      "path": "api/services/aiNativeToolDefinitionsV2.cjs",
+      "sha256": "d8dc3d3cc041909fccd9ed417823109989519ad172e1121e49a9688e57fde56d"
+    },
+    {
+      "path": "api/services/aiTaskAnswerV2.cjs",
+      "sha256": "bfe51a260a15566243a097277285d0d221d578191ffab94bc90c9bc1e4ec951b"
+    },
+    {
+      "path": "api/services/aiTaskCapabilityAdapterV2.cjs",
+      "sha256": "61bce8daccbf59219327e5311df16f49f7721f75b9fcfd7b54cda19c2ade5224"
+    },
+    {
+      "path": "api/services/aiTaskControllerV2.cjs",
+      "sha256": "f3ba5efcd23d20f5e2e26cc82cec7650e228270d6da26341c4dd0a1ca304c836"
+    },
+    {
+      "path": "api/services/aiTaskDocumentsV2.cjs",
+      "sha256": "a5d1270961b975316204ba9bcf8ef7ff692efe33a5af3f99810bf179badedad0"
+    },
+    {
+      "path": "api/services/aiTaskFactsV2.cjs",
+      "sha256": "7ad249acbc3c3be196c16d2faf915d8d8119b0d146ef5eb08d8f763958d4e6e0"
+    },
+    {
+      "path": "api/services/aiTaskSemanticsV2.cjs",
+      "sha256": "4621cc5f25062e181d247fd1b47759a13b95d50239cde9d7fec35c49afe270bd"
+    },
+    {
+      "path": "api/services/aiToolInputValidatorV2.cjs",
+      "sha256": "d073bc7ab62680053438fe857893d5c08ea8f814bef4cfcda938b5a827812f4e"
+    },
+    {
+      "path": "api/services/profitabilityPreview.cjs",
+      "sha256": "376954ee2d6872078a3c8e02b530b00a719117daca7de8c714e4ae907fdf39f8"
+    },
+    {
+      "path": "docs/api-reference.md",
+      "sha256": "b67f76f5aa15262d1f028026a302d5e857ef1c8eec42e61d1606c62ec1ec5465"
+    },
+    {
+      "path": "scripts/run-ai-native-n4-2a-r2-live.cjs",
+      "sha256": "ab5aa12aa46ebeb77efb6a7fb44f4115ae4faaa6b58b19086c075fec4ac7fb1a"
+    },
+    {
+      "path": "scripts/run-ai-task-controller-v2-live.cjs",
+      "sha256": "356082b0ff0e693105cbcc3ac6c64bb5735dd32876d56c2e1ea9b7ef20a55222"
+    },
+    {
+      "path": "tests/aiCapabilityRegistry.test.cjs",
+      "sha256": "957607ddd179488e262984b7b9ade4b1fe1fccf0fc5ea13d19563775d5d9f8f0"
+    },
+    {
+      "path": "tests/aiTaskControllerV2.test.cjs",
+      "sha256": "b9634e63d9ca797b79f2b59cfd4cb530ece243c18ac4581d0d6100a45195af25"
+    },
+    {
+      "path": "tests/aiTaskSemanticsV2Provider.test.cjs",
+      "sha256": "c79bb51ccc09affb42843a18bc07d53027c8b2c3c0ab659e5fc0455280c946f3"
+    },
+    {
+      "path": "tests/fixtures/ai-task-semantics-v2-cases.json",
+      "sha256": "981941c6761fdee1ad2de8de193d1c6ecd56fe63ed7b46cde08980024006beee"
+    },
+    {
+      "path": "tests/helpers/ontologyHttpRuntimeFixture.cjs",
+      "sha256": "7b1886bb233db864ed9035f8b6dda5c090576db18ba090208baf10dc139cebb3"
+    },
+    {
+      "path": "tests/profitabilityPreview.test.cjs",
+      "sha256": "2dbf753c08ef3abc82c5bbd8e59187b4887b49d6ec9a195c1161fc880d8044be"
+    }
+  ],
+  "finalManifestHash": "c727c5a0fd8b10abebc18da76c5daeebb158ebdce62435ac2ba493567446ddf0",
+  "productAndTestContentChangedDuringGateCloseout": false,
+  "allowedEvidenceFilesChanged": [
+    "planning/ai-native-v1/implementation/N4.2A-R2/*.json",
+    "planning/ai-native-v1/implementation-status.json"
+  ]
+}

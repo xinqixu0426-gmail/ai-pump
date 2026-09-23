@@ -1,0 +1,506 @@
+{
+  "ticket": "AI-NATIVE-PHASE-E2-R1-COVERAGE-WAVE-1-CLOSURE",
+  "kind": "native-coverage-expansion-wave-1-closure",
+  "status": "PASS",
+  "createdAt": "2026-09-23T14:25:33Z",
+  "baseline": {
+    "startHead": "5a50d91d208845d7a86d3eaa874613980319b21f",
+    "codeHead": "d0073f9ce21b748f280aa7a7260915f616c32ce2",
+    "branch": "ai-native/prod-integration-v1",
+    "artifactCommit": "本文件（证据归档，docs-only；门禁在代码 head d0073f9ce21b748f280aa7a7260915f616c32ce2 的干净树上执行）"
+  },
+  "closedItems": [
+    {
+      "id": "1",
+      "item": "FAMILY-01 配方成本比较",
+      "result": "DONE",
+      "detail": "GoalKindV2 新增 RECIPE_COST_COMPARISON；双主体 subjectKeys；需求 recipe.current_cost×2 + recipe.cost_difference（FORMAL_COST_COMPARISON）；控制器分别 canonical 绑定、按 A→B 可恢复澄清；差额只来自 compare_recipes 回执 costDiff（且要求与两个正式成本自洽）；回答模板 RECIPE_COST_COMPARISON_V1。"
+    },
+    {
+      "id": "2",
+      "item": "跨轮 canonical 主体继承",
+      "result": "DONE",
+      "detail": "成功任务只保留最小续接上下文（canonical 身份，无事实无任务）；只继承身份，目标/事实/可变数值一律本轮重读；显式新主体优先；焦点不唯一先澄清；过期会话不继承；线圈用正式 schemeCode 重新读取并核对主键。"
+    },
+    {
+      "id": "3",
+      "item": "E2 回归矩阵补全",
+      "result": "DONE",
+      "detail": "tests/nativeCoverageWave1R1.test.cjs 26 条（要求 ≥22）+ tests/nativeCoverageWave1.test.cjs 16 条 = 42 条 E2 契约测试。"
+    }
+  ],
+  "familyRecipeCostComparison": {
+    "goalKind": "RECIPE_COST_COMPARISON",
+    "subjectCount": 2,
+    "ambiguityPolicy": "每个主体分别解析；任一主体多候选 → WAITING_INPUT（RECIPE_COMPARISON_AMBIGUOUS），按 A→B 有界可恢复顺序；不默认第一项、不只绑一个就执行、不按名称模糊猜。",
+    "capabilities": [
+      "get_all_recipes",
+      "compare_recipes"
+    ],
+    "facts": [
+      "recipe.current_cost @ A",
+      "recipe.current_cost @ B",
+      "recipe.cost_difference @ A（值来自回执 costDiff）"
+    ],
+    "answerTemplate": "RECIPE_COST_COMPARISON_V1",
+    "directionPolicy": "方向按能力契约 costDiff=配方2−配方1（工具描述明示「正数表示配方2更贵」）；回执差额与两个正式成本不自洽时不产出差额、不给方向。",
+    "semanticAuthority": "E1-B business-semantics questionSemantics（COST_COMPARISON）；Task V2 不新建比较语义，模型无权决定比较主体。",
+    "realModelRuns": 5
+  },
+  "crossTurnContinuation": {
+    "persistedIdentity": "lastCanonicalSubjects[]: {entityType, entityId, canonicalIdentity, displayName, schemeCode, readSelector, sourceTaskId, observedAt}（仅身份）",
+    "factsReused": false,
+    "mutableFactsReread": true,
+    "explicitSubjectOverride": "PASS",
+    "ambiguousFocusPolicy": "CONTINUATION_FOCUS_AMBIGUOUS 澄清；选定后才继承",
+    "staleSessionPolicy": "TTL 过期或会话失效即不继承（fail-closed）",
+    "realModelRuns": 11
+  },
+  "coverageManifest": {
+    "before": {
+      "supported": 5,
+      "partial": 1,
+      "unsupported": 3
+    },
+    "after": {
+      "supported": 6,
+      "partial": 1,
+      "unsupported": 2
+    },
+    "canaryEligible": [
+      "当前成本（单个在售配方）",
+      "配置变更 + 毛利 + 齐料（多目标）",
+      "虚拟齐料 / 缺料预览",
+      "两个方案的成本差额（比较）",
+      "线圈档案成本",
+      "线圈库存"
+    ],
+    "validation": "validateCoverageAgainstCapabilities() → consistent=true, problems=[]",
+    "upgradeCondition": "goal + subjects + formal requirement + capability + facts + answer + ambiguity + real model 全部满足后才升级；未完成则保持原状态（本轮未人为改数字）。"
+  },
+  "liveRuns": {
+    "runner": "scripts/phase-e2/run-wave1-r1-live.cjs",
+    "provider": {
+      "requested": "deepseek",
+      "model": "deepseek-v4-flash",
+      "apiKeyPresent": true
+    },
+    "database": {
+      "source": "/Users/dan/Documents/水泵工厂管理助手/backups/macmini-before-catalog-clear/pump-safety-2026-09-16T01-14-48-791Z.db",
+      "clonePath": "/var/folders/2r/cwrv1mld7j921cx99l_hw2pr0000gn/T/e2r1-live-PuUSW5/phase-d-clone.db",
+      "cloneSha256": "e6e39152303c63eb4fecd8f94b4745920d90160432acc13fd38b9b1100e66550",
+      "sourceTouched": false
+    },
+    "metrics": {
+      "runs": 19,
+      "comparisonRuns": 5,
+      "continuationRuns": 11,
+      "unsafeDeliveredRuns": 0,
+      "wrongCanonicalBinding": 0,
+      "selfCalculatedMoney": 0,
+      "unexplainedBusinessRegression": 0,
+      "scenarioProblems": 0
+    },
+    "comparison": [
+      {
+        "scenario": "cmp-direct",
+        "question": "v550-tokoy和PHASED-浮球-有成本差多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "factPredicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "canonicalEntities": [
+          "recipe:1",
+          "recipe:11",
+          "recipe:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "answer": "v550-tokoy当前完整成本为 ¥271.98；PHASED-浮球-有当前完整成本为 ¥271.98。按正式成本对比回执，两个方案的完整成本差额为 ¥0.00（持平）。本次只读对比，没有修改正式配方。"
+      },
+      {
+        "scenario": "cmp-colloquial",
+        "question": "帮我比较一下 v550-tokoy 和 PHASED-浮球-有 哪个成本高一点，高多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "factPredicates": [
+          "recipe.current_cost",
+          "recipe.current_cost",
+          "recipe.cost_difference"
+        ],
+        "canonicalEntities": [
+          "recipe:1",
+          "recipe:11",
+          "recipe:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes",
+          "compare_recipes"
+        ],
+        "answer": "v550-tokoy当前完整成本为 ¥271.98；PHASED-浮球-有当前完整成本为 ¥271.98。按正式成本对比回执，两个方案的完整成本差额为 ¥0.00（持平）。本次只读对比，没有修改正式配方。"
+      },
+      {
+        "scenario": "cmp-a-ambiguous",
+        "question": "PHASED-同名方案和v550-tokoy成本差多少？",
+        "state": "WAITING_INPUT",
+        "goalKinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [
+          "RECIPE_COMPARISON_AMBIGUOUS"
+        ],
+        "tools": [
+          "get_all_recipes"
+        ],
+        "answer": "“PHASED-同名方案”有多个正式配方，请选择一个后再进行成本比较。"
+      },
+      {
+        "scenario": "cmp-b-ambiguous",
+        "question": "v550-tokoy和PHASED-同名方案成本差多少？",
+        "state": "WAITING_INPUT",
+        "goalKinds": [
+          "RECIPE_COST_COMPARISON"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [
+          "RECIPE_COMPARISON_AMBIGUOUS"
+        ],
+        "tools": [
+          "get_all_recipes",
+          "get_all_recipes"
+        ],
+        "answer": "“PHASED-同名方案”有多个正式配方，请选择一个后再进行成本比较。"
+      },
+      {
+        "scenario": "cmp-negative-nonmoney",
+        "question": "v550-tokoy和PHASED-浮球-有什么配置区别？",
+        "state": "UNSUPPORTED",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [],
+        "tools": [],
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      }
+    ],
+    "continuation": [
+      {
+        "scenario": "cont-inventory-after-cost",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥98.39。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "cont-inventory-after-cost",
+        "question": "这个还有库存吗？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "canonicalEntities": [
+          "coil:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0001 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "scenario": "cont-cost-after-inventory",
+        "question": "12-140还有多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "canonicalEntities": [
+          "coil:2"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0002 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "scenario": "cont-cost-after-inventory",
+        "question": "这个成本呢？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:2"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥115.29。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "cont-explicit-override",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥98.39。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "cont-explicit-override",
+        "question": "先查V550成本",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "CURRENT_COST"
+        ],
+        "factPredicates": [
+          "recipe.current_cost"
+        ],
+        "canonicalEntities": [
+          "recipe:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "get_all_recipes",
+          "compare_recipe_scenarios"
+        ],
+        "answer": "v550-tokoy当前完整成本为 ¥271.98。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "scenario": "cont-negation",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥98.39。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "cont-negation",
+        "question": "不是这个",
+        "state": "UNSUPPORTED",
+        "goalKinds": [
+          "OTHER"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [],
+        "tools": [],
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "scenario": "cont-ambiguous-then-select",
+        "question": "12-200成本多少？",
+        "state": "WAITING_INPUT",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "scenario": "cont-ambiguous-then-select",
+        "question": "第二个",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:12"
+        ],
+        "reasonCodes": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "240v 50hz 马来西亚客户的当前线圈成本为 ¥144.90。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "cont-ambiguous-then-select",
+        "question": "这个还有库存吗？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "canonicalEntities": [
+          "coil:12"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0012 / 240v 50hz 马来西亚客户当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      }
+    ],
+    "wave1Regression": [
+      {
+        "scenario": "wave1-coil-cost",
+        "question": "12-120成本多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [
+          "coil.current_cost"
+        ],
+        "canonicalEntities": [
+          "coil:1"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "正式方案的当前线圈成本为 ¥98.39。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "scenario": "wave1-coil-cost",
+        "question": "12-200多少钱？",
+        "state": "WAITING_INPUT",
+        "goalKinds": [
+          "COIL_COST"
+        ],
+        "factPredicates": [],
+        "canonicalEntities": [],
+        "reasonCodes": [
+          "COIL_COST_AMBIGUOUS"
+        ],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "scenario": "wave1-coil-cost",
+        "question": "12-140现在库存多少？",
+        "state": "SUCCEEDED",
+        "goalKinds": [
+          "INVENTORY_QUERY"
+        ],
+        "factPredicates": [
+          "inventory.coil"
+        ],
+        "canonicalEntities": [
+          "coil:2"
+        ],
+        "reasonCodes": [],
+        "tools": [
+          "search_coils"
+        ],
+        "answer": "COIL-0002 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      }
+    ]
+  },
+  "negativeControls": {
+    "singleSubjectCost": "CURRENT_COST（不升级为比较）",
+    "nonMoneyComparison": "OTHER/UNSUPPORTED（无金额）",
+    "coilComparison": "OTHER/UNSUPPORTED（不进配方比较、不退化为单一线圈成本）",
+    "contextlessAnaphora": "OTHER/UNSUPPORTED（无金额）",
+    "duplicateNameRecipes": "选定后能力正式失败（RECIPE_SELECTOR_AMBIGUOUS）→ 不给任何金额"
+  },
+  "gates": {
+    "npm test": "PASS 3185/3185（E2 head 3159；新增 26 条 R1 回归）",
+    "verify:api-contract": "PASS 28/28",
+    "test:deep-api": "PASS exit 0",
+    "lint": "PASS exit 0",
+    "build": "PASS exit 0",
+    "verify:ai-native-release": "PASS @ sourceRevision=d0073f9ce21b748f280aa7a7260915f616c32ce2 — structuralReadiness=STRUCTURALLY_READY, ownerTrialCoverageReadiness=READY_WITHIN_SUPPORTED_SCOPE, productionReadiness=NOT_READY（本轮不部署）",
+    "ontologyRoutingCanary": "PASS 42/42",
+    "structuralRemediationOracle(A01-A07)": "GREEN 10/10"
+  },
+  "constraints": {
+    "tier1Tier2Removed": false,
+    "answerMentionsNonFormalNumberRemoved": false,
+    "newParallelArchitecture": false,
+    "businessApiChanged": false,
+    "costEngineChanged": false,
+    "databaseSchemaChanged": false,
+    "frozenOraclesEdited": false,
+    "productionChanged": false,
+    "deployed": false,
+    "scopeExpansionsRefused": [
+      "规格差异",
+      "经营概况",
+      "其它新 family"
+    ]
+  },
+  "remainingBlockers": [
+    "规格 / 配置差异（非金额）保持 UNSUPPORTED",
+    "经营概况 / 看板保持 UNSUPPORTED",
+    "productionReadiness=NOT_READY：未部署、未做生产灰度"
+  ]
+}

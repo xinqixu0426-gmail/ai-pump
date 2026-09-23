@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "FOUR_GOAL_TASK": "PASS",
+  "TASK_SPEC": "PASS",
+  "BUDGET": "PASS",
+  "STEPS": "PASS",
+  "RECEIPTS": "PASS",
+  "FACTS": "PASS",
+  "EVENTS": "PASS",
+  "RESULT": "PASS",
+  "DB_CONNECTION_CLOSED": "YES",
+  "IN_MEMORY_SESSION_DISCARDED": "YES",
+  "FRESH_STORE_INSTANCE": "YES",
+  "TRUST_REVALIDATED": "YES",
+  "taskGoals": [
+    "CURRENT_COST",
+    "CONFIGURATION_COMPARE",
+    "PROFITABILITY",
+    "INVENTORY_QUERY"
+  ],
+  "volatileFactRevalidation": {
+    "currentCost": "required",
+    "readiness": "required",
+    "currentQuotationOrderCatalog": "required when classified CURRENT",
+    "historicalVersionBoundEvidence": "not universally stale"
+  }
+}

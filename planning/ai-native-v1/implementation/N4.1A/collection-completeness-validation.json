@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "policy": "Only an authoritative collection receipt with explicit non-truncation, or explicit result completeness, may satisfy a complete collection requirement.",
+  "cases": [
+    {
+      "case": "all customer history with complete receipt",
+      "expected": "VERIFIED",
+      "observed": "PASS"
+    },
+    {
+      "case": "all customer history with possible truncation at limit 50",
+      "expected": "PARTIAL; no all-history claim",
+      "observed": "PASS"
+    },
+    {
+      "case": "empty complete collection",
+      "expected": "VERIFIED_NEGATIVE permitted only with scope hash",
+      "observed": "PASS"
+    },
+    {
+      "case": "management action center",
+      "expected": "single-resource fact; collection completeness not inferred",
+      "observed": "PASS"
+    },
+    {
+      "case": "BU-07 family missing/incomplete catalogue",
+      "expected": "cannot establish complete absence",
+      "observed": "protected by existing N3 requirement and unchanged"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "service": "api/services/profitabilityPreview.cjs",
+  "formula": {
+    "grossProfitPerUnit": "unitPrice - unitCost",
+    "grossMarginOnSales": "grossProfitPerUnit / unitPrice",
+    "markupOnCost": "grossProfitPerUnit / unitCost"
+  },
+  "tests": "tests/profitabilityPreview.test.cjs",
+  "result": "PASS",
+  "coverage": [
+    "positive",
+    "negative",
+    "zero price",
+    "zero cost",
+    "incomplete cost",
+    "quantity null"
+  ]
+}

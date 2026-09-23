@@ -1,0 +1,37 @@
+{
+  "ticket": "N3.2",
+  "status": "PASS",
+  "focusedTests": {
+    "passed": 8,
+    "failed": 0
+  },
+  "apiContract": {
+    "passed": 27,
+    "failed": 0
+  },
+  "npmTest": {
+    "passed": 2821,
+    "failed": 0
+  },
+  "deepApi": {
+    "passed": 482,
+    "failed": 0
+  },
+  "lint": "PASS",
+  "build": "PASS",
+  "live": {
+    "cases": 24,
+    "runsPerCase": 5,
+    "totalRuns": 120,
+    "criticalFailures": 0
+  },
+  "bu07": {
+    "runs": 10,
+    "falseCompleteCount": 0
+  },
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "auditDelta": 0,
+  "operationDelta": 0,
+  "fileSideEffects": 0
+}

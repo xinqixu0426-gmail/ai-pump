@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "invariant": "A structured goal is VERIFIED only when every server-owned FactRequirement matches a receipt-backed FactRecord at the current plan revision.",
+  "requirements": [
+    {
+      "goalKind": "CUSTOMER_HISTORY",
+      "predicates": [
+        "customer.identity",
+        "customer.quotation_history",
+        "customer.order_history"
+      ],
+      "basis": [
+        "CUSTOMER_DIRECTORY",
+        "CUSTOMER_HISTORY"
+      ],
+      "temporalScopes": [
+        "CURRENT",
+        "HISTORICAL"
+      ],
+      "completeRule": "all/全部 requests require complete history coverage"
+    },
+    {
+      "goalKind": "ORDER_READINESS",
+      "predicates": [
+        "order.identity",
+        "order.readiness",
+        "order.readiness_actions"
+      ],
+      "basis": "ORDER_KNOWLEDGE_PACKAGE",
+      "completeRule": "all three sections must exist in one formal knowledge package"
+    },
+    {
+      "goalKind": "QUOTATION_QUERY",
+      "predicates": [
+        "quotation.summary"
+      ],
+      "basis": "QUOTATION_CURRENT_LIST"
+    },
+    {
+      "goalKind": "INVENTORY_QUERY",
+      "predicates": [
+        "inventory.coil"
+      ],
+      "basis": "FORMAL_INVENTORY_QUERY",
+      "completeRule": "selected formal coil only"
+    },
+    {
+      "goalKind": "COIL_QUERY",
+      "predicates": [
+        "coil.variant_set"
+      ],
+      "basis": "COIL_CATALOGUE_QUERY"
+    },
+    {
+      "goalKind": "MANAGEMENT_OVERVIEW",
+      "predicates": [
+        "management.action_center"
+      ],
+      "basis": "MANAGEMENT_ACTION_CENTER"
+    },
+    {
+      "goalKind": "BUSINESS_CHANGES",
+      "predicates": [
+        "business.change_set"
+      ],
+      "basis": "BUSINESS_CHANGE_EVENT_LOG"
+    },
+    {
+      "goalKind": "IMPACT_INVESTIGATION",
+      "predicates": [
+        "business.impact_projection"
+      ],
+      "basis": "FORMAL_IMPACT_PROJECTION",
+      "status": "capability gap pending safe candidate binding"
+    }
+  ]
+}

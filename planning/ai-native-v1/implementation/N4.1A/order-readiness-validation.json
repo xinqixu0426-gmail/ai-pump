@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "capability": "get_order_knowledge_package",
+  "requiredFormalSections": [
+    "data.order",
+    "data.readiness",
+    "data.actionPlan"
+  ],
+  "answerBoundary": "The answer reports only the formal readiness state and action count; it never promises capacity, delivery date, or engineering performance.",
+  "focusedWitnesses": [
+    "valid package verified",
+    "missing actionPlan rejected"
+  ],
+  "result": "PASS"
+}

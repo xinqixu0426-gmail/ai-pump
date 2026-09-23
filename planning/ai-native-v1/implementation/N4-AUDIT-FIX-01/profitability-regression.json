@@ -1,0 +1,7 @@
+{
+  "suite": "tests/recipeScenarioComparison.test.cjs + tests/aiTaskControllerV2.test.cjs",
+  "policyCompliantScenario": "PASS; profitability preview uses the approved scenario",
+  "policyViolatingScenario": "PASS; profitability preview cannot form a verified result",
+  "controllerFallbackGuard": "PASS; failed candidate scenario blocks base-configuration profitability fallback",
+  "formulaChanged": false
+}

@@ -47,11 +47,50 @@ function positivelyAdmittedBusinessRequest(text) {
     const signals = catalogAdmissionSignals(text);
     const genericKnowledge = /(?:工作原理|基本原理|原理是什么|科普|讲讲|介绍一下|怎么工作|如何工作)/u.test(text);
     if (genericKnowledge) return { admitted: false, signals };
+    // 非 V 前缀的正式名称（例如「Shadow配方甲」）此前无法进入业务分类：
+    // 它既没有 V\d+ 也没有线圈简写，于是「Shadow配方甲成本多少？」被判成 OUT_OF_SCOPE。
+    // 这里补一条**业务词共现**判据：明确资源词 + 金额或库存词 + 同句中的具体名称标识。
+    // 不是关键词意图识别 —— 判据是「已解析出的业务资源 + 名称标识」的结构共现，
+    // 且只在资源词已经出现时生效，避免把任意含数字的句子收进来。
+    const namedResourceRequest = /(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)
+        && /(?:成本|价格|多少钱|库存|有货|缺货|没货|核算)/u.test(text)
+        && /[\p{L}\p{N}][\p{L}\p{N}_\-－]{1,}/u.test(text);
+    if (namedResourceRequest) signals.push('NAMED_RESOURCE_MONETARY_REQUEST');
     const hasIdentity = signals.some(item => ['RECIPE_IDENTIFIER', 'COIL_SHORTHAND', 'BUSINESS_IDENTIFIER',
-        'CATALOG_IDENTIFIER', 'STRUCTURED_CATALOG_TERM', 'FORMAL_ALIAS_REFERENCE'].includes(item));
+        'CATALOG_IDENTIFIER', 'STRUCTURED_CATALOG_TERM', 'FORMAL_ALIAS_REFERENCE',
+        'NAMED_RESOURCE_MONETARY_REQUEST'].includes(item));
     const hasResourceLookup = signals.includes('SUPPORTED_RESOURCE_TERM')
         && (signals.includes('LOOKUP_OPERATION') || signals.includes('EXPLICIT_RESOURCE_REFERENCE'));
     return { admitted: hasIdentity || hasResourceLookup, signals };
+}
+
+// ── E1-B：成本比较语义族 ─────────────────────────────────────────────
+// 「A和B成本差多少」「这两个差多少钱」「A比B贵多少」「比较一下A和B成本」
+// 「A和B哪个成本高，高多少」必须在语义层归一成同一个 COST_COMPARISON 目标，
+// 由软件确定性规划正式 compare 能力 —— 不是五个 regex 补丁、也不交给模型决定。
+// 判据：① 比较意图（差额/贵/便宜/比较/对比/哪个更…）② 金额口径词 ③ 至少两个可解析主体。
+const COMPARISON_INTENT = /(?:差(?:多少|价|额|了)?|贵多少|便宜多少|高多少|低多少|哪个[^，。？?]{0,12}(?:高|低|贵|便宜)|比较|对比)/u;
+const COMPARISON_MONEY = /(?:成本|价格|单价|多少钱|金额|报价|贵|便宜)/u;
+// `比` 只有在不是「比较 / 比如」的一部分时才是分隔符。
+// `比` 只有在不是「比较 / 比如 / 对比」的一部分时才是分隔符。
+const COMPARISON_CONNECTIVE = /\s*(?:和|与|跟|以及|、|,|，|(?<!对)比(?!较|如)|VS|vs)\s*/u;
+const SUBJECT_NOISE = /(?:比较|对比|一下|看看|帮我|请|成本|价格|单价|多少钱|金额|报价|差多少|差价|差额|差|哪个|哪一个|哪一款|高多少|低多少|贵多少|便宜多少|高|低|贵|便宜|是|为|分别是|分别|各自|大概|大约|多少|钱|呢|吗|的|了|这两个|那这两个)/gu;
+
+/** 把一句比较问法拆成两个可解析主体；不足两个（或含线圈简写）时返回空数组。 */
+function parseComparisonSubjects(text) {
+    const source = String(text || '');
+    if (!COMPARISON_INTENT.test(source) || !COMPARISON_MONEY.test(source)) return [];
+    const subjects = [...new Set(source.split(COMPARISON_CONNECTIVE)
+        .map(part => part.replace(SUBJECT_NOISE, ' ').replace(/[?？。.!！,，、;；:：]/gu, ' ').replace(/\s+/gu, ' ').trim())
+        .filter(Boolean))];
+    if (subjects.length < 2) return [];
+    const pair = subjects.slice(0, 2);
+    // 线圈域主体（简写、带「线圈/绕组」等）由既有的线圈对比通道负责；
+    // 这里只规划**配方级** compare_recipes，避免把线圈比较误路由到配方比较。
+    if (pair.some(subject => /^\d{1,3}\s*[-－]\s*\d{2,4}$/u.test(subject)
+        || /线圈|绕组|线径|钢带|冷轧|小眼|国标眼|大眼/u.test(subject)
+        || Boolean(parseCoilShorthand(subject)))) return [];
+    return pair;
 }
 
 function classifyQuestion(userText, options = {}) {
@@ -70,8 +109,10 @@ function classifyQuestion(userText, options = {}) {
         ? 'ALL_ACTIVE' : /测试方案|测试线圈|\btesting\b/iu.test(text) ? 'TESTING' : 'OFFICIAL';
     const admission = positivelyAdmittedBusinessRequest(text);
     const admitted = admission.admitted || copperBasisRequested || options.admittedCatalogLookup === true;
+    const comparisonSubjects = parseComparisonSubjects(text);
     let kind = 'OUT_OF_SCOPE', operation = 'NONE';
-    if (admitted && inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
+    if (admitted && comparisonSubjects.length === 2) { kind = 'COST_COMPARISON'; operation = 'COMPARE_COST'; }
+    else if (admitted && inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
     else if (admitted && configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
     else if (admitted && hypothetical && cost) { kind = 'HYPOTHETICAL_COST_QUERY'; operation = 'READ_OR_PREVIEW_COST'; }
     else if (admitted && copperBasisRequested && !cost) { kind = 'COST_QUERY'; operation = 'READ_COPPER_PRICE'; }
@@ -95,9 +136,10 @@ function classifyQuestion(userText, options = {}) {
         wireWeight: parseUserNumber(text, '线重'),
         configurationOverride,
         requestedVariantScope,
+        comparisonSubjects,
         admissionSignals: admission.signals,
     };
 }
 
 module.exports = { catalogAdmissionSignals, classifyQuestion, extractAliasMention, extractRequestedTarget,
-    parseCoilShorthand, parseUserNumber, positivelyAdmittedBusinessRequest };
+    parseCoilShorthand, parseUserNumber, positivelyAdmittedBusinessRequest, parseComparisonSubjects };

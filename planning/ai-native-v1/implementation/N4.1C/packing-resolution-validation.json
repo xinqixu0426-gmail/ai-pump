@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "status": "PASS",
+  "items": {
+    "formalIdentity": "PASS",
+    "category": "PASS",
+    "supplier": "PASS",
+    "role": "PASS",
+    "qtyZero": "PASS",
+    "emptyArray": "PASS",
+    "ambiguity": "PASS",
+    "policy": "PASS",
+    "missingPrice": "PASS"
+  },
+  "evidence": "R3 focused scenario/policy/controller tests"
+}

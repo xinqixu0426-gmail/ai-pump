@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "ticket": "N2.2",
+  "reused": [
+    {"symbol": "buildCurrentRecipeCostBasis", "purpose": "base and candidate current rebuilt cost"},
+    {"symbol": "calculateRecipeCost", "purpose": "existing cost engine entry point"},
+    {"symbol": "recipeQueries.getBomDraft", "purpose": "formal current BOM construction"},
+    {"symbol": "applyRecipeBaseline", "purpose": "preserve unmentioned configuration"},
+    {"symbol": "recipeConfigurationPolicyFromRecord", "purpose": "formal configuration policy"},
+    {"symbol": "assertRecipeConfigurationAllowed", "purpose": "formal override validation"},
+    {"symbol": "dbGetAllCoils", "purpose": "official coil records"},
+    {"symbol": "stableJson", "purpose": "neutral canonical read-set and evidence hashing"}
+  ],
+  "secondCostEngineCreated": false,
+  "secondToolRegistryCreated": false,
+  "directBusinessDatabaseBypass": false,
+  "legacyCostPreviewUsedAsBaseline": false
+}

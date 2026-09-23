@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "overallStatus": "PASS",
+  "conditions": {
+    "migration88": "PASS",
+    "fourGoalRecovery": "PASS",
+    "receiptTrustRecovery": "PASS",
+    "factTrustRecovery": "PASS",
+    "supersedesValidation": "PASS",
+    "revisionTwoConnectionRace": "PASS",
+    "planRevisionTwoConnectionRace": "PASS",
+    "eventSequence": "PASS",
+    "fullBusinessFingerprint": "PASS",
+    "backupRestoreFingerprint": "PASS",
+    "mandatoryArtifactsComplete": true,
+    "finalRepositoryGates": "ALL_PASS"
+  },
+  "tests": {
+    "focused": "13/13",
+    "controllerRegression": "51/51",
+    "apiContract": "27/27",
+    "npmTest": "2916/2916",
+    "deepApi": "482/482",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "partialItems": 0,
+  "unprovenItems": 0,
+  "notRunItems": 0,
+  "taskRuntimeDatabaseWrites": "disposable test SQLite only",
+  "rollback": "retain additive v88 tables and task rows; roll back application code; no down migration"
+}

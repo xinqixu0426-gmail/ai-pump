@@ -1,0 +1,720 @@
+{
+  "ticket": "N4.2A-R2",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "totalAcceptedProfitabilityTasks": 28,
+  "strictSerialFamilies": 12,
+  "runsPerFamily": 2,
+  "missingPriceContinuationTasks": 2,
+  "businessWrites": 0,
+  "unauthorizedWrites": 0,
+  "auditDelta": 0,
+  "operationDelta": 0,
+  "fileWrites": 0,
+  "fileSideEffects": 0,
+  "metrics": {
+    "medianLatencyMs": 1752,
+    "p95LatencyMs": 2495,
+    "firstStatusMedianMs": 1752,
+    "finalAnswerMedianMs": 1752,
+    "admissionMedianMs": 1752,
+    "admissionP95Ms": 2495,
+    "firstStatusDefinition": "The controller exposes its first user-visible status only with the final task response, so it is measured at terminal response time."
+  },
+  "failures": [],
+  "accepted": [
+    {
+      "label": "cost-only",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 40,
+      "firstStatusMs": 40,
+      "finalAnswerMs": 40,
+      "admissionMs": 0,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。"
+    },
+    {
+      "label": "cost-only",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 0,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 6,
+      "firstStatusMs": 6,
+      "finalAnswerMs": 6,
+      "admissionMs": 0,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。"
+    },
+    {
+      "label": "compare-only",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2544,
+      "firstStatusMs": 2544,
+      "finalAnswerMs": 2544,
+      "admissionMs": 2544,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。"
+    },
+    {
+      "label": "compare-only",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2292,
+      "firstStatusMs": 2292,
+      "finalAnswerMs": 2292,
+      "admissionMs": 2292,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。"
+    },
+    {
+      "label": "base-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 1628,
+      "firstStatusMs": 1628,
+      "finalAnswerMs": 1628,
+      "admissionMs": 1628,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "base-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2240,
+      "firstStatusMs": 2240,
+      "finalAnswerMs": 2240,
+      "admissionMs": 2240,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "cable-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2113,
+      "firstStatusMs": 2113,
+      "finalAnswerMs": 2113,
+      "admissionMs": 2113,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥30.00 与售价 ¥340.00 试算：单台毛利 ¥310.00，销售毛利率 91.18%，成本加价率 1033.33%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "cable-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2063,
+      "firstStatusMs": 2063,
+      "finalAnswerMs": 2063,
+      "admissionMs": 2063,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥30.00，较当前 增加 ¥4.00。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥30.00 与售价 ¥340.00 试算：单台毛利 ¥310.00，销售毛利率 91.18%，成本加价率 1033.33%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "packing-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 2015,
+      "firstStatusMs": 2015,
+      "finalAnswerMs": 2015,
+      "admissionMs": 2015,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥38.00，较当前 增加 ¥12.00。已正式应用的临时配置：packingParts=木箱×1。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥38.00 与售价 ¥340.00 试算：单台毛利 ¥302.00，销售毛利率 88.82%，成本加价率 794.74%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "packing-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 3,
+      "apiCalls": 3,
+      "durationMs": 1999,
+      "firstStatusMs": 1999,
+      "finalAnswerMs": 1999,
+      "admissionMs": 1999,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥38.00，较当前 增加 ¥12.00。已正式应用的临时配置：packingParts=木箱×1。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥38.00 与售价 ¥340.00 试算：单台毛利 ¥302.00，销售毛利率 88.82%，成本加价率 794.74%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "surface-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2495,
+      "firstStatusMs": 2495,
+      "finalAnswerMs": 2495,
+      "admissionMs": 2495,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥34.00，较当前 增加 ¥8.00。已正式应用的临时配置：surfaceTreatmentMode=electrophoresis、surfaceTreatmentCost=8。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥34.00 与售价 ¥340.00 试算：单台毛利 ¥306.00，销售毛利率 90.00%，成本加价率 900.00%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "surface-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CONFIGURATION_COMPARE",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2393,
+      "firstStatusMs": 2393,
+      "finalAnswerMs": 2393,
+      "admissionMs": 2393,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。临时方案完整成本为 ¥34.00，较当前 增加 ¥8.00。已正式应用的临时配置：surfaceTreatmentMode=electrophoresis、surfaceTreatmentCost=8。本次只是试算，没有保存或修改正式配方。\n\nV550按当前正式成本 ¥34.00 与售价 ¥340.00 试算：单台毛利 ¥306.00，销售毛利率 90.00%，成本加价率 900.00%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "source-price-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "FILE_INSPECT",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 6,
+      "durationMs": 1752,
+      "firstStatusMs": 1752,
+      "finalAnswerMs": 1752,
+      "admissionMs": 1752,
+      "sourceEvidence": [
+        {
+          "sourceType": "TECHNICAL_FILE",
+          "complete": true
+        }
+      ],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550的技术档案“V550-正式报价资料.json”已按已返回的结构化测试数据读取。资料包含结构化测试数据，但没有可展示的确定性汇总字段。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "source-price-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "FILE_INSPECT",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 6,
+      "durationMs": 1441,
+      "firstStatusMs": 1441,
+      "finalAnswerMs": 1441,
+      "admissionMs": 1441,
+      "sourceEvidence": [
+        {
+          "sourceType": "TECHNICAL_FILE",
+          "complete": true
+        }
+      ],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550的技术档案“V550-正式报价资料.json”已按已返回的结构化测试数据读取。资料包含结构化测试数据，但没有可展示的确定性汇总字段。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "quantity-300-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1704,
+      "firstStatusMs": 1704,
+      "finalAnswerMs": 1704,
+      "admissionMs": 1704,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 数量 300 台：总成本 ¥7800.00，销售额 ¥102000.00，总毛利 ¥94200.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "quantity-300-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1815,
+      "firstStatusMs": 1815,
+      "finalAnswerMs": 1815,
+      "admissionMs": 1815,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 数量 300 台：总成本 ¥7800.00，销售额 ¥102000.00，总毛利 ¥94200.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "negative-profit",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1429,
+      "firstStatusMs": 1429,
+      "finalAnswerMs": 1429,
+      "admissionMs": 1429,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥10.00 试算：单台毛利 ¥-16.00，销售毛利率 -160.00%，成本加价率 -61.54%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "negative-profit",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1716,
+      "firstStatusMs": 1716,
+      "finalAnswerMs": 1716,
+      "admissionMs": 1716,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥10.00 试算：单台毛利 ¥-16.00，销售毛利率 -160.00%，成本加价率 -61.54%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "incomplete-cost-profit",
+      "run": 1,
+      "taskState": "FAILED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1822,
+      "firstStatusMs": 1822,
+      "finalAnswerMs": 1822,
+      "admissionMs": 1822,
+      "sourceEvidence": [],
+      "answer": "当前正式毛利试算未形成完整成本依据，因此这部分没有计算。"
+    },
+    {
+      "label": "incomplete-cost-profit",
+      "run": 2,
+      "taskState": "FAILED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "PARTIAL",
+          "blockers": [
+            "COST_PREVIEW_INCOMPLETE"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1846,
+      "firstStatusMs": 1846,
+      "finalAnswerMs": 1846,
+      "admissionMs": 1846,
+      "sourceEvidence": [],
+      "answer": "当前正式毛利试算未形成完整成本依据，因此这部分没有计算。"
+    },
+    {
+      "label": "historical-explicit-price",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 2401,
+      "firstStatusMs": 2401,
+      "finalAnswerMs": 2401,
+      "admissionMs": 2401,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "historical-explicit-price",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1589,
+      "firstStatusMs": 1589,
+      "finalAnswerMs": 1589,
+      "admissionMs": 1589,
+      "sourceEvidence": [],
+      "answer": "V550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "usd-unsupported",
+      "run": 1,
+      "taskState": "UNSUPPORTED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "UNSUPPORTED",
+          "blockers": [
+            "PROFITABILITY_CURRENCY_UNSUPPORTED"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "durationMs": 1595,
+      "firstStatusMs": 1595,
+      "finalAnswerMs": 1595,
+      "admissionMs": 1595,
+      "sourceEvidence": [],
+      "answer": "当前正式毛利试算未形成完整成本依据，因此这部分没有计算。"
+    },
+    {
+      "label": "usd-unsupported",
+      "run": 2,
+      "taskState": "UNSUPPORTED",
+      "goals": [
+        {
+          "kind": "PROFITABILITY",
+          "state": "UNSUPPORTED",
+          "blockers": [
+            "PROFITABILITY_CURRENCY_UNSUPPORTED"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 0,
+      "apiCalls": 0,
+      "durationMs": 1704,
+      "firstStatusMs": 1704,
+      "finalAnswerMs": 1704,
+      "admissionMs": 1704,
+      "sourceEvidence": [],
+      "answer": "当前正式毛利试算未形成完整成本依据，因此这部分没有计算。"
+    },
+    {
+      "label": "missing-price-turn1",
+      "run": 1,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1930,
+      "firstStatusMs": 1930,
+      "finalAnswerMs": 1930,
+      "admissionMs": 1930,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\n请提供销售单价，例如“每台 340 元”。"
+    },
+    {
+      "label": "missing-price-turn2",
+      "run": 1,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 15,
+      "firstStatusMs": 15,
+      "finalAnswerMs": 15,
+      "admissionMs": 0,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    },
+    {
+      "label": "missing-price-turn1",
+      "run": 2,
+      "taskState": "WAITING_INPUT",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "NEEDS_INPUT",
+          "blockers": [
+            "PROFITABILITY_UNIT_PRICE_REQUIRED"
+          ]
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 2,
+      "apiCalls": 2,
+      "durationMs": 1361,
+      "firstStatusMs": 1361,
+      "finalAnswerMs": 1361,
+      "admissionMs": 1361,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\n请提供销售单价，例如“每台 340 元”。"
+    },
+    {
+      "label": "missing-price-turn2",
+      "run": 2,
+      "taskState": "SUCCEEDED",
+      "goals": [
+        {
+          "kind": "CURRENT_COST",
+          "state": "VERIFIED",
+          "blockers": []
+        },
+        {
+          "kind": "PROFITABILITY",
+          "state": "VERIFIED",
+          "blockers": []
+        }
+      ],
+      "modelCalls": 2,
+      "toolCalls": 5,
+      "apiCalls": 5,
+      "durationMs": 15,
+      "firstStatusMs": 15,
+      "finalAnswerMs": 15,
+      "admissionMs": 0,
+      "sourceEvidence": [],
+      "answer": "V550当前完整成本为 ¥26.00。本次只读查询，没有修改正式配方。\n\nV550按当前正式成本 ¥26.00 与售价 ¥340.00 试算：单台毛利 ¥314.00，销售毛利率 92.35%，成本加价率 1207.69%。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+    }
+  ],
+  "rawLog": "gitignored logs/ai-native-n4-2a-r2-live-raw.json"
+}

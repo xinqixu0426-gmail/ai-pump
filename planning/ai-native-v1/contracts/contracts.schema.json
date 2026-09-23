@@ -1,0 +1,3894 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pump:ai-native:plan:v1",
+  "title": "Pump AI Native 分阶段目标合同（设计件，不是现有API）",
+  "$defs": {
+    "SourceSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "messageRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "本轮请求或服务端载入的用户消息引用，不是模型自造事实来源"
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "原始字符串UTF-16代码单元起点，含起点"
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "UTF-16终点，不含终点"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "必须严格等于原文slice(start,end)，解析前不得改变标点"
+        }
+      },
+      "required": [
+        "messageRef",
+        "start",
+        "end",
+        "text"
+      ]
+    },
+    "QuantityInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "description": "用户明确数量；不填不能默认为1"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "pump",
+            "piece",
+            "set",
+            "m",
+            "mm",
+            "mm2",
+            "kg",
+            "sheet",
+            "CNY",
+            "CNY_PER_KG",
+            "CNY_PER_TON",
+            "ratio"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSpan"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        }
+      },
+      "required": [
+        "value",
+        "unit",
+        "sources"
+      ]
+    },
+    "ProposedOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string",
+          "enum": [
+            "hasFloat",
+            "floatWire",
+            "floatAccessoryType",
+            "hasCable",
+            "cableLength",
+            "cableWire",
+            "cableAccessoryType",
+            "coilSelection",
+            "coilSheets",
+            "customBarrelLength",
+            "packingSelection",
+            "surfaceTreatmentMode",
+            "surfaceTreatmentCost",
+            "hasStainlessShaftJoint",
+            "stainlessShaftJointCost",
+            "wireWeight",
+            "copperPrice"
+          ]
+        },
+        "value": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "maxLength": 500
+            }
+          ]
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 24
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSpan"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        }
+      },
+      "required": [
+        "field",
+        "value",
+        "unit",
+        "sources"
+      ],
+      "description": "待核实用户变更；coilSelection/packingSelection用原文，不允许模型直接填业务ID。"
+    },
+    "GoalProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goalKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "CURRENT_COST",
+            "CONFIGURATION_COMPARE",
+            "COIL_QUERY",
+            "INVENTORY_QUERY",
+            "ORDER_READINESS",
+            "CUSTOMER_HISTORY",
+            "QUOTATION_QUERY",
+            "FILE_INSPECT",
+            "KNOWLEDGE_QUERY",
+            "MANAGEMENT_OVERVIEW",
+            "BUSINESS_CHANGES",
+            "IMPACT_INVESTIGATION",
+            "PROFITABILITY",
+            "PREPARE_CHANGE",
+            "APPLY_CHANGE",
+            "OTHER"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "subjectKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        },
+        "scenarioKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 4,
+          "description": ""
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        },
+        "requestedBasis": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "SAVED",
+            "HYPOTHETICAL",
+            "UNKNOWN"
+          ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSpan"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantityInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unitPrice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QuantityInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "goalKey",
+        "kind",
+        "description",
+        "subjectKeys",
+        "scenarioKeys",
+        "dependsOn",
+        "requestedBasis",
+        "sources",
+        "quantity",
+        "unitPrice"
+      ]
+    },
+    "TaskProposalV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "goalSummary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjectKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "mention": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "typeHints": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "part",
+                    "coil",
+                    "template",
+                    "recipe",
+                    "customer",
+                    "quotation",
+                    "order",
+                    "file",
+                    "knowledge",
+                    "business_record"
+                  ]
+                },
+                "minItems": 0,
+                "maxItems": 6,
+                "description": ""
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceSpan"
+                },
+                "minItems": 1,
+                "maxItems": 8,
+                "description": ""
+              }
+            },
+            "required": [
+              "subjectKey",
+              "mention",
+              "typeHints",
+              "sources"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "baseSubjectKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "overrides": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ProposedOverride"
+                },
+                "minItems": 0,
+                "maxItems": 20,
+                "description": ""
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceSpan"
+                },
+                "minItems": 1,
+                "maxItems": 8,
+                "description": ""
+              }
+            },
+            "required": [
+              "scenarioKey",
+              "label",
+              "baseSubjectKey",
+              "overrides",
+              "sources"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 4,
+          "description": ""
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GoalProposal"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "unparsedSpans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceSpan"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        }
+      },
+      "required": [
+        "version",
+        "goalSummary",
+        "subjects",
+        "scenarios",
+        "goals",
+        "unparsedSpans"
+      ],
+      "description": "模型候选，不是执行授权；可在原工具循环内增量生成，不要求每个查询先单独调用规划模型。"
+    },
+    "CanonicalEntity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "enum": [
+            "part",
+            "coil",
+            "template",
+            "recipe",
+            "customer",
+            "quotation",
+            "order",
+            "file",
+            "knowledge",
+            "business_record"
+          ]
+        },
+        "entityId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$",
+          "description": "现有整数主键的十进制字符串；稳定编码只用于解析，不替代ID"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordHash": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schemeCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entityType",
+        "entityId",
+        "displayName",
+        "updatedAt",
+        "recordHash",
+        "schemeCode"
+      ]
+    },
+    "SubjectBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subjectKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+        },
+        "mention": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "resolution": {
+          "type": "string",
+          "enum": [
+            "UNRESOLVED",
+            "UNIQUE",
+            "MULTIPLE",
+            "NOT_FOUND",
+            "UNAVAILABLE",
+            "SELECTED"
+          ]
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalEntity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CanonicalEntity"
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "description": ""
+        },
+        "candidateSetComplete": {
+          "type": "boolean",
+          "description": ""
+        },
+        "selectionBasis": {
+          "type": "string",
+          "enum": [
+            "NONE",
+            "EXPLICIT_ID",
+            "EXACT",
+            "APPROVED_ALIAS",
+            "USER_CHOICE",
+            "FORMAL_DEFAULT",
+            "BASELINE_INHERITANCE"
+          ]
+        },
+        "receiptIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "minItems": 0,
+          "maxItems": 16,
+          "description": ""
+        }
+      },
+      "required": [
+        "subjectKey",
+        "mention",
+        "resolution",
+        "selected",
+        "candidates",
+        "candidateSetComplete",
+        "selectionBasis",
+        "receiptIds"
+      ],
+      "description": "UNIQUE只指候选天然唯一；多候选明确选择用SELECTED并提供USER_CHOICE/FORMAL_DEFAULT证据，MULTIPLE不含selected。"
+    },
+    "ArgumentSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fieldPath": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "参数的JSON Pointer，如 /overrides/cableLength"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "USER_SPAN",
+            "FORMAL_RECEIPT",
+            "USER_CHOICE",
+            "FORMAL_POLICY",
+            "BASELINE_INHERITANCE"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "pointer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 240
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceSpan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "fieldPath",
+        "kind",
+        "sourceRef",
+        "pointer",
+        "span"
+      ],
+      "description": "USER_SPAN必须span非空，其他来源span=null；FORMAL_RECEIPT有JSON Pointer；FORMAL_POLICY引用稳定规则编号而非模型文字。"
+    },
+    "PackingPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "partId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "supplier": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "qty": {
+          "type": "number",
+          "minimum": 0
+        },
+        "packingRole": {
+          "type": "string",
+          "enum": [
+            "container",
+            "pearlCotton",
+            "foam",
+            "fixed"
+          ]
+        }
+      },
+      "required": [
+        "partId",
+        "model",
+        "supplier",
+        "qty",
+        "packingRole"
+      ]
+    },
+    "ScenarioOverridesV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hasFloat": {
+          "type": "boolean",
+          "description": "是否带浮球"
+        },
+        "floatWire": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "沿用现有正式字段，不能把电缆截面积当漆包线直径"
+        },
+        "floatAccessoryType": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "xinjie"
+          ]
+        },
+        "hasCable": {
+          "type": "boolean",
+          "description": "是否启用电缆"
+        },
+        "cableLength": {
+          "type": "number",
+          "minimum": 0,
+          "description": "电缆长度，m；启用时须>0，由正式服务交叉校验"
+        },
+        "cableWire": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "电缆横截面积mm²；传递字符串如0.55，不是线径mm"
+        },
+        "cableAccessoryType": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "xinjie"
+          ]
+        },
+        "coilId": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "本轮正式解析取得的具体正式线圈方案ID"
+        },
+        "coilSheets": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "整数片数；非精确片数/插值必须另外完成方案族适配验收"
+        },
+        "customBarrelLength": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "机筒长度mm"
+        },
+        "packingParts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PackingPart"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": "显式包装变更；空数组与未提供不同，必须核实用户清空意图"
+        },
+        "surfaceTreatmentMode": {
+          "type": "string",
+          "enum": [
+            "none",
+            "painting",
+            "electrophoresis",
+            "electrophoresis_powder_coating",
+            "powder_coating",
+            "custom"
+          ]
+        },
+        "surfaceTreatmentCost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "元；工艺和费用必须成对由正式规则校验"
+        }
+      },
+      "required": [],
+      "description": "新增情景比较接口的目标字段全集。N2/N3默认只验收电缆/浮球/精确coilId/机筒；包装和表面处理到N4能力证据齐全才开放。"
+    },
+    "ScenarioCompareRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "baselinePolicy": {
+          "const": "CURRENT_REBUILT"
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "overrides": {
+                "$ref": "#/$defs/ScenarioOverridesV1"
+              }
+            },
+            "required": [
+              "scenarioKey",
+              "label",
+              "overrides"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "description": ""
+        }
+      },
+      "required": [
+        "version",
+        "baselinePolicy",
+        "scenarios"
+      ],
+      "description": "拟新增POST /api/recipes/:id/scenario-compare-preview的body；recipeId只在path/工具封套。"
+    },
+    "ReadVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "entityId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "entityType",
+        "entityId",
+        "updatedAt",
+        "contentHash"
+      ]
+    },
+    "CostValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "type": "boolean",
+          "description": ""
+        },
+        "currentTotalCost": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "description": "完整成本，CNY/台；不完整必须null"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partialTotalCost": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "description": "诊断小计，不能生成报价/利润"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "const": "CNY"
+        },
+        "unit": {
+          "const": "pump"
+        },
+        "costBasis": {
+          "type": "string",
+          "enum": [
+            "CURRENT_REBUILT_BASE",
+            "CURRENT_REBUILT_SCENARIO"
+          ]
+        },
+        "missingParts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "minItems": 0,
+          "maxItems": 100,
+          "description": ""
+        },
+        "sourceOfTruth": {
+          "const": "costEngine"
+        }
+      },
+      "required": [
+        "complete",
+        "currentTotalCost",
+        "partialTotalCost",
+        "currency",
+        "unit",
+        "costBasis",
+        "missingParts",
+        "sourceOfTruth"
+      ]
+    },
+    "ScenarioResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scenarioKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "BASE",
+            "CANDIDATE"
+          ]
+        },
+        "configurationHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "configuration": {
+          "type": "object",
+          "description": "正式BOM/配置服务的有界无损快照；不得由模型填充，字段遵循现有服务"
+        },
+        "requestedOverrides": {
+          "$ref": "#/$defs/ScenarioOverridesV1"
+        },
+        "appliedOverrides": {
+          "$ref": "#/$defs/ScenarioOverridesV1"
+        },
+        "notApplied": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "reasonCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "field",
+              "reasonCode"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "description": ""
+        },
+        "inheritedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "minItems": 0,
+          "maxItems": 100,
+          "description": ""
+        },
+        "cost": {
+          "$ref": "#/$defs/CostValue"
+        }
+      },
+      "required": [
+        "scenarioKey",
+        "role",
+        "configurationHash",
+        "configuration",
+        "requestedOverrides",
+        "appliedOverrides",
+        "notApplied",
+        "inheritedFields",
+        "cost"
+      ]
+    },
+    "ScenarioCompareResponseV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "preview": {
+          "const": true
+        },
+        "comparisonId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "recipe": {
+          "$ref": "#/$defs/CanonicalEntity"
+        },
+        "normalizedInput": {
+          "$ref": "#/$defs/ScenarioCompareRequestV1"
+        },
+        "readSetId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "readSetHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReadVersion"
+          },
+          "minItems": 1,
+          "maxItems": 128,
+          "description": ""
+        },
+        "calculatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScenarioResult"
+          },
+          "minItems": 2,
+          "maxItems": 4,
+          "description": ""
+        },
+        "comparisons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseScenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "candidateScenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "COMPARABLE",
+                  "INCOMPLETE",
+                  "OVERRIDE_NOT_APPLIED"
+                ]
+              },
+              "delta": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "description": "候选减基准，可以为负；必须由正式比较service给出"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "currency": {
+                "const": "CNY"
+              },
+              "drivers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "costRole": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "delta": {
+                      "type": "number"
+                    },
+                    "sourcePointers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "description": ""
+                    }
+                  },
+                  "required": [
+                    "costRole",
+                    "description",
+                    "delta",
+                    "sourcePointers"
+                  ]
+                },
+                "minItems": 0,
+                "maxItems": 40,
+                "description": ""
+              }
+            },
+            "required": [
+              "baseScenarioKey",
+              "candidateScenarioKey",
+              "status",
+              "delta",
+              "currency",
+              "drivers"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "description": ""
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "from": {},
+              "to": {}
+            },
+            "required": [
+              "scenarioKey",
+              "field",
+              "from",
+              "to"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 100,
+          "description": ""
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 40,
+          "description": ""
+        },
+        "sourceVersionCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceVersionsComplete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "version",
+        "preview",
+        "comparisonId",
+        "recipe",
+        "normalizedInput",
+        "readSetId",
+        "readSetHash",
+        "sourceVersions",
+        "calculatedAt",
+        "scenarios",
+        "comparisons",
+        "changes",
+        "warnings",
+        "sourceVersionCount",
+        "sourceVersionsComplete"
+      ],
+      "description": "正式服务返回值，不是模型构造。readSetHash只证明同一读取集合，不等于法律签名或绝对最新。"
+    },
+    "FactKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "enum": [
+            "part",
+            "coil",
+            "template",
+            "recipe",
+            "customer",
+            "quotation",
+            "order",
+            "file",
+            "knowledge",
+            "business_record",
+            "global"
+          ]
+        },
+        "entityId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "temporalScope": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "SAVED",
+            "HISTORICAL",
+            "SCENARIO"
+          ]
+        },
+        "scenarioKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "qualifiers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "basis": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "unit": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 8
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "snapshotVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "queryScopeHash": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "basis",
+            "unit",
+            "currency",
+            "snapshotVersion",
+            "queryScopeHash"
+          ]
+        }
+      },
+      "required": [
+        "entityType",
+        "entityId",
+        "predicate",
+        "temporalScope",
+        "scenarioKey",
+        "qualifiers"
+      ]
+    },
+    "FactRecordV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "factId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "key": {
+          "$ref": "#/$defs/FactKey"
+        },
+        "evidenceState": {
+          "type": "string",
+          "enum": [
+            "VERIFIED_POSITIVE",
+            "VERIFIED_NEGATIVE"
+          ]
+        },
+        "value": {},
+        "receiptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "resultPointer": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "指向正式executor结果的JSON Pointer"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "complete": {
+          "type": "boolean",
+          "description": "集合事实证明范围完整；不是对整项用户目标的评价"
+        },
+        "supersedesFactId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "readSetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "factId",
+        "key",
+        "evidenceState",
+        "value",
+        "receiptId",
+        "resultPointer",
+        "observedAt",
+        "sourceUpdatedAt",
+        "sourceHash",
+        "complete",
+        "supersedesFactId",
+        "planRevision",
+        "readSetId"
+      ],
+      "description": "readSetId属于观测来源，不属于FactKey；同一逻辑事实的新版本可显式supersede。不同任务/场景/时态不可偷换。"
+    },
+    "GoalState": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goalKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "CURRENT_COST",
+            "CONFIGURATION_COMPARE",
+            "COIL_QUERY",
+            "INVENTORY_QUERY",
+            "ORDER_READINESS",
+            "CUSTOMER_HISTORY",
+            "QUOTATION_QUERY",
+            "FILE_INSPECT",
+            "KNOWLEDGE_QUERY",
+            "MANAGEMENT_OVERVIEW",
+            "BUSINESS_CHANGES",
+            "IMPACT_INVESTIGATION",
+            "PROFITABILITY",
+            "PREPARE_CHANGE",
+            "APPLY_CHANGE",
+            "OTHER"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "subjectKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        },
+        "scenarioKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 4,
+          "description": ""
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "RUNNING",
+            "VERIFIED",
+            "PARTIAL",
+            "NEEDS_INPUT",
+            "UNSUPPORTED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "factIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "minItems": 0,
+          "maxItems": 64,
+          "description": ""
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "questionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "questionId"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FactRequirement"
+          },
+          "minItems": 0,
+          "maxItems": 24
+        }
+      },
+      "required": [
+        "goalKey",
+        "kind",
+        "description",
+        "subjectKeys",
+        "scenarioKeys",
+        "dependsOn",
+        "state",
+        "factIds",
+        "blockers",
+        "requirements"
+      ]
+    },
+    "TaskStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "goalKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "toolName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "capabilityId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "QUERY",
+            "PREVIEW",
+            "COMMAND"
+          ]
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "argumentSources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgumentSource"
+          },
+          "minItems": 0,
+          "maxItems": 80,
+          "description": ""
+        },
+        "argsHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PLANNED",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "UNKNOWN_EFFECT"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receiptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "stepId",
+        "goalKeys",
+        "toolName",
+        "capabilityId",
+        "access",
+        "arguments",
+        "argumentSources",
+        "argsHash",
+        "state",
+        "attempt",
+        "startedAt",
+        "finishedAt",
+        "receiptId",
+        "operationId",
+        "errorCode"
+      ]
+    },
+    "Clarification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "questionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "goalKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "choiceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "entity": {
+                "$ref": "#/$defs/CanonicalEntity"
+              }
+            },
+            "required": [
+              "choiceId",
+              "label",
+              "entity"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "description": ""
+        },
+        "candidateSetHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "answeredAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "questionId",
+        "planRevision",
+        "goalKeys",
+        "prompt",
+        "reasonCode",
+        "choices",
+        "candidateSetHash",
+        "expiresAt",
+        "answeredAt"
+      ]
+    },
+    "TaskEnvelopeV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "parentTaskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ownerKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "仅服务端保存；公共DTO不返回。由认证请求取值，不接受请求body"
+        },
+        "conversationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^chat-[1-9][0-9]*$",
+              "description": "保持当前chat-N传输格式；数据库FK需服务端转换"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "每次状态持久化增加"
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "目标/参数/选择改变才增加；与运行revision分离"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "NEW",
+            "UNDERSTANDING",
+            "RESOLVING",
+            "RUNNING",
+            "WAITING_INPUT",
+            "WAITING_APPROVAL",
+            "VERIFYING",
+            "SUSPENDED",
+            "RECONCILING",
+            "SUCCEEDED",
+            "PARTIAL",
+            "UNSUPPORTED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "answerOwner": {
+          "const": "TASK_V2"
+        },
+        "executionMode": {
+          "type": "string",
+          "enum": [
+            "FOREGROUND",
+            "DETACHED"
+          ]
+        },
+        "userGoal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "inputHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "businessWritePolicy": {
+              "type": "string",
+              "enum": [
+                "FORBIDDEN",
+                "CONFIRMATION_REQUIRED"
+              ]
+            },
+            "maxModelCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "maxToolCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "maxToolResultBytes": {
+              "const": 98304
+            },
+            "maxTaskStateBytes": {
+              "const": 262144
+            },
+            "deadlineAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxApiCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128
+            },
+            "maxActiveMs": {
+              "type": "integer",
+              "minimum": 10000,
+              "maximum": 900000
+            }
+          },
+          "required": [
+            "businessWritePolicy",
+            "maxModelCalls",
+            "maxToolCalls",
+            "maxToolResultBytes",
+            "maxTaskStateBytes",
+            "deadlineAt",
+            "maxApiCalls",
+            "maxActiveMs"
+          ]
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubjectBinding"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GoalState"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "baseSubjectKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "basis": {
+                "type": "string",
+                "enum": [
+                  "CURRENT_REBUILT",
+                  "RECIPE_SNAPSHOT",
+                  "QUOTATION_LOCKED",
+                  "ORDER_LOCKED"
+                ]
+              },
+              "priceContext": {
+                "type": "string",
+                "enum": [
+                  "FORMAL_READ_SET",
+                  "LOCKED_SNAPSHOT",
+                  "USER_HYPOTHESIS"
+                ]
+              },
+              "overrides": {
+                "$ref": "#/$defs/ScenarioOverridesV1"
+              },
+              "readSetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "scenarioKey",
+              "label",
+              "baseSubjectKey",
+              "basis",
+              "priceContext",
+              "overrides",
+              "readSetId"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 4,
+          "description": ""
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskStep"
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "description": ""
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FactRecordV1"
+          },
+          "minItems": 0,
+          "maxItems": 64,
+          "description": ""
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Clarification"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "approvalOperationIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        },
+        "resultSummary": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "budgetUsage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "modelCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "toolCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "apiCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "activeMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "modelCalls",
+            "toolCalls",
+            "apiCalls",
+            "activeMs"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "taskId",
+        "parentTaskId",
+        "ownerKey",
+        "conversationId",
+        "requestId",
+        "revision",
+        "planRevision",
+        "state",
+        "answerOwner",
+        "executionMode",
+        "userGoal",
+        "inputHash",
+        "createdAt",
+        "updatedAt",
+        "constraints",
+        "subjects",
+        "goals",
+        "scenarios",
+        "steps",
+        "facts",
+        "questions",
+        "approvalOperationIds",
+        "resultSummary",
+        "budgetUsage"
+      ],
+      "description": "运行态DTO，数据库分别存任务spec、步骤、事实和事件；不把整张DTO重复存四份。新业务范围可以提议，但未验收能力只能标为不支持，不能改成SUCCESS。"
+    },
+    "TaskStartRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "conversationId": {
+          "type": "string",
+          "pattern": "^chat-[1-9][0-9]*$"
+        },
+        "userMessageId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "executionMode": {
+          "const": "DETACHED",
+          "description": "该接口只创建显式后台任务；前台仍用原chat接口。"
+        }
+      },
+      "required": [
+        "version",
+        "conversationId",
+        "userMessageId",
+        "executionMode"
+      ],
+      "description": "N5拟新增POST /api/ai/tasks；Idempotency-Key走请求头。加载当前主体所属会话的user消息，忽略客户端assistant事实。"
+    },
+    "TaskResumeRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "questionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "choiceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "answerText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "questionId",
+              "choiceId",
+              "answerText"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "executionMode": {
+          "const": "DETACHED",
+          "description": "明确选择后台继续；原前台记录在此转换，不能隐式转换。"
+        }
+      },
+      "required": [
+        "version",
+        "expectedRevision",
+        "answers",
+        "executionMode"
+      ],
+      "description": "N5拟新增resume；每项choiceId/answerText二选一，代码做跨字段校验。"
+    },
+    "TaskCancelRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "version",
+        "expectedRevision",
+        "reason"
+      ]
+    },
+    "AnswerDraftV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "goalKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "claimType": {
+                "type": "string",
+                "enum": [
+                  "COST",
+                  "COMPARISON",
+                  "CATALOG",
+                  "INVENTORY",
+                  "READINESS",
+                  "HISTORY",
+                  "DOCUMENT",
+                  "LIMITATION",
+                  "CHANGE_PREVIEW",
+                  "CHANGE_RECEIPT"
+                ]
+              },
+              "factIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "minItems": 0,
+                "maxItems": 24,
+                "description": ""
+              },
+              "templateKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "analysisText": {
+                "type": "string",
+                "maxLength": 1500,
+                "description": "只能作为推断说明；关键业务判断由模板和已验证事实产生"
+              }
+            },
+            "required": [
+              "goalKey",
+              "claimType",
+              "factIds",
+              "templateKey",
+              "analysisText"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "description": ""
+        }
+      },
+      "required": [
+        "version",
+        "sections"
+      ],
+      "description": "模型交付候选；数值、身份、已应用覆盖、齐料状态通过fact引用渲染，不能相信模型自行写出的结果。"
+    },
+    "FactRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirementKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "subjectKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scenarioKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temporalScope": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "SAVED",
+            "HISTORICAL",
+            "SCENARIO"
+          ]
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requireComplete": {
+          "type": "boolean"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "requirementKey",
+        "predicate",
+        "subjectKey",
+        "scenarioKey",
+        "temporalScope",
+        "basis",
+        "requireComplete",
+        "unit",
+        "currency"
+      ],
+      "description": "服务端按目标和正式能力生成；null subjectKey仅表示部署级global事实。不是模型自定义验收标准。"
+    },
+    "ExecutionReceiptV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "receiptId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "stepId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "toolName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "capabilityId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "QUERY",
+            "PREVIEW",
+            "COMMAND"
+          ]
+        },
+        "argsHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "origin": {
+          "const": "SERVER_EXECUTOR"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "readSetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "projectionVersion": {
+          "const": 1
+        },
+        "result": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "version",
+        "receiptId",
+        "taskId",
+        "stepId",
+        "planRevision",
+        "toolName",
+        "capabilityId",
+        "access",
+        "argsHash",
+        "origin",
+        "observedAt",
+        "readSetId",
+        "sourceHash",
+        "projectionVersion",
+        "result"
+      ],
+      "description": "仅服务端实际executor调用后生成。origin和hash只是记录，不能代替内存来源/存储访问控制；验证需独立可信回执集合。result最大96KiB。"
+    },
+    "CompareRecipeScenariosToolInputV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recipeId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "version": {
+          "const": 1
+        },
+        "baselinePolicy": {
+          "const": "CURRENT_REBUILT"
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "overrides": {
+                "$ref": "#/$defs/ScenarioOverridesV1"
+              }
+            },
+            "required": [
+              "scenarioKey",
+              "label",
+              "overrides"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "description": ""
+        }
+      },
+      "required": [
+        "recipeId",
+        "version",
+        "baselinePolicy",
+        "scenarios"
+      ],
+      "description": "在现有AI_TOOLS登记的拟新增工具参数；不是客户端TaskProposal的字段。"
+    },
+    "TaskAcknowledgementV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "NEW",
+            "UNDERSTANDING",
+            "RESOLVING",
+            "RUNNING",
+            "WAITING_INPUT",
+            "WAITING_APPROVAL",
+            "VERIFYING",
+            "SUSPENDED",
+            "RECONCILING",
+            "SUCCEEDED",
+            "PARTIAL",
+            "UNSUPPORTED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "executionMode": {
+          "type": "string",
+          "enum": [
+            "FOREGROUND",
+            "DETACHED"
+          ]
+        },
+        "statusPath": {
+          "type": "string",
+          "pattern": "^/api/ai/tasks/[0-9a-f-]{36}$"
+        }
+      },
+      "required": [
+        "version",
+        "taskId",
+        "revision",
+        "state",
+        "executionMode",
+        "statusPath"
+      ]
+    },
+    "TaskPublicViewV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "parentTaskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "conversationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^chat-[1-9][0-9]*$",
+              "description": "保持当前chat-N传输格式；数据库FK需服务端转换"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "planRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "NEW",
+            "UNDERSTANDING",
+            "RESOLVING",
+            "RUNNING",
+            "WAITING_INPUT",
+            "WAITING_APPROVAL",
+            "VERIFYING",
+            "SUSPENDED",
+            "RECONCILING",
+            "SUCCEEDED",
+            "PARTIAL",
+            "UNSUPPORTED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "executionMode": {
+          "type": "string",
+          "enum": [
+            "FOREGROUND",
+            "DETACHED"
+          ]
+        },
+        "userGoal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "goalKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 48
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "RUNNING",
+                  "VERIFIED",
+                  "PARTIAL",
+                  "NEEDS_INPUT",
+                  "UNSUPPORTED",
+                  "FAILED",
+                  "CANCELLED"
+                ]
+              },
+              "blockers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "questionId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "questionId"
+                  ]
+                },
+                "minItems": 0,
+                "maxItems": 12,
+                "description": ""
+              }
+            },
+            "required": [
+              "goalKey",
+              "description",
+              "state",
+              "blockers"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stepId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "PLANNED",
+                  "RUNNING",
+                  "SUCCEEDED",
+                  "FAILED",
+                  "CANCELLED",
+                  "UNKNOWN_EFFECT"
+                ]
+              },
+              "errorCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "stepId",
+              "displayName",
+              "state",
+              "errorCode"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 10
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Clarification"
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "resultSummary": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "version",
+        "taskId",
+        "parentTaskId",
+        "conversationId",
+        "revision",
+        "planRevision",
+        "state",
+        "executionMode",
+        "userGoal",
+        "goals",
+        "steps",
+        "questions",
+        "resultSummary",
+        "createdAt",
+        "updatedAt"
+      ],
+      "description": "外发白名单投影；不含owner、token、args、raw receipt、原模型输出；显示名称取既有registry。"
+    },
+    "TaskEventPublicV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "TASK_STATE",
+            "GOAL_STATE",
+            "STEP_STATE",
+            "CLARIFICATION",
+            "RESULT",
+            "LIMITATION"
+          ]
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "NEW",
+                "UNDERSTANDING",
+                "RESOLVING",
+                "RUNNING",
+                "WAITING_INPUT",
+                "WAITING_APPROVAL",
+                "VERIFYING",
+                "SUSPENDED",
+                "RECONCILING",
+                "SUCCEEDED",
+                "PARTIAL",
+                "UNSUPPORTED",
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goalKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stepId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "seq",
+        "type",
+        "occurredAt",
+        "state",
+        "goalKey",
+        "stepId",
+        "message"
+      ]
+    },
+    "TaskEventsPageV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TaskEventPublicV1"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "nextSeq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "version",
+        "taskId",
+        "events",
+        "nextSeq",
+        "hasMore"
+      ]
+    },
+    "ForegroundTaskContextV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "userMessageId": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "version",
+        "userMessageId"
+      ],
+      "description": "N5为既有chat body拟新增的可选nativeTaskContext；必须验证同一owner/conversation、role=user、最后原始文本hash一致，否则不建立持久任务。"
+    },
+    "ProfitabilityPreviewRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "basisRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "SCENARIO_COMPARISON"
+            },
+            "recipeId": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "comparisonInput": {
+              "$ref": "#/$defs/ScenarioCompareRequestV1"
+            },
+            "scenarioKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            }
+          },
+          "required": [
+            "kind",
+            "recipeId",
+            "comparisonInput",
+            "scenarioKey"
+          ],
+          "description": ""
+        },
+        "unitPrice": {
+          "type": "number",
+          "minimum": 0
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "const": "CNY"
+        }
+      },
+      "required": [
+        "version",
+        "basisRef",
+        "unitPrice",
+        "quantity",
+        "currency"
+      ],
+      "description": "N4目标合同；先核实同等能力，尚未发布。成本由服务器重新读，不接受unitCost输入。"
+    },
+    "ProfitabilityPreviewResponseV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "preview": {
+          "const": true
+        },
+        "unitCost": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unitPrice": {
+          "type": "number",
+          "minimum": 0
+        },
+        "grossProfitPerUnit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grossMarginOnSales": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "markupOnCost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalCost": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalRevenue": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalGrossProfit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costComplete": {
+          "type": "boolean"
+        },
+        "costBasis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "readSetHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "calculatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "minItems": 0,
+          "maxItems": 40
+        }
+      },
+      "required": [
+        "version",
+        "preview",
+        "unitCost",
+        "unitPrice",
+        "grossProfitPerUnit",
+        "grossMarginOnSales",
+        "markupOnCost",
+        "quantity",
+        "totalCost",
+        "totalRevenue",
+        "totalGrossProfit",
+        "costComplete",
+        "costBasis",
+        "readSetHash",
+        "calculatedAt",
+        "warnings"
+      ],
+      "description": "利润率与加价率是比例不是百分数文本。除成本来自引擎外，派生运算在正式共享service执行。未知或零分母相应值null。"
+    },
+    "ReadinessScenarioRequestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "recipeId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scenarioInput": {
+          "$ref": "#/$defs/ScenarioCompareRequestV1"
+        },
+        "scenarioKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allocationPolicy": {
+          "const": "AFTER_EXISTING_ACTIVE_ORDERS"
+        }
+      },
+      "required": [
+        "version",
+        "recipeId",
+        "scenarioInput",
+        "scenarioKey",
+        "quantity",
+        "allocationPolicy"
+      ],
+      "description": "N4仅在现有活动订单之后添加虚拟需求；不建单、不扣库存。"
+    },
+    "ReadinessShortageV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inventoryType": {
+          "type": "string",
+          "enum": [
+            "part",
+            "coil",
+            "none"
+          ]
+        },
+        "partId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coilId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "supplier": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "purchaseUnit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "stockUnit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "stockQtyPerUnit": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "requiredQty": {
+          "type": "number",
+          "minimum": 0
+        },
+        "availableQty": {
+          "type": "number",
+          "minimum": 0
+        },
+        "shortQty": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "inventoryType",
+        "partId",
+        "coilId",
+        "model",
+        "supplier",
+        "purchaseUnit",
+        "stockUnit",
+        "stockQtyPerUnit",
+        "requiredQty",
+        "availableQty",
+        "shortQty"
+      ],
+      "description": "三个Qty都按purchaseUnit；stockQtyPerUnit为每采购单位所耗库存单位。内部换算复用orderPlanning，不再定义另一公式。"
+    },
+    "ReadinessScenarioResponseV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "preview": {
+          "const": true
+        },
+        "readSetHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "configurationHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestedQty": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "supplyStatus": {
+          "type": "string",
+          "enum": [
+            "READY",
+            "SHORTAGE",
+            "BLOCKED",
+            "PARTIAL"
+          ]
+        },
+        "shortages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReadinessShortageV1"
+          },
+          "minItems": 0,
+          "maxItems": 200
+        },
+        "unboundItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "reasonCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "model",
+              "reasonCode"
+            ],
+            "description": ""
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "currentOrderAllocationBasis": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": {
+              "const": "AFTER_EXISTING_ACTIVE_ORDERS"
+            },
+            "activeOrderCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "activeOrdersHash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "checkedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "policy",
+            "activeOrderCount",
+            "activeOrdersHash",
+            "checkedAt"
+          ],
+          "description": ""
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "minItems": 0,
+          "maxItems": 40
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "version",
+        "preview",
+        "readSetHash",
+        "configurationHash",
+        "requestedQty",
+        "supplyStatus",
+        "shortages",
+        "unboundItems",
+        "currentOrderAllocationBasis",
+        "warnings",
+        "checkedAt"
+      ],
+      "description": "READY仅表示材料准备；缺少正式身份=>BLOCKED，有截断=>PARTIAL，不据此保证产能交期。"
+    },
+    "DocumentCandidateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fileId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "USER_ATTACHMENT",
+            "BUSINESS_ARCHIVE",
+            "KNOWLEDGE_SNAPSHOT"
+          ]
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "value": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "PAGE"
+                },
+                "page": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "kind",
+                "page"
+              ],
+              "description": ""
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "CELL"
+                },
+                "sheet": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "cell": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32
+                }
+              },
+              "required": [
+                "kind",
+                "sheet",
+                "cell"
+              ],
+              "description": ""
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "TEXT_SPAN"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "kind",
+                "start",
+                "end"
+              ],
+              "description": ""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extractor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewState": {
+          "type": "string",
+          "enum": [
+            "CANDIDATE",
+            "USER_CONFIRMED",
+            "FORMAL_MATCHED",
+            "REJECTED"
+          ]
+        }
+      },
+      "required": [
+        "fileId",
+        "sourceHash",
+        "sourceKind",
+        "field",
+        "value",
+        "unit",
+        "location",
+        "extractor",
+        "confidence",
+        "reviewState"
+      ],
+      "description": "N4适配目标；当前parser缺位置/置信度则null而非伪造。USER_CONFIRMED不等于已写入正式业务数据库。"
+    },
+    "TaskSpecStorageV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "answerOwner": {
+          "const": "TASK_V2"
+        },
+        "userGoal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "businessWritePolicy": {
+          "type": "string",
+          "enum": [
+            "FORBIDDEN",
+            "CONFIRMATION_REQUIRED"
+          ]
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SubjectBinding"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GoalState"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "description": ""
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scenarioKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "baseSubjectKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,47}$"
+              },
+              "basis": {
+                "type": "string",
+                "enum": [
+                  "CURRENT_REBUILT",
+                  "RECIPE_SNAPSHOT",
+                  "QUOTATION_LOCKED",
+                  "ORDER_LOCKED"
+                ]
+              },
+              "priceContext": {
+                "type": "string",
+                "enum": [
+                  "FORMAL_READ_SET",
+                  "LOCKED_SNAPSHOT",
+                  "USER_HYPOTHESIS"
+                ]
+              },
+              "overrides": {
+                "$ref": "#/$defs/ScenarioOverridesV1"
+              },
+              "readSetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "scenarioKey",
+              "label",
+              "baseSubjectKey",
+              "basis",
+              "priceContext",
+              "overrides",
+              "readSetId"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 4,
+          "description": ""
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Clarification"
+          },
+          "minItems": 0,
+          "maxItems": 12,
+          "description": ""
+        },
+        "approvalOperationIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "minItems": 0,
+          "maxItems": 8,
+          "description": ""
+        }
+      },
+      "required": [
+        "version",
+        "answerOwner",
+        "userGoal",
+        "businessWritePolicy",
+        "subjects",
+        "goals",
+        "scenarios",
+        "questions",
+        "approvalOperationIds"
+      ],
+      "description": "N5内部spec_json的唯一布局；不含steps/facts副本；不是客户端可写接口。"
+    },
+    "TaskBudgetStorageV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxModelCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "maxToolCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "maxToolResultBytes": {
+              "const": 98304
+            },
+            "maxTaskStateBytes": {
+              "const": 262144
+            },
+            "deadlineAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxApiCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128
+            },
+            "maxActiveMs": {
+              "type": "integer",
+              "minimum": 10000,
+              "maximum": 900000
+            }
+          },
+          "required": [
+            "maxModelCalls",
+            "maxToolCalls",
+            "maxToolResultBytes",
+            "maxTaskStateBytes",
+            "deadlineAt",
+            "maxApiCalls",
+            "maxActiveMs"
+          ]
+        },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "modelCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "toolCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "apiCalls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "activeMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "modelCalls",
+            "toolCalls",
+            "apiCalls",
+            "activeMs"
+          ]
+        }
+      },
+      "required": [
+        "limits",
+        "usage"
+      ],
+      "description": ""
+    }
+  }
+}

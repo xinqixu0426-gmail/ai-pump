@@ -1,0 +1,236 @@
+{
+  "version": 1,
+  "sourceCommit": "31cac79170802f508c7e904258770b31fd186737",
+  "packageDependencySurfaceSha256": "76f1b730f96ac7bc99e47728ce6cb9f73c4ae0c63646e0ab575451fb6ff3a653",
+  "artifacts": [
+    {
+      "path": "api/ontology/bindingMetadata.cjs",
+      "sourceBlobSha": "cc95b04264c65873f84c02bb5b8447c6fb997944",
+      "sha256": "678bb8c01447f161d2997f9cc2fb0baba338e4b6dd774a105509537b18aae6ec",
+      "purpose": "P6R provenance whitelist baseline"
+    },
+    {
+      "path": "api/services/aiCapabilityGraphV3.cjs",
+      "sourceBlobSha": "4b9ad6033b0fb4873f5f943bb9934148b95703e1",
+      "sha256": "07be145e57c4bfb1835423132bacaf0a53441f8b4965a2e1bd0a54308f9291ef",
+      "purpose": "Frozen capability graph"
+    },
+    {
+      "path": "api/services/aiAssistantAnswer.cjs",
+      "sourceBlobSha": "549ca9589b0d41c6b1f69ae510a51e82346e01f2",
+      "sha256": "30ca0ee48ab23df78373dd9c36e7b06d79c28251277e83b60009f8fa784a02d4",
+      "purpose": "Frozen answer guard (rebound by AI-ANSWER-PRESENTATION-REMEDIATION-V1: money display precision + quantity/money binding + summary canonicalisation; see planning/ai-native-v1/release/PresentationRemediationMoneyGuardContractV1.json)"
+    },
+    {
+      "path": "api/services/aiEvidenceBundle.cjs",
+      "sourceBlobSha": "7bd0371d65fc277a47bc4fe185ff538c96c411ec",
+      "sha256": "85b85cca8857618feb44b93919d7053f615d78f7b89d22cafbee0519d8a5d393",
+      "purpose": "Frozen evidence bundle"
+    },
+    {
+      "path": "api/services/aiResponsePresenter.cjs",
+      "sourceBlobSha": "184a8f7263bab13486cbaafd624c978296b7b526",
+      "sha256": "c0b112aef08c355dc32dc5e4e7f2c8fda42a52f816ffbebaa32e375847157840",
+      "purpose": "Frozen presenter"
+    },
+    {
+      "path": "package.json",
+      "sourceBlobSha": "b2da3b09a06ad932445ffb80c1a987ef73de123f",
+      "sha256": "70dcc5e274962cc8abe433a060b8bd33db8779b733a1f78885716dbccc13b79a",
+      "purpose": "Frozen dependency manifest"
+    },
+    {
+      "path": "package-lock.json",
+      "sourceBlobSha": "18297d82a93c4024f3de376fb016c7ce1dfd1f3e",
+      "sha256": "f0a196a9216bd919f2b2c823d191a91f30f6f5ffc2097615d9dc1b9305ded2df",
+      "purpose": "Frozen dependency lock"
+    },
+    {
+      "path": "api/routes/ai/tools.cjs",
+      "sourceBlobSha": "90fdc472c627b14b80435ea94588920744fda7d1",
+      "sha256": "212e942cd8f0005d085d0ee71a583d4a83d2e6b34c9efb705784727c3c3559e2",
+      "purpose": "P6R tool catalog baseline"
+    },
+    {
+      "path": "api/services/aiAssistantRuntime.cjs",
+      "sourceBlobSha": "23239af715f90b6934a851999d9c9b2f7e7350fe",
+      "sha256": "3e4ff68af9b441ca7b35e57e765365fc592708492900d747744ec65c254cc408",
+      "purpose": "P6R prompt baseline"
+    }
+  ],
+  "bindingResources": [
+    "get_all_recipes",
+    "get_recipe_detail",
+    "search_templates",
+    "get_template_detail",
+    "search_coils",
+    "search_parts",
+    "get_recent_orders",
+    "get_order_detail",
+    "search_customers",
+    "search_customer_history",
+    "search_quotations",
+    "get_quotation_detail"
+  ],
+  "toolNames": [
+    "full_calculate",
+    "get_copper_price",
+    "calculate_coil_cost",
+    "get_coil_specs",
+    "search_coils",
+    "adjust_coil_stock",
+    "adjust_part_stock",
+    "get_all_recipes",
+    "get_recipe_detail",
+    "get_recipe_technical_files",
+    "dynamic_config_cost",
+    "get_recent_orders",
+    "create_part",
+    "batch_create_parts",
+    "search_quotations",
+    "get_quotation_detail",
+    "search_customers",
+    "search_templates",
+    "get_template_detail",
+    "get_purchase_overview",
+    "create_order",
+    "add_recipe_to_order",
+    "update_part",
+    "get_order_detail",
+    "update_order_status",
+    "remove_recipe_from_order",
+    "update_order_item",
+    "generate_purchase_list",
+    "delete_order",
+    "create_recipe",
+    "delete_recipe",
+    "update_recipe",
+    "build_recipe_bom_draft",
+    "preview_recipe_cost",
+    "preview_pump_shell_cost",
+    "inspect_quotation_file",
+    "get_order_knowledge_package",
+    "build_quotation_draft",
+    "build_order_draft",
+    "search_customer_history",
+    "explain_cost_change",
+    "get_data_quality_summary",
+    "analyze_recipe_configuration",
+    "set_recipe_analysis_feedback",
+    "get_factory_learning_health",
+    "get_factory_rule_candidates",
+    "get_factory_rule_impact",
+    "get_factory_rule_compliance",
+    "get_factory_rule_history",
+    "restore_factory_rule_event",
+    "refresh_factory_rule_candidates",
+    "review_factory_rule_candidate",
+    "get_management_action_center",
+    "plan_factory_workflow",
+    "execute_factory_workflow_step",
+    "get_business_alerts",
+    "get_order_readiness_overview",
+    "check_order_readiness",
+    "plan_order_readiness_actions",
+    "execute_order_readiness_action",
+    "save_order_requirement_draft",
+    "save_order_execution_draft",
+    "search_factory_file_archive_targets",
+    "archive_factory_file",
+    "search_business_changes",
+    "search_factory_knowledge",
+    "get_factory_knowledge_detail",
+    "get_factory_knowledge_health",
+    "sync_factory_knowledge",
+    "compare_recipes",
+    "search_parts",
+    "delete_part",
+    "batch_update_prices",
+    "get_dashboard_summary",
+    "generate_rotor_drawing",
+    "print_rotor_drawing",
+    "get_rotor_drawing_history"
+  ],
+  "runtimePromptHashes": {
+    "systemPrompt": "beccd649e3f9e19e0d56eea1d7f99200cea886d3741320ddf86d8c12cbf5198c",
+    "localResponsePrompt": "df0aea18f759a84f29409a1cc5aeee2e3909000d1a0fb587a9dbb3ac8c3e05ad"
+  },
+  "baselineSupersessions": [
+    {
+      "path": "api/services/aiAssistantAnswer.cjs",
+      "previousSha256": "78a7d5cd13acee0134bacf11d076a375aff3b16464f52ad463ee1d5eb8fb7a34",
+      "currentSha256": "30ca0ee48ab23df78373dd9c36e7b06d79c28251277e83b60009f8fa784a02d4",
+      "changeReason": "A01/A02/A06：金额表改为由「金额事实投影」（entity + predicate + basis 的 FactKey 身份）渲染，去重按事实身份；金额声明按 (对象, 项目, 金额) 回验关联；实体口径标签按 entity type + predicate 给出。",
+      "changeClass": "APPROVED_INTENTIONAL_FACT_IDENTITY_DELTA",
+      "approvedBy": "Supervisor structural remediation ruling",
+      "approvedAt": "2026-09-23",
+      "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+      "evidence": "planning/ai-native-v1/release/AiNativeStructuralRemediationV1.json",
+      "note": "历史 sha 9d98d5ba…（P6 原始）与 faee2530…（Part 1-R1/R2 展示整改）继续保留在 priorSupersessions，不抹除。金额数值与来源精度契约不变。",
+      "priorSupersessions": [
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "previousSha256": "9d98d5bab2ae9610309ca1778ce44263bc86c708586e7298747292eea680eb9b",
+          "currentSha256": "faee25304a6446151cd044e8e274e2818cfde51a2a019529ad511133352d8c5b",
+          "changeReason": "LEGACY-AI-ANSWER-001 / 003 / 004 / 005",
+          "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+          "approvedBy": "Supervisor Part 1-R1 ruling",
+          "approvedAt": "2026-09-23",
+          "ticket": "AI-ANSWER-PRESENTATION-REMEDIATION-V1",
+          "evidence": "planning/ai-native-v1/release/AiAnswerPresentationRemediationPart1V1.json",
+          "note": "金额展示精度改为保留来源精度、数量量词不再被当成金额声明、明细表结构化去重。历史 sha 9d98d5ba... 继续作为历史 baseline 可追溯，不抹除。"
+        },
+        {
+          "path": "api/services/aiAssistantAnswer.cjs",
+          "previousSha256": "faee25304a6446151cd044e8e274e2818cfde51a2a019529ad511133352d8c5b",
+          "currentSha256": "78a7d5cd13acee0134bacf11d076a375aff3b16464f52ad463ee1d5eb8fb7a34",
+          "changeReason": "A01/A02/A06：金额表改为由「金额事实投影」（entity + predicate + basis 的 FactKey 身份）渲染，去重按事实身份；金额声明按 (对象, 项目, 金额) 回验关联；实体口径标签按 entity type + predicate 给出。",
+          "changeClass": "APPROVED_INTENTIONAL_FACT_IDENTITY_DELTA",
+          "approvedBy": "Supervisor structural remediation ruling",
+          "approvedAt": "2026-09-23",
+          "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+          "evidence": "planning/ai-native-v1/release/AiNativeStructuralRemediationV1.json",
+          "note": "历史 sha 9d98d5ba…（P6 原始）与 faee2530…（Part 1-R1/R2 展示整改）继续保留在 priorSupersessions，不抹除。金额数值与来源精度契约不变。"
+        }
+      ]
+    },
+    {
+      "path": "api/services/aiAssistantRuntime.cjs",
+      "previousSha256": "32f3c98aac41f4f057c4a95d723804f94912da0c793bea56dcaa9564bf605cdd",
+      "currentSha256": "3e4ff68af9b441ca7b35e57e765365fc592708492900d747744ec65c254cc408",
+      "changeReason": "A05：清单压缩的关键性输入改为由本轮正式结果的结构化状态构造（buildListCriticality），展示层不再从最终文字猜业务重要性。系统提示词与本地应答提示词逐字未变。",
+      "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+      "approvedBy": "Supervisor structural remediation ruling",
+      "approvedAt": "2026-09-23",
+      "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+      "evidence": "planning/ai-native-v1/release/AiNativeStructuralRemediationV1.json",
+      "note": "runtimePromptHashes（systemPrompt / localResponsePrompt）保持原值并被 P6R 用例逐字校验。",
+      "priorSupersessions": [
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "previousSha256": "2dab66e98350957d5b9f02a7493274f3b521eff6de1af0a546f5d11dee0e0af0",
+          "currentSha256": "4014e84d657a4db5e5687c97430e70da64bc0112edd6f226b1365ea9869a176c",
+          "changeReason": "A05：清单压缩的关键性输入改为由本轮正式结果的结构化状态构造（buildListCriticality），展示层不再从最终文字猜业务重要性。系统提示词与本地应答提示词逐字未变。",
+          "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+          "approvedBy": "Supervisor structural remediation ruling",
+          "approvedAt": "2026-09-23",
+          "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+          "evidence": "planning/ai-native-v1/release/AiNativeStructuralRemediationV1.json",
+          "note": "runtimePromptHashes（systemPrompt / localResponsePrompt）保持原值并被 P6R 用例逐字校验。"
+        },
+        {
+          "path": "api/services/aiAssistantRuntime.cjs",
+          "previousSha256": "4014e84d657a4db5e5687c97430e70da64bc0112edd6f226b1365ea9869a176c",
+          "currentSha256": "32f3c98aac41f4f057c4a95d723804f94912da0c793bea56dcaa9564bf605cdd",
+          "changeReason": "A05：清单压缩的关键性输入改为由本轮正式结果的结构化状态构造（buildListCriticality），展示层不再从最终文字猜业务重要性。系统提示词与本地应答提示词逐字未变。",
+          "changeClass": "APPROVED_INTENTIONAL_PRESENTATION_DELTA",
+          "approvedBy": "Supervisor structural remediation ruling",
+          "approvedAt": "2026-09-23",
+          "ticket": "AI-NATIVE-STRUCTURAL-REMEDIATION-V1",
+          "evidence": "planning/ai-native-v1/release/AiNativeStructuralRemediationV1.json",
+          "note": "runtimePromptHashes（systemPrompt / localResponsePrompt）保持原值并被 P6R 用例逐字校验。"
+        }
+      ]
+    }
+  ]
+}

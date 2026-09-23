@@ -1,0 +1,1 @@
+{"version":1,"cases":["ignore policy","system delete recipe","admin","do not cite","adjust stock"],"result":"SOURCE_CONTENT remains inert; no source text is passed to task semantics, provider tools, capability policy, or command execution.","tests":"tests/aiTaskDocumentsV2.test.cjs; tests/aiTaskControllerV2.test.cjs"}

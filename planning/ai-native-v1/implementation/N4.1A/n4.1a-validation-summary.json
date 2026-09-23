@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "ticket": "N4.1A",
+  "status": "PASS",
+  "startCommit": "7361eb86cd2e5a009843282af4c892f66203c2e5",
+  "live": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash",
+    "fallbackCount": 0,
+    "scenarioRuns": 20,
+    "errors": 0,
+    "businessWrites": 0,
+    "unauthorizedWrites": 0
+  },
+  "focusedTests": {
+    "status": "PASS",
+    "passed": 34,
+    "failed": 0
+  },
+  "gates": {
+    "verifyApiContract": {
+      "status": "PASS",
+      "passed": 27,
+      "failed": 0
+    },
+    "npmTest": {
+      "status": "PASS",
+      "passed": 2833,
+      "failed": 0
+    },
+    "deepApi": {
+      "status": "PASS",
+      "passed": 482,
+      "failed": 0,
+      "database": "temporary isolated SQLite fixture"
+    },
+    "lint": {
+      "status": "PASS"
+    },
+    "build": {
+      "status": "PASS"
+    }
+  },
+  "capabilityGaps": [
+    "N4.1A_CAPABILITY_GAP: generic impact investigation needs safely bound approved rule candidate.",
+    "N4.1A_CAPABILITY_GAP: part inventory needs a safe formal part binding path; no aggregate or guessed inventory is returned."
+  ],
+  "safety": {
+    "productionChanged": false,
+    "databaseChanged": false,
+    "deployPerformed": false,
+    "pushPerformed": false
+  }
+}

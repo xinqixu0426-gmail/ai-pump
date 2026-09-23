@@ -1,3 +1,5 @@
+const { monetaryPresentationFor } = require('./monetaryPresentationContract.cjs');
+
 const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     business_history: Object.freeze([
         'search_business_changes',
@@ -85,6 +87,9 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'get_recipe_technical_files',
         'build_recipe_bom_draft',
         'preview_recipe_cost',
+        'compare_recipe_scenarios',
+        'preview_profitability',
+        'preview_virtual_readiness',
         'preview_pump_shell_cost',
         'compare_recipes',
         'analyze_recipe_configuration',
@@ -94,6 +99,8 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
     ]),
     cost: Object.freeze([
         'preview_recipe_cost',
+        'compare_recipe_scenarios',
+        'preview_profitability',
         'preview_pump_shell_cost',
         'full_calculate',
         'dynamic_config_cost',
@@ -102,6 +109,9 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'explain_cost_change',
         'compare_recipes',
         'build_recipe_bom_draft',
+    ]),
+    inventory: Object.freeze([
+        'preview_virtual_readiness',
     ]),
     coil: Object.freeze([
         'get_coil_specs',
@@ -187,6 +197,9 @@ const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     get_recipe_technical_files: '读取配方技术档案',
     build_recipe_bom_draft: '生成 BOM 草稿',
     preview_recipe_cost: '配方成本试算',
+    compare_recipe_scenarios: '同口径情景成本比较',
+    preview_profitability: '正式毛利试算',
+    preview_virtual_readiness: '虚拟数量齐料预览',
     preview_pump_shell_cost: '泵壳成本试算',
     compare_recipes: '对比配方',
     create_recipe: '新建配方',
@@ -307,6 +320,9 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
     business: Object.freeze([
         'build_recipe_bom_draft',
         'preview_recipe_cost',
+        'compare_recipe_scenarios',
+        'preview_profitability',
+        'preview_virtual_readiness',
         'preview_pump_shell_cost',
         'inspect_quotation_file',
         'build_quotation_draft',
@@ -353,6 +369,9 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'get_recipe_detail',
     'get_recipe_technical_files',
     'preview_recipe_cost',
+    'compare_recipe_scenarios',
+    'preview_profitability',
+    'preview_virtual_readiness',
     'preview_pump_shell_cost',
     'compare_recipes',
     'explain_cost_change',
@@ -445,6 +464,9 @@ const LIVE_CAPABILITY_NAMES = new Set([
     'get_order_detail',
     'generate_purchase_list',
     'preview_recipe_cost',
+    'compare_recipe_scenarios',
+    'preview_profitability',
+    'preview_virtual_readiness',
     'preview_pump_shell_cost',
     'compare_recipes',
     'search_customer_history',
@@ -485,6 +507,9 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
     'dynamic_config_cost',
     'build_recipe_bom_draft',
     'preview_recipe_cost',
+    'compare_recipe_scenarios',
+    'preview_profitability',
+    'preview_virtual_readiness',
     'preview_pump_shell_cost',
     'inspect_quotation_file',
     'build_quotation_draft',
@@ -512,7 +537,14 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 const PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES = new Set([
     'get_recipe_parts',
     'get_recipes_by_part',
+    // N2.2 is callable only by Task V2.  Keeping it out of the frozen legacy
+    // catalogue prevents a schema addition from changing old runtime routing.
+    'compare_recipe_scenarios',
+    'preview_profitability',
+    'preview_virtual_readiness',
 ]);
+
+const NATIVE_ONLY_AI_TOOL_NAMES = new Set(['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness']);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     search_business_changes: Object.freeze(['business_changes.list']),
@@ -560,6 +592,9 @@ const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     ]),
     create_recipe: Object.freeze(['recipes.create']),
     update_recipe: Object.freeze(['recipes.update']),
+    compare_recipe_scenarios: Object.freeze(['recipes.scenario_compare_preview']),
+    preview_profitability: Object.freeze(['cost.profitability_preview']),
+    preview_virtual_readiness: Object.freeze(['inventory.virtual_readiness_preview']),
     delete_recipe: Object.freeze(['recipes.delete']),
     archive_factory_file: Object.freeze(['files.archive']),
     sync_factory_knowledge: Object.freeze(['knowledge.sync_derived']),
@@ -682,11 +717,33 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
         riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'internal']),
     }),
+    'recipes.scenario_compare_preview': definePreviewCapability({
+        capabilityId: 'recipes.scenario_compare_preview', domain: 'recipes',
+        inputSchema: 'POST /api/recipes/:id/scenario-compare-preview ScenarioCompareRequestV1',
+        outputSchema: 'ScenarioCompareResponseV1 with common readSetId/readSetHash and current-rebuilt costs',
+        sourceOfTruth: 'costEngine+recipeBomEngine+current_recipe_configuration+current_catalog+system_settings',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'cost.profitability_preview': definePreviewCapability({
+        capabilityId: 'cost.profitability_preview', domain: 'cost',
+        inputSchema: 'POST /api/cost/profitability-preview ProfitabilityPreviewRequestV1',
+    outputSchema: 'ProfitabilityPreviewResponseV1 with same-read-set current-rebuilt unit cost, gross-profit ratios, and configurationHash for Task V2 cross-preview scenario identity validation',
+        sourceOfTruth: 'recipes.scenario_compare_preview+formal_profitability_arithmetic',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
+    'inventory.virtual_readiness_preview': definePreviewCapability({
+        capabilityId: 'inventory.virtual_readiness_preview', domain: 'inventory',
+        inputSchema: 'POST /api/inventory/virtual-readiness-preview VirtualReadinessRequestV1',
+        outputSchema: 'VirtualReadinessResponseV1 with current active-order reservation allocation and bounded source versions',
+        sourceOfTruth: 'orderPlanning+active_orders+current_recipe_scenario_bom+parts+coils',
+        riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
+    }),
     'cost.recipe_difference': defineQueryCapability({
         capabilityId: 'cost.recipe_difference', domain: 'cost',
         inputSchema: 'POST /api/cost/recipe-difference { leftRecipeId?, leftRecipeName?, rightRecipeId?, rightRecipeName?, limit? }',
         outputSchema: 'CurrentRecipeCostDifference with current cost details',
         sourceOfTruth: 'saved_recipe_ids+current_template_ids+costEngine',
+        previewPath: '/api/recipes/:id/scenario-compare-preview',
         riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
     }),
     'catalog.rename': defineBusinessCapability({
@@ -2125,6 +2182,8 @@ function sourceOfTruthFor(name, domains) {
         build_recipe_bom_draft: 'recipeBomEngine+saved_template_ids+current_catalog',
         get_recipe_detail: 'recipeServiceAndCostEngine',
         preview_pump_shell_cost: 'recipeBomEngineAndCostEngine',
+        preview_profitability: 'recipes.scenario_compare_preview+formal_profitability_arithmetic',
+        preview_virtual_readiness: 'orderPlanning+activeOrderReadiness+current_recipe_scenario_bom',
         get_order_knowledge_package: 'orderService',
         plan_factory_workflow: 'workflowPlanningService',
         execute_factory_workflow_step: 'formalWorkflowApi',
@@ -2215,6 +2274,10 @@ function buildRegistry() {
                 : primaryFormalCapability.completionMode,
             sourceOfTruth: sourceOfTruthFor(name, domains),
             dataMode: dataModeFor(name),
+            // 金额事实**可用性**：这个能力能提供哪些正式金额事实（能力元数据）。
+            // 本轮**要求**展示哪些金额，由已解析目标层决定，见
+            // api/capabilities/monetaryPresentationContract.cjs 的 turnMonetaryPresentation。
+            monetaryPresentation: monetaryPresentationFor(name),
             resultProvenance: LIVE_BUSINESS_EVIDENCE_NAMES.has(name)
                 ? Object.freeze({
                     kind: 'live_business',
@@ -2308,10 +2371,26 @@ function assertAiToolRegistryComplete(aiTools = []) {
         .filter(Boolean));
     const registeredNames = new Set(Object.keys(AI_CAPABILITY_REGISTRY));
     const missing = [...toolNames].filter(name => !registeredNames.has(name));
-    const orphaned = [...registeredNames].filter(name => !toolNames.has(name));
-    if (missing.length || orphaned.length) {
+    // The frozen Legacy catalogue is not the only legitimate caller of the AI
+    // capability registry.  The accepted AI Native V1 design keeps its own
+    // deliberately constrained tool surface (N2.2: three preview tools) out of
+    // the Legacy catalogue on purpose, so those registrations are not
+    // orphans.  Every exemption must still be a registered capability AND
+    // explicitly declared private-assistant-only, so this guard keeps failing
+    // on a genuinely unreachable registration or on an unexpected Native
+    // exposure instead of being silently widened.
+    const nativeOnlyExempt = [...NATIVE_ONLY_AI_TOOL_NAMES].filter(name => !toolNames.has(name));
+    const unexpectedNativeExemptions = nativeOnlyExempt.filter(name => (
+        !registeredNames.has(name)
+        || !PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES.has(name)
+    ));
+    const orphaned = [...registeredNames].filter(name => (
+        !toolNames.has(name) && !nativeOnlyExempt.includes(name)
+    ));
+    if (missing.length || orphaned.length || unexpectedNativeExemptions.length) {
         throw new Error(
             `AI 能力注册表不完整: missing=[${missing.join(', ')}], orphaned=[${orphaned.join(', ')}]`
+            + `, unexpected_native_exemptions=[${unexpectedNativeExemptions.join(', ')}]`
         );
     }
     const invalidMetadata = listAiCapabilities()

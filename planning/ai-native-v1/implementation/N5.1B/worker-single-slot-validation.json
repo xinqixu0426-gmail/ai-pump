@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "result": "PASS",
+  "evidence": "tests/aiTaskWorkerV2.test.cjs",
+  "assertions": [
+    "one active runOnce",
+    "no queue preclaim",
+    "empty queue produces no events",
+    "FOREGROUND and WAITING_INPUT are not claimed"
+  ],
+  "defaultEnabled": false,
+  "productionStartupRegistered": false
+}

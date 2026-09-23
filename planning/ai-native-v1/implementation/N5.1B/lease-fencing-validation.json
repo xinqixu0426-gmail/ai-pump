@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "result": "PASS",
+  "evidence": "tests/aiTaskWorkerV2.test.cjs",
+  "assertions": [
+    "old token renew rejected",
+    "old token release rejected",
+    "old state mutation rejected",
+    "old step mutation rejected",
+    "old evidence mutation rejected",
+    "slow old result discarded",
+    "new token retains lease"
+  ],
+  "tokensPersistedInEventsOrLogs": false
+}

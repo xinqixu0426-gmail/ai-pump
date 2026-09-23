@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "ticket": "N3.1",
+  "implementation": "api/services/aiTaskControllerV2.cjs",
+  "runtimeIntegrated": "server-injected test path only",
+  "input": "TaskSemanticsResultV2",
+  "output": "scrubbed TaskEnvelopeV2 task detail",
+  "answerOwner": "TASK_V2",
+  "executionMode": "FOREGROUND",
+  "supportedGoalKinds": [
+    "CURRENT_COST",
+    "CONFIGURATION_COMPARE",
+    "PREPARE_CHANGE(read-only preview only)"
+  ],
+  "unsupportedGoalKinds": [
+    "INVENTORY_QUERY",
+    "ORDER_READINESS",
+    "CUSTOMER_HISTORY",
+    "QUOTATION_QUERY",
+    "FILE_INSPECT",
+    "KNOWLEDGE_QUERY",
+    "MANAGEMENT_OVERVIEW",
+    "BUSINESS_CHANGES",
+    "IMPACT_INVESTIGATION",
+    "PROFITABILITY",
+    "APPLY_CHANGE"
+  ],
+  "execution": {
+    "reuse": [
+      "aiTaskSemanticsV2",
+      "aiTaskCapabilityAdapterV2",
+      "existing capability registry",
+      "existing executor",
+      "aiExecutionEvidence",
+      "recipeScenarioComparison"
+    ],
+    "writesEnabled": false,
+    "commandsRejectedAtController": "TASK_V2_COMMAND_NOT_ENABLED"
+  },
+  "routeIntegration": {
+    "path": "/api/ai/chat",
+    "enablement": "handleAiChat option nativeTaskDelegation===true only",
+    "clientControllable": false,
+    "sse": [
+      "status",
+      "detail",
+      "done"
+    ],
+    "contentEmitted": false
+  }
+}

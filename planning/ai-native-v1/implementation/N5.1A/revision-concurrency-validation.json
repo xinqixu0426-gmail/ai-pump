@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "ticket": "N5.1A-R1",
+  "migration": {
+    "version": 88,
+    "name": "ai_native_durable_task_persistence"
+  },
+  "databasePathType": "disposable temporary SQLite",
+  "productionDatabaseUsed": false,
+  "businessWrites": 0,
+  "status": "PASS",
+  "races": [
+    {
+      "id": "REVISION_RACE",
+      "connections": [
+        "A",
+        "B"
+      ],
+      "bothReadRevision": 1,
+      "connectionA": "SUCCESS revision=2",
+      "connectionB": "TASK_REVISION_CONFLICT",
+      "finalRevision": 2,
+      "finalPlanRevision": 1,
+      "eventSequence": [
+        1,
+        2
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "PLAN_REVISION_RACE",
+      "connections": [
+        "A",
+        "B"
+      ],
+      "bothReadRevision": 2,
+      "bothReadPlanRevision": 1,
+      "connectionA": "SUCCESS revision=3 planRevision=2",
+      "connectionB": "TASK_REVISION_CONFLICT",
+      "finalRevision": 3,
+      "finalPlanRevision": 2,
+      "finalPlanQuestion": "A",
+      "eventSequence": [
+        1,
+        2,
+        3
+      ],
+      "status": "PASS"
+    }
+  ]
+}

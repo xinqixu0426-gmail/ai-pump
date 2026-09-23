@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "ticket": "N5.2",
+  "canonicalSection": "planning/ai-native-v1/AI-native实施总计划.md#N5.2-任务API与工作台",
+  "requirements": [
+    {
+      "requirementId": "N52-01",
+      "description": "N5.1 is PASS before task API/workbench work",
+      "implementationEvidence": "N5.1B closure evidence in implementation-status.json and final focused worker regressions",
+      "testEvidence": "N5.1B-R5 validation suite",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-02",
+      "description": "Register the five protected task routes and exact TaskStart/Resume/Cancel/Acknowledgement/PublicView/Events schemas",
+      "implementationEvidence": "api/routes/ai/tasks.cjs; api/services/aiTaskPublicV2.cjs; docs/api-reference.md",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs; npm run verify:api-contract",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-03",
+      "description": "Task start only accepts explicit DETACHED execution and preserves foreground chat cancellation behavior",
+      "implementationEvidence": "parseTaskStart and POST route restrict executionMode to DETACHED; legacy chat path remains separate",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs; existing chat regression via npm test",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-04",
+      "description": "Expose only owner-authorized public task projections and event pages",
+      "implementationEvidence": "owner-bound getTaskForOwner; allowlisted publicView/publicEvents",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-05",
+      "description": "Support resume and cancel with server-controlled revision and lifecycle semantics",
+      "implementationEvidence": "POST resume/cancel routes use revision checks and lifecycle transitions",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs; N5.1B worker/lifecycle suite",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-06",
+      "description": "Bind durable clarification answers to a current owner/conversation user message",
+      "implementationEvidence": "bindResumeSources reads user-only rows from owner-bound active conversation and persists message refs",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-07",
+      "description": "Use the existing proxy API and UI components for the task workbench",
+      "implementationEvidence": "apps/web-next/lib/ai.ts and AiTaskWorkbench.tsx are integrated from ai-view.tsx",
+      "testEvidence": "npm run build; workbench implementation review",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-08",
+      "description": "Show understanding/query/input/verification/partial states and expandable goal evidence",
+      "implementationEvidence": "AiTaskWorkbench maps TASK_V2 state and renders goal/step details",
+      "testEvidence": "npm run build; component integration review",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-09",
+      "description": "Require explicit background execution/continue action; poll only an authorized known task",
+      "implementationEvidence": "workbench start/resume controls are explicit and nativeTaskId is durable conversation metadata; route reauthorizes every poll",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs; npm run build",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-10",
+      "description": "Keep lease, allowWrite, raw internal JSON and other private fields out of the public workbench",
+      "implementationEvidence": "publicView/publicEvent are allowlists; workbench consumes only public API types",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-11",
+      "description": "Handle refresh/device continuation, cancel, duplicate clicks, stale candidates, multi-conversation isolation and event cursor continuation",
+      "implementationEvidence": "conversation metadata stores nativeTaskId; start is idempotent; resume validates revision/current choice; events use afterSeq; task owner and conversation binding are server-side",
+      "testEvidence": "tests/aiTaskRoutesV2.test.cjs; tests/aiConversationCommands.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-12",
+      "description": "Block deletion of a conversation with an active detached task",
+      "implementationEvidence": "aiConversationCommands active task guard",
+      "testEvidence": "tests/aiConversationCommands.test.cjs",
+      "status": "PASS"
+    },
+    {
+      "requirementId": "N52-13",
+      "description": "Preserve N5.1B worker/runtime compatibility and do not create a decorative non-executing UI",
+      "implementationEvidence": "routes call prepareDetachedTaskV2 and durable lifecycle/store; worker executes persisted DETACHED tasks",
+      "testEvidence": "N5.1B focused/recovery suite; npm test",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "mandatoryRequirements": 13,
+    "pass": 13,
+    "partial": 0,
+    "unproven": 0,
+    "notRun": 0
+  }
+}

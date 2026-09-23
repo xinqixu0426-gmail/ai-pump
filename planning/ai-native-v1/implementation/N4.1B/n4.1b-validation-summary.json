@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "ticket": "N4.1B",
+  "status": "PASS",
+  "startCommit": "eb7381122b2330dbb0dcee3eb9f7a69d4c360fba",
+  "businessWrites": 0,
+  "fileWrites": 0,
+  "apiChanged": false,
+  "databaseSchemaChanged": false,
+  "legacyDefaultChanged": false,
+  "focusedTests": {
+    "status": "PASS",
+    "passed": 42,
+    "failed": 0
+  },
+  "gates": {
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2844/2844",
+    "deepApi": "PASS 482/482 isolated SQLite",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "liveAcceptance": "PASS: DeepSeek 10 scenarios x2 strict serial, fallback 0 (re-run after source-claim hardening)",
+  "blocker": null,
+  "safety": {
+    "businessWrites": 0,
+    "unauthorizedWrites": 0,
+    "fileWrites": 0,
+    "productionChanged": false,
+    "databaseChanged": false,
+    "deployPerformed": false,
+    "pushPerformed": false
+  },
+  "endCommit": "PENDING_FINAL_COMMIT"
+}

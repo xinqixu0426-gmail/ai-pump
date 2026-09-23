@@ -1,0 +1,297 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase5SemanticMergeV1",
+  "phase": "PHASE_5_MANUAL_SEMANTIC_MERGE_OF_REMAINING_SHARED_SEAMS",
+  "status": "PASS",
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "PRODUCTION_BASE_TREE": "eacc2bc44b9a3877c44f1ce1c9d60178c3061be3",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "PHASE_5_START_HEAD": "054141db118ae70c623c1d004b8ac157016a72c4",
+    "PHASE_5_COMMITS": [
+      "20d9c5c  phase 5A database and schema seams",
+      "81f9d72  phase 5B capability registry and tool surface",
+      "e49f315  phase 5C/5D execution, policy and cost seams",
+      "f4eeb7e  phase 5E route mounting and API reference",
+      "7cf8ddb  phase 5F/5G/5H package, deep-api runner, docs and test contracts"
+    ],
+    "PHASE_5_END_COMMIT": "7cf8ddb",
+    "PHASE_5_END_TREE": "edef4662e79205d40fd5a3a28e634ce8a96409ad"
+  },
+
+  "counts": {
+    "MANUAL_SHARED_EXPECTED": 30,
+    "MANUAL_SHARED_PROCESSED": 32,
+    "SCOPE_DEVIATION": "Two extra files were required and are declared here instead of being silently absorbed: tests/orderCommands.test.cjs and tests/ontologyRoutingCanary.test.cjs. The matrix's own conflictAnalysis said the 20-file list was 'notYetReviewed' and not exhaustively enumerated, which is exactly how those two were missed by both the phase 4 classification and the phase 5 handoff list. Once discovered, processing stopped, the reason was documented, and the paths were classified as MANUAL_MERGE.",
+    "UNRESOLVED_SHARED_CONFLICTS": 0,
+    "sharedFilesTotal": 42,
+    "sharedFilesResolved": 42,
+    "sharedFilesStillAtProductionVersion": 0
+  },
+
+  "phase5A_dbSchema": {
+    "files": ["api/db.cjs", "api/database/schema.cjs", "api/database/migrations.cjs"],
+    "method": "adopt native, preceded by explicit proof that no production entry is lost",
+    "SAFE_TABLES_MASTER_ENTRIES_PRESERVED": 43,
+    "SAFE_TABLES_MASTER_ENTRIES_LOST": 0,
+    "SAFE_TABLES_NATIVE_ADDED": ["ai_tasks", "ai_task_steps", "ai_task_evidence", "ai_task_events"],
+    "CATALOG_TABLES_PRESERVED": ["catalog_identity_profiles", "catalog_name_aliases", "catalog_reference_bindings", "catalog_template_shell_bindings"],
+    "AI_PERSONAL_TABLES_PRESERVED": ["ai_personal_memories", "ai_personal_memory_revisions"],
+    "APPLICATION_TABLES_MASTER_ENTRIES_LOST": 0,
+    "migration87EntryIdenticalBetweenLineages": true,
+    "verifiedOnThrowawaySqlite": {
+      "declared_migration_head": 88,
+      "user_version": 88,
+      "applied_count": 88,
+      "ai_task_tables_created": ["ai_task_events", "ai_task_evidence", "ai_task_steps", "ai_tasks"]
+    },
+    "MIGRATION_88_CONFLICT": "NO",
+    "migrationExecutedAgainstAnyRealDatabase": false
+  },
+
+  "phase5B_registry": {
+    "files": ["api/capabilities/registry.cjs", "api/services/aiToolInputValidatorV2.cjs", "tests/helpers/ontologyHttpRuntimeFixture.cjs", "tests/aiCapabilityRegistry.test.cjs"],
+    "businessCapabilityIdsMaster": 134,
+    "businessCapabilityIdsMasterLost": 0,
+    "businessCapabilityIdsAdded": ["recipes.scenario_compare_preview", "cost.profitability_preview", "inventory.virtual_readiness_preview"],
+    "aiCapabilities": 83,
+    "legacyAiTools": 80,
+    "nativeOnlyTools": 3,
+    "COMPARE_RECIPE_SCENARIOS_REGISTERED": true,
+    "PREVIEW_PROFITABILITY_REGISTERED": true,
+    "PREVIEW_VIRTUAL_READINESS_REGISTERED": true,
+    "ORPHANED_CAPABILITY_GUARD_PRESERVED": true,
+    "orphanedGuardStrengthened": "An exemption is now honoured only when the name is BOTH a registered capability AND declared private-assistant-only; otherwise the guard throws `unexpected_native_exemptions=[...]`. Negative control executed: injecting a bogus exemption name made the guard fail as designed.",
+    "CAPABILITY_NOT_REGISTERED_BEFORE": 38,
+    "CAPABILITY_NOT_REGISTERED_AFTER": 0,
+    "INVALID_AI_TOOL_INPUT_BEFORE": 31,
+    "INVALID_AI_TOOL_INPUT_AFTER": 0,
+    "validatorProductionOnlyLinesPreserved": [
+      "master `|| value[field] === null` is subsumed by native `|| (value[field] === null && !allowsNull(properties[field]))`",
+      "master `if (raw === undefined || raw === null) continue;` is subsumed by native's allowsNull-guarded equivalent",
+      "master's normalizeObject/normalizeArray/normalizeString/normalizeNumber if-chain is preserved as an equivalent switch with identical helpers"
+    ]
+  },
+
+  "phase5C_execution": {
+    "files": ["api/routes/ai/executor.cjs", "apps/web-next/components/ai-view.tsx"],
+    "EXECUTION_CONTEXT_PRESERVED": true,
+    "detail": "prepared.executionContext remains the first term of the merged literal, so every production consumer keeps the formal-preflight context; native can only ADD a server-owned nativeTask reference and cannot replace preflight data.",
+    "aiViewProductionOnlyLinePreserved": "the append result is hoisted into `savedUser`, so the same append still happens and additionally feeds the new task-message state"
+  },
+
+  "phase5D_policies": {
+    "files": ["api/services/recipeConfigurationPolicy.cjs", "api/services/configuredRecipeSnapshot.cjs", "api/services/orderPlanning.cjs", "api/services/currentRecipeCost.cjs", "api/services/costEngine.cjs", "api/services/orderCommands.cjs"],
+    "SURFACE_TREATMENT_WHITELIST_PRESERVED": true,
+    "surfaceTreatmentDetail": "the production whitelist block is byte-identical apart from renaming the local `allowed`/`!allowed` to `allowedByPolicy`/`!allowedByPolicy`; throw, code and payload unchanged",
+    "CONFIGURED_RECIPE_QTY_SEMANTICS": "CHANGED DELIBERATELY - see deliberateChanges",
+    "orderPlanningProductionOnlyLinePreserved": "the legacy `return plans;` remains the body of buildBalancedOrderPlansWithResolver; the new reservedDemand projection is a separate new export",
+    "costEnginePriceSource": "CHANGED DELIBERATELY - see deliberateChanges",
+    "orderCommandsIdempotency": "CHANGED DELIBERATELY - see deliberateChanges"
+  },
+
+  "deliberateChanges": [
+    {
+      "path": "api/services/configuredRecipeSnapshot.cjs",
+      "change": "packing part qty: parsePositiveNumber (rejects 0) -> parseNonNegativeNumber (allows 0)",
+      "why": "required by accepted N4.1C packing-removal semantics, where an explicit qty=0 IS the formal removal instruction",
+      "productionBehaviourPreserved": "the same module already uses parseNonNegativeNumber for its other optional numeric override; no production test asserts that packing qty 0 must be rejected; negative and non-finite qty are still rejected"
+    },
+    {
+      "path": "api/services/costEngine.cjs",
+      "change": "a catalogue exact match or supplier fallback whose price is not finite or <= 0 is now reported as a missing valid price and counted in missingParts",
+      "why": "accepted N4.1C-R3 requires an incomplete cost to be reported instead of a complete cost that omits an unpriced part",
+      "productionBehaviourPreserved": "the part already contributed 0 to totalCost before the change, so no production total changes; the change routes the case into the existing production warning path (frameBuilder, catalogReferenceAudit, costDifference, currentRecipeCost)"
+    },
+    {
+      "path": "api/services/orderCommands.cjs",
+      "change": "the persistent idempotency fingerprint of order creation is bound to the ORIGINAL normalised request instead of the rebuilt draft payload",
+      "why": "accepted N4.2C-IDEMPOTENCY-REPLAY-REPAIR - after the first order became an active reservation, rebuilding its purchase plan produced a different fingerprint and broke replay",
+      "productionBehaviourPreserved": "preview-hash enforcement (assertPreviewHash) is untouched and normalizeOrderDraftInput is byte-identical to production; the changed value is what a retry hashes, not what is written"
+    },
+    {
+      "path": "api/services/currentRecipeCost.cjs",
+      "change": "PRODUCTION REGRESSION FOUND AND REPAIRED during the merge. The raw native line `(recipe.surfaceTreatmentMode || 'none') === 'none' ? 0 : ...` treated an ABSENT mode as `none` and therefore zeroed the legacy painting wage.",
+      "evidence": "direct probe with the raw native line: { paintingWage: 200 } produced 0, { surfaceTreatmentCost: 120 } produced 0",
+      "repair": "only an EXPLICIT `none` may zero the cost; an absent mode keeps the production fallback",
+      "reProbe": "explicit none -> 0; { paintingWage: 200 } -> 200; { paintingWage: 150 } with null mode -> 150; { surfaceTreatmentCost: 120 } -> 120; { surfaceTreatmentMode: 'painting', surfaceTreatmentCost: 200 } -> 200",
+      "projectIdiom": "api/db.cjs recipeRow and templateCommands both derive the mode from the wage (`painting_wage != null ? 'painting' : 'none'`)"
+    }
+  ],
+
+  "phase5E_routes": {
+    "files": ["api.cjs", "tests/apiContractGovernance.test.cjs", "docs/api-reference.md"],
+    "method": "MANUAL COMPOSITION of api.cjs; native wholesale adoption only for the two files proven lossless by individual line analysis",
+    "PRODUCTION_ROUTES_PRESERVED": 26,
+    "PRODUCTION_ROUTES_LOST": 0,
+    "NATIVE_ROUTES_MOUNTED": 9,
+    "NATIVE_ROUTES_MOUNTED_DETAIL": [
+      "POST /api/ai/tasks",
+      "GET /api/ai/tasks/:taskId",
+      "GET /api/ai/tasks/:taskId/events",
+      "POST /api/ai/tasks/:taskId/resume",
+      "POST /api/ai/tasks/:taskId/cancel",
+      "POST /api/ai/tasks/:taskId/write-preview",
+      "POST /api/ai/tasks/:taskId/write-execute",
+      "POST /api/ai/tasks/:taskId/write-reconcile",
+      "POST /api/inventory/virtual-readiness-preview"
+    ],
+    "DUPLICATE_ROUTE_REGISTRATIONS": 0,
+    "UNMOUNTED_ROUTE_FILES": 0,
+    "totalRouteDeclarations": 264,
+    "INVENTORY_ROUTE_MOUNTED": true,
+    "INVENTORY_ROUTE_PREFIX": "/api/inventory",
+    "INVENTORY_ROUTE_PREFIX_SOURCES": [
+      "api/capabilities/registry.cjs inputSchema 'POST /api/inventory/virtual-readiness-preview VirtualReadinessRequestV1'",
+      "api/routes/ai/executors/businessExecutors.cjs postJson('/api/inventory/virtual-readiness-preview')",
+      "tests/helpers/ontologyHttpRuntimeFixture.cjs read-only preview allowlist /^\\/api\\/inventory\\/virtual-readiness-preview$/"
+    ],
+    "INVENTORY_ROUTE_CONTRACT_TEST": "tests/apiContractGovernance.test.cjs PASS 5/5; the Phase 3 residual 'route file inventory.cjs has HTTP endpoints but no documented mount prefix' is GONE",
+    "apiReferenceReconciliation": "all five previously production-only doc lines checked individually: three are supersets (route count 253 -> 264; documented AI tool count 80 -> 83 and business capability count 134 -> 137 now match the merged registry exactly, verified against the live registry), two are strict contained supersets that add accepted Native behaviour without dropping a production sentence (the /api/ai/chat rollout paragraph and the conversations DELETE 409 guard)"
+  },
+
+  "phase5F_package": {
+    "PACKAGE_JSON_MERGED": true,
+    "method": "manual composition; every production script and metadata field preserved",
+    "SCRIPTS_ADDED": ["verify:ai-native-release"],
+    "SCRIPTS_REMOVED": [],
+    "SCRIPTS_CHANGED": ["verify:release"],
+    "VERIFY_RELEASE_FINAL_BEHAVIOR": "npm audit && npm --prefix apps/web-next audit && npm run verify:api-contract && npm run lint && npm test && npm run test:deep-api && npm run build && npm run verify:ai-native-release && npm run verify:prod-env",
+    "VERIFY_AI_NATIVE_RELEASE_AVAILABLE": true,
+    "PACKAGE_LOCK_CHANGED": false,
+    "DEPENDENCY_DELTA": "NONE",
+    "authorityForInclusion": "planning/ai-native-v1/implementation/N7.1/native-quality-summary.json hardGate: 'npm run verify:ai-native-release, included by npm run verify:release'",
+    "operationalConsequencesVerified": [
+      "the consuming deployment script asserts a clean TRACKED tree before running the gate, so the gate's sourceDirty requirement is satisfiable by the deployment contract",
+      "a passing gate is cached per commit (.release-code-gate-<sha>.json), so an unchanged revision does not re-spend model calls",
+      "the gate requires a real DEEPSEEK_API_KEY and does NOT require production Owner credentials (the owner identity is a synthetic credential issued inside run-ai-native-rollout-live.cjs)"
+    ],
+    "unresolvedDocumentationContradiction": {
+      "path": "docs/ai-native-v1-handoff.md",
+      "line": 299,
+      "acceptedText": "verify:release 组合门禁（audit + 契约 + lint + test + deep-api + build + prod-env）| 不包含 Native 质量门禁",
+      "contradicts": "planning/ai-native-v1/implementation/N7.1/native-quality-summary.json",
+      "actionTaken": "NOT resolved in phase 5. The handoff document is sha256-attested by ReleaseEvidenceV1.handoffArtifacts and by N7.3-closure-validation.json.handoffArtifactIntegrity; editing it silently would break that attestation chain, and one of the native closure tests verifies the chain. The contradiction is recorded here so the final phase or the Supervisor can resolve it deliberately."
+    }
+  },
+
+  "phase5G_deepApiRunner": {
+    "files": ["scripts/run-deep-api-smoke.cjs", "scripts/run-business-understanding-benchmark.cjs"],
+    "CANONICAL_DEEP_API_RUNNER_INTEGRATED": true,
+    "LOCAL_PUMP_DB_CANONICAL_DEPENDENCY": "NONE",
+    "defaultInvocation": {
+      "command": "npm run test:deep-api",
+      "sourceMode": "CANONICAL_DETERMINISTIC",
+      "canonicalSource": true,
+      "localPumpDbUsed": false,
+      "passed": 489,
+      "failed": 0,
+      "tempDatabaseIntegrity": "ok",
+      "tempDatabaseForeignKeyViolations": 0,
+      "sourceBuildLog": "由仓库版本化迁移构建的确定性源（不读取本机 ./pump.db）: migrationHead=88, applied=88"
+    },
+    "extendedModePreserved": "setting DEEP_API_SOURCE_DATABASE_PATH still uses that explicit database and is reported as EXTENDED_SOURCE_DB; the old missing-source error message is preserved",
+    "marketFixture": "a deterministic current-BJT market snapshot is seeded into the temporary clone so the copper read check executes without depending on the day's market job; no fake production copper fallback was added to production code",
+    "productionOnlyLinesAccountedFor": "3 old source-database plumbing lines now live inside selectSourceDatabase() with the same error message; 1 was the closing bracket of a fixture array that became .concat([...]) to guarantee at least one purchase-shortage item",
+    "benchmarkRunner": "master's 3 production-only lines are parameterised, not removed: without --cases the run still iterates ALL definition.coreCases and the aggregate counts derive from cases.length/executions.length instead of hard-coded 10/20"
+  },
+
+  "phase5H_testContracts": {
+    "TEST_CONTRACTS_REDERIVED": true,
+    "COUNT_ONLY_ASSERTIONS_WEAKENED": false,
+    "aiCapabilityRegistry.test.cjs": [
+      "the bare `registry.length === AI_TOOLS.length` assertion is REPLACED by structural invariants: the registry equals the frozen Legacy catalogue plus the declared native-only surface; every native-only entry must be registered, present in the accepted native tool surface, private-assistant-only, read/preview, and absent from AI_TOOLS; no registered capability may be unreachable; the frozen Legacy catalogue must still have exactly 80 unique tools",
+      "the expected business capability id list gained exactly the three native ids",
+      "the preview transactionality assertion now accepts `read_transaction` (the value the accepted N2.2/N4.x read-set previews declare, and the value already used for that meaning on query capabilities) while still rejecting write transactionality; the reason is documented inline"
+    ],
+    "ontologyRoutingCanary.test.cjs": "adopted with proof: master's nine production-only lines read the oracle through `git show <frozen sourceCommit>:<path>`, a contract that cannot be satisfied in this lineage; measured, the master version FAILS on the candidate (1 of 41) while the native version passes 41/41. The native version preserves the same protections (binding resources, prompt hashes, tool-name inventory, dependency surface) from the frozen-history manifest, and its tool-name assertion stays strict: the manifest lists exactly the 77 legacy tool names, so exactly the three private-assistant-only capabilities remain outside the frozen catalogue.",
+    "deferredFromPhase4": "tests/aiConversationCommands.test.cjs, tests/aiToolInputValidatorV2.test.cjs and tests/deploymentAutomation.test.cjs were adopted and rolled back in phase 4 when their dependencies were missing, with the failure reproduced; they were adopted here now that migration 88, the validator merge and the package.json scripts have landed, and all three are green"
+  },
+
+  "routeInventory": {
+    "ROUTES_PRODUCTION_BEFORE": 253,
+    "ROUTES_CANDIDATE_AFTER": 264,
+    "PRODUCTION_ROUTES_LOST": 0,
+    "NATIVE_ROUTES_ADDED": 9,
+    "DUPLICATE_ROUTE_REGISTRATIONS": 0,
+    "ROUTE_CONFLICTS": 0,
+    "arithmetic": "253 + 3 (scenario-compare-preview, cost/profitability-preview, inventory/virtual-readiness-preview) + 8 (task family) = 264"
+  },
+
+  "startupDefaults": {
+    "method": "executed against api/services/aiNativeRolloutPolicy.cjs with the relevant keys deleted from the environment",
+    "AI_NATIVE_MODE_DEFAULT": "off",
+    "AI_NATIVE_WRITE_ENABLED_DEFAULT": false,
+    "LEGACY_AUTHORITY_DEFAULT": true,
+    "authorityWithDefaultEnv": "legacy",
+    "NATIVE_WORKER_DEFAULT": "not enabled (workerEnabledByDefault = false; AI_NATIVE_MODE defaults to off)",
+    "invalidMode": "fails closed to mode=off, modeValid=false, authority=legacy",
+    "shadowMode": "authority=legacy, nativeTaskDelegation=false",
+    "ownerModeWithoutOwnerIdentity": "authority=owner-scoped-native but nativeTaskDelegation=false"
+  },
+
+  "gateResults": {
+    "note": "These are INTERMEDIATE phase 5 results. Final gates belong to phases 7/8/9 and must not be cited as deployment evidence.",
+    "NPM_TEST": { "command": "npm test", "result": "exit 1", "tests": 2989, "pass": 2988, "fail": 1 },
+    "VERIFY_API_CONTRACT": { "command": "npm run verify:api-contract", "result": "PASS", "tests": 28, "pass": 28, "fail": 0 },
+    "DEEP_API": { "command": "npm run test:deep-api", "result": "PASS", "tests": 489, "pass": 489, "fail": 0 },
+    "LINT": { "command": "npm run lint", "result": "PASS", "exitCode": 0 },
+    "BUILD": { "command": "npm run build", "result": "PASS", "exitCode": 0 }
+  },
+
+  "remainingNpmTestFailure": {
+    "test": "tests/n73ApiReferenceCoverage.test.cjs:112 - N7.3-R1 closure record separates the product runtime and handoff baselines without a self-hash claim",
+    "assertion": "N7.3-closure-validation.json releaseEvidence.payloadSha256 === sha256(ReleaseEvidenceV1.json)",
+    "actual": "499b07df60b8de5e336dde7e2cfe8d03975463b8348a052f847d9bfde28e9831",
+    "expected": "b16b352676a3a6629ec9cad1e56281cdc77acb00f9b83129786e764763dba787",
+    "rootCause": "CRLF checkout. Proven from the ACCEPTED revision 579b44c8 without consulting the worktree: sha256 of the ReleaseEvidenceV1.json blob is 499b07df... and N7.3-closure-validation.json.releaseEvidence.payloadSha256 and ReleaseEvidenceV1.payload.sha256 both carry 499b07df..., so the assertion holds at source. On this Windows checkout fs.readFileSync returns the same file with CRLF and hashes to b16b3526...; replacing CRLF with LF reproduces 499b07df... exactly.",
+    "classification": "PRE_EXISTING_ENVIRONMENTAL - not introduced by the integration, not fixable by integration, and not caused by any Phase 5 edit (the handoff document was restored to its accepted bytes after this was established).",
+    "notPaperedOver": "no test assertion or evidence hash was edited to make this pass"
+  },
+
+  "nativeRegressionStatus": {
+    "method": "the 27 ported Native test files were executed together on the final candidate",
+    "result": "209 tests, 208 pass, 1 fail",
+    "onlyFailure": "the same pre-existing CRLF evidence-hash assertion above",
+    "series": {
+      "N4": "PASS (aiTaskControllerV2 52 tests including the N4.1A/N4.1B/N4.1C/N4-AUDIT-FIX-01/N4.2A/N4.2B/N4.2C cases)",
+      "N5_1A": "PASS (aiTaskPersistenceV2, aiTaskPersistenceV2R1)",
+      "N5_1B": "PASS (aiTaskWorkerV2)",
+      "N5_2": "PASS (aiTaskRoutesV2, aiTaskPublicV2 via the route suite)",
+      "N6_1": "PASS (aiTaskWriteBridgeV2)",
+      "N6_2": "PASS (aiTaskWriteBridgeV2, aiConfirmedToolExecution via commandExecution)",
+      "N7_1": "PASS (aiNativeRolloutPolicy, aiNativeQualityGate, aiNativeBaseline)",
+      "N7_2": "PASS (aiTaskLegacyRetirementN72, aiTaskLegacyRetirementModesN72) except the shared CRLF evidence assertion in n73ApiReferenceCoverage"
+    }
+  },
+
+  "businessLogicReplacedFromOldNativeTree": {
+    "BUSINESS_LOGIC_REPLACED_FROM_OLD_NATIVE_TREE": "NO",
+    "detail": "No current production business service was replaced by an older Native copy. api/db.cjs, api/database/schema.cjs and api/database/migrations.cjs adopt the Native version only because it is a strict superset (0 production entries lost) that adds the AI task tables and migration 88; api/services/aiToolInputValidatorV2.cjs is a strict superset with the production normalize helpers preserved; api/routes/cost.cjs, api/services/orderPlanning.cjs, api/routes/ai/chat.cjs, api/routes/ai/executors/businessExecutors.cjs, api/services/aiConfirmedToolExecution.cjs, api/services/aiConversationCommands.cjs, api/services/aiDispatcherV3.cjs, api/routes/ai.cjs, apps/web-next/lib/ai.ts and the web components are additive. api.cjs, api/capabilities/registry.cjs, api/services/currentRecipeCost.cjs and tests/aiCapabilityRegistry.test.cjs were MANUALLY COMPOSED rather than adopted. Every production-only line was individually accounted for, and the one place where an older Native rewrite would have silently dropped production behaviour (api/services/currentRecipeCost.cjs surface treatment) was found by probing and repaired."
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "PRODUCTION_BACKUP_CREATED": false,
+    "MAIN_WORKTREE_UNTOUCHED": true,
+    "AI_NATIVE_V1_WORKTREE_UNTOUCHED": true,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3,
+    "DEEPSEEK_CREDENTIAL_COPIED_TO_DSH": false,
+    "OWNER_CREDENTIAL_COPIED_TO_DSH": false
+  },
+
+  "notRun": [
+    "npm run verify:ai-native-release (requires a live DEEPSEEK_API_KEY; not available locally and not to be provisioned in this ticket)",
+    "any live model-call acceptance script"
+  ],
+  "nextPhase": "PHASE_7_COMBINATION_VALIDATION_THEN_PHASE_8_REGRESSIONS"
+}

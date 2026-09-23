@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "result": "PASS",
+  "argumentSources": [
+    "recipeId formal receipt",
+    "comparison inputs formal/user/source evidence",
+    "unitPrice user span",
+    "quantity user span or PROFITABILITY_QUANTITY_UNSPECIFIED_V1",
+    "currency FORMAL_POLICY"
+  ],
+  "noClientCost": true
+}

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "identity": [
+    "recipeId",
+    "scenarioKey",
+    "configurationHash"
+  ],
+  "required": "Profitability and virtual-readiness results can be combined only when all three values agree; different readSetId values are allowed.",
+  "failClosedCode": "INTEGRATED_SCENARIO_MISMATCH",
+  "reconciliationBudget": 1,
+  "validationCases": [
+    {
+      "name": "profitability candidate hash differs from embedded formal candidate",
+      "result": "FAIL_CLOSED",
+      "test": "tests/aiTaskControllerV2.test.cjs"
+    },
+    {
+      "name": "readiness configuration hash differs from cost scenario",
+      "result": "FAIL_CLOSED",
+      "test": "tests/aiTaskControllerV2.test.cjs"
+    },
+    {
+      "name": "same recipe/scenario/hash with distinct cost and inventory read sets",
+      "result": "PASS",
+      "test": "scripts/run-ai-native-n4-2c-live.cjs full-four-goal x2"
+    }
+  ],
+  "liveIdentityCases": 20,
+  "liveIdentityMismatches": 0
+}

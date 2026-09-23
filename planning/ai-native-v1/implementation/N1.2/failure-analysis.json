@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "ticket": "N1.2",
+  "negativeCoverage": [
+    {"case":"malformed JSON", "expected":"PARTIAL with one bounded format repair at most", "actual":"PASS"},
+    {"case":"wrong provider tool name", "expected":"PARTIAL and no business execution", "actual":"PASS"},
+    {"case":"unknown/privilege fields", "expected":"TaskProposal validation rejects candidate", "actual":"PASS"},
+    {"case":"repeated source quote", "expected":"no guessed SourceSpan; PARTIAL", "actual":"PASS"},
+    {"case":"provider 500 or timeout", "expected":"PARTIAL and no retry loop", "actual":"PASS"},
+    {"case":"copper price without unit", "expected":"COPPER_PRICE_UNIT_AMBIGUOUS and PARTIAL", "actual":"PASS"},
+    {"case":"critical span omitted", "expected":"CRITICAL_SPAN_UNPARSED and PARTIAL", "actual":"PASS"}
+  ],
+  "knownLimitations": [
+    "N1.2 does not resolve canonical entities, call business APIs, calculate prices or inventory, or execute writes.",
+    "NATIVE-BLOCKER-FALSE-COMPLETE-001 remains unchanged and must still pass at N3 before Owner Canary."
+  ]
+}

@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "artifact": "ProductionIntegrationPhase5R1ClosureV1",
+  "phase": "PHASE_5_R1_SEMANTIC_AND_EVIDENCE_CLOSURE",
+  "status": "PASS",
+  "supersedes": "nothing - ProductionIntegrationPhase5SemanticMergeV1.json is kept as the historical Phase 5 record; this file adds the R1 closure on top of it",
+  "baselines": {
+    "PRODUCTION_BASE_COMMIT": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "NATIVE_SOURCE_COMMIT": "579b44c82f10ac62f4ab33c5dd96328d194f5f9e",
+    "PHASE_5_R1_START_HEAD": "d3c92c09819d08c6b51f6d4ab634312e656b8b28",
+    "PHASE_5_R1_END_COMMIT": "febf88a70d785cce0f9336d53b59820bcc5beb3a",
+    "PHASE_5_R1_END_TREE": "ff15da7890e1806964147d6d914db2b8a3922cde"
+  },
+
+  "phase5CommitChain": {
+    "PHASE_5_COMMIT_CHAIN": [
+      "20d9c5c  5A database and schema seams",
+      "81f9d72  5B capability registry and tool surface",
+      "e49f315  5C/5D execution, policy and cost seams",
+      "f4eeb7e  5E route mounting and API reference",
+      "7cf8ddb  5F/5G/5H package, deep-api runner, docs and test contracts",
+      "d3c92c0  phase 5 semantic merge audit record",
+      "a256d76  5R1 canonical cross-platform evidence hash contract",
+      "49000a9  5R1 correct the handoff release-gate documentation",
+      "f91734e  5R1 first evidence regeneration",
+      "9ccc097  5R1 bind evidence byte counts to canonical bytes",
+      "145a182  5R1 final handoff package generation",
+      "87e0a99  5R1 final closure validation record (first pass)",
+      "5cb839f  5R1 lock the qty semantics decision with a regression",
+      "e2690af  5R1 drop crypto imports left unused by the hash contract",
+      "febf88a  5R1 final closure record after evidence regeneration"
+    ],
+    "UNACCOUNTED_COMMITS": 0,
+    "note": "The reported HEAD at the end of the first Phase 5 report (d3c92c0) is the audit-record commit that sits on top of the five implementation commits 20d9c5c/81f9d72/e49f315/f4eeb7e/7cf8ddb. Nothing was rewritten; the R1 commits continue the same linear chain."
+  },
+
+  "crossPlatformHashContract": {
+    "CROSS_PLATFORM_HASH_CONTRACT": "GIT_BLOB_CANONICAL",
+    "implementation": "api/lib/evidenceHashing.cjs",
+    "rule": [
+      "tracked path -> git cat-file blob <rev>:<path>",
+      "not-yet-committed path -> the path's content with CRLF normalised to LF, which is exactly what git stores under core.autocrlf=true",
+      "both branches land in the same hash space, so one git revision yields one evidence hash everywhere"
+    ],
+    "WINDOWS_CRLF_HASH_FAILURE": "RESOLVED",
+    "EVIDENCE_GENERATOR_HASH_MODE": "canonical git blob (was fs.readFileSync of the worktree)",
+    "EVIDENCE_VALIDATOR_HASH_MODE": "canonical git blob (was fs.readFileSync in text mode)",
+    "N73_TEST_HASH_MODE": "canonical git blob (was raw crypto over worktree bytes)",
+    "alignedConsumers": [
+      "scripts/n73-generate-release-evidence.cjs",
+      "scripts/n73-write-closure-validation.cjs",
+      "tests/n73ApiReferenceCoverage.test.cjs"
+    ],
+    "byteCountsAlsoCanonical": "the generator previously hashed canonical bytes but recorded fs.statSync().size, which differ on a CRLF checkout (docs/ai-native-v1-handoff.md: 26515 vs 26054); byte counts now come from the same canonical buffer as the hash",
+    "proofAcceptedValuesReproduce": {
+      "ReleaseEvidenceV1.json": "499b07df60b8de5e336dde7e2cfe8d03975463b8348a052f847d9bfde28e9831",
+      "docs/ai-native-v1-handoff.md": "c23436ca08e805969975f5f8fdb4b827b330ded73d5c0cf255da7fbfa8ad9c16",
+      "method": "both reproduced byte-exactly through the new helper, and the accepted revision's own closure record and .payload.sha256 side file agree with them"
+    },
+    "notSolvedBy": [
+      "changing the expected hash to the Windows value",
+      "accepting either hash",
+      "skipping or disabling the assertion",
+      "special-casing a single filename"
+    ]
+  },
+
+  "handoffReleaseGateContradiction": {
+    "HANDOFF_RELEASE_GATE_CONTRADICTION": "RESOLVED",
+    "was": "docs/ai-native-v1-handoff.md line 299 asserted verify:release does NOT include the Native quality gate",
+    "authority": "planning/ai-native-v1/implementation/N7.1/native-quality-summary.json hardGate: 'npm run verify:ai-native-release, included by npm run verify:release'",
+    "fix": "HANDOFF_DOC_CORRECTED = YES; package.json was NOT changed to match the wrong document",
+    "nowDocuments": [
+      "verify:release DOES include verify:ai-native-release",
+      "the two layers differ in kind: repository/static validation (api-contract, test, lint, build, canonical deep-api) needs only the repository, while fresh live evidence (the rolloutSafety dimension) needs a real DEEPSEEK_API_KEY",
+      "live Native release quality MUST NOT be called PASS without that real provider credential; a missing key fails closed with DEEPSEEK_API_KEY_MISSING",
+      "production Owner credentials are NOT required - the rollout-gate script issues its own isolated synthetic owner credential",
+      "the deployment script asserts a clean tracked tree before running the gate, satisfying the gate's sourceDirty requirement, and a passing gate is reused per commit"
+    ],
+    "EVIDENCE_REGENERATED": true,
+    "EVIDENCE_HASHES_VALID": true,
+    "bindingModelPreserved": {
+      "PRODUCT_RUNTIME_BASELINE": "a256d76bef654bec0c17fa39fc0bb8c79fe37965 - the last commit that changed the product runtime; unresolvedProductRuntimeDiffAtGeneration is now EMPTY",
+      "HANDOFF_DOCUMENTATION_PACKAGE": "e2690af64ceab6388405a02c380e8eeca1124bd8, tree 58504139eccaaf2a9bfcb18b6481df96e233828a - the commit recording the regenerated evidence",
+      "CLOSURE_VALIDATION": "febf88a70d785cce0f9336d53b59820bcc5beb3a - the record written afterwards, naming the package",
+      "circularHashClaim": false,
+      "historicalNativePackageNotDisowned": "the accepted 579b44c8 N7.3 package is left untouched on its own branch; this candidate carries candidate-specific evidence instead of pretending that package never existed"
+    },
+    "generatedEvidenceFigures": {
+      "migrationHead": 88,
+      "migrations": 88,
+      "aiCapabilities": 83,
+      "businessCapabilities": 137,
+      "writeCapabilities": 29,
+      "legacyTools": 80,
+      "nativeTools": 3,
+      "mcpReadOnlyTools": 49,
+      "defaultMode": "off",
+      "writeEnabledDefault": false,
+      "invalidModeFailsClosed": true,
+      "productionOwnerTrialStarted": false,
+      "handoffArtifacts": 6,
+      "corpora": 11
+    },
+    "finalPayloadSha256": "65e3ae7a4ab10f1aa0468e194995b1a38139fbf4ca27b34fd54e24aae5acc3b9",
+    "finalSideFileMatches": true,
+    "finalArtifactIntegrity": "checked 6, allMatch TRUE"
+  },
+
+  "qtySemantics": {
+    "MASTER_QTY_ZERO_BEHAVIOR": "REJECTED - configuredRecipeSnapshot.normalizePackingPartsOverride used parsePositiveNumber, so overrides.packingPartsJson[i].qty = 0 threw 'qty 必须是正数'",
+    "NATIVE_QTY_ZERO_BEHAVIOR": "ACCEPTED - parseNonNegativeNumber, and the 0 is preserved (not replaced by the default 1)",
+    "FORMAL_API_QTY_ZERO_BEHAVIOR": "documented as legal: docs/api-reference.md for POST /api/recipes/bom-draft says '空数组清空包装，qty=0 移除对应角色'. That sentence exists on PRODUCTION MASTER, so the formal contract accepts qty=0 and production master's code contradicted its own contract.",
+    "CALLERS_EXPECTING_ZERO": "the formal bom-draft contract, the accepted N4.1C packing-removal semantics, and explicit-removal spans converted by the Native controller",
+    "CALLERS_EXPECTING_POSITIVE": "no production test asserts that packing qty 0 must be rejected; the same module already used parseNonNegativeNumber for its other optional numeric override",
+    "DOWNSTREAM_REMOVAL_NOT_IMPLEMENTED": "measured: neither recipeBomEngine nor dynamicCostPreview removes a qty=0 row - both apply Number(part.qty || 1), so an accepted qty=0 survives as qty 1. The documented removal therefore does not actually happen anywhere; the candidate only makes the instruction admissible.",
+    "WHY_CHANGE_REQUIRED": "production master rejected a value its own formal documented contract declares legal, which made the documented packing-removal path unreachable; the candidate makes it admissible",
+    "PRODUCTION_COMPATIBILITY": "strict widening of the accepted input domain for an explicitly documented instruction; no production test regressed; the change cannot silently delete data because no code removes a qty=0 row; authorisation of a removal stays with packingRemovalPolicy",
+    "FINAL_QTY_ZERO_BEHAVIOR": "ACCEPTED and preserved exactly; negative and non-numeric values still rejected; absent/null/empty defaults to 1",
+    "QTY_SEMANTICS_PRESERVED": "YES (no silent business-rule narrowing, and the widening is documented, bounded and now locked by a regression)",
+    "scopeLockedBy": "tests/recipeConfigurationPolicy.test.cjs - '配方配置：packingParts 的 qty=0 是合法显式指令，负数仍然拒绝'"
+  },
+
+  "priceValidity": {
+    "method": "direct calls to the authoritative costEngine.calculateRecipeCost with a synthetic catalogue, on the integrated candidate and on master's costEngine swapped in place; the candidate file was restored and verified clean afterwards",
+    "MASTER_PRICE_VALIDITY": {
+      "exact_supplier_match_price_0": "accepted, source 精确匹配, total 0, missingParts []",
+      "exact_supplier_match_price_negative": "accepted, source 精确匹配, total NEGATIVE (-10.00 for price -5 x qty 2), missingParts []",
+      "exact_supplier_match_price_null_undefined": "accepted, source 精确匹配, detail price NaN, total 0.00, missingParts []",
+      "exact_supplier_match_price_non_numeric": "accepted, source 精确匹配, total NaN, missingParts []",
+      "supplier_fallback": "reduce picked the minimum without numeric coercion",
+      "no_catalogue_row": "missingParts populated, source 未找到"
+    },
+    "NATIVE_PRICE_VALIDITY": {
+      "exact_supplier_match_price_0_negative_null_non_numeric": "not a valid price -> source 正式目录缺少有效价格, price 0, missingParts populated",
+      "valid_numeric_string": "accepted (Number('3.5') = 3.5)",
+      "supplier_fallback": "reduce coerces through Number(), then the same validity check",
+      "no_catalogue_row": "unchanged, source 未找到"
+    },
+    "FINAL_PRICE_VALIDITY": "candidate: a non-finite or non-positive catalogue price is not a valid price; the part contributes 0 and is reported in missingParts so current cost reports incomplete",
+    "BEHAVIOR_DELTA": [
+      "price 0: master accepted silently (hidden zero), candidate reports the part as unpriced",
+      "price negative: master produced a NEGATIVE total, candidate contributes 0",
+      "price null/undefined/non-numeric: master produced NaN in the detail price and NaN in the total, candidate contributes 0",
+      "supplier fallback with a 0 row: master could pick the 0 row as the minimum, candidate reports unpriced"
+    ],
+    "FORMAL_BUSINESS_SEMANTICS_PRESERVED": "YES",
+    "why": [
+      "a missing or invalid catalogue price already contributed exactly 0 to the total in every case, so no legitimate total changes",
+      "negative and NaN totals are not a business outcome the current formal API supports, and currentRecipeCost defines costComplete as missingParts.length === 0, so reporting the part is the correct formal semantic",
+      "the accepted N4.1C-R3 requirement is exactly that an incomplete cost must be reported rather than a complete cost that omits an unpriced part; the native preview suite asserts that (tests/recipeScenarioComparison.test.cjs) and passes",
+      "the production warning path (frameBuilder, catalogReferenceAudit, costDifference, aiResponsePresenter '已定价' wording) improves consistently rather than regressing"
+    ],
+    "residualRisk": "a production catalogue row with price 0 now makes the cost report incomplete where it previously reported complete. That is the intended behaviour and matches the documented '缺少价格' contract, but it is a user-visible change and is recorded as such."
+  },
+
+  "orderIdempotency": {
+    "ORDER_IDEMPOTENCY_MASTER": "executePersistentCommand computes requestHash(input) and compares it for the same (actor_key, capability_id, idempotency_key). Master passed { payload: {customerId, customerName, contractNo, remark, status, itemsJson, purchaseListJson, todosJson}, previewHash } taken from the REBUILT draft.",
+    "ORDER_IDEMPOTENCY_NATIVE": "passes orderCreateRequestFingerprint(input, expectedPreviewHash) = { customerId, customerName, contractNo, remark, items from the ORIGINAL normalised request, previewHash }",
+    "ORDER_IDEMPOTENCY_FINAL": "candidate keeps the Native shape: identity is bound to the submitted request, not to a server-side rebuild",
+    "proofs": {
+      "A_exact_replay": "PASS - identical logical command yields an identical fingerprint on both master and candidate",
+      "B_rebuild_stability": "master: fingerprint STABLE across a plan rebuild = false, so a legitimate retry was reported as idempotency_key_conflict (409) and never replayed; candidate: TRUE. This is the accepted N4.2C-IDEMPOTENCY-REPLAY-REPAIR.",
+      "C_no_collision": "PASS - different customerId, different item qty and different contractNo all produce different fingerprints",
+      "D_preview_hash_still_bound": "PASS - a different previewHash produces a different fingerprint, so preview binding is not weakened",
+      "E_documented_aliases": "PASS - snake_case aliases normalise to the same fingerprint (normalizeOrderDraftInput is byte-identical to production)",
+      "F_production_command_behaviour": "PASS - assertPreviewHash, the business write, the strong audit and the operation receipt are untouched; the full production orderCommands test body still runs unchanged"
+    },
+    "IDEMPOTENCY_REGRESSION": "PASS",
+    "DUPLICATE_ORDER_EFFECTS": 0,
+    "writeProtectionWeakened": false,
+    "deploymentWindowNote": "operation records written before the deployment used the old fingerprint, so an in-flight retry that reuses a pre-deployment idempotency key returns 409 idempotency_key_conflict rather than silently creating a duplicate order. Callers generate fresh keys per request, so this is bounded to retries that straddle the deployment."
+  },
+
+  "verifySemantics": {
+    "VERIFY_RELEASE_INCLUDES_NATIVE_GATE": true,
+    "VERIFY_AI_NATIVE_RELEASE_AVAILABLE": true,
+    "LIVE_CREDENTIAL_REQUIREMENT": "real DEEPSEEK_API_KEY required; production Owner credentials NOT required (the rollout gate issues an isolated synthetic owner credential). Missing key fails closed with DEEPSEEK_API_KEY_MISSING.",
+    "LEGACY_OFF_RELEASE_SEMANTICS": "an ordinary Legacy/off release now runs the Native quality gate as part of verify:release, per the accepted N7.1 hard gate. It is not blocked by absent Owner credentials, and the gate is only run on a clean tracked tree with per-commit reuse of passing evidence.",
+    "nativeHardGateRemovedBecauseDshLacksCredentials": false,
+    "livePassFaked": false,
+    "verifyScriptExists": "npm run verify does NOT exist in this repository; the real gates are verify:api-contract, test, test:deep-api, lint, build, and verify:release"
+  },
+
+  "paintingWage": {
+    "PAINTING_WAGE_REGRESSION": "PASS",
+    "test": "tests/currentRecipeCost.test.cjs - '当期人工成本：只有显式 none 才把表面处理成本归零，legacy 喷漆工资必须保留'",
+    "negativeControl": "with the unmodified Native expression (recipe.surfaceTreatmentMode || 'none') === 'none' ? 0 : ... reintroduced, the new test FAILS (1 of 10); on the integrated candidate it passes 10/10",
+    "semantics": "explicit surfaceTreatmentMode 'none' -> 0; legacy row with no explicit mode -> painting wage or configured cost preserved; explicit non-none mode -> configured cost or painting-wage fallback",
+    "productionIdiomMatched": "api/db.cjs recipeRow and templateCommands.normalizeSurfaceTreatmentMode both derive the mode from the wage"
+  },
+
+  "finalSignals": {
+    "CAPABILITY_NOT_REGISTERED_FINAL": 0,
+    "INVALID_AI_TOOL_INPUT_FINAL": 0,
+    "UNMOUNTED_ROUTE_FILES_FINAL": 0,
+    "UNRESOLVED_SHARED_CONFLICTS": 0,
+    "MIGRATION_88_CONFLICT": "NO"
+  },
+
+  "gateResults": {
+    "FOCUSED_TESTS": "294 tests across the capability registry, MCP, AI chat route, task controller/capability/persistence/worker/write-bridge, command execution, tool confirmation, currentRecipeCost, recipeConfigurationPolicy, recipeConfigurationBaseline, orderCommands, apiContractGovernance, deploymentAutomation, both N7.3 suites and ontologyRoutingCanary - 294 pass, 0 fail",
+    "NPM_TEST": { "command": "npm test", "result": "PASS", "tests": 2991, "pass": 2991, "fail": 0 },
+    "VERIFY_API_CONTRACT": { "command": "npm run verify:api-contract", "result": "PASS", "tests": 28, "pass": 28, "fail": 0 },
+    "DEEP_API": { "command": "npm run test:deep-api", "result": "PASS", "passed": 489, "failed": 0, "sourceMode": "CANONICAL_DETERMINISTIC", "canonicalSource": true, "localPumpDbUsed": false, "tempDatabaseIntegrity": "ok" },
+    "LINT": { "command": "npm run lint", "result": "PASS", "exitCode": 0 },
+    "BUILD": { "command": "npm run build", "result": "PASS", "exitCode": 0 }
+  },
+
+  "safetyBoundaries": {
+    "PRODUCTION_CHANGED": false,
+    "PRODUCTION_DATABASE_MIGRATED": false,
+    "PRODUCTION_SERVICE_RESTARTED": false,
+    "PRODUCTION_WORKER_ENABLED": false,
+    "PRODUCTION_NATIVE_OWNER_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITE_ENABLED": false,
+    "PRODUCTION_NATIVE_WRITES": 0,
+    "DEPLOY_PERFORMED": false,
+    "PUSH_PERFORMED": false,
+    "PRODUCTION_BACKUP_CREATED": false,
+    "MAIN_WORKTREE_UNTOUCHED": true,
+    "AI_NATIVE_V1_WORKTREE_UNTOUCHED": true,
+    "USER_STASH_COUNT_BEFORE": 3,
+    "USER_STASH_COUNT_AFTER": 3,
+    "CREDENTIALS_COPIED": false
+  },
+
+  "notRun": [
+    "npm run verify:ai-native-release - requires a real DEEPSEEK_API_KEY, which is not available on this machine and must not be provisioned by this ticket"
+  ],
+  "planDeviations": {
+    "SCOPE_ADDITIONS": [
+      "api/lib/evidenceHashing.cjs is a new file that was NOT in the 316-file port and NOT in the 42-file shared set. It exists because the cross-platform hash contract required one shared implementation. Declared here rather than smuggled in.",
+      "tests/orderCommands.test.cjs and tests/ontologyRoutingCanary.test.cjs were also out of the original 30-file list and were declared in Phase 5."
+    ],
+    "NPM_RUN_VERIFY": "the coordinator's R1 instruction asked for 'npm run verify'; that script does not exist in this repository, so the real gates were run instead"
+  },
+
+  "nextPhase": "PHASE_7_COMBINATION_VALIDATION_THEN_PHASE_8_REGRESSIONS_AND_PHASE_9_CANDIDATE_EVIDENCE"
+}

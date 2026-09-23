@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "ticket": "N6.2",
+  "startHead": "b287d37c9c6b6fbf127617ede7ee82f8e4a630a7",
+  "commandScope": [
+    "adjust_part_stock",
+    "batch_update_prices"
+  ],
+  "focused": {
+    "bridgeTests": "PASS 7/7",
+    "persistentCommandTests": "PASS 5/5",
+    "taskRoutesRegression": "PASS 4/4"
+  },
+  "failureMatrix": {
+    "beforeDispatchFailure": "PASS: no admitted command is dispatched",
+    "responseLostAfterCommit": "PASS: UNKNOWN_EFFECT then task-bound formal readback",
+    "postWriteReadFailure": "PASS: treated as response-lost/UNKNOWN_EFFECT until formal operation evidence resolves",
+    "sameCardConcurrent": "PASS: confirmation replay causes zero extra executor calls",
+    "cancelAfterAdmission": "PASS: RECONCILING then PARTIAL with command effect retained",
+    "sameKeyDifferentArgs": "PASS: persistent command rejects idempotency_key_conflict",
+    "auditFailureRollback": "PASS: persistent command leaves zero api_operations rows"
+  },
+  "gates": {
+    "verifyApiContract": "PASS 27/27",
+    "npmTest": "PASS 2951/2951",
+    "deepApiDefault": "PASS 489/489: temporary cloned deep-api database receives a current-BJT completed market snapshot fixture before isolated API startup",
+    "deepApiHistoricalSource": "PASS 490/490: prior populated historical-source comparison",
+    "deepApiCoverageRegression": "NO: default count equals accepted N5.2 baseline 489/489; copper MCP check executed and was not skipped",
+    "lint": "PASS",
+    "build": "PASS"
+  },
+  "safety": {
+    "productionChanged": false,
+    "productionDatabaseMigrated": false,
+    "productionWorkerEnabled": false,
+    "deployPerformed": false,
+    "pushPerformed": false,
+    "productionBusinessWrites": 0
+  },
+  "deepApiDeterminism": {
+    "failureReproduced": "default temporary database had no market_snapshot_daily_cache; startup market fetch contacted live sources and current-day failure caused get_copper_price to reject",
+    "testOnlyFix": "seedMcpDailyMarketSnapshotFixture writes only the isolated deep-api SQLite clone, not the source or production database",
+    "productionSemanticsChanged": false,
+    "fakeProductionFallbackAdded": false,
+    "whyN52PreviouslyPassed": "the former default gate ran when its startup live market fetch completed; it therefore depended on external availability and was not deterministic"
+  }
+}

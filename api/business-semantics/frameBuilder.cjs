@@ -74,6 +74,7 @@ function catalogScopeVerified(toolResults) {
     return authoritative('get_all_recipes') && authoritative('search_templates') && authoritative('search_parts');
 }
 function requiredFactsFor(semantics) {
+    if (semantics.kind === 'COST_COMPARISON') return ['RECIPE_COST_COMPARISON'];
     if (semantics.kind === 'INVENTORY_QUERY') return ['COIL_OFFICIAL_VARIANT_SET', 'COIL_VARIANT_INVENTORY'];
     if (semantics.kind === 'CONFIGURATION_OVERRIDE') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_BASE_CONFIGURATION', 'COIL_CANONICAL_IDENTITY'];
     if (semantics.kind === 'HYPOTHETICAL_COST_QUERY' && semantics.wireWeight != null) return ['COIL_CANONICAL_IDENTITY', 'COIL_SCHEME_COST', 'COIL_OVERRIDE_APPLIED'];

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "answerOwner": "TASK_V2 deterministic presenter",
+  "modelCalls": 0,
+  "invariants": [
+    {
+      "name": "goal coverage",
+      "result": "PASS",
+      "evidence": "full-four-goal x2 contains all four VERIFIED goals"
+    },
+    {
+      "name": "numeric grounding",
+      "result": "PASS",
+      "evidence": "fact-backed presenter only"
+    },
+    {
+      "name": "no net profit",
+      "result": "PASS",
+      "evidence": "profitabilityPreview warnings and presenter use gross profit only"
+    },
+    {
+      "name": "no capacity or delivery claim",
+      "result": "PASS",
+      "evidence": "live answer scanner"
+    },
+    {
+      "name": "no write claim under FORBIDDEN",
+      "result": "PASS",
+      "evidence": "live answer scanner"
+    }
+  ],
+  "focusedTests": "tests/aiTaskAnswerV2.test.cjs tests/aiTaskControllerV2.test.cjs"
+}

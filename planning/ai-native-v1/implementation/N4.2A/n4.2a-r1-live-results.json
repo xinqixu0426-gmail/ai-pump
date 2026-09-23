@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "ticket": "N4.2A-R1",
+  "requestedProvider": "deepseek",
+  "actualProvider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "fallbackCount": 0,
+  "runsExecuted": 20,
+  "result": "PARTIAL",
+  "scope": "Existing isolated controller safety sweep: 10 scenarios x 2 serial DeepSeek runs; it is not the required 10-family profitability acceptance matrix.",
+  "resultAfterRepair": "PASS",
+  "businessWrites": 0,
+  "rawLog": "gitignored logs/ai-task-controller-v2-live-raw.json",
+  "repairs": [
+    "Goal Admission rejects an ungrounded model-extra PROFITABILITY goal.",
+    "Function-call format repair unwraps the documented parameters envelope.",
+    "Controller identifies profitability response schema by receipt capability, rather than shared preview=true."
+  ],
+  "remainingRequirement": "Build and run the original 10-family profitability acceptance matrix x2."
+}

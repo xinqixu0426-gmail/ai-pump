@@ -24,6 +24,7 @@ const {
   isProductionEnvironment,
   parseCorsOrigins,
 } = require('./api/services/environment.cjs');
+const { startupAiNativeRolloutSummary } = require('./api/services/aiNativeRolloutPolicy.cjs');
 
 const app = express();
 const appLogger = createLogger('api');
@@ -181,6 +182,11 @@ app.use('/api/recipes', require('./api/routes/recipes.cjs'));
 app.use('/api/templates', require('./api/routes/templates.cjs'));
 app.use('/api/model-variants', require('./api/routes/modelVariants.cjs'));
 app.use('/api/orders', require('./api/routes/orders.cjs'));
+// Accepted Native read-only inventory preview. The mount prefix is fixed by
+// the formal capability contract
+// (inventory.virtual_readiness_preview -> POST /api/inventory/virtual-readiness-preview)
+// and by the internal caller in api/routes/ai/executors/businessExecutors.cjs.
+app.use('/api/inventory', require('./api/routes/inventory.cjs'));
 app.use('/api/coils', require('./api/routes/coils.cjs'));
 app.use('/api/rotor', require('./api/routes/rotor.cjs'));
 app.use('/api/settings', require('./api/routes/settings.cjs'));
@@ -263,12 +269,14 @@ app.use((error, req, res, next) => {
 
 // ── 启动 ──
 const server = app.listen(PORT, '0.0.0.0', () => {
+    const nativeRollout = startupAiNativeRolloutSummary(process.env);
     console.log(`========================================`);
     console.log(`水泵工厂管理系统 API 已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
     console.log(`运行平台: ${process.platform} | 环境模式: ${IS_PRODUCTION ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
     console.log(`========================================`);
     console.log(`🔒 认证系统已启用`);
+    console.log(`[AI Native] mode=${nativeRollout.mode} authority=${nativeRollout.authority} writeEnabled=${nativeRollout.writeEnabled}`);
     console.log(`   登录接口: POST /api/auth/login`);
     console.log(`   登出接口: POST /api/auth/logout`);
     console.log(`   状态检查: GET  /api/auth/check`);

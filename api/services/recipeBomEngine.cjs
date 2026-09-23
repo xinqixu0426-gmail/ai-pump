@@ -10,6 +10,7 @@ const {
     getPartPriceFromCatalog,
     getFloatAccessoryDelta,
     calculateCompleteCableCost,
+    hasUsableCatalogPrice,
 } = require('./costEngine.cjs');
 const { normalizeBomRoles } = require('./bomRoles.cjs');
 const { currentSavedParts } = require('./savedPartReferences.cjs');
@@ -288,9 +289,17 @@ function buildRecipeBomDraft(input, context) {
             name: part.name,
             supplier,
             qty: Number(part.qty || 1),
-            snapshotPrice: part.partId != null
-                ? Number(resolveCatalogPartIdentity(partsCatalog, part).price || 0)
-                : getPriceByModelAndSupplier(partsCatalog, part.model, supplier),
+            // PHASE 5-R3: 与包装行同一规则——目录价不可用（NULL / 非数值）时
+            // 不得写入 snapshotPrice，否则会把“未定价”伪装成合法零价。
+            ...(part.partId != null
+                ? (() => {
+                    const identity = resolveCatalogPartIdentity(partsCatalog, part);
+                    return hasUsableCatalogPrice(identity?.price) ? { snapshotPrice: Number(identity.price) } : {};
+                })()
+                : (() => {
+                    const catalogPrice = getPriceByModelAndSupplier(partsCatalog, part.model, supplier);
+                    return hasUsableCatalogPrice(catalogPrice) ? { snapshotPrice: Number(catalogPrice) } : {};
+                })()),
             ...(part.dynamicRule === 'longScrewByBarrelLength' ? {
                 dynamicRule: part.dynamicRule,
                 barrelLength: part.barrelLength,
@@ -441,11 +450,22 @@ function buildRecipeBomDraft(input, context) {
             name: `${model}（${packagingMaterial}）`,
             supplier,
             qty: Number(part.qty || 1),
-            snapshotPrice: matchedPart
-                ? Number(matchedPart.price || 0)
-                : isManual || part.snapshotPrice !== undefined
-                    ? Number(part.snapshotPrice || 0)
-                    : getPriceByModelAndSupplier(partsCatalog, model, supplier),
+            // PHASE 5-R2: 只有当价格真的可用时才写入 snapshotPrice。
+            //
+            // 目录价 0 是合法价格（schema `REAL DEFAULT 0` + 正式零件 API 的
+            // parseNonNegativeNumber + 列表价格过滤下界 0），必须原样保留；
+            // 但目录价缺失（NULL / 非数值）绝不能被压成 snapshotPrice 0 ——
+            // 那会让 costEngine 的显式快照价分支直接采信 0，把“未定价”伪装成
+            // “零成本”，并让情景金额与差额伪造为完整。缺失时省略该字段，
+            // 让 costEngine 自己按正式目录判定未定价并计入 missingParts。
+            ...(matchedPart
+                ? (hasUsableCatalogPrice(matchedPart.price) ? { snapshotPrice: Number(matchedPart.price) } : {})
+                : (isManual || part.snapshotPrice !== undefined
+                    ? { snapshotPrice: Number(part.snapshotPrice || 0) }
+                    : (() => {
+                        const catalogPrice = getPriceByModelAndSupplier(partsCatalog, model, supplier);
+                        return hasUsableCatalogPrice(catalogPrice) ? { snapshotPrice: Number(catalogPrice) } : {};
+                    })())),
             packagingMaterial,
             packingRole,
             ...(part.resolution ? { resolution: part.resolution } : {}),

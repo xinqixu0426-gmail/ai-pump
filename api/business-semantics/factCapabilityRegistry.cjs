@@ -7,6 +7,7 @@ const { deepFreeze } = require('./contract.cjs');
 const FactCapabilityRegistry = deepFreeze({
     RECIPE_CANONICAL_IDENTITY: { capability: 'get_all_recipes', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
     RECIPE_CURRENT_FULL_COST: { capability: ['full_calculate', 'get_recipe_detail', 'preview_recipe_cost'], sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['CANONICAL_SUBJECT_ID', 'VERIFIED_PRIOR_FACT'] },
+    RECIPE_COST_COMPARISON: { capability: 'compare_recipes', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
     RECIPE_BASE_CONFIGURATION: { capability: 'get_all_recipes', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
     COIL_CANONICAL_IDENTITY: { capability: 'search_coils', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },
     COIL_OFFICIAL_VARIANT_SET: { capability: 'search_coils', sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['USER_EXPLICIT_VALUE'] },

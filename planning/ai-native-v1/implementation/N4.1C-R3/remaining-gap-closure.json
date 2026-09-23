@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "ticket": "N4.1C-R3",
+  "status": "PASS",
+  "r2HistoricalEvidenceRetained": "planning/ai-native-v1/implementation/N4.1C-R2 remains an immutable record of pre-R3 gaps.",
+  "closedRows": [
+    {
+      "gap": "shared authoritative packing removal policy",
+      "status": "PASS",
+      "evidence": [
+        "recipeConfigurationPolicy.cjs",
+        "tests/recipeConfigurationPolicy.test.cjs",
+        "tests/recipeScenarioComparison.test.cjs"
+      ]
+    },
+    {
+      "gap": "surface clarification continuation live evidence",
+      "status": "PASS",
+      "evidence": "surface-continuation-1, surface-continuation-2"
+    },
+    {
+      "gap": "SOURCE_EVIDENCE scenario provenance",
+      "status": "PASS",
+      "evidence": "tests/aiTaskControllerV2.test.cjs tests/aiTaskValidationV2.test.cjs source-scenario-1/2"
+    },
+    {
+      "gap": "complete focused matrices",
+      "status": "PASS",
+      "evidence": "N4.1C/*.json matrices"
+    }
+  ],
+  "matrixCounts": {
+    "unproven": 0,
+    "partial": 0,
+    "notRun": 0
+  }
+}
