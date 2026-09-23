@@ -14,7 +14,9 @@
     "schemaAfter": 88,
     "databaseSha256AfterPrefix": "93a28f9073a151ae",
     "backup": "发布流程 step[2/9] 执行 db:backup:release + verify，并生成 startup 备份（backups/release、backups/startup 均在）",
-    "schemaMigrationNote": "migration 88 (ai_native_durable_task_persistence) 是移植代码自身的 additive 迁移（0 个 ALTER/DROP），部署时自动应用；s2 未新增任何 schema 文件改动以外的迁移。"
+    "schemaMigrationNote": "migration 88 (ai_native_durable_task_persistence) 是移植代码自身的 additive 迁移（0 个 ALTER/DROP），部署时自动应用；s2 未新增任何 schema 文件改动以外的迁移。",
+    "deployedCommitAfterRedeploy": "7ae3613c4ebb9749cf08ea7ae605b70bf043145a",
+    "redeploy": "第二次发布把仅含工具/证据的 7ae3613 部署到生产（106 秒，门禁 PASS），使运行 commit 与已门禁 head 一致"
   },
   "canaryScope": {
     "eligibleFamilies": [
@@ -1533,7 +1535,16 @@
     "ownerStabilitySmoke": "PASS（本地 production-shaped 克隆，13 轮：native 12 / waiting 1，六项安全指标 0）",
     "releaseVerificationAfter": "PASS（部署流程 step[6-8]：ready 报告 commit b9cc963、公网 ready/登录页/AI 页面、启动备份校验）",
     "killSwitchValidation": "PASS（on 7/7 Native → off 7/7 LEGACY → 恢复 owner，无需 DB 恢复）",
-    "productionIntegrityValidation": "PASS（schema 88、ai_* 全 0、audit_log +8 正常流量、Native 写入 0）"
+    "productionIntegrityValidation": "PASS（schema 88、ai_* 全 0、audit_log +8 正常流量、Native 写入 0）",
+    "finalHeadGates": {
+      "npm test": "PASS 3209/3209",
+      "verify:api-contract": "PASS 28/28",
+      "ontologyRoutingCanary": "PASS 42/42",
+      "lint": "PASS exit 0",
+      "test:deep-api": "PASS exit 0",
+      "build": "PASS exit 0",
+      "verify:ai-native-release": "PASS @ 7ae3613"
+    }
   },
   "remainingBlockers": [
     "非 V 命名 / 简写追问（PHASED-*、大脚板-2寸-经典款、那12-120呢）稳定走 LEGACY_SAFE_FALLBACK：安全但不是 Native 覆盖，需 S2-R1 决定是否纳入业务语义 admission。",
