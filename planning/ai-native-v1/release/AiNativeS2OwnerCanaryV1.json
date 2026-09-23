@@ -1,0 +1,1548 @@
+{
+  "ticket": "AI-NATIVE-S2-OWNER-READ-CANARY",
+  "kind": "owner-read-canary-observation",
+  "status": "PASS",
+  "generatedAt": "2026-09-23T15:35:34Z",
+  "deployedCommit": "b9cc963ab6cbbc3e19cc4ec097380e512b03834e",
+  "portNote": "生产线 master(e244bd7) 与 S1 验收分支无共同祖先且不含 Native Task V2；经用户裁定采用“移植”路径：以生产线为基线移植 canary 子系统（382 新增 + 48 无冲突修改 + 10 个 3-way 合并，零冲突、零删除），并验证 10 个合并文件在生产侧与快照根逐字节相同（无生产线内容丢失）。移植期唯一代码改动是把 E1-E-21 的断言从“仓库不存在 .env”改为“解析不产生副作用”（部署机本来就有生产 .env，Node 25 上因此失败）。",
+  "aiNativeMode": "owner（观察期间）→ 已验证 off→LEGACY 并恢复 owner",
+  "baseline": {
+    "productionCommitBeforeDeploy": "e244bd7",
+    "databasePath": "/Users/dan/pump-cost-accounting-system/pump.db",
+    "databaseSha256Before": "c16f9b5fabd724dd4b6221bafab2d09f6afe4716bad01ceaa6b661f88ef1d85e",
+    "schemaBefore": 87,
+    "schemaAfter": 88,
+    "databaseSha256AfterPrefix": "93a28f9073a151ae",
+    "backup": "发布流程 step[2/9] 执行 db:backup:release + verify，并生成 startup 备份（backups/release、backups/startup 均在）",
+    "schemaMigrationNote": "migration 88 (ai_native_durable_task_persistence) 是移植代码自身的 additive 迁移（0 个 ALTER/DROP），部署时自动应用；s2 未新增任何 schema 文件改动以外的迁移。"
+  },
+  "canaryScope": {
+    "eligibleFamilies": [
+      "single-recipe-current-cost",
+      "multi-goal-config-profit-readiness",
+      "virtual-readiness-preview",
+      "recipe-cost-comparison",
+      "coil-catalogue-cost",
+      "coil-inventory"
+    ],
+    "ineligible": [
+      "规格/配置差异",
+      "经营概况/看板",
+      "不存在对象(PARTIAL)",
+      "未知 family",
+      "写请求"
+    ]
+  },
+  "metrics": {
+    "totalOwnerRequests": 54,
+    "canaryWindowTurns": 37,
+    "nativeCanaryAdmitted": 37,
+    "legacySafeFallback": 7,
+    "legacyModeOffTurns": 10,
+    "waitingInputTurns": 2,
+    "wrongFamilyRoute": 0,
+    "wrongCanonicalBinding": 0,
+    "unsafeDeliveredRuns": 0,
+    "selfCalculatedMoney": 0,
+    "factValueConflict": 0,
+    "factBasisConflict": 0,
+    "unexplainedBusinessRegression": 0,
+    "businessWritesFromNative": 0,
+    "writeAdmission": 0,
+    "nonVRecipeFallbackCount": 3,
+    "nonVRecipeNativeNegativeCount": 5,
+    "legacyStaleFactCount": 1,
+    "modelVariationObserved": true,
+    "businessBehaviorVariation": 0,
+    "fallbackReasons": {
+      "SEMANTIC_NOT_ADMITTED/FAMILY_NOT_SUPPORTED": 7
+    }
+  },
+  "byFamily": {
+    "single-recipe-current-cost": {
+      "NATIVE_CANARY": 3,
+      "LEGACY_SAFE_FALLBACK": 5
+    },
+    "multi-goal-config-profit-readiness": {
+      "NATIVE_CANARY": 4
+    },
+    "virtual-readiness-preview": {
+      "NATIVE_CANARY": 5
+    },
+    "recipe-cost-comparison": {
+      "NATIVE_CANARY": 5,
+      "LEGACY_SAFE_FALLBACK": 1
+    },
+    "coil-catalogue-cost": {
+      "NATIVE_CANARY": 6,
+      "LEGACY_SAFE_FALLBACK": 1
+    },
+    "coil-inventory": {
+      "NATIVE_CANARY": 7
+    }
+  },
+  "formalCrossCheck": {
+    "coil:12-120": {
+      "native": "101.07",
+      "formal": 101.06514,
+      "stock_native": 100,
+      "stock_formal": 100
+    },
+    "coil:12-140": {
+      "native": "118.54",
+      "formal": 118.53542,
+      "stock_native": 100,
+      "stock_formal": 100
+    },
+    "recipe:V550大脚板-2寸-经典款": {
+      "native": "269.28",
+      "formal_currentTotalCost": 269.28,
+      "formal_savedTotalCost": 266.74,
+      "difference": 2.54
+    },
+    "recipe:V750大脚板-2寸-经典款": {
+      "native": "289.71",
+      "formal_currentTotalCost": 289.71,
+      "formal_savedTotalCost": 288.16
+    },
+    "comparison:V550→V750": {
+      "native_diff_receipt": "20.43",
+      "formal_totalDiff": 20.43,
+      "formal_left": 269.28,
+      "formal_right": 289.71
+    },
+    "endpoints": [
+      "POST /api/cost/recipe-difference",
+      "GET /api/recipes/current-costs",
+      "GET /api/coils?spec&sheets"
+    ]
+  },
+  "legacyStaleFactEvidence": {
+    "question": "V550大脚板-2寸-经典款现在成本多少？",
+    "native": "¥269.28（= 正式 currentTotalCost）",
+    "legacy": "266.74 元（自称「当前完整成本口径」）",
+    "formal": {
+      "currentTotalCost": 269.28,
+      "savedTotalCost": 266.74,
+      "difference": 2.54,
+      "basis": "currentTemplateAndRecipeParameters"
+    },
+    "classification": "LEGACY_STALE_FACT（legacy 使用已保存快照并称其为当前口径；Native 与正式当前值一致）",
+    "action": "记录，待 S2-R1 评估是否修 Legacy；同时说明 answerMentionsNonFormalNumber 仍非冗余。"
+  },
+  "killSwitch": {
+    "status": "PASS",
+    "on": {
+      "mode": "owner",
+      "routes": {
+        "NATIVE_CANARY": 7
+      },
+      "turns": 7
+    },
+    "off": {
+      "mode": "off",
+      "routes": {
+        "LEGACY": 7
+      },
+      "turns": 7,
+      "sample": "12-120 有 1 套正式方案：钢带/小眼/COIL-0001，成本 101.07 元。"
+    },
+    "restored": "owner",
+    "restartMethod": "launchctl kickstart -k system/com.pumpfactory.api（无需 sudo、无需 DB 恢复、无需改 session）"
+  },
+  "productionIntegrity": {
+    "status": "PASS",
+    "schemaVersion": 88,
+    "ai_tasks": 0,
+    "ai_task_steps": 0,
+    "ai_task_events": 0,
+    "ai_task_evidence": 0,
+    "auditLogBefore": 6704,
+    "auditLogAfter": 6712,
+    "auditLogDeltaNote": "正常人工/业务流量；Native 只读且 ai_* 全为 0，Native 写入 = 0",
+    "coils": 14,
+    "parts": 92,
+    "recipes": 3,
+    "nativeWriteCount": 0
+  },
+  "observations": {
+    "wrongRouting": "无：所有 Native 计划都与提问族一致；未准入的计划一律 canary_ineligible → 既有正式路径",
+    "wrongCanonicalIdentity": "无：12-120→COIL-0001、12-140→COIL-0002、12-200→「第二个」= 240v 50hz 马来西亚客户 ¥148.90、比较两主体 = id 12/13",
+    "wrongFacts": "无：5 个交付金额全部与独立正式只读 API 一致（含比较差额 20.43）",
+    "conversationDrift": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:46.614Z",
+        "question": "PHASED-浮球-有现在成本是多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 5497,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-有”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:53.974Z",
+        "question": "那这个成本包含工资吗？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 7359,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "包含。按工厂正式成本规则，完整成本 = 配件 + 线圈 + 动态配置（浮球/电缆/包材）+ **人工工资** + 包装材料 + 管理费，所以工资是成本构成中的一项，另有管理费（全局默认 5）。\n\n需要说明的是：上一轮没有查到名为“PHASED-浮球-有”的配方、模板或零件，因此那个成本数值本身还没能确认，也无法指出工资在该项中的具体金额。如果你指的是某个具体配方型号，告诉我准确的成品型号，我可以读取它的明细并把工资部分的金额核出来。"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-b",
+        "timestamp": "2026-09-23T15:32:07.736Z",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？卖340毛利多少？做300台库存够不够？先不要保存",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 4736,
+        "amounts": [
+          "269.28",
+          "264.93",
+          "4.35",
+          "340.00",
+          "75.07",
+          "22.08",
+          "28.34",
+          "79479.00",
+          "102000.00",
+          "22521.00"
+        ],
+        "bases": [
+          "成本",
+          "库存",
+          "毛利",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。\n\nV550大脚板-2寸-经典款当前完整成本为 ¥269.28。临时方案完整成本为 ¥264.93，较当前 减少 ¥4.35。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要1500m，现可用于这批需求0m，短缺1500m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。\n\nV550大脚板-2寸-经典款按当前正式成本 ¥264.93 与售价 ¥340.00 试算：单台毛利 ¥75.07，销售毛利率 22.08%，成本加价率 28.34%。 数量 300 台：总成本 ¥79479.00，销售额 ¥102000.00，总毛利 ¥22521.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-b",
+        "timestamp": "2026-09-23T15:32:26.644Z",
+        "question": "PHASED-浮球-有和PHASED-浮球-无差多少钱？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2919,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的匹配配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-b",
+        "timestamp": "2026-09-23T15:32:30.439Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3795,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "请告诉我“第二个”具体指哪个对象（哪两个候选里的第二个，或型号/名称/编号），我再按本轮实时数据查它的完整成本。\n\n刚才的运营看板只返回了当前唯一活动订单（订单2，云都，合同号2026001），没有可对应“第二个”的配方或成品明细，因此无法确认你指的是哪一个，也就不能给出成本数字。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-c",
+        "timestamp": "2026-09-23T15:32:42.767Z",
+        "question": "12-200成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 1593,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-c",
+        "timestamp": "2026-09-23T15:32:42.780Z",
+        "question": "第二个",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 13,
+        "amounts": [
+          "148.90"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "240v 50hz 马来西亚客户的当前线圈成本为 ¥148.90。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-b",
+        "timestamp": "2026-09-23T15:32:42.797Z",
+        "question": "12-140现在库存多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 7,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "COIL-0002 / 正式方案当前正式库存为 100。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-b",
+        "timestamp": "2026-09-23T15:32:45.521Z",
+        "question": "这个成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2724,
+        "amounts": [
+          "118.54"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥118.54。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-c",
+        "timestamp": "2026-09-23T15:32:47.933Z",
+        "question": "12-120成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2412,
+        "amounts": [
+          "101.07"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥101.07。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-c",
+        "timestamp": "2026-09-23T15:32:50.177Z",
+        "question": "这个还有库存吗？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2244,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "COIL-0001 / 正式方案当前正式库存为 100。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:50.793Z",
+        "question": "V550大脚板-2寸-经典款和V750大脚板-2寸-经典款成本差多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2293,
+        "amounts": [
+          "269.28",
+          "289.71",
+          "20.43"
+        ],
+        "bases": [
+          "成本",
+          "差额"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28；V750大脚板-2寸-经典款当前完整成本为 ¥289.71。按正式成本对比回执，V750大脚板-2寸-经典款比V550大脚板-2寸-经典款高 ¥20.43（差额以 V550大脚板-2寸-经典款 为基准，正数表示后者更贵）。本次只读对比，没有修改正式配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:53.816Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3023,
+        "amounts": [
+          "289.71"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V750大脚板-2寸-经典款当前完整成本为 ¥289.71。本次只读查询，没有修改正式配方。"
+      }
+    ],
+    "modelInstability": "3 种不同措辞问同一线圈成本 → 同一正式值 101.07；无 provider 失败事件；未观察到业务行为波动",
+    "safeFallback": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:46.614Z",
+        "question": "PHASED-浮球-有现在成本是多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 5497,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-有”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:53.974Z",
+        "question": "那这个成本包含工资吗？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 7359,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "包含。按工厂正式成本规则，完整成本 = 配件 + 线圈 + 动态配置（浮球/电缆/包材）+ **人工工资** + 包装材料 + 管理费，所以工资是成本构成中的一项，另有管理费（全局默认 5）。\n\n需要说明的是：上一轮没有查到名为“PHASED-浮球-有”的配方、模板或零件，因此那个成本数值本身还没能确认，也无法指出工资在该项中的具体金额。如果你指的是某个具体配方型号，告诉我准确的成品型号，我可以读取它的明细并把工资部分的金额核出来。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-c",
+        "timestamp": "2026-09-23T15:31:57.301Z",
+        "question": "帮我查一下 PHASED-浮球-无 的成本",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3327,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-无”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-b",
+        "timestamp": "2026-09-23T15:32:30.439Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3795,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "请告诉我“第二个”具体指哪个对象（哪两个候选里的第二个，或型号/名称/编号），我再按本轮实时数据查它的完整成本。\n\n刚才的运营看板只返回了当前唯一活动订单（订单2，云都，合同号2026001），没有可对应“第二个”的配方或成品明细，因此无法确认你指的是哪一个，也就不能给出成本数字。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-b",
+        "timestamp": "2026-09-23T15:32:41.174Z",
+        "question": "那12-120呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3303,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“12-120”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-nonv-a",
+        "timestamp": "2026-09-23T15:32:53.792Z",
+        "question": "PHASED-浮球-有 的当前完整成本是多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3604,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-有”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-real2",
+        "timestamp": "2026-09-23T15:33:42.234Z",
+        "question": "大脚板-2寸-经典款成本多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 4640,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating",
+          "generating"
+        ],
+        "content": "“大脚板-2寸-经典款”对应两个配方，需要先确认你要哪一个：\n\n| 序号 | 配方 |\n| --- | --- |\n| 1 | V750大脚板-2寸-经典款 |\n| 2 | V550大脚板-2寸-经典款 |\n\n回复序号或完整型号，我再用当前价格核实它的成本。\n\n（说明：两者配置不同，V750 为 12-140 钢带小眼线圈、机筒 170mm；V550 为 12-120 钢带小眼线圈、机筒 150mm，因此不能合并成一个数。）"
+      }
+    ],
+    "canaryTurns": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-a",
+        "timestamp": "2026-09-23T15:31:41.117Z",
+        "question": "v550-tokoy现在成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 64,
+        "amounts": [
+          "269.28"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:46.614Z",
+        "question": "PHASED-浮球-有现在成本是多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 5497,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-有”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-b",
+        "timestamp": "2026-09-23T15:31:53.974Z",
+        "question": "那这个成本包含工资吗？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 7359,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "包含。按工厂正式成本规则，完整成本 = 配件 + 线圈 + 动态配置（浮球/电缆/包材）+ **人工工资** + 包装材料 + 管理费，所以工资是成本构成中的一项，另有管理费（全局默认 5）。\n\n需要说明的是：上一轮没有查到名为“PHASED-浮球-有”的配方、模板或零件，因此那个成本数值本身还没能确认，也无法指出工资在该项中的具体金额。如果你指的是某个具体配方型号，告诉我准确的成品型号，我可以读取它的明细并把工资部分的金额核出来。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-c",
+        "timestamp": "2026-09-23T15:31:57.301Z",
+        "question": "帮我查一下 PHASED-浮球-无 的成本",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3327,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-无”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-a",
+        "timestamp": "2026-09-23T15:32:03.000Z",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 5697,
+        "amounts": [
+          "269.28",
+          "264.93",
+          "4.35"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。\n\nV550大脚板-2寸-经典款当前完整成本为 ¥269.28。临时方案完整成本为 ¥264.93，较当前 减少 ¥4.35。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-b",
+        "timestamp": "2026-09-23T15:32:07.736Z",
+        "question": "v550-tokoy现在成本多少？电缆改5米以后呢？卖340毛利多少？做300台库存够不够？先不要保存",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 4736,
+        "amounts": [
+          "269.28",
+          "264.93",
+          "4.35",
+          "340.00",
+          "75.07",
+          "22.08",
+          "28.34",
+          "79479.00",
+          "102000.00",
+          "22521.00"
+        ],
+        "bases": [
+          "成本",
+          "库存",
+          "毛利",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。\n\nV550大脚板-2寸-经典款当前完整成本为 ¥269.28。临时方案完整成本为 ¥264.93，较当前 减少 ¥4.35。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要1500m，现可用于这批需求0m，短缺1500m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。\n\nV550大脚板-2寸-经典款按当前正式成本 ¥264.93 与售价 ¥340.00 试算：单台毛利 ¥75.07，销售毛利率 22.08%，成本加价率 28.34%。 数量 300 台：总成本 ¥79479.00，销售额 ¥102000.00，总毛利 ¥22521.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-c",
+        "timestamp": "2026-09-23T15:32:11.226Z",
+        "question": "PHASED-浮球-有当前成本多少？卖340毛利多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3490,
+        "amounts": [],
+        "bases": [
+          "成本",
+          "毛利"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式毛利试算未形成完整成本依据，因此这部分没有计算。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-f3-a",
+        "timestamp": "2026-09-23T15:32:13.789Z",
+        "question": "如果现在再做300台 v550-tokoy 库存够不够？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2563,
+        "amounts": [],
+        "bases": [
+          "库存",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要2400m，现可用于这批需求0m，短缺2400m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-f3-b",
+        "timestamp": "2026-09-23T15:32:17.037Z",
+        "question": "再做100台 PHASED-浮球-有 库存够不够？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3248,
+        "amounts": [],
+        "bases": [],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-f3-c",
+        "timestamp": "2026-09-23T15:32:21.042Z",
+        "question": "v550-tokoy 再做300台的话，料够吗？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 4004,
+        "amounts": [],
+        "bases": [
+          "库存",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要2400m，现可用于这批需求0m，短缺2400m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-a",
+        "timestamp": "2026-09-23T15:32:23.725Z",
+        "question": "v550-tokoy和v750-tokoy成本差多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2683,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的匹配配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-b",
+        "timestamp": "2026-09-23T15:32:26.644Z",
+        "question": "PHASED-浮球-有和PHASED-浮球-无差多少钱？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2919,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的匹配配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-b",
+        "timestamp": "2026-09-23T15:32:30.439Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3795,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "请告诉我“第二个”具体指哪个对象（哪两个候选里的第二个，或型号/名称/编号），我再按本轮实时数据查它的完整成本。\n\n刚才的运营看板只返回了当前唯一活动订单（订单2，云都，合同号2026001），没有可对应“第二个”的配方或成品明细，因此无法确认你指的是哪一个，也就不能给出成本数字。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-c",
+        "timestamp": "2026-09-23T15:32:32.880Z",
+        "question": "帮我比较一下 v550-tokoy 和 PHASED-浮球-有 哪个成本高一点，高多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2441,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的匹配配方。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-a",
+        "timestamp": "2026-09-23T15:32:35.363Z",
+        "question": "12-120成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2482,
+        "amounts": [
+          "101.07"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥101.07。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-b",
+        "timestamp": "2026-09-23T15:32:37.871Z",
+        "question": "12-140的成本是多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2507,
+        "amounts": [
+          "118.54"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥118.54。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-b",
+        "timestamp": "2026-09-23T15:32:41.174Z",
+        "question": "那12-120呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3303,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“12-120”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-c",
+        "timestamp": "2026-09-23T15:32:42.767Z",
+        "question": "12-200成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 1593,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "“12-200”有多个正式线圈方案，请选择一个后再查询对应成本。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-f5-c",
+        "timestamp": "2026-09-23T15:32:42.780Z",
+        "question": "第二个",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 13,
+        "amounts": [
+          "148.90"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "240v 50hz 马来西亚客户的当前线圈成本为 ¥148.90。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-a",
+        "timestamp": "2026-09-23T15:32:42.790Z",
+        "question": "12-120还有多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 10,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "COIL-0001 / 正式方案当前正式库存为 100。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-b",
+        "timestamp": "2026-09-23T15:32:42.797Z",
+        "question": "12-140现在库存多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 7,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "COIL-0002 / 正式方案当前正式库存为 100。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-b",
+        "timestamp": "2026-09-23T15:32:45.521Z",
+        "question": "这个成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2724,
+        "amounts": [
+          "118.54"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥118.54。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-c",
+        "timestamp": "2026-09-23T15:32:47.933Z",
+        "question": "12-120成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2412,
+        "amounts": [
+          "101.07"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥101.07。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-c",
+        "timestamp": "2026-09-23T15:32:50.177Z",
+        "question": "这个还有库存吗？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2244,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "COIL-0001 / 正式方案当前正式库存为 100。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f6-d",
+        "timestamp": "2026-09-23T15:32:50.188Z",
+        "question": "12-200有库存吗？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 10,
+        "amounts": [],
+        "bases": [
+          "库存"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "“12-200”有多个正式线圈方案，请选择一个后再查询对应库存。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-nonv-a",
+        "timestamp": "2026-09-23T15:32:53.792Z",
+        "question": "PHASED-浮球-有 的当前完整成本是多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 3604,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating"
+        ],
+        "content": "已核对配方、泵壳模板和零件三个正式目录，均未找到“PHASED-浮球-有”，因此目前无法给出其成本。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-nonv-b",
+        "timestamp": "2026-09-23T15:32:56.555Z",
+        "question": "如果做50台 PHASED-浮球-无 库存够吗？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2763,
+        "amounts": [],
+        "bases": [],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-var-a",
+        "timestamp": "2026-09-23T15:32:59.348Z",
+        "question": "12-120这个线圈现在多少钱？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2793,
+        "amounts": [
+          "101.07"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥101.07。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "coil-catalogue-cost",
+        "scenarioKey": "s2-var-b",
+        "timestamp": "2026-09-23T15:33:01.786Z",
+        "question": "12-120线圈成本是多少来着",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2438,
+        "amounts": [
+          "101.07"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "正式方案的当前线圈成本为 ¥101.07。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-real",
+        "timestamp": "2026-09-23T15:33:37.594Z",
+        "question": "V550大脚板-2寸-经典款现在成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 28,
+        "amounts": [
+          "269.28"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-real2",
+        "timestamp": "2026-09-23T15:33:42.234Z",
+        "question": "大脚板-2寸-经典款成本多少？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "nativePlanBuilt": true,
+        "admissionRejected": true,
+        "latencyMs": 4640,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2",
+          "canary_ineligible",
+          "generating",
+          "generating",
+          "generating"
+        ],
+        "content": "“大脚板-2寸-经典款”对应两个配方，需要先确认你要哪一个：\n\n| 序号 | 配方 |\n| --- | --- |\n| 1 | V750大脚板-2寸-经典款 |\n| 2 | V550大脚板-2寸-经典款 |\n\n回复序号或完整型号，我再用当前价格核实它的成本。\n\n（说明：两者配置不同，V750 为 12-140 钢带小眼线圈、机筒 170mm；V550 为 12-120 钢带小眼线圈、机筒 150mm，因此不能合并成一个数。）"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-real",
+        "timestamp": "2026-09-23T15:33:45.653Z",
+        "question": "V550大脚板-2寸-经典款现在成本多少？电缆改5米以后呢？卖340毛利多少？做300台库存够不够？先不要保存",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3419,
+        "amounts": [
+          "269.28",
+          "264.93",
+          "4.35",
+          "340.00",
+          "75.07",
+          "22.08",
+          "28.34",
+          "79479.00",
+          "102000.00",
+          "22521.00"
+        ],
+        "bases": [
+          "成本",
+          "库存",
+          "毛利",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。\n\nV550大脚板-2寸-经典款当前完整成本为 ¥269.28。临时方案完整成本为 ¥264.93，较当前 减少 ¥4.35。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要1500m，现可用于这批需求0m，短缺1500m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。\n\nV550大脚板-2寸-经典款按当前正式成本 ¥264.93 与售价 ¥340.00 试算：单台毛利 ¥75.07，销售毛利率 22.08%，成本加价率 28.34%。 数量 300 台：总成本 ¥79479.00，销售额 ¥102000.00，总毛利 ¥22521.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-f3-real",
+        "timestamp": "2026-09-23T15:33:48.500Z",
+        "question": "如果现在再做300台 V550大脚板-2寸-经典款 库存够不够？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2847,
+        "amounts": [],
+        "bases": [
+          "库存",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要2400m，现可用于这批需求0m，短缺2400m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:50.793Z",
+        "question": "V550大脚板-2寸-经典款和V750大脚板-2寸-经典款成本差多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2293,
+        "amounts": [
+          "269.28",
+          "289.71",
+          "20.43"
+        ],
+        "bases": [
+          "成本",
+          "差额"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28；V750大脚板-2寸-经典款当前完整成本为 ¥289.71。按正式成本对比回执，V750大脚板-2寸-经典款比V550大脚板-2寸-经典款高 ¥20.43（差额以 V550大脚板-2寸-经典款 为基准，正数表示后者更贵）。本次只读对比，没有修改正式配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:53.816Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3023,
+        "amounts": [
+          "289.71"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V750大脚板-2寸-经典款当前完整成本为 ¥289.71。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f5-missing",
+        "timestamp": "2026-09-23T15:33:55.993Z",
+        "question": "12-999成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2177,
+        "amounts": [],
+        "bases": [],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-missing",
+        "timestamp": "2026-09-23T15:33:56.024Z",
+        "question": "查一下 V999不存在的配方 的成本",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 31,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的“V999”配方，因此现在无法给出正式整机成本。本次只覆盖配方目录，不能据此判断整个系统是否不存在该对象。"
+      }
+    ],
+    "supplementaryNativeTurns": [
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-real",
+        "timestamp": "2026-09-23T15:33:37.594Z",
+        "question": "V550大脚板-2寸-经典款现在成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 28,
+        "amounts": [
+          "269.28"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "familyId": "multi-goal-config-profit-readiness",
+        "scenarioKey": "s2-f2-real",
+        "timestamp": "2026-09-23T15:33:45.653Z",
+        "question": "V550大脚板-2寸-经典款现在成本多少？电缆改5米以后呢？卖340毛利多少？做300台库存够不够？先不要保存",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3419,
+        "amounts": [
+          "269.28",
+          "264.93",
+          "4.35",
+          "340.00",
+          "75.07",
+          "22.08",
+          "28.34",
+          "79479.00",
+          "102000.00",
+          "22521.00"
+        ],
+        "bases": [
+          "成本",
+          "库存",
+          "毛利",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28。本次只读查询，没有修改正式配方。\n\nV550大脚板-2寸-经典款当前完整成本为 ¥269.28。临时方案完整成本为 ¥264.93，较当前 减少 ¥4.35。已正式应用的临时配置：cableLength=5。本次只是试算，没有保存或修改正式配方。\n\n按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要1500m，现可用于这批需求0m，短缺1500m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。\n\nV550大脚板-2寸-经典款按当前正式成本 ¥264.93 与售价 ¥340.00 试算：单台毛利 ¥75.07，销售毛利率 22.08%，成本加价率 28.34%。 数量 300 台：总成本 ¥79479.00，销售额 ¥102000.00，总毛利 ¥22521.00。 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。"
+      },
+      {
+        "familyId": "virtual-readiness-preview",
+        "scenarioKey": "s2-f3-real",
+        "timestamp": "2026-09-23T15:33:48.500Z",
+        "question": "如果现在再做300台 V550大脚板-2寸-经典款 库存够不够？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2847,
+        "amounts": [],
+        "bases": [
+          "库存",
+          "齐料"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "按当前库存并扣除现有活动订单占用，300台V550大脚板-2寸-经典款的库存管理物料存在短缺：12-120需要300套，现可用于这批需求0套，短缺300套；轴承-202需要300件，现可用于这批需求0件，短缺300件；轴承-203需要300件，现可用于这批需求0件，短缺300件；电容-18μF需要300件，现可用于这批需求0件，短缺300件；机械密封-14*28*38需要300件，现可用于这批需求0件，短缺300件；内六角螺丝-5*12-201需要1200件，现可用于这批需求0件，短缺1200件；长螺杆螺丝-6*175-201需要1200件，现可用于这批需求0件，短缺1200件；法兰螺丝-5*12-铁需要900件，现可用于这批需求0件，短缺900件；内六角螺丝-6*20-201-组合螺丝需要1200件，现可用于这批需求0件，短缺1200件；内六角螺丝-6*25-201-组合螺丝需要300件，现可用于这批需求0件，短缺300件；外箱贴纸-2张需要300件，现可用于这批需求0件，短缺300件；泵壳-V750-2寸大脚板需要300件，现可用于这批需求0件，短缺300件；塑料出水口-2寸需要300件，现可用于这批需求0件，短缺300件；泡沫-850w需要300件，现可用于这批需求0件，短缺300件；珍珠棉-厚度2mm需要300件，现可用于这批需求0件，短缺300件；O型圈-120*2.65需要1200件，现可用于这批需求0件，短缺1200件；O型圈-50*2.65需要300件，现可用于这批需求0件，短缺300件；O型圈-130*2.65需要300件，现可用于这批需求0件，短缺300件；说明书-折页需要300件，现可用于这批需求0件，短缺300件；木箱-V750需要300件，现可用于这批需求0件，短缺300件；浮球-截面积0.55mm²需要300件，现可用于这批需求0件，短缺300件；电缆-截面积0.55mm²需要2400m，现可用于这批需求0m，短缺2400m；出水口皮垫-2.5寸尖皮垫需要300件，现可用于这批需求0件，短缺300件；骨架油封-14*28*6需要300件，现可用于这批需求0件，短缺300件。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:50.793Z",
+        "question": "V550大脚板-2寸-经典款和V750大脚板-2寸-经典款成本差多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2293,
+        "amounts": [
+          "269.28",
+          "289.71",
+          "20.43"
+        ],
+        "bases": [
+          "成本",
+          "差额"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V550大脚板-2寸-经典款当前完整成本为 ¥269.28；V750大脚板-2寸-经典款当前完整成本为 ¥289.71。按正式成本对比回执，V750大脚板-2寸-经典款比V550大脚板-2寸-经典款高 ¥20.43（差额以 V550大脚板-2寸-经典款 为基准，正数表示后者更贵）。本次只读对比，没有修改正式配方。"
+      },
+      {
+        "familyId": "recipe-cost-comparison",
+        "scenarioKey": "s2-f4-real",
+        "timestamp": "2026-09-23T15:33:53.816Z",
+        "question": "第二个现在完整成本呢？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 3023,
+        "amounts": [
+          "289.71"
+        ],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "V750大脚板-2寸-经典款当前完整成本为 ¥289.71。本次只读查询，没有修改正式配方。"
+      },
+      {
+        "familyId": "coil-inventory",
+        "scenarioKey": "s2-f5-missing",
+        "timestamp": "2026-09-23T15:33:55.993Z",
+        "question": "12-999成本多少？",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 2177,
+        "amounts": [],
+        "bases": [],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "familyId": "single-recipe-current-cost",
+        "scenarioKey": "s2-f1-missing",
+        "timestamp": "2026-09-23T15:33:56.024Z",
+        "question": "查一下 V999不存在的配方 的成本",
+        "route": "NATIVE_CANARY",
+        "nativePlanBuilt": true,
+        "admissionRejected": false,
+        "latencyMs": 31,
+        "amounts": [],
+        "bases": [
+          "成本"
+        ],
+        "statuses": [
+          "task_v2"
+        ],
+        "content": "当前正式配方目录中没有找到可用于整机成本计算的“V999”配方，因此现在无法给出正式整机成本。本次只覆盖配方目录，不能据此判断整个系统是否不存在该对象。"
+      }
+    ]
+  },
+  "canaryDefects": [
+    {
+      "id": "S2-D1",
+      "layer": "LEGACY",
+      "question": "V550大脚板-2寸-经典款现在成本多少？",
+      "severity": "NON_SEVERE_LEGACY",
+      "evidence": "legacy 266.74（saved） vs 正式 current 269.28",
+      "status": "记录，待 S2-R1"
+    },
+    {
+      "id": "S2-D2",
+      "layer": "LEGACY",
+      "question": "V550…和V750…成本差多少？",
+      "severity": "NON_SEVERE_LEGACY",
+      "evidence": "legacy 回答「仍缺少正式证据：RECIPE_COST_COMPARISON」，Native 可给出正式比较",
+      "status": "记录"
+    },
+    {
+      "id": "S2-D3",
+      "layer": "LEGACY",
+      "question": "那12-120呢？（线圈简写追问）",
+      "severity": "NON_SEVERE_LEGACY",
+      "evidence": "legacy 以配方/模板/零件目录回答「未找到12-120」；Native 计划未准入（非 V 命名/简写追问）→ 安全回退",
+      "status": "记录"
+    },
+    {
+      "id": "S2-D4",
+      "layer": "NATIVE_UX",
+      "question": "12-999成本多少？/PHASED-浮球-* 齐料",
+      "severity": "NON_SEVERE_UX",
+      "evidence": "对象不存在时回答是通用限制句（该目标当前未能形成可验证的正式结果），没有金额与错误实体",
+      "status": "记录"
+    }
+  ],
+  "ownerReportedDefects": "本窗口 owner 未亲自交互使用；按 §10 允许的方式以真实生产数据补充了真实业务问法（未使用 fixture）。",
+  "codeChangedDuringObservation": false,
+  "gates": {
+    "beforeDeploy_portWorktree": {
+      "npm test": "PASS 3209/3209",
+      "verify:api-contract": "PASS 28/28",
+      "ontologyRoutingCanary": "PASS 42/42",
+      "lint": "PASS exit 0",
+      "test:deep-api": "PASS exit 0",
+      "build": "PASS exit 0",
+      "verify:ai-native-release": "PASS @ a9ecd4e（STRUCTURALLY_READY / READY_WITHIN_SUPPORTED_SCOPE）"
+    },
+    "serverDeployGate": "PASS：发布脚本 step[4/9] 在生产机执行 npm run verify:release（含 audit/api-contract/lint/npm test/deep-api/build/ai-native-release/prod-env）并落盘 release-code-gate-b9cc963*.json",
+    "ownerStabilitySmoke": "PASS（本地 production-shaped 克隆，13 轮：native 12 / waiting 1，六项安全指标 0）",
+    "releaseVerificationAfter": "PASS（部署流程 step[6-8]：ready 报告 commit b9cc963、公网 ready/登录页/AI 页面、启动备份校验）",
+    "killSwitchValidation": "PASS（on 7/7 Native → off 7/7 LEGACY → 恢复 owner，无需 DB 恢复）",
+    "productionIntegrityValidation": "PASS（schema 88、ai_* 全 0、audit_log +8 正常流量、Native 写入 0）"
+  },
+  "remainingBlockers": [
+    "非 V 命名 / 简写追问（PHASED-*、大脚板-2寸-经典款、那12-120呢）稳定走 LEGACY_SAFE_FALLBACK：安全但不是 Native 覆盖，需 S2-R1 决定是否纳入业务语义 admission。",
+    "生产配方目录当前只有 2 条（V550/V750大脚板-2寸-经典款），比较与多目标族的真实语料因此有限；后续 owner 使用会自然扩展语料。",
+    "Legacy 侧三个非严重问题（saved 快照当当前口径、比较能力缺失、简写追问误判）需要单独评估修复。"
+  ],
+  "nextRecommendation": [
+    "保持 AI_NATIVE_MODE=owner 继续观察（本阶段未做 Default Native Read 切换）。",
+    "S2-R1 处理：Legacy saved/current 口径、非 V 命名 admission、Native 缺对象时的措辞。",
+    "在 owner 真实使用积累到更多语料前，不做 TIER1/TIER2 与 answerMentionsNonFormalNumber 的清理。"
+  ]
+}
