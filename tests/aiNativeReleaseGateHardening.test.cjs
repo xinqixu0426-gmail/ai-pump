@@ -77,14 +77,17 @@ test('E1-E-21 --env-file 可重复解析、不复制也不持久化 secret', () 
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'e1-env-'));
     const envFile = path.join(directory, 'phase-e1.env');
     fs.writeFileSync(envFile, 'DEEPSEEK_API_KEY=phase-e1-not-a-real-key\nAI_NATIVE_MODE=off\n');
+    // 部署机上仓库本来就有生产 .env；判据是「解析不产生副作用」，不是「仓库里不存在 .env」。
+    const repoEnvPath = path.join(root, '.env');
+    const repoEnvBefore = fs.existsSync(repoEnvPath);
     const parsed = parseArguments([`--env-file=${envFile}`]);
     assert.equal(parsed.envFile, path.resolve(envFile));
     assert.deepEqual(parseArguments([]), { envFile: null });
     // 幂等：重复解析得到同一路径，且不产生任何文件系统副作用。
     assert.deepEqual(parseArguments([`--env-file=${envFile}`]), parsed);
     assert.deepEqual(fs.readdirSync(directory), ['phase-e1.env'], '不得在 env 文件旁生成新文件');
-    // 仓库内不得出现被复制进来的 .env（本 worktree 本来就没有）。
-    assert.equal(fs.existsSync(path.join(root, '.env')), false, '不得把凭据复制进仓库');
+    // 不得把 --env-file 指向的凭据复制进仓库（部署机上已有 .env 时也不得改动它）。
+    assert.equal(fs.existsSync(repoEnvPath), repoEnvBefore, '不得把凭据复制进仓库');
     // 凭据文件本身必须被视为环境产物，绝不能被当成源码改动或证据提交。
     assert.equal(isEnvironmentalArtifact('.env'), true);
     fs.rmSync(directory, { recursive: true, force: true });
