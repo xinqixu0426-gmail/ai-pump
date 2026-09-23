@@ -69,6 +69,9 @@ function positivelyAdmittedBusinessRequest(text) {
 // 「A和B哪个成本高，高多少」必须在语义层归一成同一个 COST_COMPARISON 目标，
 // 由软件确定性规划正式 compare 能力 —— 不是五个 regex 补丁、也不交给模型决定。
 // 判据：① 比较意图（差额/贵/便宜/比较/对比/哪个更…）② 金额口径词 ③ 至少两个可解析主体。
+// S2-R1 §A2：成本时间口径是**显式契约**。只有用户明确问保存/历史/上次/当时成本时才用保存快照；
+// 其余（现在/当前/目前/默认）一律要求当前重算权威，禁止互相冒充。
+const SAVED_COST_INTENT = /(?:保存(?:的)?成本|历史(?:保存)?成本|上次成本|当时成本|之前(?:的)?成本|旧(?:的)?成本|快照成本)/u;
 const COMPARISON_INTENT = /(?:差(?:多少|价|额|了)?|贵多少|便宜多少|高多少|低多少|哪个[^，。？?]{0,12}(?:高|低|贵|便宜)|比较|对比)/u;
 const COMPARISON_MONEY = /(?:成本|价格|单价|多少钱|金额|报价|贵|便宜)/u;
 // `比` 只有在不是「比较 / 比如」的一部分时才是分隔符。
@@ -131,6 +134,7 @@ function classifyQuestion(userText, options = {}) {
             aliasConcern,
         },
         requestedPriceContext: /铜价/u.test(text) && hypothetical ? 'USER_HYPOTHETICAL_PRICE' : 'CURRENT_FORMAL_PRICE',
+        requestedCostTemporality: SAVED_COST_INTENT.test(text) ? 'SAVED' : 'CURRENT',
         hypotheticalCopperPrice,
         copperBasisRequested,
         wireWeight: parseUserNumber(text, '线重'),

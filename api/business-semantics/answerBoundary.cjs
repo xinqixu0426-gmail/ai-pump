@@ -11,11 +11,27 @@ function rows(toolResults, name) { return toolResults.filter(item => verified(it
     if (name === 'search_parts' && Array.isArray(item.result?.parts)) return item.result.parts;
     return [];
 }); }
-function money(value) { const amount = Number(value); return Number.isFinite(amount) ? amount.toFixed(2) : null; }
+function money(value) {
+    // 缺失值不是 0.00：null/'' 必须保持「没有金额」，否则会用 0.00 冒充当前成本（S2-R1 §A）。
+    if (value === null || value === undefined || value === '') return null;
+    const amount = Number(value);
+    return Number.isFinite(amount) ? amount.toFixed(2) : null;
+}
 function recipe(toolResults) { return rows(toolResults, 'get_all_recipes')[0] || toolResults.find(item => verified(item) && item.name === 'get_recipe_detail')?.result?.recipe || null; }
 function recipeIdentityResolution(toolResults) {
     return toolResults.filter(verified).filter(item => item.name === 'get_all_recipes')
         .map(item => item.result?.identityResolution).find(Boolean) || null;
+}
+// S2-R1 §A：CURRENT 权威必须由**回执自己声明的、当前重算的口径**证明。
+// 只有 costBasis=currentFullCost（或契约等价的当前重算口径）才允许被表述成「当前完整成本」；
+// 保存快照 / BOM 草稿 / 覆盖试算一律不能冒充当前值。
+const CURRENT_COST_BASES = new Set(['currentFullCost', 'currentTemplateAndRecipeParameters', 'CURRENT_REBUILT']);
+function isCurrentCostReceipt(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data.sourceOfTruth !== undefined && data.sourceOfTruth !== null && data.sourceOfTruth !== 'costEngine') return false;
+    const basis = data.costBasis ?? data.basis;
+    if (basis !== undefined && basis !== null && !CURRENT_COST_BASES.has(String(basis))) return false;
+    return true;
 }
 function currentRecipeCost(toolResults, authority = null) {
     if (authority?.costBasis) {
@@ -34,16 +50,38 @@ function currentRecipeCost(toolResults, authority = null) {
     }
     for (const item of toolResults.filter(verified)) {
         if (item.name === 'get_recipe_detail') {
-            const value = item.result?.currentCost?.currentTotalCost ?? item.result?.recipe?.currentCost?.currentTotalCost;
+            const scoped = item.result?.currentCost ?? item.result?.recipe?.currentCost;
+            if (!scoped || !isCurrentCostReceipt(scoped)) continue;
+            const value = scoped.currentTotalCost;
             if (money(value)) return money(value);
         }
-        if (item.name === 'preview_recipe_cost') {
-            const value = item.result?.data?.currentTotalCost ?? item.result?.data?.costPreview?.currentTotalCost ?? item.result?.data?.unitCost;
+        if (item.name === 'preview_recipe_cost' || item.name === 'full_calculate') {
+            const data = item.result?.data;
+            if (!data || !isCurrentCostReceipt(data)) continue;
+            const value = data.currentTotalCost ?? (data.costComplete === false ? null : data.totalCost);
             if (money(value)) return money(value);
         }
-        if (item.name === 'full_calculate') {
-            const value = item.result?.data?.currentTotalCost ?? item.result?.data?.totalCost;
+        if (item.name === 'compare_recipe_scenarios') {
+            // 同一轮的路由回执（costBasis=CURRENT_REBUILT）就是当前重建权威；Native 用同一指针取事实。
+            const data = item.result?.data;
+            const scenario = Array.isArray(data?.scenarios) ? data.scenarios[0] : null;
+            const scoped = scenario?.cost;
+            if (!scoped || scoped.complete === false) continue;
+            const value = scoped.currentTotalCost ?? scoped.totalCost;
             if (money(value)) return money(value);
+        }
+    }
+    return null;
+}
+
+/** 保存成本快照（只在用户明确问保存/历史/上次成本时使用）。 */
+function savedRecipeCost(toolResults) {
+    for (const item of toolResults.filter(verified)) {
+        const candidates = [item.result?.data, item.result?.costPreview, item.result?.recipe];
+        for (const data of candidates) {
+            if (!data || typeof data !== 'object') continue;
+            const value = data.savedTotalCost ?? data.savedCost;
+            if (money(value)) return { value: money(value), basis: 'SAVED_RECIPE_SNAPSHOT' };
         }
     }
     return null;
@@ -154,8 +192,17 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         } : null);
         return `以${targetRecipe.name || semantics.requestedIdentity.token}为基准配方，线圈覆盖为 ${semantics.requestedIdentity.spec}-${semantics.requestedIdentity.sheets}；未提到的电缆、包装/纸箱、其他零件和人工工资均保留并继承原配置。${current ? `正式试算的当前完整成本为 ${current} 元。` : ''}`;
     }
+    const saved = savedRecipeCost(toolResults);
+    if (semantics.requestedCostTemporality === 'SAVED') {
+        if (targetRecipe && saved) return `${targetRecipe.name || semantics.requestedIdentity.token} 的保存成本快照为 ${saved.value} 元（历史保存口径，不是当前重算结果）。`;
+        if (targetRecipe) return `${targetRecipe.name || semantics.requestedIdentity.token} 没有可用的正式保存成本快照；本轮不给金额，也不会用当前重算值代替保存值。`;
+    }
     const current = currentRecipeCost(toolResults);
     if (targetRecipe && current) return `${targetRecipe.name || semantics.requestedIdentity.token} 当前完整成本为 ${current} 元（正式当前完整成本口径）。`;
+    if (targetRecipe) {
+        return `${targetRecipe.name || semantics.requestedIdentity.token} 的本轮正式当前重算没有取得可用金额，因此不给当前完整成本；`
+            + (saved ? `档案中的保存成本快照为 ${saved.value} 元，该金额是历史保存口径，不能当作当前完整成本。` : '本轮也没有可用的保存成本快照。');
+    }
     if (semantics.kind === 'CATALOG_LOOKUP' && targetRecipe) return `“${requestedToken}”对应的当前正式配方名称为“${targetRecipe.name}”。`;
     return '';
 }

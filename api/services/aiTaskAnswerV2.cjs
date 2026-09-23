@@ -314,6 +314,13 @@ function renderSection(task, section) {
         const question = task.questions.find(item => item.goalKeys.includes(goal.goalKey) && item.answeredAt === null);
         return question ? question.prompt : limitationFor(goal);
     }
+    // S2-R1 §D：缺对象时给出**范围受限**的正式负结果措辞（不改变 fact/scope/evidence/state）。
+    const missingInCoilCatalogue = goal.blockers.find(item => [
+        'COIL_COST_ENTITY_UNAVAILABLE', 'INVENTORY_ENTITY_UNAVAILABLE', 'COIL_NOT_FOUND', 'INVENTORY_NOT_FOUND',
+    ].includes(item.code));
+    if (missingInCoilCatalogue) {
+        return `本次正式线圈目录查询没有找到“${name}”对应的正式方案；该结论只覆盖正式线圈目录，不能据此判断整个系统是否不存在该对象。`;
+    }
     return limitationFor(goal);
 }
 

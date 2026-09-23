@@ -837,7 +837,10 @@ test('cost fallback preserves current total and formal configuration, including 
             parts: [{ model: '壳体-A', name: '泵壳套件' }, { model: '18-160', name: '线圈转子' }, { model: '泡沫', name: '包装' }],
             costPreview: { currentTotalCost: '253.23', partsCost: 232.23, laborCost: 21, pricingComplete },
         }) }]);
-        assert.match(result, /当前总成本.*253.23/);
+        // S2-R1 §A：BOM 草稿是规划/保存口径（costBasis=configuredBomDraft），
+        // 不允许被展示成「当前总成本」；标签必须显式说明口径。
+        assert.match(result, /BOM 草稿总成本（非当前重算口径）.*253\.23/);
+        assert.doesNotMatch(result, /当前总成本/u);
         assert.match(result, /壳体-A.*18-160.*泡沫/);
         assert.equal(result.includes('不是完整报价'), !pricingComplete);
     }

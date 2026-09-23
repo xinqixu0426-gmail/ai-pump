@@ -4,7 +4,7 @@ const { validateTaskProposalV1 } = require('./aiTaskValidationV2.cjs');
 // E2-R1：配方成本比较的语义**只有一个权威**：E1-B 已建立的业务语义层
 // （`classifyQuestion` → COST_COMPARISON + `comparisonSubjects`）。Task V2 不另造比较语义，
 // 只把它正式接入 Goal Contract（RECIPE_COST_COMPARISON + 双主体）。
-const { classifyQuestion } = require('../business-semantics/questionSemantics.cjs');
+const { classifyQuestion, extractRequestedTarget } = require('../business-semantics/questionSemantics.cjs');
 
 const EXTRACTION_TOOL = Object.freeze({ type: 'function', function: { name: 'submit_ai_task_proposal_candidate_v1', description: 'Return only a TaskProposalV1 candidate; this is not an executable business tool.', parameters: { type: 'object', additionalProperties: false, properties: { proposal: { type: 'object' } }, required: ['proposal'] } } });
 const CRITICAL = /(?:\d+(?:\.\d+)?\s*(?:米|m|cm|毫米|mm|台|pcs|件|元\/公斤|元\/千克|元\/吨)|铜价\s*\d+(?:\.\d+)?|线重\s*\d+(?:\.\d+)?|(?:去掉|不要|删除)(?:珍珠棉|泡沫|外包装箱)|(?:全部包装不要|清空全部包装|不要任何包装)|先不要保存|不要保存|不要修改|别改|只看|只查|只试算|暂时不落库|其他不变|其它不变|不带(?:浮球|电缆)|不要(?:浮球|电缆)|改成[^，。；,;！!？?]*|换成[^，。；,;！!？?]*|用[^，。；,;！!？?]*)/giu;
@@ -165,7 +165,35 @@ function overrideFor(messageRef, text) { const values = []; const cable = /(?:�
     if (surfaceCost) values.push({ field: 'surfaceTreatmentCost', value: Number(surfaceCost[1]), unit: 'CNY', sources: [span(messageRef, text, surfaceCost[0], surfaceCost.index)] });
     return values;
 }
-function deterministicProposal(messageRef, text) { const subjects = subjectMentions(messageRef, text); const source = span(messageRef, text, subjects[0]?.mention || text) || { messageRef, start: 0, end: text.length, text }; const overrides = overrideFor(messageRef, text); const recipeSubject = subjects.find(item => item.typeHints.includes('recipe')) || null; const customerSubject = subjects.find(item => item.typeHints.includes('customer')); const orderSubject = subjects.find(item => item.typeHints.includes('order')); const coilSubject = subjects.find(item => item.typeHints.includes('coil')); const sourceScenarioRequest = /按(?:报告|资料|文件)[^，。；,;！!？?]{0,24}(?:电缆长度|电缆)[^，。；,;！!？?]{0,24}试算/u.test(text); const scenarios = (overrides.length || sourceScenarioRequest) ? [{ scenarioKey: 'candidate_1', label: sourceScenarioRequest ? '按资料候选配置试算' : '用户候选配置', baseSubjectKey: recipeSubject?.subjectKey || 'subject_1', overrides, sources: sourceScenarioRequest ? [source] : overrides.flatMap(item => item.sources) }] : []; const goals = []; const add = (kind, description, scenarioKeys = [], subject = recipeSubject) => goals.push({ goalKey: `goal_${goals.length + 1}`, kind, description, subjectKeys: subject ? [subject.subjectKey] : [], scenarioKeys, dependsOn: [], requestedBasis: scenarioKeys.length ? 'HYPOTHETICAL' : 'CURRENT', sources: [source], quantity: null, unitPrice: null });
+/**
+ * S2-R1 §B：名称形态不是准入条件。
+ * 用户 mention 先作为**候选主体**进入计划，由控制器用正式目录（get_all_recipes）解析成 canonical
+ * 身份：唯一 → 绑定；多条 → 澄清；不存在 → VERIFIED_NEGATIVE。这里不做品牌/前缀判断，
+ * 只复用既有的业务语义目标抽取（extractRequestedTarget），因此不依赖 V/PHASED 等命名格式。
+ */
+function nameCandidateRecipeSubject(messageRef, text, subjects) {
+    if (subjects.some(item => item.typeHints.includes('recipe'))) return null;
+    if (!/成本|多少钱|价格|单价|试算/u.test(text)) return null;
+    const token = extractRequestedTarget(text);
+    if (!token || token.length < 2 || token.length > 60) return null;
+    // 线圈简写与纯数字不属于配方名称候选（分别由线圈通道与标签通道处理）。
+    if (/^\d/.test(token) || /线圈|绕组/u.test(token)) return null;
+    // 结构性判据（不是品牌表）：指代/疑问词不是名称；名称必须看起来像标识符
+    // （含字母、数字或连接符，或足够长的中文专名），否则交给既有通道（含 fail-closed）。
+    if (/^(?:这|那|该|它|此|这些|那些|两个|两者|还有|别的|其他)/u.test(token)) return null;
+    if (/(?:什么|哪些|哪个|多少|怎样|怎么)/u.test(token)) return null;
+    // 动词/动作前缀不是名称；跨域资源名词（泵壳/模板/零件/配件/客户/订单）由各自通道处理。
+    if (/^(?:先|再|请|帮我|看看|查|算|试算|比较|对比|说|讲)/u.test(token)) return null;
+    if (/(?:泵壳|模板|零件|配件|客户|订单|报价)/u.test(token)) return null;
+    const identifierLike = /[A-Za-z0-9_-]/u.test(token) || [...token].length >= 4;
+    if (!identifierLike) return null;
+    const located = span(messageRef, text, token);
+    if (!located) return null;
+    const subject = { subjectKey: `subject_${subjects.length + 1}`, mention: token, typeHints: ['recipe'], sources: [located] };
+    subjects.push(subject);
+    return subject;
+}
+function deterministicProposal(messageRef, text) { const subjects = subjectMentions(messageRef, text); const source = span(messageRef, text, subjects[0]?.mention || text) || { messageRef, start: 0, end: text.length, text }; const overrides = overrideFor(messageRef, text); const recipeSubject = subjects.find(item => item.typeHints.includes('recipe')) || nameCandidateRecipeSubject(messageRef, text, subjects); const customerSubject = subjects.find(item => item.typeHints.includes('customer')); const orderSubject = subjects.find(item => item.typeHints.includes('order')); const coilSubject = subjects.find(item => item.typeHints.includes('coil')); const sourceScenarioRequest = /按(?:报告|资料|文件)[^，。；,;！!？?]{0,24}(?:电缆长度|电缆)[^，。；,;！!？?]{0,24}试算/u.test(text); const scenarios = (overrides.length || sourceScenarioRequest) ? [{ scenarioKey: 'candidate_1', label: sourceScenarioRequest ? '按资料候选配置试算' : '用户候选配置', baseSubjectKey: recipeSubject?.subjectKey || 'subject_1', overrides, sources: sourceScenarioRequest ? [source] : overrides.flatMap(item => item.sources) }] : []; const goals = []; const add = (kind, description, scenarioKeys = [], subject = recipeSubject) => goals.push({ goalKey: `goal_${goals.length + 1}`, kind, description, subjectKeys: subject ? [subject.subjectKey] : [], scenarioKeys, dependsOn: [], requestedBasis: scenarioKeys.length ? 'HYPOTHETICAL' : 'CURRENT', sources: [source], quantity: null, unitPrice: null });
     // FAMILY-01：配方成本比较走正式的 RECIPE_COST_COMPARISON 双主体目标
     // （语义判定来自 E1-B 业务语义层，见 recipeCostComparisonSubjects）。
     const comparisonDetected = recipeCostComparisonSubjects(messageRef, text);

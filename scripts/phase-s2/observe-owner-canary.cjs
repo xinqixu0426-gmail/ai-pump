@@ -184,6 +184,31 @@ async function formalCrossCheck(token) {
     return out;
 }
 
+/**
+ * S2-R1 §E：fallback 分类。区分「Native 没执行」与「fallback 最终业务回答正确」。
+ *   FALLBACK_EXECUTED            本轮由既有正式路径作答（Native 未成为权威）
+ *   FALLBACK_FACTUALLY_VERIFIED  fallback 的回答经事实核对（金额与正式值一致，或为范围受限负结果/澄清）
+ *   FALLBACK_DEFECT              fallback 交付了与正式值冲突的金额，或用错误的业务域作答
+ */
+const FORMAL_COIL_FACTS = Object.freeze({
+    '12-120': { cost: 101.06514, stock: 100 },
+    '12-140': { cost: 118.53542, stock: 100 },
+});
+function classifyFallback(turn, formal) {
+    if (turn.route === 'NATIVE_CANARY') return null;
+    const text = String(turn.content || '');
+    const amounts = turn.amounts || [];
+    const coilShorthand = /(\d{1,3})\s*-\s*(\d{2,4})/u.exec(turn.question || '');
+    const formalCoil = coilShorthand ? FORMAL_COIL_FACTS[`${Number(coilShorthand[1])}-${Number(coilShorthand[2])}`] : null;
+    const recipeCurrent = formal && Object.values(formal).filter(item => item && typeof item.currentTotalCost === 'number').map(item => item.currentTotalCost);
+    const known = new Set([...Object.values(FORMAL_COIL_FACTS).flatMap(item => [String(item.cost), item.cost.toFixed(2), String(item.stock)]), ...recipeCurrent.map(value => value.toFixed(2))]);
+    const untraceable = amounts.filter(amount => ![...known].some(value => Math.abs(Number(value) - Number(amount)) <= 0.03));
+    const wrongDomainNegative = Boolean(coilShorthand && formalCoil && /配方目录|泵壳模板|零件(?:目录)?/u.test(text) && /未找到|没有找到/u.test(text));
+    if (untraceable.length) return { kind: 'FALLBACK_DEFECT', reason: `金额与正式值冲突：${untraceable.join(',')}` };
+    if (wrongDomainNegative) return { kind: 'FALLBACK_DEFECT', reason: '用配方/模板/零件目录回答了线圈简写（错误业务域）' };
+    return { kind: 'FALLBACK_FACTUALLY_VERIFIED', reason: amounts.length ? '金额与正式值一致' : '范围受限的负结果或澄清（无业务金额）' };
+}
+
 async function main() {
     const env = readEnvFile(envPath);
     if (env.AI_NATIVE_MODE !== 'owner') process.stderr.write(`warn: AI_NATIVE_MODE=${env.AI_NATIVE_MODE || '(unset)'}\n`);
@@ -198,11 +223,19 @@ async function main() {
         const conversationId = `s2:${scenario.key}:${Date.now()}`;
         for (const question of scenario.turns) {
             const result = await ask(token, question, conversationId);
-            turns.push({ familyId: scenario.familyId, scenarioKey: scenario.key, timestamp: new Date().toISOString(), ...result });
+            const turn = { familyId: scenario.familyId, scenarioKey: scenario.key, timestamp: new Date().toISOString(), ...result };
+            turn.fallbackClassification = classifyFallback(turn, formal);
+            turns.push(turn);
             process.stdout.write(`${scenario.key} | ${question.slice(0, 26)} | ${result.route} | ${(result.content || '').slice(0, 60).replace(/\n/gu, ' ')}\n`);
         }
     }
+    const fallbackCounts = turns.reduce((acc, turn) => {
+        const kind = turn.fallbackClassification?.kind;
+        if (kind) acc[kind] = (acc[kind] || 0) + 1;
+        return acc;
+    }, {});
     const evidence = {
+        fallbackClassification: fallbackCounts,
         ticket: 'AI-NATIVE-S2-OWNER-READ-CANARY-OBSERVATION',
         generatedAt: new Date().toISOString(),
         host: os.hostname(),

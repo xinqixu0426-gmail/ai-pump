@@ -33,8 +33,10 @@ const COMPARE_RECIPES_FACTS = Object.freeze([
 ]);
 
 // 配置成本试算的正式输出：{ costPreview: { currentTotalCost, partsCost, laborCost }, parts, ... }
+// S2-R1 §A：BOM 草稿是**规划/保存口径**（costBasis=configuredBomDraft），不是当前重算结果。
+// 该字段名沿用了 currentTotalCost，但业务标签必须显式说明口径，否则会被当成当前成本展示。
 const BOM_DRAFT_FACTS = Object.freeze([
-    Object.freeze({ path: 'costPreview.currentTotalCost', label: '当前总成本' }),
+    Object.freeze({ path: 'costPreview.currentTotalCost', label: 'BOM 草稿总成本（非当前重算口径）' }),
     Object.freeze({ path: 'costPreview.partsCost', label: '零件成本' }),
     Object.freeze({ path: 'costPreview.laborCost', label: '人工成本' }),
 ]);

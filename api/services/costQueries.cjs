@@ -412,18 +412,59 @@ function createCostQueries({
         if (input.packingPartsJson) overrides.packingPartsJson = input.packingPartsJson;
 
         const preview = previewRecipeCost(recipe.id ?? recipe.Id, overrides);
-        const totalCost = Number(preview.data.unitCost || 0);
+        const hasOverrides = Object.keys(overrides).length > 0;
+        // S2-R1 §A：口径必须由**证据**决定，而不是由「有没有覆盖」推断。
+        //   无覆盖 = 用户问当前成本 → 必须走与 `/api/recipes/current-costs` 同一个当前重算权威
+        //   （calculateCurrentRecipeCost 会刷新线圈快照并按当前模板/配方参数重算），
+        //   绝不再把预览/保存快照当成 currentFullCost。
+        //   有覆盖 = 假设试算，basis 明确标注 overridePreview，且 currentTotalCost 不适用。
+        let currentCost = null;
+        if (!hasOverrides) {
+            const dependencies = {
+                partsCache: loadPartsData().partsCache,
+                partsByModel: loadPartsData().partsByModel,
+                calculateRecipeCost,
+                coils: listCoils(),
+                getSetting,
+                buildBomDraft,
+            };
+            try {
+                currentCost = calculateCurrentRecipeCost(recipe, dependencies);
+            } catch (error) {
+                if (!isRecoverableCurrentRecipeCostError(error)) throw error;
+                currentCost = buildCurrentRecipeCostFailure(recipe, error, dependencies);
+            }
+        }
+        const currentTotalCost = !hasOverrides && currentCost?.currentTotalCost !== null && currentCost?.currentTotalCost !== undefined
+            && Number.isFinite(Number(currentCost.currentTotalCost))
+            ? Math.round(Number(currentCost.currentTotalCost) * 100) / 100 : null;
+        const totalCost = hasOverrides ? Number(preview.data.unitCost || 0) : Number(currentTotalCost ?? 0);
         const coilPart = (preview.data.parts || []).find(part => part.costRole === 'coil');
         return {
             sourceOfTruth: 'costEngine',
-            costBasis: Object.keys(overrides).length > 0 ? 'overridePreview' : 'currentFullCost',
+            costBasis: hasOverrides ? 'overridePreview' : 'currentFullCost',
+            basis: hasOverrides ? 'overridePreview' : 'currentTemplateAndRecipeParameters',
+            basisEvidence: hasOverrides ? 'USER_OVERRIDE_PREVIEW' : 'CURRENT_TEMPLATE_AND_RECIPE_PARAMETERS_RECOMPUTE',
+            // 显式时间口径字段：下游（Legacy/Native/展示层）按用户问的时间口径选择，禁止互相冒充。
+            temporalScope: hasOverrides ? 'SCENARIO' : 'CURRENT',
+            currentTotalCost,
+            savedTotalCost: hasOverrides ? null : (currentCost?.savedTotalCost ?? null),
+            difference: hasOverrides ? null : (currentCost?.difference ?? null),
+            costComplete: hasOverrides ? preview.data.pricingComplete !== false : currentCost?.costComplete === true,
+            ...(hasOverrides ? {} : {
+                partsCost: currentCost?.partsCost ?? null,
+                laborCost: currentCost?.laborCost ?? null,
+                itemCount: currentCost?.itemCount ?? null,
+                missingParts: currentCost?.missingParts || [],
+                currentCostUnavailableReason: currentTotalCost === null ? 'CURRENT_RECOMPUTE_INCOMPLETE' : null,
+            }),
             recipeCost: {
                 recipeId: recipe.id ?? recipe.Id,
                 recipeName: recipe.name,
                 recipeSpec: recipe.spec,
-                totalCost: totalCost.toFixed(2),
+                totalCost: Number.isFinite(totalCost) ? totalCost.toFixed(2) : null,
             },
-            totalCost: totalCost.toFixed(2),
+            totalCost: Number.isFinite(totalCost) ? totalCost.toFixed(2) : null,
             parts: preview.data.parts,
             costSnapshot: preview.data.costSnapshot,
             warnings: preview.data.warnings || [],

@@ -166,9 +166,45 @@ function coilCostComparisonPairs(userText) {
     return pairs.size === 2 ? [...pairs.values()] : [];
 }
 
+/**
+ * S2-R1 §C：椭圆式线圈追问（「那12-120呢」「这个12-140呢」）的结构化路由。
+ *
+ * 判据是**结构**，不是句子模板：
+ *   ① 文本里恰好一个线圈简写；
+ *   ② 没有任何配方/成品/模板/零件等跨域名词，也没有本轮的金额或库存业务词；
+ *   ③ 上一轮话题域（服务端从上一轮正式工具回执推导）决定目标族：
+ *      COIL_COST → calculate_coil_cost；COIL_INVENTORY → search_coils；
+ *      未知 → search_coils（中性的正式线圈读取，含成本与库存，且绝不路由到配方）。
+ * 这样「显式新主体 + 上一轮兼容目标」被继承，而「显式配方主体」仍由配方通道处理（C2）。
+ */
+function coilEllipticalFollowUp(userText, options = {}) {
+    const text = String(userText || '').trim();
+    if (!text || [...text].length > 24) return null;
+    const matches = [...text.matchAll(/(?:^|[^\d])(\d{1,3})\s*[-－]\s*(\d{2,4})(?!\d)/gu)];
+    if (matches.length !== 1) return null;
+    if (/(?:配方|成品|产品|模板|泵壳|零件|客户|订单|V\d)/iu.test(text)) return null;
+    if (/(?:成本|价格|多少钱|库存|有货|还有|剩|够)/u.test(text)) return null;
+    // 这是**续接继承**通道：只有指代/省略形态（那…呢 / 这个… / 该… / 它 / 再看）才继承上一轮目标。
+    // 单独一个简写（如「12-120」）是新的目录查询，保持既有行为。
+    if (!/(?:那|这个|该|它|此|还有|呢|换)/u.test(text)) return null;
+    const spec = Number(matches[0][1]);
+    const sheets = Number(matches[0][2]);
+    if (!(Number(spec) > 0 && Number(sheets) > 0)) return null;
+    const previous = String(options.previousGoalFamily || '');
+    return {
+        spec, sheets,
+        capability: previous === 'COIL_COST' ? 'calculate_coil_cost' : 'search_coils',
+        inheritedGoalFamily: previous || 'UNKNOWN',
+    };
+}
+
 function selectLocalAssistantTools(userText, options = {}) {
     const allTools = options.tools || readTools();
     if (!enabled(options.env)) return allTools;
+    const elliptical = coilEllipticalFollowUp(userText, options);
+    if (elliptical) {
+        return [elliptical.capability].map(name => allTools.find(tool => tool.function.name === name)).filter(Boolean);
+    }
     if (coilCostComparisonPairs(userText).length === 2) {
         return ['calculate_coil_cost']
             .map(name => allTools.find(tool => tool.function.name === name))
@@ -237,6 +273,7 @@ module.exports = {
     inferredDomains,
     isCoilRecipeRelationQuery,
     isLocalAssistantMode,
+    coilEllipticalFollowUp,
     selectLocalAssistantTools,
     shouldUseLocalToolShortlist,
 };

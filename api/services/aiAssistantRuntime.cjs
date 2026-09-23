@@ -39,7 +39,7 @@ const { normalizeAnswerPresentation, buildListCriticality } = require('./aiPrese
 const { appendCrossCatalogCandidates } = require('./aiCrossCatalogCandidates.cjs');
 const { appendMissingCoilVariants } = require('./aiCoilVariantAnswer.cjs');
 const { enforceBusinessRules } = require('./aiBusinessRulebook.cjs');
-const { coilCostComparisonPairs, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
+const { coilCostComparisonPairs, coilEllipticalFollowUp, isCoilRecipeRelationQuery, isLocalAssistantMode, selectLocalAssistantTools, shouldUseLocalToolShortlist } = require('./aiToolShortlist.cjs');
 const { addTaskStep, createTaskEnvelope } = require('./aiTaskEnvelope.cjs');
 const { buildEvidenceBundle } = require('./aiEvidenceBundle.cjs');
 const { ensureTaskAnswer } = require('./aiResponsePresenter.cjs');
@@ -407,6 +407,19 @@ function legacyForwardRelationCalls(resolution) {
     ];
 }
 
+/**
+ * S2-R1 §C：从**上一轮正式工具回执**推导话题域（服务端自有事实，不解析自然语言）：
+ *   calculate_coil_cost / coil cost preview → COIL_COST
+ *   search_coils                            → COIL_INVENTORY
+ * 其它或缺失 → null（未知；椭圆追问此时只做中性正式线圈读取）。
+ */
+function previousCoilGoalFamily(previous) {
+    const names = new Set((previous?.toolResults || []).map(item => String(item?.name || '')));
+    if (names.has('calculate_coil_cost')) return 'COIL_COST';
+    if (names.has('search_coils')) return 'COIL_INVENTORY';
+    return null;
+}
+
 async function runAiAssistant(input = {}, dependencies = {}) {
     const runtimeEnv = input.providerPreference && input.providerPreference !== 'default'
         ? { ...(input.env || process.env), AI_PROVIDER: input.providerPreference }
@@ -548,7 +561,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         const legacyTools = () => {
             if (!legacyToolsCache) {
                 legacyToolsCache = includeRestoredCandidateTool(
-                    useLocalToolShortlist ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv }) : allTools,
+                    useLocalToolShortlist ? selectLocalAssistantTools(latest.content, { tools: allTools, env: runtimeEnv, previousGoalFamily: previousCoilGoalFamily(session.previous) }) : allTools,
                     allTools,
                     restoredCandidateCall
                 );
@@ -587,7 +600,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         let offeredTools = legacyForwardRelationRoot ? [] : tools;
         // Reuse catalog relevance detection for evidence requirements across providers.
         // The cloud tool directory and read permissions remain unchanged.
-        let requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' } })).length > 0;
+        let requiresBusinessQuery = !detectProtectedCommandRoute(messages) && (ontologyRelationRouting ? relationRouting.tools : selectLocalAssistantTools(latest.content, { tools: allTools, env: { ...runtimeEnv, AI_LOCAL_TOOL_SHORTLIST_ENABLED: 'true' }, previousGoalFamily: previousCoilGoalFamily(session.previous) })).length > 0;
         const allowed = new Set(tools.map(tool => tool.function.name));
         // ONT-P8L: the software-planned second repair hop has to be executable, but it is added to
         // `allowed` ONLY — never to `offeredTools` — so the model-visible legacy surface stays byte-identical
@@ -708,6 +721,13 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             function: { name: compatibilityRead.capability, arguments: JSON.stringify(compatibilityRead.arguments) },
         }] : [];
         for (const call of requiredCompatibilityCalls) compatibilityCallIds.add(call.id);
+        // S2-R1 §C：椭圆式线圈追问在 Legacy 侧也必须走正式线圈能力（模型无权改成配方查询）。
+        const ellipticalFollowUp = coilEllipticalFollowUp(latest.content, { previousGoalFamily: previousCoilGoalFamily(session.previous) });
+        let requiredCoilFollowUpCalls = ellipticalFollowUp ? [{
+            id: `required-coil-followup-${crypto.randomUUID()}`,
+            type: 'function',
+            function: { name: ellipticalFollowUp.capability, arguments: JSON.stringify({ spec: ellipticalFollowUp.spec, sheets: ellipticalFollowUp.sheets }) },
+        }] : [];
         let requiredCoilComparisonCalls = coilComparisonPairs.map(pair => ({
             id: `required-calculate_coil_cost-${crypto.randomUUID()}`,
             type: 'function',
@@ -741,6 +761,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
             } else if (requiredCompatibilityCalls.length) {
                 answer = { content: '', tool_calls: requiredCompatibilityCalls };
                 requiredCompatibilityCalls = [];
+            } else if (requiredCoilFollowUpCalls.length) {
+                answer = { content: '', tool_calls: requiredCoilFollowUpCalls };
+                requiredCoilFollowUpCalls = [];
             } else if (requiredCoilComparisonCalls.length) {
                 answer = { content: '', tool_calls: requiredCoilComparisonCalls };
                 requiredCoilComparisonCalls = [];

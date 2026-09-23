@@ -317,8 +317,15 @@ test('成本 Query 统一承接线圈、动态项和完整估算编排', () => {
         assert.equal(full.costBasis, 'currentFullCost');
         assert.equal(full.recipeCost.recipeId, 1);
         assert.equal(full.recipeCost.recipeName, 'PUMP-A');
-        assert.equal(full.recipeCost.totalCost, '20.00');
-        assert.equal(full.totalCost, '20.00');
+        // S2-R1 §A：无覆盖的完整估算必须走**当前重算权威**（与 /api/recipes/current-costs 同一口径），
+        // 不能再返回预览/保存快照值。fixture 的当前重算由注入的 calculateRecipeCost 提供（16.00）。
+        assert.equal(full.basis, 'currentTemplateAndRecipeParameters');
+        assert.equal(full.basisEvidence, 'CURRENT_TEMPLATE_AND_RECIPE_PARAMETERS_RECOMPUTE');
+        assert.equal(full.temporalScope, 'CURRENT');
+        assert.equal(full.currentTotalCost, 16);
+        assert.equal(full.totalCost, full.currentTotalCost.toFixed(2));
+        assert.equal(full.recipeCost.totalCost, full.totalCost);
+        assert.notEqual(full.totalCost, '20.00', '不得用预览/保存口径的旧值冒充当前成本');
         assert.equal(full.compatibility.managedRolesReplacedOnce, true);
         assert.equal(full.compatibility.replacement, 'preview_recipe_cost');
         assert.throws(
