@@ -1,0 +1,211 @@
+{
+  "ticket": "AI-NATIVE-S2-R1-CURRENT-FUNCTION-STABILITY",
+  "kind": "current-function-stability-closure",
+  "status": "PASS",
+  "generatedAt": "2026-09-23T15:59:00Z",
+  "branch": "ai-native/prod-canary-s2",
+  "startHead": "4d4fd535e3b06070813c1dc3dd3d11384a0a0ba9",
+  "codeHead": "048963c031b6f093de1d15cdec0d9cdddd541315",
+  "deployedHead": "048963c031b6f093de1d15cdec0d9cdddd541315",
+  "legacyCurrentSaved": {
+    "status": "FIXED（生产 RED→GREEN 实测）",
+    "rootCause": "api/services/costQueries.cjs → calculateFullEstimate：无覆盖时取 preview.data.unitCost 作为 totalCost，却把 costBasis 断言为 currentFullCost。预览/保存快照（buildRecipeCostDraft 口径）因此被下游 answerBoundary.currentRecipeCost()（读 currentTotalCost|totalCost|unitCost）当成「当前完整成本」。生产实例：saved 266.74 被表述成当前完整成本（正式 current 269.28，difference 2.54）。",
+    "currentAuthority": "calculateCurrentRecipeCost（刷新线圈快照 + 当前模板/配方参数重算）= 与 GET /api/recipes/current-costs 同一权威；回执显式携带 currentTotalCost / basis=currentTemplateAndRecipeParameters / basisEvidence / temporalScope=CURRENT。",
+    "savedAuthority": "recipe.savedTotalCost（保存快照）只在 temporalScope=SAVED（用户明确问保存/历史/上次/当时成本）时使用，并显式标注「历史保存口径，不是当前重算结果」。",
+    "evidence": {
+      "formalApi": {
+        "currentTotalCost": 269.28,
+        "savedTotalCost": 266.74,
+        "difference": 2.54,
+        "basis": "currentTemplateAndRecipeParameters"
+      },
+      "legacyCurrentAnswer": "V550大脚板-2寸-经典款 当前完整成本为 269.28 元（正式当前完整成本口径）。",
+      "legacySavedAnswer": "V550大脚板-2寸-经典款 的保存成本快照为 266.74 元（历史保存口径，不是当前重算结果）。",
+      "receiptFields": [
+        "currentTotalCost=269.28",
+        "savedTotalCost=266.74",
+        "difference=2.54",
+        "costBasis=currentFullCost",
+        "basis=currentTemplateAndRecipeParameters",
+        "basisEvidence=CURRENT_TEMPLATE_AND_RECIPE_PARAMETERS_RECOMPUTE",
+        "temporalScope=CURRENT"
+      ]
+    },
+    "contractChanges": [
+      "questionSemantics：新增 requestedCostTemporality（SAVED 仅由显式保存/历史/上次/当时措辞触发，默认 CURRENT）",
+      "answerBoundary：CURRENT 权威加 basis 门禁（currentFullCost / currentTemplateAndRecipeParameters / CURRENT_REBUILT），money(null) 不再变成 0.00；新增 savedRecipeCost 与显式 SAVED 作答分支",
+      "monetaryPresentationContract：build_recipe_bom_draft 的 costPreview.currentTotalCost 标签改为「BOM 草稿总成本（非当前重算口径）」"
+    ],
+    "tests": [
+      "S2R1-A1..A6（tests/s2r1CurrentFunctionStability.test.cjs）",
+      "tests/costQueries.test.cjs（完整估算改断言当前权威）",
+      "tests/aiAssistantRuntime.test.cjs（BOM 草稿标签）"
+    ]
+  },
+  "supportedFamilyAdmission": {
+    "status": "FIXED（生产实测）",
+    "nameShapeDependencyRemoved": true,
+    "formalResolutionUsed": "aiTaskSemanticsV2.nameCandidateRecipeSubject：复用业务语义 extractRequestedTarget 生成**候选主体**，由控制器用正式目录 get_all_recipes 解析；结构性排除指代/疑问/动作前缀与跨域资源名词；无 V/PHASED 品牌关键词表。",
+    "nonVResult": [
+      "PHASED-浮球-有 的当前完整成本是多少？ → NATIVE_CANARY（此前 LEGACY_SAFE_FALLBACK）",
+      "大脚板-2寸-经典款成本多少？ → NATIVE_CANARY + 「有多个正式配方，请选择一个」（正式解析多条 → 澄清）"
+    ],
+    "negativeResult": "PHASED-浮球-有 在生产目录中不存在 → 范围受限的正式负结果（「本次只覆盖配方目录，不能据此判断整个系统」），零金额 ✓ 未做模糊匹配",
+    "tests": [
+      "S2R1-B7",
+      "S2R1-B8/B9",
+      "S2R1-B10",
+      "S2R1-B11"
+    ]
+  },
+  "legacyCoilContinuation": {
+    "status": "FIXED（生产实测）",
+    "rootCause": "Legacy 侧对「那12-120呢？」缺少稳定语义：模型/短名单把它当成目录查询 → 选到 preview_recipe_cost → 跨目录回退把配方/模板/零件三个目录都查一遍 → 回答「未找到12-120」（错误业务域 + 误导性负结果）。",
+    "continuationContract": "coilEllipticalFollowUp（结构判据：恰好一个线圈简写 + 无跨域名词 + 无本轮业务词 + 有续接标记）+ 上一轮正式回执推导的话题域（COIL_COST→calculate_coil_cost，COIL_INVENTORY→search_coils，未知→中性 search_coils）→ 新主体取自本轮显式简写，目标族继承上一轮兼容目标；显式配方主体仍走配方通道（C2）。Legacy 侧加入确定性 required 调用。",
+    "evidence": "生产：12-140的成本是多少？ → 那12-120呢？ → LEGACY_SAFE_FALLBACK 且回答「12-120 有 1 套正式方案：钢带/小眼/COIL-0001，成本 101.07 元」（正式值 101.06514 ✓），不再出现配方目录「未找到」",
+    "tests": [
+      "S2R1-C12/C13",
+      "S2R1-C14",
+      "S2R1-C15"
+    ]
+  },
+  "nativeNotFoundUx": {
+    "status": "IMPROVED",
+    "negativeScopePreserved": true,
+    "detail": "Native 线圈目录负结果新增范围受限措辞（「本次正式线圈目录查询没有找到“X”对应的正式方案；该结论只覆盖正式线圈目录，不能据此判断整个系统是否不存在该对象」）；配方负结果沿用既有「本次只覆盖配方目录」措辞；fact/scope/evidence/state 未改变。",
+    "remaining": "虚拟齐料在对象不存在时仍是通用限制句（无金额、无错误实体），列为非严重 UX 待办。",
+    "tests": [
+      "S2R1-D16",
+      "S2R1-D17"
+    ]
+  },
+  "fallbackClassification": {
+    "executed": 1,
+    "factuallyVerified": 1,
+    "defects": 0,
+    "definitions": {
+      "FALLBACK_EXECUTED": "本轮由既有正式路径作答",
+      "FALLBACK_FACTUALLY_VERIFIED": "fallback 回答经事实核对（金额与正式值一致，或范围受限负结果/澄清）",
+      "FALLBACK_DEFECT": "fallback 交付与正式值冲突的金额，或用错误业务域作答"
+    },
+    "evidence": {
+      "FALLBACK_FACTUALLY_VERIFIED": 1
+    },
+    "sample": [
+      {
+        "question": "12-140的成本是多少？",
+        "route": "NATIVE_CANARY",
+        "classification": null,
+        "reason": null,
+        "answer": "正式方案的当前线圈成本为 ¥118.54。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。"
+      },
+      {
+        "question": "那12-120呢？",
+        "route": "LEGACY_SAFE_FALLBACK",
+        "classification": "FALLBACK_FACTUALLY_VERIFIED",
+        "reason": "范围受限的负结果或澄清（无业务金额）",
+        "answer": "12-120 有 1 套正式方案：钢带/小眼/COIL-0001，成本 101.07 元。"
+      },
+      {
+        "question": "PHASED-浮球-有 的当前完整成本是多少？",
+        "route": "NATIVE_CANARY",
+        "classification": null,
+        "reason": null,
+        "answer": "当前正式配方目录中没有找到可用于整机成本计算的“PHASED-浮球-有”配方，因此现在无法给出正式整机成本。本次只覆盖配方目录，不能据此判断整个系统是否不存在该对象。"
+      },
+      {
+        "question": "如果做50台 PHASED-浮球-无 库存够吗？",
+        "route": "NATIVE_CANARY",
+        "classification": null,
+        "reason": null,
+        "answer": "该目标当前未能形成可验证的正式结果。"
+      },
+      {
+        "question": "大脚板-2寸-经典款成本多少？",
+        "route": "NATIVE_CANARY",
+        "classification": null,
+        "reason": null,
+        "answer": "“大脚板-2寸-经典款”有多个正式配方，请选择一个。"
+      }
+    ]
+  },
+  "productionLineageAudit": {
+    "masterHead": "e244bd75b2e896083a452eede9d6fe0684a6d264",
+    "deployedHead": "048963c031b6f093de1d15cdec0d9cdddd541315",
+    "canaryBranchHead": "048963c031b6f093de1d15cdec0d9cdddd541315",
+    "prodIntegrationHead": "d4e89717e2e55d2dda4141adedfcd77d758a4778",
+    "aiNativeV1Head": "3b685b1",
+    "mergeBase": "e244bd7（ai-native/prod-canary-s2 直接派生自生产 master；S2 阶段即以生产线为基线做移植）",
+    "roots": {
+      "master": "5ffa22273028b0219417a5ade25da10ef909b360（0 父，2026-03-26 真实项目根）",
+      "ai-native/v1": "251f822491d677056f2d7b82f09473a51321d8e1（0 父，「Sync current project snapshot」2026-09-21）",
+      "ai-native/prod-integration-v1": "5861f875940d2361049b04374502e18b93506e93（0 父）"
+    },
+    "whyNoCommonAncestor": "ai-native 旧线是**历史迁移/重新定根**产生的孤立线：其根提交 0 父且名为「Sync current project snapshot」；该快照树与生产 master 树只差 1 个文件 53 行删除（git diff --shortstat 251f822 e244bd7），说明它是生产线在 2026-09-21 的内容快照，而不是 master 的后代。git merge-base 对旧线与 master 返回空。",
+    "evidence": [
+      "git rev-list --max-parents=0 <rev> → 三个根",
+      "git cat-file -p 251f822 → 无 parent 行",
+      "git diff --shortstat 251f822 e244bd7 → 1 file changed, 53 deletions(-)",
+      "git merge-base e244bd7 <old ai-native lines> → NONE",
+      "git merge-base e244bd7 4d4fd53 → e244bd7"
+    ],
+    "options": {
+      "OPTION_A": {
+        "title": "把 master 快进到 canary head（推荐）",
+        "historyImpact": "master 只做一次普通 fast-forward（无重写、无 unrelated-history 合并），此后所有分支沿 master 前进",
+        "rollbackImpact": "将 master 指回 e244bd7 即可；生产可切回旧提交，数据侧由 release/startup 备份覆盖",
+        "ciImpact": "CI/门禁原本就按 master 设计，快进后自动恢复默认分支语义",
+        "deploymentImpact": "可以直接回到默认 npm run deploy:macmini（无需 PUMP_DEPLOY_BRANCH 覆盖）"
+      },
+      "OPTION_B": {
+        "title": "保持 master 冻结，canary 线作为发布线（现状）",
+        "historyImpact": "两条线并存；master 仅作历史",
+        "rollbackImpact": "回滚=切回 master 提交（同 A）",
+        "ciImpact": "需要继续用 PUMP_DEPLOY_BRANCH=ai-native/prod-canary-s2 发布",
+        "deploymentImpact": "发布脚本的分支参数必须始终显式指定"
+      },
+      "OPTION_C": {
+        "title": "把旧 ai-native 线 rebase/merge 进 master",
+        "verdict": "REJECTED（§F 禁止 unrelated-history 合并/重写；且已验证树已在 master 后代上，无需此路径）"
+      }
+    },
+    "recommendedLongTermLine": "OPTION_A（在用户明确授权后执行一次 fast-forward；本阶段未执行）",
+    "executed": "NO"
+  },
+  "safetyMetrics": {
+    "businessWritesFromNative": 0,
+    "unsafeDeliveredRuns": 0,
+    "wrongCanonicalBinding": 0,
+    "factValueConflict": 0,
+    "factBasisConflict": 0,
+    "unexplainedBusinessRegression": 0,
+    "writeAdmission": 0,
+    "note": "生产 S2-R1 部署后复核：ai_tasks/ai_task_evidence=0，schema=88，audit_log 仅随正常流量增长"
+  },
+  "gates": {
+    "npm test": "PASS 3224/3224（S2 后 3209，新增 15 个 S2-R1 测试块）",
+    "verify:api-contract": "PASS 28/28",
+    "test:deep-api": "PASS exit 0",
+    "lint": "PASS exit 0",
+    "build": "PASS exit 0",
+    "verify:ai-native-release": "PASS @ 048963c（STRUCTURALLY_READY / READY_WITHIN_SUPPORTED_SCOPE）",
+    "ontologyRoutingCanary": "PASS 42/42",
+    "productionDeployGate": "PASS：生产机 verify:release 全通过后部署 048963c（104 秒，9 步完成）"
+  },
+  "constraints": {
+    "newNativeFamilyAdded": false,
+    "ontologyChanged": false,
+    "tier1Tier2Removed": false,
+    "answerMentionsNonFormalNumberRemoved": false,
+    "defaultNativeRead": false,
+    "nativeWriteRollout": false,
+    "masterLineageRewritten": false
+  },
+  "ownerCanaryMode": "owner（保持开启）",
+  "ownerManualAcceptanceRequired": true,
+  "remainingBlockers": [
+    "虚拟齐料在对象不存在时的通用措辞（非严重 UX）",
+    "生产配方目录当前只有 2 条（V550/V750大脚板-2寸-经典款），比较/多目标族真实语料仍有限",
+    "master lineage 快进需要用户明确授权（本轮只出方案）"
+  ]
+}
