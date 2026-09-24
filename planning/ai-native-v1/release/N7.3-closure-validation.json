@@ -9,14 +9,14 @@
     "scope": "Runtime behaviour described by the N7.3 documentation package."
   },
   "handoffPackage": {
-    "revision": "e3f396c1112411cd3569b441ecadff87ae5633c9",
-    "tree": "e0a4e911150818da52ae963249459634bebb8163",
-    "subject": "chore(ai-native): rebind the N7.3 release evidence to the S1 api-reference update"
+    "revision": "6076af9b475adc3a780fe2ed3c467ce367d1147b",
+    "tree": "4b42f8de862025f95dd81fddd64078a30a7fa8a4",
+    "subject": "chore(ai-native): refresh the N7.3 release evidence after the S2-R2-P1 api-reference update"
   },
   "releaseEvidence": {
     "path": "planning/ai-native-v1/release/ReleaseEvidenceV1.json",
-    "blobSha": "9bc713d50bb30b96c9e8a3acd6223db14961c800",
-    "payloadSha256": "90618f7107d8eb1409dd23da788d12e5058638a9ff3578cbfb5c3f8a5dc7f23d",
+    "blobSha": "1f3ad5f82ff3a2860102e06d3663efdd018055b8",
+    "payloadSha256": "d7deb9b8727f711d16f893bc4a6cffe1d2209edac91f6f40c5cf715865f5eea1",
     "payloadSha256SideFile": "planning/ai-native-v1/release/ReleaseEvidenceV1.payload.sha256",
     "sideFileMatches": true,
     "attestsProductRuntimeRevision": "5aafbaba2ae950d1825f78be0ded4f1304e9f270",
@@ -39,8 +39,8 @@
       {
         "role": "API_REFERENCE",
         "path": "docs/api-reference.md",
-        "attestedSha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
-        "diskSha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
+        "attestedSha256": "6ecda96ac9f8d5b99bf5ab49f42e02c3b6d964bdaf76098b7897e8402c74a615",
+        "diskSha256": "6ecda96ac9f8d5b99bf5ab49f42e02c3b6d964bdaf76098b7897e8402c74a615",
         "hashSource": "git_blob",
         "matches": true
       },
