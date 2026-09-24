@@ -1,0 +1,30 @@
+{
+  "event": "生产 Mac mini AI Native 模式改回 off（冻结 Owner Canary）",
+  "authority": "Supervisor 建议 + 用户明确同意",
+  "reason": "S2-R3-P1 修复未部署到生产，生产仍保留已知缺陷（readiness 数量语序敏感、readiness→cost 域漂移、多主体整句误绑定风险、internal evidence code 泄漏）。Windows 本地已可真实走 Owner Native 路径，故无需让生产继续挂着旧版本 owner canary。",
+  "when": "2026-09-24T18:13Z 前后（北京时间）",
+  "changes": [
+    { "file": "/Users/dan/pump-cost-accounting-system/.env", "key": "AI_NATIVE_MODE", "from": "owner", "to": "off" },
+    { "file": "/Users/dan/pump-cost-accounting-system/.env", "key": "AI_NATIVE_WRITE_ENABLED", "from": "false", "to": "false（未变）" }
+  ],
+  "backup": "/Users/dan/pump-cost-accounting-system/.env.bak-before-off-owner-20260924-181324",
+  "restart": "通过 KeepAlive：kill 旧 api pid=53336 → launchd 自动拉起 pid=53991（无免密 sudo，未用 launchctl kickstart）",
+  "verification": {
+    "startupBanner": "[AI Native] mode=off authority=legacy writeEnabled=false",
+    "api": "http=200",
+    "web": "http=307",
+    "public": "https://xuxinqi.xin/ http=307",
+    "ownerRoutingDisabled": "以 owner 身份提问，两条均未出现 task_v2(native) 阶段标记 → owner 路由已关闭，全部走 Legacy 权威路径",
+    "oldDefectStillVisibleOnProduction": "提问『V750大脚板-2寸-经典款按300台虚拟齐料预览』→ 回答『…的本轮正式当前重算没有取得可用金额，因此不给当前完整成本；本轮也没有可用的保存成本快照。』—— 即 S2-R3-P1 要修的成本域拒答，证实生产仍是修复前版本，冻结是必要的"
+  },
+  "productionUnchanged": {
+    "gitHead": "f921257 (tree d0043033)",
+    "note": "未部署、未 push；本次只改了一个环境变量并重启进程"
+  },
+  "nextStep": "S2-R3-P1 + S2-R3-P2 均 PASS 后统一部署到 Mac mini，再恢复 AI_NATIVE_MODE=owner，做一次短 production smoke 与最终 Owner 验收",
+  "localState": {
+    "AI_NATIVE_MODE": "owner",
+    "AI_NATIVE_WRITE_ENABLED": "false",
+    "note": "本地继续做真实 Owner 验收；owner token 为现场签发，验收后即删（_owner-token.local 已删除）"
+  }
+}
