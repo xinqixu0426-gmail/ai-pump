@@ -2,9 +2,9 @@
   "version": 1,
   "generatedBy": "scripts/n73-generate-release-evidence.cjs",
   "sourceRevision": {
-    "branch": "ai-native/prod-integration-v1",
-    "commit": "81eb540d13c7e2f290321557a7bb75d8a2f1f836",
-    "tree": "c2f4b6cb909af6f7f9d18184013628d000ca965f",
+    "branch": "ai-native/prod-canary-s2",
+    "commit": "43fcd14f88577364e9f2368241c6e483f9dcd7d7",
+    "tree": "90943af13699e3ff04a89d9b65f09f0193f5ec21",
     "worktreeClean": true
   },
   "attestsTo": {
@@ -27,9 +27,9 @@
     {
       "role": "API_REFERENCE",
       "path": "docs/api-reference.md",
-      "blobSha": "00c25d46bfcba72f55d0663ed302ee899ab90538",
-      "sha256": "c076c5b37db0203cd8fbd39989442a9698d2e763cefe4dea164fd0c0b5f637ec",
-      "bytes": 320998
+      "blobSha": "f7e72febc51d6f66537e571f7863ed4bbafb62fa",
+      "sha256": "6ecda96ac9f8d5b99bf5ab49f42e02c3b6d964bdaf76098b7897e8402c74a615",
+      "bytes": 322236
     },
     {
       "role": "TECHNICAL_DEBT",
@@ -103,7 +103,7 @@
     ],
     "capabilityRegistrySha256": "440bd1dcb73434c86ced4cfd9b0e0a821c5d0f25c1239f4340813910d6eb6dfe",
     "legacyToolCount": 80,
-    "legacyToolsSha256": "746478d708d1182be17b58d072f5dea89f87dc5b56e046afd2c8d284a256849f",
+    "legacyToolsSha256": "c658323e6919ab6541b4fa43372f51ca062494e41cb3f824509fbd4349408233",
     "nativeToolCount": 3,
     "nativeTools": [
       "compare_recipe_scenarios",
