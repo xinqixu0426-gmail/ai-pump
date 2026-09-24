@@ -44,6 +44,12 @@ function scenarioCompareRequirements(subjectKey, scenarioKey) {
         { requirementKey: `scenario-cost:${scenarioKey}`, predicate: 'scenario.cost', subjectKey, scenarioKey, temporalScope: 'SCENARIO', basis: 'CURRENT_REBUILT', requireComplete: true, unit: 'pump', currency: 'CNY' },
         { requirementKey: `scenario-override:${scenarioKey}`, predicate: 'scenario.override_application', subjectKey, scenarioKey, temporalScope: 'SCENARIO', basis: 'CURRENT_REBUILT', requireComplete: true, unit: 'pump', currency: 'CNY' },
         { requirementKey: `scenario-comparison:${scenarioKey}`, predicate: 'scenario.cost_comparison', subjectKey, scenarioKey, temporalScope: 'SCENARIO', basis: 'CURRENT_REBUILT', requireComplete: true, unit: 'pump', currency: 'CNY' },
+        // S2-R3-P2：候选配置的**正式配置差异**（回执 `changes` 数组，已按 scenarioKey 归属）
+        // 不是这里的需求项：需求未满足会让 goal 永远无法 VERIFIED，而 `changes` 只有在
+        // 回执确实返回它时才存在。控制器在该事实可用时**额外**挂载
+        // `scenario.configuration_changes`（见 aiTaskControllerV2 的场景比较分支），
+        // 答案据此区分「配置没变（NO_OP）」与「配置变了」；判据是配置差异本身，
+        // 不是成本差额是否为 0（不同配置可能碰巧同价）。
     ];
 }
 

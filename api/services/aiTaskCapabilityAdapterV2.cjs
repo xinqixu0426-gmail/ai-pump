@@ -461,5 +461,6 @@ module.exports = {
     NATIVE_OVERRIDE_FIELDS,
     buildCapabilityDescriptorV2,
     createTaskCapabilityAdapterV2,
+    decodePointer,
     readJsonPointer,
 };

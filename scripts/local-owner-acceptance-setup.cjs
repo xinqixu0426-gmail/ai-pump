@@ -6,10 +6,10 @@ const path = require('path');
 const ROOT = 'C:\\Users\\Dan\\Documents\\pump-canary-s2';
 const ENV = path.join(ROOT, '.env');
 
+// 不写 .env 备份：本脚本只做幂等的键写入（自己即可重放），
+// 而 .env 备份会把整套密钥以明文落到工作区，风险大于收益。
 let text = fs.readFileSync(ENV, 'utf8');
-const backup = ENV + '.bak-before-owner-local-' + new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 15);
-fs.writeFileSync(backup, text, 'utf8');
-console.log('已备份: ' + path.basename(backup));
+console.log('未创建 .env 备份（脚本幂等，避免明文密钥落盘）');
 
 // 生成 owner 凭据（>=32 字符，且不得等于 ACCESS_PASSWORD）
 const ownerPw = crypto.randomBytes(24).toString('base64url'); // 32 chars

@@ -257,7 +257,9 @@ test('N4.1C resolves a packaging mention through the formal packaging catalogue 
     const compare = fixture.calls.find(item => item.toolName === 'compare_recipe_scenarios');
     assert.deepEqual(compare.args.scenarios[0].overrides.packingParts, [{ partId: 71, model: '木箱-A', supplier: '包装厂', qty: 1, packingRole: 'container' }]);
     assert.equal(fixture.calls.find(item => item.toolName === 'search_parts').args.category, '包装');
-    assert.match(result.answer.content, /packingParts=木箱-A×1/);
+    // S2-R3-P2：用户可见正文只出现业务语言，不出现内部字段名（`packingParts=…`）。
+    assert.match(result.answer.content, /包装 木箱-A×1/);
+    assert.doesNotMatch(result.answer.content, /\bpackingParts\b/);
     assert.equal(fixture.calls.some(item => item.toolName.startsWith('adjust_')), false);
 });
 

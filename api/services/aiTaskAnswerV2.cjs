@@ -22,13 +22,66 @@ const subjectName = (task, goal) => {
 };
 const money = value => `¥${Number(value).toFixed(2)}`;
 const stableClaimId = (goalKey, suffix) => `${goalKey}:${suffix}`;
+// ── S2-R3-P2：配置差异的用户可见语言 ────────────────────────────────────────
+// 候选配置与当前正式配置的差异只来自正式比较回执的 `changes`。这里的职责是
+// **展示**：把配置字段名翻译成业务语言、把值格式化成人话。
+// 绝不把内部字段名（`coilId`）、内部 ID 或 `field=value` 直接交给用户。
+// 标签与系统既有的字段元数据保持一致（见 services/catalogNaming.cjs）。
+const CONFIGURATION_FIELD_LABELS = Object.freeze({
+    hasFloat: '浮球',
+    floatWire: '浮球线径',
+    floatAccessoryType: '浮球铜套规格',
+    hasCable: '电缆',
+    cableLength: '电缆长度',
+    cableWire: '电缆横截面积',
+    cableAccessoryType: '电缆铜套规格',
+    coilId: '线圈方案',
+    coilSchemeFamilyCode: '线圈方案族',
+    coilSpec: '线圈定子规格',
+    coilSheets: '线圈片数',
+    coilMaterial: '线圈材质',
+    coilSlotType: '线圈槽眼',
+    coilWireWeight: '线圈线重',
+    customBarrelLength: '机筒长度',
+    packingParts: '包装',
+    surfaceTreatmentMode: '表面处理方式',
+    surfaceTreatmentCost: '表面处理成本',
+});
+const BOOLEAN_FIELD_TEXT = Object.freeze({ hasFloat: ['不带浮球', '带浮球'], hasCable: ['不带电缆', '带电缆'] });
+const UNIT_SUFFIX = Object.freeze({ cableLength: '米', cableWire: 'mm²', floatWire: 'mm²', customBarrelLength: 'mm', coilSheets: '片', coilWireWeight: 'kg' });
+/** 缺失值：正式口径里的 `null` 是「未指定」，不是 0、不是空字符串。 */
+function configurationValueText(field, value) {
+    if (value === null || value === undefined) return '未指定';
+    if (Array.isArray(value)) {
+        if (field === 'packingParts') {
+            if (value.length === 0) return '清空全部包装';
+            return value.map(item => {
+                const partName = typeof item?.model === 'string' && item.model ? item.model : '包材';
+                return Number(item?.qty) === 0 ? `移除${partName}` : `${partName}×${item?.qty ?? '?'}`;
+            }).join('、');
+        }
+        return value.map(item => configurationValueText(field, item)).join('、');
+    }
+    if (typeof value === 'boolean') return value ? '是' : '否';
+    if (typeof value === 'number' && Number.isFinite(value)) return `${value}${UNIT_SUFFIX[field] || ''}`;
+    return `${String(value)}${UNIT_SUFFIX[field] || ''}`;
+}
+/** 一条正式配置差异 → 业务语言。布尔字段优先用「带/不带」这类自然说法。 */
+function renderConfigurationChange(change) {
+    const field = String(change?.field ?? '');
+    const label = CONFIGURATION_FIELD_LABELS[field] || '配置项';
+    if (field === 'coilId') return '更换线圈方案';
+    const natural = BOOLEAN_FIELD_TEXT[field];
+    if (natural) {
+        const after = change?.to === true ? natural[1] : change?.to === false ? natural[0] : `${label}改为${configurationValueText(field, change?.to)}`;
+        return change?.from === change?.to ? `${natural[change?.to === true ? 1 : 0]}` : after;
+    }
+    return `${label} 由 ${configurationValueText(field, change?.from)} 改为 ${configurationValueText(field, change?.to)}`;
+}
 function renderAppliedOverride(field, value) {
-    if (field !== 'packingParts' || !Array.isArray(value)) return `${field}=${String(value)}`;
-    if (value.length === 0) return 'packingParts=清空全部包装';
-    return value.map(item => {
-        const name = typeof item?.model === 'string' && item.model ? item.model : `包装零件#${item?.partId ?? '?'}`;
-        return Number(item?.qty) === 0 ? `packingParts=移除${name}` : `packingParts=${name}×${item?.qty ?? '?'}`;
-    }).join('、');
+    const label = CONFIGURATION_FIELD_LABELS[field];
+    // 未知字段绝不输出内部字段名：退化为业务语言，细节留在 trace。
+    return label ? `${label} ${configurationValueText(field, value)}` : `配置项调整 ${configurationValueText(field, value)}`;
 }
 function sourceExcerptPresentation(record) {
     if (record.evidenceKind !== 'SOURCE_TABLE') return record.excerpt ? `资料摘录：${record.excerpt}` : '正式接口仅返回资料元数据。';
@@ -167,6 +220,11 @@ function validateAnswerDraftV1(draft, contract, task) {
         }
         if (expected === 'CONFIGURATION_COMPARE_V1') {
             const values = section.factIds.map(id => facts.get(id));
+            // 配置差异事实**不是**必备的：它在回执确实提供 `changes` 时才存在。
+            // 但一旦存在就必须是完整的正式投影。缺席时模板走受限分支，
+            // 绝不把「缺失」当成「配置没变」。
+            const changesFact = values.find(fact => fact.key.predicate === 'scenario.configuration_changes');
+            if (changesFact && !changesFact.complete) throw new Error('ANSWER_COMPARE_CHANGES_INCOMPLETE');
             if (!values.some(fact => fact.key.predicate === 'scenario.cost_comparison') || !values.some(fact => fact.key.predicate === 'scenario.cost') || !values.some(fact => fact.key.predicate === 'recipe.current_cost') || !values.some(fact => fact.key.predicate === 'scenario.override_application')) throw new Error('ANSWER_COMPARE_FACTS');
         }
         if (expected === 'PROFITABILITY_V1') {
@@ -224,9 +282,31 @@ function renderSection(task, section) {
         const base = values.find(item => item.key.predicate === 'recipe.current_cost');
         const candidate = values.find(item => item.key.predicate === 'scenario.cost');
         const comparison = values.find(item => item.key.predicate === 'scenario.cost_comparison');
+        // S2-R3-P2：候选配置是否**真的**改变了正式配置，判据是正式比较回执的配置差异
+        // （`scenario.configuration_changes`），不是成本差额 —— 不同配置可能碰巧同价。
+        const configurationChanges = values.find(item => item.key.predicate === 'scenario.configuration_changes');
+        const scenarioKey = candidate?.key?.scenarioKey;
+        const changes = (Array.isArray(configurationChanges?.value) ? configurationChanges.value : [])
+            .filter(change => change?.scenarioKey === undefined || change.scenarioKey === scenarioKey);
+        // 配置没变：不能说「增加 ¥0.00」，也不该把内部字段名或 ID 当答案。
+        if (configurationChanges && changes.length === 0) {
+            return `${name}本次请求的配置与当前正式配置一致，配置没有变化，完整成本仍为 ${money(base.value)}。本次只是核对，没有保存或修改正式配方。`;
+        }
+        const fieldDiffs = changes.map(change => renderConfigurationChange(change)).join('、');
         const applied = values.find(item => item.key.predicate === 'scenario.override_application');
-        const changes = Object.entries(applied?.value || {}).map(([field, value]) => renderAppliedOverride(field, value)).join('、');
-        return `${name}当前完整成本为 ${money(base.value)}。临时方案完整成本为 ${money(candidate.value)}，较当前 ${Number(comparison.value.delta) >= 0 ? '增加' : '减少'} ${money(Math.abs(Number(comparison.value.delta)))}。已正式应用的临时配置：${changes || '无'}。本次只是试算，没有保存或修改正式配方。`;
+        const appliedFields = Object.keys(applied?.value || {});
+        const covered = new Set(changes.map(change => change?.field).filter(Boolean));
+        // 未在配置差异里出现的已应用字段才用兜底渲染，避免与上面重复。
+        const remaining = appliedFields.filter(field => !covered.has(field)).map(field => renderAppliedOverride(field, applied.value[field]));
+        const changeText = [...(fieldDiffs ? [fieldDiffs] : []), ...remaining].join('、');
+        const deltaText = `${Number(comparison.value.delta) >= 0 ? '增加' : '减少'} ${money(Math.abs(Number(comparison.value.delta)))}`;
+        // 没有正式配置差异事实时，不得声称「配置没有变化」（缺失 ≠ 无差异），
+        // 也不得退回展示内部字段名。只陈述成本与本次候选配置本身。
+        if (!configurationChanges) {
+            const candidateText = remaining.length ? remaining.join('、') : '以本次请求的覆盖项为准（正式回执未返回配置差异明细）';
+            return `${name}当前完整成本为 ${money(base.value)}。临时方案完整成本为 ${money(candidate.value)}，较当前 ${deltaText}。本次候选配置：${candidateText}。本次只是试算，没有保存或修改正式配方。`;
+        }
+        return `${name}当前完整成本为 ${money(base.value)}。临时方案完整成本为 ${money(candidate.value)}，较当前 ${deltaText}。本次配置变化：${changeText || '无'}。本次只是试算，没有保存或修改正式配方。`;
     }
     if (section.templateKey === 'PROFITABILITY_V1') {
         const profitability = values.find(item => item.key.predicate === 'profitability.preview')?.value;
@@ -337,4 +417,9 @@ function composeTaskAnswerV2(task, context = {}) {
     }
 }
 
-module.exports = { buildTaskAnswerContractV1, buildAnswerDraftV1, composeTaskAnswerV2, taskMode, validateAnswerDraftV1 };
+module.exports = {
+    buildTaskAnswerContractV1, buildAnswerDraftV1, composeTaskAnswerV2, taskMode, validateAnswerDraftV1,
+    // S2-R3-P2：配置差异的用户可见渲染是纯函数，单独导出以便直接锁定
+    // 「内部字段名绝不进正文」这条约束（含未知字段的退化分支）。
+    renderAppliedOverride, renderConfigurationChange,
+};

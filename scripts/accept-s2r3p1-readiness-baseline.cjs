@@ -63,8 +63,7 @@ const INTERNAL_CODE = /CROSS_CATALOG_CANDIDATES|AI_RESOURCE_NOT_FOUND|ERROR|_V1\
 const MONEY_TEMPLATE = /没有取得可用金额|不给当前完整成本|没有可用的保存成本快照/;
 
 const results = [];
-function run(tag, text, opts) {
-  opts = opts || {};
+function run(tag, text) {
   const conv = 'p1-' + tag + '-' + Date.now();
   let r;
   try { r = chat(GLOBAL_COOKIE, text, conv); }

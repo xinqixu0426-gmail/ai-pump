@@ -58,3 +58,4 @@ Document.xml
 
 # 本地 owner 验收 token（明文，绝不提交）
 _owner-token.local
+.env.bak*

@@ -16,6 +16,7 @@ const MAX_RECEIPT_BYTES = 98304;
 const MAX_STATE_BYTES = 262144;
 const VOLATILE_FACT_PREDICATES = new Set([
     'recipe.current_cost', 'scenario.cost', 'scenario.cost_comparison',
+    'scenario.override_application', 'scenario.configuration_changes',
     'profitability.preview', 'inventory.virtual_readiness', 'inventory.stock',
     'quotation.current_state', 'order.current_state', 'catalog.price',
 ]);

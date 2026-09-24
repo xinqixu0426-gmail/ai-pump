@@ -27,6 +27,8 @@ const EvidenceFactTypes = [
     'FORMAL_RELATION_RESULT', 'RECIPE_COST_COMPARISON',
     // S2-R3-P1：配方齐料/缺料预览的正式事实（与 Native 的 inventory.virtual_readiness 同源）。
     'VIRTUAL_READINESS_PREVIEW',
+    // S2-R3-P2：候选配置的正式配置差异（Native `scenario.configuration_changes` 的同源登记）。
+    'SCENARIO_CONFIGURATION_CHANGES',
 ];
 const AnswerObligations = [
     'DISCLOSE_MULTIPLE_VARIANTS', 'DISCLOSE_COST_BASIS', 'DISCLOSE_UNSUPPORTED_HYPOTHETICAL',

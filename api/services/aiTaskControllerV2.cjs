@@ -5,7 +5,7 @@
 // it intentionally contains no cost, inventory, identity, or write logic.
 const crypto = require('node:crypto');
 const { extractTaskSemanticsV2, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION } = require('./aiTaskSemanticsV2.cjs');
-const { createTaskCapabilityAdapterV2, readJsonPointer } = require('./aiTaskCapabilityAdapterV2.cjs');
+const { createTaskCapabilityAdapterV2, readJsonPointer, decodePointer } = require('./aiTaskCapabilityAdapterV2.cjs');
 const { stableHash } = require('./stableJson.cjs');
 const { factSatisfiesRequirement, validateTaskEnvelopeV2, validateTaskProposalV1 } = require('./aiTaskValidationV2.cjs');
 const { makeFactKey, makeFactRecordV1, recipeCurrentCostRequirement, scenarioCompareRequirements, profitabilityRequirement, virtualReadinessRequirement, recipeScopeHash } = require('./aiTaskFactsV2.cjs');
@@ -20,6 +20,20 @@ const { inferPackagingSemantics } = require('./packagingSemantics.cjs');
 const UNSUPPORTED_GOALS = new Set([
     'APPLY_CHANGE', 'OTHER',
 ]);
+/**
+ * S2-R3-P2：回执里的**可选**字段必须先确认存在再建事实。
+ * 事实值只能从回执按指针重新投影（`makeFactRecordV1` + 校验层的 `pointerExists`），
+ * 因此可选字段缺失时正确的做法是让该事实**缺席**，而不是伪造一个空值 ——
+ * 否则要么抛 JSON_POINTER_MISSING，要么把一个未经回执证实的值冒充成已验证事实。
+ */
+function hasPointer(value, pointer) {
+    let current = value;
+    for (const token of decodePointer(pointer)) {
+        if (current === null || typeof current !== 'object' || !Object.hasOwn(current, token)) return false;
+        current = current[token];
+    }
+    return true;
+}
 const LEGACY_READ_GOALS = new Set(['CURRENT_COST', 'CONFIGURATION_COMPARE', 'PROFITABILITY', 'PREPARE_CHANGE']);
 const MAX_NATIVE_API_CALLS = 32;
 const DEFAULT_ACTIVE_MS = 60_000;
@@ -1582,6 +1596,16 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
                                 makeFactRecordV1({ receipt: compared.receipt, pointer: `${dataPrefix}/scenarios/${data.scenarios.indexOf(candidate)}/cost/currentTotalCost`, key: makeFactKey({ entityType: 'recipe', entityId: selectedRecipe.entityId, predicate: 'scenario.cost', temporalScope: 'SCENARIO', scenarioKey, basis: 'CURRENT_REBUILT' }), planRevision: task.planRevision, clock }),
                                 makeFactRecordV1({ receipt: compared.receipt, pointer: `${dataPrefix}/scenarios/${data.scenarios.indexOf(candidate)}/appliedOverrides`, key: makeFactKey({ entityType: 'recipe', entityId: selectedRecipe.entityId, predicate: 'scenario.override_application', temporalScope: 'SCENARIO', scenarioKey, basis: 'CURRENT_REBUILT' }), planRevision: task.planRevision, clock }),
                                 makeFactRecordV1({ receipt: compared.receipt, pointer: `${dataPrefix}/comparisons/${data.comparisons.indexOf(comparison)}`, key: makeFactKey({ entityType: 'recipe', entityId: selectedRecipe.entityId, predicate: 'scenario.cost_comparison', temporalScope: 'SCENARIO', scenarioKey, basis: 'CURRENT_REBUILT' }), planRevision: task.planRevision, clock }),
+                                // S2-R3-P2：正式回执的**配置差异**（`changes`）。答案据此判定候选配置
+                                // 是否真的改变了正式配置，并按 scenarioKey 归属。判据是配置差异，
+                                // 不是成本差额 —— 「不同配置但碰巧同价」仍是真变更。
+                                // `changes` 是回执的可选字段；缺失时这一事实必须缺席而不是伪造空数组，
+                                // 下游会因此走「无配置差异事实」的受限分支，不会误报 NO_OP。
+                                ...(hasPointer(compared.receipt.result, `${dataPrefix}/changes`) ? [makeFactRecordV1({
+                                    receipt: compared.receipt, pointer: `${dataPrefix}/changes`,
+                                    key: makeFactKey({ entityType: 'recipe', entityId: selectedRecipe.entityId, predicate: 'scenario.configuration_changes', temporalScope: 'SCENARIO', scenarioKey, basis: 'CURRENT_REBUILT', currency: null }),
+                                    planRevision: task.planRevision, clock,
+                                })] : []),
                             ];
                             task.facts.push(...facts); configGoal.requirements = scenarioCompareRequirements(primary.subjectKey, scenarioKey); configGoal.factIds = facts.map(fact => fact.factId); configGoal.state = requirementsSatisfiedAtPlan(task, configGoal) ? 'VERIFIED' : 'PARTIAL';
                             // A profitability receipt contains the same formal base

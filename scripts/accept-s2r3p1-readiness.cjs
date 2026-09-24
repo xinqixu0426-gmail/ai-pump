@@ -7,7 +7,7 @@
  * 本地真实名：v550-tokoy（唯一匹配）。本地库无库存。
  */
 const fs = require('fs'); const path = require('path'); const { execFileSync } = require('child_process');
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..');
 const token = fs.readFileSync(path.join(ROOT, '_owner-token.local'), 'utf8').trim();
 
 function chat(text, conversationId) {
@@ -66,7 +66,7 @@ probe('A5', 'v550-tokoy 300台 齐料');
 
 console.log('--- A6. 首轮缺数量 → 次轮只回「300台」必须续跑（不得再追问）---');
 const convA6 = 'a6-' + Date.now();
-const first = probe('A6-首轮', 'v550-tokoy齐料情况怎么样？', { conversationId: convA6 });
+probe('A6-首轮', 'v550-tokoy齐料情况怎么样？', { conversationId: convA6 });
 const second = probe('A6-次轮', '300台', { conversationId: convA6 });
 const a6Resumed = !second.askedQty && second.state === 'SUCCEEDED';
 

@@ -27,6 +27,12 @@ const FactCapabilityRegistry = deepFreeze({
     // Legacy 侧**不**为它规划调用，只把缺失如实表达成「没有取得正式齐料结论」。
     VIRTUAL_READINESS_PREVIEW: { capability: 'preview_virtual_readiness', sourcePolicy: 'FORMAL_API_ONLY',
         argumentPolicy: ['CANONICAL_SUBJECT_ID', 'VERIFIED_PRIOR_FACT'] },
+    // S2-R3-P2：候选配置的正式配置差异来源。与 Native 的 `scenario.configuration_changes`
+    // 同源：`compare_recipe_scenarios` 的 `changes` 数组（`preview_profitability` 回执里
+    // 同一份数据挂在 scenarioContext 下）。同样是 Native-only 私有能力：
+    // Legacy 侧不规划调用，只如实表达缺失。
+    SCENARIO_CONFIGURATION_CHANGES: { capability: ['compare_recipe_scenarios', 'preview_profitability'],
+        sourcePolicy: 'FORMAL_API_ONLY', argumentPolicy: ['CANONICAL_SUBJECT_ID', 'USER_EXPLICIT_VALUE'] },
 });
 
 function capabilityForFact(factType) { return FactCapabilityRegistry[factType] || null; }
