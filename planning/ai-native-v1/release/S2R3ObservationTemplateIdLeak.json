@@ -1,0 +1,23 @@
+{
+  "recordType": "观察记录（本轮不修，用户裁决：先记下，先不修）",
+  "observedAt": "Stage 1 生产 smoke（mode=off，commit 20755dd）",
+  "observation": {
+    "question": "列一下配方",
+    "answerExcerpt": "当前正式配方共 2 个：| 成品型号 | 泵壳模板 | 机筒长度 | 线圈 | 包装 | 保存成本 | … | V750大脚板-2寸-经典款 | templateId 7 | 170mm | 12-140 钢带/小眼 | 木箱-V750、珍珠棉、泡沫 | ¥288.16 |",
+    "problem": "表格「泵壳模板」列显示的是内部标识 `templateId 7`，而不是模板的业务名称（应类似 `V750-大脚板-2寸`）。属机器词/内部编号泄漏类，与已修的 `coilId=1` 同族。",
+    "whyNotFixedNow": "Supervisor 已明确：S2-R3-P1/P2 完成后不再主动开新优化票，只按用户真实使用中发现的缺陷继续修。用户裁决「先记下，先不修」。",
+    "notes": [
+      "这条走的是 Legacy 共享回答层（mode=off 下无 native 路由），不是 Native 答案模板；Native 侧同字段的呈现尚未验证。",
+      "同一次 smoke 里 `列一下配方` 已确认不再命中 AI_QUERY_RESULT_TOO_LARGE（P1 budget fix 在生产生效）。"
+    ],
+    "classification": "机器词/内部编号泄漏（presentation 层），严重度：低",
+    "candidateTicketIfLaterApproved": "S2-R3-P3（待批准）：列表答案中内部模板标识替换为业务名称，覆盖同类内部编号字段"
+  },
+  "safetyPremiseStillHeld": {
+    "wrongMoney": 0,
+    "wrongCanonical": 0,
+    "businessWrites": 0,
+    "selfCalculatedMoney": 0,
+    "note": "本轮观察不涉及金额、canonical 身份或写入，故不触发 owner 回退"
+  }
+}
