@@ -1,0 +1,111 @@
+{
+  "recordType": "Supervisor 裁定：Legacy 退役策略与 Coverage Wave 2 路线",
+  "ruling": {
+    "canLegacyBeRetiredWholesale": "NO —— 不能整体弃用",
+    "canLegacyBeRetiredByDomain": "YES —— 可按业务域逐步退役 Legacy orchestration",
+    "openCoverageExpansionNow": "暂不开代码票。先完成一轮真实 Owner GUI 人工验收；无严重缺陷后立即开。"
+  },
+  "terminologySeparation": {
+    "note": "Supervisor 要求以后分开称呼，不再笼统说「删 Legacy」",
+    "A_LegacyOrchestration": {
+      "what": "老 planner / tool selection / fallback routing",
+      "future": "未来要逐步退场的对象"
+    },
+    "B_SharedAnswerPresentation": {
+      "what": "部分 Native 与 Legacy 共用的答案/呈现层（answerBoundary、presentation normalizer 等）",
+      "future": "逐步收敛，不一定整体删除；最终目标变成统一 Answer Contract"
+    },
+    "C_BusinessServices": {
+      "what": "costEngine / BOM / recipe / inventory / order APIs 等正式业务底座",
+      "future": "永远保留 —— 不能因为 Native 上线而删除"
+    }
+  },
+  "migrationPattern": {
+    "name": "Strangler 式分域迁移",
+    "stages": [
+      "Legacy authoritative",
+      "Native shadow",
+      "Native owner canary",
+      "Native authoritative + Legacy fallback",
+      "Native 稳定",
+      "该业务域停止走 Legacy orchestration"
+    ],
+    "note": "最后退役的是旧调度路径（A），不是底层工具/API（C）"
+  },
+  "currentNativeScope": {
+    "supportedFamilies": [
+      "当前成本（单个在售配方）",
+      "配置变更 + 毛利 + 齐料（多目标）",
+      "虚拟齐料 / 缺料预览",
+      "两个方案的成本差额（比较）",
+      "线圈档案成本",
+      "线圈库存"
+    ],
+    "registryTotal": 9,
+    "partial": ["不存在的对象（负向探测）"],
+    "unsupported": ["规格 / 配置差异（非金额）", "经营概况 / 看板"],
+    "aiToolsTotal": 80,
+    "aiWriteTools": 29,
+    "nativeCoveredWriteTools": 0
+  },
+  "requiredNextStep": {
+    "name": "Owner GUI 人工验收一轮（用户本人操作）",
+    "mustNaturallyCover": "当前 6 个 supported family：当前配方成本 / 配方成本比较 / 线圈成本 / 线圈库存 / 配置变更 / 齐料缺料",
+    "plusNaturalFollowups": ["这个呢？", "那换成另一个？", "做300台够不够？"],
+    "stopCondition": "只要没有再出现 错金额 / 错主体 / 严重域漂移 / 写风险，即可宣布 CURRENT_NATIVE_SCOPE_ACCEPTED，随即进入 Coverage Expansion",
+    "notRequired": "不需要再造 100 条测试"
+  },
+  "wave2Plan": {
+    "name": "Native Coverage Wave 2 — Customer / Quotation / Order Read Domain",
+    "authorizedNow": false,
+    "blockedBy": "用户本人 GUI 人工验收尚未开始",
+    "readOnlyFirst": true,
+    "whyThisDomain": [
+      "用户日常真的会查",
+      "业务价值高",
+      "风险比写操作低很多",
+      "能验证 Native 从「单对象查询」升级到「跨对象调查」",
+      "现有正式 API 已很多，不需要重造业务逻辑",
+      "开始体现 AI-Native 的真正价值（老板问一句，AI 自己跨域调查）"
+    ],
+    "subWaves": [
+      { "id": "W2-A", "name": "Customer Read", "scope": ["找客户", "客户基本资料", "客户历史摘要", "客户最近订单/报价引用"] },
+      { "id": "W2-B", "name": "Quotation Read", "scope": ["报价列表", "报价详情", "某客户历史报价", "当前报价 vs 历史报价"] },
+      { "id": "W2-C", "name": "Order Read", "scope": ["订单列表", "订单详情", "当前状态", "某客户有哪些订单", "某订单目前进度"] },
+      { "id": "W2-D", "name": "Cross-domain Investigation", "scope": ["这个客户最近报价和订单情况怎么样？→ Native 自动跨 customer → quotation → order"], "note": "这一步开始接近用户真正想要的「AI 调查助手」" }
+    ],
+    "exampleTargets": [
+      "印尼那个客户最近有没有下过单？→ 自动走 customer → quotation → order → current status → verified answer",
+      "这个客户上次报价是多少，现在有没有订单？"
+    ]
+  },
+  "writeOperationSequencing": {
+    "ruling": "不在下一步做 29 个写工具的 Native 化",
+    "order": [
+      "当前 6 个只读能力",
+      "订单 / 报价 / 客户只读",
+      "采购 / 库存 / 文件等更多只读",
+      "跨域 investigation 稳定",
+      "再考虑 Native Write"
+    ],
+    "whyWriteIsDifferent": [
+      "proposal", "confirmation", "write admission", "frozen facts",
+      "audit", "rollback", "retry/idempotency", "partial failure recovery"
+    ],
+    "principle": "先让 Native「看懂整个工厂」，再让它「动工厂」"
+  },
+  "templateIdObservation": {
+    "status": "RECORDED / NOT FIXED NOW（维持用户决定）",
+    "ruling": "不是阻断当前 GUI 验收的问题；留到下一轮 presentation cleanup 一起收",
+    "artifact": "planning/ai-native-v1/release/S2R3ObservationTemplateIdLeak.json"
+  },
+  "knownUnfixedSecurityTodos": {
+    "note": "均为用户裁定「上线后统一处理」，不阻断当前阶段",
+    "items": [
+      "INTERNAL_SECRET 仍是曾暴露值 30fe890f7908",
+      "ALI_ACCESS_KEY_ID / ALI_ACCESS_KEY_SECRET 仍是曾暴露值（用户称阿里云已弃用）",
+      "部署链未跑 verify:release 外部实时门禁",
+      "本地测试密钥明文文件清理"
+    ]
+  }
+}
