@@ -1,5 +1,9 @@
 'use strict';
 
+// S2-R3-P1：齐料/缺料（readiness）语义与「当前话语的数量槽位」只有一个权威，
+// 业务语义层与 Task V2 语义层共用，避免两层对同一句话给出不同业务域。
+const { readinessProfile } = require('./readinessSemantics.cjs');
+
 function parseCoilShorthand(text) {
     const match = String(text || '').match(/(?:^|[^\d])(\d{1,3})\s*[-－]\s*(\d{2,4})(?:[^\d]|$)/u);
     return match ? { spec: match[1], sheets: Number(match[2]) } : null;
@@ -40,6 +44,9 @@ function catalogAdmissionSignals(userText) {
     if (/(?:旧名|曾用名|历史名称|(?:^|\s)老[\p{L}\p{N}_\-－]{2,})/u.test(text)) signals.push('FORMAL_ALIAS_REFERENCE');
     if (/(?:找|查|查询|查看|看看|看一下|搜索|搜一下|是什么型号|有哪些方案|哪些方案)/u.test(text)) signals.push('LOOKUP_OPERATION');
     if (/(?:这个|该|当前|这些)(?:配方|线圈方案|零件|配件|泵壳模板)/u.test(text)) signals.push('EXPLICIT_RESOURCE_REFERENCE');
+    // S2-R3-P1：齐料/缺料预览是**已支持的业务请求**，必须能通过准入；
+    // 判据来自 readiness 业务语义（物料词 + 齐备/缺口谓词，或齐料预览类复合词），不是句式。
+    if (readinessProfile(text).active) signals.push('SEMANTIC_READINESS_REQUEST');
     return [...new Set(signals)];
 }
 
@@ -113,8 +120,12 @@ function classifyQuestion(userText, options = {}) {
     const admission = positivelyAdmittedBusinessRequest(text);
     const admitted = admission.admitted || copperBasisRequested || options.admittedCatalogLookup === true;
     const comparisonSubjects = parseComparisonSubjects(text);
+    // S2-R3-P1：齐料/缺料预览是库存域（库存管理物料是否齐备），不是目录查询、更不是成本查询。
+    // 这一步在 kind 判定里完成，使下游（语义帧 / answer boundary / 证据计划）拿到正确业务域。
+    const readiness = readinessProfile(text);
     let kind = 'OUT_OF_SCOPE', operation = 'NONE';
     if (admitted && comparisonSubjects.length === 2) { kind = 'COST_COMPARISON'; operation = 'COMPARE_COST'; }
+    else if (admitted && readiness.active) { kind = 'INVENTORY_QUERY'; operation = 'PREVIEW_READINESS'; }
     else if (admitted && inventory) { kind = 'INVENTORY_QUERY'; operation = 'READ_INVENTORY'; }
     else if (admitted && configurationOverride) { kind = 'CONFIGURATION_OVERRIDE'; operation = /算|成本|价格/u.test(text) ? 'PREVIEW_CONFIGURATION_COST' : 'DESCRIBE_CONFIGURATION'; }
     else if (admitted && hypothetical && cost) { kind = 'HYPOTHETICAL_COST_QUERY'; operation = 'READ_OR_PREVIEW_COST'; }

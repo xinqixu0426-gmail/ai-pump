@@ -1,0 +1,77 @@
+{
+  "ticket": "S2-R3-P1",
+  "recordType": "本地 owner 模式验收基线（修复前）",
+  "authority": "用户决定：本地开 owner 模式验收，不装生产；理由=本地数据库更全面",
+  "environment": {
+    "worktree": "C:\\Users\\Dan\\Documents\\pump-canary-s2",
+    "branch": "ai-native/prod-canary-s2",
+    "headAtBaseline": "5a499d7",
+    "api": "http://127.0.0.1:3002 (pid 11196, node api.cjs)",
+    "web": "http://localhost:3000 (next start, canary worktree)",
+    "aiNativeMode": "owner",
+    "authority": "owner-scoped-native",
+    "writeEnabled": false,
+    "ownerIdentity": "PUMP_OWNER_SUBJECT=local_owner_subject_0001, AI_V5_OWNER_SUBJECTS=[local_owner_subject_0001], PUMP_OWNER_ACCESS_PASSWORD 32 chars (random, local only)",
+    "ownerConfigValid": true,
+    "ownerToken": "issued via api/services/ownerAuthentication.cjs issueOwnerToken(); stored in _owner-token.local (明文, 验收完成后删除)",
+    "windowsOwnerPathFinding": "本地 owner 路径可用的原因：issueOwnerToken 只做 JWT 签名 + ownerConfigValid；Windows 不兼容的只是 start-owner-authentication.cjs 那个独立网关进程（要求 st.uid === process.getuid()），不阻塞 API 自身的 owner 判定。已实测 ownerConfigValid=true 且路由生效。",
+    "localData": {
+      "recipes": 9,
+      "note": "本地库无任何库存（线圈库存全为 0）；本地无常驻生产名 'V750大脚板-2寸-经典款'",
+      "exactNames": ["v550-tokoy", "v750-tokoy", "v750-tokoy-", "V750-大脚板-2寸", "V12-120-DY-ml", "V12-100-DY-ml", "800直出水切割泵", "v1500-DY-ml", "V1100-2寸"],
+      "uniqueNameForCleanTests": "v550-tokoy（唯一匹配；v750-tokoy 是 v750-tokoy- 的前缀，会触发同名歧义澄清，掩盖真实缺陷）",
+      "coils": 12,
+      "coil12_120": "id=1 COIL-0001 12-120 钢带 小眼 库存=0"
+    }
+  },
+  "defect2Baseline": {
+    "testInput": "v550-tokoy <说法>",
+    "order": [
+      { "phrase": "虚拟齐料预览300台", "state": "SUCCEEDED", "reAskedQuantity": false, "verdict": "PASS" },
+      { "phrase": "按300台虚拟齐料预览", "state": "WAITING_INPUT", "reAskedQuantity": true, "verdict": "FAIL", "answer": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。" },
+      { "phrase": "按300台虚拟齐料 v550-tokoy", "state": "WAITING_INPUT", "reAskedQuantity": true, "verdict": "FAIL" },
+      { "phrase": "虚拟齐料：v550-tokoy，数量300台", "state": "SUCCEEDED", "reAskedQuantity": false, "verdict": "PASS" },
+      { "phrase": "v550-tokoy 300台 齐料", "state": "SUCCEEDED", "reAskedQuantity": false, "verdict": "PASS" }
+    ],
+    "summary": "2 / 5 追问数量而失败 —— 数量解析依赖'型号在前、数量在后'的语序，与生产端观察一致，且与库存数据无关（纯语义层缺陷）",
+    "reproductionIsDataIndependent": true
+  },
+  "defect3Baseline": {
+    "缺料预览族名": {
+      "phrase": "缺料预览 v550-tokoy 100台",
+      "canary": "INELIGIBLE",
+      "answerExcerpt": "本轮查询阶段已结束，未取得针对 100 台用量的缺料/库存对比结果，因此无法给出缺料清单和缺口数量。",
+      "verdict": "FAIL — 族名自己不在 canary 范围内；掉 legacy 后给出降级答案"
+    },
+    "无数量的缺料问句": {
+      "phrase": "v550-tokoy缺什么料？",
+      "canary": "INELIGIBLE",
+      "answerExcerpt": "“v550-tokoy”不是订单，是配方型号。订单查询返回：未找到匹配订单（候选为空）。",
+      "verdict": "FAIL — 域判断错误：问缺料被答成'这不是订单'"
+    },
+    "对照组生产100台缺什么料": {
+      "phrase": "v550-tokoy生产100台缺什么料？",
+      "state": "SUCCEEDED",
+      "canary": "eligible",
+      "verdict": "PASS — 与生产端一致"
+    },
+    "rootCauseConfirmed": "VIRTUAL_READINESS_INTENT/条件只认 '生产N台' 语序；'缺料预览' 与 '缺什么料' 的语义未被映射到 readiness 目标"
+  },
+  "ownerRegressionBaselineLocal": {
+    "note": "本地数据与生产不同，以下为本地对照值（不是生产值）",
+    "R1_单配方成本": "v550-tokoy → SUCCEEDED ¥273.38",
+    "R2_双方案比较": "UNSUPPORTED（本地 V750-大脚板-2寸 与 v550-tokoy 组合下未匹配）",
+    "R3_线圈档案成本": "12-120钢带小眼 → SUCCEEDED ¥99.79",
+    "R4_线圈库存": "12-120 → SUCCEEDED 库存 0",
+    "R5_配置变更": "WAITING_INPUT（本地 V750 同名歧义）",
+    "R6_300台缺料": "WAITING_INPUT（本地 V750 同名歧义）"
+  },
+  "verificationAuthority": "验收由主 agent 独立执行（_p1-replay.cjs / _probe-qty3.cjs），不采信执行方自报；本地确定性测试 + 本地 owner 真实复跑",
+  "notVerified": [
+    "生产 Mac mini 真实复跑（用户选择本地验收，此项不执行，标记为未验证）",
+    "GUI/视觉验收（需用户本人操作）"
+  ],
+  "gateBaseline": {
+    "npmTest": "3233 tests / 3233 pass / 0 fail（修复前基线，运行于 5a499d7 + 未提交的 planning 工件）"
+  }
+}

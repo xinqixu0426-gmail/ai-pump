@@ -1,0 +1,145 @@
+{
+  "ticket": "S2-R3-P1",
+  "title": "Readiness Semantic Boundary Closure",
+  "authority": "Supervisor ruling 2026-09-24: Owner Manual Acceptance = REWORK; S2-R3-P1 covers defects 2+3+4+5; defect 1 deferred to S2-R3-P2",
+  "productionAtTicketOpen": {
+    "branch": "ai-native/prod-canary-s2",
+    "head": "f9212571f4813b164bcd2b33993bbd2e17e88f7a",
+    "tree": "d0043033",
+    "aiNativeMode": "owner",
+    "aiNativeWriteEnabled": false,
+    "note": "Supervisor: keep owner + WRITE=false; only pause 'Owner Manual Acceptance PASS' verdict"
+  },
+  "defectsInScope": [
+    {
+      "id": 2,
+      "severity": "high",
+      "title": "Virtual-readiness quantity extraction is word-order dependent",
+      "evidence": {
+        "fails": [
+          "V750大脚板-2寸-经典款按300台虚拟齐料预览 → WAITING_INPUT, 28 chars, toolCallCount=0",
+          "按300台虚拟齐料 V750大脚板-2寸-经典款 → WAITING_INPUT, same",
+          "V750大脚板-2寸-经典款齐料情况怎么样？ → WAITING_INPUT (no qty: correct)"
+        ],
+        "passes": [
+          "V750大脚板-2寸-经典款虚拟齐料预览300台 → SUCCEEDED 945 chars",
+          "虚拟齐料：V750大脚板-2寸-经典款，数量300台 → SUCCEEDED 945 chars",
+          "V750大脚板-2寸-经典款 300台 齐料 → SUCCEEDED 945 chars"
+        ]
+      },
+      "rootCause": "api/services/aiTaskSemanticsV2.cjs:16 VIRTUAL_READINESS_INTENT requires quantity immediately after 做/生产; :243 quantity regex anchored to (?:做|生产|够做)\\s*(\\d+)\\s*台 or (\\d+)\\s*台 followed by punctuation/end — '按300台虚拟齐料' and '按300台虚拟齐料 V750...' do not match; intent regex must itself prove quantity existence before the quantity slot is extracted at :246"
+    },
+    {
+      "id": 3,
+      "severity": "high",
+      "title": "Shortage/readiness domain admission and compound-subject extraction",
+      "evidence": {
+        "canary_ineligible_wrong_domain": [
+          "V750大脚板-2寸-经典款缺什么料？ → INELIGIBLE, 4 tools, answer='V750大脚板-2寸-经典款 的本轮正式当前重算没有取得可用金额，因此不给当前完整成本；本轮也没有可用的保存成本快照。' (cost domain, question asked shortage)",
+          "缺料预览 V750大脚板-2寸-经典款 100台 → INELIGIBLE, 3 tools, same cost-domain refusal (NOTE: had a quantity and still missed)",
+          "V750大脚板-2寸-经典款和 V550大脚板-2寸-经典款 各100台 缺什么料 → INELIGIBLE, 6 tools, answer='仍缺少正式证据：CROSS_CATALOG_CANDIDATES，本轮不能给出完整结论。'"
+        ],
+        "canary_eligible_correct": [
+          "V750大脚板-2寸-经典款生产100台缺什么料？ → SUCCEEDED 945 chars correct",
+          "如果 V750大脚板-2寸-经典款生产300台，齐料情况怎么样？ → SUCCEEDED 945 chars correct"
+        ],
+        "rootCause": [
+          "aiTaskSemanticsV2.cjs:16 VIRTUAL_READINESS_INTENT lacks '缺料预览'/'缺什么料'/'按N台看缺料' as meaning-level readiness intents; :214 requires recipeSubject && VIRTUAL_READINESS_INTENT && !orderSubject; :218 fallback /库存|有货|够不够/ does not cover shortage-domain phrasing → goal kind falls through to a model-registered kind → admission sees an unsupported/other goalKind → LEGACY_SAFE_PATH",
+          "business-semantics/frameBuilder.cjs:135,137,211 classifies the query against part-catalog facts; validator.cjs:71 then hard-asserts facts.get('CROSS_CATALOG_CANDIDATES')?.state === 'VERIFIED'",
+          "business-semantics/answerBoundary.cjs:203 emits the money refusal template"
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "severity": "medium",
+      "title": "Legacy path asserts the opposite of its own tool receipts",
+      "evidence": "V750大脚板-2寸-经典款各100台缺什么料？ → tool receipt get_recipe_detail(includeCurrentCost:true) succeeded, yet answer said '没有取得可用金额…本轮也没有可用的保存成本快照'",
+      "rootCause": "answerBoundary.cjs:203 fallback fires without reconciling against the tool results actually returned in the same turn"
+    },
+    {
+      "id": 5,
+      "severity": "low",
+      "title": "Internal evidence codes visible to the user",
+      "evidence": "answer text '仍缺少正式证据：CROSS_CATALOG_CANDIDATES，本轮不能给出完整结论。'",
+      "rootCause": "business-semantics/contract.cjs:26 fact key set / answerBoundary renders raw required-fact keys into the user answer"
+    }
+  ],
+  "forbidden": [
+    "new Native family",
+    "new multi-recipe readiness capability",
+    "Coverage Wave 2",
+    "Ontology",
+    "Business API refactor",
+    "DB schema change",
+    "stacking regex patches for individual sentences",
+    "modifying the cost engine",
+    "defect 1 (no-op configuration answer / coilId leak / 已正式应用的临时配置)"
+  ],
+  "requiredBehavior": {
+    "A_quantity_order_independent": "All 5 phrasings parse to the same formal quantity=300. Quantity is an independent structured slot of the current utterance, not proof-by-intent-regex. First turn missing quantity → WAITING_INPUT; next turn replying only '300台' must resume the pending readiness task and must not ask again.",
+    "B_semantic_admission": "Single-recipe readiness meaning maps to the readiness goal regardless of trigger phrase: 生产100台缺什么料 / 缺料预览…100台 / 100台齐料怎么样 / 按100台看缺料 all enter the same family. Must not require the literal token 生产…台 and must not require the user to say the internal family name.",
+    "C_no_quantity_shortage": "V750…缺什么料？ must NOT fall into the cost domain. Allowed: WAITING_INPUT asking 请告诉我要按多少台计算, or the existing formal default if the contract defines one. Never guess a quantity.",
+    "D_multi_recipe": "Do NOT add multi-recipe readiness. If the formal contract is single-recipe, give a bounded clarification e.g. 当前一次按一个配方做齐料预览。请先选择 V750 或 V550。 Never bind the whole user sentence as recipeName. Never fuzzy first-result. Never fall into the wrong business domain.",
+    "E_domain_preserving_fallback": "Readiness/shortage requests keep their domain even when Native admission fails. No drift to 当前成本/保存成本. When tool facts already exist, never output a statement contradicting them. If the question never asked about money, never emit a money-missing template.",
+    "F_no_internal_codes": "CROSS_CATALOG_CANDIDATES, AI_RESOURCE_NOT_FOUND, formal requirement keys and internal evidence codes go to trace/log/evidence only, never into the final user answer; final answer is business language."
+  },
+  "regressionCases": [
+    "V750大脚板-2寸-经典款按300台虚拟齐料预览",
+    "按300台虚拟齐料 V750大脚板-2寸-经典款",
+    "V750大脚板-2寸-经典款虚拟齐料预览300台",
+    "虚拟齐料：V750大脚板-2寸-经典款，数量300台",
+    "V750大脚板-2寸-经典款缺什么料？ → ask quantity, not cost domain",
+    "缺料预览 V750大脚板-2寸-经典款 100台 → Native readiness",
+    "V750大脚板-2寸-经典款生产100台缺什么料 → existing PASS preserved",
+    "first turn missing qty → second turn 300台 → resumes",
+    "V750 + V550 各100台 → bounded clarification, no new capability",
+    "multi-subject sentence never used whole as recipeName",
+    "fallback never emits cost refusal for shortage-domain request",
+    "no CROSS_CATALOG_CANDIDATES in user answer"
+  ],
+  "ownerCasesMustNotRegress": [
+    "单配方当前成本",
+    "双方案成本比较",
+    "线圈成本",
+    "线圈库存",
+    "配置变更",
+    "300台缺料预览"
+  ],
+  "safetyGates": {
+    "WRONG_CANONICAL_BINDING": 0,
+    "FACT_VALUE_CONFLICT": 0,
+    "FACT_BASIS_CONFLICT": 0,
+    "SELF_CALCULATED_MONEY": 0,
+    "BUSINESS_WRITES_FROM_NATIVE": 0,
+    "INTERNAL_CODE_LEAK": 0
+  },
+  "gatesToRun": [
+    "npm test",
+    "npm run verify:api-contract",
+    "npm run test:deep-api",
+    "npm run lint",
+    "npm run build",
+    "npm run verify:ai-native-release",
+    "ontologyRoutingCanary"
+  ],
+  "notAllowedToChange": {
+    "NEW_NATIVE_FAMILY": "NO",
+    "ONTOLOGY_CHANGED": "NO",
+    "BUSINESS_API_CHANGED": "NO",
+    "DATABASE_SCHEMA_CHANGED": "NO"
+  },
+  "ownerRealReplayRequired": [
+    "按300台虚拟齐料 V750大脚板-2寸-经典款",
+    "缺料预览 V750大脚板-2寸-经典款 100台",
+    "V750大脚板-2寸-经典款缺什么料？",
+    "V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台，缺什么料？"
+  ],
+  "replayFocus": "family / subject / quantity / admission / tool-domain / final user wording — NOT answer character count",
+  "deferred": {
+    "ticket": "S2-R3-P2",
+    "title": "No-op Configuration Answer Normalization",
+    "scope": "before canonical config == requested config → NO_OP_CHANGE; user should see e.g. 当前 V550 使用的就是 12-120 钢带小眼线圈，配置没有变化，完整成本仍为 ¥269.12。 Not 增加 ¥0.00 / coilId=1 / 已正式应用的临时配置. Must be an answer-contract-level NO_OP configuration change, not a string replacement.",
+    "mustNotBeTouchedInP1": true
+  }
+}

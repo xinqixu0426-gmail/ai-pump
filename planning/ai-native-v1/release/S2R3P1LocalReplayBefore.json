@@ -1,0 +1,222 @@
+[
+  {
+    "tag": "A1",
+    "text": "V750大脚板-2寸-经典款虚拟齐料预览300台",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 513
+  },
+  {
+    "tag": "A2",
+    "text": "V750大脚板-2寸-经典款按300台虚拟齐料预览",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 538
+  },
+  {
+    "tag": "A3",
+    "text": "按300台虚拟齐料 V750大脚板-2寸-经典款",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 538
+  },
+  {
+    "tag": "A4",
+    "text": "虚拟齐料：V750大脚板-2寸-经典款，数量300台",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 511
+  },
+  {
+    "tag": "A5",
+    "text": "V750大脚板-2寸-经典款 300台 齐料",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 511
+  },
+  {
+    "tag": "A6",
+    "first": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+    "firstState": "WAITING_INPUT",
+    "second": "“V750”有多个正式配方，请选择一个。",
+    "secondState": "WAITING_INPUT",
+    "reasked": false
+  },
+  {
+    "tag": "B1",
+    "text": "V750大脚板-2寸-经典款生产100台缺什么料？",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 511
+  },
+  {
+    "tag": "B2",
+    "text": "缺料预览 V750大脚板-2寸-经典款 100台",
+    "state": "",
+    "canary": "INELIGIBLE",
+    "calls": [
+      "search_templates({\"shellModel\":\"V750大脚板-2寸-经典款\"})",
+      "build_recipe_bom_draft({\"shellModel\":\"V750大脚板-2寸-经典款\",\"useRecipeBaseline\":true})",
+      "search_templates({\"shellModel\":\"V750\"})",
+      "search_factory_knowledge({\"query\":\"V750大脚板 2寸 经典款\",\"limit\":10})"
+    ],
+    "content": "“V750大脚板-2寸-经典款”这个名称在正式目录里没有匹配记录，无法直接给出缺料预览。\n\n- 泵壳模板目录中名称含 V750 的只有两条：**V750-大脚板-2寸**（标准出厂配置， ）和 **V750-DY款-圆底脚**，没有“经典款”这一条。\n- 用该完整名称试算 BOM 时，正式接口返回“泵壳模板不存在”（404），因此没有生成任何缺料结果。\n\n请确认要按哪一个模板做 100 台的缺料预览：\n1. V750-大脚板-2寸\n2. V750-DY款-圆底脚\n\n告知后我按该模板核实 100 台的用量与库存缺口。（另外，“缺料”只能按完整配置的 BOM 与当前库存对比得出，如果只给泵壳模板，成品所需的线圈、浮球、电缆、包装等未定项会缺少依据，也可能需要一并明确。）",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 50738
+  },
+  {
+    "tag": "B3",
+    "text": "V750大脚板-2寸-经典款 100台齐料怎么样？",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "请确认本次要按多少台进行虚拟齐料预览，例如“300台”。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 538
+  },
+  {
+    "tag": "B4",
+    "text": "V750大脚板-2寸-经典款按100台看缺料",
+    "state": "",
+    "canary": "INELIGIBLE",
+    "calls": [
+      "search_templates({\"shellModel\":\"V750\"})",
+      "get_all_recipes({\"keyword\":\"V750\"})",
+      "get_recipe_detail({\"recipeName\":\"V750-大脚板-2寸\"})",
+      "get_template_detail({\"shellModel\":\"V750-大脚板-2寸\"})"
+    ],
+    "content": "**V750-大脚板-2寸-经典款 按100台看缺料**\n\n目前只能做到配方/物料清单层级，**缺料结果无法给出**——本轮没有查到库存数量，也没有执行缺料比对（现有结果只有配方明细、模板配置和历史成本，均不含实时库存）。\n\n**已核实的基础（对应在售配方：V750-大脚板-2寸，19项物料，机筒210mm）**\n\n单台用量 → ×100台需求：\n- 泵壳套件 V750-大脚板-2寸 ×1 → 100\n- 花板轴承 202 ×1 → 100\n- 油缸轴承 203 ×1 → 100\n- 机械油封 14*28*38 ×1 → 100\n- 骨架油封 14*28 ×1 → 100\n- 提手 八角注塑提手带叫头 ×1 → 100\n- 提手螺丝 5*12-201-内六 ×2 → 200\n- 压板螺丝 5*12-201-内六 ×4 → 400\n（以上为部分明细：中性明细共 19 项，已展示前 8 项，另有 11 项未展开；需要完整清单请明确说明。本轮正式结果里没有出现结构化的缺料/未定价/未完成/待选择状态；结论性条目按既有保守规则保留，未展开项无法逐项确认。）\n\n**说明与风险**\n- 以上为在售配方基准配置，未做任何修改；人工、表面处理等项目不属于可缺料物料。\n- 缺料需要每项物料的当前可用库存与实时目录比对，本轮未取得该数据，因此**没有任何一项可判定为缺或够**。\n- 上述用量来自配方/模板的配置数量，非库存口径。\n\n**下一步**\n请允许继续查询库存并执行100台需求比对；拿到实时库存后我再逐项给出缺料清单和缺口数量。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 132539
+  },
+  {
+    "tag": "C1",
+    "text": "V750大脚板-2寸-经典款缺什么料？",
+    "state": "",
+    "canary": "INELIGIBLE",
+    "calls": [
+      "search_templates({\"shellModel\":\"V750 大脚板 2寸 经典款\"})",
+      "search_templates({\"shellModel\":\"V750\"})",
+      "get_template_detail({\"shellModel\":\"V750大脚板-2寸-经典款缺什么料\"})",
+      "get_template_detail({\"shellModel\":\"V750大脚板-2寸-经典款缺什么料\"})",
+      "get_template_detail({\"shellModel\":\"V750大脚板-2寸-经典款缺什么料\"})"
+    ],
+    "content": "## V750-大脚板-2寸\n\n**先把身份对齐**：正式泵壳模板目录中共有 2 条 V750 模板：\n\n- **V750-大脚板-2寸**（ID 1，描述\"标准出厂配置\"）\n- V750-DY款-圆底脚（ID 2）\n\n你问的\"经典款\"在模板档案里没有这个叫法，我先按 V750-大脚板-2寸 这条理解——**如果不对，请指一下是上面哪一条**。\n\n**关于\"缺什么料\"目前无法给出结论**：缺料情况只对具体订单有意义，需要订单的实时库存与采购进度来判断。刚核对时，按你给的完整名称（含\"缺什么料\"字样）去查模板详情返回的是\"未找到\"，也就是\"经典款\"这个后缀在正式模板名里并不存在，不能据此猜料。\n\n**请补一个信息即可继续**：\n- **是哪个订单号（或客户名／合同号）？** 我按该订单做实时齐料检查，直接列出缺哪些料、缺多少、到货/待采购状态。\n- 如果只是想知道 V750-大脚板-2寸 模板本身包含哪些件，我可以读该模板的完整 BOM（泵壳组件、转子参数、紧固件等）给你列出来——这属于配方配置，不等于库存缺料。\n\n另外提醒：模板列表里的 bundleCost（ID 1 为 95）是泵壳套件成本，不是单个零件的目录价，两者不要混用。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 21292
+  },
+  {
+    "tag": "D1",
+    "text": "V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台，缺什么料？",
+    "state": "",
+    "canary": "INELIGIBLE",
+    "calls": [
+      "search_templates({\"shellModel\":\"V750 大脚板\"})",
+      "search_templates({\"shellModel\":\"V550 大脚板\"})",
+      "search_templates({\"shellModel\":\"V550\"})",
+      "get_template_detail({\"shellModel\":\"V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台\"})",
+      "get_template_detail({\"shellModel\":\"V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台\"})",
+      "get_all_recipes({\"keyword\":\"大脚板\"})",
+      "get_recipe_detail({\"recipeName\":\"V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台\"})",
+      "preview_recipe_cost({\"recipeName\":\"V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台\",\"useRecipeBaseline\")"
+    ],
+    "content": "本次文字回答包含无法核对的金额，已停止展示该结论。你可以先核对下面的本轮正式查询明细，需要我按正式口径重算请直接说明。\n\n尚未取得正式配置成本，不能用目录或线圈档案金额代替整机成本。\n\n已核实：\n- 未找到配方：V750大脚板-2寸-经典款和V550大脚板-2寸-经典款各100台\n- 泵壳模板：未找到匹配记录；查询条件 {\"shellModel\":\"V550 大脚板\"}。这只说明该查询范围没有记录。\n- 泵壳模板：未找到匹配记录；查询条件 {\"shellModel\":\"V550\"}。这只说明该查询范围没有记录。\n\n已取得的正式结果保留在下方；其余问题可分批继续。\n\n已核实：正式目录中的相近型号：v550木箱（零件 ID 84）、v550牛皮纸箱（零件 ID 87）、v550-tokoy（配方 ID 1）。请确认要查询哪一项，我再按该对象给出正式结果。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 41820
+  },
+  {
+    "tag": "R1",
+    "text": "V550大脚板-2寸-经典款的当前成本是多少？",
+    "state": "SUCCEEDED",
+    "canary": "eligible",
+    "calls": [],
+    "content": "v550-tokoy当前完整成本为 ¥273.38。本次只读查询，没有修改正式配方。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 510
+  },
+  {
+    "tag": "R2",
+    "text": "比较一下 V750大脚板-2寸-经典款 和 V550大脚板-2寸-经典款 的成本差多少",
+    "state": "UNSUPPORTED",
+    "canary": "eligible",
+    "calls": [],
+    "content": "当前正式配方目录中没有找到可用于整机成本计算的匹配配方。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 649
+  },
+  {
+    "tag": "R3",
+    "text": "12-120钢带小眼线圈的档案成本是多少？",
+    "state": "SUCCEEDED",
+    "canary": "eligible",
+    "calls": [],
+    "content": "正式方案的当前线圈成本为 ¥99.79。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 672
+  },
+  {
+    "tag": "R4",
+    "text": "12-120线圈库存多少？",
+    "state": "SUCCEEDED",
+    "canary": "eligible",
+    "calls": [],
+    "content": "COIL-0001 / 正式方案当前正式库存为 0。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 540
+  },
+  {
+    "tag": "R5",
+    "text": "V750大脚板-2寸-经典款换成12-120线圈，成本是多少？",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 643
+  },
+  {
+    "tag": "R6",
+    "text": "V750大脚板-2寸-经典款生产300台缺什么料？",
+    "state": "WAITING_INPUT",
+    "canary": "eligible",
+    "calls": [],
+    "content": "“V750”有多个正式配方，请选择一个。",
+    "domainDrift": false,
+    "codeLeak": false,
+    "bytes": 511
+  }
+]

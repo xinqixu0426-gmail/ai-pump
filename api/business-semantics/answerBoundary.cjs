@@ -4,6 +4,7 @@ const { classifyQuestion } = require('./questionSemantics.cjs');
 const { enforcementDecision } = require('./completenessPolicy.cjs');
 const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
 const { formalRelationEvidence } = require('./formalRelationEvidence.cjs');
+const { readinessProfile } = require('./readinessSemantics.cjs');
 
 function verified(item) { return item?.result?.success !== false && item?.result?.executionEvidence?.verified === true; }
 function rows(toolResults, name) { return toolResults.filter(item => verified(item) && item.name === name).flatMap(item => {
@@ -120,6 +121,7 @@ function relationAnswer(evidence, requestedToken) {
 
 function deterministicSemanticAnswer(frame, toolResults, userText) {
     const semantics = classifyQuestion(userText, { admittedCatalogLookup: frame?.question?.kind === 'CATALOG_LOOKUP' });
+    const readinessRequest = semantics.kind === 'INVENTORY_QUERY' && readinessProfile(userText).active;
     const requestedToken = frame?.subject?.requestedToken || semantics.requestedIdentity.token || '该目标';
     const status = frame?.completeness?.status;
     const targetRecipe = recipe(toolResults);
@@ -155,7 +157,10 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     }
     if (status === 'NEEDS_EVIDENCE' || status === 'PARTIAL_VERIFIED') {
         const verifiedFacts = frame?.evidence?.verifiedFacts || [];
-        return `${verifiedFacts.length ? `已核实：${verifiedFacts.join('、')}。` : ''}仍缺少正式证据：${(frame?.evidence?.missingFacts || frame?.completeness?.blockers || []).join('、') || '所需业务事实'}，本轮不能给出完整结论。`;
+        const missing = frame?.evidence?.missingFacts || frame?.completeness?.blockers || [];
+        // S2-R3-P1 §F：内部证据码/正式需求键只进 trace，不进用户正文。
+        const missingText = [...new Set(missing.map(businessFactText))].join('、');
+        return `${verifiedFacts.length ? `已核实：${verifiedFacts.map(businessFactText).join('、')}。` : ''}仍缺少正式证据：${missingText || '所需业务事实'}，本轮不能给出完整结论。`;
     }
     const partRows = rows(toolResults, 'search_parts');
     if (semantics.operation === 'READ_COPPER_PRICE') {
@@ -192,6 +197,11 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
         } : null);
         return `以${targetRecipe.name || semantics.requestedIdentity.token}为基准配方，线圈覆盖为 ${semantics.requestedIdentity.spec}-${semantics.requestedIdentity.sheets}；未提到的电缆、包装/纸箱、其他零件和人工工资均保留并继承原配置。${current ? `正式试算的当前完整成本为 ${current} 元。` : ''}`;
     }
+    // S2-R3-P1 §C/§E/§F：齐料/缺料请求**永远**留在齐料域。
+    // 身份/歧义/不支持等更具体的结论已经在上方优先返回；走到这里的齐料请求
+    // 绝不允许落到下面「当前完整成本没有取得可用金额」的金额模板上 ——
+    // 它从未问过金额，那样的回答既换了业务域，也与本轮正式回执相矛盾。
+    if (readinessRequest) return readinessSemanticAnswer(toolResults, requestedToken);
     const saved = savedRecipeCost(toolResults);
     if (semantics.requestedCostTemporality === 'SAVED') {
         if (targetRecipe && saved) return `${targetRecipe.name || semantics.requestedIdentity.token} 的保存成本快照为 ${saved.value} 元（历史保存口径，不是当前重算结果）。`;
@@ -205,6 +215,70 @@ function deterministicSemanticAnswer(frame, toolResults, userText) {
     }
     if (semantics.kind === 'CATALOG_LOOKUP' && targetRecipe) return `“${requestedToken}”对应的当前正式配方名称为“${targetRecipe.name}”。`;
     return '';
+}
+
+// ── S2-R3-P1：齐料/缺料语义答案（Legacy 安全路径）─────────────────────────
+// 事实来源只有正式的 `preview_virtual_readiness` 回执；没有回执时如实说明，
+// 绝不改答成本、也绝不臆造齐料结论。返回的字符串只在齐料域内。
+function readinessUnitLabel(unit) {
+    if (unit === 'meter') return 'm';
+    if (unit === 'set') return '套';
+    return '件';
+}
+function readinessReceipt(toolResults) {
+    for (const item of toolResults.filter(verified)) {
+        if (item.name !== 'preview_virtual_readiness') continue;
+        const data = item.result?.data;
+        if (!data || data.preview !== true || !['READY', 'SHORTAGE'].includes(data.status) || data.coverage?.complete !== true) continue;
+        return data;
+    }
+    return null;
+}
+function readinessSemanticAnswer(toolResults, requestedToken) {
+    const data = readinessReceipt(toolResults);
+    const name = data?.recipe?.name || requestedToken;
+    if (!data) {
+        return `本次没有取得${name}的正式齐料预览回执，因此不给出齐料或短缺结论；本轮也没有查询成本，不涉及任何金额。`
+            + '当前正式齐料预览需要明确的台数，请说明按多少台计算。';
+    }
+    const quantity = Number.isSafeInteger(data.quantity) ? data.quantity : null;
+    const prefix = quantity === null
+        ? `${name}的库存管理物料`
+        : `按当前库存并扣除现有活动订单占用，${quantity}台${name}的库存管理物料`;
+    if (data.status === 'READY') return `${prefix}目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。`;
+    const shortages = (Array.isArray(data.shortages) ? data.shortages : []).map(item => {
+        const unit = readinessUnitLabel(item.inventoryUnit);
+        return `${item.model || item.requirementKey}需要${item.virtualRequiredQty}${unit}，现可用于这批需求${item.availableForVirtualQty}${unit}，短缺${item.shortageQty}${unit}`;
+    });
+    if (!shortages.length) return `${prefix}的正式齐料预览没有返回可展示的短缺明细，因此本轮不给短缺清单。本次没有创建订单或预留库存。`;
+    return `${prefix}存在短缺：${shortages.join('；')}。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。`;
+}
+
+/**
+ * 内部证据码只允许留在 trace / 日志 / 证据里（S2-R3-P1 §F）。
+ * 用户可见正文一律使用业务语言；未知内部码退化为通用业务措辞。
+ */
+const MISSING_FACT_BUSINESS_TEXT = Object.freeze({
+    CROSS_CATALOG_CANDIDATES: '跨目录候选核对结果',
+    RECIPE_CANONICAL_IDENTITY: '正式配方身份',
+    RECIPE_CURRENT_FULL_COST: '当前完整成本',
+    RECIPE_BASE_CONFIGURATION: '配方基准配置',
+    COIL_CANONICAL_IDENTITY: '正式线圈方案身份',
+    COIL_OFFICIAL_VARIANT_SET: '正式线圈方案集合',
+    COIL_SCHEME_COST: '正式线圈方案成本',
+    COIL_VARIANT_INVENTORY: '正式线圈方案库存',
+    COIL_OVERRIDE_APPLIED: '线圈覆盖应用结果',
+    PART_CATALOG_IDENTITY: '零件目录身份',
+    PART_CATALOG_UNIT_COST: '零件目录单位成本',
+    CURRENT_COPPER_PRICE_BASIS: '当前正式铜价基准',
+    FORMAL_RELATION_RESULT: '正式关系查询结果',
+    RECIPE_COST_COMPARISON: '正式成本对比结果',
+    VIRTUAL_READINESS_PREVIEW: '正式齐料预览结果',
+    AI_RESOURCE_NOT_FOUND: '目标资料',
+});
+function businessFactText(value) {
+    const key = String(value || '');
+    return MISSING_FACT_BUSINESS_TEXT[key] || '所需业务事实';
 }
 
 function enforceSemanticAnswerBoundary({ frame, answer, toolResults = [], userText = '' } = {}) {

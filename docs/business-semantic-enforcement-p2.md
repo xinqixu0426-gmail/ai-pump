@@ -28,6 +28,13 @@ SemanticEligibilityBoundaryV1
 `OUT_OF_SCOPE` keeps legacy behavior. The supported kinds are `COST_QUERY`, `INVENTORY_QUERY`,
 `CONFIGURATION_OVERRIDE`, `HYPOTHETICAL_COST_QUERY`, and `CATALOG_LOOKUP`.
 
+A recipe material-readiness question is an `INVENTORY_QUERY`, not a catalog lookup and not a cost question;
+`api/business-semantics/readinessSemantics.cjs` is the shared authority for that classification (see
+[Business Semantic Frame V1](./business-semantic-frame-v1.md#material-readiness-齐料--缺料-is-its-own-read-class)).
+Keeping that domain is part of this boundary: when no formal readiness receipt exists, the boundary asks for the
+missing quantity or states that no verified readiness conclusion was obtained, and it never emits the
+current-cost amount template for a question that never asked about money.
+
 `SemanticEligibilityBoundaryV1` is deterministic admission control, not another intent planner. Cost,
 inventory, override and catalog semantics enter only when the request also carries a positive supported
 business signal such as a recognised recipe/coil/catalog identifier or an explicit lookup over a supported

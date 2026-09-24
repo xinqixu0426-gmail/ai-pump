@@ -4,12 +4,13 @@
 // every formal read/preview to the existing capability adapter and executor;
 // it intentionally contains no cost, inventory, identity, or write logic.
 const crypto = require('node:crypto');
-const { extractTaskSemanticsV2 } = require('./aiTaskSemanticsV2.cjs');
+const { extractTaskSemanticsV2, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION } = require('./aiTaskSemanticsV2.cjs');
 const { createTaskCapabilityAdapterV2, readJsonPointer } = require('./aiTaskCapabilityAdapterV2.cjs');
 const { stableHash } = require('./stableJson.cjs');
 const { factSatisfiesRequirement, validateTaskEnvelopeV2, validateTaskProposalV1 } = require('./aiTaskValidationV2.cjs');
 const { makeFactKey, makeFactRecordV1, recipeCurrentCostRequirement, scenarioCompareRequirements, profitabilityRequirement, virtualReadinessRequirement, recipeScopeHash } = require('./aiTaskFactsV2.cjs');
 const { defaultTaskSessionStoreV2 } = require('./aiTaskSessionV2.cjs');
+const { extractQuantitySlot } = require('../business-semantics/readinessSemantics.cjs');
 const { ownerReadCanaryAdmission } = require('./aiNativeOwnerTrialCoverage.cjs');
 const { composeTaskAnswerV2 } = require('./aiTaskAnswerV2.cjs');
 const { collectionCoverageV1, customerHistoryTypes, projectCustomerHistoryFacts, requirementsForStructuredGoal } = require('./aiTaskStructuredReadsV2.cjs');
@@ -425,9 +426,10 @@ function cableLengthWithUnit(text, messageRef) {
     return { value, source: source(messageRef, text, match[0], match.index) };
 }
 function quantityFromMessage(text, messageRef) {
-    const match = /(?:做|生产|够做)\s*(\d+)\s*(台|pcs|件)|(?:\b)(\d+)\s*台(?=[，,。；;！!？?\s]|$)/iu.exec(text);
-    if (!match) return null;
-    return { value: Number(match[1] || match[3]), source: source(messageRef, text, match[0], match.index) };
+    // S2-R3-P1 §A：数量是当前话语的独立结构化槽位，与词序无关，也与意图判定解耦。
+    const slot = extractQuantitySlot(text);
+    if (!slot) return null;
+    return { value: slot.value, source: source(messageRef, text, slot.quote, slot.start) };
 }
 function missingCableLengthUnit(text) {
     const match = /(?:电缆|线缆)[^，。；,;！!？?]{0,12}?(?:改成|改|换成)\s*(\d+(?:\.\d+)?)(?:\s*(米|cm|m))?/iu.exec(text);
@@ -537,7 +539,7 @@ function virtualReadinessSources({ recipeReceipt, recipe, comparisonSources = []
 function isVirtualReadinessGoal(goal, proposal, text) {
     const semantic = (proposal?.goals || []).find(item => item.goalKey === goal.goalKey);
     return goal.kind === 'INVENTORY_QUERY'
-        && (semantic?.description === '按当前库存和活动订单占用预览虚拟数量齐料' || VIRTUAL_READINESS_INTENT.test(text));
+        && (semantic?.description === VIRTUAL_READINESS_DESCRIPTION || VIRTUAL_READINESS_INTENT.test(text));
 }
 /**
  * E2-R1 §B5/§B6：把上一轮唯一 canonical 主体接进本轮**无标识指代**的问题。
@@ -1168,7 +1170,7 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
         if (pendingKind === 'virtualReadinessQuantity' || answeredQuestionIds.size > 1 && continuationQuantity) {
             const quantity = continuationQuantity;
             if (!quantity) return taskResult(task, { state: 'WAITING_INPUT', errorCode: 'VIRTUAL_READINESS_QUANTITY_REQUIRED' }, { outcome: 'waiting_input', modelRequestCount: 0, executedTools: 0 }, mapFrom(existing.trustedReceipts), sourceMessages);
-            const readinessProposal = proposal.goals.find(goal => goal.kind === 'INVENTORY_QUERY' && goal.description === '按当前库存和活动订单占用预览虚拟数量齐料');
+            const readinessProposal = proposal.goals.find(goal => goal.kind === 'INVENTORY_QUERY' && goal.description === VIRTUAL_READINESS_DESCRIPTION);
             if (readinessProposal) readinessProposal.quantity = { value: quantity.value, unit: 'pump', sources: [quantity.source] };
             for (const goal of task.goals) if (isVirtualReadinessGoal(goal, proposal, task.userGoal)) {
                 goal.state = 'PENDING'; goal.factIds = []; goal.requirements = [];
@@ -1276,6 +1278,24 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
             task.questions.push(question); goal.state = 'NEEDS_INPUT';
             appendBlocker(goal, 'VIRTUAL_READINESS_QUANTITY_REQUIRED', '需要明确虚拟需求数量，不能默认数量。', question.questionId);
         }
+    }
+
+    // S2-R3-P1 §D：齐料预览正式契约是**一次一个配方**。
+    // 句子里出现多个配方主体时不新增多配方能力，也不自行挑选，给出有界澄清。
+    for (const goal of task.goals.filter(item => item.state === 'PENDING' && item.kind === 'INVENTORY_QUERY'
+        && item.description === READINESS_MULTI_SUBJECT_DESCRIPTION)) {
+        const candidateNames = [...new Set((proposal.subjects || [])
+            .filter(subject => (subject.typeHints || []).includes('recipe'))
+            .map(subject => String(subject.mention || '').trim()).filter(Boolean))];
+        const prompt = `当前一次按一个配方做齐料预览。请先选择 ${candidateNames.join(' 或 ') || '一个配方'}，并说明按多少台计算。`;
+        const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: [], prompt, reasonCode: 'READINESS_SINGLE_RECIPE_REQUIRED', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
+        task.questions.push(question);
+        goal.state = 'NEEDS_INPUT';
+        appendBlocker(goal, 'READINESS_SINGLE_RECIPE_REQUIRED', '齐料预览一次只按一个配方，需要先确认目标配方。', question.questionId);
+        task.state = 'WAITING_INPUT'; task.updatedAt = iso(clock); task.budgetUsage.activeMs = Date.now() - started;
+        sessionStore.set(ownerKey, conversationId, { ownerKey, conversationId, task, proposal, sourceMessages: Object.fromEntries(sourceMessages), trustedReceipts: Object.fromEntries(mapFrom(existing?.trustedReceipts)), pending: { kind: 'readinessRecipe', questionId: question.questionId } });
+        validateTaskEnvelopeV2(task, { trustedReceiptsById: mapFrom(existing?.trustedReceipts), sourceMessages });
+        return taskResult(task, taskDetail(task), { outcome: 'waiting_input', modelRequestCount: task.budgetUsage.modelCalls, executedTools: 0 }, mapFrom(existing?.trustedReceipts), sourceMessages);
     }
 
     const trustedChoices = selectedChoice ? { [selectedChoice.questionId || existing?.pending?.questionId]: { value: Number(selectedChoice.entity.entityId) } } : {};

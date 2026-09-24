@@ -38,6 +38,34 @@ hypothesis.
 
 Completeness is derived from required fact states, ambiguity, and support—not model confidence. The states are `COMPLETE`, `NEEDS_EVIDENCE`, `NEEDS_CLARIFICATION`, `UNSUPPORTED_REQUEST`, `PARTIAL_VERIFIED`, and `NOT_FOUND_VERIFIED`. A negative catalog answer is verified only when recipe, template, and part catalogs each provide an authoritative, untruncated result; execution-call paths alone do not prove an empty result.
 
+## Material readiness (齐料 / 缺料) is its own read class
+
+A recipe material-readiness question (`缺什么料？`, `缺料预览…100台`, `100台齐料怎么样？`, `按100台看缺料`,
+`虚拟齐料预览300台`) is classified `INVENTORY_QUERY` with operation `PREVIEW_READINESS` and requires the single
+fact `VIRTUAL_READINESS_PREVIEW`, whose only formal source is the registered `preview_virtual_readiness`
+capability. The predicate is the business concept — material vocabulary together with a sufficiency or shortage
+predicate, a readiness compound word, or an explicit pump quantity next to material vocabulary — not a list of
+sentence patterns. The authoritative implementation is
+`api/business-semantics/readinessSemantics.cjs`, shared by this layer and by the Task V2 semantic layer, so the
+two layers cannot disagree about the business domain or about the requested quantity.
+
+Consequences carried by this classification:
+
+- readiness never borrows the coil-variant facts `COIL_OFFICIAL_VARIANT_SET` / `COIL_VARIANT_INVENTORY`, so a
+  shortage question cannot be answered as a coil-stock question or as a machine cost;
+- a readiness request keeps the readiness domain at the answer boundary even when no formal readiness receipt
+  exists — it never falls through to the current-cost amount template;
+- coil-domain wording (`线圈`, a coil shorthand, wire diameter, steel/cold-rolled, slot-eye vocabulary) is
+  excluded, so coil cost and coil inventory keep their own classification;
+- the requested quantity is a structured slot of the current utterance, independent of word order
+  (`按300台虚拟齐料预览` and `虚拟齐料预览300台` both yield 300). A readiness request with no quantity stays
+  `NEEDS_EVIDENCE`/`WAITING_INPUT` and asks for the quantity; no default quantity is assumed, because the formal
+  contract defines none.
+
+Facts and required-fact names are evidence vocabulary. They are projected to business language before entering a
+user-visible answer: internal codes such as `CROSS_CATALOG_CANDIDATES` or `AI_RESOURCE_NOT_FOUND`, and formal
+requirement keys, remain in the frame, trace and logs only.
+
 ## Business Rulebook → Semantic Frame
 
 | Business rule | Semantic-frame concept | Future enforcement point |

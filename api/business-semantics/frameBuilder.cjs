@@ -2,6 +2,7 @@
 
 const { deepFreeze } = require('./contract.cjs');
 const { classifyQuestion } = require('./questionSemantics.cjs');
+const { readinessProfile } = require('./readinessSemantics.cjs');
 const { authoritativeCoilCandidateScope } = require('./authoritativeCandidateScope.cjs');
 const { formalRelationEvidence } = require('./formalRelationEvidence.cjs');
 
@@ -73,9 +74,13 @@ function catalogScopeVerified(toolResults) {
         && Number(item.result.queryReceipt.returnedCount) === Number(item.result.queryReceipt.totalCount));
     return authoritative('get_all_recipes') && authoritative('search_templates') && authoritative('search_parts');
 }
-function requiredFactsFor(semantics) {
+function requiredFactsFor(semantics, readinessActive = false) {
     if (semantics.kind === 'COST_COMPARISON') return ['RECIPE_COST_COMPARISON'];
-    if (semantics.kind === 'INVENTORY_QUERY') return ['COIL_OFFICIAL_VARIANT_SET', 'COIL_VARIANT_INVENTORY'];
+    // S2-R3-P1：齐料/缺料预览是**库存管理物料是否齐备**，不是线圈方案集合；
+    // 它需要的是正式齐料预览回执，不能借用线圈库存事实（否则域漂移）。
+    if (semantics.kind === 'INVENTORY_QUERY') return readinessActive
+        ? ['VIRTUAL_READINESS_PREVIEW']
+        : ['COIL_OFFICIAL_VARIANT_SET', 'COIL_VARIANT_INVENTORY'];
     if (semantics.kind === 'CONFIGURATION_OVERRIDE') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_BASE_CONFIGURATION', 'COIL_CANONICAL_IDENTITY'];
     if (semantics.kind === 'HYPOTHETICAL_COST_QUERY' && semantics.wireWeight != null) return ['COIL_CANONICAL_IDENTITY', 'COIL_SCHEME_COST', 'COIL_OVERRIDE_APPLIED'];
     if (semantics.kind === 'HYPOTHETICAL_COST_QUERY') return ['RECIPE_CANONICAL_IDENTITY', 'RECIPE_CURRENT_FULL_COST', 'CURRENT_COPPER_PRICE_BASIS'];
@@ -114,7 +119,8 @@ function sourceProjection(toolResults) {
 
 function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_EVIDENCE', eligibility = null } = {}) {
     const semantics = classifyQuestion(userText, { admittedCatalogLookup: eligibility?.eligible === true && eligibility?.kind === 'CATALOG_LOOKUP' });
-    let requiredFacts = requiredFactsFor(semantics);
+    const readinessActive = semantics.kind === 'INVENTORY_QUERY' && readinessProfile(userText).active;
+    let requiredFacts = requiredFactsFor(semantics, readinessActive);
     const relationEvidence = stage === 'PRE_EVIDENCE' ? null : formalRelationEvidence(userText, toolResults);
     const recipes = recipeRows(toolResults), coilEvidence = officialCoilEvidence(toolResults, semantics), coils = coilEvidence.rows;
     const candidates = crossCatalogCandidates(toolResults);
@@ -183,6 +189,17 @@ function buildBusinessSemanticFrame({ userText, toolResults = [], stage = 'POST_
             addFact(facts, 'RECIPE_CURRENT_FULL_COST', 'VERIFIED', { canonicalIds: [detailRecipeId] });
         }
         if (item.name === 'get_copper_price' && data && (data.pricePerKg != null || data.copperPrice != null || data.price != null)) addFact(facts, 'CURRENT_COPPER_PRICE_BASIS', 'VERIFIED');
+    }
+    // S2-R3-P1：正式齐料/缺料预览回执 = 齐料事实。只有能力自己声明 preview=true
+    // 且结论落在 READY/SHORTAGE 上、配料覆盖完整时才算 VERIFIED；否则保持 MISSING。
+    for (const item of toolResults.filter(verified)) {
+        if (item.name !== 'preview_virtual_readiness') continue;
+        const data = item.result?.data;
+        if (!data || data.preview !== true || !['READY', 'SHORTAGE'].includes(data.status) || data.coverage?.complete !== true) continue;
+        addFact(facts, 'VIRTUAL_READINESS_PREVIEW', 'VERIFIED', {
+            canonicalIds: unique([positiveId(data.recipe?.id ?? data.recipeId ?? uniqueRecipe?.id ?? uniqueRecipe?.Id)]),
+            readinessStatus: data.status, readinessQuantity: Number.isSafeInteger(data.quantity) ? data.quantity : null,
+        });
     }
     if (coils.length) {
         const ids = unique(coils.map(row => positiveId(row.id ?? row.Id)));

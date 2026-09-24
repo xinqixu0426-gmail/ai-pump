@@ -5,6 +5,10 @@ const { validateTaskProposalV1 } = require('./aiTaskValidationV2.cjs');
 // （`classifyQuestion` → COST_COMPARISON + `comparisonSubjects`）。Task V2 不另造比较语义，
 // 只把它正式接入 Goal Contract（RECIPE_COST_COMPARISON + 双主体）。
 const { classifyQuestion, extractRequestedTarget } = require('../business-semantics/questionSemantics.cjs');
+// S2-R3-P1：齐料/缺料（readiness）语义与「当前话语的数量槽位」同样只有一个权威，
+// 由业务语义层提供，Task V2 只消费。目标映射是**语义含义 → readiness 目标**，
+// 不是触发短语 → 目标；数量也不再由意图正则"证明存在"。
+const { readinessProfile, extractQuantitySlot } = require('../business-semantics/readinessSemantics.cjs');
 
 const EXTRACTION_TOOL = Object.freeze({ type: 'function', function: { name: 'submit_ai_task_proposal_candidate_v1', description: 'Return only a TaskProposalV1 candidate; this is not an executable business tool.', parameters: { type: 'object', additionalProperties: false, properties: { proposal: { type: 'object' } }, required: ['proposal'] } } });
 const CRITICAL = /(?:\d+(?:\.\d+)?\s*(?:米|m|cm|毫米|mm|台|pcs|件|元\/公斤|元\/千克|元\/吨)|铜价\s*\d+(?:\.\d+)?|线重\s*\d+(?:\.\d+)?|(?:去掉|不要|删除)(?:珍珠棉|泡沫|外包装箱)|(?:全部包装不要|清空全部包装|不要任何包装)|先不要保存|不要保存|不要修改|别改|只看|只查|只试算|暂时不落库|其他不变|其它不变|不带(?:浮球|电缆)|不要(?:浮球|电缆)|改成[^，。；,;！!？?]*|换成[^，。；,;！!？?]*|用[^，。；,;！!？?]*)/giu;
@@ -12,8 +16,14 @@ const WRITE = /(?:保存|更新|修改配方|正式配方|确认后帮我改|调
 const FORBID = /(?:先不要保存|不要保存|不要修改|别改|只看|只查|只试算|先算一下|暂时不落库)/gu;
 const PROFIT_INTENT = /(?:利润|毛利|毛利率|加价率|赚多少|亏多少|盈利)/gu;
 // FAMILY-03：线圈可用量的口语说法同样是库存意图（作为 INVENTORY_QUERY 的 grounding 证据）。
-const INVENTORY_INTENT = /(?:库存|有货|够不够|缺多少料|还差什么|齐料|还有多少|还剩|剩多少|余量|有库存|还有货|(?:再)?(?:做|生产)\s*\d+\s*(?:台|pcs|件))/gu;
-const VIRTUAL_READINESS_INTENT = /(?:再(?:做|生产)|(?:库存|物料).{0,12}够不够|够不够|缺多少料|还差什么|齐料|(?:再)?(?:做|生产)\s*\d+\s*(?:台|pcs|件))/u;
+// S2-R3-P1：grounding 覆盖**库存域含义**（库存/有货/齐备/缺口），与业务语义层的 readiness
+// 判据同源；缺料/缺什么料等缺口问法此前不在其中，导致合法计划被 admission 判为无依据。
+const INVENTORY_INTENT = /(?:库存|有货|够不够|够做|够生产|齐料|齐套|备料|缺料|缺什么料|缺哪些料|缺多少料|短缺|还差什么|还有多少|还剩|剩多少|余量|有库存|还有货|(?:再)?(?:做|生产)\s*\d+\s*(?:台|pcs|件))/gu;
+// readiness 目标的描述是**语义契约**：控制器据此把目标识别为「虚拟数量齐料预览」。
+const VIRTUAL_READINESS_DESCRIPTION = '按当前库存和活动订单占用预览虚拟数量齐料';
+// 多主体（多配方）齐料不在当前正式契约范围内：给出有界澄清，绝不自行选一个配方，
+// 也绝不整句当配方名。
+const READINESS_MULTI_SUBJECT_DESCRIPTION = '齐料预览一次只按一个配方：需要先确认目标配方';
 function span(messageRef, text, quote, startHint = null) { const first = startHint != null && text.slice(startHint, startHint + quote.length) === quote ? startHint : text.indexOf(quote); if (first < 0 || text.indexOf(quote, first + 1) >= 0) return null; return { messageRef, start: first, end: first + quote.length, text: quote }; }
 function scanCriticalUserSpansV2({ messageRef, text }) { const values = []; for (const match of text.matchAll(CRITICAL)) { const value = span(messageRef, text, match[0], match.index); if (value) values.push(value); } return values; }
 function subjectMentions(messageRef, text) {
@@ -194,11 +204,33 @@ function nameCandidateRecipeSubject(messageRef, text, subjects) {
     return subject;
 }
 function deterministicProposal(messageRef, text) { const subjects = subjectMentions(messageRef, text); const source = span(messageRef, text, subjects[0]?.mention || text) || { messageRef, start: 0, end: text.length, text }; const overrides = overrideFor(messageRef, text); const recipeSubject = subjects.find(item => item.typeHints.includes('recipe')) || nameCandidateRecipeSubject(messageRef, text, subjects); const customerSubject = subjects.find(item => item.typeHints.includes('customer')); const orderSubject = subjects.find(item => item.typeHints.includes('order')); const coilSubject = subjects.find(item => item.typeHints.includes('coil')); const sourceScenarioRequest = /按(?:报告|资料|文件)[^，。；,;！!？?]{0,24}(?:电缆长度|电缆)[^，。；,;！!？?]{0,24}试算/u.test(text); const scenarios = (overrides.length || sourceScenarioRequest) ? [{ scenarioKey: 'candidate_1', label: sourceScenarioRequest ? '按资料候选配置试算' : '用户候选配置', baseSubjectKey: recipeSubject?.subjectKey || 'subject_1', overrides, sources: sourceScenarioRequest ? [source] : overrides.flatMap(item => item.sources) }] : []; const goals = []; const add = (kind, description, scenarioKeys = [], subject = recipeSubject) => goals.push({ goalKey: `goal_${goals.length + 1}`, kind, description, subjectKeys: subject ? [subject.subjectKey] : [], scenarioKeys, dependsOn: [], requestedBasis: scenarioKeys.length ? 'HYPOTHETICAL' : 'CURRENT', sources: [source], quantity: null, unitPrice: null });
+    // S2-R3-P1：齐料/缺料（readiness）语义 → INVENTORY_QUERY（虚拟数量齐料预览）目标。
+    // 判据是**业务含义**（业务语义层的 readinessProfile：物料词 + 齐备/缺口谓词，或齐料预览类复合词），
+    // 不是触发短语清单；数量是本句的独立结构化槽位，与词序无关。
+    const readiness = recipeSubject && !orderSubject ? readinessProfile(text) : null;
+    const readinessGoal = () => goals.find(goal => goal.kind === 'INVENTORY_QUERY');
+    const readinessSource = recipeSubject?.sources?.[0] || source;
+    if (readiness?.active) {
+        // 正式契约一次只做一个配方的齐料预览：多主体时给**有界澄清**，
+        // 绝不自行选一个、也绝不把整句当配方名。
+        const recipeTokens = [...new Set(subjects.filter(item => item.typeHints.includes('recipe')).map(item => item.mention))];
+        const multiSubject = recipeTokens.length > 1;
+        goals.push({
+            goalKey: `goal_${goals.length + 1}`, kind: 'INVENTORY_QUERY',
+            description: multiSubject ? READINESS_MULTI_SUBJECT_DESCRIPTION : VIRTUAL_READINESS_DESCRIPTION,
+            subjectKeys: recipeSubject ? [recipeSubject.subjectKey] : [], scenarioKeys: [], dependsOn: [],
+            requestedBasis: 'CURRENT', sources: [readinessSource], quantity: null, unitPrice: null,
+        });
+    }
     // FAMILY-01：配方成本比较走正式的 RECIPE_COST_COMPARISON 双主体目标
     // （语义判定来自 E1-B 业务语义层，见 recipeCostComparisonSubjects）。
     const comparisonDetected = recipeCostComparisonSubjects(messageRef, text);
     const comparisonSemantics = recipeCostComparisonIntent(text) === 'COMPARISON';
-    if (!comparisonSemantics && /成本|多少钱|价格|试算/u.test(text) && recipeSubject) {
+    // S2-R3-P1 §C/§E：齐料问法不得被**升级**成成本问法。
+    // 只有用户自己明确说了成本口径（成本/多少钱/价格/试算）时才同时保留成本目标；
+    // 单纯问「缺什么料」绝不因为落到 CATALOG_LOOKUP 而变成「当前成本」。
+    const explicitCostIntent = /成本|多少钱|价格|试算/u.test(text);
+    if ((!readiness?.active || explicitCostIntent) && !comparisonSemantics && explicitCostIntent && recipeSubject) {
         // A request can explicitly ask for both the current cost and a changed
         // configuration.  Preserve the two goals instead of letting the
         // candidate comparison consume the current-cost question.
@@ -211,10 +243,11 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
     if (/管理|待办|优先处理|风险/u.test(text)) add('MANAGEMENT_OVERVIEW', '读取管理行动中心', [], null);
     if (/改了什么|变更|变化记录/u.test(text)) add('BUSINESS_CHANGES', '查询正式业务变更记录', [], null);
     if (/影响哪些|影响范围|需要重算|需要复核/u.test(text)) add('IMPACT_INVESTIGATION', '查询正式影响投影', [], recipeSubject || coilSubject || null);
-    const virtualReadiness = Boolean(recipeSubject && VIRTUAL_READINESS_INTENT.test(text) && !orderSubject);
-    if (virtualReadiness) {
+    if (readiness?.active) {
+        // 候选配置 + 齐料：先建立候选配置的正式成本基础，再用同一情景做齐料预览。
         if (scenarios.length && !goals.some(item => item.kind === 'CONFIGURATION_COMPARE')) add('CONFIGURATION_COMPARE', '建立候选配置的正式成本基础', scenarios.map(item => item.scenarioKey), recipeSubject);
-        add('INVENTORY_QUERY', '按当前库存和活动订单占用预览虚拟数量齐料', scenarios.map(item => item.scenarioKey), recipeSubject);
+        const goal = readinessGoal();
+        if (goal) goal.scenarioKeys = scenarios.map(item => item.scenarioKey);
     } else if (/库存|有货|够不够/u.test(text)
         // FAMILY-03：线圈的「还有多少/剩多少/余量」是库存问法，只在存在线圈主体时生效。
         || (Boolean(coilSubject) && /还剩|剩多少|还有多少|有多少|余量|存了/u.test(text))) add('INVENTORY_QUERY', '查询库存', scenarios.map(item => item.scenarioKey), coilSubject || recipeSubject);
@@ -240,10 +273,10 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
         if (scenarios.length && !goals.some(item => item.kind === 'CONFIGURATION_COMPARE')) add('CONFIGURATION_COMPARE', '建立候选配置的正式成本基础', scenarios.map(item => item.scenarioKey), recipeSubject);
         add('PROFITABILITY', '评估售价毛利', scenarios.map(item => item.scenarioKey), recipeSubject);
     }
-    const quantity = /(?:做|生产|够做)\s*(\d+)\s*(台|pcs|件)|(?:\b)(\d+)\s*台(?=[，,。；;！!？?\s]|$)/iu.exec(text);
-    const quantityValue = quantity ? Number(quantity[1] || quantity[3]) : null;
-    const quantityQuote = quantity ? quantity[0] : null;
-    if (quantityValue && quantityQuote) goals.filter(item => item.kind === 'INVENTORY_QUERY' || item.kind === 'PROFITABILITY').forEach(item => { item.quantity = { value: quantityValue, unit: 'pump', sources: [span(messageRef, text, quantityQuote, quantity.index)] }; });
+    // 数量是**当前话语的独立结构化槽位**，与词序无关（S2-R3-P1 §A）：
+    // 「按300台虚拟齐料预览」「…虚拟齐料预览300台」「…数量300台」都必须解析出同一个 300。
+    const quantitySlot = extractQuantitySlot(text);
+    if (quantitySlot) goals.filter(item => item.kind === 'INVENTORY_QUERY' || item.kind === 'PROFITABILITY').forEach(item => { item.quantity = { value: quantitySlot.value, unit: 'pump', sources: [span(messageRef, text, quantitySlot.quote, quantitySlot.start)] }; });
     const price = /(?:卖|售价|每台|报价|按)\s*(\d+(?:\.\d+)?)(?:\s*元(?:一台|\/台)?)?/iu.exec(text);
     if (price) goals.filter(item => item.kind === 'PROFITABILITY').forEach(item => { item.unitPrice = { value: Number(price[1]), unit: 'CNY', sources: [span(messageRef, text, price[0], price.index)] }; });
     if (comparisonDetected) {
@@ -326,4 +359,4 @@ async function extractTaskSemanticsV2({ messageRef, text, provider = null }) { i
         result.proposal.unparsedSpans = [...(Array.isArray(result.proposal.unparsedSpans) ? result.proposal.unparsedSpans : []), ...critical]; }
     addCopperPriceBlocker(result, messageRef, text); coverage(result, critical); return result;
 }
-module.exports = { EXTRACTION_TOOL, enforceRecipeCostComparison, recipeCostComparisonIntent, recipeCostComparisonSubjects, extractTaskSemanticsV2, normalizeCandidateSyntax, parseProviderCandidate, rebindCandidate, scanCriticalUserSpansV2, admitGoalsV1 };
+module.exports = { EXTRACTION_TOOL, enforceRecipeCostComparison, recipeCostComparisonIntent, recipeCostComparisonSubjects, extractTaskSemanticsV2, normalizeCandidateSyntax, parseProviderCandidate, rebindCandidate, scanCriticalUserSpansV2, admitGoalsV1, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION };

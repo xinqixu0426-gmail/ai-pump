@@ -21,6 +21,12 @@ const FactCapabilityRegistry = deepFreeze({
     FORMAL_RELATION_RESULT: { capability: ['get_recipe_detail', 'search_coils', 'get_recipes_by_coil',
         'get_recipe_parts', 'get_recipes_by_part'], sourcePolicy: 'FORMAL_API_ONLY',
         argumentPolicy: ['CANONICAL_SUBJECT_ID', 'VERIFIED_PRIOR_FACT'] },
+    // S2-R3-P1：配方齐料/缺料预览的正式事实来源。
+    // 能力 `preview_virtual_readiness` 已登记为正式只读能力（registry.cjs），
+    // 但仍是 Native-only 私有能力（NATIVE_ONLY_AI_TOOL_NAMES）：
+    // Legacy 侧**不**为它规划调用，只把缺失如实表达成「没有取得正式齐料结论」。
+    VIRTUAL_READINESS_PREVIEW: { capability: 'preview_virtual_readiness', sourcePolicy: 'FORMAL_API_ONLY',
+        argumentPolicy: ['CANONICAL_SUBJECT_ID', 'VERIFIED_PRIOR_FACT'] },
 });
 
 function capabilityForFact(factType) { return FactCapabilityRegistry[factType] || null; }
