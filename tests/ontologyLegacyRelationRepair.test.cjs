@@ -25,7 +25,8 @@ const runtime = require('../api/services/aiAssistantRuntime.cjs');
 const oracleV1 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v1.json');
 const oracleV2 = require('./fixtures/ontology-coil-recipe-legacy-oracle-v2.json');
 const { createRelationReadService } = require('../api/services/relationReadService.cjs');
-const { enforceAiToolResultBudget } = require('../api/services/aiToolProtocol.cjs');
+const { enforceAiModelViewBudget, enforceAiRawReceiptSafety } = require('../api/services/aiToolProtocol.cjs');
+const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
 const {
     shouldReplaceWithVerifiedRecipeCoilReply,
     verifiedRecipeCoilRelationReply,
@@ -116,11 +117,11 @@ test('P8L the bounded repair never increases provider calls, and reads the aggre
     assert.ok(boundedV2 > 0, 'the current baseline must use the bounded reverse read');
 });
 
-test('P8L a large fixture keeps the aggregate over budget while the bounded read stays complete', () => {
+test('P8L a large fixture keeps the aggregate model view bounded while the bounded read stays complete', () => {
     const db = fixture();
     try {
         const insert = db.prepare('INSERT INTO recipes(id,name,coil_id,template_id,parts_json) VALUES(?,?,501,401,?)');
-        const parts = JSON.stringify(Array.from({ length: 20 }, (_, index) => ({
+        const parts = JSON.stringify(Array.from({ length: 5 }, (_, index) => ({
             partId: 601, model: `Shadow批量零件-${index}-${'零'.repeat(44)}`, supplier: '供应甲', qty: 1 })));
         db.transaction(() => { for (let id = 1000; id < 1400; id += 1) insert.run(id, `Shadow大件${id}`, parts); })();
 
@@ -129,10 +130,27 @@ test('P8L a large fixture keeps the aggregate over budget while the bounded read
         const aggregateResult = { success: true, count: aggregate.length, filters: { keyword: '', hasTechnicalFiles: null },
             data: aggregate, executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes' }] } };
         const aggregateBytes = Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8');
+        // 夹具必须落在「真实正式响应的量级」：超过 96 KiB 的模型视图预算，但远低于 1 MiB 工程安全上限
+        // （生产形状库上最大的真实正式响应是 121,341 字节）。
         assert.ok(aggregateBytes > 128 * 1024, `the fixture must exceed 128 KB, got ${aggregateBytes}`);
-        const refused = enforceAiToolResultBudget('get_all_recipes', aggregateResult, [], 96 * 1024);
-        assert.equal(refused.success, false, 'the aggregate must be refused at the 96 KB budget');
-        assert.equal(refused.code, 'AI_QUERY_RESULT_TOO_LARGE');
+        assert.ok(aggregateBytes < 1024 * 1024, `the fixture must stay below the 1 MiB raw receipt safety limit, got ${aggregateBytes}`);
+        // S2-R2P1 语义变更：96 KiB 是「送给模型的上下文预算」，判定对象是 modelResultView 的投影，
+        // 不再是原始回执。原始回执只受 1 MiB 工程安全上限约束，因此这个聚合回执是合法的正式结果。
+        assert.equal(enforceAiRawReceiptSafety('get_all_recipes', aggregateResult), aggregateResult,
+            'the raw aggregate is a legitimate formal receipt below the 1 MiB engineering safety limit');
+        const aggregateView = modelResultView('get_all_recipes', aggregateResult);
+        const deliverable = enforceAiModelViewBudget('get_all_recipes', aggregateView, []);
+        assert.equal(deliverable.allowed, true,
+            'a projected list view inside 96 KiB must be delivered, not rewritten as a failure');
+        // 保护没有被放宽：同一投影一旦真的超过 96 KiB，仍然必须被有界拒绝。
+        const inflated = { ...aggregateView, data: aggregateView.data.map((row, index) => ({
+            ...row, id: 100000 + index, name: `${row.name}${'扩'.repeat(80)}` })) };
+        assert.ok(Buffer.byteLength(JSON.stringify(inflated), 'utf8') > 96 * 1024,
+            'the inflated projection must exceed the model view budget');
+        const refused = enforceAiModelViewBudget('get_all_recipes', inflated, []);
+        assert.equal(refused.allowed, false, 'a model view above 96 KiB must still be refused');
+        assert.equal(refused.reason, 'MODEL_VIEW_RESULT_TOO_LARGE');
+        assert.equal(refused.result.code, 'AI_QUERY_RESULT_TOO_LARGE');
 
         // The bounded reverse read answers the same question on the same database, completely and small.
         const service = createRelationReadService({ db });

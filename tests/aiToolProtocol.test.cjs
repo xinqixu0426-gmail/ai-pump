@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+    enforceAiModelViewBudget,
+    enforceAiRawReceiptSafety,
     enforceAiToolResultBudget,
     buildAiToolPlan,
     buildAiToolResultMessage,
@@ -278,7 +280,12 @@ test('AI tool protocol：工具调用与模型回执使用同一序列化格式'
     assert.doesNotMatch(message.content, /120 个汉字/);
 });
 
-test('AI tool protocol：只读完整资源超限时明确失败且不裁剪业务字段', () => {
+// S2-R2P1：下面三个用例覆盖的是 **aiAgentRuntimeV3 沿用的原始回执门**（默认 256 KiB，调用方显式传 maxBytes）。
+// 私人助理运行时（aiAssistantRuntime）自 S2-R2P1 起不再用 raw 尺寸判断结果有效性：
+// 96 KiB 只判定 modelResultView 的投影（enforceAiModelViewBudget），raw 只受 1 MiB 工程安全上限约束
+// （enforceAiRawReceiptSafety）。因此这里额外断言同一形状在两条路径上的不同结论，
+// 防止把「raw 超限即失败」重新当成私人助理的契约。
+test('AI tool protocol：V3 原始回执门超限时明确失败且不裁剪业务字段；私人助理按投影判定', () => {
     const executionEvidence = {
         verified: true,
         kind: 'formal_api_query',
@@ -299,9 +306,28 @@ test('AI tool protocol：只读完整资源超限时明确失败且不裁剪业�
         success: true,
         data: 'x'.repeat(1024),
     }, 200).success, true);
+
+    // 私人助理路径：同一个「raw 很大」的形状不再因 raw 尺寸失败，
+    // 只有投影真正超过模型预算时才拒绝，并且拒绝带明确的 reason。
+    const rawReceipt = {
+        success: true,
+        data: [{ id: 1, name: 'R-1', partsJson: 'x'.repeat(200 * 1024) }],
+        executionEvidence,
+    };
+    assert.ok(Buffer.byteLength(JSON.stringify(rawReceipt), 'utf8') > 96 * 1024);
+    assert.ok(Buffer.byteLength(JSON.stringify(rawReceipt), 'utf8') < 1024 * 1024);
+    assert.equal(enforceAiRawReceiptSafety('get_all_recipes', rawReceipt), rawReceipt,
+        'raw 在 1 MiB 安全上限内必须原样保留');
+    const projected = { success: true, data: [{ id: 1, name: 'R-1', omittedFields: ['partsJson'] }], executionEvidence };
+    assert.equal(enforceAiModelViewBudget('get_all_recipes', projected, []).allowed, true);
+    const refusedView = enforceAiModelViewBudget('get_all_recipes', projected, [], 10);
+    assert.equal(refusedView.allowed, false);
+    assert.equal(refusedView.reason, 'MODEL_VIEW_RESULT_TOO_LARGE');
+    assert.equal(refusedView.result.code, 'AI_QUERY_RESULT_TOO_LARGE');
+    assert.equal(refusedView.result.executionEvidence.verified, true);
 });
 
-test('AI tool protocol：自动知识伴随结果也经过同一大小门', () => {
+test('AI tool protocol：V3 自动知识伴随结果也经过同一原始回执门；私人助理由投影预算判定', () => {
     const oversized = enforceAiToolResultBudget('get_order_knowledge_package', {
         success: true,
         data: {
@@ -313,9 +339,25 @@ test('AI tool protocol：自动知识伴随结果也经过同一大小门', () =
 
     assert.equal(oversized.code, 'AI_QUERY_RESULT_TOO_LARGE');
     assert.equal(oversized.executionEvidence.verified, true);
+
+    // get_order_knowledge_package 没有列表投影，因此它的模型视图与 raw 同形：
+    // 私人助理路径下它由模型视图预算拒绝，而不是由 raw 尺寸拒绝。
+    const knowledge = {
+        success: true,
+        data: { confirmedKnowledge: { customerRequirement: 'b'.repeat(100 * 1024), executionRecords: [] } },
+        executionEvidence: { verified: true, kind: 'formal_api_query' },
+    };
+    assert.ok(Buffer.byteLength(JSON.stringify(knowledge), 'utf8') > 96 * 1024);
+    assert.equal(enforceAiRawReceiptSafety('get_order_knowledge_package', knowledge), knowledge,
+        '180 KB 量级的正式回执不是工程事故，必须保留');
+    const viewBudget = enforceAiModelViewBudget('get_order_knowledge_package', knowledge, []);
+    assert.equal(viewBudget.allowed, false);
+    assert.equal(viewBudget.reason, 'MODEL_VIEW_RESULT_TOO_LARGE');
+    assert.match(viewBudget.result.error, /未删除任何业务字段/);
+    assert.equal(viewBudget.result.executionEvidence.verified, true);
 });
 
-test('AI tool protocol：多个单项未超限的只读结果累计超限时整体拒绝新增结果', () => {
+test('AI tool protocol：V3 累计原始回执超限时整体拒绝；私人助理按投影累计判定', () => {
     const existing = [{
         name: 'search_parts',
         result: { success: true, data: 'a'.repeat(180) },
@@ -330,6 +372,16 @@ test('AI tool protocol：多个单项未超限的只读结果累计超限时整�
         500
     );
     assert.equal(checked.code, 'AI_QUERY_RESULT_TOO_LARGE');
+
+    // 私人助理路径：累计预算按投影累计，且 raw 越大越不该被误判。
+    const bigRaw = { success: true, data: 'b'.repeat(200 * 1024) };
+    const smallView = { success: true, data: { kind: 'list_summary' } };
+    assert.equal(enforceAiRawReceiptSafety('search_templates', bigRaw), bigRaw);
+    assert.equal(enforceAiModelViewBudget('search_templates', smallView, [], 500).allowed, true,
+        '投影很小时累计不得因为 raw 很大而被拒绝');
+    assert.equal(enforceAiModelViewBudget('search_templates', smallView,
+        [{ name: 'search_parts', result: { success: true, data: 'a'.repeat(600) } }], 500).reason,
+    'CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED');
 });
 
 test('AI tool protocol：取得本轮证据后移除历史 assistant 事实干扰', () => {

@@ -10,7 +10,8 @@ const { hasVerifiedExecution, safeMissingBusinessEvidenceReply } = require('./ai
 const {
     buildAiToolResultMessage,
     containsEmbeddedToolProtocol,
-    enforceAiToolResultBudget,
+    enforceAiModelViewBudget,
+    enforceAiRawReceiptSafety,
     explicitIdentifierFromUserText,
     groundCandidateSelectionArgument,
     groundMissingTargetArgument,
@@ -439,6 +440,9 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     const execute = dependencies.executeToolCall || executeToolCall;
     const started = Date.now();
     const toolResults = [], toolSteps = [];
+    // S2-R2P1：本轮已经送入模型的投影视图（用于累计预算）。只存投影，不存原始回执；
+    // toolResults 继续保存 raw formal results，两者职责不同。
+    const modelViews = [];
     const usages = [];
     const providerDurations = [];
     const generationTimings = [];
@@ -1052,7 +1056,10 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                         emit('tool_call', { name, args });
                         result = await execute(name, args, { allowWrite: false, confirmationSubject: input.confirmationSubject, signal: input.signal });
                         if (result?.success !== false && !hasVerifiedExecution(result)) result = { success: false, code: 'AI_MISSING_EXECUTION_EVIDENCE', error: '工具没有返回正式 API 执行证据，不能作为业务事实。' };
-                        result = enforceAiToolResultBudget(name, result, toolResults, 96 * 1024);
+                        // S2-R2P1：这里只做「正式 API 回执安全上限」（1 MiB，防异常 API 返回数十 MB）。
+                        // 96 KiB 的语义是送给模型的上下文预算，只能作用在下面的投影上；
+                        // 用原始回执判断有效性会把「有投影的大列表」误判成整轮失败。
+                        result = enforceAiRawReceiptSafety(name, result);
                         if (result?.success !== false || verifiedMissingTarget(result)) seen.set(key, result);
                     }
                 } catch (error) {
@@ -1085,7 +1092,23 @@ async function runAiAssistant(input = {}, dependencies = {}) {
                 } : deterministicCompatibilityCall ? { planningSource: 'L5_OFF_COMPATIBILITY_V1' } : {}) });
                 toolSteps.push({ name, durationMs: Date.now() - toolStarted, success: result?.success !== false });
                 emit('tool_result', { name, result });
-                current.push(buildAiToolResultMessage(call, modelResultView(name, result, { knowledgeDocuments, userText: latest.content })));
+                // S2-R2P1：modelResultView 对同一个 tool result 一轮内只调用一次。
+                // 预算判定与 buildAiToolResultMessage 共用同一个投影对象，避免二次投影漂移
+                // （知识检索路径会用 knowledgeDocuments 做本轮去重并分配 documentRef，重复调用会漂移）。
+                const projectedView = modelResultView(name, result, { knowledgeDocuments, userText: latest.content });
+                const modelViewBudget = enforceAiModelViewBudget(name, projectedView, modelViews);
+                if (modelViewBudget.allowed) {
+                    modelViews.push({ name, result: projectedView });
+                    current.push(buildAiToolResultMessage(call, projectedView));
+                } else {
+                    // 模型视图超预算：只影响送给模型的那一条消息，正式回执仍原样保留在 toolResults
+                    // 与页面明细里（Money Guard / canonical identity / Evidence 继续使用完整字段）。
+                    current.push(buildAiToolResultMessage(call, modelViewBudget.result));
+                    if (modelViewBudget.reason === 'CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED') finishQueries = true;
+                    current.push({ role: 'system', content: modelViewBudget.reason === 'CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED'
+                        ? '本轮送给模型的上下文预算已经用完，不会再有新的大结果送入。请直接用已经取得的正式结果回答原问题，明确区分已核实和未核实部分，不要再发起同类全量读取。'
+                        : '上一条结果的模型视图超过单次上下文预算，未送入模型。请增加正式筛选条件、明确 limit，或用单条详情查询取得所需明细后再回答。' });
+                }
             }
             // ONT-P8L: chain the bounded reverse read inside the SAME iteration, immediately after a formal
             // coil receipt became available. Keying this off FACTS (a verified canonical coil exists, the

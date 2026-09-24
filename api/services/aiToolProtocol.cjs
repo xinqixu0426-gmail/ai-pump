@@ -19,6 +19,18 @@ const VIEW_TYPE_MAP = {
 
 const MAX_AI_READ_TOOL_RESULT_BYTES = 256 * 1024;
 
+// S2-R2P1：预算语义分层，两个上限管的是两件不同的事。
+//
+// RAW_RECEIPT_SAFETY_LIMIT 只防工程事故：正式 API 异常返回数十 MB 时才拦截，
+// 它**不是** LLM 上下文预算。依据：生产形状库上最大的真实正式响应是 121,341 字节
+// （get_all_recipes 全量配方列表），1 MiB 约为其 8.6 倍，不误伤任何已知正常业务结果。
+//
+// MODEL_VIEW_RESULT_LIMIT 的语义是「单次送到模型的视图预算」。它只能作用在
+// modelResultView 产出的投影上，绝不能用来判断正式 API 回执是否有效 ——
+// 否则一个有投影的大列表会因为原始回执超限而被整轮改写成失败。
+const RAW_RECEIPT_SAFETY_LIMIT = 1024 * 1024;
+const MODEL_VIEW_RESULT_LIMIT = 96 * 1024;
+
 function buildAiSynthesisEvidence(toolResults = []) {
     return toolResults.map(item => ({
         capabilityName: item.name,
@@ -35,11 +47,14 @@ function buildAiSynthesisEvidence(toolResults = []) {
     }));
 }
 
-function queryResultTooLarge(result) {
+// 拒绝结果保持既有 code（向后兼容既有断言），用 reason 区分三种不同语义，
+// error 文案按 reason 给出可执行的下一步。
+function queryResultTooLarge(result, reason = null, error = null) {
     return {
         success: false,
         code: 'AI_QUERY_RESULT_TOO_LARGE',
-        error: '查询结果过大，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。',
+        ...(reason ? { reason } : {}),
+        error: error || '查询结果过大，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。',
         executionEvidence: result?.executionEvidence,
     };
 }
@@ -407,6 +422,69 @@ function enforceAiToolResultBudget(
     return queryResultTooLarge(checked);
 }
 
+// S2-R2P1 第一道门：正式 API 回执安全上限。
+// 只判断「这个回执是不是异常到不该进入本轮工程流程」，不判断模型上下文是否放得下。
+// 通过的回执原样返回（完整业务字段、evidence 全部保留），失败才返回有界拒绝。
+function enforceAiRawReceiptSafety(toolName, result, maxBytes = RAW_RECEIPT_SAFETY_LIMIT) {
+    const capability = getAiCapability(toolName);
+    if (capability?.access !== 'read' || !result || typeof result !== 'object') return result;
+    if (Buffer.byteLength(JSON.stringify(result), 'utf8') <= maxBytes) return result;
+    return queryResultTooLarge(
+        result,
+        'RAW_RECEIPT_SAFETY_LIMIT_EXCEEDED',
+        '正式 API 回执异常过大，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。'
+    );
+}
+
+// S2-R2P1 第二道门：模型视图预算。判定对象是 modelResultView 的产出，不是原始回执。
+// 单条与累计都按投影字节计算，调用方必须把「判定用的同一个投影对象」交给 buildAiToolResultMessage，
+// 不允许为了预算检查再投影一次（modelResultView 不是纯函数：知识检索路径会分配 documentRef）。
+function enforceAiModelViewBudget(
+    toolName,
+    modelView,
+    existingModelViews = [],
+    maxBytes = MODEL_VIEW_RESULT_LIMIT
+) {
+    const capability = getAiCapability(toolName);
+    if (capability?.access !== 'read' || !modelView || typeof modelView !== 'object') {
+        return { allowed: true, bytes: 0, cumulativeBytes: 0 };
+    }
+    const bytes = Buffer.byteLength(JSON.stringify(modelView), 'utf8');
+    if (bytes > maxBytes) {
+        return {
+            allowed: false,
+            reason: 'MODEL_VIEW_RESULT_TOO_LARGE',
+            bytes,
+            cumulativeBytes: bytes,
+            maxBytes,
+            result: queryResultTooLarge(
+                modelView,
+                'MODEL_VIEW_RESULT_TOO_LARGE',
+                '这条结果的模型视图超过单次上下文预算，未删除任何业务字段。请增加正式筛选条件、明确 limit，或改用单条详情查询。'
+            ),
+        };
+    }
+    const cumulativeBytes = Buffer.byteLength(JSON.stringify(buildAiSynthesisEvidence([
+        ...existingModelViews,
+        { name: toolName, result: modelView },
+    ])), 'utf8');
+    if (cumulativeBytes > maxBytes) {
+        return {
+            allowed: false,
+            reason: 'CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED',
+            bytes,
+            cumulativeBytes,
+            maxBytes,
+            result: queryResultTooLarge(
+                modelView,
+                'CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED',
+                '本轮送给模型的上下文预算已用完，未删除任何业务字段。请用已经取得的正式结果回答原问题，需要更多明细时改用带筛选条件的单条查询。'
+            ),
+        };
+    }
+    return { allowed: true, bytes, cumulativeBytes };
+}
+
 function viewTypeForAiTool(name) {
     return VIEW_TYPE_MAP[name] || 'action_result';
 }
@@ -430,9 +508,13 @@ function containsEmbeddedToolProtocol(content) {
 module.exports = {
     containsEmbeddedToolProtocol,
     MAX_AI_READ_TOOL_RESULT_BYTES,
+    MODEL_VIEW_RESULT_LIMIT,
+    RAW_RECEIPT_SAFETY_LIMIT,
     buildAiSynthesisEvidence,
     buildAiToolPlan,
     buildAiToolResultMessage,
+    enforceAiModelViewBudget,
+    enforceAiRawReceiptSafety,
     enforceAiToolResultBudget,
     enforceAiToolResultSize,
     explicitIdentifierFromUserText,

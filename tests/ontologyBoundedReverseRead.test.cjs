@@ -24,7 +24,8 @@ const { createRelationReadService } = require('../api/services/relationReadServi
 const { createRelationReadRouter } = require('../api/routes/relationRead.cjs');
 const { validateResult, request, MAX_RESULT_BYTES, DEFAULT_PAGE_SIZE } = require('../api/services/relationReadContract.cjs');
 const { currentFactsForBinding } = require('../api/ontology/bindingCurrentFacts.cjs');
-const { enforceAiToolResultBudget } = require('../api/services/aiToolProtocol.cjs');
+const { enforceAiModelViewBudget, enforceAiRawReceiptSafety } = require('../api/services/aiToolProtocol.cjs');
+const { modelResultView } = require('../api/services/aiAssistantContext.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
 const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const {
@@ -276,13 +277,13 @@ test('P8R inverse membership is certified only from a complete correctly-rooted 
     assert.equal(repeated.complete, true);
 });
 
-test('P8R the whole-collection read still exceeds the AI budget while the bounded read is delivered', () => {
+test('P8R the whole-collection read stays bounded at the model view layer while the bounded read is delivered', () => {
     // Permanent large-fixture regression for the ONT-P8 defect class. Enough realistic recipes are
     // seeded that the legacy aggregate payload passes 96 KB, exactly like the production database.
     const db = fixture();
     try {
         const insert = db.prepare(`INSERT INTO recipes(id,name,coil_id,template_id,parts_json) VALUES(?,?,501,401,?)`);
-        const parts = JSON.stringify(Array.from({ length: 20 }, (_, index) => ({
+        const parts = JSON.stringify(Array.from({ length: 5 }, (_, index) => ({
             partId: 601, model: `Shadow批量零件-${index}-${'零'.repeat(44)}`, supplier: '供应甲', qty: 1 })));
         db.transaction(() => {
             for (let id = 1000; id < 1400; id += 1) insert.run(id, `Shadow大件${id}`, parts);
@@ -291,17 +292,34 @@ test('P8R the whole-collection read still exceeds the AI budget while the bounde
             FROM recipes WHERE deleted_at IS NULL ORDER BY id DESC`).all();
         const aggregateResult = { success: true, count: aggregate.length, filters: { keyword: '', hasTechnicalFiles: null },
             data: aggregate, executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes' }] } };
-        assert.ok(Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8') > 128 * 1024,
-            `the fixture must reproduce an oversized aggregate payload (>128 KB), got ${Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8')}`);
-        const refused = enforceAiToolResultBudget('get_all_recipes', aggregateResult, [], 96 * 1024);
-        assert.equal(refused.success, false);
-        assert.equal(refused.code, 'AI_QUERY_RESULT_TOO_LARGE');
+        const aggregateBytes = Buffer.byteLength(JSON.stringify(aggregateResult), 'utf8');
+        // 夹具必须落在「真实正式响应的量级」：超过 96 KiB 的模型视图预算，但远低于 1 MiB 工程安全上限
+        // （生产形状库上最大的真实正式响应是 121,341 字节）。夹具本身超出安全上限就测不到本票的语义。
+        assert.ok(aggregateBytes > 128 * 1024, `the fixture must reproduce an oversized aggregate payload (>128 KB), got ${aggregateBytes}`);
+        assert.ok(aggregateBytes < 1024 * 1024, `the fixture must stay below the 1 MiB raw receipt safety limit, got ${aggregateBytes}`);
+        // S2-R2P1 语义变更：96 KiB 是送给模型的上下文预算，判定对象是 modelResultView 的投影。
+        // 原始回执超过 96 KiB 不再等于失败；它只受 1 MiB 工程安全上限约束。
+        assert.equal(enforceAiRawReceiptSafety('get_all_recipes', aggregateResult), aggregateResult,
+            'the raw aggregate is a legitimate formal receipt below the 1 MiB engineering safety limit');
+        const aggregateView = modelResultView('get_all_recipes', aggregateResult);
+        assert.equal(enforceAiModelViewBudget('get_all_recipes', aggregateView, []).allowed, true,
+            'a projected list view inside 96 KiB must be delivered to the model');
+        // 保护没有被放宽：投影本身超过 96 KiB 时仍然有界拒绝，绝不把超大上下文送给模型。
+        const inflated = { ...aggregateView, data: aggregateView.data.map((row, index) => ({
+            ...row, id: 100000 + index, name: `${row.name}${'扩'.repeat(80)}` })) };
+        const refused = enforceAiModelViewBudget('get_all_recipes', inflated, []);
+        assert.equal(refused.allowed, false);
+        assert.equal(refused.reason, 'MODEL_VIEW_RESULT_TOO_LARGE');
+        assert.equal(refused.result.code, 'AI_QUERY_RESULT_TOO_LARGE');
+        assert.equal(refused.result.executionEvidence.verified, true);
 
         const bounded = createRelationReadService({ db }).read(coilRead(501));
         const boundedResult = { success: true, count: bounded.items.length, totalCount: bounded.totalCount,
             hasMore: bounded.hasMore, data: bounded.items, executionEvidence: bounded.provenance };
-        const delivered = enforceAiToolResultBudget('get_recipes_by_coil', boundedResult, [], 96 * 1024);
+        // 有界反查仍然要过同样的两道门（这里 raw 与投影同形，因为没有列表投影）。
+        const delivered = enforceAiRawReceiptSafety('get_recipes_by_coil', boundedResult);
         assert.equal(delivered.success, true);
+        assert.equal(enforceAiModelViewBudget('get_recipes_by_coil', modelResultView('get_recipes_by_coil', delivered), []).allowed, true);
         // The bounded read's size depends on the page, not on the database: 400 referencing recipes still
         // produce a small delivered page, which is the property the ONT-P8 defect lacked.
         assert.ok(Buffer.byteLength(JSON.stringify(boundedResult), 'utf8') < 4096,

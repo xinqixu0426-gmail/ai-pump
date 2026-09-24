@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "artifact": "S2R2P1ListQueryResultBudgetPlan",
+  "status": "IMPLEMENTED_AND_VERIFIED_NOT_COMMITTED",
+  "ticket": "S2-R2-P1 — LIST QUERY RESULT BUDGET DEFECT",
+  "authorization": "Supervisor 裁定 S2-R2-P1：AUTHORIZED（本对话：水泵ai助理ontology优化项目 - 判断框架还是修复Bug）",
+  "branch": "ai-native/prod-canary-s2",
+  "baseHead": "2f91de70c028ef530ff6618c802ef7e7e7b23aa6",
+  "worktree": "C:\\Users\\Dan\\Documents\\pump-canary-s2",
+
+  "reproduction": {
+    "line": "prod-canary-s2（非 SUPERSEDED —— 两条真实问法稳定复现）",
+    "questions": ["列一下配方", "我有多少配方"],
+    "observed": "get_all_recipes → AI_QUERY_RESULT_TOO_LARGE，回答退化为 99 字兜底文案（**本轮没有取得正式业务 API 的有效结果。**）",
+    "notPresentation": "Presentation 层根本没接到结果；与本票 Presentation Remediation 无关"
+  },
+
+  "rootCause": {
+    "statement": "预算检查挂错对象：96 KB 施加在 raw formal receipt 上，而预算的真实目的是约束送给模型的上下文；模型实际收到的是 modelResultView 投影。",
+    "evidence": {
+      "rawReceiptBytes": 121341,
+      "projectedViewBytes": 23412,
+      "modelBudgetBytes": 98304,
+      "runtimeCheckSite": "api/services/aiAssistantRuntime.cjs:1055 → enforceAiToolResultBudget(name, result, toolResults, 96*1024)",
+      "projectionSite": "api/services/aiAssistantRuntime.cjs:1088 → buildAiToolResultMessage(call, modelResultView(...))",
+      "projectionAlreadyExists": "api/services/aiAssistantContext.cjs:4-8 LIST_DETAILS 已含 get_all_recipes: 'get_recipe_detail'，投影本就存在且分层正确（列表选对象、详情展开）"
+    },
+    "secondaryFinding": "96 KB 甚至小于最大正常正式结果：实测最大真实响应 121341 B（118.5 KB），96 KB 仅为其 0.81 倍。"
+  },
+
+  "measuredBasis": {
+    "formalEndpointRealBytes": {
+      "get_all_recipes": 121341,
+      "get_recent_orders": 61966,
+      "search_parts_full": 54471,
+      "search_coils": 9271
+    },
+    "dbFullTableBytes": { "recipes": 70881, "parts": 40320, "orders": 30148, "coils": 8162, "pump_shell_templates": 7847 },
+    "rawCeilingDecision": "RAW_RECEIPT_SAFETY_LIMIT = 1 MiB（1048576）。依据：最大真实正式响应 118.5 KB 的约 8.6 倍；既不低于任何已知正常业务结果，又能挡住异常 API 返回数十 MB 的工程事故。现有 aiToolProtocol.MAX_AI_READ_TOOL_RESULT_BYTES 为 256 KB，本票不改它的既有用途。"
+  },
+
+  "implementationSteps": [
+    "① 冻结既有投影：不得为 get_all_recipes 新增特殊 if 投影、不得照抄 search_templates、不得新增第二套 modelView、不得为凑过 96 KB 改列表字段。",
+    "② 在 aiToolProtocol.cjs 增加语义分离的常量与错误码：RAW_RECEIPT_SAFETY_LIMIT、MODEL_VIEW_RESULT_LIMIT；reason 区分 RAW_RECEIPT_SAFETY_LIMIT_EXCEEDED / MODEL_VIEW_RESULT_TOO_LARGE / CUMULATIVE_MODEL_VIEW_BUDGET_EXCEEDED（用户文案可继续简单）。",
+    "③ 执行顺序（Supervisor 定死）：execute → rawResult → 校验 executionEvidence → RAW RECEIPT SAFETY CHECK → 保留 rawResult 进 toolResults → modelResultView(rawResult)【每结果仅一次】 → MODEL VIEW SIZE CHECK 96 KB → CUMULATIVE MODEL VIEW BUDGET → buildAiToolResultMessage(projectedResult) → LLM。",
+    "④ 硬约束：toolResults 必须是 raw formal results，不得改成 projected（Money Guard / canonical identity / Evidence / Business Rules / deterministic validators 仍需要完整正式字段）。",
+    "⑤ 累计判断也必须改为按 projected 累计：projected1+projected2+projected3 ≤ 预算；不得再用 raw 累计，否则多工具轮次会重复踩同一 bug。",
+    "⑥ 缓存 projected 结果并复用：把投影在循环内算一次，预算检查与 buildAiToolResultMessage 共用同一对象，避免 modelResultView 二次调用（它带 knowledgeDocuments 状态，会产生 documentRef 漂移 —— 这正是 2026-09-24 那次 25 例失败/6 例 AI_RESPONSE_EMPTY 的真正原因）。"
+  ],
+
+  "priorFailedAttempt": {
+    "date": "2026-09-24",
+    "whatIDid": "在 d4e8971 上为 get_all_recipes 新增一层 summarizeListRow 投影 + 自定义 modelView.kind='recipe_list'，并把守卫改为接受 projectedView 参数后在运行时重复调用 modelResultView",
+    "result": "aiAssistantRuntime 6 例 AI_RESPONSE_EMPTY；连同守卫改动共 25 例失败",
+    "supervisorDiagnosis": "与既有 LIST_DETAILS 投影形成双重 authority，覆盖/改变了既有 modelView 契约，破坏 runtime 对结果形状的预期",
+    "action": "已全部回退，工作树干净；本次不得重复该做法"
+  },
+
+  "acceptanceMatrix": [
+    { "scenario": "raw <96KB，projection <96KB", "expected": "PASS" },
+    { "scenario": "raw >96KB，projection <96KB", "expected": "PASS（本票核心）" },
+    { "scenario": "raw >96KB，projection 正常", "expected": "Evidence 完整保留" },
+    { "scenario": "raw 内有 partsJson/snapshotPartsJson", "expected": "raw 中仍存在" },
+    { "scenario": "projected list", "expected": "走既有 list_summary" },
+    { "scenario": "projected >96KB", "expected": "有界拒绝/收敛，不发送超大上下文" },
+    { "scenario": "多个 raw 很大、projected 累计未超限", "expected": "PASS" },
+    { "scenario": "projected 累计真超限", "expected": "安全结束/partial" },
+    { "scenario": "list → 用户选某 recipe → detail", "expected": "get_recipe_detail(id) 正常" },
+    { "scenario": "knowledge model view", "expected": "单次 projection，无 documentRef 漂移" },
+    { "scenario": "Money / identity / Evidence", "expected": "不因 projection 改变" },
+    { "scenario": "AI_RESPONSE_EMPTY", "expected": "0" }
+  ],
+
+  "redToGreenEvidence": {
+    "questions": ["列一下配方", "我有多少配方", "有哪些配方", "把现在的配方名称列一下"],
+    "mustRecord": ["RAW_RESULT_BYTES", "MODEL_VIEW_BYTES", "MODEL_MESSAGE_BYTES"],
+    "expectedEvidence": {
+      "tool": "get_all_recipes",
+      "rawResultBytes": "≈121000",
+      "modelViewBytes": "≈23000",
+      "modelBudgetBytes": 98304,
+      "rawResultSuccess": true,
+      "executionEvidence": "verified",
+      "budgetDecision": "PASS",
+      "finalAnswer": "正常列出配方"
+    }
+  },
+
+  "forbiddenInThisTicket": [
+    "get_all_recipes API 瘦身", "recipe DB schema 变更", "删除 partsJson/snapshotPartsJson",
+    "Ontology", "Native coverage", "Presentation Remediation", "Session 架构重构",
+    "把 96 KB 简单提高到 256 KB 作为最终修复", "第二套 model projection", "删除现有 Evidence 字段"
+  ],
+
+  "knownExistingTestsThatEncodeTheWrongBehaviour": [
+    "tests/ontologyBoundedReverseRead.test.cjs:296 —— 断言 enforceAiToolResultBudget('get_all_recipes', aggregateResult, [], 96*1024) 必须 refused",
+    "tests/ontologyLegacyRelationRepair.test.cjs:133 —— 同上",
+    "tests/aiToolProtocol.test.cjs:287,305,326 —— 直接断言 size/budget 行为",
+    "说明：这些用例把「raw 超 96 KB = 失败」固化为契约，实施本票时需按新语义一并调整，并在证据里说明为何这是有意变更而非放宽保护。"
+  ],
+
+  "implementationResult": {
+    "result": "IMPLEMENTED_AND_VERIFIED（未提交，等待授权）",
+    "filesChanged": {
+      "api/services/aiToolProtocol.cjs": "新增 RAW_RECEIPT_SAFETY_LIMIT=1MiB 与 MODEL_VIEW_RESULT_LIMIT=96KiB 两个语义分离的常量，新增 enforceAiRawReceiptSafety() 与 enforceAiModelViewBudget()（单条+累计）；queryResultTooLarge 增加可选 reason；code 保持 AI_QUERY_RESULT_TOO_LARGE 不变；既有 MAX_AI_READ_TOOL_RESULT_BYTES / enforceAiToolResultSize / enforceAiToolResultBudget 语义未动（继续服务 aiAgentRuntimeV3）",
+      "api/services/aiAssistantRuntime.cjs": "执行链改为 execute → executionEvidence → raw safety → toolResults.push(raw) → 一次 modelResultView → 模型视图预算 → buildAiToolResultMessage(同一投影对象)；投影超限时只替换送给模型的那条消息，toolResults 中 raw 完整保留；累计超限额外置 finishQueries=true 收敛本轮",
+      "docs/api-reference.md": "更新两处权威描述：不再声称 get_all_recipes 超过 96 KB 不会完整投递；改写为「1 MiB 原始回执安全上限 + 96 KiB 模型视图预算（单条/累计）」两层语义",
+      "tests/aiModelViewBudget.test.cjs": "新增 9 个用例，覆盖验收矩阵 1–11",
+      "tests/aiToolProtocol.test.cjs": "三个被点名用例保留 V3 原始回执门断言，并各自追加私人助理新语义对照断言",
+      "tests/ontologyBoundedReverseRead.test.cjs": "P8R 全量聚合用例改为断言新语义，并补 1 MiB 上界前提（原夹具 1.73 MiB 落在不真实区间）",
+      "tests/ontologyLegacyRelationRepair.test.cjs": "P8L 同类用例同上调整，有界反查断言全部保留"
+    },
+    "hardConstraintsRespected": [
+      "LIST_DETAILS / summarizeListRow / list_summary 零改动",
+      "未为 get_all_recipes 新增任何投影分支或第二套 modelView",
+      "未照抄 search_templates 形状",
+      "未为变小而修改列表字段",
+      "未把 96 KiB 上调为 256 KiB 当作修复",
+      "toolResults 继续保存 raw formal results",
+      "modelResultView 每结果仅调用一次并与 buildAiToolResultMessage 共用同一对象"
+    ],
+    "gates": {
+      "npm test": "3233/3233，0 失败（基线 3224，净增 9）",
+      "aiAssistantRuntime": "86/86",
+      "aiToolProtocol": "15/15",
+      "aiModelViewBudget": "9/9",
+      "ontologyBoundedReverseRead + ontologyLegacyRelationRepair": "20/20",
+      "verify:api-contract": "28/28",
+      "lint": "exit 0",
+      "build": "exit 0"
+    },
+    "independentLiveVerification": {
+      "by": "主 agent 独立复核（非 subagent 自述）",
+      "date": "2026-09-24",
+      "result": "4/4 GREEN",
+      "evidence": "列一下配方→419 字正常列出 9 个配方；我有多少配方→210 字「你现在一共有 9 个配方」；有哪些配方→456 字含保存总成本；把现在的配方名称列一下→339 字。四条均无 AI_QUERY_RESULT_TOO_LARGE。",
+      "redToGreenNumbers": { "rawResultBytes": 120990, "modelViewBytes": 22591, "modelBudgetBytes": 98304 }
+    },
+    "residualRisks": [
+      "1 MiB 安全上限按「9 条配方 = 121 KB」形状定为约 8.6 倍头部空间；每行约 13.5 KB（snapshotPartsJson 等快照字段占绝大部分），线性外推约 77 条配方会摸到 1 MiB，届时「列一下配方」会重新变成有界拒绝（RAW_RECEIPT_SAFETY_LIMIT_EXCEEDED）。相对基线（9 条即全失败）是明显改善，但真正的根治是列表 API 返回轻行形状或分页 —— 本票约束 6 明确排除，未做。",
+      "累计模型视图预算只有单元/集成证据，无真实 provider 端到端验证：运行时另有独立的整体 token 门（usableInputTokens=28,672），单条 96 KiB 投影在 token 口径上已接近该门，难以在不触发它的前提下构造真实多条近限场景。因此该边界在生产中很可能不是先触发的那一个。",
+      "enforceAiToolResultBudget / enforceAiToolResultSize 现仅剩 aiAgentRuntimeV3（经 aiDispatcherV2 间接）与 aiReadInvestigationDriverV4 使用；后者的默认调用（aiReadInvestigationDriverV4.cjs:447）未验证是否存在同类缺陷。",
+      "docs/ontology-first-routing-migration-v1.md 及若干源码注释仍写着「120,990 bytes 对 96 KB 预算 → 不会完整投递」。判断为历史阶段记录与当时裁定依据，按最小改动未动，待复核是否另开任务整理。",
+      "未验证：test:deep-api、verify:ai-native-release、MCP 路径、前端页面层渲染。"
+    ]
+  },
+
+  "whyNotImplementedInThisSession": "（历史记录，保留）本票的硬约束要求 modelResultView 每结果只调用一次并复用投影对象；我上次正是在这一层踩坑（状态型投影导致 6 例 AI_RESPONSE_EMPTY）。在剩余预算不足以保证该重构被充分验证的情况下启动实施，很可能再次留下半成品并污染正在进行的验收环境，因此当时选择在已确证根因、定好边界与数值依据的位置停止，交由下一轮完整执行。该轮随后以委派方式完成并通过独立复核。"
+}
