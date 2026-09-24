@@ -1,0 +1,77 @@
+{
+  "recordType": "生产部署与 smoke 记录（S2-R3-P1 + S2-R3-P2 统一部署）",
+  "authority": "Supervisor 技术授权 + 用户明确授权（两阶段）",
+  "deployHead": {
+    "branch": "ai-native/prod-canary-s2",
+    "deployCommit": "20755dd4d85d5e2a7f8efbd3209e036b4ca669cc",
+    "productTree": "3cb5d8cb4b477fb26aa4c43409bbce2be86706b1",
+    "branchHeadAtSmoke": "1c255dab（仅 planning/ 文档提交；产品树与 deployCommit 完全一致，已用 git diff --name-only 20755dd HEAD -- . ':(exclude)planning' 验证为空）",
+    "threeWayUnified": {
+      "local": "20755dd",
+      "gitee": "20755dd",
+      "github": "20755dd",
+      "note": "push 后三方同 HEAD 同 tree；此后本地新增的提交只有 planning/ 文档"
+    }
+  },
+  "securityPrerequisite": {
+    "supervisorGate": "若生产 ACCESS_PASSWORD 仍是曾公开暴露的旧值，恢复 owner 前必须先轮换",
+    "auditResult": {
+      "ACCESS_PASSWORD": "13d901a44941 —— 从未在暴露清单中 → 前置不成立，无需为恢复 owner 而轮换",
+      "PUMP_OWNER_ACCESS_PASSWORD": "cf48a85a0154 —— 从未暴露",
+      "JWT_SECRET": "已轮换（1950e8cab752，曾暴露值 48956ab0363a）",
+      "INTERNAL_SECRET": "❌ 仍是曾暴露值 30fe890f7908（属用户裁定「上线后统一处理」，未阻断本技术操作）",
+      "ALI_ACCESS_KEY_ID / SECRET": "❌ 仍是曾暴露值 32d038a2992b / 5753582b3df1（用户称阿里云已弃用，但生产 .env 仍保留 → 待办清理项）"
+    },
+    "conclusion": "技术前置满足；指纹比对只输出 sha256 前 12 位，未回显任何明文"
+  },
+  "stage1": {
+    "name": "代码部署 + mode=off smoke",
+    "deploy": "npm run deploy:macmini -- -Branch ai-native/prod-canary-s2（exit 0，111 秒）",
+    "gateInsideDeploy": "verify:ai-native-release sourceRevision=20755dd4d85d5e2a7f8efbd3209e036b4ca669cc status=PASS；verify:prod-env PASS",
+    "health": { "api": 200, "web": 307, "public": 307 },
+    "schema": { "userVersion": 88, "migrationCount": 88, "recipes": 3, "coils": 14, "parts": 92, "note": "无意外变化" },
+    "smoke": [
+      { "question": "列一下配方", "result": "正常返回 2 个配方（320 字，2.0 秒）—— 不再命中 AI_QUERY_RESULT_TOO_LARGE", "proves": "S2-R2-P1 budget fix 在生产生效" },
+      { "question": "V750大脚板-2寸-经典款按300台虚拟齐料预览", "result": "「已核实：正式配方身份、配方基准配置、当前完整成本、跨目录候选核对结果。仍缺少正式证据：正式齐料预览结果，本轮不能给出完整结论。」", "proves": "R3-P1 新语义代码已部署（旧代码会答成本域拒答模板）；mode=off 下 Shared/Legacy 层如实表达缺失，不伪造齐料结论" }
+    ],
+    "falseAlarm": "首次 smoke 该条返回 0 字，经查是我脚本 150 秒超时（该问法走模型需约 2 秒），非产品故障；用 300 秒超时复现正常。"
+  },
+  "stage2": {
+    "name": "恢复 owner + Native smoke",
+    "envChange": { "AI_NATIVE_MODE": "off → owner", "AI_NATIVE_WRITE_ENABLED": "false（未变）" },
+    "envBackup": ".env.bak-before-owner-stage2-20260924-183807（权限 600）",
+    "restart": "KeepAlive：kill pid=55295 → launchd 拉起 pid=55450；启动横幅 mode=owner authority=owner-scoped-native writeEnabled=false",
+    "nativeSmoke": [
+      { "case": "单配方当前成本", "question": "V550大脚板-2寸-经典款的成本是多少？", "nativeRoute": "YES", "state": "SUCCEEDED", "canary": "eligible", "toolCalls": 0, "answer": "V550大脚板-2寸-经典款当前完整成本为 ¥269.12。本次只读查询，没有修改正式配方。" },
+      { "case": "虚拟齐料（原失败语序）", "question": "V750大脚板-2寸-经典款按300台虚拟齐料预览", "nativeRoute": "YES", "state": "SUCCEEDED", "canary": "eligible", "toolCalls": 0, "answerLength": 945, "proves": "S2-R3-P1 数量语序无关在生产生效（旧代码此语序会反复追问数量）" },
+      { "case": "同配置 NO_OP", "question": "V550大脚板-2寸-经典款换成12-120线圈，成本是多少？", "nativeRoute": "YES", "state": "SUCCEEDED", "canary": "eligible", "toolCalls": 0, "answer": "V550大脚板-2寸-经典款本次请求的配置与当前正式配置一致，配置没有变化，完整成本仍为 ¥269.12。本次只是核对，没有保存或修改正式配方。", "proves": "S2-R3-P2 在生产生效：无 coilId、无 Δ0、无「已正式应用的临时配置」" },
+      { "case": "真配置变更", "question": "V750大脚板-2寸-经典款换成12-120线圈，成本是多少？", "nativeRoute": "YES", "state": "SUCCEEDED", "canary": "eligible", "toolCalls": 0, "answer": "V750大脚板-2寸-经典款当前完整成本为 ¥289.52。临时方案完整成本为 ¥271.48，较当前 减少 ¥18.04。本次配置变化：更换线圈方案、线圈片数 由 140片 改为 120片。本次只是试算，没有保存或修改正式配方。", "proves": "真变更仍报真变更，业务语言无内部字段名" }
+    ],
+    "safetyCounters": {
+      "NATIVE_ROUTE": "4/4 YES",
+      "WRONG_CANONICAL_SUBJECT": 0,
+      "WRONG_QUANTITY": 0,
+      "NOOP_VS_CHANGE_CONFUSION": 0,
+      "COIL_ID_LEAK": 0,
+      "INTERNAL_CODE_LEAK": 0,
+      "BUSINESS_WRITES_FROM_NATIVE": 0,
+      "SELF_CALCULATED_MONEY": 0,
+      "WRITE_ENABLED": false
+    }
+  },
+  "finalProductionState": {
+    "head": "20755dd",
+    "productTree": "3cb5d8cb4b477fb26aa4c43409bbce2be86706b1",
+    "branch": "ai-native/prod-canary-s2",
+    "aiNativeMode": "owner",
+    "authority": "owner-scoped-native",
+    "writeEnabled": false,
+    "public": "https://xuxinqi.xin/ http=307",
+    "note": "owner 模式已恢复；Native smoke 全部通过"
+  },
+  "nextStep": {
+    "finalAcceptance": "由用户本人在生产 GUI 真实使用完成最终验收（Supervisor 裁定：PRODUCTION OWNER GUI = FINAL MANUAL ACCEPTANCE SURFACE）。Agent 不再主动造大量测试，只负责保留日志/trace 并在发现问题时提取当轮证据。",
+    "stopRule": "Supervisor：做完这轮 production smoke 后不再主动开新优化票，只在用户真实使用发现缺陷时继续修。",
+    "recordedObservationNotFixed": "planning/ai-native-v1/release/S2R3ObservationTemplateIdLeak.json（列表答案中的 templateId 内部编号，用户裁决先记下不修）"
+  }
+}
