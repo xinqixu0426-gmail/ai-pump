@@ -1,0 +1,99 @@
+{
+  "ticket": "S2-R3-P2",
+  "title": "No-op Configuration Answer Normalization",
+  "authority": "Supervisor ruling: S2-R3-P1 = PASS；S2-R3-P2 = AUTHORIZED（只处理缺陷 1）",
+  "defect": {
+    "id": 1,
+    "severity": "中",
+    "observedOnProduction": {
+      "question": "V550大脚板-2寸-经典款换成12-120线圈，成本是多少？",
+      "answer": "V550大脚板-2寸-经典款当前完整成本为 ¥269.12。临时方案完整成本为 ¥269.12，较当前 增加 ¥0.00。已正式应用的临时配置：coilId=1。本次只是试算，没有保存或修改正式配方。",
+      "productionFacts": "库里 V550(id=12) 本来就是 coil_spec=12, coil_sheets=120, 钢带, 小眼, coil_id=1；12-120 唯一正式方案就是 id=1 → 用户请求的目标 == 现状"
+    },
+    "threeProblems": [
+      "请求的正式配置 == 当前正式配置，却没有告知「配置没有变化」，只给「增加 ¥0.00」，容易被读成「换了但没省钱」",
+      "coilId=1 是内部字段名 + 内部 ID，泄漏进用户可见正文（Part 2 明确要清的那类机器词）",
+      "「已正式应用的临时配置」自相矛盾（临时 / 已正式应用）"
+    ]
+  },
+  "corePrinciple": {
+    "noOpCriterion": "requested canonical configuration === current canonical configuration",
+    "mustNotUse": "costDifference === 0",
+    "reason": "不同配置碰巧同价仍然是真变更",
+    "formalEvidence": "正式比较回执的顶层 changes[]（由 base 与 candidate 两个 configurationHash 的差异确定性生成）。实测：同线圈 → changes=[] 且两个 hash 相等；真换线圈 → changes=[{coilId 1→2},{coilSheets 120→140}] 且 hash 不同；改电缆 8→5米 → changes=[{cableLength 8→5}] 且 hash 不同。"
+  },
+  "implementation": {
+    "startHead": "52a732e",
+    "endHead": "782cc9b",
+    "structuralChange": "配置差异事实（scenario.configuration_changes）由控制器从正式回执的 /data/changes 投影，答案边界据此区分 NO_OP 与真变更；配置字段名统一经业务语言渲染层输出。",
+    "filesChanged": [
+      "api/services/aiTaskControllerV2.cjs（挂载 scenario.configuration_changes；新增 hasPointer 守卫）",
+      "api/services/aiTaskFactsV2.cjs（记录该事实为何不是需求项）",
+      "api/services/aiTaskStoreV2.cjs（登记为 volatile 谓词）",
+      "api/services/aiTaskAnswerV2.cjs（NO_OP 分支 + 字段名→业务语言渲染 + 缺失分支）",
+      "api/services/aiTaskCapabilityAdapterV2.cjs（导出 decodePointer 供指针存在性判断复用）",
+      "api/business-semantics/contract.cjs（登记 SCENARIO_CONFIGURATION_CHANGES）",
+      "api/business-semantics/factCapabilityRegistry.cjs（登记能力来源）",
+      "api/capabilities/registry.cjs（输出契约补记 changes[]）",
+      "tests/s2r3p2NoOpConfigurationAnswer.test.cjs（新增 8 例）",
+      "tests/aiTaskControllerV2.test.cjs（包装变更断言从内部格式改为业务语言）"
+    ],
+    "designDecisions": [
+      "changes 事实**不是**需求项：需求未满足会让 goal 永远无法 VERIFIED，而 changes 只在回执确实返回它时才存在。控制器在可用时额外挂载。",
+      "缺失 ≠ 无差异：回执未提供 changes 时事实缺席，答案走受限分支，**不声称**「配置没有变化」，也不退回展示内部字段名。",
+      "指针必须真实存在（事实值只能从回执按指针重新投影，校验层有 pointerExists 硬约束）→ 用 hasPointer 先判断，可选字段缺失就让事实缺席而不是伪造空值。",
+      "字段标签与系统既有字段元数据（services/catalogNaming.cjs：sheets 片数 / material 材质 / slotType 槽眼）保持一致，不自行发明。",
+      "未知字段退化为「配置项调整」+业务值，绝不输出字段名。"
+    ],
+    "userVisibleBeforeAfter": {
+      "noOpBefore": "临时方案完整成本为 ¥269.12，较当前 增加 ¥0.00。已正式应用的临时配置：coilId=1。",
+      "noOpAfter": "本次请求的配置与当前正式配置一致，配置没有变化，完整成本仍为 ¥273.38。本次只是核对，没有保存或修改正式配方。",
+      "realChangeBefore": "已正式应用的临时配置：coilId=2",
+      "realChangeAfter": "本次配置变化：更换线圈方案、线圈片数 由 120片 改为 140片"
+    }
+  },
+  "verification": {
+    "authority": "验收侧（主 agent）独立执行；本地 owner 真实路径（mode=owner / authority=owner-scoped-native / writeEnabled=false）",
+    "localReplay": {
+      "script": "scripts/accept-s2r3p2-config-change.cjs",
+      "P2-A 换成当前已用的线圈": "SUCCEEDED；判定为 NO_OP=true ✅；内部字段名/旧措辞泄漏=0 ✅",
+      "P2-B 换成真正不同的线圈 12-140": "SUCCEEDED；判定为真变更 ✅；输出「更换线圈方案、线圈片数 由 120片 改为 140片」；泄漏=0 ✅",
+      "P2-C 改电缆长度 8→5 米": "SUCCEEDED；真变更 ✅；输出「电缆长度 由 8米 改为 5米」；泄漏=0 ✅",
+      "failedCases": "0 / 3"
+    },
+    "testsAdded": "tests/s2r3p2NoOpConfigurationAnswer.test.cjs — 8 例（P2-1 NO_OP；P2-2 NO_OP 判据来自配置差异而非 delta，含「同价但真变更」反例；P2-3 同价真变更；P2-4 真变更业务语言；P2-5 布尔自然说法；P2-6 未知字段退化；P2-7 缺失分支；P2-8 纯成本不回归）",
+    "gates": {
+      "npmTest": "3260 tests / 3260 pass / 0 fail（P1 后基线 3252 + 新增 8，零回归）",
+      "verify:api-contract": "PASS (28/28)",
+      "test:deep-api": "PASS (exit 0)",
+      "lint": "PASS",
+      "build": "PASS",
+      "verify:ai-native-release": "PASS — status=PASS readiness=READY_FOR_OWNER_TRIAL ownerTrialCoverageReadiness=READY_WITHIN_SUPPORTED_SCOPE sourceRevision=782cc9bdeb86ac4e49f0acd8f7938e5975a8da01",
+      "ontologyRoutingCanary": "PASS (42/42)"
+    },
+    "regression": {
+      "p1AcceptanceReRun": "PASS — QUANTITY_ORDER_INDEPENDENT / FOLLOWUP_QUANTITY_RESUME / READINESS_ADMISSION_VARIANTS / NO_QUANTITY_BEHAVIOR 全部 PASS，MULTI_RECIPE_BEHAVIOR=CLARIFY，DOMAIN_DRIFT=0/17，INTERNAL_CODE_LEAK=0/17（P2 改动未影响 P1）",
+      "ownerCases": "0 回归（单配方成本 / 双方案比较 / 线圈成本 / 线圈库存 / 缺料预览）"
+    },
+    "notVerified": [
+      "生产 Mac mini 真实复跑（用户裁定本地验收；生产当前已冻结为 AI_NATIVE_MODE=off）",
+      "GUI/视觉验收（需用户本人操作）"
+    ]
+  },
+  "securityHousekeeping": {
+    "gitignore": "补充 .env.bak* 与 _owner-token.local 忽略规则（.env 备份会把整套密钥以明文落到工作区）",
+    "localOwnerSetupScript": "移除 .env 备份写入（脚本幂等，避免明文密钥落盘）",
+    "plaintextTokenRemoved": "验收结束后删除 _owner-token.local"
+  },
+  "declarations": {
+    "NEW_NATIVE_FAMILY": "NO",
+    "ONTOLOGY_CHANGED": "NO",
+    "BUSINESS_API_CHANGED": "NO（只补记一处能力输出契约描述，无 HTTP 路由/字段变更）",
+    "DATABASE_SCHEMA_CHANGED": "NO",
+    "COST_ENGINE_CHANGED": "NO",
+    "P1_LOGIC_TOUCHED": "NO",
+    "PRODUCTION_DEPLOYED": "NO",
+    "PUSHED": "NO"
+  },
+  "nextStep": "S2-R3-P1 + S2-R3-P2 均已 PASS → 可统一部署到 Mac mini，恢复 AI_NATIVE_MODE=owner，做短 production smoke 与最终 Owner 验收（需用户授权）"
+}
