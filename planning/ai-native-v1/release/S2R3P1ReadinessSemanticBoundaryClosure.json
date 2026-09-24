@@ -140,6 +140,75 @@
     "ticket": "S2-R3-P2",
     "title": "No-op Configuration Answer Normalization",
     "scope": "before canonical config == requested config → NO_OP_CHANGE; user should see e.g. 当前 V550 使用的就是 12-120 钢带小眼线圈，配置没有变化，完整成本仍为 ¥269.12。 Not 增加 ¥0.00 / coilId=1 / 已正式应用的临时配置. Must be an answer-contract-level NO_OP configuration change, not a string replacement.",
-    "mustNotBeTouchedInP1": true
+    "mustNotBeTouchedInP1": true,
+    "confirmedStillPresentAfterP1": "本地复跑 R2 仍输出『较当前 增加 ¥18.20。已正式应用的临时配置：coilId=2。』—— 本票按裁定未触碰"
+  },
+  "implementation": {
+    "startHead": "5a499d7",
+    "endHead": "67fec95",
+    "fixHead": "8540a4961d3a7b2a00c141385420b7b046fecead",
+    "structuralChange": "新增 api/business-semantics/readinessSemantics.cjs 作为齐料/缺料语义与『当前话语数量槽位』的唯一权威；业务语义层（questionSemantics）与 Task V2 语义层（aiTaskSemanticsV2）共同消费，两层不可能再对业务域或数量给出不同结论。判据是业务含义（物料词 + 齐备/缺口谓词，或齐料预览类复合词，或物料词 + 数量槽位），不是句式清单。",
+    "filesChanged": [
+      "api/business-semantics/readinessSemantics.cjs (新增)",
+      "api/business-semantics/questionSemantics.cjs",
+      "api/business-semantics/frameBuilder.cjs",
+      "api/business-semantics/answerBoundary.cjs",
+      "api/business-semantics/contract.cjs",
+      "api/business-semantics/factCapabilityRegistry.cjs",
+      "api/services/aiTaskSemanticsV2.cjs",
+      "api/services/aiTaskControllerV2.cjs",
+      "docs/business-semantic-frame-v1.md",
+      "docs/business-semantic-enforcement-p2.md",
+      "tests/s2r3p1ReadinessSemanticBoundary.test.cjs (新增)"
+    ],
+    "quantitySlot": "extractQuantitySlot() 从当前话语独立抽取，与词序无关；数字前必须是数量语境（行首/标点/数量介词/分配词/需求动词/型号尾字），数字后必须是数量单位。中文数量（一~九百九十九）确定性换算。正式契约无默认数量 → 永远 null，绝不猜。",
+    "multiSubject": "正式契约一次只做一个配方 → READINESS_SINGLE_RECIPE_REQUIRED 有界澄清；未新增 multi-recipe 能力；不整句当 recipeName；不 fuzzy first-result。",
+    "internalCodeLeak": "missingFacts/verifiedFacts 经 businessFactText() 映射为业务语言后才进用户正文；未知内部码退化为通用措辞。",
+    "residualLimitation": "本地库无任何库存，齐料预览的可用量恒为 0；这使『短缺明细正确性』在本地只能验证结构（21 项、数量随台数线性）而不能交叉核对真实可用量。生产端 300 台缺料预览此前已独立核对通过。"
+  },
+  "verification": {
+    "authority": "验收侧（主 agent）独立执行，未采信执行方自报",
+    "localOwnerEnvironment": "AI_NATIVE_MODE=owner / authority=owner-scoped-native / writeEnabled=false / ownerConfigValid=true；owner token 由 issueOwnerToken 现场签发，验收后已删除",
+    "quantityOrderIndependent": "PASS（A1–A5 五种语序全部 SUCCEEDED，均解析出 300 台并给出 21 项短缺）",
+    "followupQuantityResume": "PASS（首轮 planRevision=1 NEEDS_INPUT(VIRTUAL_READINESS_QUANTITY_REQUIRED) → 次轮只回『300台』→ planRevision=2 SUCCEEDED，未再追问；修复前此路径是死循环）",
+    "readinessAdmissionVariants": "PASS（B1–B4 全部 canary eligible；修复前『缺料预览 v550-tokoy 100台』为 INELIGIBLE）",
+    "noQuantityBehavior": "PASS（C1 追问数量，未落成本域；修复前为 INELIGIBLE + 域判断错误）",
+    "multiRecipeBehavior": "CLARIFY（『当前一次按一个配方做齐料预览。请先选择 v750 或 v550，并说明按多少台计算。』）",
+    "multiRecipeSupportAdded": "NO",
+    "safetyCounters": {
+      "READINESS_TO_COST_DOMAIN_DRIFT": "0/17",
+      "INTERNAL_CODE_LEAK": "0/17",
+      "BUSINESS_WRITES_FROM_NATIVE": "0/17",
+      "WHOLE_SENTENCE_RECIPE_BINDING": "0/17",
+      "WRONG_CANONICAL_BINDING": "0（工具调用数为 0，全部走确定性 native 路径）",
+      "FACT_VALUE_CONFLICT": "0",
+      "FACT_BASIS_CONFLICT": "0",
+      "SELF_CALCULATED_MONEY": "0（R2 差额 18.20 来自 compare_recipes 回执的 recipe.cost_difference，非模型相减）"
+    },
+    "ownerCaseRegression": "0 回归（6 个已验收场景：单配方成本 / 配置变更 / 线圈成本 / 线圈库存 / 缺料预览 / 300台缺料预览 均保持 SUCCEEDED）",
+    "testsAdded": "tests/s2r3p1ReadinessSemanticBoundary.test.cjs（19 例：A1–A3、B1–B3、C1–C2、D1、E1–E2、F1、OWNER-1..6、GATE）",
+    "gates": {
+      "npmTest": "3252 tests / 3252 pass / 0 fail（基线 3233，新增 19，零回归）",
+      "verify:api-contract": "PASS (28/28)",
+      "test:deep-api": "PASS (exit 0)",
+      "lint": "PASS",
+      "build": "PASS",
+      "verify:ai-native-release": "PASS — status=PASS readiness=READY_FOR_OWNER_TRIAL ownerTrialCoverageReadiness=READY_WITHIN_SUPPORTED_SCOPE sourceRevision=8540a4961d3a7b2a00c141385420b7b046fecead",
+      "ontologyRoutingCanary": "PASS (42/42)"
+    },
+    "notVerified": [
+      "生产 Mac mini 真实复跑 —— 用户明确选择『本地开 owner 模式验收，不装生产』，本项未执行，标记为未验证",
+      "GUI/视觉验收 —— 需用户本人操作"
+    ]
+  },
+  "declarations": {
+    "NEW_NATIVE_FAMILY": "NO",
+    "ONTOLOGY_CHANGED": "NO",
+    "BUSINESS_API_CHANGED": "NO",
+    "DATABASE_SCHEMA_CHANGED": "NO",
+    "COST_ENGINE_CHANGED": "NO",
+    "DEFECT_1_TOUCHED": "NO",
+    "PRODUCTION_DEPLOYED": "NO",
+    "PUSHED": "NO"
   }
 }
