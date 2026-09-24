@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "artifact": "SecurityRemediationDeferredTodo",
+  "status": "DEFERRED_BY_OWNER_TO_POST_LAUNCH",
+  "createdAt": "2026-09-24",
+  "ownerDecision": "用户明确裁定：安全事项统一在正式上线后处理；当前以项目落地为主要任务。",
+  "scope": "本待办只记录「已确认曾在公开 Git 历史中暴露、但当前仍在使用」的凭据。不含任何明文值，仅键名与指纹。",
+
+  "context": {
+    "exposureEvent": "canary 谱系历史中含 .env，曾被推送至公开仓库（Gitee 公开、GitHub 公开）",
+    "remediationDone": "已用 git filter-repo 从 canary 历史彻底移除 .env / docs/superpowers / wechat-miniprogram，并替换 9 个凭据值；四处（本机/Gitee/GitHub/Mac mini）已统一到 f9212571，tree d0043033",
+    "remediationLimit": "历史清理只移除「历史里的副本」，不能使已泄露的值重新变安全 —— 轮换才是真正修复",
+    "currentPosture": "用户接受当前风险，决定遗留至正式上线后统一处理"
+  },
+
+  "deferredItems": [
+    {
+      "id": "SEC-1",
+      "severity": "HIGH",
+      "key": "JWT_SECRET",
+      "exposedFingerprint": "48956ab0363a",
+      "productionInUse": true,
+      "whyItMatters": "owner 身份（以及登录会话）由该密钥签发 JWT；密钥泄露意味着任何人都能伪造 owner 令牌，从而绕过 AI Native 的 owner 门。这是 owner 门被削弱的关键项。",
+      "requiredAction": "在 Mac mini 上轮换为新的随机值，重启 API。旧令牌立即失效，需重新登录。",
+      "verification": "旧令牌被拒；新登录成功；owner 登录仍可签发 owner_credential_v1",
+      "status": "DEFERRED"
+    },
+    {
+      "id": "SEC-2",
+      "severity": "HIGH",
+      "key": "INTERNAL_SECRET",
+      "exposedFingerprint": "30fe890f7908",
+      "productionInUse": true,
+      "whyItMatters": "系统内部服务/受信内部请求用它认证；泄露可用于绕过鉴权路径。",
+      "requiredAction": "与 JWT_SECRET 一同轮换，重启 API。",
+      "verification": "内部受信路径仍正常；旧值不再被接受",
+      "status": "DEFERRED"
+    },
+    {
+      "id": "SEC-3",
+      "severity": "HIGH",
+      "key": "ACCESS_PASSWORD",
+      "exposedFingerprint": "13d901a44941",
+      "productionInUse": true,
+      "exposureStatus": "曾公开暴露的值是另一个（442cbf3fdf0f / 9 位）；当前生产值本身未出现在暴露清单中",
+      "note": "此项经核实「当前生产值未泄露」。保留记录以便上线前复核，但优先级低于 SEC-1/SEC-2。",
+      "requiredAction": "上线前复核一次：确认生产值不等于任何历史暴露值",
+      "status": "REVIEW_BEFORE_LAUNCH"
+    },
+    {
+      "id": "SEC-4",
+      "severity": "MEDIUM",
+      "key": "ALI_ACCESS_KEY_ID / ALI_ACCESS_KEY_SECRET",
+      "exposedFingerprints": ["32d038a2992b", "5753582b3df1"],
+      "productionInUse": "仍存在于生产 .env，但代码中已无任何引用（api/ scripts/ apps/ 全仓搜索为 0）",
+      "ownerStatement": "用户说明：阿里云 key 已弃用",
+      "requiredAction": "上线前：确认阿里云控制台中该 AccessKey 已删除/禁用；然后从生产 .env 移除这三个 ALI_* 键（含 ALI_ASR_APPKEY，同为死配置）",
+      "status": "DEFERRED"
+    },
+    {
+      "id": "SEC-5",
+      "severity": "MEDIUM",
+      "key": "DEEPSEEK_API_KEY（历史值）",
+      "exposedFingerprint": "1da0ed261964",
+      "productionInUse": false,
+      "note": "生产当前 DeepSeek key 指纹为 ff9965f5f5de，与暴露值不同 —— 已轮换。生产 .env 中还残留旧值注释行，上线前一并清理。",
+      "requiredAction": "上线前清理 .env 中的旧 key 注释或残留",
+      "status": "DEFERRED"
+    }
+  ],
+
+  "localSecretArtifacts": [
+    {
+      "path": "C:\\Users\\Dan\\Documents\\_replace.txt",
+      "contains": "9 个旧凭据明文（仅用于历史清理的替换规则）",
+      "requiredAction": "删除；使命已完成",
+      "status": "PENDING_USER_CONFIRMATION"
+    },
+    {
+      "path": "C:\\Users\\Dan\\Documents\\pump-FULL-BACKUP-20260924-142539.bundle",
+      "contains": "事故前完整 Git 历史，可能含旧凭据",
+      "requiredAction": "删除，或移入加密受限目录并标记 CONTAINS_REVOKED_SECRETS；禁止上传远端/同步盘/import 回主仓",
+      "status": "PENDING_USER_CONFIRMATION"
+    },
+    {
+      "path": "C:\\Users\\Dan\\Documents\\pump-REMOTES-SNAPSHOT-20260924-142539.bundle",
+      "contains": "同上",
+      "requiredAction": "同上",
+      "status": "PENDING_USER_CONFIRMATION"
+    },
+    {
+      "path": "C:\\Users\\Dan\\Documents\\pump-GITHUB-3cb53a80-BACKUP-20260924-142539.bundle",
+      "contains": "同上",
+      "requiredAction": "同上",
+      "status": "PENDING_USER_CONFIRMATION"
+    }
+  ],
+
+  "launchChecklistSummary": [
+    "轮换 JWT_SECRET（SEC-1，最高优先）",
+    "轮换 INTERNAL_SECRET（SEC-2）",
+    "复核 ACCESS_PASSWORD 不等于任何历史暴露值（SEC-3）",
+    "确认阿里云 AccessKey 已在控制台删除/禁用，并从 .env 移除 ALI_* 死配置（SEC-4）",
+    "清理 .env 中 DeepSeek 旧 key 残留（SEC-5）",
+    "删除本地 _replace.txt 与三个 bundle，或按受限方式归档",
+    "上线后补跑 verify:release 外部实时质量门"
+  ],
+
+  "note": "本文件不含任何明文凭据。指纹为 sha256 前 12 位，用于与生产 .env 逐键比对（比对方法见 planning 中同批记录）。"
+}
