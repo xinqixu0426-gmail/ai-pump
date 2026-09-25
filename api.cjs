@@ -138,6 +138,8 @@ const {
     startManagementActionLifecycleMonitor,
     stopManagementActionLifecycleMonitor,
 } = require('./api/services/managementActionLifecycle.cjs');
+// SEC-R0：内部共享密钥只授权只读；业务写需要独立窄范围的机器写凭据。
+const { isMutatingMethod, isInternalWriteAuthorized } = require('./api/services/internalWriteAuthorization.cjs');
 app.use('/', aiRouter);
 
 // ══════════════════════════════════════════════
@@ -149,9 +151,20 @@ app.use('/api', (req, res, next) => {
   // 放行已经处理过的公开路径
   if (req.path.startsWith('/auth')) return next();
   if (req.path === '/health' || req.path.startsWith('/health/')) return next();
-  // 放行内部自己调用的网络请求
+  // 放行内部自己调用的网络请求。
+  // SEC-R0：内部共享密钥只授权内部**只读**。任何业务写操作（POST/PUT/PATCH/DELETE）必须另外
+  // 持有独立、窄范围的机器写凭据（x-internal-write-secret，来自 INTERNAL_WRITE_SECRET）；
+  // 未配置或不匹配时一律 fail closed —— 公开泄露的旧 INTERNAL_SECRET 因此不再具备写权限。
   if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
-      return next();
+      if (!isMutatingMethod(req.method) || isInternalWriteAuthorized(req)) {
+          return next();
+      }
+      return res.status(403).json({
+          success: false,
+          code: 'INTERNAL_WRITE_FORBIDDEN',
+          error: '内部写通道需要专用机器凭据。',
+          requestId: req.requestId || null,
+      });
   }
   // 其余所有接口需要认证
   authMiddleware(req, res, next);

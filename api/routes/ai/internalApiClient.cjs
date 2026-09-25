@@ -1,12 +1,18 @@
 const crypto = require('node:crypto');
 const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
+const { isMutatingMethod } = require('../../services/internalWriteAuthorization.cjs');
 
 function createInternalFetch(context = {}, sharedTrace = null) {
     const trace = sharedTrace || [];
     const internalFetch = (url, opts = {}) => {
         const headers = { ...(opts.headers || {}) };
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET || '';
+        // SEC-R0：内部共享密钥只授权只读。变更类调用必须额外携带独立、窄范围的机器写凭据；
+        // 未配置时该头为空，服务端会 fail closed（不会退回「仅共享密钥即可写」）。
+        if (isMutatingMethod(opts.method)) {
+            headers['x-internal-write-secret'] = process.env.INTERNAL_WRITE_SECRET || '';
+        }
         if (context.operationId && !headers['x-operation-id']) {
             headers['x-operation-id'] = String(context.operationId);
         }

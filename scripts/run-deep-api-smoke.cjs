@@ -44,6 +44,8 @@ let startupCopperFinished = false;
 const MCP_TEST_TOKEN = 'deep-generic-mcp-token-0123456789abcdef';
 const MCP_WRITE_TEST_TOKEN = 'deep-write-mcp-token-0123456789abcdef';
 const DEEP_API_INTERNAL_SECRET = 'deep-api-internal-secret-0123456789abcdef';
+// SEC-R0：该隔离运行时需要执行 MCP 写工具，因此必须显式持有专用机器写凭据（测试用合成值）。
+const DEEP_API_INTERNAL_WRITE_SECRET = 'deep-api-internal-write-secret-0123456789abcdef';
 const DEEP_API_ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || 'deep-api-access-password';
 const MCP_COIL_PROFILE_FIXTURE = Object.freeze({
     spec: '99887',
@@ -4082,6 +4084,8 @@ async function run() {
                 MCP_ALLOWED_HOSTS: '127.0.0.1',
                 MCP_RATE_LIMIT_PER_MINUTE: '600',
                 INTERNAL_SECRET: DEEP_API_INTERNAL_SECRET,
+                // SEC-R0：内部共享密钥只授权只读；本隔离运行时要执行 MCP 写工具。
+                INTERNAL_WRITE_SECRET: DEEP_API_INTERNAL_WRITE_SECRET,
                 ACCESS_PASSWORD: DEEP_API_ACCESS_PASSWORD,
                 NODE_PATH: path.join(root, 'node_modules'),
             },
