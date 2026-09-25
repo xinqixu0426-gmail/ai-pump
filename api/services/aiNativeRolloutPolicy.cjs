@@ -56,6 +56,24 @@ function resolveAiNativeRollout({ request = {}, env = process.env, isOwner = isA
     });
 }
 
+/**
+ * NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力。
+ * 非 Owner 请求一律 fail closed —— 既不进入 Native，也不得再进入 Legacy。
+ * 判据复用唯一的规范 Owner 判定（owner cookie JWT + ownerConfigValid），
+ * 不引入 username 启发式，也不把 x-internal-secret 升格为 Owner。
+ */
+const AI_CHAT_ACCESS = Object.freeze({
+    OWNER_NATIVE: 'OWNER_NATIVE',
+    AI_UNAVAILABLE: 'AI_UNAVAILABLE',
+});
+
+function resolveAiChatAccessBoundary({ rollout = null } = {}) {
+    if (rollout && rollout.ownerAuthenticated === true) {
+        return Object.freeze({ access: AI_CHAT_ACCESS.OWNER_NATIVE, reason: 'OWNER_AUTHENTICATED' });
+    }
+    return Object.freeze({ access: AI_CHAT_ACCESS.AI_UNAVAILABLE, reason: 'OWNER_REQUIRED' });
+}
+
 function startupAiNativeRolloutSummary(env = process.env) {
     const config = readAiNativeRolloutConfig(env);
     return Object.freeze({
@@ -69,8 +87,10 @@ function startupAiNativeRolloutSummary(env = process.env) {
 
 module.exports = {
     AI_NATIVE_MODES,
+    AI_CHAT_ACCESS,
     readAiNativeRolloutConfig,
     isAuthenticatedOwnerRequest,
     resolveAiNativeRollout,
+    resolveAiChatAccessBoundary,
     startupAiNativeRolloutSummary,
 };

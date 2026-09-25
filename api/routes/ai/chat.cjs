@@ -19,7 +19,7 @@ const {
     isOwnerScopedAiCanaryRequestEligible,
     isTrustedInternalAiRequest,
 } = require('../../services/ontologyRelationCanaryEligibility.cjs');
-const { resolveAiNativeRollout } = require('../../services/aiNativeRolloutPolicy.cjs');
+const { resolveAiNativeRollout, resolveAiChatAccessBoundary, AI_CHAT_ACCESS } = require('../../services/aiNativeRolloutPolicy.cjs');
 const {
     loadAiConversationContinuation,
     loadAiRecentPartWrite,
@@ -142,6 +142,32 @@ async function handleAiChat(req, res, options = {}) {
             requestId: req.requestId || null,
         });
     }
+    // NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力。边界必须在任何业务读取、任何 SSE 头、
+    // 任何 dispatcher 调用之前判定：非 Owner 一律 fail closed，既不进 Native，也绝不进 Legacy。
+    // 判据只来自服务端 rollout 快照（规范 Owner 判定），请求体/页面上下文/模型都无法影响它。
+    const runtimeEnv = options.env || process.env;
+    const nativeRollout = (options.resolveAiNativeRollout || resolveAiNativeRollout)({
+        request: req,
+        env: runtimeEnv,
+    });
+    const accessBoundary = (options.resolveAiChatAccessBoundary || resolveAiChatAccessBoundary)({ rollout: nativeRollout });
+    if (accessBoundary.access !== AI_CHAT_ACCESS.OWNER_NATIVE) {
+        (options.telemetry || aiRuntimeTelemetry).record({
+            requestId: req.requestId || null,
+            status: 'failed',
+            outcome: 'ai_owner_only',
+            durationMs: 0,
+            providerEvents: [],
+            ttftMs: null,
+            errorCode: 'AI_OWNER_ONLY',
+        });
+        return res.status(403).json({
+            success: false,
+            code: 'AI_OWNER_ONLY',
+            error: 'AI 助手当前仅对 Owner 开放。',
+            requestId: req.requestId || null,
+        });
+    }
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -198,13 +224,8 @@ async function handleAiChat(req, res, options = {}) {
     };
 
     try {
-        const runtimeEnv = options.env || process.env;
-        // This is a server-owned, request-start snapshot.  Neither the body,
-        // headers nor model output can select the Native answer owner.
-        const nativeRollout = (options.resolveAiNativeRollout || resolveAiNativeRollout)({
-            request: req,
-            env: runtimeEnv,
-        });
+        // runtimeEnv / nativeRollout 已在函数入口按 OWNER-ONLY 边界快照，这里直接复用同一快照，
+        // 保证「边界判定」与「runtime 选择」读的是同一个请求开始时的决定。
         const trustedInternalRequest = isTrustedInternalAiRequest(req, runtimeEnv);
         const ownerKey = trustedInternalRequest ? 'internal' : (req.user?.role || 'admin');
         const persistedConversationContext = (options.loadAiConversationContinuation || loadAiConversationContinuation)(

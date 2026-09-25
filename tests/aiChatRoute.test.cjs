@@ -5,11 +5,26 @@ const { buildAiTurnMetrics, handleAiChat } = require('../api/routes/ai/chat.cjs'
 const { createAiRuntimeTelemetry } = require('../api/services/aiRuntimeTelemetry.cjs');
 const { issueOwnerToken } = require('../api/services/ownerAuthentication.cjs');
 
+// NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力。本文件的 SSE 传输测试因此默认以规范 Owner
+// 身份驱动：进程 env 具备 owner 配置，createRequestResponse 默认带 owner cookie。
+// 单独传入自身 env 的测试（N7.1 / 资格测试）会在 configure(req) 中覆盖 cookie。
+const OWNER_TEST_ENV = Object.freeze({
+    ACCESS_PASSWORD: 'synthetic-shared-password',
+    JWT_SECRET: 'synthetic-jwt-test-secret',
+    INTERNAL_SECRET: 'synthetic-internal-secret',
+    PUMP_OWNER_ACCESS_PASSWORD: 'synthetic-owner-credential-only-for-unit-test',
+    PUMP_OWNER_SUBJECT: 'synthetic_owner_subject_001',
+    AI_V5_OWNER_SUBJECTS: '["synthetic_owner_subject_001"]',
+    AI_NATIVE_MODE: 'owner',
+});
+Object.assign(process.env, OWNER_TEST_ENV);
+const OWNER_TEST_TOKEN = issueOwnerToken(OWNER_TEST_ENV.PUMP_OWNER_ACCESS_PASSWORD, OWNER_TEST_ENV);
+
 function createRequestResponse() {
     const req = new EventEmitter();
     req.body = { messages: [{ role: 'user', content: '测试' }] };
     req.headers = {};
-    req.cookies = {};
+    req.cookies = { token: OWNER_TEST_TOKEN };
     req.requestId = 'req-route-test';
     const res = new EventEmitter();
     res.headers = {};
@@ -170,7 +185,7 @@ test('AI SSE：已配置的单轮模型选择传入执行器', async () => {
     req.body.providerPreference = 'deepseek';
     let receivedPreference;
     await handleAiChat(req, res, {
-        env: { DEEPSEEK_API_KEY: 'deepseek-key' },
+        env: { ...OWNER_TEST_ENV, DEEPSEEK_API_KEY: 'deepseek-key' },
         runAiDispatcherV3: async input => {
             receivedPreference = input.providerPreference;
             input.emit('content', { content: '完成' });
@@ -182,7 +197,7 @@ test('AI SSE：已配置的单轮模型选择传入执行器', async () => {
     assert.match(res.output, /"type":"done"/);
 });
 
-test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner/Internal 资格传入运行时', async () => {
+test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner 资格传入运行时（NATIVE-R2 起 internal-secret 不再进入）', async () => {
     const env = {
         ACCESS_PASSWORD: 'synthetic-shared-password',
         JWT_SECRET: 'synthetic-jwt-test-secret',
@@ -213,9 +228,11 @@ test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner/Internal 资格传�
     const ownerToken = issueOwnerToken(env.PUMP_OWNER_ACCESS_PASSWORD, env);
     const sharedToken = require('jsonwebtoken').sign({ role: 'admin' }, env.JWT_SECRET, { expiresIn: '1h' });
     assert.deepEqual(await eligibilityFor(req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { ontology: true, impact: true });
-    assert.deepEqual(await eligibilityFor(req => { req.headers['x-internal-secret'] = env.INTERNAL_SECRET; }), { ontology: true, impact: true });
-    assert.deepEqual(await eligibilityFor(req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), { ontology: false, impact: false });
-    assert.deepEqual(await eligibilityFor(req => { req.user = { role: 'admin', owner: true }; req.headers['x-owner'] = 'true'; }), { ontology: false, impact: false });
+    // NATIVE-R2：AI 入口冻结为 OWNER-ONLY。x-internal-secret 不再被升格为 Owner，
+    // 该请求在进入 dispatcher 之前即被拒绝（received 保持 null），更不会进入 Legacy。
+    assert.equal(await eligibilityFor(req => { req.cookies = {}; req.headers['x-internal-secret'] = env.INTERNAL_SECRET; }), null);
+    assert.deepEqual(await eligibilityFor(req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), null);
+    assert.deepEqual(await eligibilityFor(req => { req.cookies = {}; req.user = { role: 'admin', owner: true }; req.headers['x-owner'] = 'true'; }), null);
 });
 
 test('AI SSE：非法或未配置的单轮模型选择在路由边界拒绝', async () => {
@@ -289,6 +306,17 @@ test('N7.1 chat rollout keeps off/shadow Legacy-authoritative and admits only au
     }
     assert.deepEqual(await receivedFor('off', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
     assert.deepEqual(await receivedFor('shadow', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
-    assert.deepEqual(await receivedFor('owner', req => { req.cookies.token = sharedToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
     assert.deepEqual(await receivedFor('owner', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: true, message: '测试' });
+
+    // NATIVE-R2：owner 模式下「已认证但非 Owner」不再作为 Legacy 兼容路径存在 ——
+    // 请求在 dispatcher 之前即被拒绝，dispatcher 与 Legacy 都不会被进入。
+    const { req: nonOwnerReq, res: nonOwnerRes } = createRequestResponse();
+    nonOwnerReq.cookies.token = sharedToken;
+    nonOwnerReq.user = { role: 'admin' };
+    await handleAiChat(nonOwnerReq, nonOwnerRes, {
+        env: { ...env, AI_NATIVE_MODE: 'owner', AI_NATIVE_WRITE_ENABLED: 'false' },
+        runAiDispatcherV3: async () => { throw new Error('DISPATCHER_MUST_NOT_RUN_FOR_NON_OWNER'); },
+    });
+    assert.equal(nonOwnerRes.statusCode, 403);
+    assert.match(nonOwnerRes.output, /AI_OWNER_ONLY/u);
 });

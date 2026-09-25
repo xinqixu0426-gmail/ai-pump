@@ -63,14 +63,29 @@ async function startAiHttpRuntime(options = {}) {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'p7-http-runtime-'));
     const filename = path.join(directory, 'fixture.db');
     const internalSecret = 'p7-http-runtime-internal-secret';
+    // NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力，x-internal-secret 不再是 AI 入口。
+    // 本 fixture 因此改用规范 Owner 身份（owner cookie JWT + ownerConfigValid）驱动
+    // 真实 /api/ai/chat；业务路由同样接受该 token（role=admin）。
+    const ownerPassword = 'p7-http-runtime-owner-password-0123456789abcdef';
+    const ownerSubject = 'p7-http-runtime-owner';
     try {
         require('./ontologyShadowFixture.cjs').fixture(filename).close();
         Object.assign(process.env, { NODE_ENV: 'test', NODE_TEST_CONTEXT: 'p7-http-runtime',
             PUMP_TEST_DATABASE_PATH: filename, INTERNAL_SECRET: internalSecret,
+            ACCESS_PASSWORD: 'p7-http-runtime-access-password',
+            // 必须沿用调用方/默认已生效的 JWT_SECRET：authMiddleware 在模块加载时捕获它，
+            // 若这里覆盖，owner token 会与中间件使用的密钥不一致（401）。
+            JWT_SECRET: process.env.JWT_SECRET || 'dev_jwt_secret',
+            PUMP_OWNER_ACCESS_PASSWORD: ownerPassword, PUMP_OWNER_SUBJECT: ownerSubject,
+            AI_V5_OWNER_SUBJECTS: JSON.stringify([ownerSubject]), AI_NATIVE_MODE: 'owner',
             KNOWLEDGE_AUTO_SYNC_ENABLED: 'false', KNOWLEDGE_VECTOR_ENABLED: 'false' });
+        const ownerToken = require('../../api/services/ownerAuthentication.cjs').issueOwnerToken(ownerPassword, process.env);
+        if (!ownerToken) throw Error('OWNER_TOKEN_ISSUE_FAILED');
         const express = require('express');
         const app = express();
         app.use(express.json({ limit: '4mb' }));
+        // NATIVE-R2：owner 身份通过 cookie 传递，因此必须解析 cookie（生产 api.cjs 同样挂载）。
+        app.use(require('cookie-parser')());
         // The read-only guard protects the BUSINESS surface. The AI entry point is mounted below it and
         // must stay reachable, since it is the transport under test.
         app.use((req, res, next) => req.path.startsWith('/api/ai/') ? next()
@@ -96,8 +111,8 @@ async function startAiHttpRuntime(options = {}) {
         const db = require('../../api/db.cjs').db;
         const baseUrl = `http://127.0.0.1:${server.address().port}`;
         return {
-            baseUrl, internalSecret, db, filename,
-            headers: () => ({ 'content-type': 'application/json', 'x-internal-secret': internalSecret }),
+            baseUrl, internalSecret, ownerToken, db, filename,
+            headers: () => ({ 'content-type': 'application/json', cookie: `token=${ownerToken}` }),
             close: async () => {
                 await new Promise(resolve => server.close(resolve));
                 if (db?.open) db.close();
