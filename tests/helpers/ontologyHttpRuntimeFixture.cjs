@@ -66,18 +66,19 @@ async function startAiHttpRuntime(options = {}) {
     // NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力，x-internal-secret 不再是 AI 入口。
     // 本 fixture 因此改用规范 Owner 身份（owner cookie JWT + ownerConfigValid）驱动
     // 真实 /api/ai/chat；业务路由同样接受该 token（role=admin）。
-    const ownerPassword = 'p7-http-runtime-owner-password-0123456789abcdef';
-    const ownerSubject = 'p7-http-runtime-owner';
+    const ownerPassword = process.env.PUMP_OWNER_ACCESS_PASSWORD || 'p7-http-runtime-owner-password-0123456789abcdef';
+    const ownerSubject = process.env.PUMP_OWNER_SUBJECT || 'p7-http-runtime-owner';
     try {
         require('./ontologyShadowFixture.cjs').fixture(filename).close();
         Object.assign(process.env, { NODE_ENV: 'test', NODE_TEST_CONTEXT: 'p7-http-runtime',
             PUMP_TEST_DATABASE_PATH: filename, INTERNAL_SECRET: internalSecret,
-            ACCESS_PASSWORD: 'p7-http-runtime-access-password',
+            ACCESS_PASSWORD: process.env.ACCESS_PASSWORD || 'p7-http-runtime-access-password',
             // 必须沿用调用方/默认已生效的 JWT_SECRET：authMiddleware 在模块加载时捕获它，
             // 若这里覆盖，owner token 会与中间件使用的密钥不一致（401）。
             JWT_SECRET: process.env.JWT_SECRET || 'dev_jwt_secret',
+            // 同理：调用方若已声明自己的隔离 owner 身份，必须复用，不能覆盖（否则其预签 token 主体不匹配）。
             PUMP_OWNER_ACCESS_PASSWORD: ownerPassword, PUMP_OWNER_SUBJECT: ownerSubject,
-            AI_V5_OWNER_SUBJECTS: JSON.stringify([ownerSubject]), AI_NATIVE_MODE: 'owner',
+            AI_V5_OWNER_SUBJECTS: process.env.AI_V5_OWNER_SUBJECTS || JSON.stringify([ownerSubject]), AI_NATIVE_MODE: 'owner',
             KNOWLEDGE_AUTO_SYNC_ENABLED: 'false', KNOWLEDGE_VECTOR_ENABLED: 'false' });
         const ownerToken = require('../../api/services/ownerAuthentication.cjs').issueOwnerToken(ownerPassword, process.env);
         if (!ownerToken) throw Error('OWNER_TOKEN_ISSUE_FAILED');
