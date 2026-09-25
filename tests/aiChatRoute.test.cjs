@@ -206,6 +206,8 @@ test('AI SSE：Ontology 与 Impact Canary 仅把可信 Owner 资格传入运行�
         PUMP_OWNER_SUBJECT: 'synthetic_owner_subject_001',
         AI_V5_OWNER_SUBJECTS: '["synthetic_owner_subject_001"]',
         AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED: 'true',
+        // NATIVE-HC1：AI 助手是 Owner-only 的 Native 能力；未启用 Native 即不可用（无 Legacy 兜底）。
+        AI_NATIVE_MODE: 'owner',
     };
     const dispatch = async input => {
         input.emit('content', { content: '完成' });
@@ -304,8 +306,21 @@ test('N7.1 chat rollout keeps off/shadow Legacy-authoritative and admits only au
         assert.match(res.output, /legacy answer/);
         return received;
     }
-    assert.deepEqual(await receivedFor('off', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
-    assert.deepEqual(await receivedFor('shadow', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: false, message: '测试' });
+    // NATIVE-HC1：rollout 开关只表示「Native 是否启用」，不再表示「是否改用 Legacy 回答」。
+    // off / shadow → 明确不可用（403 AI_UNAVAILABLE），绝不产生 Legacy 答案。
+    for (const mode of ['off', 'shadow']) {
+        const { req, res } = createRequestResponse();
+        req.cookies.token = ownerToken;
+        req.user = { role: 'admin' };
+        let dispatcherCalls = 0;
+        await handleAiChat(req, res, {
+            env: { ...env, AI_NATIVE_MODE: mode, AI_NATIVE_WRITE_ENABLED: 'false' },
+            runAiDispatcherV3: async () => { dispatcherCalls += 1; return { telemetry: {} }; },
+        });
+        assert.equal(res.statusCode, 403, `${mode}: 必须明确不可用`);
+        assert.match(res.output, /AI_UNAVAILABLE/u, mode);
+        assert.equal(dispatcherCalls, 0, `${mode}: 不得进入任何 runtime`);
+    }
     assert.deepEqual(await receivedFor('owner', req => { req.cookies.token = ownerToken; req.user = { role: 'admin' }; }), { delegated: true, message: '测试' });
 
     // NATIVE-R2：owner 模式下「已认证但非 Owner」不再作为 Legacy 兼容路径存在 ——

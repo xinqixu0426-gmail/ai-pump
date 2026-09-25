@@ -209,7 +209,7 @@ test('S1-E2（NATIVE-R3 改写）dispatcher：Owner 只读即使 admission 不�
     assert.equal(emitted.some(([type, payload]) => type === 'content' && payload.content === 'Native 的确定性结论'), true, '必须输出 Native 结果');
     assert.equal(emitted.some(([type, payload]) => type === 'status' && payload.stage === 'canary_ineligible'), false);
 
-    // 写意图请求（非只读）仍走既有命令路径：写路径不属 R3 范围，且绝不因「留在 Native」被重新归类为读。
+    // NATIVE-HC1：写意图请求由 Native 给出确定性「写未开放」结果，Legacy 与 Native 只读运行时都不参与。
     const writeEmitted = [];
     let writeCommandCalls = 0;
     let writeReadCalls = 0;
@@ -222,8 +222,10 @@ test('S1-E2（NATIVE-R3 改写）dispatcher：Owner 只读即使 admission 不�
             runAiAgentRuntimeV3: async () => { writeCommandCalls += 1; return { finalContent: '既有命令路径的答案' }; },
         },
     );
-    assert.equal(writeCommandCalls, 1, '写请求必须仍走既有命令路径');
+    assert.equal(writeCommandCalls, 0, '写请求不得进入 Legacy 写运行时');
     assert.equal(writeReadCalls, 0, '写请求不得被重分类为 Native 只读');
+    assert.equal(writeEmitted.some(([type, payload]) => type === 'status' && payload.stage === 'native_write_disabled'), true);
+    assert.equal(writeEmitted.some(([type, payload]) => type === 'content' && /写入当前未开放/u.test(payload.content)), true);
 });
 
 test('S1-E3 dispatcher：admission 合格 → Native 作为权威答案，legacy 不参与', async () => {

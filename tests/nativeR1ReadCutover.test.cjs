@@ -194,7 +194,9 @@ test('R1-DISP-3（NATIVE-R3 改写）只读一律留在 Native；写意图仍走
         controllerResult({ goalKinds: ['MANAGEMENT_OVERVIEW'], eligible: false, nativeOwned: writeOwnership.owned, nativeReadOwned: false }),
         [{ role: 'user', content: '帮我新增零件' }],
     );
-    assert.equal(write.spies.calls.legacyCommand, 1, '写请求必须仍走命令路径');
+    // NATIVE-HC1：写意图由 Native 给出「写未开放」结果，不再进入 Legacy 写运行时。
+    assert.equal(write.spies.calls.legacyCommand, 0, '写请求不得进入 Legacy 写运行时');
+    assert.equal(write.emitted.some(event => event.type === 'status' && event.payload?.stage === 'native_write_disabled'), true);
 });
 
 test('R1-DISP-4 拥有所有权的族准入成功时：Native 答案直接成为最终答案，Legacy 为 0', async () => {

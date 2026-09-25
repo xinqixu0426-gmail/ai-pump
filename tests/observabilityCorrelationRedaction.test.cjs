@@ -127,11 +127,16 @@ test('existing request and operation IDs correlate through Agent and Tool bounda
   enable(runtime);
   const marker = { success: true, operationId: 'p04-operation-001', auditId: 'p04-audit-001' };
   const result = await runAiDispatcherV3({ requestId: 'p04-request-001' }, {
-    runAiAgentRuntimeV3: () => observability.withToolSpan({
-      toolName: 'p04_test_tool',
-      operationId: 'p04-operation-001',
-      args: { model: 'P04_TOOL_ARG_SENTINEL' },
-    }, async () => marker),
+    // NATIVE-HC1：Native 任务运行时是唯一被调度的 runtime。
+    nativeTaskDelegation: true,
+    runAiTaskControllerV2: async () => {
+      await observability.withToolSpan({
+        toolName: 'p04_test_tool',
+        operationId: 'p04-operation-001',
+        args: { model: 'P04_TOOL_ARG_SENTINEL' },
+      }, async () => marker);
+      return marker;
+    },
   });
   assert.equal(result, marker);
   assert.equal(runtime.spans[0].attributes['pump.request.id'], 'p04-request-001');

@@ -123,10 +123,12 @@ test('dispatcher creates agent root with model children and preserves provider r
       return providerResult;
     },
   }, {
-    runAiAgentRuntimeV3: async input => {
+    // NATIVE-HC1：dispatcher 只调度 Native 任务运行时（Legacy runtime 零引用）。
+    nativeTaskDelegation: true,
+    runAiTaskControllerV2: async input => {
       const first = await input.fetchAiProvider([], { tools: [{}], stream: true });
       const second = await input.fetchAiProvider([], { tools: [], stream: false });
-      return { first, second };
+      return { first, second, task: { goals: [] }, detail: {}, answer: { content: '' }, canaryAdmission: { eligible: true }, telemetry: {} };
     },
   });
   assert.equal(result.first, providerResult);

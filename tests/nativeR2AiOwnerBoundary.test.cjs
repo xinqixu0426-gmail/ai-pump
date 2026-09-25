@@ -138,7 +138,9 @@ test('R2-BOUNDARY-4 仅 x-internal-secret：不被升格为 Owner，确定性 40
         env: boundaryEnv(),
     });
     assert.equal(rollout.ownerAuthenticated, false, 'internal-secret 不得被判定为 Owner');
-    assert.equal(resolveAiChatAccessBoundary({ rollout }).access, AI_CHAT_ACCESS.AI_UNAVAILABLE);
+    // NATIVE-HC1 细化：非 owner（含仅 internal-secret）→ AI_OWNER_ONLY；
+    // 只有「是 Owner 但 Native 未启用」才是 AI_UNAVAILABLE。
+    assert.equal(resolveAiChatAccessBoundary({ rollout }).access, AI_CHAT_ACCESS.AI_OWNER_ONLY);
 });
 
 test('R2-BOUNDARY-5 边界只由规范 Owner 判定驱动：请求方可控字段无法影响', async t => {

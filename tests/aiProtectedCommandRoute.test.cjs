@@ -128,28 +128,35 @@ test('AI 写命令路由：修改字段确定性提取，刚才录入引用只�
 });
 
 test('AI 调度器：查询走只读助手，明确写命令走确认执行器', async () => {
+    // NATIVE-HC1：读 → Native 任务运行时；写命令 → Native 显式「写未开放」。
+    // Legacy 只读/写运行时都不再被调用。
     const calls = [];
+    const legacy = { read: 0, command: 0 };
     const dependencies = {
-        runAiAssistant: async input => {
-            calls.push(['read', input.commandRoute]);
-            return { runtime: 'read' };
+        nativeTaskDelegation: true,
+        runAiTaskControllerV2: async input => {
+            calls.push(['native', input.commandRoute]);
+            return { task: { goals: [] }, detail: {}, answer: { content: 'native' }, canaryAdmission: { eligible: true }, telemetry: {} };
         },
-        runAiAgentRuntimeV3: async input => {
-            calls.push(['command', input.commandRoute]);
-            return { runtime: 'command' };
-        },
+        runAiAssistant: async () => { legacy.read += 1; return {}; },
+        runAiAgentRuntimeV3: async () => { legacy.command += 1; return {}; },
     };
 
-    assert.deepEqual(await runAiDispatcherV3({ messages: messages('皮垫零件多少钱') }, dependencies), {
-        runtime: 'read',
-    });
-    assert.deepEqual(await runAiDispatcherV3({ messages: messages('帮我录入零件，型号120*2.65，单价1元') }, dependencies), {
-        runtime: 'command',
-    });
-    assert.equal(calls[0][0], 'read');
+    const read = await runAiDispatcherV3({ messages: messages('皮垫零件多少钱') }, dependencies);
+    assert.equal(calls[0][0], 'native');
     assert.equal(calls[0][1], null);
-    assert.equal(calls[1][0], 'command');
-    assert.equal(calls[1][1].preferredCapability, 'create_part');
+    assert.equal(legacy.read, 0);
+    assert.equal(legacy.command, 0);
+    assert.equal(read.canaryAdmission.eligible, true);
+    const write = await runAiDispatcherV3({ messages: messages('帮我录入零件，型号120*2.65，单价1元') }, dependencies);
+    assert.equal(write.telemetry.outcome, 'native_write_disabled');
+    assert.equal(legacy.read, 0);
+    assert.equal(legacy.command, 0);
+    // HC1：写命令不再交给 Legacy 命令运行时，而是 Native 显式拒绝写入；
+    // 命令路由的识别结果仍由 detectProtectedCommandRoute 确定性产出。
+    assert.equal(calls.length, 1, '写命令不得再进入任何 runtime');
+    assert.equal(calls[0][1], null, '第一个（只读）调用没有命令路由');
+    assert.equal(detectProtectedCommandRoute(messages('帮我录入零件，型号120*2.65，单价1元')).preferredCapability, 'create_part');
 });
 
 test('AI 目标规划：可信命令信封固定写模式和无歧义单零件能力', () => {

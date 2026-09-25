@@ -1,5 +1,3 @@
-const { runAiAssistant } = require('./aiAssistantRuntime.cjs');
-const { runAiAgentRuntimeV3 } = require('./aiAgentRuntimeV3.cjs');
 const { detectProtectedCommandRoute } = require('./aiProtectedCommandRoute.cjs');
 const { fetchAiProvider } = require('./aiProvider.cjs');
 const { runAiTaskControllerV2 } = require('./aiTaskControllerV2.cjs');
@@ -9,9 +7,46 @@ const {
 } = require('./observability.cjs');
 
 /**
- * NATIVE-R1：Native 独家负责的问法族不得进入 Legacy。
+ * NATIVE-HC1：Legacy AI orchestration 已从生产架构中退出。
+ *
+ * 本文件**不再**引用已退役的旧 AI 编排运行时 —— 生产请求图对它们的可达性为 0
+ * （由静态架构测试锁定）。dispatcher 只做三件事：
+ *   1) 未启用 Native 委派（非 owner / 未开启 AI-Native）→ 明确不可用，绝不回落；
+ *   2) 写/命令意图 → Native 显式「AI 写入未开放」结果，绝不进入 Legacy 写运行时；
+ *   3) 其余（只读）→ Native 任务运行时；准入不满足也留在 Native（R3 已确立）。
+ */
+
+/** Native 写未开放时的确定性结果（AI_NATIVE_WRITE_ENABLED=false）。 */
+function nativeWriteDisabledOutcome(commandRoute, runtimeInput) {
+    runtimeInput.emit?.('status', {
+        stage: 'native_write_disabled',
+        message: 'AI 写入当前未开放；本次没有执行任何业务写入。',
+        legacyRuntimeEntered: false,
+    });
+    runtimeInput.emit?.('content', {
+        content: `本次请求包含写操作意图（${commandRoute || 'command'}）。AI 写入当前未开放，因此没有执行任何修改；普通业务写接口不受影响，请通过正式页面或 API 完成操作。`,
+    });
+    runtimeInput.emit?.('detail', { state: 'WRITE_DISABLED', commandRoute: commandRoute || null, nativeWriteEnabled: false });
+    runtimeInput.emit?.('done');
+    return { finalContent: '', telemetry: { outcome: 'native_write_disabled', commandRoute: commandRoute || null, legacyRuntimeEntered: false } };
+}
+
+/** Native 未启用时的确定性结果（AI 不可用；不再有 Legacy 兜底）。 */
+function aiUnavailableOutcome(runtimeInput) {
+    runtimeInput.emit?.('status', {
+        stage: 'ai_unavailable',
+        message: 'AI 助手当前不可用。',
+        legacyRuntimeEntered: false,
+    });
+    runtimeInput.emit?.('content', { content: 'AI 助手当前不可用：本部署未启用 AI-Native 只读运行时。' });
+    runtimeInput.emit?.('detail', { state: 'AI_UNAVAILABLE' });
+    runtimeInput.emit?.('done');
+    return { finalContent: '', telemetry: { outcome: 'ai_unavailable', legacyRuntimeEntered: false } };
+}
+
+/**
+ * NATIVE-R1/R3：Native 独家负责的结果。
  * 只消费 controller 已经产出的确定性答案；没有答案时给 Native 显式安全失败。
- * 本函数不新增任何答案逻辑，也不引用任何 Legacy runtime。
  */
 function nativeOwnedOutcome(result, runtimeInput) {
     const content = typeof result?.answer?.content === 'string' ? result.answer.content.trim() : '';
@@ -32,10 +67,6 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
     const commandRoute = detectProtectedCommandRoute(input.messages, {
         recentPartWrite: input.recentPartWrite,
     });
-    const compatibilityRuntime = !dependencies.runAiAssistant && dependencies.runAiAgentRuntimeV3;
-    const readRuntime = dependencies.runAiAssistant || compatibilityRuntime || runAiAssistant;
-    const commandRuntime = dependencies.runAiAgentRuntimeV3 || runAiAgentRuntimeV3;
-    const runtime = commandRoute ? commandRuntime : readRuntime;
     const provider = traceModelProvider(input.fetchAiProvider || fetchAiProvider);
     return withAgentSpan({
         streaming: Boolean(input.stream),
@@ -48,36 +79,25 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
             agentVersion: 3,
             commandRoute,
         };
-        // Native delegation is intentionally an injected server dependency.
-        // It is never selected from an HTTP payload, header, page context, or
-        // environment flag, so ordinary traffic remains on the frozen runtime.
-        if (dependencies.nativeTaskDelegation === true && !commandRoute) {
-            const controller = dependencies.runAiTaskControllerV2 || runAiTaskControllerV2;
-            runtimeInput.emit?.('status', { stage: 'task_v2', message: '正在建立只读任务证据。' });
-            const result = await controller({ ...runtimeInput, fetchAiProvider: provider }, {
-                ownerKey: dependencies.ownerKey || input.ownerKey,
-                executeToolCall: dependencies.executeToolCall,
-                sessionStore: dependencies.sessionStore,
-                provider: dependencies.provider,
-            });
-            // NATIVE-R3：Owner 只读请求一律由 Native 独家负责。
-            // 准入不满足（未支持族 / OTHER / 空计划 / 结构状态）不再作为回落 Legacy 的理由：
-            // unknown、no-plan、未支持读 都是 Native 的状态，只能产出 Native 答案、
-            // Native 澄清或 Native 显式安全失败。唯一例外是写意图计划（写路径，不属本阶段）。
-            if (result.canaryAdmission && result.canaryAdmission.eligible === false) {
-                if (result.canaryAdmission.nativeReadOwned === true) return nativeOwnedOutcome(result, runtimeInput);
-                runtimeInput.emit?.('status', { stage: 'canary_ineligible', message: '该请求带写意图，使用既有正式路径。', legacyRuntimeEntered: true });
-                return runtime(runtimeInput);
-            }
-            // Task V2 owns the native answer.  It emits only the boundary's
-            // fully validated deterministic content after controller work is
-            // complete; no provider draft or legacy postprocessor runs here.
-            if (typeof result.answer?.content === 'string' && result.answer.content) runtimeInput.emit?.('content', { content: result.answer.content });
-            runtimeInput.emit?.('detail', result.detail);
-            runtimeInput.emit?.('done');
-            return result;
-        }
-        return runtime(runtimeInput);
+        // 1) Native 委派是注入式的服务端依赖，请求方无法选择；未启用即 AI 不可用（无 Legacy 兜底）。
+        if (dependencies.nativeTaskDelegation !== true) return aiUnavailableOutcome(runtimeInput);
+        // 2) 写/命令意图 → Native 显式写未开放结果（§5）；绝不进入 Legacy 写运行时。
+        if (commandRoute) return nativeWriteDisabledOutcome(commandRoute, runtimeInput);
+        // 3) 只读 → Native 任务运行时独占回答。
+        const controller = dependencies.runAiTaskControllerV2 || runAiTaskControllerV2;
+        runtimeInput.emit?.('status', { stage: 'task_v2', message: '正在建立只读任务证据。' });
+        const result = await controller({ ...runtimeInput, fetchAiProvider: provider }, {
+            ownerKey: dependencies.ownerKey || input.ownerKey,
+            executeToolCall: dependencies.executeToolCall,
+            sessionStore: dependencies.sessionStore,
+            provider: dependencies.provider,
+        });
+        // 只读请求一律由 Native 负责；即使准入不满足（未支持族 / OTHER / 空计划）也留在 Native。
+        if (result.canaryAdmission && result.canaryAdmission.eligible === false) return nativeOwnedOutcome(result, runtimeInput);
+        if (typeof result.answer?.content === 'string' && result.answer.content) runtimeInput.emit?.('content', { content: result.answer.content });
+        runtimeInput.emit?.('detail', result.detail);
+        runtimeInput.emit?.('done');
+        return result;
     });
 }
 

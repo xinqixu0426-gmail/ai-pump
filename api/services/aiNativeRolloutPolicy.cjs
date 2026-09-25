@@ -57,21 +57,27 @@ function resolveAiNativeRollout({ request = {}, env = process.env, isOwner = isA
 }
 
 /**
- * NATIVE-R2：AI 助手是 OWNER-ONLY 产品能力。
- * 非 Owner 请求一律 fail closed —— 既不进入 Native，也不得再进入 Legacy。
+ * NATIVE-HC1：AI 助手是 OWNER-ONLY 的 Native 能力，且**没有 Legacy 兜底**。
+ * - 非 Owner → AI_OWNER_ONLY（产品边界）
+ * - Owner 但 Native 未启用（AI_NATIVE_MODE 不等于 owner）→ AI_UNAVAILABLE
+ *   （rollout 开关只表示「Native 是否启用」，不再表示「是否改用 Legacy 回答」）
  * 判据复用唯一的规范 Owner 判定（owner cookie JWT + ownerConfigValid），
  * 不引入 username 启发式，也不把 x-internal-secret 升格为 Owner。
  */
 const AI_CHAT_ACCESS = Object.freeze({
     OWNER_NATIVE: 'OWNER_NATIVE',
+    AI_OWNER_ONLY: 'AI_OWNER_ONLY',
     AI_UNAVAILABLE: 'AI_UNAVAILABLE',
 });
 
 function resolveAiChatAccessBoundary({ rollout = null } = {}) {
-    if (rollout && rollout.ownerAuthenticated === true) {
-        return Object.freeze({ access: AI_CHAT_ACCESS.OWNER_NATIVE, reason: 'OWNER_AUTHENTICATED' });
+    if (!rollout || rollout.ownerAuthenticated !== true) {
+        return Object.freeze({ access: AI_CHAT_ACCESS.AI_OWNER_ONLY, reason: 'OWNER_REQUIRED' });
     }
-    return Object.freeze({ access: AI_CHAT_ACCESS.AI_UNAVAILABLE, reason: 'OWNER_REQUIRED' });
+    if (rollout.ownerEligible !== true) {
+        return Object.freeze({ access: AI_CHAT_ACCESS.AI_UNAVAILABLE, reason: 'AI_NATIVE_DISABLED' });
+    }
+    return Object.freeze({ access: AI_CHAT_ACCESS.OWNER_NATIVE, reason: 'OWNER_AUTHENTICATED' });
 }
 
 function startupAiNativeRolloutSummary(env = process.env) {

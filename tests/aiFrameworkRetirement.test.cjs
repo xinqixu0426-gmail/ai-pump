@@ -3,30 +3,34 @@ const assert = require('node:assert/strict');
 const { runAiDispatcherV3 } = require('../api/services/aiDispatcherV3.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
 
-test('retired shadow flags cannot invoke another runtime or alter the original result', async () => {
-    const expected = { answer: 'fixture', telemetry: { outcome: 'completed' } };
-    const events = [];
-    const actual = await runAiDispatcherV3({ messages: [{ role: 'user', content: 'fixture' }] }, {
+test('（NATIVE-HC1 改写）退役的 shadow 开关不能唤起任何 Legacy runtime', async () => {
+    const legacy = { read: 0, command: 0 };
+    const emitted = [];
+    const result = await runAiDispatcherV3({ messages: [{ role: 'user', content: 'fixture' }], emit: (type, payload) => emitted.push({ type, payload }) }, {
         env: { AI_V5_SHADOW_ENABLED: 'true', AI_V5_SHADOW_SAMPLE_RATE: '1' },
-        runAiAgentRuntimeV3: async input => {
-            events.push('runtime');
-            assert.equal(input.agentVersion, 3);
-            return expected;
-        },
+        runAiAssistant: async () => { legacy.read += 1; return {}; },
+        runAiAgentRuntimeV3: async () => { legacy.command += 1; return {}; },
         collectV5ShadowFacts: () => { throw Error('retired collector invoked'); },
         scheduleV5ShadowMirror: () => { throw Error('retired mirror invoked'); },
     });
-    assert.equal(actual, expected);
-    assert.deepEqual(events, ['runtime']);
+    assert.equal(legacy.read, 0);
+    assert.equal(legacy.command, 0);
+    assert.equal(emitted.some(event => event.type === 'status' && event.payload.stage === 'ai_unavailable'), true);
+    assert.equal(result.telemetry.outcome, 'ai_unavailable');
 });
 
-test('original runtime failures propagate without another engine or fabricated success', async () => {
+test('（NATIVE-HC1 改写）Native 失败直接抛出，不换引擎、不伪造成功', async () => {
     const error = new Error('fixture provider failure');
-    let calls = 0;
+    let nativeCalls = 0;
+    let legacyCalls = 0;
     await assert.rejects(runAiDispatcherV3({}, {
-        runAiAgentRuntimeV3: async () => { calls++; throw error; },
+        nativeTaskDelegation: true,
+        runAiTaskControllerV2: async () => { nativeCalls++; throw error; },
+        runAiAssistant: async () => { legacyCalls++; return {}; },
+        runAiAgentRuntimeV3: async () => { legacyCalls++; return {}; },
     }), e => e === error);
-    assert.equal(calls, 1);
+    assert.equal(nativeCalls, 1);
+    assert.equal(legacyCalls, 0, '不得换用任何 Legacy 引擎');
 });
 
 test('retired private tools are absent while standard comparison remains registered', async () => {

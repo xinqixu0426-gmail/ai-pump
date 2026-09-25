@@ -152,19 +152,20 @@ async function handleAiChat(req, res, options = {}) {
     });
     const accessBoundary = (options.resolveAiChatAccessBoundary || resolveAiChatAccessBoundary)({ rollout: nativeRollout });
     if (accessBoundary.access !== AI_CHAT_ACCESS.OWNER_NATIVE) {
+        const ownerOnly = accessBoundary.access === AI_CHAT_ACCESS.AI_OWNER_ONLY;
         (options.telemetry || aiRuntimeTelemetry).record({
             requestId: req.requestId || null,
             status: 'failed',
-            outcome: 'ai_owner_only',
+            outcome: ownerOnly ? 'ai_owner_only' : 'ai_unavailable',
             durationMs: 0,
             providerEvents: [],
             ttftMs: null,
-            errorCode: 'AI_OWNER_ONLY',
+            errorCode: ownerOnly ? 'AI_OWNER_ONLY' : 'AI_UNAVAILABLE',
         });
         return res.status(403).json({
             success: false,
-            code: 'AI_OWNER_ONLY',
-            error: 'AI 助手当前仅对 Owner 开放。',
+            code: ownerOnly ? 'AI_OWNER_ONLY' : 'AI_UNAVAILABLE',
+            error: ownerOnly ? 'AI 助手当前仅对 Owner 开放。' : 'AI 助手当前不可用：本部署未启用 AI-Native 只读运行时。',
             requestId: req.requestId || null,
         });
     }

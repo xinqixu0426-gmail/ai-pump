@@ -206,26 +206,42 @@ test('R3-FAIL-3 无计划 / 结构未就绪 / 未支持：dispatcher 仍留 Nati
     }
 });
 
-test('R3-FAIL-4 写意图计划仍走既有路径（写路径不属 R3，且不得被重分类为读）', async () => {
-    const { calls } = await dispatchWithCounters({
-        task: { goals: [{ goalKey: 'goal_1', kind: 'CURRENT_COST' }] }, detail: {}, answer: { content: '不该出现' },
-        canaryAdmission: { eligible: false, reason: 'WRITE_BEARING_REQUEST', nativeReadOwned: false }, telemetry: {},
-    });
-    assert.equal(calls.legacyRead, 1, '写意图计划必须仍走既有路径');
-    assert.equal(calls.legacyCommand, 0);
+test('R3-FAIL-4（HC1 改写）Nature 写意图：Native 显式写未开放，Legacy 调用为 0', async () => {
+    // HC1：命令路由不再进入 aiAgentRuntimeV3，而是由 Native 给出确定性「写未开放」结果。
+    const calls = { legacyRead: 0, legacyCommand: 0, native: 0 };
+    const emitted = [];
+    await runAiDispatcherV3(
+        { messages: [{ role: 'user', content: '帮我新增零件' }], stream: true, emit: (type, payload) => emitted.push({ type, payload }) },
+        {
+            nativeTaskDelegation: true,
+            runAiTaskControllerV2: async () => { calls.native += 1; throw new Error('MUST_NOT_RUN_FOR_WRITE'); },
+            runAiAssistant: async () => { calls.legacyRead += 1; return {}; },
+            runAiAgentRuntimeV3: async () => { calls.legacyCommand += 1; return {}; },
+        },
+    );
+    assert.equal(calls.legacyRead, 0, '写意图不得进入 Legacy 只读运行时');
+    assert.equal(calls.legacyCommand, 0, '写意图不得进入 Legacy 写运行时');
+    assert.equal(calls.native, 0, '写意图不进入 Native 只读任务运行时');
+    assert.equal(emitted.some(event => event.type === 'status' && event.payload?.stage === 'native_write_disabled'), true);
+    assert.equal(emitted.some(event => event.type === 'content' && /写入当前未开放/u.test(event.payload.content)), true);
+    assert.equal(emitted.some(event => event.type === 'done'), true);
 });
 
-test('R3-FAIL-5 非 Native 委派（off/shadow 或非 owner）不受本阶段影响：仍走既有路径', async () => {
-    const calls = { legacyRead: 0 };
+test('R3-FAIL-5（HC1 改写）未启用 Native 委派 → AI 不可用，Legacy 调用为 0', async () => {
+    const calls = { legacyRead: 0, legacyCommand: 0 };
+    const emitted = [];
     await runAiDispatcherV3(
-        { messages: [{ role: 'user', content: '当前成本' }], stream: true, emit: () => {} },
+        { messages: [{ role: 'user', content: '当前成本' }], stream: true, emit: (type, payload) => emitted.push({ type, payload }) },
         {
             nativeTaskDelegation: false,
             runAiAssistant: async () => { calls.legacyRead += 1; return { finalContent: 'LEGACY' }; },
-            runAiAgentRuntimeV3: async () => { throw new Error('MUST_NOT_RUN'); },
+            runAiAgentRuntimeV3: async () => { calls.legacyCommand += 1; return { finalContent: 'LEGACY' }; },
         },
     );
-    assert.equal(calls.legacyRead, 1, 'off/shadow/非 owner 路径保持既有行为');
+    assert.equal(calls.legacyRead, 0, 'AI_NATIVE_MODE≠owner 不得回落到 Legacy 回答');
+    assert.equal(calls.legacyCommand, 0);
+    assert.equal(emitted.some(event => event.type === 'status' && event.payload?.stage === 'ai_unavailable'), true);
+    assert.equal(emitted.some(event => event.type === 'content'), true);
 });
 
 // ══ 不可达性静态证明（§9 STRUCTURAL_NOT_READY / §10 F3） ══════════════
@@ -251,5 +267,6 @@ test('R3-STRUCT-1 生产不可达状态与 Legacy 引用面：STRUCTURAL_NOT_REA
         const text = fs.readFileSync(path.join(root, file), 'utf8');
         return /require\(['"]\.\/aiAssistantRuntime\.cjs['"]\)|require\(['"]\.\/aiAgentRuntimeV3\.cjs['"]\)/u.test(text);
     });
-    assert.deepEqual(referencing.sort(), ['api/services/aiDispatcherV2.cjs', 'api/services/aiDispatcherV3.cjs']);
+    // NATIVE-HC1：生产请求图对 Legacy runtime 的可达性为 0 —— 不再有任何生产 importer。
+    assert.deepEqual(referencing.sort(), []);
 });
