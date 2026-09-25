@@ -20,7 +20,7 @@ HC1 代码本身没有问题，但**权威发布流程在生产机上跑不过**
 | 权威仓库 | GitHub `xinqixu0426-gmail/ai-pump`（生产与开发两个 clone 的 `origin` 均指向它；Gitee 仅作 `gitee-backup`） |
 | 权威分支 | `ai-native/prod-canary-s2` |
 | **GITHUB_HEAD（部署前）** | `6fd2ac0e6d7e334f45bd6134454a3b1eef985860` |
-| GITHUB_HEAD（本报告提交后） | `b5d1790f9d3fb5147e2cefbe0acaee6437c673c2`（仅多一份本报告文档，包含 HC1） |
+| GITHUB_HEAD（本报告提交后） | 本报告的文档提交（`docs(ai): NATIVE-HC1-PROD blocked return`）—— 仅比 `6fd2ac0` 多一份本文档，仍完整包含 HC1 |
 | **PRODUCTION_HEAD（部署前）** | `f7f7467ff6743583dfe05461174b1df053456bb5`（分支 `ai-native/prod-canary-s2`，`git status --short` 为空） |
 | production 是否是 GitHub HEAD 的祖先 | **是**（`git merge-base --is-ancestor f7f7467 6fd2ac0` = true） |
 | GitHub HEAD 是否包含 `286a8c6` | 是 |
