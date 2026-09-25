@@ -27,6 +27,10 @@ function requestResponse(token) {
     req.requestId = `n7-live-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const res = new EventEmitter();
     res.writableEnded = false; res.destroyed = false; res.output = '';
+    // NATIVE-HC1：非 Native 轮次返回确定性 403（AI_UNAVAILABLE），需要 status/json 捕获。
+    res.statusCode = 200;
+    res.status = code => { res.statusCode = code; return res; };
+    res.json = body => { res.output = JSON.stringify(body); res.writableEnded = true; return res; };
     res.setHeader = () => {}; res.flushHeaders = () => {}; res.flush = () => {};
     res.write = chunk => { res.output += String(chunk); return true; };
     res.end = () => { res.writableEnded = true; };
@@ -68,7 +72,10 @@ async function main() {
             const metrics = current.find(item => item.type === 'metrics') || {};
             const provider = current.find(item => item.type === 'provider') || null;
             const error = current.find(item => item.type === 'error') || null;
-            rounds.push({ mode, provider: provider ? { provider: provider.provider, model: provider.model, fallback: Boolean(provider.fallback) } : null,
+            let bodyCode = null;
+            try { bodyCode = JSON.parse(res.output)?.code ?? null; } catch { bodyCode = null; }
+            rounds.push({ mode, statusCode: res.statusCode, bodyCode,
+                provider: provider ? { provider: provider.provider, model: provider.model, fallback: Boolean(provider.fallback) } : null,
                 modelRequestCount: metrics.modelRequestCount ?? null, toolCallCount: metrics.toolCallCount ?? null,
                 content: current.some(item => item.type === 'content'), error: error?.code || null,
                 nativeStatus: current.find(item => item.type === 'status' && item.stage === 'task_v2')?.stage || null });
@@ -77,12 +84,17 @@ async function main() {
         }
         const [offBefore, shadow, owner, offAfter] = rounds;
         const errors = [];
-        if (offBefore.nativeStatus || shadow.nativeStatus || offAfter.nativeStatus) errors.push('legacy_mode_delegated_native');
+        // NATIVE-HC1：rollout 开关只表示「Native 是否启用」，不再表示「改用 Legacy 回答」。
+        const nonNative = [offBefore, shadow, offAfter];
+        if (nonNative.some(round => round.nativeStatus)) errors.push('non_native_mode_delegated_native');
+        if (nonNative.some(round => round.statusCode !== 403 || round.bodyCode !== 'AI_UNAVAILABLE')) errors.push('non_native_mode_not_ai_unavailable');
+        if (nonNative.some(round => round.content)) errors.push('non_native_mode_produced_answer');
         if (owner.nativeStatus !== 'task_v2') errors.push('owner_mode_missing_native_delegation');
-        if (rounds.some(round => round.error)) errors.push('provider_or_runtime_error');
-        if (rounds.some(round => !round.content)) errors.push('missing_answer_content');
-        if (rounds.some(round => round.provider?.provider !== 'deepseek')) errors.push('unexpected_provider');
-        if (rounds.some(round => round.provider?.fallback)) errors.push('provider_fallback');
+        if (!owner.content) errors.push('owner_mode_missing_answer_content');
+        if (owner.statusCode !== 200) errors.push('owner_mode_unexpected_status');
+        if (owner.error) errors.push('owner_mode_runtime_error');
+        if (owner.provider?.provider !== 'deepseek') errors.push('unexpected_provider');
+        if (owner.provider?.fallback) errors.push('provider_fallback');
         const report = { version: 1, generatedAt: new Date().toISOString(), sourceRevision: git(['rev-parse', 'HEAD']), sourceTree: git(['rev-parse', 'HEAD^{tree}']), sourceDirty: Boolean(git(['status', '--porcelain'])), isolated: true, sequence: 'off->shadow->owner(write=false)->off',
             actualProvider: 'deepseek', writeEnabled: false, businessWrites: 0, rounds, errors };
         fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n');
