@@ -207,6 +207,39 @@ const OWNER_TRIAL_COVERAGE = Object.freeze([
         evidence: 'NATIVE-R1: aiTaskControllerV2.cjs globalReads(COIL_QUERY→search_coils) + requirement(coil.variant_set) + templateFor(CATALOG_V1)',
     }),
     Object.freeze({
+        familyId: 'customer-history',
+        questionFamily: '客户历史（报价 / 订单记录）',
+        example: '这个客户之前的报价和订单情况',
+        // NATIVE-R3：该族的 Native 读取（正式回执 + 客户身份校验）、requirement 与答案模板早已具备，
+        // 此前仅因覆盖表未声明而落入 F1。本轮起由 Native 独立负责。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'CUSTOMER_HISTORY',
+        goalKinds: Object.freeze(['CUSTOMER_HISTORY']),
+        subjectTypes: Object.freeze(['customer']),
+        requiredCapabilities: ['search_customer_history'],
+        requiredFacts: ['customer.quotation_history', 'customer.order_history'],
+        ambiguityPolicy: '客户身份不唯一 → 澄清；集合未证明完整时只呈现返回范围',
+        answerContract: 'HISTORY_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R3: aiTaskControllerV2.cjs:877 goalFor(CUSTOMER_HISTORY) 正式读取 + aiTaskStructuredReadsV2 requirement(customer.*_history) + aiTaskAnswerV2 templateFor(HISTORY_V1)',
+    }),
+    Object.freeze({
+        familyId: 'order-readiness',
+        questionFamily: '订单生产准备状态（readiness）',
+        example: '这个订单现在的生产准备状态如何',
+        // NATIVE-R3：同上，Native 侧读取（order knowledge package）+ requirement + READINESS_V1 均已具备。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'ORDER_READINESS',
+        goalKinds: Object.freeze(['ORDER_READINESS']),
+        subjectTypes: Object.freeze(['order']),
+        requiredCapabilities: ['get_order_knowledge_package'],
+        requiredFacts: ['order.identity', 'order.readiness', 'order.readiness_actions'],
+        ambiguityPolicy: '订单身份不唯一 → 澄清；只陈述 readiness 服务返回的准备状态',
+        answerContract: 'READINESS_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R3: aiTaskControllerV2.cjs:918 goalFor(ORDER_READINESS) 正式读取 + requirement(order.identity/readiness/actions) + aiTaskAnswerV2 templateFor(READINESS_V1)',
+    }),
+    Object.freeze({
         familyId: 'negative-object-probe',
         questionFamily: '不存在的对象（负向探测）',
         example: '查不存在的配方',
@@ -351,6 +384,21 @@ function nativeOwnershipDecision({ goalKinds = [], businessWritePolicy = 'FORBID
 }
 
 /**
+ * NATIVE-R3：Owner 只读请求一律由 Native 独家负责。
+ *
+ * 与 nativeOwnershipDecision（按族所有权）不同，这里是**读取路径级**的不变量：
+ * 只要计划是只读（businessWritePolicy === 'FORBIDDEN'），无论准入是否满足、
+ * 是否有可执行计划、是否命中未支持族，都不得回落 Legacy —— unknown / no-plan /
+ * 未支持读 都是 Native 的状态，而不是 Legacy 的路由条件。
+ *
+ * 唯一例外是写意图计划（mutation-bearing）：它是写路径，绝不因为"留在 Native"
+ * 而被重新归类为读。判据只来自已落定的计划，不接受任何请求方字段。
+ */
+function isNativeOwnedOwnerRead({ businessWritePolicy = 'FORBIDDEN' } = {}) {
+    return String(businessWritePolicy) === 'FORBIDDEN';
+}
+
+/**
  * Owner trial 覆盖就绪度。
  * 结构测试全绿**不**等于 canary 就绪；必须有明确的 SUPPORTED 范围。
  */
@@ -419,6 +467,7 @@ module.exports = {
     familyByQuestionFamily,
     ownerReadCanaryAdmission,
     nativeOwnershipDecision,
+    isNativeOwnedOwnerRead,
     ownerTrialCoverageBaseline,
     ownerTrialCoverageSummary,
     ownerTrialCoverageReadiness,

@@ -11,7 +11,7 @@ const { factSatisfiesRequirement, validateTaskEnvelopeV2, validateTaskProposalV1
 const { makeFactKey, makeFactRecordV1, recipeCurrentCostRequirement, scenarioCompareRequirements, profitabilityRequirement, virtualReadinessRequirement, recipeScopeHash } = require('./aiTaskFactsV2.cjs');
 const { defaultTaskSessionStoreV2 } = require('./aiTaskSessionV2.cjs');
 const { extractQuantitySlot } = require('../business-semantics/readinessSemantics.cjs');
-const { ownerReadCanaryAdmission, nativeOwnershipDecision } = require('./aiNativeOwnerTrialCoverage.cjs');
+const { ownerReadCanaryAdmission, nativeOwnershipDecision, isNativeOwnedOwnerRead } = require('./aiNativeOwnerTrialCoverage.cjs');
 const { composeTaskAnswerV2 } = require('./aiTaskAnswerV2.cjs');
 const { collectionCoverageV1, customerHistoryTypes, projectCustomerHistoryFacts, requirementsForStructuredGoal } = require('./aiTaskStructuredReadsV2.cjs');
 const { candidate: documentCandidate, evidence: sourceEvidenceRecord, extractedCandidate, sourceConfigComparison, truncateUnicode } = require('./aiTaskDocumentsV2.cjs');
@@ -121,7 +121,10 @@ function taskResult(task, detail, telemetry, trustedReceipts, sourceMessages) {
         goalKinds,
         businessWritePolicy: task.constraints.businessWritePolicy,
     });
-    return { task: publicTask(task), detail, answer, canaryAdmission: Object.freeze({ ...canaryAdmission, nativeOwned: nativeOwnership.owned, nativeOwnedFamilies: nativeOwnership.families, nativeOwnershipReason: nativeOwnership.reason }), nativeOwnership, telemetry: { ...telemetry, answerMode: answer.answerMode, answerModelCalls: answer.answerModelCalls, answerRepairCalls: answer.answerRepairCalls, answerFallbackUsed: answer.fallbackUsed } };
+    // NATIVE-R3：读取路径级所有权 —— 只读计划一律 Native 独家负责（unknown / no-plan /
+    // 未支持读都是 Native 状态）；只有写意图计划才允许离开这条路径。
+    const nativeReadOwned = isNativeOwnedOwnerRead({ businessWritePolicy: task.constraints.businessWritePolicy });
+    return { task: publicTask(task), detail, answer, canaryAdmission: Object.freeze({ ...canaryAdmission, nativeOwned: nativeOwnership.owned, nativeOwnedFamilies: nativeOwnership.families, nativeOwnershipReason: nativeOwnership.reason, nativeReadOwned }), nativeOwnership, nativeReadOwned, telemetry: { ...telemetry, answerMode: answer.answerMode, answerModelCalls: answer.answerModelCalls, answerRepairCalls: answer.answerRepairCalls, answerFallbackUsed: answer.fallbackUsed } };
 }
 
 function candidateHash(candidates) {

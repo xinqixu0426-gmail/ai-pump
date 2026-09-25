@@ -139,12 +139,13 @@ function dispatcherSpies(controllerResult) {
     };
 }
 
-function controllerResult({ goalKinds, eligible, nativeOwned, content = 'Native 答案' }) {
+function controllerResult({ goalKinds, eligible, nativeOwned, nativeReadOwned = nativeOwned, content = 'Native 答案' }) {
     return {
         task: { goals: goalKinds.map((kind, index) => ({ goalKey: `goal_${index + 1}`, kind })) },
         detail: { state: 'SUCCEEDED' },
         answer: { content },
-        canaryAdmission: { eligible, nativeOwned, reason: eligible ? 'SUPPORTED_AND_READ_ONLY' : 'FAMILY_NOT_SUPPORTED' },
+        // NATIVE-R3：dispatcher 以 nativeReadOwned（读取路径级所有权）判定是否禁止回落 Legacy。
+        canaryAdmission: { eligible, nativeOwned, nativeReadOwned, reason: eligible ? 'SUPPORTED_AND_READ_ONLY' : 'FAMILY_NOT_SUPPORTED' },
         telemetry: {},
     };
 }
@@ -178,17 +179,19 @@ test('R1-DISP-2 拥有所有权的族：Native 无答案时给 Native 显式安�
     assert.match(emitted.find(event => event.type === 'content').payload.content, /未完成/u, '必须给 Native 显式安全失败');
 });
 
-test('R1-DISP-3 未拥有所有权的族 / 写意图：行为不变（仍走既有路径）', async () => {
-    // OTHER：未被任何族声明拥有
-    const unowned = await runDispatcher(controllerResult({ goalKinds: ['OTHER'], eligible: false, nativeOwned: false }));
-    assert.equal(unowned.spies.calls.legacyRead, 1, '未拥有的族仍应回落既有路径');
+test('R1-DISP-3（NATIVE-R3 改写）只读一律留在 Native；写意图仍走既有命令路径', async () => {
+    // R3 前：未被族拥有的 OTHER 会回落 Legacy。R3 后：Owner 只读一律 Native-owned，
+    // unknown/未支持读只能产出 Native 结果，因此这里按新契约改写为 legacyRead = 0。
+    const unowned = await runDispatcher(controllerResult({ goalKinds: ['OTHER'], eligible: false, nativeOwned: false, nativeReadOwned: true }));
+    assert.equal(unowned.spies.calls.legacyRead, 0, 'Owner 只读不得回落既有路径');
     assert.equal(unowned.spies.calls.legacyCommand, 0);
+    assert.equal(unowned.emitted.some(event => event.type === 'content'), true, '必须输出 Native 结果');
 
     // 写意图：所有权 fail closed，必须交回既有命令路径
     const writeOwnership = nativeOwnershipDecision({ goalKinds: ['MANAGEMENT_OVERVIEW'], businessWritePolicy: 'CONFIRMATION_REQUIRED' });
     assert.equal(writeOwnership.owned, false);
     const write = await runDispatcher(
-        controllerResult({ goalKinds: ['MANAGEMENT_OVERVIEW'], eligible: false, nativeOwned: writeOwnership.owned }),
+        controllerResult({ goalKinds: ['MANAGEMENT_OVERVIEW'], eligible: false, nativeOwned: writeOwnership.owned, nativeReadOwned: false }),
         [{ role: 'user', content: '帮我新增零件' }],
     );
     assert.equal(write.spies.calls.legacyCommand, 1, '写请求必须仍走命令路径');

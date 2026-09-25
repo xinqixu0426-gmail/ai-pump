@@ -70,11 +70,12 @@ test('S1-B1 S1 baseline 冻结 SUPPORTED family（NATIVE-R1 后为 10 个），�
     const baseline = ownerTrialCoverageBaseline();
     assert.equal(baseline.version, 'S1');
     // NATIVE-R1：在 S1 的 6 个族之上新增 4 个 Native 独家负责的只读族。
-    assert.equal(baseline.families.length, 10);
+    // NATIVE-R3：在 R1 的 10 族之上新增 customer-history / order-readiness 两个真实只读族。
+    assert.equal(baseline.families.length, 12);
     assert.deepEqual(baseline.families.map(family => family.familyId).sort(), [
         'business-change-read', 'coil-catalogue-cost', 'coil-catalogue-query', 'coil-inventory',
-        'management-overview', 'multi-goal-config-profit-readiness', 'quotation-read',
-        'recipe-cost-comparison', 'single-recipe-current-cost', 'virtual-readiness-preview',
+        'customer-history', 'management-overview', 'multi-goal-config-profit-readiness', 'order-readiness',
+        'quotation-read', 'recipe-cost-comparison', 'single-recipe-current-cost', 'virtual-readiness-preview',
     ]);
     for (const family of baseline.families) {
         assert.ok(family.questionFamily, family.familyId);
@@ -93,12 +94,12 @@ test('S1-B1 S1 baseline 冻结 SUPPORTED family（NATIVE-R1 后为 10 个），�
 
 test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原因，绝不静默删除', () => {
     const summary = ownerTrialCoverageSummary();
-    assert.equal(summary.total, 12, '总族数不因停用而减少');
+    assert.equal(summary.total, 14, '总族数不因停用而减少');
     assert.equal(suspendFamily('coil-catalogue-cost', 'S1 dry-run：该项在真实 canary 中暴露缺陷（示例记录）'), COVERAGE_STATUS.SUSPENDED);
     try {
         const after = ownerTrialCoverageSummary();
-        assert.equal(after.total, 12);
-        assert.equal(after.supported.length, 9, '停用族不再计入 SUPPORTED');
+        assert.equal(after.total, 14);
+        assert.equal(after.supported.length, 11, '停用族不再计入 SUPPORTED');
         assert.equal(after.suspended.length, 1);
         assert.equal(after.canaryEligible.includes('线圈档案成本'), false);
         const admission = canaryAdmission({ questionFamily: '线圈档案成本' });
@@ -114,7 +115,8 @@ test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原�
     }
     // NATIVE-R1：经营概况 / 报价查询 / 业务变更 / 线圈目录查询 四个族由 Native 接管，
     // SUPPORTED 由 6 变为 10（不是放宽断言，而是架构变更后的新边界）。
-    assert.equal(ownerTrialCoverageSummary().supported.length, 10);
+    // NATIVE-R3：customer-history / order-readiness 已声明为 SUPPORTED，故为 12。
+    assert.equal(ownerTrialCoverageSummary().supported.length, 12);
 });
 
 // ══ C/D. Admission gate ═══════════════════════════════════════════════
@@ -132,10 +134,11 @@ test('S1-C1 六个 SUPPORTED 族的计划一律 NATIVE_CANARY', () => {
 });
 
 test('S1-C2 未支持 / 未知 / 写请求 / 空计划一律 LEGACY_SAFE_PATH', () => {
-    // NATIVE-R1：原用例用 MANAGEMENT_OVERVIEW 代表「未支持」，该 kind 自 NATIVE-R1 起已准入，
-    // 故改用仍未登记覆盖的 CUSTOMER_HISTORY 代表「未支持」；判据与期望语义不变。
+    // NATIVE-R3：MANAGEMENT_OVERVIEW（R1）与 CUSTOMER_HISTORY（R3）均已准入，故用仍未登记覆盖的
+    // IMPACT_INVESTIGATION 代表「未支持」；判据与期望语义不变（准入结论 ≠ 是否回落 Legacy，
+    // R3 起只读一律留在 Native，见 R3 专项测试）。
     assert.deepEqual(
-        [ownerReadCanaryAdmission({ goalKinds: ['OTHER'] }).reason, ownerReadCanaryAdmission({ goalKinds: ['CUSTOMER_HISTORY'] }).reason,
+        [ownerReadCanaryAdmission({ goalKinds: ['OTHER'] }).reason, ownerReadCanaryAdmission({ goalKinds: ['IMPACT_INVESTIGATION'] }).reason,
             ownerReadCanaryAdmission({ goalKinds: ['SOMETHING_NEW'] }).reason, ownerReadCanaryAdmission({ goalKinds: [] }).reason],
         ['FAMILY_NOT_SUPPORTED', 'FAMILY_NOT_SUPPORTED', 'FAMILY_NOT_SUPPORTED', 'EMPTY_PLAN'],
     );
@@ -186,24 +189,41 @@ test('S1-E1 默认路由不变：AI_NATIVE_MODE 未设置即 LEGACY，请求方�
     assert.equal(notOwner.reason, 'AI_NATIVE_OWNER_REQUIRED');
 });
 
-test('S1-E2 dispatcher：admission 不合格 → 交回既有正式路径，且不输出 Native 答案', async () => {
+test('S1-E2（NATIVE-R3 改写）dispatcher：Owner 只读即使 admission 不合格也留在 Native；仅写意图计划回到既有路径', async () => {
+    // R3 前：admission 不合格 → 交回 Legacy。R3 后：Owner 只读一律 Native-owned，
+    // unknown / no-plan / 未支持读都只能产出 Native 结果。此处按新契约显式改写。
     const emitted = [];
     let legacyCalls = 0;
-    const result = await runAiDispatcherV3(
+    await runAiDispatcherV3(
         { messages: [{ role: 'user', content: '今天的经营情况是什么' }], conversationId: 's1-e2', emit: (...args) => emitted.push(args) },
         {
             nativeTaskDelegation: true,
             runAiTaskControllerV2: async () => ({
-                task: { state: 'UNSUPPORTED' }, detail: { state: 'UNSUPPORTED' }, answer: { content: '不该出现' },
-                canaryAdmission: { eligible: false, decision: 'LEGACY_SAFE_PATH', reason: 'FAMILY_NOT_SUPPORTED' }, telemetry: {},
+                task: { state: 'SUPPORTED' }, detail: { state: 'SUPPORTED' }, answer: { content: 'Native 的确定性结论' },
+                canaryAdmission: { eligible: false, decision: 'LEGACY_SAFE_PATH', reason: 'FAMILY_NOT_SUPPORTED', nativeReadOwned: true }, telemetry: {},
             }),
             runAiAssistant: async () => { legacyCalls += 1; return { finalContent: '既有正式路径的答案' }; },
         },
     );
-    assert.equal(legacyCalls, 1, '不合格计划必须回到既有路径');
-    assert.equal(result.finalContent, '既有正式路径的答案');
-    assert.equal(emitted.some(([type, payload]) => type === 'content' && payload.content === '不该出现'), false, '不得输出 Native 答案');
-    assert.equal(emitted.some(([type, payload]) => type === 'status' && payload.stage === 'canary_ineligible'), true);
+    assert.equal(legacyCalls, 0, 'Owner 只读不得回到既有路径');
+    assert.equal(emitted.some(([type, payload]) => type === 'content' && payload.content === 'Native 的确定性结论'), true, '必须输出 Native 结果');
+    assert.equal(emitted.some(([type, payload]) => type === 'status' && payload.stage === 'canary_ineligible'), false);
+
+    // 写意图请求（非只读）仍走既有命令路径：写路径不属 R3 范围，且绝不因「留在 Native」被重新归类为读。
+    const writeEmitted = [];
+    let writeCommandCalls = 0;
+    let writeReadCalls = 0;
+    await runAiDispatcherV3(
+        { messages: [{ role: 'user', content: '帮我新增零件' }], conversationId: 's1-e2-write', emit: (...args) => writeEmitted.push(args) },
+        {
+            nativeTaskDelegation: true,
+            runAiTaskControllerV2: async () => { throw new Error('MUST_NOT_RUN_FOR_WRITE'); },
+            runAiAssistant: async () => { writeReadCalls += 1; return { finalContent: '既有只读路径' }; },
+            runAiAgentRuntimeV3: async () => { writeCommandCalls += 1; return { finalContent: '既有命令路径的答案' }; },
+        },
+    );
+    assert.equal(writeCommandCalls, 1, '写请求必须仍走既有命令路径');
+    assert.equal(writeReadCalls, 0, '写请求不得被重分类为 Native 只读');
 });
 
 test('S1-E3 dispatcher：admission 合格 → Native 作为权威答案，legacy 不参与', async () => {

@@ -60,14 +60,13 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
                 sessionStore: dependencies.sessionStore,
                 provider: dependencies.provider,
             });
-            // S1：只有 canary admission 允许的问法族才由 Native 作答。计划落在
-            // SUPPORTED 范围之外（PARTIAL/UNSUPPORTED/未知族/写请求）时，本轮不作为答案，
-            // 交回既有正式路径（legacy 仍是权威，默认路由不变）。
+            // NATIVE-R3：Owner 只读请求一律由 Native 独家负责。
+            // 准入不满足（未支持族 / OTHER / 空计划 / 结构状态）不再作为回落 Legacy 的理由：
+            // unknown、no-plan、未支持读 都是 Native 的状态，只能产出 Native 答案、
+            // Native 澄清或 Native 显式安全失败。唯一例外是写意图计划（写路径，不属本阶段）。
             if (result.canaryAdmission && result.canaryAdmission.eligible === false) {
-                // NATIVE-R1：已声明 nativeOwned 的族由 Native 独家负责 —— 即使准入不满足
-                // （混合未覆盖目标等），也不得回落 Legacy；失败语义留在 Native 内部。
-                if (result.canaryAdmission.nativeOwned === true) return nativeOwnedOutcome(result, runtimeInput);
-                runtimeInput.emit?.('status', { stage: 'canary_ineligible', message: '该问法不在 Native 只读 canary 范围内，使用既有正式路径。', legacyRuntimeEntered: true });
+                if (result.canaryAdmission.nativeReadOwned === true) return nativeOwnedOutcome(result, runtimeInput);
+                runtimeInput.emit?.('status', { stage: 'canary_ineligible', message: '该请求带写意图，使用既有正式路径。', legacyRuntimeEntered: true });
                 return runtime(runtimeInput);
             }
             // Task V2 owns the native answer.  It emits only the boundary's
