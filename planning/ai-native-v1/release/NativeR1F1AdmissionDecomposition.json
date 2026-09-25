@@ -1,0 +1,128 @@
+{
+  "recordType": "NATIVE-R1 工作笔记：F1 准入分解 / Read Family 矩阵 / 首批 Native-only Wave 选择",
+  "ticket": "NATIVE-R1",
+  "startCommit": "34c3fd0696cb91e3fd8bc8e4436ffee2995706ee",
+  "branch": "ai-native/prod-canary-s2",
+  "method": "全部结论来自可执行条件追踪（file:line），不使用注释、命名或旧报告作为依据。",
+
+  "phaseA_f1AdmissionCauses": {
+    "note": "F1 = aiDispatcherV3.cjs:46-49（admission.eligible===false → runAiAssistant）。以下为可到达该分支的全部可执行条件。",
+    "gateChain": [
+      "chat.cjs:204 resolveAiNativeRollout → chat.cjs:240 nativeTaskDelegation",
+      "aiDispatcherV3.cjs:34 dependencies.nativeTaskDelegation===true && !commandRoute 才可能进入 F1",
+      "aiDispatcherV3.cjs:37 runAiTaskControllerV2 → aiTaskControllerV2.cjs:113 ownerReadCanaryAdmission({goalKinds: task.goals.map(kind), businessWritePolicy})",
+      "aiDispatcherV3.cjs:46 result.canaryAdmission.eligible===false → F1"
+    ],
+    "causes": [
+      {
+        "id": "F1-C1",
+        "predicate": "businessWritePolicy !== 'FORBIDDEN'",
+        "reason": "WRITE_BEARING_REQUEST",
+        "source": "aiNativeOwnerTrialCoverage.cjs:254",
+        "exampleFamily": "任何含写意图的请求（如“帮我新增零件”）",
+        "nativeCapabilityExists": false,
+        "legacyOnlyBecauseOfAdmission": false,
+        "newNativeWorkRequired": true,
+        "policy": "NATIVE-R1 §10 明确要求写意图不得进入只读 cutover → 保持 fail closed，维持现状"
+      },
+      {
+        "id": "F1-C2",
+        "predicate": "kinds.length === 0",
+        "reason": "EMPTY_PLAN",
+        "source": "aiNativeOwnerTrialCoverage.cjs:255",
+        "exampleFamily": "退化路径（确定性 planner 在 aiTaskSemanticsV2.cjs:286/337 保证至少一个 goal，故实际几乎不可达）",
+        "nativeCapabilityExists": true,
+        "legacyOnlyBecauseOfAdmission": true,
+        "newNativeWorkRequired": false
+      },
+      {
+        "id": "F1-C3a",
+        "predicate": "familiesForGoalKind(kind) 中不存在任何 SUPPORTED 族，因为该 kind 未登记在覆盖表",
+        "reason": "FAMILY_NOT_SUPPORTED",
+        "source": "aiNativeOwnerTrialCoverage.cjs:259-263 + aiTaskControllerV2.cjs:932-947（globalReads）",
+        "kinds": ["QUOTATION_QUERY", "BUSINESS_CHANGES", "COIL_QUERY", "CUSTOMER_HISTORY", "ORDER_READINESS", "IMPACT_INVESTIGATION"],
+        "exampleFamily": "报价清单 / 业务变更 / 线圈目录 / 客户历史 / 订单 readiness / 影响调查",
+        "nativeCapabilityExists": true,
+        "legacyOnlyBecauseOfAdmission": true,
+        "newNativeWorkRequired": false,
+        "note": "Native 控制器已实现这些读取（tool + requirement + answer template 三层齐备），且能力已在 capabilities/registry.cjs 登记；唯一缺口是覆盖表未声明 → 纯准入/路由债",
+        "exception": "IMPACT_INVESTIGATION 的 project_business_impact 未登记于 registry，本轮不纳入"
+      },
+      {
+        "id": "F1-C3b",
+        "predicate": "kind 已登记，但只被 UNSUPPORTED / PARTIAL 族覆盖",
+        "reason": "FAMILY_NOT_SUPPORTED",
+        "source": "aiNativeOwnerTrialCoverage.cjs:259-263",
+        "kinds": ["MANAGEMENT_OVERVIEW", "OTHER"],
+        "exampleFamily": "经营概况 / 看板（MANAGEMENT_OVERVIEW，已实现但声明 UNSUPPORTED）；不存在的对象与无法归类请求（OTHER，catch-all）",
+        "nativeCapabilityExists": "MANAGEMENT_OVERVIEW: 是（aiTaskControllerV2.cjs:934 + aiTaskStructuredReadsV2.cjs:95 + aiTaskAnswerV2.cjs:190）；OTHER: 否（catch-all，不得被声明为已覆盖）",
+        "legacyOnlyBecauseOfAdmission": "MANAGEMENT_OVERVIEW: 是；OTHER: 否",
+        "newNativeWorkRequired": "MANAGEMENT_OVERVIEW: 否；OTHER: 是（且不属于本阶段范围）"
+      },
+      {
+        "id": "F1-C4",
+        "predicate": "structuralReady !== true",
+        "reason": "STRUCTURAL_NOT_READY",
+        "source": "aiNativeOwnerTrialCoverage.cjs:253",
+        "reachableInProduction": false,
+        "evidence": "生产调用点 aiTaskControllerV2.cjs:113 只传 goalKinds 与 businessWritePolicy，structuralReady 取默认值 true；仅测试/直接调用方可触发",
+        "nativeCapabilityExists": true,
+        "legacyOnlyBecauseOfAdmission": false,
+        "newNativeWorkRequired": false
+      }
+    ],
+    "notF1": [
+      {
+        "path": "aiDispatcherV3.cjs:58",
+        "predicate": "dependencies.nativeTaskDelegation !== true",
+        "meaning": "AI_NATIVE_MODE 非 owner（off/shadow）或请求方非 owner 身份；Native 从未被尝试，属默认路由而非 Native→Legacy 回退",
+        "source": "aiNativeRolloutPolicy.cjs:37,45 + aiTaskControllerV2.cjs 无参与"
+      },
+      {
+        "path": "aiDispatcherV3.cjs:18",
+        "predicate": "commandRoute 命中（aiProtectedCommandRoute.cjs 正则）",
+        "meaning": "写/命令请求走 aiAgentRuntimeV3，属 Legacy 命令运行时，不经 F1"
+      }
+    ],
+    "misleadingName": "aiTaskControllerV2.cjs:37 LEGACY_READ_GOALS 只是 Native 前台可续接的目标集合（用于 :1364 选取 activeGoals），不构成任何回退。"
+  },
+
+  "phaseB_readFamilyMatrix": {
+    "source": "api/capabilities/registry.cjs（83 AI 能力 / 12 域）+ aiNativeOwnerTrialCoverage.cjs OWNER_TRIAL_COVERAGE + aiTaskControllerV2.cjs globalReads + aiTaskAnswerV2.cjs:187-193 templateFor",
+    "families": [
+      { "family": "recipe 当前成本", "native": "SUPPORTED", "entry": "single-recipe-current-cost", "legacyDependency": "无（准入即 Native）", "render": "CURRENT_COST_V1" },
+      { "family": "配方成本比较", "native": "SUPPORTED", "entry": "recipe-cost-comparison", "legacyDependency": "无", "render": "RECIPE_COST_COMPARISON_V1" },
+      { "family": "配置变更 + 毛利 + 齐料（多目标）", "native": "SUPPORTED", "entry": "multi-goal-config-profit-readiness", "legacyDependency": "无", "render": "CONFIGURATION_COMPARE_V1 / PROFITABILITY_V1 / VIRTUAL_READINESS_V1" },
+      { "family": "虚拟齐料 / 缺料", "native": "SUPPORTED", "entry": "virtual-readiness-preview", "legacyDependency": "无", "render": "VIRTUAL_READINESS_V1" },
+      { "family": "线圈档案成本", "native": "SUPPORTED", "entry": "coil-catalogue-cost", "legacyDependency": "无", "render": "CATALOG_V1" },
+      { "family": "线圈库存", "native": "SUPPORTED", "entry": "coil-inventory", "legacyDependency": "无", "render": "INVENTORY_V1" },
+      { "family": "经营概况 / 看板", "native": "NATIVE-R1 起 SUPPORTED", "entry": "management-overview", "legacyDependency": "F1（此前 UNSUPPORTED）", "render": "MANAGEMENT_V1" },
+      { "family": "报价查询", "native": "NATIVE-R1 起 SUPPORTED", "entry": "quotation-read", "legacyDependency": "F1（此前未登记）", "render": "CATALOG_V1" },
+      { "family": "业务变更记录", "native": "NATIVE-R1 起 SUPPORTED", "entry": "business-change-read", "legacyDependency": "F1（此前未登记）", "render": "BUSINESS_CHANGE_V1" },
+      { "family": "线圈目录查询（全部正式方案）", "native": "NATIVE-R1 起 SUPPORTED", "entry": "coil-catalogue-query", "legacyDependency": "F1（此前未登记）", "render": "CATALOG_V1" },
+      { "family": "客户历史", "native": "PARTIAL（kind 未登记）", "entry": "（无）", "legacyDependency": "F1-C3a", "render": "HISTORY_V1（已具备）" },
+      { "family": "订单 readiness", "native": "PARTIAL（kind 未登记）", "entry": "（无）", "legacyDependency": "F1-C3a", "render": "READINESS_V1（已具备）" },
+      { "family": "影响调查", "native": "UNSUPPORTED", "entry": "（无）", "legacyDependency": "F1-C3a", "render": "IMPACT_V1（已具备）", "blocker": "project_business_impact 未登记于 capabilities/registry.cjs" },
+      { "family": "规格 / 配置差异（非金额）", "native": "UNSUPPORTED", "entry": "spec-configuration-difference", "legacyDependency": "F1-C3b（仅 OTHER 部分）", "render": "（无专用）" },
+      { "family": "不存在的对象（负向探测）", "native": "PARTIAL", "entry": "negative-object-probe", "legacyDependency": "F1-C3b（OTHER）", "render": "RECIPE_CATALOG_NEGATIVE_V1" },
+      { "family": "其他 / 无法归类", "native": "UNSUPPORTED", "entry": "（catch-all OTHER）", "legacyDependency": "F1-C3b", "render": "LIMITATION_V1" }
+    ]
+  },
+
+  "phaseC_firstWave": {
+    "selectedFamilies": ["management-overview", "quotation-read", "business-change-read", "coil-catalogue-query"],
+    "selectionCriteriaEvidence": {
+      "readOnly": "四族全部只读；adapter 强制 allowWrite:false（aiTaskCapabilityAdapterV2.cjs:361）",
+      "productionRelevance": "经营待办/风险、报价清单、业务变更、线圈目录均为日常查询；对应 kind 由确定性 planner 产出（aiTaskSemanticsV2.cjs:243 等）",
+      "matureBusinessApi": "search_quotations / search_business_changes / search_coils / get_management_action_center 均已登记且已在 controller globalReads 中接线",
+      "noDbOrSchemaWork": "零 schema 变更",
+      "noNewBusinessAlgorithm": "读取、fact、requirement、answer template 四层已存在；本轮只补覆盖声明与所有权闸门",
+      "deterministicVerification": "verified receipt → structuredFact（JSON pointer 等值校验）→ requirement 满足 → VERIFIED"
+    },
+    "rejected": {
+      "IMPACT_INVESTIGATION": "project_business_impact 未登记于能力注册表，声明 SUPPORTED 会被 validateCoverageAgainstCapabilities 拦下（需先登记能力，属另一阶段）",
+      "OTHER": "catch-all；声明它将使所有无法归类的请求与工程判断类请求都变成 Native 权威，超出“小批次”范围",
+      "CUSTOMER_HISTORY / ORDER_READINESS": "实现与渲染已具备，但本轮先验证四族机制；纳入下一批"
+    }
+  }
+}

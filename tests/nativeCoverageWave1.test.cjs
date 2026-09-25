@@ -182,9 +182,11 @@ test('E2-COVERAGE-1 SUPPORTED 族必须声明真实登记的能力 / 事实 / �
     const report = validateCoverageAgainstCapabilities();
     assert.deepEqual(report.problems, [], `coverage 与真实能力不一致：${JSON.stringify(report.problems)}`);
     const summary = ownerTrialCoverageSummary();
-    assert.equal(summary.supported.length, 6, 'E2-R1 后支持族应为 6（E1 的 3 + 线圈成本 + 线圈库存 + 配方成本比较）');
+    // NATIVE-R1：在 E2-R1 的 6 个族之上新增 4 个 Native 独家负责的只读族
+    // （经营概况 / 报价查询 / 业务变更 / 线圈目录查询），故 SUPPORTED = 10。
+    assert.equal(summary.supported.length, 10, 'NATIVE-R1 后支持族应为 10（E2-R1 的 6 + Native Read Cutover 的 4）');
     assert.equal(summary.partial.length, 1);
-    assert.equal(summary.unsupported.length, 2, '仍不支持：规格/配置差异 / 经营概况');
+    assert.equal(summary.unsupported.length, 1, '仍不支持：仅剩规格/配置差异（经营概况已由 NATIVE-R1 接管）');
 });
 
 // ── E2 §6：关闭 E1 残留 BOM_IDENTITY_RESIDUAL ─────────────────────────────

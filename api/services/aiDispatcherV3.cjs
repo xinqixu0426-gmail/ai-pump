@@ -8,6 +8,26 @@ const {
     withAgentSpan,
 } = require('./observability.cjs');
 
+/**
+ * NATIVE-R1：Native 独家负责的问法族不得进入 Legacy。
+ * 只消费 controller 已经产出的确定性答案；没有答案时给 Native 显式安全失败。
+ * 本函数不新增任何答案逻辑，也不引用任何 Legacy runtime。
+ */
+function nativeOwnedOutcome(result, runtimeInput) {
+    const content = typeof result?.answer?.content === 'string' ? result.answer.content.trim() : '';
+    runtimeInput.emit?.('status', {
+        stage: 'native_owned',
+        message: '该问法族由 AI-Native 独家负责，不进入既有路径。',
+        legacyRuntimeEntered: false,
+    });
+    runtimeInput.emit?.('content', {
+        content: content || '本轮正式证据核验未完成，因此不提供业务结论。',
+    });
+    runtimeInput.emit?.('detail', result?.detail);
+    runtimeInput.emit?.('done');
+    return result;
+}
+
 async function runAiDispatcherV3(input = {}, dependencies = {}) {
     const commandRoute = detectProtectedCommandRoute(input.messages, {
         recentPartWrite: input.recentPartWrite,
@@ -44,7 +64,10 @@ async function runAiDispatcherV3(input = {}, dependencies = {}) {
             // SUPPORTED 范围之外（PARTIAL/UNSUPPORTED/未知族/写请求）时，本轮不作为答案，
             // 交回既有正式路径（legacy 仍是权威，默认路由不变）。
             if (result.canaryAdmission && result.canaryAdmission.eligible === false) {
-                runtimeInput.emit?.('status', { stage: 'canary_ineligible', message: '该问法不在 Native 只读 canary 范围内，使用既有正式路径。' });
+                // NATIVE-R1：已声明 nativeOwned 的族由 Native 独家负责 —— 即使准入不满足
+                // （混合未覆盖目标等），也不得回落 Legacy；失败语义留在 Native 内部。
+                if (result.canaryAdmission.nativeOwned === true) return nativeOwnedOutcome(result, runtimeInput);
+                runtimeInput.emit?.('status', { stage: 'canary_ineligible', message: '该问法不在 Native 只读 canary 范围内，使用既有正式路径。', legacyRuntimeEntered: true });
                 return runtime(runtimeInput);
             }
             // Task V2 owns the native answer.  It emits only the boundary's

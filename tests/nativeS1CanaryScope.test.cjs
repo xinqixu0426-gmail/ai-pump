@@ -66,12 +66,14 @@ const input = (text, conversationId) => ({ ownerKey: 's1-owner', requestId: cryp
 const turn = (f, sessions, text, conversationId, extra = {}) => runAiTaskControllerV2(input(text, conversationId), { executeToolCall: f.execute, sessionStore: sessions, provider: null, ...extra });
 
 // ══ B. S1 baseline ════════════════════════════════════════════════════
-test('S1-B1 S1 baseline 冻结 6 个 SUPPORTED family，且每个族登记全部 S1 字段', () => {
+test('S1-B1 S1 baseline 冻结 SUPPORTED family（NATIVE-R1 后为 10 个），且每个族登记全部 S1 字段', () => {
     const baseline = ownerTrialCoverageBaseline();
     assert.equal(baseline.version, 'S1');
-    assert.equal(baseline.families.length, 6);
+    // NATIVE-R1：在 S1 的 6 个族之上新增 4 个 Native 独家负责的只读族。
+    assert.equal(baseline.families.length, 10);
     assert.deepEqual(baseline.families.map(family => family.familyId).sort(), [
-        'coil-catalogue-cost', 'coil-inventory', 'multi-goal-config-profit-readiness',
+        'business-change-read', 'coil-catalogue-cost', 'coil-catalogue-query', 'coil-inventory',
+        'management-overview', 'multi-goal-config-profit-readiness', 'quotation-read',
         'recipe-cost-comparison', 'single-recipe-current-cost', 'virtual-readiness-preview',
     ]);
     for (const family of baseline.families) {
@@ -91,12 +93,12 @@ test('S1-B1 S1 baseline 冻结 6 个 SUPPORTED family，且每个族登记全部
 
 test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原因，绝不静默删除', () => {
     const summary = ownerTrialCoverageSummary();
-    assert.equal(summary.total, 9, '总族数不因停用而减少');
+    assert.equal(summary.total, 12, '总族数不因停用而减少');
     assert.equal(suspendFamily('coil-catalogue-cost', 'S1 dry-run：该项在真实 canary 中暴露缺陷（示例记录）'), COVERAGE_STATUS.SUSPENDED);
     try {
         const after = ownerTrialCoverageSummary();
-        assert.equal(after.total, 9);
-        assert.equal(after.supported.length, 5, '停用族不再计入 SUPPORTED');
+        assert.equal(after.total, 12);
+        assert.equal(after.supported.length, 9, '停用族不再计入 SUPPORTED');
         assert.equal(after.suspended.length, 1);
         assert.equal(after.canaryEligible.includes('线圈档案成本'), false);
         const admission = canaryAdmission({ questionFamily: '线圈档案成本' });
@@ -110,7 +112,9 @@ test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原�
     } finally {
         assert.equal(reinstateFamily('coil-catalogue-cost'), COVERAGE_STATUS.SUPPORTED);
     }
-    assert.equal(ownerTrialCoverageSummary().supported.length, 6);
+    // NATIVE-R1：经营概况 / 报价查询 / 业务变更 / 线圈目录查询 四个族由 Native 接管，
+    // SUPPORTED 由 6 变为 10（不是放宽断言，而是架构变更后的新边界）。
+    assert.equal(ownerTrialCoverageSummary().supported.length, 10);
 });
 
 // ══ C/D. Admission gate ═══════════════════════════════════════════════
@@ -128,8 +132,10 @@ test('S1-C1 六个 SUPPORTED 族的计划一律 NATIVE_CANARY', () => {
 });
 
 test('S1-C2 未支持 / 未知 / 写请求 / 空计划一律 LEGACY_SAFE_PATH', () => {
+    // NATIVE-R1：原用例用 MANAGEMENT_OVERVIEW 代表「未支持」，该 kind 自 NATIVE-R1 起已准入，
+    // 故改用仍未登记覆盖的 CUSTOMER_HISTORY 代表「未支持」；判据与期望语义不变。
     assert.deepEqual(
-        [ownerReadCanaryAdmission({ goalKinds: ['OTHER'] }).reason, ownerReadCanaryAdmission({ goalKinds: ['MANAGEMENT_OVERVIEW'] }).reason,
+        [ownerReadCanaryAdmission({ goalKinds: ['OTHER'] }).reason, ownerReadCanaryAdmission({ goalKinds: ['CUSTOMER_HISTORY'] }).reason,
             ownerReadCanaryAdmission({ goalKinds: ['SOMETHING_NEW'] }).reason, ownerReadCanaryAdmission({ goalKinds: [] }).reason],
         ['FAMILY_NOT_SUPPORTED', 'FAMILY_NOT_SUPPORTED', 'FAMILY_NOT_SUPPORTED', 'EMPTY_PLAN'],
     );

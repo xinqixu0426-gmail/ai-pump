@@ -11,7 +11,7 @@ const { factSatisfiesRequirement, validateTaskEnvelopeV2, validateTaskProposalV1
 const { makeFactKey, makeFactRecordV1, recipeCurrentCostRequirement, scenarioCompareRequirements, profitabilityRequirement, virtualReadinessRequirement, recipeScopeHash } = require('./aiTaskFactsV2.cjs');
 const { defaultTaskSessionStoreV2 } = require('./aiTaskSessionV2.cjs');
 const { extractQuantitySlot } = require('../business-semantics/readinessSemantics.cjs');
-const { ownerReadCanaryAdmission } = require('./aiNativeOwnerTrialCoverage.cjs');
+const { ownerReadCanaryAdmission, nativeOwnershipDecision } = require('./aiNativeOwnerTrialCoverage.cjs');
 const { composeTaskAnswerV2 } = require('./aiTaskAnswerV2.cjs');
 const { collectionCoverageV1, customerHistoryTypes, projectCustomerHistoryFacts, requirementsForStructuredGoal } = require('./aiTaskStructuredReadsV2.cjs');
 const { candidate: documentCandidate, evidence: sourceEvidenceRecord, extractedCandidate, sourceConfigComparison, truncateUnicode } = require('./aiTaskDocumentsV2.cjs');
@@ -110,11 +110,18 @@ function taskResult(task, detail, telemetry, trustedReceipts, sourceMessages) {
     const answer = composeTaskAnswerV2(task, { trustedReceiptsById: trustedReceipts, sourceMessages });
     // S1：canary admission 是唯一准入闸门。判据只来自已落定的计划（目标种类 + 写策略），
     // 不接受任何请求方字段；dispatcher 依据该判定决定 Native 是否可以作为权威答案。
+    const goalKinds = task.goals.map(goal => goal.kind);
     const canaryAdmission = ownerReadCanaryAdmission({
-        goalKinds: task.goals.map(goal => goal.kind),
+        goalKinds,
         businessWritePolicy: task.constraints.businessWritePolicy,
     });
-    return { task: publicTask(task), detail, answer, canaryAdmission, telemetry: { ...telemetry, answerMode: answer.answerMode, answerModelCalls: answer.answerModelCalls, answerRepairCalls: answer.answerRepairCalls, answerFallbackUsed: answer.fallbackUsed } };
+    // NATIVE-R1：所有权与准入分离。准入不满足时，只有「已声明 nativeOwned 的族」才禁止回落
+    // Legacy；dispatcher 只读这个已落定的判定，不再自行推断。
+    const nativeOwnership = nativeOwnershipDecision({
+        goalKinds,
+        businessWritePolicy: task.constraints.businessWritePolicy,
+    });
+    return { task: publicTask(task), detail, answer, canaryAdmission: Object.freeze({ ...canaryAdmission, nativeOwned: nativeOwnership.owned, nativeOwnedFamilies: nativeOwnership.families, nativeOwnershipReason: nativeOwnership.reason }), nativeOwnership, telemetry: { ...telemetry, answerMode: answer.answerMode, answerModelCalls: answer.answerModelCalls, answerRepairCalls: answer.answerRepairCalls, answerFallbackUsed: answer.fallbackUsed } };
 }
 
 function candidateHash(candidates) {

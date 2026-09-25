@@ -419,12 +419,13 @@ test('R1-NEG-4 无上下文指代（「这两个差多少钱」）必须 fail-cl
 });
 
 // ══ 5. 覆盖清单 / canary ══════════════════════════════════════════════
-test('R1-COVERAGE-1 配方成本比较升级为 SUPPORTED，计数为 6 / 1 / 2 且与能力一致', () => {
+test('R1-COVERAGE-1 配方成本比较升级为 SUPPORTED；NATIVE-R1 后计数为 12 / 10 / 1 / 1 且与能力一致', () => {
     const summary = ownerTrialCoverageSummary();
-    assert.equal(summary.total, 9);
-    assert.equal(summary.supported.length, 6);
+    // NATIVE-R1：新增报价查询 / 业务变更 / 线圈目录查询三族 + 经营概况由 UNSUPPORTED 转 SUPPORTED。
+    assert.equal(summary.total, 12);
+    assert.equal(summary.supported.length, 10);
     assert.equal(summary.partial.length, 1);
-    assert.equal(summary.unsupported.length, 2);
+    assert.equal(summary.unsupported.length, 1);
     assert.deepEqual(validateCoverageAgainstCapabilities().problems, []);
     const entry = summary.supported.find(item => item.questionFamily === '两个方案的成本差额（比较）');
     assert.equal(entry.expectedGoal, 'RECIPE_COST_COMPARISON');

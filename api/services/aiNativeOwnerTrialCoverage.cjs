@@ -143,15 +143,68 @@ const OWNER_TRIAL_COVERAGE = Object.freeze([
         familyId: 'management-overview',
         questionFamily: '经营概况 / 看板',
         example: '今天的经营情况是什么',
-        nativeSupport: COVERAGE_STATUS.UNSUPPORTED,
-        expectedGoal: 'OTHER',
-        goalKinds: Object.freeze(['MANAGEMENT_OVERVIEW', 'OTHER']),
+        // NATIVE-R1：该族的 Native 读取/事实/答案链路早已实现（controller globalReads →
+        // requirement → answer template 三层齐备），此前仅因覆盖表声明 UNSUPPORTED 而被 F1
+        // 送往 Legacy。本轮起由 Native 独立负责；goalKinds 收窄为 MANAGEMENT_OVERVIEW，
+        // 不再吞并 OTHER（OTHER 是 catch-all，任何族都不得声明已覆盖它）。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'MANAGEMENT_OVERVIEW',
+        goalKinds: Object.freeze(['MANAGEMENT_OVERVIEW']),
         subjectTypes: Object.freeze(['global']),
-        requiredCapabilities: ['get_dashboard_summary'],
-        requiredFacts: [],
-        ambiguityPolicy: '不适用（本阶段不进入 Native canary）',
-        answerContract: null,
-        evidence: 'PHASE_D parity: nativeState=UNSUPPORTED',
+        requiredCapabilities: ['get_management_action_center'],
+        requiredFacts: ['management.action_center'],
+        ambiguityPolicy: '不适用（全局读取，无对象绑定）',
+        answerContract: 'MANAGEMENT_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R1: aiTaskControllerV2.cjs globalReads(MANAGEMENT_OVERVIEW→get_management_action_center) + aiTaskStructuredReadsV2.cjs requirement(management.action_center) + aiTaskAnswerV2.cjs templateFor(MANAGEMENT_V1)',
+    }),
+    Object.freeze({
+        familyId: 'quotation-read',
+        questionFamily: '报价查询（当前正式报价清单）',
+        example: '现在有哪些正式报价',
+        // NATIVE-R1：Native 已具备 search_quotations → quotation.summary 的正式读取与渲染。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'QUOTATION_QUERY',
+        goalKinds: Object.freeze(['QUOTATION_QUERY']),
+        subjectTypes: Object.freeze(['quotation']),
+        requiredCapabilities: ['search_quotations'],
+        requiredFacts: ['quotation.summary'],
+        ambiguityPolicy: '集合未证明完整时只呈现返回范围，不称为全部报价',
+        answerContract: 'CATALOG_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R1: aiTaskControllerV2.cjs globalReads(QUOTATION_QUERY→search_quotations) + requirement(quotation.summary) + templateFor(CATALOG_V1)',
+    }),
+    Object.freeze({
+        familyId: 'business-change-read',
+        questionFamily: '业务变更记录查询',
+        example: '最近有哪些业务变更',
+        // NATIVE-R1：Native 已具备 search_business_changes → business.change_set 的正式读取与渲染。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'BUSINESS_CHANGES',
+        goalKinds: Object.freeze(['BUSINESS_CHANGES']),
+        subjectTypes: Object.freeze(['global']),
+        requiredCapabilities: ['search_business_changes'],
+        requiredFacts: ['business.change_set'],
+        ambiguityPolicy: '只陈述已记录事件，不替代对象当前状态的正式读取',
+        answerContract: 'BUSINESS_CHANGE_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R1: aiTaskControllerV2.cjs globalReads(BUSINESS_CHANGES→search_business_changes) + requirement(business.change_set) + templateFor(BUSINESS_CHANGE_V1)',
+    }),
+    Object.freeze({
+        familyId: 'coil-catalogue-query',
+        questionFamily: '线圈目录查询（同规格全部正式方案）',
+        example: '12-220 有哪些线圈方案',
+        // NATIVE-R1：Native 已具备 search_coils → coil.variant_set 的正式目录读取与渲染。
+        nativeSupport: COVERAGE_STATUS.SUPPORTED,
+        expectedGoal: 'COIL_QUERY',
+        goalKinds: Object.freeze(['COIL_QUERY']),
+        subjectTypes: Object.freeze(['coil']),
+        requiredCapabilities: ['search_coils'],
+        requiredFacts: ['coil.variant_set'],
+        ambiguityPolicy: '展示范围以正式查询回执为准，不自行汇总多个候选方案',
+        answerContract: 'CATALOG_V1',
+        nativeOwned: true,
+        evidence: 'NATIVE-R1: aiTaskControllerV2.cjs globalReads(COIL_QUERY→search_coils) + requirement(coil.variant_set) + templateFor(CATALOG_V1)',
     }),
     Object.freeze({
         familyId: 'negative-object-probe',
@@ -265,6 +318,39 @@ function ownerReadCanaryAdmission({ goalKinds = [], businessWritePolicy = 'FORBI
 }
 
 /**
+ * NATIVE-R1：显式 Native 所有权判定。
+ * 与 canary admission 分离：
+ *   - admission 回答「Native 是否可以作为本轮权威答案」；
+ *   - ownership 回答「该计划是否已属于 Native 独家负责的族，因此禁止进入 Legacy」。
+ * 判据只来自已落定的计划（目标种类 + 写策略），不接受任何请求方字段。
+ * 只要计划触及任一 nativeOwned 族，该计划即由 Native 独家处理（F1 不得再送 Legacy）。
+ * 写意图（businessWritePolicy !== 'FORBIDDEN'）永不进入本闸门 —— fail closed。
+ * 被 suspendFamily 停用的族立即失去所有权，自动退回既有路径。
+ */
+function nativeOwnershipDecision({ goalKinds = [], businessWritePolicy = 'FORBIDDEN' } = {}) {
+    const kinds = [...new Set((Array.isArray(goalKinds) ? goalKinds : [goalKinds]).filter(Boolean))];
+    const base = { goalKinds: kinds, decision: 'LEGACY_ALLOWED' };
+    if (businessWritePolicy !== 'FORBIDDEN') return Object.freeze({ ...base, owned: false, reason: 'WRITE_BEARING_REQUEST', families: [] });
+    if (!kinds.length) return Object.freeze({ ...base, owned: false, reason: 'EMPTY_PLAN', families: [] });
+    const ownedFamilies = new Set();
+    const unowned = [];
+    for (const kind of kinds) {
+        const owned = familiesForGoalKind(kind).filter(entry => entry.nativeOwned === true && coverageStatusOf(entry) === COVERAGE_STATUS.SUPPORTED);
+        if (!owned.length) { unowned.push(kind); continue; }
+        for (const entry of owned) ownedFamilies.add(entry.familyId);
+    }
+    if (!ownedFamilies.size) return Object.freeze({ ...base, owned: false, reason: 'NO_OWNED_FAMILY', unownedGoalKinds: Object.freeze(unowned), families: [] });
+    return Object.freeze({
+        ...base,
+        owned: true,
+        decision: 'NATIVE_OWNED',
+        reason: unowned.length ? 'OWNED_FAMILY_WITH_UNOWNED_GOALS' : 'ALL_GOALS_OWNED',
+        unownedGoalKinds: Object.freeze(unowned),
+        families: Object.freeze([...ownedFamilies]),
+    });
+}
+
+/**
  * Owner trial 覆盖就绪度。
  * 结构测试全绿**不**等于 canary 就绪；必须有明确的 SUPPORTED 范围。
  */
@@ -332,6 +418,7 @@ module.exports = {
     familyById,
     familyByQuestionFamily,
     ownerReadCanaryAdmission,
+    nativeOwnershipDecision,
     ownerTrialCoverageBaseline,
     ownerTrialCoverageSummary,
     ownerTrialCoverageReadiness,
