@@ -220,3 +220,71 @@ test('R1-DISP-5 controller 抛错时 dispatcher 不落 Legacy：错误向上抛�
     assert.equal(calls.legacyRead, 0, 'aiAssistantRuntime 调用次数必须为 0');
     assert.equal(calls.legacyCommand, 0, 'aiAgentRuntimeV3 调用次数必须为 0');
 });
+
+// ══ 4. 逐族真实 controller 证明（C 工具调用 / D 验证 / E Native 证据作答） ══
+const queryReceipt = count => ({ appliedFilters: {}, totalCount: count, returnedCount: count, truncated: false, possiblyTruncated: false, authoritative: true });
+
+const FAMILY_SPECS = Object.freeze([
+    {
+        familyId: 'management-overview', text: '现在的管理待办和风险有哪些', tool: 'get_management_action_center',
+        successData: { actionCenter: [{ id: 1, title: '待复核单据', priority: 'P1' }] }, emptyData: { actionCenter: [] },
+    },
+    {
+        familyId: 'quotation-read', text: '当前报价有哪些', tool: 'search_quotations',
+        successData: [{ id: 1, quotationNo: 'Q-1' }], emptyData: [],
+    },
+    {
+        familyId: 'business-change-read', text: '最近有什么业务变更', tool: 'search_business_changes',
+        successData: { items: [{ id: 1, changeType: 'PART_UPDATE' }] }, emptyData: { items: [] },
+    },
+    {
+        familyId: 'coil-catalogue-query', text: '12-220 有哪些线圈方案', tool: 'search_coils',
+        successData: [{ id: 1, spec: '12', sheets: 220, schemeCode: 'COIL-0001' }], emptyData: [],
+    },
+]);
+
+function familyTurn(spec, mode) {
+    const calls = [];
+    const execute = async (toolName, args = {}) => {
+        calls.push({ toolName, args });
+        if (toolName !== spec.tool) throw new Error(`UNEXPECTED_TOOL ${toolName}`);
+        if (mode === 'tool_failure') throw new Error('FORMAL_API_UNAVAILABLE');
+        if (mode === 'verification_failure') return { success: true, data: spec.successData };
+        const data = mode === 'empty_result' ? spec.emptyData : spec.successData;
+        const count = Array.isArray(data) ? data.length : (data.items || data.actionCenter || []).length;
+        return { success: true, data, queryReceipt: queryReceipt(count), executionEvidence: evidence };
+    };
+    const input = {
+        ownerKey: 'native-r1-owner',
+        requestId: crypto.randomUUID(),
+        messages: [{ role: 'user', content: spec.text }],
+    };
+    return { calls, run: () => runAiTaskControllerV2(input, { executeToolCall: execute, sessionStore: createTaskSessionStoreV2(), provider: null }) };
+}
+
+test('R1-FAMILY-1 四个迁移族的真实 controller 证明：准入 + 所有权 + 正式工具调用 + Native 证据作答', async () => {
+    for (const spec of FAMILY_SPECS) {
+        const turn = familyTurn(spec, 'success');
+        const result = await turn.run();
+        assert.equal(result.canaryAdmission.eligible, true, `${spec.familyId} 必须准入`);
+        assert.equal(result.canaryAdmission.nativeOwned, true, `${spec.familyId} 必须由 Native 独家负责`);
+        assert.deepEqual(turn.calls.map(call => call.toolName), [spec.tool], `${spec.familyId} 必须只调用其正式能力`);
+        assert.equal(typeof result.answer.content, 'string');
+        assert.ok(result.answer.content.length > 0, `${spec.familyId} 必须产出 Native 答案`);
+        assert.equal(result.answer.answerMode, 'DETERMINISTIC', `${spec.familyId} 答案必须是确定性 Native 答案`);
+    }
+});
+
+test('R1-FAMILY-2 四个迁移族的失败矩阵：空结果 / 未验证回执 / 正式 API 失败都不改变 Native 归属', async () => {
+    for (const spec of FAMILY_SPECS) {
+        for (const mode of ['empty_result', 'verification_failure']) {
+            const turn = familyTurn(spec, mode);
+            const result = await turn.run();
+            assert.equal(result.canaryAdmission.nativeOwned, true, `${spec.familyId}/${mode}`);
+            assert.equal(typeof result.answer.content, 'string', `${spec.familyId}/${mode}`);
+            assert.equal(turn.calls.length, 1, `${spec.familyId}/${mode} 只调用一次正式能力`);
+        }
+        // 正式 API 抛错：fail closed 抛出，绝不返回「交给 Legacy」的结果
+        await assert.rejects(() => familyTurn(spec, 'tool_failure').run(), /FORMAL_API_UNAVAILABLE/u, spec.familyId);
+    }
+});
