@@ -3,8 +3,8 @@
 **Ticket:** NATIVE-R1 — Native Read Cutover — Decompose F1 and establish first Native-only read families
 **Branch:** `ai-native/prod-canary-s2`
 **Start Commit:** `34c3fd0696cb91e3fd8bc8e4436ffee2995706ee`
-**End Commit:** `761ab78634269fc345de764891db17860871214e`
-**中间提交:** `be2c03fd23ec83a295f1a49bac5a93bbda1ef718`（实现）、`761ab786…`（逐族证明测试）
+**End Commit（代码/测试终态）:** `761ab78634269fc345de764891db17860871214e`
+**提交链:** `be2c03f`（实现）→ `761ab78`（逐族证明测试）→ 之后仅有一个 docs-only 提交用于追加本报告（不含任何代码或测试改动）。**审核代码与测试基线请以 `761ab78` 为准**；本报告的 F1 数据与全部门禁结果均测于 `761ab78`。
 **Repository:** `origin` = `git@github.com:xinqixu0426-gmail/ai-pump.git`（本阶段唯一代码事实源；已 push，`LOCAL_HEAD == origin/ai-native/prod-canary-s2`）
 **Worktree:** clean（0 行改动，门禁运行前后均无变化）
 **STATUS:** **PASS**
