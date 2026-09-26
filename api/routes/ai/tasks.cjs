@@ -5,10 +5,11 @@ const authMiddleware = require('../../authMiddleware.cjs');
 const { db, safeInsert, safeUpdate } = require('../../db.cjs');
 const { createAiTaskLifecycleV2 } = require('../../services/aiTaskLifecycleV2.cjs');
 const { prepareDetachedTaskV2 } = require('../../services/aiTaskControllerV2.cjs');
-const { AiTaskWriteBridgeError, executeAiTaskConfirmedWriteV2, prepareAiTaskWriteConfirmationV2, reconcileAiTaskCommandV2 } = require('../../services/aiTaskWriteBridgeV2.cjs');
+const { AiTaskWriteBridgeError, executeAiTaskConfirmedWriteV2, outcomeView, prepareAiTaskWriteConfirmationV2, reconcileAiTaskCommandV2 } = require('../../services/aiTaskWriteBridgeV2.cjs');
 const { readTaskCommandOperationV2 } = require('../../services/aiTaskOperationReadbackV2.cjs');
 const { confirmationSubjectForRequest } = require('../../services/aiToolConfirmation.cjs');
 const { resolveAiNativeRollout } = require('../../services/aiNativeRolloutPolicy.cjs');
+const { isAuthenticatedOwner, verifyAuthentication } = require('../../services/ownerAuthentication.cjs');
 const {
     AiTaskPublicError, acknowledgement, assertTaskId, parseTaskCancel, parseTaskResume, parseTaskStart,
     publicEvents, publicView, requiredIdempotency, resumeSpec, bindResumeSources, taskRequestId,
@@ -21,8 +22,14 @@ function ownerMiddleware(req, res, next) {
     return authMiddleware(req, res, () => { req.aiTaskOwner = req.user?.role || 'admin'; next(); });
 }
 function sendError(res, error) {
-    const status = error instanceof AiTaskPublicError || error instanceof AiTaskWriteBridgeError ? error.statusCode || error.status : error?.code === 'TASK_REVISION_CONFLICT' ? 409 : error?.code === 'TASK_NOT_FOUND' ? 404 : 400;
-    return res.status(status).json({ success: false, code: error?.code || 'TASK_REQUEST_FAILED', error: error?.message || '任务请求失败', requestId: res.req?.requestId || null });
+    const explicit = Number(error?.statusCode);
+    const status = error instanceof AiTaskPublicError || error instanceof AiTaskWriteBridgeError
+        ? error.statusCode || error.status
+        : error?.code === 'TASK_REVISION_CONFLICT' ? 409
+            : error?.code === 'TASK_NOT_FOUND' ? 404
+                : Number.isInteger(explicit) && explicit >= 400 && explicit <= 599 ? explicit
+                    : 400;
+    return res.status(status).json({ success: false, code: error?.code || 'TASK_REQUEST_FAILED', error: error?.message || '任务请求失败', operationId: error?.operationId || null, requestId: res.req?.requestId || null });
 }
 function resolveTask(lifecycle, taskId, ownerKey) {
     assertTaskId(taskId);
@@ -40,12 +47,38 @@ function assertNativeWriteRollout(req, options = {}) {
     }
     return rollout;
 }
+/**
+ * NATIVE-W1 §9：Native 写入的批准必须来自**规范 Owner 身份**。
+ * 非 Owner JWT、内部机器凭据、未认证一律拒绝；内部凭据只授权"服务到服务执行"，不代表用户批准。
+ * 该检查只作用于 Native 写端点，不改变其它既有确认端点。
+ */
+function requireNativeWriteOwner(req, res, next) {
+    if (req.headers['x-internal-secret']) {
+        return res.status(403).json({
+            success: false, code: 'NATIVE_WRITE_OWNER_REQUIRED',
+            error: 'Native 写入只能由 Owner 本人批准。',
+            requestId: req.requestId || null,
+        });
+    }
+    const token = String(req.cookies?.token || '');
+    const authContext = token ? verifyAuthentication(token, process.env) : null;
+    if (!isAuthenticatedOwner(authContext, process.env)) {
+        return res.status(403).json({
+            success: false, code: 'NATIVE_WRITE_OWNER_REQUIRED',
+            error: 'Native 写入只能由 Owner 本人批准。',
+            requestId: req.requestId || null,
+        });
+    }
+    req.nativeWriteOwner = Object.freeze({ subject: authContext.sub, authn: authContext.authn });
+    return next();
+}
 function createAiTaskRouterV2(options = {}) {
     const router = Router();
     const accessors = options.dbAccessors || { db, safeInsert, safeUpdate };
     const lifecycle = options.lifecycle || createAiTaskLifecycleV2({ dbAccessors: accessors, clock: options.clock });
     const prepare = options.prepareDetachedTask || prepareDetachedTaskV2;
     const auth = options.auth || ownerMiddleware;
+    const nativeWriteOwnerGate = options.nativeWriteOwnerGate || requireNativeWriteOwner;
     router.use('/api/ai/tasks', auth);
 
     router.post('/api/ai/tasks', async (req, res) => {
@@ -100,7 +133,7 @@ function createAiTaskRouterV2(options = {}) {
             return res.json({ success: true, data: { taskId: updated.taskKey, revision: updated.revision, state: updated.state } });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-preview', async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-preview', nativeWriteOwnerGate, async (req, res) => {
         try {
             assertNativeWriteRollout(req, options);
             const task = resolveTask(lifecycle, req.params.taskId, req.aiTaskOwner);
@@ -113,12 +146,18 @@ function createAiTaskRouterV2(options = {}) {
                 lifecycle,
                 execute: options.executeToolCall,
             });
-            // The card is the only token-bearing response. The persisted task
-            // remains a public projection and never stores the token/context.
-            return res.status(202).json({ success: true, data: { task: acknowledgement(result.task), confirmation: result.confirmation } });
+            // 卡片是唯一携带 token 的响应；任务公开投影只给业务事实，绝不存 token/哈希。
+            return res.status(202).json({
+                success: true,
+                data: {
+                    task: acknowledgement(result.task),
+                    confirmation: result.confirmation,
+                    proposal: result.proposal,
+                },
+            });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-execute', async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-execute', nativeWriteOwnerGate, async (req, res) => {
         try {
             assertNativeWriteRollout(req, options);
             const task = resolveTask(lifecycle, req.params.taskId, req.aiTaskOwner);
@@ -131,17 +170,36 @@ function createAiTaskRouterV2(options = {}) {
                 lifecycle,
                 executeConfirmed: options.executeConfirmedAiTool,
             });
-            return res.json({ success: true, data: { task: acknowledgement(result.task), receipt: commandReceipt(result.receipt) } });
+            return res.json({
+                success: true,
+                data: {
+                    task: acknowledgement(result.task),
+                    receipt: commandReceipt(result.receipt),
+                    outcome: outcomeView(result.task?.spec?.writeV1),
+                },
+            });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-reconcile', async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-reconcile', nativeWriteOwnerGate, async (req, res) => {
         try {
+            // ticket §3：对账与执行必须经过**同一个** Native 写 rollout 授权。
+            assertNativeWriteRollout(req, options);
             const task = resolveTask(lifecycle, req.params.taskId, req.aiTaskOwner);
             const result = await reconcileAiTaskCommandV2({
                 task, lifecycle,
                 readOperation: input => (options.readTaskCommandOperation || readTaskCommandOperationV2)({ db: accessors.db, ...input }),
+                verifyTarget: options.verifyPartStockTarget,
             });
-            return res.json({ success: true, data: { task: acknowledgement(result.task), resolved: result.resolved, status: result.status, receipt: commandReceipt(result.receipt) } });
+            return res.json({
+                success: true,
+                data: {
+                    task: acknowledgement(result.task),
+                    resolved: result.resolved,
+                    status: result.status,
+                    receipt: commandReceipt(result.receipt),
+                    outcome: outcomeView(result.task?.spec?.writeV1),
+                },
+            });
         } catch (error) { return sendError(res, error); }
     });
     return router;

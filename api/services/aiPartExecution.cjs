@@ -575,10 +575,26 @@ async function preparePartStockAdjustment(args = {}, dependencies = {}) {
         model: item.model,
         changeQty: item.changeQty,
     }));
+    // NATIVE-W1：把正式预览回执里的结构化事实原样带出来，供上层冻结提案
+    // （零件身份 + 当前库存 + 调整量 + 调整后库存）。这里不新增业务计算，只做投影。
+    const proposalItems = preview.operations.map(operation => ({
+        partId: Number(operation.partId),
+        model: String(operation.model || '').trim(),
+        currentStock: Number(operation.currentStock),
+        delta: Number(operation.delta),
+        nextStock: Number(operation.nextStock),
+        expectedUpdatedAt: operation.expectedUpdatedAt || null,
+        clampedToZero: operation.clampedToZero === true,
+    }));
     return {
         args: {
             ...args,
             items: canonicalItems,
+        },
+        proposal: {
+            kind: 'part_stock_adjust',
+            capabilityId: 'inventory.parts.batch_adjust_stock',
+            items: proposalItems,
         },
         confirmationRows: preview.operations.map(operation => {
             const delta = Number(operation.delta);
@@ -1099,6 +1115,32 @@ async function executePartPriceBatch(args = {}, dependencies = {}) {
     };
 }
 
+/**
+ * NATIVE-W1：对账期（没有 executor 回执时的）独立回读核验。
+ * 只做「读正式目录 + 比对冻结的 nextStock」，不写任何数据；不一致即抛错，绝不宣告成功。
+ */
+async function verifyPartStockTargetState({ internalFetch, getJson, target }) {
+    const partId = Number(target?.partId);
+    const expectedStock = Number(target?.nextStock);
+    if (!Number.isInteger(partId) || partId < 1 || !Number.isInteger(expectedStock)) {
+        throw partStockInputError('part_stock_readback_target_invalid', '冻结提案缺少可核验的零件身份或目标库存');
+    }
+    const parts = await getJson(internalFetch, '/api/parts', '零件库存回读失败');
+    const part = (Array.isArray(parts) ? parts : []).find(candidate => (
+        Number(candidate.id ?? candidate.Id) === partId
+    ));
+    if (!part) {
+        throw partStockInputError('part_stock_readback_missing', `回读时找不到零件 #${partId}，不能声明执行成功`);
+    }
+    if (Number(part.stock) !== expectedStock) {
+        throw partStockInputError(
+            'part_stock_readback_mismatch',
+            `零件"${part.model || partId}"库存回读为 ${Number(part.stock)}，与冻结的调整后库存 ${expectedStock} 不一致，不能声明成功`
+        );
+    }
+    return Object.freeze({ partId, model: String(part.model || ''), stock: Number(part.stock) });
+}
+
 module.exports = {
     executePartBatchCreate,
     executePartCreate,
@@ -1117,4 +1159,5 @@ module.exports = {
     resolvePartStockTargets,
     similarPartCandidates,
     verifyPartStockReadback,
+    verifyPartStockTargetState,
 };

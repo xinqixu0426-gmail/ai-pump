@@ -16,6 +16,12 @@
 >   `aiReadInvestigationDriverV4`、Legacy 工具循环/答案与金额守卫、business-semantics / business-impact
 >   强制层、ontology shadow/binding/canary 等 85 个 `api/` 模块、22 个脚本、64 个测试。
 > - `AI_NATIVE_WRITE_ENABLED=false`：AI 写入未开放；写意图得到 `WRITE_DISABLED`，零业务写入。
+> - **NATIVE-W1 已实现「安全单能力零件库存调整」（未部署、未启用）**：唯一获批写能力
+>   `adjust_part_stock`（capability `inventory.parts.batch_adjust_stock`），只允许对**恰好一个**
+>   规范零件按用户显式数量调整库存，多目标请求一律拒绝且不静默拆分。作用域模块
+>   `api/services/aiNativeWriteScope.cjs` 默认拒绝一切其它写能力；批准必须是 Owner 本人
+>   （内部凭据不构成批准），批准事实在业务写入**之前**持久化，写入后必须独立回读核验目标库存
+>   才允许置 `VERIFIED`；失联/歧义/超界一律安全失败，绝不自动重发或推断成功。
 > - `off` / `shadow` 现在只表示 **AI 不可用**（403 `AI_UNAVAILABLE`），不再回退 Legacy。
 > - 本文 §1–§4 中的「生产没跑 Native」「Legacy 未删除」「Legacy 仍是权威」「可回退 Legacy」等表述
 >   均已被上述事实取代：**不要按它们去启用 Legacy 回退或旧开关**（相应开关也已删除）。
@@ -25,7 +31,7 @@
 | 问题 | 答案 |
 |---|---|
 | 现在生产在跑 Native 吗？ | **是。** 生产 `AI_NATIVE_MODE=owner`，Native 是唯一生产 AI 运行时（见顶部「当前事实」）。 |
-| Native 写入开启了吗？ | **没有。** `AI_NATIVE_WRITE_ENABLED` 默认 `false`，且与 mode 相互独立。 |
+| Native 写入开启了吗？ | **没有。** `AI_NATIVE_WRITE_ENABLED` 默认 `false`，且与 mode 相互独立。NATIVE-W1 的写代码已合并但**未部署、未启用**，生产仍 `false`。 |
 | Owner 试点开始了吗？ | **没有。** `READY_FOR_OWNER_TRIAL = YES`，`OWNER_TRIAL_ACTUALLY_STARTED = NO`。 |
 | 怎么一键停用 Native？ | 把 `AI_NATIVE_MODE` 设为 `off`（或删除该变量）。**不需要**数据库恢复，**不需要** schema 回滚。 |
 | Legacy 删掉了吗？ | **已经删掉。** NATIVE-HC2 已把退役的 Legacy AI 编排从仓库物理移除；下方 §4 为历史记录。 |
@@ -98,9 +104,9 @@
 | 任务事件流 | `GET /api/ai/tasks/:taskId/events` | `api/routes/ai/tasks.cjs:72` |
 | 澄清后续接 | `POST /api/ai/tasks/:taskId/resume` | `api/routes/ai/tasks.cjs:80` |
 | 取消 | `POST /api/ai/tasks/:taskId/cancel` | `api/routes/ai/tasks.cjs:90` |
-| **受保护写：预览** | `POST /api/ai/tasks/:taskId/write-preview` | `api/routes/ai/tasks.cjs:103` |
-| **受保护写：执行** | `POST /api/ai/tasks/:taskId/write-execute` | `api/routes/ai/tasks.cjs:121` |
-| **受保护写：失联对账** | `POST /api/ai/tasks/:taskId/write-reconcile` | `api/routes/ai/tasks.cjs:137` |
+| **受保护写：预览** | `POST /api/ai/tasks/:taskId/write-preview` | `api/routes/ai/tasks.cjs:136` |
+| **受保护写：执行** | `POST /api/ai/tasks/:taskId/write-execute` | `api/routes/ai/tasks.cjs:160` |
+| **受保护写：失联对账** | `POST /api/ai/tasks/:taskId/write-reconcile` | `api/routes/ai/tasks.cjs:183` |
 
 AI 路由以 `app.use('/', aiRouter)` 挂载（`api.cjs:141`），因此上表路径即最终路径。
 

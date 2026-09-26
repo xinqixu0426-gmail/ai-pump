@@ -11,6 +11,8 @@ const EVENT_TYPES = new Set([
     'TASK_FAILED', 'TASK_CANCELLED',
     'LEASE_ACQUIRED', 'LEASE_RELEASED', 'LEASE_EXPIRED', 'TASK_RECOVERED',
     'BUDGET_RESERVED', 'CANCEL_REQUESTED', 'TASK_WRITE_PREFLIGHTED', 'COMMAND_ADMITTED', 'COMMAND_RECONCILING', 'COMMAND_RECONCILED', 'TASK_RECOVERY_STARTED', 'TASK_RECOVERY_REUSED_STEP', 'TASK_RECOVERY_RETRY_STEP', 'STEP_ATTEMPT_INTERRUPTED', 'STEP_RETRY_STARTED',
+    // NATIVE-W1：Native 写 V1 的提案/批准/执行/验证/安全失败事件（只记事实与哈希，绝不含凭据）。
+    'WRITE_PROPOSAL_READY', 'WRITE_APPROVED', 'WRITE_EXECUTED', 'WRITE_VERIFIED', 'WRITE_FAILED_SAFE',
 ]);
 const MAX_RECEIPT_BYTES = 98304;
 const MAX_STATE_BYTES = 262144;
@@ -68,15 +70,46 @@ function validateRecoveryPlan(recovery) {
     if (recovery.pending !== null && (!recovery.pending || typeof recovery.pending !== 'object' || Array.isArray(recovery.pending))) fail('TASK_RECOVERY_PLAN_INVALID');
     return recovery;
 }
+function validateWriteV1(write) {
+    json(write, 'TASK_WRITE_V1_INVALID');
+    const allowed = ['version', 'phase', 'capabilityId', 'toolName', 'target', 'delta', 'currentStock', 'nextStock',
+        'expectedUpdatedAt', 'argsHash', 'proposalHash', 'idempotencyKey', 'previewFacts', 'proposedAt',
+        'approval', 'execution', 'verification', 'reconciliation', 'failure'];
+    if (Object.keys(write).some(key => !allowed.includes(key)) || hasSensitiveField(write)) fail('TASK_WRITE_V1_INVALID');
+    const phases = ['PROPOSAL_READY', 'CONFIRMED', 'COMMITTED', 'RECONCILING', 'VERIFIED', 'FAILED_SAFE'];
+    if (write.version !== 1 || !phases.includes(write.phase)) fail('TASK_WRITE_V1_INVALID');
+    if (!write.target || typeof write.target !== 'object' || Array.isArray(write.target)) fail('TASK_WRITE_V1_INVALID');
+    if (!Number.isInteger(write.target.partId) || write.target.partId < 1 || typeof write.target.model !== 'string' || !write.target.model) fail('TASK_WRITE_V1_INVALID');
+    if (!Number.isInteger(write.delta) || write.delta === 0) fail('TASK_WRITE_V1_INVALID');
+    if (!Number.isInteger(write.currentStock) || !Number.isInteger(write.nextStock)) fail('TASK_WRITE_V1_INVALID');
+    if (typeof write.capabilityId !== 'string' || !write.capabilityId || typeof write.toolName !== 'string' || !write.toolName) fail('TASK_WRITE_V1_INVALID');
+    if (!/^[a-f0-9]{64}$/u.test(String(write.proposalHash || '')) || !/^[a-f0-9]{64}$/u.test(String(write.argsHash || ''))) fail('TASK_WRITE_V1_INVALID');
+    if (typeof write.idempotencyKey !== 'string' || !write.idempotencyKey) fail('TASK_WRITE_V1_INVALID');
+    if (typeof write.proposedAt !== 'string' || !write.proposedAt) fail('TASK_WRITE_V1_INVALID');
+    // 批准事实：只在 CONFIRMED 之后出现，且必须能独立证明「Owner 批准了这一个冻结提案」。
+    if (write.approval !== undefined) {
+        const approval = write.approval;
+        if (!approval || typeof approval !== 'object' || Array.isArray(approval)) fail('TASK_WRITE_V1_INVALID');
+        const approvalKeys = ['proposalHash', 'argsHash', 'capabilityId', 'toolName', 'targetPartId', 'ownerSubject', 'approvedAt', 'idempotencyKey'];
+        if (Object.keys(approval).length !== approvalKeys.length || approvalKeys.some(key => !(key in approval))) fail('TASK_WRITE_V1_INVALID');
+        if (approval.proposalHash !== write.proposalHash || approval.argsHash !== write.argsHash) fail('TASK_WRITE_V1_INVALID');
+        if (approval.capabilityId !== write.capabilityId || approval.toolName !== write.toolName) fail('TASK_WRITE_V1_INVALID');
+        if (approval.targetPartId !== write.target.partId || approval.idempotencyKey !== write.idempotencyKey) fail('TASK_WRITE_V1_INVALID');
+        if (typeof approval.ownerSubject !== 'string' || !/^[a-f0-9]{64}$/u.test(approval.ownerSubject)) fail('TASK_WRITE_V1_INVALID');
+        if (typeof approval.approvedAt !== 'string' || !approval.approvedAt) fail('TASK_WRITE_V1_INVALID');
+    }
+    return write;
+}
 function validateSpec(spec) {
     const required = ['version', 'answerOwner', 'userGoal', 'businessWritePolicy', 'subjects', 'goals', 'scenarios', 'questions', 'approvalOperationIds'];
-    const allowed = [...required, 'recovery'];
+    const allowed = [...required, 'recovery', 'writeV1'];
     if (Object.keys(spec).some(key => !allowed.includes(key)) || required.some(key => !(key in spec))) fail('TASK_SPEC_INVALID');
     if (spec.version !== 2 || spec.answerOwner !== 'TASK_V2' || typeof spec.userGoal !== 'string' || !spec.userGoal || spec.userGoal.length > 2000) fail('TASK_SPEC_INVALID');
     if (!['FORBIDDEN', 'CONFIRMATION_REQUIRED'].includes(spec.businessWritePolicy)) fail('TASK_SPEC_INVALID');
     for (const field of ['subjects', 'goals', 'scenarios', 'questions', 'approvalOperationIds']) if (!Array.isArray(spec[field])) fail('TASK_SPEC_INVALID');
     if (!spec.goals.length || spec.goals.length > 8) fail('TASK_SPEC_INVALID');
     if (spec.recovery !== undefined) validateRecoveryPlan(spec.recovery);
+    if (spec.writeV1 !== undefined) validateWriteV1(spec.writeV1);
     return spec;
 }
 function validateBudget(budget) {
@@ -376,4 +409,4 @@ function createAiTaskStoreV2(options = {}) {
     return { appendEvidence, appendEvent, appendStep, appendProtectedCommandStep, assertLease, claimNextDetachedTask, createTask, findTaskForIdempotency, getTaskByKey, getTaskForOwner, listEvents, listEvidence, listSteps, loadValidatedEvidence, prepareInterruptedReadRetryLeased, mutateTask, recoverExpiredLeases, releaseLease, renewLease, requestCancel, reserveBudget, setStepState, taskStorageFromEnvelope, validateBudget, validateSpec };
 }
 
-module.exports = { AiTaskStoreError, EVENT_TYPES, MAX_RECEIPT_BYTES, MAX_STATE_BYTES, VOLATILE_FACT_PREDICATES, createAiTaskStoreV2, hasSensitiveField, recoveredFactRevalidation, taskStorageFromEnvelope, validateBudget, validateRecoveryPlan, validateSpec };
+module.exports = { AiTaskStoreError, EVENT_TYPES, MAX_RECEIPT_BYTES, MAX_STATE_BYTES, VOLATILE_FACT_PREDICATES, createAiTaskStoreV2, hasSensitiveField, recoveredFactRevalidation, taskStorageFromEnvelope, validateBudget, validateRecoveryPlan, validateSpec, validateWriteV1 };

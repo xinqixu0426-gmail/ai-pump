@@ -316,6 +316,12 @@ function buildWriteConfirmation(toolName, args, options = {}) {
             rows,
             summary: `AI 准备执行「${title}」，确认后才会执行受保护业务动作。`,
             warning: '请核对内容无误后再确认。确认后可能写入业务数据或产生设备、文件等外部副作用。',
+            // NATIVE-W1：正式预览回执里的结构化提案事实（零件身份/当前库存/调整量/调整后库存），
+            // 由 executor 从未经修改的 prepared 结果原样带出，调用方不能改写它。
+            proposal: options.proposal || null,
+            // NATIVE-W1：正式预览签发的稳定幂等键（非凭据，仅用于去重与对账），
+            // 上层必须在执行前把它持久化，并在重试/对账时复用同一个值。
+            idempotencyKey: options.executionContext?.idempotencyKey || null,
         },
     };
 }
@@ -368,6 +374,7 @@ async function executeToolCallImplementation(toolName, args, options = {}) {
                 return buildWriteConfirmation(toolName, args, {
                     ...options,
                     confirmationRows: prepared.confirmationRows,
+                    proposal: prepared.proposal,
                     // Formal preflight data remains authoritative.  A caller may
                     // add a server-owned task reference, but cannot replace the
                     // preflight context used by the protected command.
