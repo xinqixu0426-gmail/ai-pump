@@ -321,6 +321,8 @@ test('W15-E2E-4 flag=true 失败矩阵：澄清/多目标/目标不存在/目标
             { content: '把库存增加100', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_TARGET_REQUIRED' },
             { content: `把 ${MODEL} 和 W15-DUP 库存都增加 100`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_SINGLE_TARGET_REQUIRED' },
             { content: '把 W15-不存在 库存增加 10', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'part_stock_target_not_found' },
+            // NATIVE-W1-LIVE-R1：生产首用原句的词序（「库存」在动作之后），目标不存在。
+            { content: '将 W15-9201 增加 1 库存', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'part_stock_target_not_found' },
             { content: '把 W15-DUP 库存增加 10', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'part_stock_target_ambiguous' },
             // NATIVE-W1.5-R1：绝对目标值（最终值）不属于 delta-only V1，绝不变成增量。
             { content: `把 ${MODEL} 库存增加到 30`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED' },
@@ -360,7 +362,47 @@ test('W15-E2E-4 flag=true 失败矩阵：澄清/多目标/目标不存在/目标
             assert.equal(spec.writeV1 ?? null, null, '失败任务不得保留提案');
             assert.equal(spec.approvalOperationIds.length, 0);
         }
-        assert.deepEqual(state.tasks.map(task => task.state), ['FAILED', 'FAILED']);
+        // 只断言不变量：只要留下任务记录，就必须全部是安全失败的 FAILED（不写死条数）。
+        assert.deepEqual([...new Set(state.tasks.map(task => task.state))], ['FAILED']);
+    });
+});
+
+test('W15-E2E-7 LIVE-R1 回归：生产首用词序 + 型号写法不一致 → 安全失败、原因被持久化、零写入', async () => {
+    await withServer({
+        writeEnabled: true,
+        parts: [{ id: 9301, model: MODEL, stock: 100 }],
+        message: '将 W15-9201 增加 1 库存',
+    }, async ({ runtime, dbPath }) => {
+        const result = await chat(runtime.baseUrl, { content: '将 W15-9201 增加 1 库存', cookie: ownerCookie() });
+        assert.equal(result.status, 200);
+        const detail = result.events.find(event => event.type === 'detail');
+        assert.equal(detail.state, 'WRITE_CLARIFICATION_REQUIRED');
+        assert.equal(detail.code, 'part_stock_target_not_found');
+        assert.equal(result.events.some(event => event.type === 'write_proposal'), false);
+        // 文案回显用户写的型号，帮助发现型号写法差异。
+        const content = result.events.find(event => event.type === 'content');
+        assert.match(content.content, /W15-9201/u);
+
+        const db = new Database(dbPath, { readonly: true });
+        const tasks = db.prepare('SELECT id, state, spec_json FROM ai_tasks ORDER BY id').all();
+        assert.equal(tasks.length, 1, '预览拒绝只留一条可审计的失败任务');
+        assert.equal(tasks[0].state, 'FAILED');
+        const spec = JSON.parse(tasks[0].spec_json);
+        assert.equal(spec.writeV1 ?? null, null, '失败任务不得保留提案');
+        assert.equal(spec.approvalOperationIds.length, 0);
+        const events = db.prepare('SELECT event_type, payload_json FROM ai_task_events WHERE task_id = ? ORDER BY seq').all(tasks[0].id);
+        const failed = events.filter(event => event.event_type === 'TASK_FAILED');
+        assert.equal(failed.length, 1);
+        const payload = JSON.parse(failed[0].payload_json);
+        assert.equal(payload.phase, 'PREVIEW_REJECTED', '失败阶段必须可事后区分');
+        assert.equal(payload.code, 'part_stock_target_not_found', '失败原因码必须被持久化');
+        const steps = db.prepare('SELECT COUNT(*) count FROM ai_task_steps WHERE task_id = ?').get(tasks[0].id).count;
+        db.close();
+        assert.equal(steps, 0, '安全失败不得准入任何 COMMAND step');
+
+        const state = snapshot(dbPath);
+        assert.equal(state.parts.find(part => part.id === 9301).stock, 100, '零写入');
+        assert.equal(state.operations.length, 0);
     });
 });
 

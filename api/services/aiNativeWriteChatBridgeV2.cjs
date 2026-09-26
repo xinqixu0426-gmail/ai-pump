@@ -65,6 +65,23 @@ function feedbackForReason(reason) {
     return INTENT_FEEDBACK[reason] || INTENT_FEEDBACK.not_stock_intent;
 }
 
+/** 回显用户自己写的型号时的长度上限（用户文本，仅作为纯文本渲染）。 */
+const MAX_MENTION_ECHO = 60;
+
+/**
+ * NATIVE-W1-LIVE-R1：正式预览拒绝时的用户文案。
+ * 「目标找不到」时回显用户提到的型号——首次真实使用中，Owner 把「轴承-202」写成了
+ * 「轴承202」，静态文案无法提示差异；回显型号能让用户立刻发现是型号写法问题。
+ * 这不改变解析语义：解析仍是精确匹配，绝不模糊猜测目标。
+ */
+function previewFailureMessage(code, mention) {
+    if (code === 'part_stock_target_not_found') {
+        const echo = String(mention || '').trim().slice(0, MAX_MENTION_ECHO);
+        if (echo) return `没有找到型号为「${echo}」的零件，请确认准确型号后再试。`;
+    }
+    return PREVIEW_FEEDBACK[code] || '本次库存调整方案没有生成，也未执行任何修改。请核对零件型号和数量后重试。';
+}
+
 /** 预检包装：保留正式预览的根因码，供上层给出精确但安全的失败文案。 */
 function preflightPreservingCode(execute) {
     return async (toolName, args, options = {}) => {
@@ -222,18 +239,23 @@ function createNativeWriteProposalChatBridge(dependencies = {}) {
             });
         } catch (error) {
             // 预检/提案失败：不留悬挂任务，也不产生任何写入。
+            const code = String(error?.code || 'NATIVE_WRITE_PREVIEW_REJECTED');
             try {
                 const current = lifecycle.store.getTaskByKey(taskKey);
                 if (current && !['SUCCEEDED', 'FAILED', 'CANCELLED', 'PARTIAL', 'UNSUPPORTED'].includes(current.state)) {
-                    lifecycle.transition(taskKey, current.revision, { state: 'FAILED', eventType: 'TASK_FAILED' });
+                    // 失败原因随既有 TASK_FAILED 事件持久化（W1-LIVE-R1 §6：安全失败可被事后区分）。
+                    lifecycle.transition(taskKey, current.revision, {
+                        state: 'FAILED',
+                        eventType: 'TASK_FAILED',
+                        eventPayload: { phase: 'PREVIEW_REJECTED', code },
+                    });
                 }
             } catch { /* 清理是尽力而为，绝不影响安全结论 */ }
-            const code = String(error?.code || 'NATIVE_WRITE_PREVIEW_REJECTED');
             return {
                 ok: false,
                 kind: 'preview_rejected',
                 code,
-                message: PREVIEW_FEEDBACK[code] || '本次库存调整方案没有生成，也未执行任何修改。请核对零件型号和数量后重试。',
+                message: previewFailureMessage(code, parsed.mention),
             };
         }
 
@@ -257,6 +279,7 @@ function createNativeWriteProposalChatBridge(dependencies = {}) {
 module.exports = {
     INTENT_FEEDBACK,
     PREVIEW_FEEDBACK,
+    previewFailureMessage,
     WRITE_PROPOSAL_GOAL_KEY,
     buildProposalTransport,
     buildWriteProposalEnvelope,

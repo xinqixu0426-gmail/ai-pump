@@ -120,11 +120,21 @@ const PART_STOCK_UNIT_SOURCE = '(?:个|件|套|只|条|台|pcs)?';
 const PART_STOCK_MULTI_TARGET_RE = /(?:和|与|、|跟|以及|还有|并且)/u;
 const PART_STOCK_REQUEST_PREFIX_RE = /^(?:请|麻烦|烦请|帮我|替我|给我|我要|我需要|需要|先|直接|批量|重新|继续|立即|现在)+/u;
 
-/** 目标提及：库存锚点左侧、去掉请求语与「把/将/给」后的短语。 */
+/**
+ * 目标提及：取「库存锚点」与「第一个增减动词」中**更靠前**的那个作为右边界。
+ *
+ * NATIVE-W1-LIVE-R1（首用缺陷修复）：中文里「库存」既可以说在动作前
+ * （「把轴承-202库存增加1」），也可以说在动作后（「将轴承202增加1库存」）。
+ * 旧实现一律以「库存」为右边界，于是后一种说法会把动作与数量一起吞进目标，
+ * 抽出 "轴承202增加1" 这种不存在的型号 → 目标找不到（安全拒绝，但是真实可用性缺陷）。
+ */
 function partStockTargetMention(text) {
-    const anchor = String(text || '').search(PART_STOCK_STOCK_RE);
-    if (anchor < 0) return '';
-    let prefix = String(text).slice(0, anchor);
+    const value = String(text || '');
+    const stockIndex = value.search(PART_STOCK_STOCK_RE);
+    const actionIndex = value.search(new RegExp(`${PART_STOCK_SIGNED_ACTION_SOURCE}|${PART_STOCK_ABSOLUTE_VERB_SOURCE}`, 'u'));
+    const cuts = [stockIndex, actionIndex].filter(index => index >= 0);
+    if (!cuts.length) return '';
+    let prefix = value.slice(0, Math.min(...cuts));
     prefix = prefix.replace(PART_STOCK_REQUEST_PREFIX_RE, '');
     prefix = prefix.replace(/^(?:把|将|给)/u, '');
     prefix = prefix.replace(/[的\s]+$/u, '');
