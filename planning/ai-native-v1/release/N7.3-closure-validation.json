@@ -31,16 +31,16 @@
    {
     "role": "ARCHITECTURE_AND_HANDOFF",
     "path": "docs/ai-native-v1-handoff.md",
-    "attestedSha256": "5798c32af284856224a9c14264c1c3cb85532ac7bddee2b697e602faf2f8ca4d",
-    "diskSha256": "5798c32af284856224a9c14264c1c3cb85532ac7bddee2b697e602faf2f8ca4d",
+    "attestedSha256": "5eb3ba76f6535768f847bb43c4d82dcf383d4aa174b80c628727e9d986d38991",
+    "diskSha256": "5eb3ba76f6535768f847bb43c4d82dcf383d4aa174b80c628727e9d986d38991",
     "hashSource": "git_blob",
     "matches": true
    },
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "3f2ce323693511547b13f40b8ab4831998db3184b303f17c377b7ec9e7b7bb41",
-    "diskSha256": "3f2ce323693511547b13f40b8ab4831998db3184b303f17c377b7ec9e7b7bb41",
+    "attestedSha256": "a46cfb5539d5bdd96cfd26d102c65282f83252abe09999f82ed923d63b770eca",
+    "diskSha256": "a46cfb5539d5bdd96cfd26d102c65282f83252abe09999f82ed923d63b770eca",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -78,7 +78,8 @@
    }
   ],
   "hc2RefreshNote": "NATIVE-HC2 更新了本记录中 3 个被证据绑定的工件（docs/ai-native-v1-handoff.md、docs/api-reference.md、scripts/n73-generate-release-evidence.cjs）：当前架构文档改为声明 Native-only 并删除已退役 Legacy 开关说明；发布证据生成器的提示词哈希改为指向当前生效的 api/routes/ai/prompt.cjs（旧 Legacy promptComposer 已删除）。仅刷新 canonical sha256，不改动历史基线 revision/tree 与 ReleaseEvidenceV1 载荷。",
-  "nativeW1RefreshNote": "NATIVE-W1 更新了本记录中 2 个被证据绑定的工件（docs/ai-native-v1-handoff.md、docs/api-reference.md）：交接文档的「当前事实」增加 NATIVE-W1 单能力写（adjust_part_stock）与生产仍 false 的说明；接口总表的三个写端点补全 NATIVE-W1 语义（默认拒绝的唯能力白名单、单目标/数量校验、Owner-only 批准、批准先落盘、写后独立回读核验、对账有界终止与安全失败）。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。"
+  "nativeW1RefreshNote": "NATIVE-W1 更新了本记录中 2 个被证据绑定的工件（docs/ai-native-v1-handoff.md、docs/api-reference.md）：交接文档的「当前事实」增加 NATIVE-W1 单能力写（adjust_part_stock）与生产仍 false 的说明；接口总表的三个写端点补全 NATIVE-W1 语义（默认拒绝的唯能力白名单、单目标/数量校验、Owner-only 批准、批准先落盘、写后独立回读核验、对账有界终止与安全失败）。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
+  "nativeW15RefreshNote": "NATIVE-W1.5 更新了本记录中 2 个被证据绑定的工件（docs/api-reference.md、docs/ai-native-v1-handoff.md）：接口总表的 /api/ai/chat 补全 NATIVE-W1.5 写意图走向（服务端 rollout 决定、flag=false 逐字保持 WRITE_DISABLED、flag=true 仅对唯一白名单能力下发 NATIVE_WRITE_PROPOSAL 结构化提案且该轮不执行写入、澄清与 WRITE_UNSUPPORTED 语义）；交接文档「当前事实」增加 W1.5 可达性说明。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。"
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,
