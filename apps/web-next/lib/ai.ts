@@ -2,10 +2,13 @@
 
 import {
   createIdempotencyKey,
+  proxyFetch,
   proxyRequest,
   proxyStreamFetch,
   type ApiResponse,
 } from './api';
+import { confirmNativeWriteProposal } from './ai-write-proposal-client.cjs';
+import type { NativeWriteCard } from './ai-write-proposal.cjs';
 import type { AiPageContext } from './page-context';
 import type { FactoryFile } from './files';
 
@@ -202,6 +205,7 @@ export type AiConversationMessage = {
     metrics?: AiTurnMetrics;
     turnState?: AiTurnStateV3;
     nativeTaskId?: string;
+    writeProposal?: AiWriteProposalHistory;
   };
   createdAt: string;
   updatedAt: string;
@@ -510,8 +514,44 @@ export type AiStreamEvent =
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
   | ({ type: 'metrics' } & AiTurnMetrics)
   | { type: 'turn_state'; turnState: AiTurnStateV3 }
+  | NativeWriteProposalStreamEvent
   | { type: 'done' }
   | { type: 'error'; message: string; code?: string };
+
+/**
+ * NATIVE-W2：Native 写 V1 的结构化提案事件（唯一获批能力）。
+ * 只承载服务端冻结的展示事实与不透明执行身份；不做任何前端计算。
+ */
+export type NativeWriteProposalStreamEvent = {
+  type: 'write_proposal';
+  stage: 'NATIVE_WRITE_PROPOSAL';
+  proposal: {
+    kind?: string;
+    capabilityId: string;
+    items: Array<{
+      partId: number;
+      model: string;
+      currentStock: number;
+      delta: number;
+      nextStock: number;
+      clampedToZero?: boolean;
+    }>;
+  };
+  confirmation: {
+    confirmationToken: string;
+    operationId?: string | null;
+    expiresAt?: string | null;
+    toolName: string;
+    args: { items: Array<{ model: string; changeQty: number }> };
+  };
+  task: { taskId: string; revision: number; state: string; statusPath?: string };
+};
+
+/**
+ * 历史会话里只保留「这里曾有一张提案卡」的**非执行**标记：
+ * 不持久化 confirmationToken，也不持久化任何可用来自行重建执行请求的数值。
+ */
+export type AiWriteProposalHistory = { capabilityId: string; taskId: string };
 
 export const AI_CONTEXT_MESSAGE_LIMIT = 10;
 export const AI_STREAM_INTERRUPTED_CODE = 'AI_STREAM_INTERRUPTED';
@@ -716,6 +756,33 @@ export async function updateAiSystemPrompt(prompt: string): Promise<void> {
   });
   if (!result.success) throw new Error(result.error || '保存工厂配置失败');
   factoryProfileVersion = result.data?.profile?.version || result.data?.version || null;
+}
+
+/**
+ * NATIVE-W2：确认执行一次库存调整提案。
+ * 只转发服务端签发的不透明身份；不做目标重解析、数量重算、幂等键生成或二次预览。
+ * 成功只由服务端 verified 结果判定（含必要时的有界对账）。
+ */
+export function executeNativeWriteProposal(card: NativeWriteCard) {
+  return confirmNativeWriteProposal({ request: nativeWriteProposalRequest, card });
+}
+
+/** 提案卡片的 HTTP 适配器：保留后端 `code`，供失败映射使用（不打印任何 token）。 */
+async function nativeWriteProposalRequest(
+  path: string,
+  options: { method: string; body?: string }
+): Promise<{ status: number; body: unknown }> {
+  const response = await proxyFetch(path, { method: options.method, body: options.body }, {
+    throwOnError: false,
+    redirectOnUnauthorized: false,
+  });
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  return { status: response.status, body };
 }
 
 export async function listAiConversations(): Promise<AiConversationSummary[]> {

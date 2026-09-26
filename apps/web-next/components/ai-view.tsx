@@ -19,6 +19,7 @@ import { InlineNotice } from '@/components/ui/notice';
 import { FadePanel } from '@/components/motion/fade-panel';
 import {
   appendAiConversationMessage,
+  executeNativeWriteProposal,
   createAiConversation,
   findAiResolutionContext,
   findAiTurnStateV3,
@@ -48,6 +49,7 @@ import {
   type AiSampleCategory,
 } from '@/components/ai/AiConversationSidebars';
 import { useAiConversationHistory } from '@/components/ai/useAiConversationHistory';
+import { isExecutableCard, reduceWriteCard } from '@/lib/ai-write-proposal.cjs';
 import {
   applyAiStreamEvent,
   useAiMessageStream,
@@ -160,6 +162,8 @@ export function AiView({
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [latestTaskMessageId, setLatestTaskMessageId] = useState<number | null>(null);
   const [nativeTaskId, setNativeTaskId] = useState<string | null>(null);
+  // NATIVE-W2：同一张卡片只允许一个在途确认（前端防重复；后端幂等仍是真正的保护）。
+  const writeConfirmInFlightRef = useRef<Set<string>>(new Set());
   const [providerPreference, setProviderPreference] = useState<AiProviderPreference>('default');
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -444,6 +448,15 @@ export function AiView({
               provider: finalAssistantItem.provider,
               metrics: finalAssistantItem.metrics,
               turnState: finalAssistantItem.turnState,
+              // 只记录「这里曾有一张提案卡」：不持久化 token，也不持久化任何可重建请求的数值。
+              ...(finalAssistantItem.writeProposal?.event
+                ? {
+                  writeProposal: {
+                    capabilityId: finalAssistantItem.writeProposal.event.proposal.capabilityId,
+                    taskId: finalAssistantItem.writeProposal.event.task.taskId,
+                  },
+                }
+                : {}),
             },
           });
           updateAssistant(streamAssistantId, (item) => ({ ...item, persistedMessageId: saved.id, retryable: false }));
@@ -562,6 +575,51 @@ export function AiView({
       return;
     }
     void performOpenConversation(transition.conversationId);
+  }
+
+  /** NATIVE-W2：确认执行。只用服务端签发的不透明身份，成功后只信服务端核实结果。 */
+  async function confirmWriteProposal(messageId: string) {
+    if (writeConfirmInFlightRef.current.has(messageId)) return;
+    const current = items.find((candidate) => candidate.id === messageId)?.writeProposal;
+    // 只有服务端签发且当前可执行的卡片才能确认（历史/过期/取消/终态一律拒绝）。
+    if (!current || !isExecutableCard(current)) return;
+    writeConfirmInFlightRef.current.add(messageId);
+    // 立即禁用按钮；执行身份仍使用这张服务端提案（display 态不参与构造请求）。
+    updateAssistant(messageId, (item) => (
+      item.writeProposal ? { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'confirm' }) } : item
+    ));
+    try {
+      const result = await executeNativeWriteProposal(current);
+      updateAssistant(messageId, (item) => {
+        if (!item.writeProposal) return item;
+        if (result.kind === 'verified') {
+          return { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'settled', outcome: result.outcome }) };
+        }
+        if (result.kind === 'failed') {
+          return {
+            ...item,
+            writeProposal: reduceWriteCard(item.writeProposal, {
+              type: 'settled',
+              outcome: result.outcome ?? null,
+              failure: result.failure,
+            }),
+          };
+        }
+        if (result.kind === 'reconciling') {
+          return { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'reconcile' }) };
+        }
+        return item;
+      });
+    } finally {
+      writeConfirmInFlightRef.current.delete(messageId);
+    }
+  }
+
+  /** NATIVE-W2：取消只是本地失活——不发起任何执行请求，零写入。 */
+  function cancelWriteProposal(messageId: string) {
+    updateAssistant(messageId, (item) => (
+      item.writeProposal ? { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'cancel' }) } : item
+    ));
   }
 
   function retryAssistant(item: ChatItem) {
@@ -850,6 +908,8 @@ export function AiView({
               onRunSample={runMessageSample}
               onArchive={setArchiveAttachment}
               onConfirmed={confirmMessageTool}
+              onConfirmWriteProposal={(messageId) => void confirmWriteProposal(messageId)}
+              onCancelWriteProposal={cancelWriteProposal}
               onRetry={retryMessage}
               onMarkHelpful={markMessageHelpful}
               onReportIssue={reportMessageIssue}

@@ -6,6 +6,7 @@ import type { AiAnswerFeedback, AiAttachment, AiToolResult, AiTurnMetrics } from
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
 import { AnswerProcess, type ChatItem } from '@/components/ai/AiAnswerProcess';
+import { NativeWriteProposalCard } from '@/components/ai/NativeWriteProposalCard';
 import { StreamingText } from '@/components/ai/ai-text';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -116,6 +117,8 @@ export const AiMessageList = memo(function AiMessageList({
   onRunSample,
   onArchive,
   onConfirmed,
+  onConfirmWriteProposal,
+  onCancelWriteProposal,
   onRetry,
   onMarkHelpful,
   onReportIssue,
@@ -131,6 +134,8 @@ export const AiMessageList = memo(function AiMessageList({
   onRunSample: (prompt: string) => void;
   onArchive: (attachment: AiAttachment) => void;
   onConfirmed: (messageId: string, index: number, result: AiToolResult) => void;
+  onConfirmWriteProposal: (messageId: string) => void;
+  onCancelWriteProposal: (messageId: string) => void;
   onRetry: (item: ChatItem) => void;
   onMarkHelpful: (item: ChatItem) => void;
   onReportIssue: (item: ChatItem) => void;
@@ -215,6 +220,15 @@ export const AiMessageList = memo(function AiMessageList({
                   onSendPrompt={onRunSample}
                   shortcutDisabled={loading}
                 />
+              ) : null}
+              {item.role === 'assistant' && item.writeProposal ? (
+                <div className="mt-3">
+                  <NativeWriteProposalCard
+                    card={item.writeProposal}
+                    onConfirm={() => onConfirmWriteProposal(item.id)}
+                    onCancel={() => onCancelWriteProposal(item.id)}
+                  />
+                </div>
               ) : null}
               {hasAnswerProcess && (displayContent || item.attachments?.length) ? (
                 <div className="my-3 border-t border-line" aria-hidden="true" />

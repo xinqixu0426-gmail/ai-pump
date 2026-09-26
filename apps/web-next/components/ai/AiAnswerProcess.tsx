@@ -55,6 +55,8 @@ export type ChatItem = {
   turnState?: import('@/lib/ai').AiTurnStateV3;
   retryable?: boolean;
   nativeTaskId?: string;
+  /** NATIVE-W2：服务端签发的库存调整提案卡片状态（结构化，不扁平化为 Markdown）。 */
+  writeProposal?: import('@/lib/ai-write-proposal.cjs').NativeWriteCard;
   startedAt?: number;
 };
 

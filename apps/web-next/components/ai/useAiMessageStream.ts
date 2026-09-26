@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { AiChatMessage, AiStreamEvent } from '@/lib/ai';
+import { createWriteCard } from '@/lib/ai-write-proposal.cjs';
 import type { ChatItem } from '@/components/ai/AiAnswerProcess';
 
 export function applyAiStreamEvent(item: ChatItem, event: AiStreamEvent): ChatItem {
@@ -29,6 +30,8 @@ export function applyAiStreamEvent(item: ChatItem, event: AiStreamEvent): ChatIt
     return { ...item, metrics };
   }
   if (event.type === 'turn_state') return { ...item, turnState: event.turnState };
+  // NATIVE-W2：结构化提案 -> 显式卡片状态（不经 Markdown 重建）。
+  if (event.type === 'write_proposal') return { ...item, writeProposal: createWriteCard(event) };
   if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
   if (event.type === 'error') {
     return { ...item, status: 'error', statusMessage: event.message, content: item.content || event.message };
