@@ -13,13 +13,14 @@
 | 对象 | SHA |
 |---|---|
 | START_COMMIT（W1 起点 = NATIVE-W0 交付） | `0363f1ae1dc4e7a101a342894512807e26f5f580` |
-| 本地 HEAD（交付版，含本报告） | `7b1bc0fc328bf7cb564564fa30846947bdfacf53` |
-| 本地纯代码提交（门禁复核点） | `ee2a10e79327e1657d74086bc6eb2d02f56f23c7` |
-| GitHub `origin/ai-native/prod-canary-s2` | `7b1bc0fc328bf7cb564564fa30846947bdfacf53` |
+| 本地纯代码提交（第一轮门禁点） | `ee2a10e79327e1657d74086bc6eb2d02f56f23c7` |
+| 全部门禁运行点（全绿，含本报告） | `7b1bc0fc328bf7cb564564fa30846947bdfacf53` |
+| 交付 HEAD | `git rev-parse HEAD`（在此之后只有绑定本报告的**文档**提交，未改任何代码） |
+| GitHub `origin/ai-native/prod-canary-s2` | 与上表「交付 HEAD」一致（已推送、无分叉） |
 | 生产工作区 `git rev-parse HEAD` | `cb5be53e622292d4da0b9ce7906108e2fc69568b`（**未部署 W1**） |
 | 生产 `/api/health/ready` → `runtime.gitCommit` | `cb5be53e6222`（生产仍在 HC2-PROD 版本） |
 
-W1 提交链（5 个提交，全部在 origin 上）：
+W1 提交链（提交全部在 origin 上；以下列出到门禁全绿点为止）：
 
 ```
 7b1bc0f docs(ai): NATIVE-W1 supervisor-facing return (single-capability native part-stock write)
@@ -203,7 +204,7 @@ d360c0d fix(ai): NATIVE-W1 keep the write kill switch ahead of the owner gate
 | 无 detached worker 引入 | ✅ `api/services/aiTaskWorkerV2.cjs` 未改动，`TASK_WORKER_DEFAULT_ENABLED = false` 保持 |
 | 生产开关 | ✅ `AI_NATIVE_WRITE_ENABLED=false`（`.env` 第 57 行）、`AI_NATIVE_MODE=owner` 均未改 |
 | 未部署 | ✅ 生产 HEAD 仍为 `cb5be53e`，runtime `cb5be53e6222`，ready=true，工作区干净 |
-| 工作区干净 / 已推送 | ✅ `git status --short` 为空；`origin/ai-native/prod-canary-s2 == 7b1bc0f` |
+| 工作区干净 / 已推送 | ✅ `git status --short` 为空；`origin/ai-native/prod-canary-s2` 与本地 HEAD 一致 |
 
 改动清单（13 个文件，`+1719 / -118`）：
 
@@ -250,7 +251,7 @@ planning/ai-native-v1/release/N7.3-closure-validation.json  （证据哈希刷�
 | 15 | 40 行矩阵有专用测试覆盖 | ✅ §28 表（24 个专用用例） |
 | 16 | 全部门禁 PASS | ✅ 9/9（`head=7b1bc0f`） |
 | 17 | 无 schema / costEngine / Business API 变更 | ✅ §7 |
-| 18 | 工作区干净、已推送 GitHub | ✅ `7b1bc0f`（门禁全绿后仅追加本报告） |
+| 18 | 工作区干净、已推送 GitHub | ✅ 门禁全绿（`head=7b1bc0f`）之后仅有文档提交 |
 | 19 | **未部署**、生产 flag false | ✅ §7 |
 
 ---
