@@ -54,7 +54,8 @@ test('W15-INTENT-1 支持的能力内说法都进入 adjust_part_stock（不要�
         [`${MODEL}库存加100`, { model: MODEL, changeQty: 100 }],
         [`把${MODEL}库存减少20`, { model: MODEL, changeQty: -20 }],
         [`${MODEL}库存减20个`, { model: MODEL, changeQty: -20 }],
-        [`把 ${MODEL} 的库存增加到 30`, { model: MODEL, changeQty: 30 }],
+        [`把 ${MODEL} 的库存增加 30`, { model: MODEL, changeQty: 30 }],
+        [`把 ${MODEL} 库存增加了 30`, { model: MODEL, changeQty: 30 }],
         [`${MODEL}库存入库5件`, { model: MODEL, changeQty: 5 }],
     ]) {
         const route = routeOf(text);
@@ -66,8 +67,12 @@ test('W15-INTENT-1 支持的能力内说法都进入 adjust_part_stock（不要�
 test('W15-INTENT-2 缺数量 / 多数量 / 方向不明 / 缺目标 / 多目标一律返回可澄清原因', () => {
     for (const [text, reason] of [
         [`把 ${MODEL} 库存增加`, 'quantity_required'],
-        [`把 ${MODEL} 库存增加 100 再减少 50`, 'quantity_ambiguous'],
-        [`把 ${MODEL} 库存改成 100`, 'action_ambiguous'],
+        [`把 ${MODEL} 库存增加 100 再减少 50`, 'sign_conflict'],
+        [`把 ${MODEL} 库存调整 100`, 'action_ambiguous'],
+        [`把 ${MODEL} 库存增加到 30`, 'absolute_target'],
+        [`把 ${MODEL} 库存减到 20`, 'absolute_target'],
+        [`把 ${MODEL} 库存改为 30`, 'absolute_target'],
+        [`把 ${MODEL} 库存设为 30`, 'absolute_target'],
         ['把库存增加100', 'target_required'],
         [`把 ${MODEL} 和 W15-6203 库存都增加 100`, 'target_multi'],
     ]) {

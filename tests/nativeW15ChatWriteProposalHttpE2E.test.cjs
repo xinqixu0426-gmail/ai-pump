@@ -322,6 +322,13 @@ test('W15-E2E-4 flag=true 失败矩阵：澄清/多目标/目标不存在/目标
             { content: `把 ${MODEL} 和 W15-DUP 库存都增加 100`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_SINGLE_TARGET_REQUIRED' },
             { content: '把 W15-不存在 库存增加 10', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'part_stock_target_not_found' },
             { content: '把 W15-DUP 库存增加 10', state: 'WRITE_CLARIFICATION_REQUIRED', code: 'part_stock_target_ambiguous' },
+            // NATIVE-W1.5-R1：绝对目标值（最终值）不属于 delta-only V1，绝不变成增量。
+            { content: `把 ${MODEL} 库存增加到 30`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED' },
+            { content: `把 ${MODEL} 库存减到 20`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED' },
+            { content: `把 ${MODEL} 库存改为 30`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED' },
+            { content: `把 ${MODEL} 库存设为 30`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED' },
+            { content: `把 ${MODEL} 库存增加 100 还是 200`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_QUANTITY_AMBIGUOUS' },
+            { content: `把 ${MODEL} 库存加 0`, state: 'WRITE_CLARIFICATION_REQUIRED', code: 'NATIVE_WRITE_QUANTITY_INVALID' },
             { content: '把12-120线圈库存增加100套', state: 'WRITE_UNSUPPORTED', code: null },
             { content: '把零件A的单价修改成5元', state: 'WRITE_UNSUPPORTED', code: null },
             { content: '删除零件A', state: 'WRITE_UNSUPPORTED', code: null },

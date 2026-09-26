@@ -131,45 +131,75 @@ function partStockTargetMention(text) {
     return prefix.trim();
 }
 
+// NATIVE-W1.5-R1：**绝对目标值**语法（「增加到 30」= 最终值 30，不是 +30）。
+// Delta-only V1 必须先识别这些写法并明确拒绝，绝不能把它们当成增量。
+// 有界确定性语法：<增减/赋值动词> + (到|至|为|成) + 数字，以及无动词的「库存到 30」。
+const PART_STOCK_ABSOLUTE_VERB_SOURCE = '(?:增加|加|提高|上调|减少|减|降低|降|下调|调整|改变|改成|改为|调成|设为|设成|设置|变成|变为|定为|变)';
+const PART_STOCK_ABSOLUTE_MARK_SOURCE = '(?:到|至|为|成)';
+const PART_STOCK_ABSOLUTE_RE = new RegExp(
+    `(?:${PART_STOCK_ABSOLUTE_VERB_SOURCE})\\s*${PART_STOCK_ABSOLUTE_MARK_SOURCE}\\s*\\d+`, 'u'
+);
+const PART_STOCK_ABSOLUTE_BARE_RE = new RegExp(`库存\\s*${PART_STOCK_ABSOLUTE_MARK_SOURCE}\\s*\\d+`, 'u');
+/** 本身就表示「赋值为某最终值」的动词，不需要额外的「到/为」标记。 */
+const PART_STOCK_ABSOLUTE_ASSIGN_RE = /(?:改成|改为|调成|设成|设为|设置|变成|变为|定为)\s*\d+/u;
+/** 二选一/并列数量：「增加 100 还是 200」必须澄清，不能取第一个。 */
+const PART_STOCK_QUANTITY_CHOICE_RE = /^\s*(?:还是|或者|或|、|，|,|\/)\s*-?\d+/u;
+
+function isAbsoluteStockTarget(text) {
+    return PART_STOCK_ABSOLUTE_RE.test(text) || PART_STOCK_ABSOLUTE_BARE_RE.test(text) || PART_STOCK_ABSOLUTE_ASSIGN_RE.test(text);
+}
+
 /** 该文本是否属于「零件库存调整」语义族（与线圈分支互斥）。 */
 function isPartStockMutationIntent(text) {
     const value = String(text || '');
     if (!PART_STOCK_STOCK_RE.test(value) || PART_STOCK_COIL_RE.test(value)) return false;
     return new RegExp(PART_STOCK_SIGNED_ACTION_SOURCE, 'u').test(value)
-        || new RegExp(PART_STOCK_ABSOLUTE_ACTION_SOURCE, 'u').test(value);
+        || new RegExp(PART_STOCK_ABSOLUTE_ACTION_SOURCE, 'u').test(value)
+        || isAbsoluteStockTarget(value);
 }
 
-/** 明确的 <动作><数量> 配对（允许「增加了/加到/减少到」等连接词，数量必须显式）。 */
+/** 明确的 <动作><数量> 配对。**只允许「了」**：`到/至/为` 是绝对目标标记，绝不能当增量。 */
 function partStockQuantityMatches(text) {
-    const pattern = new RegExp(`(${PART_STOCK_SIGNED_ACTION_SOURCE})\\s*(?:了|到|至|为)?\\s*(-?\\d+)\\s*${PART_STOCK_UNIT_SOURCE}`, 'gu');
+    const pattern = new RegExp(`(${PART_STOCK_SIGNED_ACTION_SOURCE})\\s*(?:了)?\\s*(-?\\d+)\\s*${PART_STOCK_UNIT_SOURCE}`, 'gu');
     return [...String(text || '').matchAll(pattern)].map(match => ({
         action: match[1],
         literal: match[2],
         value: Number(match[2]),
+        end: match.index + match[0].length,
     }));
 }
 
 /**
  * 抽取一次零件库存调整。绝不猜方向或数量：
- * 缺数量 / 多数量 / 方向不明 / 缺目标 / 多目标一律返回可澄清的原因。
+ * 绝对目标值 / 缺数量 / 多数量 / 方向冲突 / 缺目标 / 多目标一律返回可澄清的原因。
+ * **解析顺序**：绝对目标值 → 增量；顺序本身是安全契约（ticket §5）。
  * @returns {{ok:true,args:{items:Array<{model:string,changeQty:number}>},mention:string}|{ok:false,reason:string}}
  */
 function parsePartStockAdjustment(userText) {
     const text = String(userText || '').trim();
     if (!text || !PART_STOCK_STOCK_RE.test(text)) return { ok: false, reason: 'not_stock_intent' };
+    // 1) 绝对目标值语法优先：V1 只支持 delta，绝不把「增加到 30」当成 +30。
+    if (isAbsoluteStockTarget(text)) return { ok: false, reason: 'absolute_target' };
     const mention = partStockTargetMention(text).replace(/\s+/gu, '');
     if (!mention) return { ok: false, reason: 'target_required' };
     if (PART_STOCK_MULTI_TARGET_RE.test(mention)) return { ok: false, reason: 'target_multi' };
+    // 2) 同一句里同时出现增加与减少 → 方向冲突，必须澄清。
+    const hasIncrease = new RegExp(PART_STOCK_INCREASE_SOURCE, 'u').test(text);
+    const hasDecrease = new RegExp(PART_STOCK_DECREASE_SOURCE, 'u').test(text);
+    if (hasIncrease && hasDecrease) return { ok: false, reason: 'sign_conflict' };
+    // 3) 增量抽取。
     const matches = partStockQuantityMatches(text);
     if (!matches.length) {
-        // 有绝对赋值动词且已给出数字 → 方向不明；否则就是还没给数量。
-        const absolute = new RegExp(PART_STOCK_ABSOLUTE_ACTION_SOURCE, 'u').test(text);
+        const absoluteVerb = new RegExp(PART_STOCK_ABSOLUTE_ACTION_SOURCE, 'u').test(text);
         const hasAnyNumber = /\d/u.test(text);
-        return { ok: false, reason: absolute && hasAnyNumber ? 'action_ambiguous' : 'quantity_required' };
+        return { ok: false, reason: absoluteVerb && hasAnyNumber ? 'action_ambiguous' : 'quantity_required' };
     }
-    if (matches.some(match => match.literal.startsWith('-') || !Number.isSafeInteger(match.value) || match.value <= 0)) {
-        return { ok: false, reason: 'sign_ambiguous' };
-    }
+    // 「增加 100 还是 200」：配对之后紧跟选择连词 + 另一个数字 → 必须澄清。
+    const tail = text.slice(matches[matches.length - 1].end);
+    if (PART_STOCK_QUANTITY_CHOICE_RE.test(tail)) return { ok: false, reason: 'quantity_ambiguous' };
+    if (matches.some(match => !Number.isSafeInteger(match.value))) return { ok: false, reason: 'quantity_invalid' };
+    if (matches.some(match => match.literal.startsWith('-'))) return { ok: false, reason: 'sign_conflict' };
+    if (matches.some(match => match.value <= 0)) return { ok: false, reason: 'quantity_zero' };
     const distinct = [...new Set(matches.map(match => `${match.action}:${match.value}`))];
     if (distinct.length > 1) return { ok: false, reason: 'quantity_ambiguous' };
     const separator = distinct[0].lastIndexOf(':');

@@ -38,6 +38,11 @@ const INTENT_FEEDBACK = Object.freeze({
     quantity_ambiguous: { code: 'NATIVE_WRITE_QUANTITY_AMBIGUOUS', message: '这句话里出现了多个不同的调整数量，请只保留一个再提交。' },
     action_ambiguous: { code: 'NATIVE_WRITE_ACTION_AMBIGUOUS', message: '请明确是要增加还是减少库存，例如「库存增加 100」或「库存减少 20」。' },
     sign_ambiguous: { code: 'NATIVE_WRITE_ACTION_AMBIGUOUS', message: '请明确是要增加还是减少库存，例如「库存增加 100」或「库存减少 20」。' },
+    sign_conflict: { code: 'NATIVE_WRITE_ACTION_AMBIGUOUS', message: '这句话里同时出现了增加和减少，请只保留一个方向再提交。' },
+    quantity_zero: { code: 'NATIVE_WRITE_QUANTITY_INVALID', message: '库存调整数量必须是非零整数，例如「库存增加 100」或「库存减少 20」。' },
+    quantity_invalid: { code: 'NATIVE_WRITE_QUANTITY_INVALID', message: '库存调整数量必须是非零整数，例如「库存增加 100」或「库存减少 20」。' },
+    // NATIVE-W1.5-R1：绝对目标值（「增加到 30」= 最终值）不属于 delta-only V1。
+    absolute_target: { code: 'NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED', message: '当前只支持按数量增加或减少库存，请明确说增加多少或减少多少。' },
     not_stock_intent: { code: 'NATIVE_WRITE_UNSUPPORTED', message: '该写操作当前未开放；目前只支持单个零件的库存调整。' },
     source_mismatch: { code: 'NATIVE_WRITE_SOURCE_MISMATCH', message: '这条消息还没有正式保存到会话中，请重新发送一次再操作。' },
 });
