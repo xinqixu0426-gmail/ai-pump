@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "a46cfb5539d5bdd96cfd26d102c65282f83252abe09999f82ed923d63b770eca",
-    "diskSha256": "a46cfb5539d5bdd96cfd26d102c65282f83252abe09999f82ed923d63b770eca",
+    "attestedSha256": "33fb106a38bf2881c284344801515b4dbb044bdd9dbec9578784c62dfdce0ef3",
+    "diskSha256": "33fb106a38bf2881c284344801515b4dbb044bdd9dbec9578784c62dfdce0ef3",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -79,7 +79,8 @@
   ],
   "hc2RefreshNote": "NATIVE-HC2 更新了本记录中 3 个被证据绑定的工件（docs/ai-native-v1-handoff.md、docs/api-reference.md、scripts/n73-generate-release-evidence.cjs）：当前架构文档改为声明 Native-only 并删除已退役 Legacy 开关说明；发布证据生成器的提示词哈希改为指向当前生效的 api/routes/ai/prompt.cjs（旧 Legacy promptComposer 已删除）。仅刷新 canonical sha256，不改动历史基线 revision/tree 与 ReleaseEvidenceV1 载荷。",
   "nativeW1RefreshNote": "NATIVE-W1 更新了本记录中 2 个被证据绑定的工件（docs/ai-native-v1-handoff.md、docs/api-reference.md）：交接文档的「当前事实」增加 NATIVE-W1 单能力写（adjust_part_stock）与生产仍 false 的说明；接口总表的三个写端点补全 NATIVE-W1 语义（默认拒绝的唯能力白名单、单目标/数量校验、Owner-only 批准、批准先落盘、写后独立回读核验、对账有界终止与安全失败）。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
-  "nativeW15RefreshNote": "NATIVE-W1.5 更新了本记录中 2 个被证据绑定的工件（docs/api-reference.md、docs/ai-native-v1-handoff.md）：接口总表的 /api/ai/chat 补全 NATIVE-W1.5 写意图走向（服务端 rollout 决定、flag=false 逐字保持 WRITE_DISABLED、flag=true 仅对唯一白名单能力下发 NATIVE_WRITE_PROPOSAL 结构化提案且该轮不执行写入、澄清与 WRITE_UNSUPPORTED 语义）；交接文档「当前事实」增加 W1.5 可达性说明。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。"
+  "nativeW15RefreshNote": "NATIVE-W1.5 更新了本记录中 2 个被证据绑定的工件（docs/api-reference.md、docs/ai-native-v1-handoff.md）：接口总表的 /api/ai/chat 补全 NATIVE-W1.5 写意图走向（服务端 rollout 决定、flag=false 逐字保持 WRITE_DISABLED、flag=true 仅对唯一白名单能力下发 NATIVE_WRITE_PROPOSAL 结构化提案且该轮不执行写入、澄清与 WRITE_UNSUPPORTED 语义）；交接文档「当前事实」增加 W1.5 可达性说明。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
+  "nativeW15R1RefreshNote": "NATIVE-W1.5-R1 更新了 docs/api-reference.md（/api/ai/chat 行）：明确 V1 只支持 delta，绝对目标值语法返回 NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED，并补全数量歧义/零/方向冲突的澄清码。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。"
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,
