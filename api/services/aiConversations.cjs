@@ -116,6 +116,28 @@ function loadAiConversationContinuation(ownerKey, transportId, options = {}) {
     return null;
 }
 
+/**
+ * NATIVE-W1.5：取当前会话最近一条**用户**消息（持久化事实）。
+ * 聊天回合的写提案必须绑定到库里真实存在的用户消息（任务创建会校验来源归属与哈希），
+ * 因此这里只从数据库读取，不接受请求体里自称的消息内容。
+ */
+function loadAiLatestUserMessage(ownerKey, transportId, options = {}) {
+    const id = conversationIdFromTransport(transportId);
+    if (!id) return null;
+    const accessors = options.dbAccessors || loadDbAccessors();
+    const { db } = accessors;
+    if (!conversationForOwner(db, id, ownerKey)) return null;
+    const row = db.prepare(`
+        SELECT id, content
+        FROM ai_conversation_messages
+        WHERE conversation_id = ? AND role = 'user'
+        ORDER BY id DESC
+        LIMIT 1
+    `).get(id);
+    if (!row) return null;
+    return Object.freeze({ conversationId: id, userMessageId: Number(row.id), content: String(row.content || '') });
+}
+
 function loadAiRecentPartWrite(ownerKey, transportId, options = {}) {
     const id = conversationIdFromTransport(transportId);
     if (!id) return null;
@@ -282,6 +304,7 @@ module.exports = {
     createAiConversation,
     getAiConversation,
     loadAiConversationContinuation,
+    loadAiLatestUserMessage,
     loadAiRecentPartWrite,
     appendAiConversationMessage,
     updateAiConversationMessage,

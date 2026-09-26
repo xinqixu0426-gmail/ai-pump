@@ -22,6 +22,7 @@ const {
 const { resolveAiNativeRollout, resolveAiChatAccessBoundary, AI_CHAT_ACCESS } = require('../../services/aiNativeRolloutPolicy.cjs');
 const {
     loadAiConversationContinuation,
+    loadAiLatestUserMessage,
     loadAiRecentPartWrite,
 } = require('../../services/aiConversations.cjs');
 
@@ -260,6 +261,13 @@ async function handleAiChat(req, res, options = {}) {
             // SHADOW deliberately observes the legacy result without a second
             // model request; only an authenticated Owner may enter TASK_V2.
             nativeTaskDelegation: nativeRollout.nativeTaskDelegation || options.nativeTaskDelegation === true,
+            // NATIVE-W1.5：写提案的判定只读服务端 rollout 快照（生产默认 false）。
+            nativeWriteAllowed: nativeRollout.nativeWriteAllowed === true,
+            // 提案必须绑定库里真实存在的用户消息（来源归属 + 输入哈希由 store 校验）。
+            resolveNativeWriteSource: () => (options.loadAiLatestUserMessage || loadAiLatestUserMessage)(
+                ownerKey, req.body?.conversationId, { dbAccessors: options.dbAccessors }
+            ),
+            prepareNativeWriteProposal: options.prepareNativeWriteProposal,
             runAiTaskControllerV2: options.runAiTaskControllerV2,
             sessionStore: options.taskSessionStoreV2,
             executeToolCall: options.executeToolCall,

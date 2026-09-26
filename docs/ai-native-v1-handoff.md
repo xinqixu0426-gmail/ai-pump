@@ -22,6 +22,12 @@
 >   `api/services/aiNativeWriteScope.cjs` 默认拒绝一切其它写能力；批准必须是 Owner 本人
 >   （内部凭据不构成批准），批准事实在业务写入**之前**持久化，写入后必须独立回读核验目标库存
 >   才允许置 `VERIFIED`；失联/歧义/超界一律安全失败，绝不自动重发或推断成功。
+> - **NATIVE-W1.5 已让该能力从自然语言聊天真正可达（未部署、未启用）**：写开关打开时，
+>   Owner 一句「把 6202 轴承库存增加 100」即可确定性解析（0 次额外模型调用）→ 既有 canonical
+>   解析 → 既有 W1 正式预览 → 冻结提案 → **同步**推进到 `WAITING_APPROVAL`，并经 `/api/ai/chat`
+>   下发结构化 `NATIVE_WRITE_PROPOSAL` 事件（只含展示事实与不透明确认身份）；该聊天回合**绝不
+>   执行写入**，执行仍须 Owner 对同一冻结提案调用 `write-execute`。不依赖 hand-shaped 任务，
+>   **不启用 detached worker**；写开关关闭时行为与生产现状逐字一致（`WRITE_DISABLED`）。
 > - `off` / `shadow` 现在只表示 **AI 不可用**（403 `AI_UNAVAILABLE`），不再回退 Legacy。
 > - 本文 §1–§4 中的「生产没跑 Native」「Legacy 未删除」「Legacy 仍是权威」「可回退 Legacy」等表述
 >   均已被上述事实取代：**不要按它们去启用 Legacy 回退或旧开关**（相应开关也已删除）。
