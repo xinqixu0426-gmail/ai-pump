@@ -21,7 +21,6 @@ const test = require('node:test');
 const { spawn } = require('node:child_process');
 const Database = require('better-sqlite3');
 const { issueOwnerToken } = require('../api/services/ownerAuthentication.cjs');
-const { stableHash } = require('../api/services/aiTaskContractV2.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const MODEL = 'W1-E2E-6202轴承';

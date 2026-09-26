@@ -48,6 +48,20 @@ function assertNativeWriteRollout(req, options = {}) {
     return rollout;
 }
 /**
+ * NATIVE-W1 §3：Native 写 rollout 门同样是**端点级**入口守卫。
+ * 必须排在 Owner 身份门之前：写入未开放时（生产默认 `AI_NATIVE_WRITE_ENABLED=false`）
+ * 任何主体——包括非 Owner JWT 与内部凭据——都先得到 `AI_NATIVE_WRITE_DISABLED`，
+ * 保证 kill switch 始终是第一条守卫，且不因身份不同而改变「写入未开放」的事实。
+ */
+function requireNativeWriteRollout(options = {}) {
+    return (req, res, next) => {
+        try {
+            assertNativeWriteRollout(req, options);
+            return next();
+        } catch (error) { return sendError(res, error); }
+    };
+}
+/**
  * NATIVE-W1 §9：Native 写入的批准必须来自**规范 Owner 身份**。
  * 非 Owner JWT、内部机器凭据、未认证一律拒绝；内部凭据只授权"服务到服务执行"，不代表用户批准。
  * 该检查只作用于 Native 写端点，不改变其它既有确认端点。
@@ -133,7 +147,7 @@ function createAiTaskRouterV2(options = {}) {
             return res.json({ success: true, data: { taskId: updated.taskKey, revision: updated.revision, state: updated.state } });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-preview', nativeWriteOwnerGate, async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-preview', requireNativeWriteRollout(options), nativeWriteOwnerGate, async (req, res) => {
         try {
             assertNativeWriteRollout(req, options);
             const task = resolveTask(lifecycle, req.params.taskId, req.aiTaskOwner);
@@ -157,7 +171,7 @@ function createAiTaskRouterV2(options = {}) {
             });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-execute', nativeWriteOwnerGate, async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-execute', requireNativeWriteRollout(options), nativeWriteOwnerGate, async (req, res) => {
         try {
             assertNativeWriteRollout(req, options);
             const task = resolveTask(lifecycle, req.params.taskId, req.aiTaskOwner);
@@ -180,7 +194,7 @@ function createAiTaskRouterV2(options = {}) {
             });
         } catch (error) { return sendError(res, error); }
     });
-    router.post('/api/ai/tasks/:taskId/write-reconcile', nativeWriteOwnerGate, async (req, res) => {
+    router.post('/api/ai/tasks/:taskId/write-reconcile', requireNativeWriteRollout(options), nativeWriteOwnerGate, async (req, res) => {
         try {
             // ticket §3：对账与执行必须经过**同一个** Native 写 rollout 授权。
             assertNativeWriteRollout(req, options);

@@ -43,7 +43,6 @@ const { createAiTaskRouterV2 } = require('../api/routes/ai/tasks.cjs');
 const { issueOwnerToken } = require('../api/services/ownerAuthentication.cjs');
 const { issueAiToolConfirmation, resetAiToolConfirmationsForTests } = require('../api/services/aiToolConfirmation.cjs');
 const { executeConfirmedAiTool } = require('../api/services/aiConfirmedToolExecution.cjs');
-const { stableHash } = require('../api/services/aiTaskContractV2.cjs');
 const { RECONCILE_MAX_ATTEMPTS, RECONCILE_MAX_ELAPSED_MS } = require('../api/services/aiTaskWriteBridgeV2.cjs');
 const { listBusinessCapabilities, getAiCapability } = require('../api/capabilities/registry.cjs');
 const {
