@@ -45,6 +45,7 @@ const { issueAiToolConfirmation, resetAiToolConfirmationsForTests } = require('.
 const { executeConfirmedAiTool } = require('../api/services/aiConfirmedToolExecution.cjs');
 const { RECONCILE_MAX_ATTEMPTS, RECONCILE_MAX_ELAPSED_MS } = require('../api/services/aiTaskWriteBridgeV2.cjs');
 const { listBusinessCapabilities, getAiCapability } = require('../api/capabilities/registry.cjs');
+const { validateSpec } = require('../api/services/aiTaskStoreV2.cjs');
 const {
     NATIVE_WRITE_V1_CAPABILITIES,
     NATIVE_WRITE_V1_TOOLS,
@@ -289,6 +290,25 @@ test('W1-AUTH-2 AI_NATIVE_WRITE_ENABLED=false 时三个写端点全部 WRITE_DIS
     } finally { process.env.AI_NATIVE_WRITE_ENABLED = saved; }
 });
 
+test('W1-AUTH-3 SEC-R0 机器写凭据（x-internal-write-secret）不构成 Owner 批准，三个写端点全部拒绝且零写入', async t => {
+    const h = await harness(); t.after(() => h.server.close());
+    const machine = { 'x-internal-write-secret': INTERNAL_WRITE_SECRET };
+    // 仅凭机器写凭据：连任务写入面都进不去（该凭据不是任务路由的认证身份）。
+    const preview = await call(h, `/api/ai/tasks/${h.taskKey}/write-preview`, { body: previewBody(), headers: machine });
+    assert.equal(preview.status, 401);
+    // 叠加一个合法的非 Owner admin 会话后，仍然只能得到 Owner 门拒绝：
+    // 机器写凭据绝不把调用方升格为 Owner，也不构成"用户批准"。
+    const execute = await call(h, `/api/ai/tasks/${h.taskKey}/write-execute`, { body: executeBody('any-token'), headers: machine, cookie: nonOwnerCookie() });
+    assert.equal(execute.status, 403);
+    assert.equal(execute.body.code, 'NATIVE_WRITE_OWNER_REQUIRED');
+    const reconcile = await call(h, `/api/ai/tasks/${h.taskKey}/write-reconcile`, { body: {}, headers: machine, cookie: nonOwnerCookie() });
+    assert.equal(reconcile.status, 403);
+    assert.equal(reconcile.body.code, 'NATIVE_WRITE_OWNER_REQUIRED');
+    assert.equal(h.state.writes, 0, '机器写凭据绝不能产生业务写入');
+    assert.equal(h.state.readbacks, 0, '机器写凭据也不能触发写后核验');
+    assert.equal(taskState(h).state, 'RUNNING');
+});
+
 // ── §7/§8/§12/§19 闭环：提案 → 批准 → 写一次 → 回读核验 → SUCCEEDED ────────────────
 test('W1-LOOP-1 闭环成功：提案事实持久化、Owner 批准、恰好一次业务写、回读核验后 SUCCEEDED', async t => {
     const h = await harness(); t.after(() => h.server.close());
@@ -348,6 +368,24 @@ test('W1-LOOP-3 批准后参数/目标被改动 → 冻结提案不匹配，拒�
     assert.equal(tampered.body.code, 'confirmation_payload_mismatch');
     assert.equal(h.state.writes, 0);
     assert.equal(taskState(h).state, 'WAITING_APPROVAL');
+});
+
+test('W1-LOOP-4 存在在途/结果未定的写入时，禁止重新预览覆盖旧提案（409 TASK_WRITE_INFLIGHT）', async t => {
+    const h = await harness({ scenario: { businessTimeout: true } }); t.after(() => h.server.close());
+    const preview = await call(h, `/api/ai/tasks/${h.taskKey}/write-preview`, { body: previewBody(), cookie: ownerCookie() });
+    await call(h, `/api/ai/tasks/${h.taskKey}/write-execute`, { body: executeFor(h, preview.data.confirmation.confirmationToken), cookie: ownerCookie() });
+    const task = taskState(h);
+    assert.equal(task.state, 'RECONCILING');
+    // COMMAND step 处于 UNKNOWN_EFFECT：效果未知，绝不能被一张新卡覆盖。
+    const command = h.lifecycle.store.listSteps(h.taskKey).find(step => step.access === 'COMMAND');
+    assert.equal(command.state, 'UNKNOWN_EFFECT');
+    const again = await call(h, `/api/ai/tasks/${h.taskKey}/write-preview`, {
+        body: previewBody({ expectedRevision: task.revision }), cookie: ownerCookie(),
+    });
+    assert.equal(again.status, 409);
+    assert.equal(again.body.code, 'TASK_WRITE_INFLIGHT');
+    assert.equal(h.state.writes, 1, '被拒绝的重新预览不得产生新的业务写入');
+    assert.equal(taskState(h).spec.writeV1.phase, 'RECONCILING', '旧提案必须保持原样');
 });
 
 // ── §14/§15/§16 失败与对账策略 ─────────────────────────────────────────────────
@@ -493,6 +531,48 @@ VALUES(?,?,?,?,?,NULL,'completed',?,?,?,?)`).run(operationId, CAPABILITY, 'inter
     assert.equal(task.spec.writeV1.verification.stock, 200);
     assert.equal(h.state.writes, 1, '对账只能基于既有提交，不能再写一次');
     assert.equal(h.state.readbacks, 1, '对账必须做独立回读核验');
+});
+
+// ── §8/§10 冻结事实校验：spec_json 复用，不新增 schema，但结构非法一律拒绝 ─────────────
+test('W1-SPEC-1 持久化写事实严格校验：非法阶段、坏哈希、敏感字段、残缺批准事实一律拒绝', async t => {
+    const h = await harness(); t.after(() => h.server.close());
+    await call(h, `/api/ai/tasks/${h.taskKey}/write-preview`, { body: previewBody(), cookie: ownerCookie() });
+    const spec = taskState(h).spec;
+    // 正向：正式预览持久化出来的写事实必须能通过 store 校验。
+    assert.equal(validateSpec(structuredClone(spec)).writeV1.phase, 'PROPOSAL_READY');
+    const reject = mutate => {
+        const candidate = structuredClone(spec);
+        mutate(candidate);
+        assert.throws(
+            () => validateSpec(candidate),
+            error => ['TASK_WRITE_V1_INVALID', 'TASK_SPEC_INVALID'].includes(error.code),
+        );
+    };
+    reject(s => { s.writeV1.phase = 'DONE'; });
+    reject(s => { s.writeV1.proposalHash = 'not-a-hash'; });
+    reject(s => { s.writeV1.argsHash = ''; });
+    reject(s => { s.writeV1.delta = 0; });
+    reject(s => { s.writeV1.target = { partId: 7 }; });
+    reject(s => { s.writeV1.unknownFact = true; });
+    // 敏感字段（任何形态的 token/secret）绝不能进入任务数据。
+    reject(s => { s.writeV1.confirmationToken = 'leak'; });
+    reject(s => { s.writeV1.approval = { confirmationToken: 'leak' }; });
+    // 批准事实必须完整且自洽（缺键、坏 ownerSubject、与提案不一致）。
+    reject(s => { s.writeV1.approval = { proposalHash: s.writeV1.proposalHash }; });
+    reject(s => {
+        s.writeV1.approval = {
+            proposalHash: s.writeV1.proposalHash, argsHash: s.writeV1.argsHash, capabilityId: s.writeV1.capabilityId,
+            toolName: s.writeV1.toolName, targetPartId: s.writeV1.target.partId, ownerSubject: 'short',
+            approvedAt: new Date().toISOString(), idempotencyKey: s.writeV1.idempotencyKey,
+        };
+    });
+    reject(s => {
+        s.writeV1.approval = {
+            proposalHash: 'f'.repeat(64), argsHash: s.writeV1.argsHash, capabilityId: s.writeV1.capabilityId,
+            toolName: s.writeV1.toolName, targetPartId: s.writeV1.target.partId, ownerSubject: 'a'.repeat(64),
+            approvedAt: new Date().toISOString(), idempotencyKey: s.writeV1.idempotencyKey,
+        };
+    });
 });
 
 test('W1-SCOPE-4 通过路由请求非 W1 能力（线圈/价格/删除/配方）一律拒绝且零写入', async t => {

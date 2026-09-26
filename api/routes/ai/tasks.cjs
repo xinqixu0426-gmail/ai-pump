@@ -48,15 +48,23 @@ function assertNativeWriteRollout(req, options = {}) {
     return rollout;
 }
 /**
- * NATIVE-W1 §3：Native 写 rollout 门同样是**端点级**入口守卫。
- * 必须排在 Owner 身份门之前：写入未开放时（生产默认 `AI_NATIVE_WRITE_ENABLED=false`）
- * 任何主体——包括非 Owner JWT 与内部凭据——都先得到 `AI_NATIVE_WRITE_DISABLED`，
- * 保证 kill switch 始终是第一条守卫，且不因身份不同而改变「写入未开放」的事实。
+ * NATIVE-W1 §3：Native 写 rollout 门同样是**端点级**入口守卫，且排在 Owner 身份门之前。
+ * 这里只判定**全局**写开关（`AI_NATIVE_WRITE_ENABLED`，生产默认 `false`）：
+ * 写入未开放时，任何主体——Owner、非 Owner JWT、内部凭据——都得到 `AI_NATIVE_WRITE_DISABLED`，
+ * 因此 kill switch 的结论不因身份而异，且先于任何身份判定。
+ * 主体是否真的具备 Native 写资格（`nativeWriteAllowed`）由其后的 Owner 身份门与
+ * handler 内的完整 rollout 校验继续收敛，三者必须同时通过。
  */
 function requireNativeWriteRollout(options = {}) {
     return (req, res, next) => {
         try {
-            assertNativeWriteRollout(req, options);
+            const rollout = (options.resolveAiNativeRollout || resolveAiNativeRollout)({
+                request: req,
+                env: options.env || process.env,
+            });
+            if (!(rollout.config.writeValid && rollout.config.writeEnabled)) {
+                throw new AiTaskPublicError('AI_NATIVE_WRITE_DISABLED', 403, 'AI Native 写入当前未开放');
+            }
             return next();
         } catch (error) { return sendError(res, error); }
     };
