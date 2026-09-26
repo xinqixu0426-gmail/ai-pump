@@ -190,56 +190,6 @@ test('E2-COVERAGE-1 SUPPORTED 族必须声明真实登记的能力 / 事实 / �
     assert.equal(summary.unsupported.length, 1, '仍不支持：仅剩规格/配置差异（经营概况已由 NATIVE-R1 接管）');
 });
 
-// ── E2 §6：关闭 E1 残留 BOM_IDENTITY_RESIDUAL ─────────────────────────────
-// 真实 BOM 草稿的金额挂在 `costPreview` 下，而 `costPreview` 自身不携带 recipe 主键；
-// 主键/名称在兄弟节点 `configurationBasis.recipeName`（正式业务键）。
-// 契约：金额节点自身无身份字段时，允许用**同一正式回执内唯一**的身份节点 +
-// 「业务键 → 主键」唯一映射补齐；映射不唯一时仍然 fail-closed。
-const { projectMoneyFacts } = require('../api/services/moneyFactProjection.cjs');
-
-const formal = data => ({ success: true, data, executionEvidence: { verified: true, kind: 'formal_api_query' } });
-
-const bomReceipt = () => ({
-    name: 'build_recipe_bom_draft',
-    result: formal({
-        costPreview: { currentTotalCost: 285.8, partsCost: 264.8, laborCost: 21, pricingComplete: true },
-        configurationBasis: { source: 'recipe', recipeName: 'v550-tokoy', configurationComplete: true },
-        parts: [{ model: 'V750-大脚板-2寸' }],
-    }),
-});
-
-test('E2-BOM-IDENTITY-1 BOM 草稿金额经正式回执唯一映射绑定到 canonical recipe（关闭 BOM_IDENTITY_RESIDUAL）', () => {
-    const facts = projectMoneyFacts([
-        { name: 'get_all_recipes', result: formal([{ id: 13, name: 'v550-tokoy', spec: '12-120，带浮球' }]) },
-        bomReceipt(),
-    ], { includeQueries: true });
-    const bom = facts.filter(fact => fact.capability === 'build_recipe_bom_draft');
-    assert.ok(bom.length > 0, 'BOM 草稿必须产出金额事实');
-    for (const fact of bom) {
-        assert.equal(fact.identityState, 'CANONICAL', '金额归属必须补齐为 canonical');
-        assert.equal(fact.entityId, 'recipe:13');
-        assert.equal(fact.identityResolvedBy, 'FORMAL_RECEIPT_BINDING');
-        assert.equal(fact.identityStrength, 'canonical');
-    }
-    // 身份只能来自正式业务键绑定，不能来自 capability 名称或自由文本。
-    assert.deepEqual([...new Set(bom.map(fact => fact.entityType))], ['recipe']);
-});
-
-test('E2-BOM-IDENTITY-2 同名多主键时 BOM 金额仍 fail-closed，绝不猜身份', () => {
-    const facts = projectMoneyFacts([
-        { name: 'get_all_recipes', result: formal([
-            { id: 13, name: 'v550-tokoy', spec: '12-120，带浮球' },
-            { id: 21, name: 'v550-tokoy', spec: '12-140，带浮球' },
-        ]) },
-        bomReceipt(),
-    ], { includeQueries: true });
-    const bom = facts.filter(fact => fact.capability === 'build_recipe_bom_draft');
-    assert.ok(bom.length > 0);
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityState))], ['IDENTITY_INCOMPLETE']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityReasonCode))], ['AMBIGUOUS_BUSINESS_KEY']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.entityId))], [null], '不得绑定到任一候选主键');
-});
-
 test('E2-MONEY-NO-SELF-SUBTRACT 没有正式比较回执时不得输出任何金额（控制器不相减、不猜测方向）', async () => {
     const result = await runAiTaskControllerV2(input('v550-tokoy和v750-tokoy成本差多少？', 'e2-compare-no-subtract'), {
         executeToolCall: async toolName => toolName === 'get_all_recipes'

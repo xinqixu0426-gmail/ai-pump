@@ -1,5 +1,8 @@
 # Business Semantic Frame V1
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Status and boundary
 
 `BusinessSemanticFrameV1` is a deterministic, read-only semantic projection over the current AI turn. It states which business question is being asked, which formal facts that question requires, which facts verified execution evidence supplied, whether the requested answer is complete, and which disclosures or prohibitions apply.

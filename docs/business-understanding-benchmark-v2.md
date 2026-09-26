@@ -1,5 +1,8 @@
 # Business Understanding Benchmark V2
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 BusinessUnderstandingBenchmarkV2 是当前业务验收基线。V1 仍是历史基线，其 Case、Fixture、Oracle 和 Baseline 不修改、不重命名。
 
 V2 保留 BU-01—BU-04 和 BU-06—BU-10 的业务意图，将原 BU-05 拆成两个正式计价模式场景：

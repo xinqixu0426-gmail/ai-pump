@@ -1,5 +1,8 @@
 # Business Impact Projection V1
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Status
 
 `BusinessImpactProjectionV1` is a deterministic, read-only, shadow-only projection over existing formal business sources. It is disabled unless `AI_BUSINESS_IMPACT_SHADOW_ENABLED=true`. Enabling the observer does not alter the final answer, model-visible evidence, tool routing, tool arguments, provider calls, Semantic/Completeness Enforcement, writes, or cost calculation.

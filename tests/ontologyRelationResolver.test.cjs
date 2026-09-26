@@ -333,7 +333,7 @@ test('ONT-P2 result validator rejects forged provenance, types, identities and b
 
 test('ONT-P2 no production chat, tool, MCP, HTTP, schema or dependency exposure', () => {
     const root = path.resolve(__dirname, '..');
-    for (const file of ['api.cjs', 'api/routes/ai/chat.cjs', 'api/services/aiAssistantRuntime.cjs', 'api/services/aiToolShortlist.cjs', 'api/routes/ai/tools.cjs', 'api/capabilities/registry.cjs']) {
+    for (const file of ['api.cjs', 'api/routes/ai/chat.cjs', 'api/services/aiTaskControllerV2.cjs', 'api/routes/ai/executor.cjs', 'api/routes/ai/tools.cjs', 'api/capabilities/registry.cjs']) {
         assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /ontology\/(?:resolver|resolverContract)|canonicalRelationQueries/);
     }
     assert.equal(ontology.runtimeEnabled, false);

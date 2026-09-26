@@ -9,15 +9,26 @@
 
 ---
 
+
+> **当前事实（NATIVE-HC1 → NATIVE-HC2，取代本文 §1–§4 的历史描述）**
+> - 生产 AI 现为 **Native-only**：`AI_NATIVE_MODE=owner`，仅正式 Owner JWT 可进入 Native 只读链。
+> - **Legacy AI 编排已退役并从仓库物理删除**：`aiAssistantRuntime`、`aiAgentRuntimeV3`、
+>   `aiReadInvestigationDriverV4`、Legacy 工具循环/答案与金额守卫、business-semantics / business-impact
+>   强制层、ontology shadow/binding/canary 等 85 个 `api/` 模块、22 个脚本、64 个测试。
+> - `AI_NATIVE_WRITE_ENABLED=false`：AI 写入未开放；写意图得到 `WRITE_DISABLED`，零业务写入。
+> - `off` / `shadow` 现在只表示 **AI 不可用**（403 `AI_UNAVAILABLE`），不再回退 Legacy。
+> - 本文 §1–§4 中的「生产没跑 Native」「Legacy 未删除」「Legacy 仍是权威」「可回退 Legacy」等表述
+>   均已被上述事实取代：**不要按它们去启用 Legacy 回退或旧开关**（相应开关也已删除）。
+
 ## 0. 30 秒速览
 
 | 问题 | 答案 |
 |---|---|
-| 现在生产在跑 Native 吗？ | **没有。** `AI_NATIVE_MODE` 默认 `off`，Legacy 是唯一生产权威。 |
+| 现在生产在跑 Native 吗？ | **是。** 生产 `AI_NATIVE_MODE=owner`，Native 是唯一生产 AI 运行时（见顶部「当前事实」）。 |
 | Native 写入开启了吗？ | **没有。** `AI_NATIVE_WRITE_ENABLED` 默认 `false`，且与 mode 相互独立。 |
 | Owner 试点开始了吗？ | **没有。** `READY_FOR_OWNER_TRIAL = YES`，`OWNER_TRIAL_ACTUALLY_STARTED = NO`。 |
 | 怎么一键停用 Native？ | 把 `AI_NATIVE_MODE` 设为 `off`（或删除该变量）。**不需要**数据库恢复，**不需要** schema 回滚。 |
-| Legacy 删掉了吗？ | **没有。** 退出的是**冗余职责**，剩余 Legacy 都有明确唯一职责（见 §4）。 |
+| Legacy 删掉了吗？ | **已经删掉。** NATIVE-HC2 已把退役的 Legacy AI 编排从仓库物理移除；下方 §4 为历史记录。 |
 | 权威门禁命令？ | `npm run verify:api-contract` + `npm test` + `npm run test:deep-api` + `npm run lint` + `npm run build`。 |
 
 ---
@@ -64,7 +75,7 @@
 
 | 关注点 | 文件 |
 |---|---|
-| 任务契约与状态机 | `api/services/aiTaskContractV2.cjs`、`api/services/aiTaskEnvelope.cjs` |
+| 任务契约与状态机 | `api/services/aiTaskContractV2.cjs`、`api/services/aiTaskSessionV2.cjs` |
 | 持久化任务存储（SQLite，migration 88 引入） | `api/services/aiTaskStoreV2.cjs` |
 | 单槽 leased Worker | `api/services/aiTaskWorkerV2.cjs` |
 | 崩溃/重启恢复 | `api/services/aiTaskRecoveryV2.cjs`、`api/services/aiTaskLifecycleV2.cjs` |
@@ -125,6 +136,10 @@ AI 路由以 `app.use('/', aiRouter)` 挂载（`api.cjs:141`），因此上表�
 ---
 
 ## 4. Legacy / Native 责任边界（N7.2 终态）
+
+> **历史章节（已被 NATIVE-HC1/HC2 取代）**：下文的「Legacy 仍承担权威职责」「删掉它等于删掉生产路径」等结论
+> 成立时生产仍是 Legacy 权威。现在生产是 Native-only，且这些 Legacy 组件已从仓库删除；本节仅作历史记录。
+
 
 N7.2 的结论**不是**"Legacy 已删除"，而是：
 

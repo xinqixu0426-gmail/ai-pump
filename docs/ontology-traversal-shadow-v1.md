@@ -1,5 +1,8 @@
 # Bounded 2-Hop Ontology Traversal V1 — ONT-P5
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Scope and P0 evidence
 
 Ontology V1 remains seven entities, six relation families and twelve directional A/B relations. P5 adds only deterministic explicit path binding and bounded composition of the existing ONT-P2 Canonical Relation Resolver. Current AI remains authoritative. There is no graph search, autonomous planning, third hop, model call, prompt modification or new tool/API/dependency/schema.

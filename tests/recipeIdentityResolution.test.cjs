@@ -104,26 +104,3 @@ test('recipes.resolve_identity is registered as a formal Internal-only query cap
     assert.equal(AI_TOOLS.some(tool => tool.function.name === 'resolve_recipe_identity'), false);
 });
 
-test('the runtime identity resolver maps the formal read outcomes onto resolution statuses', async () => {
-    const { resolveRelationIdentity } = require('../api/services/aiAssistantRuntime.cjs');
-    const internalFetch = () => {};
-    const request = { capability: 'resolve_recipe_identity', mention: NAME };
-    const path = `/api/recipes/identity?name=${encodeURIComponent(NAME)}`;
-
-    const found = await resolveRelationIdentity(internalFetch, async () => ({ recipeId: 13, recipeName: NAME }), request);
-    assert.deepEqual(found, { status: 'found', identity: { recipeId: 13, recipeName: NAME },
-        calls: [{ method: 'GET', path }], path });
-
-    const notFound = Object.assign(Error('未找到该配方名称'), { formalApiOutcome: 'not_found', statusCode: 404 });
-    assert.deepEqual(await resolveRelationIdentity(internalFetch, async () => { throw notFound; }, request),
-        { status: 'not_found', calls: [{ method: 'GET', path }] });
-
-    const ambiguous = Object.assign(Error('该配方名称对应多个配方'), { statusCode: 409 });
-    assert.deepEqual(await resolveRelationIdentity(internalFetch, async () => { throw ambiguous; }, request),
-        { status: 'ambiguous', calls: [{ method: 'GET', path }] });
-
-    const failed = await resolveRelationIdentity(internalFetch, async () => { throw Object.assign(Error('ECONNREFUSED'), { code: 'internal_api_request_failed' }); }, request);
-    assert.equal(failed.status, 'failed');
-    assert.equal(failed.code, 'internal_api_request_failed');
-    assert.equal(failed.path, path);
-});

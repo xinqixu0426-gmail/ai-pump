@@ -1,5 +1,8 @@
 # Ontology Relation Binding V1 — ONT-P4
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Problem from P3
 
 P3 established resolver correctness, but only observed four of six relation families and four of twelve directions. Its 30 real executions yielded 14 eligible, 12 compared, 12 MATCH and zero MISMATCH. Natural language intent and a trustworthy canonical root were the limiting inputs. P4 adds a deterministic, precision-first binder to observation only. It does not solve authoritative AI routing or the large-result context problem yet.

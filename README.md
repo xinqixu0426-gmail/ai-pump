@@ -78,7 +78,6 @@ AI_PROVIDER=local
 LOCAL_AI_BASE_URL=http://192.168.31.111:8080/v1
 LOCAL_AI_MODEL=/var/opt/models/Ornith-1.5-35B-A3B-APEX-i-compact.gguf
 LOCAL_AI_VISION_ENABLED=false
-AI_LOCAL_TOOL_SHORTLIST_ENABLED=true
 
 # 可选：改为 local-first 后，本地模型临时故障时降级到 DeepSeek
 DEEPSEEK_API_KEY=sk-xxx

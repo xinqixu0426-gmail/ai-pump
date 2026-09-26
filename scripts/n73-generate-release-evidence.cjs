@@ -113,9 +113,9 @@ const corpora = corpusFiles
     .filter(file => fs.existsSync(path.join(ROOT, file)))
     .map(file => ({ path: file, sha256: sha256File(file), bytes: canonicalEvidenceHash(file).bytes }));
 
-// ── prompt hash (Legacy provider contract surface) ──────────────────────────
-const promptComposer = 'api/services/aiPromptComposer.cjs';
-const promptHash = fs.existsSync(path.join(ROOT, promptComposer)) ? sha256File(promptComposer) : null;
+// ── prompt hash（当前生效的 Native 聊天提示词入口；旧 Legacy promptComposer 已删除）──
+const promptSurface = 'api/routes/ai/prompt.cjs';
+const promptHash = fs.existsSync(path.join(ROOT, promptSurface)) ? sha256File(promptSurface) : null;
 
 // ── documentation / handoff artifacts this evidence describes ───────────────
 // Their hashes let a future reader prove the docs have not silently drifted.
@@ -176,8 +176,8 @@ const evidence = {
         nativeToolsSha256: sha256File('api/services/aiNativeToolDefinitionsV2.cjs'),
         mcpReadOnlyToolCount: mcpToolNames.length,
         mcpCatalogSha256: sha256File('api/mcp/catalog.cjs'),
-        promptComposer: promptComposer,
-        promptComposerSha256: promptHash,
+        promptSurface: promptSurface,
+        promptSurfaceSha256: promptHash,
     },
     rollout: {
         modes: [...rollout.AI_NATIVE_MODES],

@@ -108,6 +108,7 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 AI 内部关系观察由独立环境开关 `AI_ONTOLOGY_RELATION_SHADOW_ENABLED=false` 控制，默认关闭；开启时仅在正式回答完成后异步比较一条已执行的 canonical 1-hop 关系。观察结果不进入模型上下文、工具响应、回答或证据。独立子开关 `AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED=false` 与 `AI_ONTOLOGY_2HOP_SHADOW_ENABLED=false` 仍只增加观察，不改变正式执行链。只读 worker、绑定及遍历契约分别见 [Ontology Runtime Shadow V1](ontology-runtime-shadow-v1.md)、[Ontology Relation Binding V1](ontology-relation-binding-v1.md) 和 [Bounded 2-Hop Traversal Shadow V1](ontology-traversal-shadow-v1.md)。
 
+（**已退役，NATIVE-HC2**：Ontology 受控路由 canary、其开关 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 及 `relationRoutingCanary`/proxy 模块均已从仓库物理删除；以下段落为历史说明。当前 Native-only 行为以 `POST /api/ai/chat` 条目为准。）
 独立私有环境开关 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false` 默认关闭，按项目统一规则仅 `true` 启用。开关本身不授权：`POST /api/ai/chat` 只在本次请求同时通过现有正式 Owner JWT 校验，或通过现有精确 `x-internal-secret` 内部身份时，才向运行时传递 Canary 资格；Impact Enforcement Canary 复用同一服务端身份边界，并额外要求自身独立开关和影响资格同时成立。共享 admin、伪造 `req.user`、自报 header/query 及配置缺失均 fail closed 并保持 Legacy 权威路径。当前受控正式关系路由覆盖 `recipe↔coil` 与 `recipe↔part` 两个已登记家族，provider 资格为 `local`/`local-first`/`deepseek`；`local`/`local-first` 仍要求本地 shortlist 启用。canonical root 必须来自正式、唯一、精确身份读取；歧义、缺失、跨实体类型冲突或读取失败均 fail closed。命中后由软件确定性执行有界只读关系能力，再由模型合成，零新增语义模型轮次；配方→线圈回答若遗漏正式线圈或混入其他数字线圈身份，服务端以相互一致的配方明细与线圈目录回执确定性收口。未命中、开关关闭或身份不合格时保持原 Legacy 路径。`recipe↔part` 仅增加私有 AI 的 `get_recipe_parts/get_recipes_by_part`，不扩展 MCP 目录，不新增 Ontology 关系或写权限。HTTP 内部关系边界现已挂载为 `/api/relations/read` 与 `/api/relations/resolve`，均位于认证后的 `/api` 段。迁移边界及验收见 [First Relation Routing Migration V1](ontology-first-routing-migration-v1.md)。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
@@ -496,7 +497,8 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 ### AI 入口与框架撤除
 
-当前源码的 `POST /api/ai/chat` 经 `aiDispatcherV3` 进行服务端双通道路由：普通对话与查询调用 `aiAssistantRuntime`，明确业务写命令调用 `aiAgentRuntimeV3` 的确认和回执链。单零件录入在类别、型号、单价、供应商、库存等标签字段明确时，服务端直接按 `create_part` 现有 schema 提取参数并生成确认；`修改/更新/设置` 以及 `将/把某零件修改成...` 可按 `update_part` 现有 schema 确定性提取资料字段。`刚才录入的零件` 只绑定同一登录所有者、同一 `chat-<ID>` 会话最近 20 条助理消息内带正式执行证据的 `create_part` 回执；查询结果、失败结果和其他所有者会话不能提供修改目标。上述完整命令直接生成受保护 TaskEnvelope，不依赖模型规划或 tool choice；字段不完整或缺少可信相对目标时不构造确定性调用。V5 shadow、preview、authority mux 和 Candidate 已撤除；废弃入口 `/api/ai/owner-read-canary` 替代为 `/api/ai/chat`。旧 header/开关不再选择另一条回答链。
+（**已退役，NATIVE-HC2**：`aiAssistantRuntime` / `aiAgentRuntimeV3` 已从仓库删除。当前行为：只读由 Native `aiTaskControllerV2` 负责，写意图返回 `WRITE_DISABLED`，非 Owner 403 `AI_OWNER_ONLY`。以下段落为历史说明。）
+当前源码的 `POST /api/ai/chat` 经 `aiDispatcherV3` 进行服务端 Native-only 路由。单零件录入在类别、型号、单价、供应商、库存等标签字段明确时，服务端直接按 `create_part` 现有 schema 提取参数并生成确认；`修改/更新/设置` 以及 `将/把某零件修改成...` 可按 `update_part` 现有 schema 确定性提取资料字段。`刚才录入的零件` 只绑定同一登录所有者、同一 `chat-<ID>` 会话最近 20 条助理消息内带正式执行证据的 `create_part` 回执；查询结果、失败结果和其他所有者会话不能提供修改目标。上述完整命令直接生成受保护 TaskEnvelope，不依赖模型规划或 tool choice；字段不完整或缺少可信相对目标时不构造确定性调用。V5 shadow、preview、authority mux 和 Candidate 已撤除；废弃入口 `/api/ai/owner-read-canary` 替代为 `/api/ai/chat`。旧 header/开关不再选择另一条回答链。
 
 内部 `TaskEnvelope` 以 Capability Registry 的稳定能力身份和已校验参数记录本轮步骤、必答字段与展示类型，不建立第二套业务参数 schema，也不改变 `/api/ai/chat` 请求或 SSE 契约。`EvidenceBundle` 只接受带正式 `aiExecutionEvidence` 的 Query/Preview 回执。配置 BOM 与权威业务规则已使用领域 Presenter V1 验收必答字段；模型回答不完整时从正式证据确定性生成简短答案，未验证结果不会进入该底稿。
 
@@ -555,7 +557,7 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 |---|---|---|---|
 | `GET` | `/api/ai/capabilities` | 无 | 返回当前 `provider/model`、是否支持图片输入、允许的附件类型及数量/大小限制；`providerOptions` 返回 `value/displayName/model/available/supportsImages`，不包含密钥，供输入框的单轮模型选择使用。智能路由额外返回 `defaultProvider=deepseek`，并分别返回可用的 `visionProvider=kimi` 与 `fileProvider=kimi`。`fileProvider` 表示 Kimi 文件抽取能力可用，不表示所有文档都会上传；`AI_VISION_ENABLED` 只控制图片原图输入，不关闭按解析状态选中的 Kimi 文件抽取 |
 | `GET` | `/api/ai/health` | 无 | 能力 `ai.health.read`。返回脱敏的模型配置就绪状态、本进程有界请求统计、总耗时与首字耗时（TTFT）、业务域规划/能力规划/工具/总结阶段耗时、重试/降级/超时、最近错误码、供应商真实返回的 token usage 覆盖率与累计值、当前发布门禁结果和运行版本；未返回 usage 的请求标记为不可用，不用本地估算冒充真实用量。不返回 API Key、问题正文、回答正文、附件内容或工具参数。`local-first` 以无密钥局域网模型配置为必需项；`auto` 时 DeepSeek 是普通对话必需提供商，Kimi 是图片/文件能力的可选提供商 |
-| `POST` | `/api/ai/chat` | `{ messages, conversationId?, providerPreference?, pageContext?, resolutionContext?, turnState? }` | SSE 流式对话；`providerPreference` 只接受 `default/local/deepseek/kimi`，手工选择仅影响本轮且不跨模型降级；消息可带 `attachments: [{ id }]`；`conversationId=chat-<ID>` 可按当前所有者恢复持久化的可信候选；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`；`resolutionContext` 与 `turnState` 仅保留兼容传输，不作为候选身份、执行证据或授权。AI Native rollout 仅由服务端环境快照选择：`AI_NATIVE_MODE=off|shadow|owner`，默认 `off`；`shadow` 保持 Legacy 回答权威且不追加模型调用；`owner` 仅接受现有正式 Owner JWT，普通 admin、内部请求和自报 header 不可进入。未知 mode fail closed 到 Legacy。 |
+| `POST` | `/api/ai/chat` | `{ messages, conversationId?, providerPreference?, pageContext?, resolutionContext?, turnState? }` | SSE 流式对话；`providerPreference` 只接受 `default/local/deepseek/kimi`，手工选择仅影响本轮且不跨模型降级；消息可带 `attachments: [{ id }]`；`conversationId=chat-<ID>` 可按当前所有者恢复持久化的可信候选；`pageContext` 当前仅接受白名单化的订单 `resourceType/resourceId/view`；`resolutionContext` 与 `turnState` 仅保留兼容传输，不作为候选身份、执行证据或授权。AI Native rollout 仅由服务端环境快照选择：生产为 `AI_NATIVE_MODE=owner`，仅接受现有正式 Owner JWT，普通 admin、内部请求和自报 header 不可进入（403 `AI_OWNER_ONLY`）。`off`/`shadow` 现在只表示 AI 不可用（403 `AI_UNAVAILABLE`），**不再回退任何 Legacy 运行时**；退役运行时已由 NATIVE-HC2 删除。 |
 
 | `POST` | `/api/ai/tasks` | `TaskStartRequestV1`；必须请求头 `Idempotency-Key` | 显式创建 `DETACHED` 任务，读取当前主体所属 `chat-<ID>` 的指定 user 消息；返回 `202 TaskAcknowledgementV1`。服务端只保存候选理解和受保护执行计划，不在 HTTP 请求内执行正式业务工具；拒绝客户端注入 owner、租约、回执、预算、批准或写权限。 |
 | `GET` | `/api/ai/tasks/:taskId` | 无 | 返回 owner-bound 的 `TaskPublicViewV1`。无读副作用；只包含任务状态、目标、受限步骤显示名、澄清与结果摘要，不包含租约、参数、原始回执、owner、令牌或写权限。 |
@@ -593,7 +595,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 83 个 AI 工具、当前 137 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。冻结的 Legacy 目录继续以 `api/routes/ai/tools.cjs` 为唯一 schema；Task V2 的受限 `compare_recipe_scenarios` schema 位于 `api/services/aiNativeToolDefinitionsV2.cjs`，仍复用同一注册表、validator 与 executor，但不进入 Legacy 或 MCP 目录。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
+注册表共登记 83 个 AI 工具、当前 137 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。AI 工具目录继续以 `api/routes/ai/tools.cjs` 为唯一 schema；Task V2 的受限 `compare_recipe_scenarios` schema 位于 `api/services/aiNativeToolDefinitionsV2.cjs`，仍复用同一注册表、validator 与 executor，但不进入 MCP 目录。`WRITE_TOOLS` 是注册表投影。新助理只暴露 read/query 或 preview；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。`read_collection/read_relation` 已从 AI 工具目录撤除，保留的正式业务接口按各自挂载状态说明。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 

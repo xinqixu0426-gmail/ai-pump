@@ -1,5 +1,8 @@
 # BUS-P6 — Legacy Redundancy & Simplification Audit
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Decision
 
 Status: PASS

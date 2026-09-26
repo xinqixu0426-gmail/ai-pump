@@ -9,10 +9,6 @@ const {
     extractSinglePartCreateArgs,
     extractSinglePartUpdateArgs,
 } = require('../api/services/aiProtectedCommandRoute.cjs');
-const {
-    enforcePreferredCommandCapability,
-    enforceProtectedCommandRoute,
-} = require('../api/services/aiGoalPlannerV3.cjs');
 
 function messages(content) {
     return [{ role: 'user', content }];
@@ -159,32 +155,3 @@ test('AI 调度器：查询走只读助手，明确写命令走确认执行器',
     assert.equal(detectProtectedCommandRoute(messages('帮我录入零件，型号120*2.65，单价1元')).preferredCapability, 'create_part');
 });
 
-test('AI 目标规划：可信命令信封固定写模式和无歧义单零件能力', () => {
-    const route = {
-        mode: 'command',
-        domains: ['catalog'],
-        preferredCapability: 'create_part',
-    };
-    const envelope = enforceProtectedCommandRoute({
-        goal: '录入零件',
-        mode: 'query',
-        domains: ['catalog'],
-        needsBusinessData: true,
-        answerShape: 'direct',
-        entityScope: 'none',
-        requiresClarification: false,
-        steps: [],
-    }, route);
-    assert.equal(envelope.mode, 'command');
-    assert.equal(envelope.answerShape, 'confirmation');
-    assert.equal(envelope.entityScope, 'single');
-
-    const planned = enforcePreferredCommandCapability({
-        ...envelope,
-        steps: [{ capabilityName: 'search_parts', objective: '误判成查询' }],
-    }, route);
-    assert.deepEqual(planned.steps, [{
-        capabilityName: 'create_part',
-        objective: '录入零件',
-    }]);
-});

@@ -1,5 +1,8 @@
 # ONT-P3 — 1-Hop Runtime Shadow V1
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Purpose and architecture
 
 Current AI runtime remains the sole authority for user-visible behavior. Ontology only observes a relation the current tools have already read, independently reads it through ONT-P2 and compares canonical identities. It does not solve the large-list/model-context problem in this phase.

@@ -1,5 +1,8 @@
 # ONT-P0 Ontology Pre-Implementation Audit
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Executive Summary
 基于当前 master 24106a1b 真实代码审计。项目当前无运行中的 Ontology runtime，历史 V5 设计仅存文档。系统已具备稳定的业务实体 ID 化和丰富的 FK/JSON 引用关系，但存在大量 JSON 快照引用、名称依赖和 AI 层 relation-specific hard-code。Thin Ontology 可明显降低 AI 工具编排复杂度，但需先完成实体身份稳定性和 relation authority 梳理。
 

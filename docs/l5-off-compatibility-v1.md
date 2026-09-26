@@ -1,5 +1,8 @@
 # L5OffCompatibilityV1
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Scope
 
 This contract repairs only the L5-P3 default-OFF canonical recipe identity regression. It does not make the current full-cost preview available and does not add cost arithmetic, ontology relations, fuzzy identity, aliases, or provider rounds.

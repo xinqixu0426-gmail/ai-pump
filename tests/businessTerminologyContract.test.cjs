@@ -25,7 +25,6 @@ test('业务命名契约：产品身份统一为水泵工厂管理系统', () =>
         'docs/modularization-design.md',
         'api.cjs',
         'api/routes/health.cjs',
-        'api/services/aiPromptComposer.cjs',
         'api/services/marketData.cjs',
         'apps/web-next/app/layout.tsx',
         'apps/web-next/app/login/page.tsx',

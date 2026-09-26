@@ -21,7 +21,7 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 其他文档按用途归类：
 
-当前私人 AI 助理的使用与处理链统一见 [AI 助理说明](ai-assistant.md)。在售配方完整配置继承、显式配置覆盖与当前价格重算见该说明；V1.0.2 修复的本地/隔离验证与生产发布状态分别记录。当前修复版本 V1.0.2（`pump-ai-v1.0.2`）已部署 Mac Mini 并通过自动验收；原人工确认的 V1.0.1 冻结基准保留。AI Native 的预发布责任开关为 `AI_NATIVE_MODE=off|shadow|owner`，默认 `off`，`shadow` 始终保留 Legacy 回答权威；`owner` 仅允许正式 Owner JWT 进入 Native 读取链，业务写入还必须独立显式开启 `AI_NATIVE_WRITE_ENABLED=true`。这两个开关不由请求、模型或 header 控制，生产切换仍需单独授权。登录兼容服务的开机自启动限制及发布证据见 [发布清单](deployment-checklist.md)。阶段计划、撤除报告与历史失败见 [档案索引](archive/README.md)。
+当前私人 AI 助理的使用与处理链统一见 [AI 助理说明](ai-assistant.md)。在售配方完整配置继承、显式配置覆盖与当前价格重算见该说明；V1.0.2 修复的本地/隔离验证与生产发布状态分别记录。当前修复版本 V1.0.2（`pump-ai-v1.0.2`）已部署 Mac Mini 并通过自动验收；原人工确认的 V1.0.1 冻结基准保留。生产 AI 现为 **Native-only**：`AI_NATIVE_MODE=owner`，仅正式 Owner JWT 可进入 Native 只读链，业务写入由 `AI_NATIVE_WRITE_ENABLED=false` 明确关闭。退役的 Legacy AI 编排（`aiAssistantRuntime`、`aiAgentRuntimeV3`、V4 调查、business-semantics/impact 与 ontology shadow/canary）已在 NATIVE-HC2 从仓库物理删除，`off`/`shadow` 现在只表示 AI 不可用，不再回退任何 Legacy 运行时。这两个开关不由请求、模型或 header 控制。登录兼容服务的开机自启动限制及发布证据见 [发布清单](deployment-checklist.md)。阶段计划、撤除报告与历史失败见 [档案索引](archive/README.md)。
 
 内部 TaskEnvelope、EvidenceBundle、必答字段验收和领域 Presenter 的当前覆盖范围只在 [AI 助理说明](ai-assistant.md) 维护，不再新建重复架构文档。
 
@@ -274,7 +274,7 @@ BOM 草稿由 `POST /api/recipes/bom-draft` 统一生成。`recipeQueries` 只�
 - 常规接口：JWT Cookie。
 - 内部服务：`x-internal-secret`，服务端必须配置 `INTERNAL_SECRET`。
 - AI 和工厂配置：JWT Cookie 或内部 Secret。
-- 内置 AI 在 `local/local-first` 模式按当前问题提供 1–8 个相关只读工具，减少本地模型的 schema 输入；可通过 `AI_LOCAL_TOOL_SHORTLIST_ENABLED=false` 恢复全量。`local` 严格不调用云端，`local-first` 保留临时故障降级。通用 MCP 的固定工具目录不受该策略影响。
+- 内置 AI 在 `local/local-first` 模式按当前问题提供 1–8 个相关只读工具，减少本地模型的 schema 输入。`local` 严格不调用云端，`local-first` 保留临时故障降级。通用 MCP 的固定工具目录不受该策略影响。
 - 通用 MCP：默认关闭，以 Bearer service token 提供 48 项固定只读 Query/Preview；V2 写能力另行默认关闭，启用后也按认证身份的逐工具 allowlist 只暴露最小命令子集，并继续要求正式 Preview 和 MCP 原生人工确认。同一 `/mcp` 同时服务 2026 与 2025 Streamable HTTP；2025 客户端保持只读兼容并安全拒绝写确认，任何 Agent 都不接触 `INTERNAL_SECRET`。日常 MCP 门禁为 `npm run verify:mcp-local`；涉及写能力时另跑 `npm run verify:mcp-write-local`，以真实 localhost Streamable HTTP、2025/2026 双客户端、临时 SQLite、operation/audit/Query 回读覆盖 18/18。写验收 manifest 将本轮之前已完成人工验收的 9 项作为测试基线，把批次候选 9 项分为订单与报价转单、文件归档、转子出图三个场景；剩余每项都必须通过原生拒绝零副作用检查。FreeCAD 后端只走 fail-closed 外部命令替身，报告必须标明生产未触达和临时资源已清理；`print_rotor_drawing` 保留为 HTTP/AI 能力，但不属于 MCP 目录且本地门禁要求打印调用为 0。该分组不代替部署后按身份读取真实 allowlist，本地通过不能替代生产启用授权。开发、兼容和一致性门禁见 [mcp-development-guide.md](./mcp-development-guide.md)。
 - 登录限流：每个 IP 每分钟最多 5 次。
 - 外部市场、AI、CAD 和内部 API 请求统一设置超时；只有幂等 GET 可按策略有限重试。

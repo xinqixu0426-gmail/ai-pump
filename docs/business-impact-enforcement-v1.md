@@ -1,5 +1,8 @@
 # Business Impact Enforcement V1
 
+> **已退役（NATIVE-HC2）**：本文描述的 Legacy AI 编排组件已从仓库物理删除，生产 AI 为 Native-only。本文仅作历史记录保留；请勿据此启用旧运行时或旧开关。
+
+
 ## Scope
 
 L5-P2 integrates the frozen `BusinessImpactProjectionV1` result into the existing final answer synthesis and applies a deterministic impact-only answer boundary. It does not add impact families, ontology relations, business entities, cost formulas, database fields, HTTP APIs, provider rounds, or write authority.

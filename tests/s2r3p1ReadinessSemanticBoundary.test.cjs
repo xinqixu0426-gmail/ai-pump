@@ -24,13 +24,8 @@ const { runAiTaskControllerV2 } = require('../api/services/aiTaskControllerV2.cj
 const { createTaskSessionStoreV2 } = require('../api/services/aiTaskSessionV2.cjs');
 const { extractTaskSemanticsV2, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION } = require('../api/services/aiTaskSemanticsV2.cjs');
 const { ownerReadCanaryAdmission } = require('../api/services/aiNativeOwnerTrialCoverage.cjs');
-const { readinessProfile, extractQuantitySlot, isReadinessRequest } = require('../api/business-semantics/readinessSemantics.cjs');
+const { extractQuantitySlot } = require('../api/business-semantics/readinessSemantics.cjs');
 const { classifyQuestion } = require('../api/business-semantics/questionSemantics.cjs');
-const { buildBusinessSemanticFrame } = require('../api/business-semantics/frameBuilder.cjs');
-const { enforceSemanticAnswerBoundary, deterministicSemanticAnswer } = require('../api/business-semantics/answerBoundary.cjs');
-const { validateBusinessSemanticFrame } = require('../api/business-semantics/validator.cjs');
-const { semanticEligibility } = require('../api/business-semantics/eligibilityBoundary.cjs');
-const { buildBusinessEvidencePlan } = require('../api/business-semantics/evidencePlanner.cjs');
 
 // ── 生产形态 fixture（真实型号名，canonical 主键唯一）──────────────────────
 const V750 = Object.freeze({ id: 13, name: 'V750大脚板-2寸-经典款', spec: '12-120', coilId: 1 });
@@ -185,34 +180,6 @@ test('B1 四种缺料/齐料问法都进同一个 readiness 目标，且不要�
     }
 });
 
-test('B2 业务语义层的 readiness 判据是「含义」而不是句式：齐备 / 缺口 / 数量+物料三种形态', () => {
-    for (const text of ['V750大脚板-2寸-经典款缺什么料？', 'V750大脚板-2寸-经典款还缺料吗',
-        'V750大脚板-2寸-经典款齐料情况怎么样？', 'V750大脚板-2寸-经典款物料够不够',
-        '缺料预览 V750大脚板-2寸-经典款 100台', 'V750大脚板-2寸-经典款按100台看缺料']) {
-        assert.equal(isReadinessRequest(text), true, text);
-        assert.equal(classifyQuestion(text).kind, 'INVENTORY_QUERY', text);
-        assert.equal(semanticEligibility({ userText: text }).reason, 'SUPPORTED_INVENTORY_INTENT', text);
-    }
-    // 线圈域 / 成本域绝不并入配方齐料
-    for (const text of ['12-200还有货吗', '12-220的成本', 'V750大脚板-2寸-经典款当前成本是多少',
-        'V750大脚板-2寸-经典款，线圈用12-200的', 'V750大脚板-2寸-经典款成本是多少']) {
-        assert.equal(isReadinessRequest(text), false, text);
-    }
-    assert.equal(readinessProfile('V750大脚板-2寸-经典款缺什么料？').ask, 'SHORTAGE');
-    assert.equal(readinessProfile('V750大脚板-2寸-经典款齐料情况怎么样？').ask, 'SUFFICIENCY');
-});
-
-test('B3 readiness 请求的语义帧要求正式齐料事实，绝不借用线圈方案集合', () => {
-    const plan = buildBusinessEvidencePlan({ userText: 'V750大脚板-2寸-经典款缺什么料？', eligibility: semanticEligibility({ userText: 'V750大脚板-2寸-经典款缺什么料？' }) });
-    assert.deepEqual(plan.requirements.map(item => item.factType), ['VIRTUAL_READINESS_PREVIEW']);
-    const frame = buildBusinessSemanticFrame({ userText: 'V750大脚板-2寸-经典款缺什么料？', toolResults: [], stage: 'POST_EVIDENCE' });
-    validateBusinessSemanticFrame(frame);
-    assert.equal(frame.question.kind, 'INVENTORY_QUERY');
-    assert.deepEqual(frame.evidence.requiredFacts, ['VIRTUAL_READINESS_PREVIEW']);
-    // 没有齐料回执 → 缺失，不是「已核实线圈磁盘方案」
-    assert.deepEqual(frame.evidence.missingFacts, ['VIRTUAL_READINESS_PREVIEW']);
-});
-
 // ══ §C 无数量的缺料问题不得进入成本域 ═════════════════════════════════════
 test('C1 无数量的缺料问题绝不落到成本域：WAITING_INPUT 追问台数，且一分钱都不提', async () => {
     const fixture = productionShapeExecutor();
@@ -259,71 +226,8 @@ test('D1 多配方齐料请求给有界澄清：不新增能力、不选第一�
     assert.doesNotMatch(result.answer.content, MONEY_REFUSAL);
 });
 
-// ══ §E Legacy 安全路径：保域、不自相矛盾、不吐内部码 ═══════════════════════
-const FORMAL_RECIPE_ROWS = [
-    { id: 13, name: 'V750大脚板-2寸-经典款', spec: '12-120', coilId: 1 },
-];
-function legacyExecutor() {
-    const calls = [];
-    const execute = async (name, args = {}) => {
-        calls.push({ name, args });
-        if (name === 'get_all_recipes') {
-            const keyword = String(args.keyword ?? '').trim();
-            return listReceipt(FORMAL_RECIPE_ROWS.filter(row => !keyword || row.name.includes(keyword) || keyword.includes(row.name)));
-        }
-        if (name === 'get_recipe_detail') return objectReceipt({ id: 13, name: 'V750大脚板-2寸-经典款' });
-        if (name === 'search_templates') return listReceipt([]);
-        if (name === 'search_parts') return { success: true, parts: [], data: [], queryReceipt: { authoritative: true, totalCount: 0, returnedCount: 0, truncated: false, possiblyTruncated: false }, executionEvidence: evidence };
-        if (name === 'search_coils') return listReceipt([]);
-        throw new Error(`unexpected ${name}`);
-    };
-    return { calls, execute };
-}
-async function legacyTurn(text) {
-    const { runAiAssistant } = require('../api/services/aiAssistantRuntime.cjs');
-    const fixture = legacyExecutor();
-    const response = await runAiAssistant({
-        messages: [{ role: 'user', content: text }],
-        env: { AI_BUSINESS_SEMANTIC_ENFORCEMENT_CANARY_ENABLED: 'true' },
-    }, {
-        loadMemory: async () => ({ items: [] }), loadCorrections: () => '',
-        executeToolCall: fixture.execute,
-        fetchAiProvider: async () => ({ json: async () => ({ choices: [{ message: { content: '模型草稿' } }] }) }),
-    });
-    return { response, fixture };
-}
-
-test('E1 缺什么料在 Legacy 安全路径保持齐料域：绝不输出金额缺失模板', async () => {
-    for (const text of ['V750大脚板-2寸-经典款缺什么料？', '缺料预览 V750大脚板-2寸-经典款 100台']) {
-        const { response } = await legacyTurn(text);
-        assert.doesNotMatch(response.finalContent, MONEY_REFUSAL, `${text} → ${response.finalContent}`);
-        assert.doesNotMatch(response.finalContent, /当前重算没有取得可用金额/u, response.finalContent);
-        assert.doesNotMatch(response.finalContent, INTERNAL_CODES, response.finalContent);
-    }
-});
-
-test('E2 齐料回执在手时答案必须复述回执数值，绝不与自己本轮的工具结果矛盾', () => {
-    const results = [{ name: 'preview_virtual_readiness', result: readinessReceipt(300) }];
-    const frame = buildBusinessSemanticFrame({ userText: 'V750大脚板-2寸-经典款按300台虚拟齐料预览', toolResults: results, stage: 'POST_EVIDENCE' });
-    validateBusinessSemanticFrame(frame);
-    assert.equal(frame.evidence.facts.find(item => item.factType === 'VIRTUAL_READINESS_PREVIEW').state, 'VERIFIED');
-    const answer = deterministicSemanticAnswer(frame, results, 'V750大脚板-2寸-经典款按300台虚拟齐料预览');
-    assert.match(answer, /300台/, answer);
-    assert.match(answer, /短缺300m/, answer);
-    assert.doesNotMatch(answer, MONEY_REFUSAL, answer);
-    assert.doesNotMatch(answer, INTERNAL_CODES, answer);
-    // 缺失事实模板也必须说业务语言，不得回显内部证据码
-    const missingFrame = buildBusinessSemanticFrame({ userText: 'V750大脚板-2寸-经典款和 V550大脚板-2寸-经典款成本差多少？', toolResults: [], stage: 'POST_EVIDENCE' });
-    const boundary = enforceSemanticAnswerBoundary({ frame: missingFrame, answer: '仍缺少正式证据：CROSS_CATALOG_CANDIDATES，本轮不能给出完整结论。', toolResults: [], userText: 'V750大脚板-2寸-经典款和 V550大脚板-2寸-经典款成本差多少？' });
-    assert.doesNotMatch(boundary.answer, INTERNAL_CODES, boundary.answer);
-});
 
 // ══ §F 内部码只进证据，不进正文 ═══════════════════════════════════════════
-test('F1 内部证据码映射到业务语言，未知码退化为通用措辞', () => {
-    const frame = buildBusinessSemanticFrame({ userText: 'V800 的成本是多少', toolResults: [], stage: 'POST_EVIDENCE' });
-    const answer = deterministicSemanticAnswer(frame, [], 'V800 的成本是多少');
-    assert.doesNotMatch(answer, INTERNAL_CODES, answer);
-});
 
 // ══ Owner 已验收用例不得回归（6 项）════════════════════════════════════════════
 test('OWNER-1 单配方当前成本：goal / 事实 / 金额口径不变', async () => {

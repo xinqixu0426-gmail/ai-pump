@@ -17,7 +17,6 @@ const crypto = require('node:crypto');
 const { runAiTaskControllerV2 } = require('../api/services/aiTaskControllerV2.cjs');
 const { createTaskSessionStoreV2 } = require('../api/services/aiTaskSessionV2.cjs');
 const { extractTaskSemanticsV2, recipeCostComparisonIntent, recipeCostComparisonSubjects } = require('../api/services/aiTaskSemanticsV2.cjs');
-const { projectMoneyFacts } = require('../api/services/moneyFactProjection.cjs');
 const { ownerTrialCoverageSummary, canaryAdmission, validateCoverageAgainstCapabilities } = require('../api/services/aiNativeOwnerTrialCoverage.cjs');
 
 const evidence = { verified: true, kind: 'formal_api_query' };
@@ -332,49 +331,6 @@ test('R1-CONT-6 继承的是身份不是数值：库存变化后必须重新正�
 });
 
 // ══ 3. BOM / 金额负向控制 ═════════════════════════════════════════════
-test('R1-BOM-1 BOM 草稿金额经正式回执唯一映射绑定 canonical recipe', () => {
-    const formal = data => ({ success: true, data, executionEvidence: { verified: true, kind: 'formal_api_query' } });
-    const facts = projectMoneyFacts([
-        { name: 'get_all_recipes', result: formal([{ id: 13, name: 'v550-tokoy', spec: '12-120' }]) },
-        { name: 'build_recipe_bom_draft', result: formal({
-            costPreview: { currentTotalCost: 285.8, partsCost: 264.8, laborCost: 21, pricingComplete: true },
-            configurationBasis: { source: 'recipe', recipeName: 'v550-tokoy', configurationComplete: true },
-            parts: [{ model: 'V750-大脚板-2寸' }],
-        }) },
-    ], { includeQueries: true });
-    const bom = facts.filter(fact => fact.capability === 'build_recipe_bom_draft');
-    assert.ok(bom.length > 0);
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityState))], ['CANONICAL']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.entityId))], ['recipe:13']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityResolvedBy))], ['FORMAL_RECEIPT_BINDING']);
-});
-
-test('R1-BOM-2 同名多主键时 BOM 金额 fail-closed，不绑定任一候选', () => {
-    const formal = data => ({ success: true, data, executionEvidence: { verified: true, kind: 'formal_api_query' } });
-    const facts = projectMoneyFacts([
-        { name: 'get_all_recipes', result: formal([{ id: 15, name: 'PHASED-同名方案' }, { id: 16, name: 'PHASED-同名方案' }]) },
-        { name: 'build_recipe_bom_draft', result: formal({
-            costPreview: { currentTotalCost: 285.8, pricingComplete: true },
-            configurationBasis: { source: 'recipe', recipeName: 'PHASED-同名方案', configurationComplete: true },
-        }) },
-    ], { includeQueries: true });
-    const bom = facts.filter(fact => fact.capability === 'build_recipe_bom_draft');
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityState))], ['IDENTITY_INCOMPLETE']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.identityReasonCode))], ['AMBIGUOUS_BUSINESS_KEY']);
-    assert.deepEqual([...new Set(bom.map(fact => fact.entityId))], [null]);
-});
-
-test('R1-MONEY-1 金额归属错配会被发现（同价不同主体不合并、金额交换可识别）', () => {
-    const formal = data => ({ success: true, data, executionEvidence: { verified: true, kind: 'formal_api_query' } });
-    const facts = projectMoneyFacts([{
-        name: 'compare_recipes',
-        result: { ...formal({}), recipe1: { name: 'PHASED-同价-甲', cost: 100 }, recipe2: { name: 'PHASED-同价-乙', cost: 100 }, costDiff: '0.00' },
-    }], { includeQueries: true });
-    const costs = facts.filter(fact => fact.predicate === 'cost');
-    assert.equal(costs.length, 2, '同价不同实体必须保留两条');
-    assert.deepEqual([...new Set(costs.map(fact => fact.objectLabel))].sort(), ['PHASED-同价-乙', 'PHASED-同价-甲']);
-    assert.ok(new Set(costs.map(fact => fact.factPath)).size === 2, '不同位置的金额不得被合并');
-});
 
 test('R1-MONEY-2 同一数值的库存与成本是两个不同事实（口径不同不互相吞并）', async () => {
     const fixture = executor();

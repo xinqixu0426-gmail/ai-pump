@@ -17,7 +17,6 @@ function readAiPromptContractSource() {
     return [
         'api/routes/ai/chat.cjs',
         'api/routes/ai/prompt.cjs',
-        'api/services/aiPromptComposer.cjs',
     ].map(readUtf8).join('\n');
 }
 
@@ -332,7 +331,6 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
     const feedbackService = readUtf8('api/services/aiAnswerFeedback.cjs');
     const ruleService = readUtf8('api/services/factoryAiRules.cjs');
     const regressionService = readUtf8('api/services/aiRegressionCases.cjs');
-    const chat = readAiPromptContractSource();
 
     assert.match(route, /router\.get\('\/api\/ai\/learning-rules'/);
     assert.match(route, /router\.patch\('\/api\/ai\/learning-rules\/:id'/);
@@ -342,8 +340,6 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
     assert.match(feedbackService, /synchronizeAiEvaluationCaseFromFeedback/);
     assert.match(ruleService, /status: 'active'/);
     assert.match(ruleService, /ALLOWED_STATUSES = new Set\(\['active', 'disabled'\]\)/);
-    assert.match(chat, /composeAiSystemPrompt/);
-    assert.match(chat, /buildFactoryAiRulesPrompt/);
     assert.match(ruleService, /selectRelevantFactoryAiRules/);
     assert.match(evaluationRoute, /router\.patch\('\/api\/ai\/evaluations\/cases\/:id'/);
     assert.match(regressionService, /reviewStatus: 'pending'/);
@@ -352,32 +348,6 @@ test('关键 API 集成契约：回答纠错可生成全局长期规则并支持
     assert.match(regressionService, /source_type: 'feedback'/);
 });
 
-test('关键 API 集成契约：AI 对话按当前轮次隔离上下文并二次校验工具权限', () => {
-    const chat = readUtf8('api/routes/ai/chat.cjs');
-    const dispatcher = readUtf8('api/services/aiAgentRuntimeV3.cjs');
-    const planner = readUtf8('api/services/aiGoalPlannerV3.cjs');
-    const catalog = readUtf8('api/services/aiCapabilityCatalogV2.cjs');
-    const context = readUtf8('api/services/aiContext.cjs');
-    const protocol = readUtf8('api/services/aiToolProtocol.cjs');
-    const provider = readUtf8('api/services/aiProvider.cjs');
-
-    assert.match(chat, /runAiDispatcherV3\(/);
-    assert.match(dispatcher, /planAiIntentV3\(messages/);
-    assert.match(dispatcher, /scopeAiContextForIntent\(messages, intent\)/);
-    assert.match(dispatcher, /selectToolsForIntent\(intent/);
-    assert.match(dispatcher, /allowedToolNames/);
-    assert.match(dispatcher, /writeIntent: intent\.mode === 'command'/);
-    assert.match(planner, /submit_ai_intent_plan/);
-    assert.match(planner, /toolChoice/);
-    assert.match(catalog, /capability\.access === 'write'/);
-    assert.match(context, /不是执行授权或事实证据/);
-    assert.match(protocol, /AI_TOOL_NOT_ALLOWED_FOR_CURRENT_TURN/);
-    assert.match(protocol, /AI_WRITE_TOOL_NOT_ALLOWED_FOR_READ_TURN/);
-    assert.match(provider, /prepareProviderToolRequest\(options\.tools, requestedToolChoice, config\)/);
-    assert.match(provider, /tools: matchingTools, toolChoice: 'required'/);
-    assert.match(provider, /providerTools/);
-    assert.match(provider, /options\.toolChoice/);
-});
 
 test('关键 API 集成契约：V9.1 统一文件上传执行真实类型校验和哈希去重', () => {
     const entry = readUtf8('api.cjs');
@@ -1564,43 +1534,15 @@ test('V10.4 订单知识包契约：实时业务与人工确认事实统一只�
     assert.equal(getAiCapability('get_order_knowledge_package').access, 'read');
 });
 
-test('关键 API 集成契约：AI chat 委托模型流与工具消息协议 service', () => {
-    const chat = readUtf8('api/routes/ai/chat.cjs');
-    const dispatcher = readUtf8('api/services/aiAgentRuntimeV3.cjs');
-    const providerStream = readUtf8('api/services/aiProviderStream.cjs');
-    const toolProtocol = readUtf8('api/services/aiToolProtocol.cjs');
-
-    assert.match(chat, /runAiDispatcherV3/);
-    assert.match(dispatcher, /readAiProviderStream\(response/);
-    assert.match(dispatcher, /prepareAiToolCalls\(resolutionBinding\.toolCalls, 'model'/);
-    assert.match(dispatcher, /buildAiToolPlan\(preparedCalls, WRITE_TOOLS\)/);
-    assert.match(dispatcher, /parseAiToolArguments\(toolCall\.function\.arguments\)/);
-    assert.match(dispatcher, /buildAiToolResultMessage\(toolCall, result\)/);
-    assert.match(dispatcher, /prioritizeBusinessEvidence/);
-    assert.doesNotMatch(chat, /new TextDecoder/);
-    assert.doesNotMatch(chat, /JSON\.parse/);
-
-    assert.match(providerStream, /new TextDecoder\('utf-8'\)/);
-    assert.match(providerStream, /appendToolCallDelta/);
-    assert.match(providerStream, /data\?\.choices\?\.\[0\]\?\.delta/);
-    assert.match(toolProtocol, /writeTools\.has\(name\)/);
-    assert.match(toolProtocol, /validateAiToolArgs/);
-    assert.match(toolProtocol, /prioritizeCurrentEvidence/);
-    assertNoWrites(providerStream);
-    assertNoWrites(toolProtocol);
-});
 
 test('关键 API 集成契约：AI 工具展示名由能力注册表统一提供', () => {
     const registry = readUtf8('api/capabilities/registry.cjs');
     const executor = readUtf8('api/routes/ai/executor.cjs');
-    const toolProtocol = readUtf8('api/services/aiToolProtocol.cjs');
 
     assert.match(registry, /const AI_CAPABILITY_DISPLAY_NAMES = Object\.freeze/);
     assert.match(registry, /displayName: AI_CAPABILITY_DISPLAY_NAMES\[name\] \|\| name/);
     assert.match(executor, /const title = capability\?\.displayName \|\| toolName/);
-    assert.match(toolProtocol, /getAiCapability\(name\)\?\.displayName \|\| name/);
     assert.doesNotMatch(executor, /const TOOL_LABELS/);
-    assert.doesNotMatch(toolProtocol, /const TOOL_PLAN_LABELS/);
 });
 
 test('关键 API 集成契约：AI 工具按注册表 executorKey 唯一分发', () => {

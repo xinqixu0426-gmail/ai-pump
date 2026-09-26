@@ -8,7 +8,6 @@ const {
     resolveAiProviderConfig,
     resolveAiProviderRoute,
 } = require('../api/services/aiProvider.cjs');
-const { readAiProviderStream } = require('../api/services/aiProviderStream.cjs');
 const {
     estimateAiMessagesTokens,
     estimateTextTokens,
@@ -1198,27 +1197,6 @@ test('AI provider：收到响应头后正文停滞仍受超时保护并重试', 
         error => error.code === 'AI_PROVIDER_TIMEOUT'
     );
     assert.equal(attempts, 3);
-});
-
-test('AI provider：流式响应头后静默会由 provider 超时终止', async () => {
-    const response = await fetchAiProvider([{ role: 'user', content: '你好' }], {
-        stream: true,
-        env: {
-            AI_PROVIDER: 'deepseek',
-            DEEPSEEK_API_KEY: 'deepseek-key',
-            DEEPSEEK_BASE_URL: 'https://api.deepseek-stream-timeout.test',
-        },
-        timeoutMs: 5,
-        retryDelayMs: 0,
-        fetchImpl: async () => new Response(
-            new ReadableStream({ start() {} }),
-            { status: 200 }
-        ),
-    });
-    await assert.rejects(
-        () => readAiProviderStream(response),
-        error => error.code === 'AI_PROVIDER_TIMEOUT'
-    );
 });
 
 test('AI 智能路由：调用方取消后立即停止且不会错误回退 DeepSeek', async () => {
