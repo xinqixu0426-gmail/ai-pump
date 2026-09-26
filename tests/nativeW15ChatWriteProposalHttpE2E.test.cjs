@@ -167,6 +167,7 @@ function snapshot(dbPath) {
         parts: db.prepare('SELECT id, model, stock FROM parts ORDER BY id').all(),
         tasks: db.prepare('SELECT task_key, state, spec_json FROM ai_tasks ORDER BY id').all(),
         operations: db.prepare('SELECT capability_id, status FROM api_operations ORDER BY id').all(),
+        steps: db.prepare(`SELECT COUNT(*) count FROM ai_task_steps s JOIN ai_tasks t ON t.id = s.task_id`).get().count,
     };
     db.close();
     return state;
@@ -229,9 +230,14 @@ test('W15-E2E-1 flag=true：真实聊天直达 W1 提案 → WAITING_APPROVAL（
         assert.equal(spec.writeV1.phase, 'PROPOSAL_READY');
         assert.equal(spec.writeV1.target.partId, 9001);
         assert.equal(spec.writeV1.nextStock, 200);
-        // 11) 聊天回合绝不写入。
+        // 11) 聊天回合绝不写入，也没有任何命令步骤。
         assert.equal(during.parts[0].stock, 100);
         assert.equal(during.operations.length, 0);
+        assert.equal(during.steps, 0, '聊天回合不得准入任何 COMMAND step');
+        // 21) 命令路由不引入额外模型调用（指标由服务端给出）。
+        const metrics = result.events.find(event => event.type === 'metrics');
+        assert.equal(metrics.modelRequestCount, 0);
+        assert.equal(metrics.toolCallCount, 0);
 
         // 12/13/14/15/16) 既有 write-execute 契约：批准事实 → 写一次 → 回读核验 → SUCCEEDED。
         const executed = await post(runtime.baseUrl, `/api/ai/tasks/${proposal.task.taskId}/write-execute`, {
