@@ -13,13 +13,6 @@ function readUtf8(filePath) {
     return fs.readFileSync(path.join(repoRoot, filePath), 'utf8');
 }
 
-function readAiPromptContractSource() {
-    return [
-        'api/routes/ai/chat.cjs',
-        'api/routes/ai/prompt.cjs',
-    ].map(readUtf8).join('\n');
-}
-
 function sliceBetween(source, startText, endText) {
     const start = source.indexOf(startText);
     assert.notEqual(start, -1, `missing start marker: ${startText}`);
