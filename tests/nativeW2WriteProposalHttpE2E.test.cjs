@@ -185,7 +185,9 @@ test('W2-E2E-1 flag=true：真实 SSE 提案 → 卡片数值与服务端一致 
     await withServer({ writeEnabled: true }, async ({ runtime, dbPath }) => {
         const before = snapshot(dbPath);
         assert.equal(before.stock, 350);
-        const streamed = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie: ownerCookie() });
+        // 确认凭证绑定登录会话：预览与执行必须使用同一个 cookie（真实浏览器即同一会话）。
+        const cookie = ownerCookie();
+        const streamed = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie });
         assert.equal(streamed.status, 200);
 
         // 前端事件处理：与 useAiMessageStream/卡片组件同一条代码路径。
@@ -208,7 +210,7 @@ test('W2-E2E-1 flag=true：真实 SSE 提案 → 卡片数值与服务端一致 
         assert.equal(pendingState.operations.length, 0);
 
         // 点击「确认执行」：只用服务端身份，走既有 W1 execute 契约。
-        const { request, calls } = httpRequest(runtime.baseUrl, ownerCookie());
+        const { request, calls } = httpRequest(runtime.baseUrl, cookie);
         // 与 ai-view 相同顺序：先进入执行中（禁用按钮），再按服务端结果收敛。
         const executing = proposal.reduceWriteCard(card, { type: 'confirm' });
         assert.equal(proposal.isExecutableCard(executing), false, '点击后必须立即不可再次执行');
@@ -231,9 +233,10 @@ test('W2-E2E-1 flag=true：真实 SSE 提案 → 卡片数值与服务端一致 
 
 test('W2-E2E-2 重复确认（双击）：库存只变一次，绝不产生第二次调整', async () => {
     await withServer({ writeEnabled: true }, async ({ runtime, dbPath }) => {
-        const streamed = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie: ownerCookie() });
+        const cookie = ownerCookie();
+        const streamed = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie });
         const card = proposal.createWriteCard(streamed.events.find(item => item.type === 'write_proposal'));
-        const { request } = httpRequest(runtime.baseUrl, ownerCookie());
+        const { request } = httpRequest(runtime.baseUrl, cookie);
         const executing = proposal.reduceWriteCard(card, { type: 'confirm' });
         const first = await client.confirmNativeWriteProposal({ request, card, wait: async () => {} });
         assert.equal(first.kind, 'verified');

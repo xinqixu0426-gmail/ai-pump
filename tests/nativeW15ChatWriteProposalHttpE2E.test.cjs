@@ -196,7 +196,10 @@ async function withServer({ writeEnabled, parts = [{ id: 9001, model: MODEL, sto
 
 test('W15-E2E-1 flag=true：真实聊天直达 W1 提案 → WAITING_APPROVAL（聊天回合零写入），确认后写一次并回读核验', async () => {
     await withServer({ writeEnabled: true }, async ({ runtime, dbPath }) => {
-        const result = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie: ownerCookie() });
+        // 确认凭证绑定登录会话：预览与执行必须使用同一个 cookie（真实浏览器即同一会话）。
+        // 每次调用 ownerCookie() 都会签发新 JWT，跨秒后会得到不同会话 → 正确的 403 拒绝。
+        const cookie = ownerCookie();
+        const result = await chat(runtime.baseUrl, { content: `把 ${MODEL} 库存增加 100`, cookie });
         assert.equal(result.status, 200);
         assert.equal(result.text.includes('[object Object]'), false, '用户可见文案不得出现 [object Object]');
         const proposal = proposalOf(result.events);
@@ -241,7 +244,7 @@ test('W15-E2E-1 flag=true：真实聊天直达 W1 提案 → WAITING_APPROVAL（
 
         // 12/13/14/15/16) 既有 write-execute 契约：批准事实 → 写一次 → 回读核验 → SUCCEEDED。
         const executed = await post(runtime.baseUrl, `/api/ai/tasks/${proposal.task.taskId}/write-execute`, {
-            cookie: ownerCookie(),
+            cookie,
             body: {
                 version: 1,
                 expectedRevision: proposal.task.revision,
