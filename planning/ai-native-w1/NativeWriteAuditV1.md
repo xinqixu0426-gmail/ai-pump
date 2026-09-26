@@ -54,7 +54,7 @@ AI 工具面暴露 29 个写工具、MCP 写目录 18 个。
 | `api/services/aiTaskWriteBridgeV2.cjs` | Native 写入桥：preflight → 确认卡 → 执行 → 对账 | `api/routes/ai/tasks.cjs:8` | 依赖注入 `confirmationSubject` | ✅ `prepareAiTaskWriteConfirmationV2` | ✅ 冻结 task/tool/args/幂等键 | ✅ `spec.approvalOperationIds` + step.idempotencyKey | ❌ | ✅ | **PARTIAL**（白名单仅 2 个工具；见 §14） |
 | `api/services/aiConfirmedToolExecution.cjs` | **唯一**确认写执行器（AI 与 MCP 共用） | `chat.cjs`、`mcp/write.cjs`、`aiTaskWriteBridgeV2.cjs` | subject 绑定 + 一次性消耗 | —（消费既有卡） | ✅ | ✅ 透传 operationId/幂等键 | ❌ | ✅ `hasVerifiedWriteExecution` 门 | **YES** |
 | `api/services/aiToolConfirmation.cjs` | L1 确认卡（进程内 Map，5min，可回放回执） | chat/tasks/executor | subjectHash = cookie 哈希 / INTERNAL_SECRET 哈希 | — | ✅ | ✅ 单次执行 + 缓存回执 | ❌ | — | **PARTIAL**（重启即失效；主体非 Owner 语义） |
-| `api/services/businessConfirmation.cjs` | L2 正式业务确认（进程内 Map，绑定 inputHash/previewHash/idempotencyKey） | 各受保护预览/命令路由 | `commandActorKey` 指纹 | ✅ 预览即正式快照 | ✅ | ✅ 绑定首个幂等键 | ❌ | — | **YES** |
+| `api/services/businessConfirmation.cjs` | L2 正式业务确认（进程内 Map，绑定 inputHash/previewHash/idempotencyKey）；**但全仓只有 9 个服务真正消费它** | 各受保护预览/命令路由 | `commandActorKey` 指纹 | ✅ 预览即正式快照 | ⚠️ 多数路由不消费（见 §4.1） | ✅ 绑定首个幂等键 | ❌ | — | **PARTIAL** |
 | `api/services/commandExecution.cjs` | 持久命令封装：pending→exec→审计门→变更事件→completed 回执（**单事务**） | 全部正式命令 | 由路由传入 actorKey | — | — | ✅ `api_operations` UNIQUE(actor,capability,key) | ❌（原子回滚，非业务补偿） | ✅ 回执/审计/变更事件原子 | **YES** |
 | `api/services/commandRequest.cjs` | 幂等键/operationId/actorKey 解析 | 各命令路由 | internal 指纹 / jwt 指纹 / role:iat | — | — | ✅ 键缺失→生成+兼容告警 | — | — | **YES** |
 | `api/services/internalWriteAuthorization.cjs` | SEC-R0 机器写凭据边界（≥32 且 ≠INTERNAL_SECRET；定时安全比较） | `api.cjs:159` | 机器→机器 | — | — | — | — | — | **YES** |
@@ -65,7 +65,7 @@ AI 工具面暴露 29 个写工具、MCP 写目录 18 个。
 | `api/services/aiTaskOperationReadbackV2.cjs` | 按幂等键回读 `api_operations`（MISSING/PENDING/AMBIGUOUS/COMPLETED） | `tasks.cjs:9`（reconcile） | 任务所有者 + 审批 id 校验 | — | — | ✅ | — | ✅ 对账真源 | **YES** |
 | `api/services/aiTaskStoreV2.cjs` / `aiTaskLifecycleV2.cjs` / `aiTaskRecoveryV2.cjs` | 任务持久化/状态机/崩溃恢复（租约 fencing、COMMAND 阻断重试） | store→worker(仅脚本)、reconcile 路由 | 租约 token | — | — | ✅ COMMAND step 持久化幂等键 | ❌ | ✅ 证据复核（tamper） | **PARTIAL**（worker 未接线；见 §5） |
 | `api/services/aiTaskWorkerV2.cjs` | detached 单槽 leased worker | **仅 `scripts/run-ai-native-n5-1b-live.cjs`**（生产无人启动） | 租约 | — | — | — | — | — | **NO** |
-| `api/db.cjs` `safeUpdate` + `audit_log` | 自动审计的写助手（表/列白名单）；**无版本谓词** | 全部服务 | — | — | — | — | — | — | **YES**（审计）/ 并发靠服务层断言 |
+| `api/db.cjs` `safeUpdate`/`safeInsert`/`softDelete`/`hardDelete` + `audit_log` | 自动审计的写助手（表/列白名单 `SAFE_TABLES:704`）；**无版本谓词**。注意：**强审计原子性只在 `executePersistentCommand` 内强制**（`requireAudit:true`，审计不足即整体回滚）；其它调用点审计失败被吞掉（`db.cjs:807-809`），属 best-effort | 全部服务 | — | — | — | — | — | — | **YES**（审计）/ 并发靠服务层断言 |
 | `api/services/businessChanges.cjs` | `business_change_events` + 实体链接（变更历史） | 命令服务 | — | — | — | — | — | ✅ 变更记录 | **YES** |
 | `api/services/resourceVersion.cjs` | `expectedUpdatedAt` 并发断言（`resource_version_conflict` 409） | 命令服务 | — | — | — | ✅ 乐观并发 | — | — | **YES** |
 
@@ -183,6 +183,40 @@ L1 = `aiToolConfirmation.cjs`（AI 确认卡）；L2 = `businessConfirmation.cjs
 
 ---
 
+### 6.1 注册表元数据与实现的四类不一致（**对 V1 选型影响最大**）
+
+1. **"要求确认" ≠ "真的消费确认"**：全仓只有 **9 个服务**真正调用 `consumeBusinessConfirmation`
+   （`partCommands.cjs:473/903/1168`、`catalogRename.cjs:100`、`catalogMigration.cjs:39`、`catalogBindings.cjs:94`、
+   `inventoryCommands.cjs:374/398`、`factoryFileCommands.cjs:136`、`factoryFileLifecycleCommands.cjs:316`、
+   `knowledgeSyncCommand.cjs:120`、`rotorExternalCommands.cjs:317/476`）。其余"声明要确认"的写路由实际只靠
+   **可选**的 `expectedUpdatedAt`/`previewHash`。
+2. **存在一类"永远无法满足"的确认声明**：`issueBusinessConfirmation` 要求
+   `requiresConfirmation && supportsPreview`（`businessConfirmation.cjs:53`），因此注册表里
+   `requiresConfirmation=true` + `supportsPreview=false` 的条目根本签不出确认卡
+   （`customers.delete`、`coils.delete`、`templates.delete`、`model_variants.delete`、`quotations.change_status/delete`、
+   `orders.delete`、`orders.requirements.confirm/revoke`、`orders.execution_records.confirm/revoke/delete`、
+   `recipes.technical_files.delete`、`drawings.rotor.delete/rename/link_history`、`knowledge.documents.delete`、
+   `files.links.delete` 等）。
+3. **版本与预览哈希都是"可选项"**：`assertExpectedUpdatedAt`（`resourceVersion.cjs:13`）与
+   `assertPreviewHash`（`previewIntegrity.cjs:17`）对 falsy 直接返回；省略在订单/采购/报价/客户/质量/转子路径上
+   一律降级为兼容告警。**唯一硬失败**的是 AI 齐料动作路径（`aiOrderReadinessExecution.cjs:43-47`）。
+4. **`previewHash` 被嵌进 4 个确认输入，但执行时从不重新断言**（`partCommands.cjs:481/911`、`inventoryCommands.cjs:382`）——
+   即"预览绑定"在多数路径上是**弱绑定**。
+
+**对 V1 的含义**：只有"正式预览 + 服务端确认卡 + 版本断言 + 回读核验"四条同时成立的 7 个 preflight 能力，
+才具备可宣称的强绑定；其余能力的"确认/版本"不能当作 Native 写安全依据。
+
+### 6.2 写面总数与未登记写入口
+
+- 注册表变更能力 **95**；实际 mutating HTTP 路由条目 **104**（含 2 条仅写内存确认态）。
+- **未登记（无 capabilityId）的写入口**：全部 6 条 `/api/ai/tasks*`（write-execute 会真正写业务数据）、
+  以及两个更弱的"兄弟路由"——`POST /api/coils/:id/stock-adjustment`（**无确认 token、无 previewHash、
+  幂等键缺失时自动补**，是 `inventory.coils.adjust_stock` 的弱化旁路）与
+  `POST /api/orders/:id/purchase-items/toggle`（**只按型号定位**，无版本/哈希）。
+- 路由层**没有任何中间件按 `capabilityId` 或 `riskLevel` 授权**：写门是全局 JWT/内部写中间件 + 执行器 `allowWrite`。
+
+---
+
 ## 7. §8 目标身份安全
 
 - **满足"mention → canonical → 唯一 → 冻结 ID → 确认 → 同 ID 执行"的 7 个能力**：即 §3 表中的 `WRITE_PREFLIGHTS`。
@@ -240,31 +274,47 @@ L1 = `aiToolConfirmation.cjs`（AI 确认卡）；L2 = `businessConfirmation.cjs
 ## 11. §12 回滚现实
 
 - **没有业务级自动回滚**：`aiTask*` 层无补偿；`commandExecution` 的事务回滚只覆盖"单次命令内部失败"，一旦提交就没有反向操作。
-- **原子性是主要安全网**：单命令 = 全有或全无（业务写+审计+operation 回执同事务），因此不存在"写了一半"的单命令状态。
-- 逐族现实：
+- **原子性是主要安全网**：单命令 = 全有或全无（业务写+强审计+operation 回执同事务）。注意强审计的原子性**仅限于** `executePersistentCommand`；其它写点审计是 best-effort（`db.cjs:807-809` 吞掉审计异常）。
+- **变更历史是不可变的只读记录**：`business_change_events` + `business_change_event_entities` 为 append-only（DDL 触发器 `schema.cjs:21-75`），变更历史 API 只读（`api/routes/businessChanges.cjs`）。15 个写能力 `recordsBusinessChange=false`，另有一批变更**根本不产生事件**：铜价/行情同步对线圈单价与成本的改写（`copperPriceUpdate.cjs:41-68`、registry `:1155,1171`）、`files.parse`、AI 会话/评测/反馈/记忆/学习规则、`quality.rule_candidates.refresh`、转子出图/打印——这些"改了业务数据但没有变更事件"，对 Native 写是可观测性缺口。
+- **`order_revisions` 存了完整 before/after 快照，但没有任何代码读它做恢复**（grep 仅 `catalogReferenceAudit.cjs:19` + 前端类型）→ 典型"数据层可逆、代码层未实现"。
+- 逐族现实（a=代码自动可逆；b=可经另一个 API 手工补偿；c=可补偿但未实现；d=不可逆）：
 
-| 变更族 | 可逆性 | 现实来源 |
+| 变更族 | 等级 | 可逆性来源 / 证据 |
 |---|---|---|
-| 零件/线圈库存增减 | **补偿动作可做（未实现）**：可用同一能力反向调整 | `aiPartExecution.cjs:549+`；无反向自动化 |
-| 批量调价 | **补偿动作可做（未实现）**：预览里带 `oldPrice`，可再调回 | `aiPartExecution.cjs:999-1005` |
-| 配方修改 | **补偿动作可做（未实现）**：预览/回读带草稿与 `savedTotalCost`，可再用旧草稿覆盖 | `recipeExecutors.cjs:536-541,345-377` |
-| 创建类（零件/订单/报价/客户/文件/知识） | 部分可补偿（软删除）；无自动撤销 | 软删字段见下 |
-| 删除类 | **软删除=数据层可恢复但无 API**；硬删除/文件二进制=不可逆 | 全仓仅 1 个 restore 端点（`quality.cjs:151`） |
-| AI 会话/评测/反馈/记忆 | 版本化/软删，可恢复部分（记忆有 revision） | `aiPersonalMemory` 版本链 |
-
-- **变更历史只是记录，不是回滚**：`business_change_events` + 实体链接提供审计追溯（`businessChanges.cjs:204-272`），72/95 个写能力 `recordsBusinessChange=true`，但没有任何代码用历史做反向执行。
+| 零件 CRUD（改回字段） | **b** | `partCommands.cjs:558,703`（再发一次更新） |
+| 零件库存调整 | **b** | `inventoryCommands.cjs:268`（反向 delta；**无流水台账**，只有审计） |
+| 线圈库存调整 | **b** | `coilInventory.cjs:90-100`（有 `coil_stock_movements` 台账，含 `balance_after`） |
+| 批量调价 | **c** | 预览带 `oldPrice`（`aiPartExecution.cjs:999-1005`），可再调回但无自动实现 |
+| 配方 CRUD | **b** | `recipeCommands.cjs:776,881` |
+| 配方修改后的成本变化 | **c** | 回读带 `savedTotalCost`（`recipeExecutors.cjs:663`），无反向执行 |
+| 模板 CRUD | **b** | `templateCommands.cjs:537` |
+| 订单编辑 | **c** | `order_revisions` 快照存在但无 apply 路径（`orderCommands.cjs:590-599`） |
+| 订单状态 已关闭/已取消、报价 已拒绝/已转订单/已过时 | **d（终态）** | `orderWorkflow.cjs:5-22` |
+| 客户 CRUD | **b** | `customerCommands.cjs:88,206` |
+| 文件 / 文件关联 | **b** | 重新上传同 sha256 / 重新归档即"复活"（`factoryFileStore.cjs:293-305`、`factoryFileArchive.cjs:557-568`，有审计） |
+| 知识文档 | **c** | `knowledgeDocuments.cjs:375` 软删，无恢复入口 |
+| 知识条目/向量 | **a** | 派生数据，由同步重建（`knowledge.cjs:926`） |
+| 设置 / 运行设置 | **b** | 重新下发更新，旧值在审计里（`businessSettingCommands.cjs:163`、`runtimeSettingCommands.cjs:93`） |
+| 铜价同步引发的线圈单价/成本重写 | **c** | 有审计但**无变更事件**，无确定性逆向 |
+| 质量规则候选 | **b** | `POST /api/quality/rule-events/:id/restore` |
+| 转子历史/图纸、工作流运行 | **d** | 硬删 + 关联文件解绑（`rotorCommands.cjs:366,401-405`） |
+| 整库 | **b** | 仅离线 `scripts/manage-database-backups.cjs:112`，无 API |
 
 ---
 
 ## 12. §13 删除语义（**V1 明确不含删除**）
 
 - 删除类能力 **17 个**（`parts.delete/batch_delete`、`coils.delete`、`recipes.delete`、`templates.delete`、`model_variants.delete`、`customers.delete`、`quotations.delete`、`orders.delete`、`orders.execution_records.delete`、`recipes.technical_files.delete`、`drawings.rotor.delete_history`、`knowledge.documents.delete`、`files.delete`、`files.links.delete`、`ai.conversations.delete/batch_delete`）。
-- 语义：绝大多数为**软删除**（`deleted_at`；`partCommands/recipeCommands/orderCommands/quotationCommands` 均有），但：
-  - **没有恢复 API**：`grep` 全部路由仅 1 个 restore（`POST /api/rule-events/:id/restore`），业务实体软删后只能靠人工/DB 恢复；
-  - 外键层面只有 3 处 `ON DELETE CASCADE`、1 处 `ON DELETE RESTRICT`（`schema.cjs`），依赖限制**主要靠各命令服务显式检查**；
-  - 只有 `parts.delete`/`recipes.delete` 有 delete-preview + 删除后回读；`files.delete` 涉及文件二进制与知识派生，属**不可逆**高风险面；
-  - `orders.execution_records.delete`、`files.delete`、`ai.conversations.delete` 甚至 `requiresConfirmation=false`（由调用方/内部决定），不适合 AI 自主发起。
-- 结论：**Native Write V1 不含任何 DELETE**；待 V1 稳定后再单独评估（并要求先补齐 restore/依赖检查）。
+- **恢复能力只有 3 处**：`factory_file_links`（重新归档即复活）、`factory_files`（重新上传同 sha256 即复活）、`factory_rule_candidates` 状态（显式 `POST /api/quality/rule-events/:id/restore`）。其余 12 张软删表**没有任何恢复 API**。
+- **依赖/引用检查严重不均**（这是比"无恢复"更硬的阻断理由）：
+  - `delete_part` / `parts.batch_delete`：**完全没有引用检查**（`partCommands.cjs:947-987 / 847-894`）。删除后零件从 `dbGetAllParts` 消失（`db.cjs:574`），而配方仍保留 `partId/model` → **直接破坏 BOM 成本口径**；
+  - `delete_recipe`、`model_variants.delete`：同样无引用检查（`recipeCommands.cjs:417-438`、`modelVariantCommands.cjs:474-536`）；
+  - `coils.delete`：无 catalog profile 时是**硬删除**（`coilCommands.cjs:832`），且 `recipes.coil_id` / `pump_model_variants.coil_id` 为 `ON DELETE SET NULL`（`schema.cjs:181,515`）→ 静默级联；
+  - `templates.delete` 有配方引用检查（`templateCommands.cjs:594-603`）、`delete_order` 有状态守卫（仅 待确认/已取消 可删，`orderCommands.cjs:651-657`；注意 AI 工具文案写的是「彻底删除」`tools.cjs:639`，与软删实现不一致）；
+  - `drawings.rotor.delete_history`：硬删 + 解绑 PDF（`rotorCommands.cjs:340-412`）→ 不可逆；
+  - `files.delete` / `files.links.delete`：软删 + 引用检查 + 可复活（相对安全）；
+  - 硬删除的可追溯性只靠 `audit_log.old_value`，默认 365 天后被清理（`auditRetention.cjs:1`）。
+- 结论：**Native Write V1 不含任何 DELETE**。若未来要开，前置条件是：引用检查统一化 + 恢复入口（或明确不可逆声明）+ 硬删改为软删。
 
 ---
 
@@ -279,13 +329,17 @@ L1 = `aiToolConfirmation.cjs`（AI 确认卡）；L2 = `businessConfirmation.cjs
    - 预览：`/api/parts/batch-stock-preview` 返回 `currentStock→nextStock` + `confirmationToken` + 建议幂等键；
    - 验证：**最强**——数量+逐项 from/to+独立回读 `verifyPartStockReadback`（`:496-547`）；
    - 可补偿：反向调整；影响面：≤100 项、单次原子。
+   - 注意：业务路由的 `previewHash` 是"嵌入确认输入但执行时不重新断言"，AI 层用"版本断言 + 回读核验"补偿了这一点；
+     新增 V1 能力时必须把这两条补强写成准入断言（见 §20.5）。
 2. **`batch_update_prices` → `parts.batch_update_prices`**
    - 身份：显式目标或按类别枚举，逐项进预览（`previewHash` 绑定），版本 `expectedVersions`；
    - 预览：`/api/parts/prices-preview` 给出每项 `oldPrice→newPrice`；
    - 验证：`verifyPartPriceReadback`（`:927-967`）；
-   - **条件**：必须限制单次影响行数上限并在卡片上明示"影响 N 个零件/金额变化"，因为它是**类别级批量**（爆炸半径最大的一个）。
+   - **条件（两条，缺一不可）**：(a) 限制单次影响行数上限并在卡片上明示"影响 N 个零件/金额变化"（它是类别级批量，爆炸半径最大）；
+     (b) 该路由**并不消费确认 token**（注册表声明 `requiresConfirmation=true`，实现只断言 `previewHash`+`expectedUpdatedAt`），
+     所以 Native 侧必须由 write-preview 自己签发并消费 L1 卡，不能依赖业务路由的"确认"。
 3. **`update_recipe` → `recipes.update`**
-   - 身份：`recipeId` + 冻结草稿 + `expectedUpdatedAt`；
+   - 身份：AI 层要求 `recipeName`（先精确、再子串 `includes` 匹配，**歧义会拒绝**），绑定后以 `recipeId` + 冻结草稿 + `expectedUpdatedAt` 进入预览与执行；
    - 预览：`save-payload-draft`（含 `previewHash`、BOM 条数与**成本前后值**）；
    - 验证：`assertRecipeUpdateReadback` 逐字段回读；业务价值高（改配方）。
    - **条件**：卡片必须展示成本前后值与 BOM 变化条数。
@@ -294,10 +348,10 @@ L1 = `aiToolConfirmation.cjs`（AI 确认卡）；L2 = `businessConfirmation.cjs
 
 | 能力 | 理由 |
 |---|---|
-| `delete_part` / `delete_recipe` / 其余 15 个删除类 | 无恢复 API、依赖检查分散、部分不可逆（§13） |
-| `adjust_coil_stock` | 虽有正式预览 + `requiresConfirmation`，但**没有独立回读核验**（`aiCoilStockExecution.cjs:112-137` 只回传 API 的 `adjustments/changes`），未达 V1 验证标准 |
+| `delete_part` / `delete_recipe` / 其余 15 个删除类 | 无恢复 API、依赖检查分散、部分不可逆（§13）。特别是 `delete_part` 虽然路由层强制 `expectedUpdatedAt`+`previewHash` 且歧义拒绝，但**完全没有引用检查**：删除后零件从目录消失而配方仍保留 `partId/model`，会直接破坏 BOM 成本 |
+| `adjust_coil_stock` | 虽有正式预览 + 真实消费确认 token，但**没有独立回读核验**（`aiCoilStockExecution.cjs:112-137` 只回传 API 的 `adjustments/changes`），未达 V1 验证标准；且存在一个**无 token/无哈希的兄弟路由** `POST /api/coils/:id/stock-adjustment`，纳入 V1 前必须先关掉该旁路 |
 | `batch_create_parts` | 新建实体无"目标身份"概念，主要风险是重复建模/目录污染，且验证弱于库存/价格类 |
-| `parts.create` / `parts.update` / `parts.save_profile` | 无正式 preflight（执行期按名称重解析，last-writer-wins） |
+| `parts.create` / `parts.update` / `parts.save_profile` | 无正式 preflight；`update_part` 的 AI 层用 `allParts.find(model===...)` **首个匹配且不做歧义拒绝**（`aiPartExecution.cjs:692`）→ last-writer-wins |
 | `create_order` / `update_order_*` / `orders.*`（除 readiness action） | 无正式 preflight；多行/多物料、部分应用面大 |
 | `execute_order_readiness_action` / `execute_factory_workflow_step` | 动作型 + 外部副作用（采购/工作流），无 V1 级回读 |
 | `generate_rotor_drawing` / `print_rotor_drawing` | 外部副作用（出图/打印），不可逆且非业务数据写 |
@@ -351,6 +405,22 @@ Native AI 服务 —— 只做"提案 + 转达批准"，绝不自造目标/参�
 | SEC-R0 边界 | ✅ `INTERNAL_SECRET` 只读；写需 `INTERNAL_WRITE_SECRET`（≥32、≠、定时安全比较） | 小修：`api.cjs:158` 的 `===` 改为定时安全比较 |
 | `write-reconcile` 也须受 Native 写门约束 | ❌ 该端点未过 `assertNativeWriteRollout` | **需补**（见 §17 失败契约） |
 | 确认端点只对 Owner 开放 | ⚠️ `confirmAuth` 接受任意有效 JWT | 需明确策略（建议：Native 写路径的确认端点要求 Owner 凭据） |
+
+### 15.1 额外发现（安全 / 契约一致性，供后续单独排期）
+
+| # | 发现 | 证据 |
+|---|---|---|
+| 1 | 路由层不按 `capabilityId`/`riskLevel` 授权；写门只有全局中间件 + 执行器 `allowWrite` | `registry.cjs:2339-2345`；`api.cjs:150-171`；`executor.cjs:353` |
+| 2 | `api.cjs:158` 用普通 `===` 比较 `INTERNAL_SECRET`（同项目其它处用定时安全比较） | `api.cjs:158` vs `aiToolConfirmation.cjs:46-56` |
+| 3 | 目标"首个匹配即写"（无歧义拒绝）出现在 `update_part`、`create_order`、`add_recipe_to_order` | `aiPartExecution.cjs:692`；`orderExecutors.cjs:51-53` |
+| 4 | 列表序号从不被接受为目标身份（正面结论：不存在"按序号写"的形态） | ordinal 只作为匹配输出：`purchasingItemProgress.cjs:168,452` |
+| 5 | AI 自管理写面缺 owner 作用域：`ai.personal_memory.change` 仅按 id 查（可跨 owner 改/删） | `aiPersonalMemory.cjs:36` |
+| 6 | 评测用例/系统用例/学习规则更新同样未按请求 owner 限定行 | `aiEvaluationCommands.cjs:477,217`；`factoryAiRules.cjs:217` |
+| 7 | 铜价/行情同步**重写全部线圈的单价与成本**，但既不要求确认、也不产生业务变更事件 | `copperPriceUpdate.cjs:41-68`；`registry.cjs:1155,1171` |
+| 8 | 文件上传后**自动解析**是第二个写操作，失败被吞成 `parseWarning` | `files.cjs:114-117,210-213` |
+| 9 | 转子打印/出图存在不可逆外部副作用（物理打印、FreeCAD + 文件系统） | `rotorExternalCommands.cjs:423-458,251` |
+
+这些都不阻断 V1（因为 V1 只覆盖 1 个能力且不涉及上述面），但应在 V1 之后按优先级单独处理。
 
 ---
 
