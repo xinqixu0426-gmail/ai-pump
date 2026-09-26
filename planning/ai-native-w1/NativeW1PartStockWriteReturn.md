@@ -13,14 +13,16 @@
 | 对象 | SHA |
 |---|---|
 | START_COMMIT（W1 起点 = NATIVE-W0 交付） | `0363f1ae1dc4e7a101a342894512807e26f5f580` |
-| 本地 HEAD（交付版） | `ee2a10e79327e1657d74086bc6eb2d02f56f23c7` |
-| GitHub `origin/ai-native/prod-canary-s2` | `ee2a10e79327e1657d74086bc6eb2d02f56f23c7` |
+| 本地 HEAD（交付版，含本报告） | `7b1bc0fc328bf7cb564564fa30846947bdfacf53` |
+| 本地纯代码提交（门禁复核点） | `ee2a10e79327e1657d74086bc6eb2d02f56f23c7` |
+| GitHub `origin/ai-native/prod-canary-s2` | `7b1bc0fc328bf7cb564564fa30846947bdfacf53` |
 | 生产工作区 `git rev-parse HEAD` | `cb5be53e622292d4da0b9ce7906108e2fc69568b`（**未部署 W1**） |
 | 生产 `/api/health/ready` → `runtime.gitCommit` | `cb5be53e6222`（生产仍在 HC2-PROD 版本） |
 
-W1 提交链（4 个提交，全部在 origin 上）：
+W1 提交链（5 个提交，全部在 origin 上）：
 
 ```
+7b1bc0f docs(ai): NATIVE-W1 supervisor-facing return (single-capability native part-stock write)
 ee2a10e test(ai): NATIVE-W1 close three matrix gaps and refine the write gate order
 4dd9e0f chore(ai): refresh the N7.3 closure artifact hashes for the NATIVE-W1 doc update
 d360c0d fix(ai): NATIVE-W1 keep the write kill switch ahead of the owner gate
@@ -160,9 +162,11 @@ d360c0d fix(ai): NATIVE-W1 keep the write kill switch ahead of the owner gate
 
 ---
 
-## 6. 门禁证据（在干净提交 `ee2a10e` 上运行）
+## 6. 门禁证据（在干净提交上运行）
 
-日志：`.dev-local/logs/rework-gates-w1r3-20260926T164155.log`（`status=` 为空 = 工作区干净）
+主证据日志：`.dev-local/logs/rework-gates-w1final-20260926T164405.log`（`head=7b1bc0fc…`，`status=` 为空 = 工作区干净）。
+先前同一套门禁另在纯代码提交 `ee2a10e` 上全绿（`.dev-local/logs/rework-gates-w1r3-20260926T164155.log`）；
+两者之间只多出本报告这一个文档提交，未改动任何代码。
 
 | 门禁 | 结果 |
 |---|---|
@@ -199,7 +203,7 @@ d360c0d fix(ai): NATIVE-W1 keep the write kill switch ahead of the owner gate
 | 无 detached worker 引入 | ✅ `api/services/aiTaskWorkerV2.cjs` 未改动，`TASK_WORKER_DEFAULT_ENABLED = false` 保持 |
 | 生产开关 | ✅ `AI_NATIVE_WRITE_ENABLED=false`（`.env` 第 57 行）、`AI_NATIVE_MODE=owner` 均未改 |
 | 未部署 | ✅ 生产 HEAD 仍为 `cb5be53e`，runtime `cb5be53e6222`，ready=true，工作区干净 |
-| 工作区干净 / 已推送 | ✅ `git status --short` 为空；`origin/ai-native/prod-canary-s2 == ee2a10e` |
+| 工作区干净 / 已推送 | ✅ `git status --short` 为空；`origin/ai-native/prod-canary-s2 == 7b1bc0f` |
 
 改动清单（13 个文件，`+1719 / -118`）：
 
@@ -244,9 +248,9 @@ planning/ai-native-v1/release/N7.3-closure-validation.json  （证据哈希刷�
 | 13 | 对账策略与有界终局 | ✅ W1-FAIL-2/3/4 |
 | 14 | 重启语义安全 | ✅ W1-RESTART-1/2、W1-E2E-4 |
 | 15 | 40 行矩阵有专用测试覆盖 | ✅ §28 表（24 个专用用例） |
-| 16 | 全部门禁 PASS | ✅ 9/9 |
+| 16 | 全部门禁 PASS | ✅ 9/9（`head=7b1bc0f`） |
 | 17 | 无 schema / costEngine / Business API 变更 | ✅ §7 |
-| 18 | 工作区干净、已推送 GitHub | ✅ `ee2a10e` |
+| 18 | 工作区干净、已推送 GitHub | ✅ `7b1bc0f`（门禁全绿后仅追加本报告） |
 | 19 | **未部署**、生产 flag false | ✅ §7 |
 
 ---
