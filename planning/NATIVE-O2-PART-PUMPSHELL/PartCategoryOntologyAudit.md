@@ -1,105 +1,133 @@
-# Part Base and Category-Extension Audit
+# Part Base and Category-Extension Audit — R1 Authority Alignment
 
-> Audit only. No Part Ontology profile, category extension, database change, API change, or runtime integration is implemented by this ticket.
+> Audit only. No Part/Recipe Ontology profile, category extension, database change, API change, UI change, runtime integration, or legacy cleanup is implemented by this ticket.
 
-## Minimal Part base finding
+## Part Base — frozen lightweight model
 
-Ordinary Part can remain lightweight. Current resource evidence is `parts` plus `partRow()`:
+Ordinary Part stays intentionally simple. It does not inherit Coil-level selection/default complexity merely because one category has engineering history.
 
-| proposed semantic item | current source | role / authority | searchable or selection use | default summary |
-|---|---|---|---|---|
-| Canonical identity | `parts.id` | formal resource identity | direct ID only | no |
-| model | `parts.model`, structured `naming_json` when present | designation/display; model+supplier is operational lookup, not canonical identity | yes (`partQueries.listParts`) | yes |
-| category / subcategory | `parts.category`, `parts.subcategory` | classification facts | category filter / extension discriminator | category yes |
-| supplier | `parts.supplier` | procurement/business fact | supplier filter and reference disambiguation | yes where useful |
-| price | `parts.price` | current business/commercial fact | price filtering; BOM catalog price lookup | yes |
-| stock | `parts.stock` | current business fact | stock-status filtering | yes on inventory request |
-| lifecycle | `parts.deleted_at` | lifecycle / soft deletion | normal lists exclude it | no |
-| remark | `parts.remark` / DTO alias `notes` | opaque metadata container, not a universal base Fact | no generic selection | no |
-| timestamps / naming profile / aliases | table timestamps; `catalog_identity_profiles`; `catalog_name_aliases` | provenance / internal identity metadata | limited catalog lookup | no |
+| semantic item | current source | current role | proposed future authority |
+|---|---|---|---|
+| Canonical identity | `parts.id` | formal resource identity | Part Base identity |
+| model | `parts.model`; `naming_json` where present | designation/display and operational lookup | Part Base designation |
+| category / subcategory | `parts.category`, `parts.subcategory` | classification / extension discriminator | Part Base classification |
+| supplier | `parts.supplier` | procurement/current business fact | Part Base fact |
+| price | `parts.price` | commercial/current business fact | Part Base fact; not universal cost authority |
+| stock | `parts.stock` | current business fact | Part Base fact |
+| lifecycle | `parts.deleted_at` | soft deletion | Part Base lifecycle |
+| remark / timestamps / aliases | `parts.remark`, timestamps, catalog naming metadata | optional metadata/provenance | not universal Facts without category evidence |
 
-Evidence: schema `api/database/schema.cjs:121-135`; DTO `api/db.cjs:95-103`; query filters/sort in `api/services/partQueries.cjs`; physical identity guard in `api/services/catalogPhysicalIdentity.cjs`.
+Evidence: `api/database/schema.cjs:121-135`; `api/db.cjs:95-103`; `api/services/partQueries.cjs`; catalog naming/identity services.
 
-**Answer Q1:** Yes. Price, supplier and stock are the operational core; category is a discriminator for optional extensions. A Coil-like selection/default/lifecycle policy is not warranted for every Part.
+## Current category assessment
 
-## Existing category audit
+Current built-ins from `apps/web-next/lib/part-form-rules.ts:3`: 轴承、油封、螺丝、泵壳、泵壳搭配、线圈转子、电容、电缆线、浮球、皮垫、配件、包装。
 
-`apps/web-next/lib/part-form-rules.ts:3` lists current built-ins: 轴承、油封、螺丝、泵壳、泵壳搭配、线圈转子、电容、电缆线、浮球、皮垫、配件、包装.
-
-| category | extra current facts / algorithms | future extension assessment |
+| category | current extra meaning | future extension assessment |
 |---|---|---|
-| 泵壳 | structured `remark` engineering data; binding to Template; rotor derivation; bundle/components cost behaviors | **needs richest extension** |
-| 电容 | capacitance from structured naming or legacy model parsing; Coil default chooses capacity and ambiguity is rejected (`catalogSpec.capacitorValueOf`, `recipeBomEngine.resolveCapacitorModel`) | likely lightweight technical/spec extension |
-| 电缆线 | wire/cross-section from naming/legacy model; length plus accessory cost path (`catalogSpec.selectWirePart`, `costEngine.calculateCompleteCableCost`) | likely extension: technical spec + costing policy |
-| 螺丝 | optional `remark.screwPricing`; long screw can derive requested length from barrel length (`costEngine.applyLongScrewRule`) | likely extension only for pricing/dynamic length subset |
-| 浮球 | wire spec and accessory delta / configuration behavior | possible lightweight extension, not proven as complex as cable |
-| 轴承 / 油封 | catalog items referenced by PumpShell/Template/Recipe | base Part plus typed relation/spec may suffice |
-| 泵壳搭配 | Template component catalog category and subassembly semantics | likely template-component domain, not a canonical PumpShell extension |
-| 线圈转子 | BOM representation refers to Coil formal scheme/inventory | relation to Coil, not ordinary Part ontology duplication |
-| 包装 / 皮垫 / 配件 | mostly BOM/category semantics | plain Part unless future evidence adds algorithmic fields |
+| 泵壳 | `isStainless`; Template relation; historic rotor defaults; stainless BOM/drawing applicability | **yes: focused PumpShell Extension** |
+| 电容 | capacitance selection/spec semantics used with Coil defaults | likely lightweight technical/spec extension |
+| 电缆线 | wire/cross-section, length and accessory-cost rules | likely technical spec + costing policy extension |
+| 螺丝 | optional `remark.screwPricing`; barrel-length rule for a subset | likely pricing extension for the dynamic subset |
+| 浮球 | wire/accessory configuration behaviour | possible lightweight extension |
+| 轴承 / 油封 | Parts that can be selected by Recipe technical facts | base Part plus typed relation/spec likely sufficient initially |
+| 泵壳搭配 | Template component/subassembly catalog role | Template-component domain, not PumpShell identity |
+| 线圈转子 | formal Coil-related BOM representation | relation to Coil; do not duplicate Coil ontology |
+| 包装 / 皮垫 / 配件 | ordinary BOM/category semantics | plain Part unless future evidence adds special policy |
 
-## Why PumpShell is special
+## PumpShell target model — smaller than V1
 
-PumpShell is a Part but anchors a product configuration graph. It has:
-
-1. a formal optional Template relation (`catalog_template_shell_bindings`);
-2. technical engineering parameters used for rotor draft defaults and derivation;
-3. stainless-length behavior reaching BOM and cost;
-4. physical-fingerprint treatment of its metadata;
-5. historical name matching when formal binding is absent.
-
-Therefore **Q2: PUMPSHELL_AS_PART_EXTENSION = YES**. The recommended future shape is:
+The corrected finding is **Part Base + PumpShell Category Extension**, but the extension must not preserve V1’s full rotor profile.
 
 ```text
-Part Base (part.id, model, category, supplier, price, stock, lifecycle)
-  └── category = PumpShell
-        ├── intrinsic engineering facts
-        ├── recommended/default technical configuration
-        ├── derived engineering facts
-        ├── Template relation
-        └── domain policies (rotor/BOM applicability)
+Part Base
+  └── PumpShell Extension
+        ├── isStainless                         (PumpShell Fact)
+        ├── Template --uses_shell_part--> Part  (relation)
+        └── configuration applicability          (policy discriminator)
+              └── tells Recipe which facts are required/derived
+
+Template
+  └── normal materials / configuration skeleton
+
+Recipe
+  ├── final BOM and customer differences
+  ├── final technical facts
+  └── derived technical facts
+        └── Rotor Drawing authoritative input
 ```
 
-This keeps `parts.id` canonical while preventing PumpShell fields from appearing on every Part.
+`isStainless` is retained on PumpShell because it describes the shell type. It is also a policy discriminator: it determines whether Recipe must carry stainless configuration context. Detailed bearing, oil seal, impeller, thread, stack and span values are **not** current target PumpShell authority.
 
-## Category-extension proposal — no implementation
+## Historical implementation compatibility
 
-The current V2 profile format can describe an entity’s Facts, Roles, Sources, Policies and Relations, but it has no explicit reusable `base profile + category extension` composition mechanism. A future **generic** contract enhancement is likely needed to declare:
+The source still has a V1 compatibility surface:
 
-- base entity profile `part`;
-- extension applicability predicate based on a category Fact/value;
-- extension Fact namespace and source/provenance;
-- extension relations and domain policies;
-- optional inheritance/merge rules that remain generic and validator-owned.
+- `parts.remark.default*` is read by `rotorTemplateDraft.applyShellMetaDefaults()`.
+- `pump_shell_templates.rotor_params_json` is read after Template component heuristics.
+- Recipe technical JSON overlays supported rotor keys last.
+- `recipes.custom_barrel_length` can derive a span using PumpShell `openOffset`.
 
-This is not a request to add PumpShell-only validator logic. It is a design finding: **ONTOLOGY_V2_CATEGORY_EXTENSION_FIT = NEEDS_GENERIC_EXTENSION** for clean composition. A full PumpShell profile could be forced into one Part profile today, but that would over-model every category and obscure ownership.
+This proves current runtime precedence, not current business authority. The revised PumpShell audit labels Shell defaults and Template rotor params as legacy/transitional prefill or compatibility sources. No deletion or behavior change is authorized here.
+
+## Recipe Technical Authority
+
+### Current target business authority
+
+Recipe is the final configured product. It owns:
+
+1. final BOM/material selection;
+2. customer-specific differences;
+3. final rotor/drawing technical parameters;
+4. stainless `barrelLength` and `openOffset` when applicable;
+5. derived `bearingSpan` for stainless;
+6. explicit fixed final `bearingSpan` for non-stainless.
+
+For target semantics, Rotor Drawing should consume Recipe technical facts/derived facts, not PumpShell defaults or Template params.
+
+### Current implementation gap
+
+`recipes.custom_barrel_length` is an existing persisted Recipe field. `technical_data_json` stores nearly all listed rotor values. But no dedicated Recipe `openOffset` column or fixed JSON key currently exists; UI/server currently get it from PumpShell remark. This is an implementation/semantic gap for a later Recipe authority design, not a reason to relabel PumpShell `openOffset` as the current final authority.
+
+## Stainless and non-stainless policy
+
+| shell policy | target Recipe rule | current implementation status |
+|---|---|---|
+| `isStainless=true` | Recipe has barrelLength + openOffset; derive `bearingSpan = barrelLength - openOffset`; Rotor Drawing uses final Recipe configuration | partial: Recipe stores length; offset remains Shell compatibility source; backend derivation lacks `isStainless` hard guard |
+| `isStainless=false` | Recipe records/determines fixed final bearingSpan; no stainless derivation | partial: Recipe JSON can supply final value, but server still falls back through Shell/Template/Variant/current derivation when absent |
 
 ## No-code versus code-required boundary
 
-After a generic category-extension mechanism exists, the following should be definition-only: adding an approved PumpShell Fact, marking a field intrinsic/default/derived, sourcing an existing field, configuring a relation, or assigning roles/presentation metadata.
+After a generic category-extension and configuration-policy contract exists, ontology-definition-only changes can add approved Part/PumpShell/Recipe Fact metadata, labels, source mapping, roles, existing relations, and policy declarations.
 
-Code remains legitimate for a new adapter, new formula/execution semantics, a new cost algorithm, a new projection protocol, schema migration, or runtime Entity Linking. This audit does not authorize any of those changes.
+Code remains legitimate for a new field/schema/API, a new data adapter, new policy execution/validation, a new derivation algorithm, runtime Entity Linking, or legacy migration. In particular, the existing Recipe `openOffset` representation and stainless guard are runtime/model work for a later authorized ticket, not documentation-only work.
 
-## Current PumpShell cost-chain finding
+## Ontology design impact — no implementation
 
-Owner’s intended chain is PumpShell Part → Template → Recipe → BOM → Cost. Current code supports this as follows:
+The earlier category-extension conclusion remains, with one refinement:
 
-- `catalog_template_shell_bindings` provides exact Part identity for a template when present.
-- Template `cost_mode=bundle` emits one shell BOM item using `bundle_cost`; bound Part supplies identity/model/supplier, not the amount.
-- Template `cost_mode=components` expands `shell_components_json` using category `泵壳搭配` prices; PumpShell Part may be absent from BOM pricing.
-- Recipe stores `template_id` and a computed `parts_json`/cost snapshot. `recipeBomEngine` builds the BOM, while `costEngine` calculates the full cost boundary.
-- Both Template binding and Recipe template ID are optional in some valid current paths; therefore it is a supported workflow, not a universal enforced graph.
+- A generic `Part Base + Category Extension` composition mechanism is needed to avoid PumpShell fields on every Part.
+- A generic **cross-entity configuration-policy** mechanism is also needed to declare that an upstream extension fact such as `PumpShell.isStainless` determines required/derived fields in a downstream Recipe profile.
+- Recipe needs its own future profile with Technical Facts, Derived Facts, source/provenance, final authority designation and rotor-drawing evidence relation.
 
-## Explicit unresolved / Owner decisions
+This is a generic contract-design finding, not a request for PumpShell-specific validator logic.
 
-1. Which of the current `default*` rotor values are intrinsic PumpShell engineering facts versus recommended configuration defaults?
-2. Should every technical PumpShell Template, not only bundle templates, require a formal `shellPartId` relation?
-3. For non-stainless shells, should fixed bearing span be protected as an intrinsic fact rather than remain an overrideable default?
-4. Is historical `remark.barrelLength` still a supported business source, or should it be deprecated after migration planning?
-5. Which layer should own each rotor parameter when Template, Recipe JSON and Recipe columns disagree?
+## Cost boundary remains separate
 
-## Audit artifacts and boundaries
+Technical authority moving to Recipe does not change cost authority:
 
-- Detailed fields, precedence, relation, physical identity and debt register: `PumpShellSemanticAudit.md`.
-- This document is a proposed minimal semantic model only; no production Part profile exists.
+- Template bundle mode uses `bundle_cost`.
+- Components mode uses `shell_components_json` catalog pricing.
+- PumpShell `parts.price` is not a universal BOM cost source.
+- `recipeBomEngine` remains BOM construction and `costEngine` remains the full cost boundary.
+
+## Genuine remaining Owner decisions
+
+Already-resolved matters are intentionally omitted: detailed rotor parameters belong at Recipe authority; openOffset is not final PumpShell authority; stainless span is length minus offset; customer length is supported.
+
+The remaining business decision is narrow: after Recipe technical authority is implemented, should any non-`isStainless` PumpShell metadata remain as an approved **optional prefill policy**, or should all historic technical defaults be strictly compatibility-only? This does not authorize implementation or legacy cleanup.
+
+## Audit artifacts and boundary
+
+- Detailed field, UI, current precedence, authority and debt register: `PumpShellSemanticAudit.md`.
 - DB inspection performed: **NO**. Source/schema audit only.
