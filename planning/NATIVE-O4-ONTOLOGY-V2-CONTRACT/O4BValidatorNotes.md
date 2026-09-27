@@ -49,6 +49,26 @@ LOCAL:   { scope: "LOCAL", factId: "entity.fact" }
 RELATED: { scope: "RELATED", relationPath: ["entity.uses_other"], factId: "other.fact" }
 ```
 
+O4-C adds one additive V2.1 scoping clarification for a terminal Fact that is
+owned by a conditional Extension:
+
+```text
+RELATED extension Fact:
+{
+  scope: "RELATED",
+  relationPath: ["entity.uses_other"],
+  factId: "other.extensionFact",
+  targetExtensionId: "other.extension"
+}
+```
+
+`targetExtensionId` is forbidden for LOCAL FactRefs and for a base-owned
+RELATED terminal Fact. It is required for an extension-owned RELATED terminal
+Fact, and must name an Extension on the terminal entity that actually owns the
+Fact. This is static ownership validation only; a later runtime evaluator must
+still determine whether the concrete target resource makes that Extension
+applicable.
+
 The relation path always traverses the declared canonical type direction:
 
 ```text
@@ -66,6 +86,22 @@ element must exactly equal `relationProjection.relationId`. Optional
 `displayProjection` follows the same one-hop binding. A same-target relation
 cannot be substituted merely because it reaches the same entity type. Multi-hop
 projection belongs to a RELATED FactRef inside `PROJECT_RELATED_FACT` instead.
+
+## Extension semantic surfaces
+
+V2.1 now validates declaration visibility through explicit semantic surfaces:
+
+- Base surface: the Base Profile's own Facts, Relations, and Policies only.
+- Extension surface: the Base surface plus that one Extension's own Facts,
+  Relations, and Policies.
+
+Sibling Extensions are never implicitly composed into either surface. Extension
+applicability is checked on the Base surface, so it cannot bootstrap from a
+self-owned or sibling-owned declaration. A base declaration cannot see an
+extension-owned declaration. An Extension may use a base-owned relation or its
+own relation, but cannot traverse a sibling Extension's relation. A generic
+RELATED path similarly cannot cross a conditional extension-owned relation
+without a future explicit relation-scope contract.
 
 The canonical predicate data shapes are:
 
@@ -150,12 +186,7 @@ regular expressions, class instances, and arbitrary expressions are rejected.
 
 ## Deferred work
 
-O4-C will construct richer multi-feature synthetic proof scenarios. A later
-runtime-design phase may define policy evaluation, relation resolution,
-derivation execution, cache persistence, source adapters, and Technical
-Knowledge indexing. None is implemented by O4-B.
-
-O4-C must specifically stress-test conditional Extension composition,
-including whether references to Facts introduced by other conditional
-extensions can leak into a base semantic surface. That composition question is
-not changed by this relation-projection binding correction.
+O4-C supplied the synthetic proof of Base/Extension visibility and sibling
+isolation. A later runtime-design phase may define policy evaluation, relation
+resolution, derivation execution, cache persistence, source adapters, and
+Technical Knowledge indexing. None is implemented by O4-B/O4-C.

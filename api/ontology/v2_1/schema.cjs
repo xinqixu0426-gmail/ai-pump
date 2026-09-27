@@ -63,6 +63,13 @@ const emptyV21Capabilities = deepFreeze({
 const FactRefExamples = deepFreeze({
     LOCAL: { scope: FactRefScope.LOCAL, factId: 'entity.exampleFact' },
     RELATED: { scope: FactRefScope.RELATED, relationPath: ['entity.uses_related'], factId: 'related.exampleFact' },
+    // Extension qualification is required only when the RELATED terminal Fact is extension-owned.
+    RELATED_EXTENSION: {
+        scope: FactRefScope.RELATED,
+        relationPath: ['entity.uses_related'],
+        factId: 'related.extensionFact',
+        targetExtensionId: 'related.extension',
+    },
 });
 
 // Field inventories are contract documentation for later generic validation, not validators.
@@ -74,7 +81,7 @@ const V21Schema = deepFreeze({
     relation: ['relationId', 'sourceEntityType', 'target', 'direction', 'cardinality', 'sourceRef', 'applicableWhen', 'semanticRoles', 'runtimeEnabled'],
     factOptional: ['valueKind', 'relationProjection', 'derivation', 'applicableWhen', 'requiredWhen', 'prohibitedWhen'],
     relationProjection: ['relationId', 'targetFactRef', 'displayProjection'],
-    factRef: ['scope', 'factId', 'relationPath'],
+    factRef: ['scope', 'factId', 'relationPath', 'targetExtensionId'],
     derivation: ['operation', 'inputs', 'sourceRef', 'missingInputPolicy', 'materialization', 'cacheMetadata'],
     materializedCacheMetadata: ['inputRefs', 'sourceRefs', 'freshness', 'contractVersion', 'calculationVersion', 'invalidation'],
     policy: ['policyId', 'ownerEntityType', 'applicableWhen', 'factRefs', 'relationIds', 'rules', 'runtimeEnabled'],

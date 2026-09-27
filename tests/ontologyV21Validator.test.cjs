@@ -340,6 +340,7 @@ test('relation projections and RELATED FactRef paths reject invalid traversal', 
     expectCode(unknownRelation, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const unknownTarget = makeContract();
     unknownTarget.relations.push(relation());
+    getProfile(unknownTarget).relationIds.push('alpha.uses_beta');
     getProfile(unknownTarget).facts.push(fact('alpha', 'projection', {
         dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: { valueKind: 'RELATION_PROJECTION', relationProjection: { relationId: 'alpha.uses_beta', targetFactRef: related(['alpha.uses_beta'], 'beta.unknown') } },
@@ -347,6 +348,7 @@ test('relation projections and RELATED FactRef paths reject invalid traversal', 
     expectCode(unknownTarget, 'ONTOLOGY_V21_FACT_REF_INVALID');
     const mismatch = makeContract();
     mismatch.relations.push(relation());
+    getProfile(mismatch).relationIds.push('alpha.uses_beta');
     getProfile(mismatch).facts.push(fact('alpha', 'projection', {
         dataType: 'STRING', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: { valueKind: 'RELATION_PROJECTION', relationProjection: { relationId: 'alpha.uses_beta', targetFactRef: related(['alpha.uses_beta'], 'beta.value') } },
@@ -354,12 +356,15 @@ test('relation projections and RELATED FactRef paths reject invalid traversal', 
     expectCode(mismatch, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const pathMismatch = makeContract();
     pathMismatch.relations.push(relation());
+    getProfile(pathMismatch).relationIds.push('alpha.uses_beta');
     getProfile(pathMismatch).facts[0].applicableWhen = { kind: 'FACT_EXISTS', factRef: related(['alpha.uses_beta', 'alpha.uses_beta'], 'beta.value') };
     expectCode(pathMismatch, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
     const pathCycle = makeContract();
     pathCycle.relations.push(relation(), relation('beta.uses_alpha', {
         sourceEntityType: 'beta', target: { entityType: 'alpha', canonicalEndpointRequired: true }, sourceRef: sourceRef('beta.current', 'beta.alpha_id'),
     }));
+    getProfile(pathCycle).relationIds.push('alpha.uses_beta');
+    getProfile(pathCycle, 'beta').relationIds.push('beta.uses_alpha');
     getProfile(pathCycle).facts[0].applicableWhen = { kind: 'FACT_EXISTS', factRef: related(['alpha.uses_beta', 'beta.uses_alpha'], 'alpha.control') };
     expectCode(pathCycle, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
 });
@@ -370,6 +375,7 @@ test('relation projections bind the declared direct relation while generic RELAT
         relation('alpha.uses_beta_primary'),
         relation('alpha.uses_beta_secondary')
     );
+    getProfile(sameTargetMismatch).relationIds.push('alpha.uses_beta_primary', 'alpha.uses_beta_secondary');
     getProfile(sameTargetMismatch).facts.push(fact('alpha', 'projection', {
         dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: {
@@ -391,6 +397,8 @@ test('relation projections bind the declared direct relation while generic RELAT
             sourceEntityType: 'beta', target: { entityType: 'gamma', canonicalEndpointRequired: true }, sourceRef: sourceRef('beta.current', 'beta.gamma_id'),
         })
     );
+    getProfile(multiHopProjection).relationIds.push('alpha.uses_beta');
+    getProfile(multiHopProjection, 'beta').relationIds.push('beta.uses_gamma');
     getProfile(multiHopProjection).facts.push(fact('alpha', 'projection', {
         dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: {
@@ -402,6 +410,7 @@ test('relation projections bind the declared direct relation while generic RELAT
 
     const displayMismatch = makeContract();
     displayMismatch.relations.push(relation('alpha.uses_beta_primary'), relation('alpha.uses_beta_secondary'));
+    getProfile(displayMismatch).relationIds.push('alpha.uses_beta_primary', 'alpha.uses_beta_secondary');
     getProfile(displayMismatch).facts.push(fact('alpha', 'projection', {
         dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: {
@@ -417,6 +426,7 @@ test('relation projections bind the declared direct relation while generic RELAT
 
     const displayPositive = makeContract();
     displayPositive.relations.push(relation());
+    getProfile(displayPositive).relationIds.push('alpha.uses_beta');
     getProfile(displayPositive).facts.push(fact('alpha', 'projection', {
         dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
         extra: {
@@ -439,6 +449,8 @@ test('relation projections bind the declared direct relation while generic RELAT
             sourceEntityType: 'beta', target: { entityType: 'gamma', canonicalEndpointRequired: true }, sourceRef: sourceRef('beta.current', 'beta.gamma_id'),
         })
     );
+    getProfile(multiHopDerived).relationIds.push('alpha.uses_beta');
+    getProfile(multiHopDerived, 'beta').relationIds.push('beta.uses_gamma');
     addDerived(multiHopDerived, 'multiHopCopy', {
         operation: 'PROJECT_RELATED_FACT', inputs: [related(['alpha.uses_beta', 'beta.uses_gamma'], 'gamma.value')], sourceRef: sourceRef('alpha.derived'),
         missingInputPolicy: 'UNRESOLVED', materialization: 'COMPUTE_ON_READ',

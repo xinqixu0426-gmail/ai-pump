@@ -251,7 +251,10 @@ function validateFactShape(fact) {
 
 function validateFactSourceSafety(fact, sourceMap) {
     const source = validateSourceRef(fact.sourceRef, sourceMap);
-    const unsafeCompatibilityUse = fact.directIdentityEvidence || fact.candidateSelectionEvidence || fact.safeForDefaultSummary;
+    const unsafeCompatibilityUse = fact.directIdentityEvidence
+        || fact.candidateSelectionEvidence
+        || fact.safeForDefaultSummary
+        || fact.businessRoles.includes('POLICY_INPUT');
     if (source.provenancePurpose === ProvenancePurpose.COMPATIBILITY_ADAPTER) {
         check(!unsafeCompatibilityUse, 'ONTOLOGY_V21_COMPATIBILITY_PRECEDENCE_INVALID');
     }
@@ -285,19 +288,23 @@ function assertCanonicalIdentitySource(profile, sourceMap) {
     );
 }
 
-function createEntityMap(profiles, extensions) {
+function createSemanticModel(profiles, extensions) {
     const entities = new Map();
     profiles.forEach(profile => {
         check(!entities.has(profile.entityType), 'ONTOLOGY_V21_PROFILE_DUPLICATE');
-        const facts = new Map();
-        profile.facts.forEach(fact => facts.set(fact.factId, fact));
+        const baseFacts = new Map();
+        profile.facts.forEach(fact => {
+            check(!baseFacts.has(fact.factId), 'ONTOLOGY_V21_FACT_DUPLICATE');
+            baseFacts.set(fact.factId, fact);
+        });
         entities.set(profile.entityType, {
             profile,
-            facts,
-            baseFactIds: new Set(facts.keys()),
+            baseFacts,
+            factOwners: new Map([...baseFacts.keys()].map(factId => [factId, null])),
             designationIds: new Set(profile.designations.map(item => item.designationId)),
-            relationOwnershipIds: new Set(profile.relationIds),
-            policyOwnershipIds: new Set(profile.policyIds),
+            relationOwners: new Map(profile.relationIds.map(relationId => [relationId, null])),
+            policyOwners: new Map(profile.policyIds.map(policyId => [policyId, null])),
+            extensions: new Map(),
         });
     });
     const extensionIds = new Set();
@@ -319,13 +326,14 @@ function createEntityMap(profiles, extensions) {
         ['relationIds', 'policyIds'].forEach(field => {
             check(Array.isArray(extension[field]) && new Set(extension[field]).size === extension[field].length, 'ONTOLOGY_V21_EXTENSION_FIELDS_INVALID');
         });
+        check(new Set(extension.facts.map(fact => fact.factId)).size === extension.facts.length, 'ONTOLOGY_V21_FACT_DUPLICATE');
         extension.relationIds.forEach(relationId => {
-            check(!entity.relationOwnershipIds.has(relationId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
-            entity.relationOwnershipIds.add(relationId);
+            check(!entity.relationOwners.has(relationId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
+            entity.relationOwners.set(relationId, extension.extensionId);
         });
         extension.policyIds.forEach(policyId => {
-            check(!entity.policyOwnershipIds.has(policyId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
-            entity.policyOwnershipIds.add(policyId);
+            check(!entity.policyOwners.has(policyId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
+            entity.policyOwners.set(policyId, extension.extensionId);
         });
         extension.designations.forEach(designation => {
             check(!entity.designationIds.has(designation.designationId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
@@ -333,12 +341,58 @@ function createEntityMap(profiles, extensions) {
         });
         extension.facts.forEach(fact => {
             validateFactShape(fact);
-            check(!entity.facts.has(fact.factId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
-            entity.facts.set(fact.factId, fact);
+            check(!entity.factOwners.has(fact.factId), 'ONTOLOGY_V21_COMPOSITION_COLLISION');
+            entity.factOwners.set(fact.factId, extension.extensionId);
         });
+        entity.extensions.set(extension.extensionId, extension);
         declarations.set(extension.extensionId, extension);
     });
     return { entities, extensionDeclarations: declarations };
+}
+
+function baseSurface(entityType) {
+    return { entityType, extensionId: null };
+}
+
+function extensionSurface(entityType, extensionId) {
+    return { entityType, extensionId };
+}
+
+function getVisibleFact(model, surface, factId) {
+    const entity = model.entities.get(surface.entityType);
+    if (!entity) return null;
+    if (entity.baseFacts.has(factId)) return { fact: entity.baseFacts.get(factId), extensionId: null };
+    if (surface.extensionId) {
+        const extension = entity.extensions.get(surface.extensionId);
+        const fact = extension && extension.facts.find(item => item.factId === factId);
+        if (fact) return { fact, extensionId: surface.extensionId };
+    }
+    return null;
+}
+
+function getRelatedTerminalFact(model, entityType, targetExtensionId, factId) {
+    const entity = model.entities.get(entityType);
+    if (!entity) return null;
+    if (targetExtensionId === undefined) {
+        return entity.baseFacts.has(factId) ? { fact: entity.baseFacts.get(factId), extensionId: null } : null;
+    }
+    const extension = entity.extensions.get(targetExtensionId);
+    const fact = extension && extension.facts.find(item => item.factId === factId);
+    return fact ? { fact, extensionId: targetExtensionId } : null;
+}
+
+function assertRelationVisible(model, surface, relationMap, relationId, entityType) {
+    const relation = relationMap.get(relationId);
+    check(relation && relation.sourceEntityType === entityType, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
+    const entity = model.entities.get(entityType);
+    const ownerExtensionId = entity && entity.relationOwners.get(relationId);
+    check(ownerExtensionId !== undefined, 'ONTOLOGY_V21_RELATION_OWNERSHIP_INVALID');
+    check(
+        ownerExtensionId === null
+        || (surface.extensionId === ownerExtensionId && surface.entityType === entityType),
+        'ONTOLOGY_V21_EXTENSION_SCOPE_INVALID'
+    );
+    return relation;
 }
 
 function validateExtensionsWithV2Projection(contract, extensionDeclarations) {
@@ -390,51 +444,55 @@ function knowledgeRef(value, collections, ownerEntityType) {
     check(collection && collection.ownerEntityType === ownerEntityType, 'ONTOLOGY_V21_KNOWLEDGE_OWNER_INVALID');
 }
 
-function getFactRefTerminal(ref, currentEntityType, entities, relations, sourceMap, roleIds, requirePolicyInput = false) {
-    exactKeysWithOptional(ref, ['scope', 'factId'], ['relationPath'], 'ONTOLOGY_V21_FACT_REF_INVALID');
+function getFactRefTerminal(ref, surface, model, relationMap, sourceMap, roleIds, requirePolicyInput = false) {
+    exactKeysWithOptional(ref, ['scope', 'factId'], ['relationPath', 'targetExtensionId'], 'ONTOLOGY_V21_FACT_REF_INVALID');
     check(Object.values(FactRefScope).includes(ref.scope), 'ONTOLOGY_V21_FACT_REF_INVALID');
     nonEmptyString(ref.factId, 'ONTOLOGY_V21_FACT_REF_INVALID');
-    let entityType = currentEntityType;
+    let entityType = surface.entityType;
+    let traversalSurface = surface;
+    let terminal;
     if (ref.scope === FactRefScope.LOCAL) {
-        check(!('relationPath' in ref), 'ONTOLOGY_V21_FACT_REF_INVALID');
+        check(!('relationPath' in ref) && !('targetExtensionId' in ref), 'ONTOLOGY_V21_FACT_REF_INVALID');
+        terminal = getVisibleFact(model, surface, ref.factId);
     } else {
         check(Array.isArray(ref.relationPath) && ref.relationPath.length > 0, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
         const seenTypes = new Set([entityType]);
         ref.relationPath.forEach(relationId => {
             nonEmptyString(relationId, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
-            const relation = relations.get(relationId);
-            check(relation && relation.sourceEntityType === entityType, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
+            const relation = assertRelationVisible(model, traversalSurface, relationMap, relationId, entityType);
             entityType = relation.target.entityType;
             check(!seenTypes.has(entityType), 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
             seenTypes.add(entityType);
+            // An extension-owned relation is only visible on its declaring extension surface.
+            // After crossing a relation, no target extension is implicitly active.
+            traversalSurface = baseSurface(entityType);
         });
+        if ('targetExtensionId' in ref) nonEmptyString(ref.targetExtensionId, 'ONTOLOGY_V21_FACT_REF_INVALID');
+        terminal = getRelatedTerminalFact(model, entityType, ref.targetExtensionId, ref.factId);
     }
-    const entity = entities.get(entityType);
-    const fact = entity && entity.facts.get(ref.factId);
-    check(fact, 'ONTOLOGY_V21_FACT_REF_INVALID');
-    const source = validateFactSourceSafety(fact, sourceMap);
+    check(terminal, 'ONTOLOGY_V21_FACT_REF_INVALID');
+    const source = validateFactSourceSafety(terminal.fact, sourceMap);
     check(source.authority !== SourceAuthority.UNRESOLVED, 'ONTOLOGY_V21_UNRESOLVED_UNSAFE');
-    if (requirePolicyInput) check(fact.businessRoles.includes('POLICY_INPUT'), 'ONTOLOGY_V21_POLICY_INPUT_REQUIRED');
-    return { fact, entityType };
+    if (requirePolicyInput) check(terminal.fact.businessRoles.includes('POLICY_INPUT'), 'ONTOLOGY_V21_POLICY_INPUT_REQUIRED');
+    return { fact: terminal.fact, entityType, extensionId: terminal.extensionId };
 }
 
-function validatePredicate(predicate, currentEntityType, entities, relations, sourceMap, roleIds) {
+function validatePredicate(predicate, surface, model, relationMap, sourceMap, roleIds) {
     check(plainObject(predicate), 'ONTOLOGY_V21_PREDICATE_INVALID');
     if (predicate.kind === PredicateKind.FACT_EQUALS) {
         exactKeys(predicate, ['kind', 'factRef', 'value'], 'ONTOLOGY_V21_PREDICATE_INVALID');
-        const { fact } = getFactRefTerminal(predicate.factRef, currentEntityType, entities, relations, sourceMap, roleIds, true);
+        const { fact } = getFactRefTerminal(predicate.factRef, surface, model, relationMap, sourceMap, roleIds, true);
         check(literalMatchesFact(predicate.value, fact), 'ONTOLOGY_V21_PREDICATE_TYPE_INVALID');
     } else if (predicate.kind === PredicateKind.FACT_EXISTS) {
         exactKeys(predicate, ['kind', 'factRef'], 'ONTOLOGY_V21_PREDICATE_INVALID');
-        getFactRefTerminal(predicate.factRef, currentEntityType, entities, relations, sourceMap, roleIds, true);
+        getFactRefTerminal(predicate.factRef, surface, model, relationMap, sourceMap, roleIds, true);
     } else if (predicate.kind === PredicateKind.RELATION_EXISTS) {
         exactKeys(predicate, ['kind', 'relationId'], 'ONTOLOGY_V21_PREDICATE_INVALID');
-        const relation = relations.get(predicate.relationId);
-        check(relation && relation.sourceEntityType === currentEntityType, 'ONTOLOGY_V21_PREDICATE_INVALID');
+        assertRelationVisible(model, surface, relationMap, predicate.relationId, surface.entityType);
     } else if (predicate.kind === PredicateKind.ALL_OF) {
         exactKeys(predicate, ['kind', 'predicates'], 'ONTOLOGY_V21_PREDICATE_INVALID');
         check(Array.isArray(predicate.predicates) && predicate.predicates.length > 0, 'ONTOLOGY_V21_PREDICATE_INVALID');
-        predicate.predicates.forEach(item => validatePredicate(item, currentEntityType, entities, relations, sourceMap, roleIds));
+        predicate.predicates.forEach(item => validatePredicate(item, surface, model, relationMap, sourceMap, roleIds));
     } else {
         fail('ONTOLOGY_V21_PREDICATE_INVALID');
     }
@@ -456,17 +514,23 @@ function validateRelation(relation, entities, sourceMap, roleIds) {
     if ('semanticRoles' in relation) validateRoleIds(relation.semanticRoles, roleIds, 'ONTOLOGY_V21_RELATION_INVALID');
 }
 
-function validateOwnerRelations(owner, entityType, relationMap) {
+function validateOwnerRelations(owner, surface, model, relationMap) {
     owner.relationIds.forEach(relationId => {
         const relation = relationMap.get(relationId);
-        check(relation && relation.sourceEntityType === entityType, 'ONTOLOGY_V21_RELATION_OWNERSHIP_INVALID');
+        const entity = model.entities.get(surface.entityType);
+        check(
+            relation
+            && relation.sourceEntityType === surface.entityType
+            && entity.relationOwners.get(relationId) === surface.extensionId,
+            'ONTOLOGY_V21_RELATION_OWNERSHIP_INVALID'
+        );
     });
 }
 
-function validateRelationProjection(fact, entityType, entities, relationMap, sourceMap) {
+function validateRelationProjection(fact, surface, model, relationMap, sourceMap) {
     exactKeysWithOptional(fact.relationProjection, ['relationId', 'targetFactRef'], ['displayProjection'], 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const relation = relationMap.get(fact.relationProjection.relationId);
-    check(relation && relation.sourceEntityType === entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
+    check(relation && relation.sourceEntityType === surface.entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const validateDirectTargetRef = factRef => {
         check(
             plainObject(factRef)
@@ -476,7 +540,7 @@ function validateRelationProjection(fact, entityType, entities, relationMap, sou
             && factRef.relationPath[0] === relation.relationId,
             'ONTOLOGY_V21_RELATION_PROJECTION_INVALID'
         );
-        const terminal = getFactRefTerminal(factRef, entityType, entities, relationMap, sourceMap, new Set());
+        const terminal = getFactRefTerminal(factRef, surface, model, relationMap, sourceMap, new Set());
         check(terminal.entityType === relation.target.entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
         return terminal;
     };
@@ -491,7 +555,7 @@ function validateRelationProjection(fact, entityType, entities, relationMap, sou
     }
 }
 
-function validateDerivation(fact, entityType, entities, relationMap, sourceMap) {
+function validateDerivation(fact, surface, model, relationMap, sourceMap) {
     const derivation = fact.derivation;
     exactKeysWithOptional(derivation, ['operation', 'inputs', 'sourceRef', 'missingInputPolicy', 'materialization'], ['cacheMetadata'], 'ONTOLOGY_V21_DERIVATION_INVALID');
     check(Object.values(DerivationOperation).includes(derivation.operation), 'ONTOLOGY_V21_DERIVATION_OPERATION_FORBIDDEN');
@@ -500,7 +564,7 @@ function validateDerivation(fact, entityType, entities, relationMap, sourceMap) 
     const source = validateSourceRef(derivation.sourceRef, sourceMap);
     check(source.authority === SourceAuthority.DERIVED, 'ONTOLOGY_V21_DERIVED_AUTHORITY_INVALID');
     check(Object.values(MaterializationPolicy).includes(derivation.materialization), 'ONTOLOGY_V21_DERIVATION_INVALID');
-    const inputs = derivation.inputs.map(input => getFactRefTerminal(input, entityType, entities, relationMap, sourceMap, new Set()));
+    const inputs = derivation.inputs.map(input => getFactRefTerminal(input, surface, model, relationMap, sourceMap, new Set()));
     if (derivation.operation === DerivationOperation.COPY) {
         check(inputs.length === 1 && inputs[0].fact.dataType === fact.dataType && unitsCompatible(inputs[0].fact.unit, fact.unit), 'ONTOLOGY_V21_DERIVATION_INPUT_INVALID');
     } else if (derivation.operation === DerivationOperation.SUBTRACT) {
@@ -511,7 +575,7 @@ function validateDerivation(fact, entityType, entities, relationMap, sourceMap) 
     if (derivation.materialization === MaterializationPolicy.MATERIALIZED_CACHE) {
         exactKeys(derivation.cacheMetadata, ['inputRefs', 'sourceRefs', 'freshness', 'contractVersion', 'calculationVersion', 'invalidation'], 'ONTOLOGY_V21_DERIVED_CACHE_INVALID');
         check(Array.isArray(derivation.cacheMetadata.inputRefs) && derivation.cacheMetadata.inputRefs.length > 0, 'ONTOLOGY_V21_DERIVED_CACHE_INVALID');
-        derivation.cacheMetadata.inputRefs.forEach(input => getFactRefTerminal(input, entityType, entities, relationMap, sourceMap, new Set()));
+        derivation.cacheMetadata.inputRefs.forEach(input => getFactRefTerminal(input, surface, model, relationMap, sourceMap, new Set()));
         check(Array.isArray(derivation.cacheMetadata.sourceRefs) && derivation.cacheMetadata.sourceRefs.length > 0, 'ONTOLOGY_V21_DERIVED_CACHE_INVALID');
         derivation.cacheMetadata.sourceRefs.forEach(sourceRef => validateSourceRef(sourceRef, sourceMap));
         ['freshness', 'contractVersion', 'calculationVersion', 'invalidation'].forEach(field => nonEmptyString(derivation.cacheMetadata[field], 'ONTOLOGY_V21_DERIVED_CACHE_INVALID'));
@@ -520,41 +584,55 @@ function validateDerivation(fact, entityType, entities, relationMap, sourceMap) 
     }
 }
 
-function validateDerivationGraph(entities, relationMap, sourceMap) {
+function validateDerivationGraph(model, relationMap, sourceMap) {
     const derivedFacts = new Map();
-    entities.forEach((entity, entityType) => entity.facts.forEach(fact => {
-        if ((fact.valueKind || FactValueKind.DIRECT) === FactValueKind.DERIVED) derivedFacts.set(fact.factId, { fact, entityType });
-    }));
-    const states = new Map();
-    const visit = factId => {
-        if (states.get(factId) === 'VISITING') fail('ONTOLOGY_V21_DERIVATION_CYCLE');
-        if (states.get(factId) === 'VISITED') return;
-        states.set(factId, 'VISITING');
-        const item = derivedFacts.get(factId);
-        item.fact.derivation.inputs.forEach(ref => {
-            const terminal = getFactRefTerminal(ref, item.entityType, entities, relationMap, sourceMap, new Set());
-            if (derivedFacts.has(terminal.fact.factId)) visit(terminal.fact.factId);
+    const keyFor = (entityType, factId) => `${entityType}\u0000${factId}`;
+    model.entities.forEach((entity, entityType) => {
+        entity.baseFacts.forEach(fact => {
+            if ((fact.valueKind || FactValueKind.DIRECT) === FactValueKind.DERIVED) {
+                derivedFacts.set(keyFor(entityType, fact.factId), { fact, surface: baseSurface(entityType) });
+            }
         });
-        states.set(factId, 'VISITED');
+        entity.extensions.forEach((extension, extensionId) => extension.facts.forEach(fact => {
+            if ((fact.valueKind || FactValueKind.DIRECT) === FactValueKind.DERIVED) {
+                derivedFacts.set(keyFor(entityType, fact.factId), { fact, surface: extensionSurface(entityType, extensionId) });
+            }
+        }));
+    });
+    const states = new Map();
+    const visit = key => {
+        if (states.get(key) === 'VISITING') fail('ONTOLOGY_V21_DERIVATION_CYCLE');
+        if (states.get(key) === 'VISITED') return;
+        states.set(key, 'VISITING');
+        const item = derivedFacts.get(key);
+        item.fact.derivation.inputs.forEach(ref => {
+            const terminal = getFactRefTerminal(ref, item.surface, model, relationMap, sourceMap, new Set());
+            const terminalKey = keyFor(terminal.entityType, terminal.fact.factId);
+            if (derivedFacts.has(terminalKey)) visit(terminalKey);
+        });
+        states.set(key, 'VISITED');
     };
-    derivedFacts.forEach((_, factId) => visit(factId));
+    derivedFacts.forEach((_, key) => visit(key));
     return derivedFacts.size;
 }
 
-function validatePolicy(policy, entities, relationMap, sourceMap, roleIds) {
+function validatePolicy(policy, surface, model, relationMap, sourceMap, roleIds) {
     exactKeysWithOptional(policy, ['policyId', 'ownerEntityType', 'factRefs', 'relationIds', 'rules', 'runtimeEnabled'], ['applicableWhen'], 'ONTOLOGY_V21_POLICY_INVALID');
     nonEmptyString(policy.policyId, 'ONTOLOGY_V21_POLICY_INVALID');
-    check(entities.has(policy.ownerEntityType), 'ONTOLOGY_V21_POLICY_INVALID');
+    check(model.entities.has(policy.ownerEntityType) && policy.ownerEntityType === surface.entityType, 'ONTOLOGY_V21_POLICY_INVALID');
     check(Array.isArray(policy.factRefs) && Array.isArray(policy.relationIds) && Array.isArray(policy.rules), 'ONTOLOGY_V21_POLICY_INVALID');
     check(new Set(policy.relationIds).size === policy.relationIds.length, 'ONTOLOGY_V21_POLICY_INVALID');
-    policy.factRefs.forEach(ref => getFactRefTerminal(ref, policy.ownerEntityType, entities, relationMap, sourceMap, roleIds, true));
+    policy.factRefs.forEach(ref => getFactRefTerminal(ref, surface, model, relationMap, sourceMap, roleIds, true));
     policy.relationIds.forEach(id => {
-        const relation = relationMap.get(id);
-        check(relation && relation.sourceEntityType === policy.ownerEntityType, 'ONTOLOGY_V21_POLICY_INVALID');
+        try {
+            assertRelationVisible(model, surface, relationMap, id, policy.ownerEntityType);
+        } catch (error) {
+            fail('ONTOLOGY_V21_POLICY_INVALID');
+        }
     });
     check(policy.rules.length === 0, 'ONTOLOGY_V21_POLICY_RULES_UNSUPPORTED');
     check(policy.runtimeEnabled === false, 'ONTOLOGY_V21_RUNTIME_ISOLATION_REQUIRED');
-    if ('applicableWhen' in policy) validatePredicate(policy.applicableWhen, policy.ownerEntityType, entities, relationMap, sourceMap, roleIds);
+    if ('applicableWhen' in policy) validatePredicate(policy.applicableWhen, surface, model, relationMap, sourceMap, roleIds);
 }
 
 function validateOntologyV21(contract) {
@@ -578,7 +656,8 @@ function validateOntologyV21(contract) {
         });
     });
 
-    const { entities, extensionDeclarations } = createEntityMap(contract.profiles, contract.extensions);
+    const { entities, extensionDeclarations } = createSemanticModel(contract.profiles, contract.extensions);
+    const model = { entities, extensionDeclarations };
     validateExtensionsWithV2Projection(contract, extensionDeclarations);
 
     const relationMap = new Map();
@@ -586,9 +665,6 @@ function validateOntologyV21(contract) {
         check(!relationMap.has(relation.relationId), 'ONTOLOGY_V21_RELATION_DUPLICATE');
         validateRelation(relation, entities, sourceMap, roleIds);
         relationMap.set(relation.relationId, relation);
-    });
-    contract.relations.forEach(relation => {
-        if ('applicableWhen' in relation) validatePredicate(relation.applicableWhen, relation.sourceEntityType, entities, relationMap, sourceMap, roleIds);
     });
 
     const collectionMap = new Map();
@@ -599,7 +675,8 @@ function validateOntologyV21(contract) {
     });
 
     contract.profiles.forEach(profile => {
-        validateOwnerRelations(profile, profile.entityType, relationMap);
+        const surface = baseSurface(profile.entityType);
+        validateOwnerRelations(profile, surface, model, relationMap);
         knowledgeRef(profile.technicalKnowledge, collectionMap, profile.entityType);
         const factIds = new Set(profile.facts.map(fact => fact.factId));
         profile.derivedFactIds.forEach(id => {
@@ -611,37 +688,74 @@ function validateOntologyV21(contract) {
         check(factIds.size === profile.facts.length, 'ONTOLOGY_V21_FACT_DUPLICATE');
     });
     extensionDeclarations.forEach(extension => {
-        validateOwnerRelations(extension, extension.baseEntityType, relationMap);
+        const surface = extensionSurface(extension.baseEntityType, extension.extensionId);
+        validateOwnerRelations(extension, surface, model, relationMap);
         knowledgeRef(extension.technicalKnowledge, collectionMap, extension.baseEntityType);
         if ('sourceRefs' in extension) {
             check(Array.isArray(extension.sourceRefs), 'ONTOLOGY_V21_EXTENSION_FIELDS_INVALID');
             extension.sourceRefs.forEach(ref => validateSourceRef(ref, sourceMap));
         }
-        validatePredicate(extension.applicability, extension.baseEntityType, entities, relationMap, sourceMap, roleIds);
+        // Applicability bootstraps the extension: only the base semantic surface exists here.
+        validatePredicate(extension.applicability, baseSurface(extension.baseEntityType), model, relationMap, sourceMap, roleIds);
     });
 
-    entities.forEach((entity, entityType) => entity.facts.forEach(fact => {
+    contract.relations.forEach(relation => {
+        if ('applicableWhen' in relation) {
+            const entity = entities.get(relation.sourceEntityType);
+            const ownerExtensionId = entity.relationOwners.get(relation.relationId);
+            validatePredicate(
+                relation.applicableWhen,
+                ownerExtensionId === undefined ? baseSurface(relation.sourceEntityType) : extensionSurface(relation.sourceEntityType, ownerExtensionId),
+                model,
+                relationMap,
+                sourceMap,
+                roleIds
+            );
+        }
+    });
+
+    const validateFactsOnSurface = (facts, surface) => facts.forEach(fact => {
         const valueKind = fact.valueKind || FactValueKind.DIRECT;
-        if (valueKind === FactValueKind.RELATION_PROJECTION) validateRelationProjection(fact, entityType, entities, relationMap, sourceMap);
-        if (valueKind === FactValueKind.DERIVED) validateDerivation(fact, entityType, entities, relationMap, sourceMap);
+        if (valueKind === FactValueKind.RELATION_PROJECTION) validateRelationProjection(fact, surface, model, relationMap, sourceMap);
+        if (valueKind === FactValueKind.DERIVED) validateDerivation(fact, surface, model, relationMap, sourceMap);
         ['applicableWhen', 'requiredWhen', 'prohibitedWhen'].forEach(field => {
-            if (field in fact) validatePredicate(fact[field], entityType, entities, relationMap, sourceMap, roleIds);
+            if (field in fact) validatePredicate(fact[field], surface, model, relationMap, sourceMap, roleIds);
         });
-    }));
+    });
+    entities.forEach((entity, entityType) => {
+        validateFactsOnSurface([...entity.baseFacts.values()], baseSurface(entityType));
+        entity.extensions.forEach((extension, extensionId) => validateFactsOnSurface(extension.facts, extensionSurface(entityType, extensionId)));
+    });
 
     const policyIds = new Set();
     contract.policies.forEach(policy => {
         check(!policyIds.has(policy.policyId), 'ONTOLOGY_V21_POLICY_DUPLICATE');
-        validatePolicy(policy, entities, relationMap, sourceMap, roleIds);
         policyIds.add(policy.policyId);
     });
     contract.profiles.forEach(profile => profile.policyIds.forEach(id => check(policyIds.has(id), 'ONTOLOGY_V21_POLICY_REFERENCE_INVALID')));
     extensionDeclarations.forEach(extension => extension.policyIds.forEach(id => check(policyIds.has(id), 'ONTOLOGY_V21_POLICY_REFERENCE_INVALID')));
 
-    const derivedFactCount = validateDerivationGraph(entities, relationMap, sourceMap);
-    const relationProjectionFactCount = [...entities.values()].reduce((count, entity) => count + [...entity.facts.values()]
-        .filter(fact => fact.valueKind === FactValueKind.RELATION_PROJECTION).length, 0);
-    const factCount = [...entities.values()].reduce((count, entity) => count + entity.facts.size, 0);
+    contract.policies.forEach(policy => {
+        const entity = entities.get(policy.ownerEntityType);
+        const ownerExtensionId = entity && entity.policyOwners.get(policy.policyId);
+        check(ownerExtensionId !== undefined, 'ONTOLOGY_V21_POLICY_REFERENCE_INVALID');
+        validatePolicy(
+            policy,
+            extensionSurface(policy.ownerEntityType, ownerExtensionId),
+            model,
+            relationMap,
+            sourceMap,
+            roleIds
+        );
+    });
+
+    const derivedFactCount = validateDerivationGraph(model, relationMap, sourceMap);
+    const allFacts = [...entities.values()].flatMap(entity => [
+        ...entity.baseFacts.values(),
+        ...[...entity.extensions.values()].flatMap(extension => extension.facts),
+    ]);
+    const relationProjectionFactCount = allFacts.filter(fact => fact.valueKind === FactValueKind.RELATION_PROJECTION).length;
+    const factCount = allFacts.length;
     return Object.freeze({
         version: 2,
         contractRevision: OntologyV21ContractRevision,
