@@ -180,7 +180,17 @@ function readOperationFrom(db, step) {
     return { status: 'COMPLETED', receipt: { operationId: receipt.operationId, capabilityId: receipt.capabilityId, status: 'completed', auditIds: receipt.auditIds, completedAt: receipt.completed_at || row[0].completed_at } };
 }
 
-function ownerCookie() { return `token=${issueOwnerToken(OWNER_PASSWORD, process.env)}`; }
+/**
+ * 一个测试文件复用**同一个** Owner 会话（真实浏览器行为）。
+ * 原因：确认凭证绑定登录会话；每次调用都签发新 JWT 时，`iat` 以秒计，
+ * 预览与执行若跨过秒边界就变成"两个会话"，服务端会正确地以
+ * confirmation_subject_mismatch 拒绝执行（那是测试的错，不是产品的错）。
+ */
+let cachedOwnerCookie = null;
+function ownerCookie() {
+    if (!cachedOwnerCookie) cachedOwnerCookie = `token=${issueOwnerToken(OWNER_PASSWORD, process.env)}`;
+    return cachedOwnerCookie;
+}
 function nonOwnerCookie() { return `token=${jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '1h' })}`; }
 async function call(harnessRef, path, { body, cookie, headers = {} } = {}) {
     const response = await fetch(`${harnessRef.baseUrl}${path}`, {

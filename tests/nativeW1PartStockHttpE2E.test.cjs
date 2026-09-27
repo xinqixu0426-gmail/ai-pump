@@ -124,8 +124,13 @@ VALUES(?,?,1,1,2,1,1,'RUNNING','DETACHED',?,?,?,NULL,NULL,NULL,NULL,NULL,?,?,?)`
     return taskKey;
 }
 
+/** 复用同一个 Owner 会话：确认凭证绑定登录会话，跨秒重签会变成另一个会话。 */
+let cachedOwnerCookie = null;
 function ownerCookie() {
-    return `token=${issueOwnerToken(OWNER_PASSWORD, { ACCESS_PASSWORD, JWT_SECRET, PUMP_OWNER_ACCESS_PASSWORD: OWNER_PASSWORD, PUMP_OWNER_SUBJECT: OWNER_SUBJECT, AI_V5_OWNER_SUBJECTS: JSON.stringify([OWNER_SUBJECT]) })}`;
+    if (!cachedOwnerCookie) {
+        cachedOwnerCookie = `token=${issueOwnerToken(OWNER_PASSWORD, { ACCESS_PASSWORD, JWT_SECRET, PUMP_OWNER_ACCESS_PASSWORD: OWNER_PASSWORD, PUMP_OWNER_SUBJECT: OWNER_SUBJECT, AI_V5_OWNER_SUBJECTS: JSON.stringify([OWNER_SUBJECT]) })}`;
+    }
+    return cachedOwnerCookie;
 }
 
 async function post(baseUrl, url, { body, cookie, headers = {} } = {}) {
