@@ -300,8 +300,8 @@ test('baseline Coil lift, synthetic Base-only world, independent extensions and 
     assert.doesNotThrow(() => validateOntologyV21(ontologyV21));
     assert.doesNotThrow(() => validateOntologyV21(makeSyntheticWorld({ includeExtensions: false })));
     const result = validateOntologyV21(makeSyntheticWorld());
-    assert.equal(result.extensionCount, 2);
-    assert.equal(result.relationCount, 5);
+    assert.equal(result.extensionCount, 3);
+    assert.equal(result.relationCount, 6);
     assert.equal(result.policyCount, 1);
     assert.equal(result.technicalKnowledgeTypeCount, 1);
 });

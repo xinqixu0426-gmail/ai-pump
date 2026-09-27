@@ -188,13 +188,13 @@ test('current V2 and lifted V2.1 Coil contracts remain independently valid', () 
     assert.deepEqual(validateOntologyV21(ontologyV21), {
         version: 2,
         contractRevision: '2.1',
-        sourceCount: 7,
-        profileCount: 1,
-        extensionCount: 0,
-        relationCount: 0,
+        sourceCount: 12,
+        profileCount: 3,
+        extensionCount: 1,
+        relationCount: 1,
         policyCount: 0,
         technicalKnowledgeTypeCount: 0,
-        factCount: 28,
+        factCount: 39,
         derivedFactCount: 0,
         relationProjectionFactCount: 0,
         runtimeEnabled: false,
@@ -241,9 +241,9 @@ test('synthetic Base, extension, relation, projections, predicates, derivations,
     });
     alpha.policyIds.push('alpha.synthetic_policy');
     const result = validateOntologyV21(contract);
-    assert.equal(result.profileCount, 3);
-    assert.equal(result.extensionCount, 1);
-    assert.equal(result.relationCount, 1);
+    assert.equal(result.profileCount, 5);
+    assert.equal(result.extensionCount, 2);
+    assert.equal(result.relationCount, 2);
     assert.equal(result.policyCount, 1);
     assert.equal(result.technicalKnowledgeTypeCount, 1);
     assert.equal(result.derivedFactCount, 3);

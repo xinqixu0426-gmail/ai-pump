@@ -49,8 +49,8 @@ test('V2.1 is an immutable, separately addressed contract-only lift', () => {
     assert.equal(ontologyV21.isBusinessSourceOfTruth, false);
     assert.equal(ontologyV21.access, 'CONTRACT_ONLY_NO_RUNTIME');
     assert.equal(Object.isFrozen(ontologyV21), true);
-    assert.deepEqual(ontologyV21.extensions, []);
-    assert.deepEqual(ontologyV21.relations, []);
+    assert.deepEqual(ontologyV21.extensions.map(extension => extension.extensionId), ['part.pump_shell']);
+    assert.deepEqual(ontologyV21.relations.map(relation => relation.relationId), ['template.uses_shell_part']);
     assert.deepEqual(ontologyV21.policies, []);
     assert.deepEqual(ontologyV21.technicalKnowledgeTypes, []);
 });
@@ -81,9 +81,12 @@ test('V2.1 adds only the approved declarative role and provenance-purpose vocabu
     assert.deepEqual(Object.values(ProvenancePurpose), [
         'CURRENT_RESOURCE', 'RELATION_PROJECTION', 'PRESET_INITIALIZATION', 'COMPATIBILITY_ADAPTER', 'KNOWLEDGE_METADATA',
     ]);
-    ontologyV21.sources.forEach(source => {
+    ontologyV2.sources.forEach(source => {
+        const liftedSource = ontologyV21.sources.find(item => item.sourceId === source.sourceId);
+        assert.equal(liftedSource.provenancePurpose, ProvenancePurpose.CURRENT_RESOURCE);
+    });
+    ontologyV21.sources.filter(source => ontologyV2.sources.some(v2Source => v2Source.sourceId === source.sourceId)).forEach(source => {
         assert.equal(source.provenancePurpose, ProvenancePurpose.CURRENT_RESOURCE);
-        assert.ok(ontologyV2.sources.some(v2Source => v2Source.sourceId === source.sourceId));
     });
 });
 
