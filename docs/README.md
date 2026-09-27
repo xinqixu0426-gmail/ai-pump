@@ -120,6 +120,8 @@ API 文档按用途归为四类，禁止再新建内容重叠的“API 说明”
 
 配方是一台产品的完整 BOM 与成本快照，包含：
 
+> Canonical 技术档案 API 已作为独立、尚未切换运行时的存储入口提供：`GET/PUT /api/recipes/:id/technical-profile` 只读写 Recipe 的新 Functional Technical Profile 与 Technical Knowledge 资源，不回退或覆盖旧 `technical_data_json`，也不影响当前 Rotor、BOM、成本或 AI 写入边界。接口、版本并发和审计契约见 [API 接口总表](api-reference.md#8-配方-recipes)。
+
 - 模板固定配件、额外配件；
 - 线圈俗称/标准直径、片数、材质和槽眼；
 - 浮球线径/铜套类型、电缆长度/线径/铜套类型；

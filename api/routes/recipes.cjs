@@ -31,6 +31,10 @@ const {
 const {
     createRecipeQueries,
 } = require('../services/recipeQueries.cjs');
+const {
+    createRecipeTechnicalProfileService,
+    UPDATE_CAPABILITY_ID: RECIPE_TECHNICAL_PROFILE_UPDATE_CAPABILITY_ID,
+} = require('../services/recipeTechnicalProfile.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -46,6 +50,7 @@ const recipeQueries = createRecipeQueries({
     templateRow,
     getSetting,
 });
+const recipeTechnicalProfileService = createRecipeTechnicalProfileService({ db });
 
 function recipeCommandDependencies() {
     return {
@@ -183,6 +188,32 @@ router.get('/:id/technical-files', (req, res) => {
     } catch (error) {
         if (error.statusCode) return sendCommandError(res, error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// This canonical endpoint is intentionally independent from GET /:id and the
+// legacy Recipe command routes. It reads only the new Recipe-owned tables.
+router.get('/:id/technical-profile', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            data: recipeTechnicalProfileService.get(req.params.id),
+        });
+    } catch (error) {
+        sendRecipeQueryError(res, error);
+    }
+});
+
+router.put('/:id/technical-profile', (req, res) => {
+    try {
+        const result = recipeTechnicalProfileService.update(
+            req.params.id,
+            req.body || {},
+            commandContextFromRequest(req, RECIPE_TECHNICAL_PROFILE_UPDATE_CAPABILITY_ID)
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
     }
 });
 

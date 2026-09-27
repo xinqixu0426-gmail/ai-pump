@@ -1372,6 +1372,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'internal']),
     }),
+    'recipes.technical_profile.get': defineQueryCapability({
+        capabilityId: 'recipes.technical_profile.get',
+        domain: 'recipe',
+        inputSchema: 'GET /api/recipes/:id/technical-profile',
+        outputSchema: 'RecipeTechnicalProfileV1 canonical-only aggregate DTO',
+        sourceOfTruth: 'recipe_functional_technical_profiles+recipe_technical_knowledge+recipes+pump_shell_templates+catalog_template_shell_bindings+parts',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'customers.list': defineQueryCapability({
         capabilityId: 'customers.list',
         domain: 'customer',
@@ -1586,6 +1595,16 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         supportsPreview: true,
         previewPath: '/api/recipes/:id/delete-preview',
         concurrencyControl: 'expectedUpdatedAt+confirmationToken_bound_delete_preview',
+    }),
+    'recipes.technical_profile.update': defineBusinessCapability({
+        capabilityId: 'recipes.technical_profile.update',
+        domain: 'recipe',
+        inputSchema: 'PUT /api/recipes/:id/technical-profile { functional, technicalKnowledge:{items}, expectedUpdatedAt? }',
+        outputSchema: 'CommandReceipt<RecipeTechnicalProfileV1>',
+        sourceOfTruth: 'recipe_functional_technical_profiles+recipe_technical_knowledge+formal_recipe_template_shell_part_relation',
+        riskLevel: 'high',
+        supportsPreview: false,
+        concurrencyControl: 'expectedUpdatedAt',
     }),
     'recipes.technical_files.upload': defineBusinessCapability({
         capabilityId: 'recipes.technical_files.upload',
