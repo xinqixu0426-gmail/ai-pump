@@ -4,25 +4,30 @@
 
 ## Design decision
 
-The recommended future model is **Option 3: a dedicated structured Recipe Technical Profile / child resource**, owned one-to-one by `Recipe`, with explicit typed facts, relation IDs, provenance and derived-value declarations.
+The recommended future model is a **two-domain Recipe technical design**: a one-to-one structured **Recipe Functional Technical Profile** for typed facts, relation IDs, applicability and derived declarations; and a separate flexible **Recipe Technical Knowledge** collection for memo/evidence information.
 
 It is preferred over keeping `technical_data_json` canonical because Rotor Drawing values have stable engineering meaning, need validation/provenance/relations, and currently overlap dedicated Recipe columns. It is preferred over adding more columns to `recipes` because technical fields will evolve independently from BOM/cost/lifecycle fields and need a coherent identity/provenance boundary.
 
-`recipes` remains the aggregate/product record. Existing dedicated fields and `technical_data_json` become migration/compatibility sources or projections until retired; they are not parallel authorities.
+`recipes` remains the aggregate/product record. Existing dedicated fields and `technical_data_json` become migration/compatibility sources or projections until retired; they are not parallel authorities. Flexible knowledge must not be forced into the rigid functional profile merely because it currently shares a JSON object or a dedicated Recipe column.
 
-## Target Recipe Technical Profile
+## Target Recipe semantic structure
 
 ```text
 Recipe (recipe.id)
   ├── uses_template → Template
   ├── uses_coil → Coil
   ├── uses_model_variant_preset → ModelVariant (optional provenance)
-  └── has_technical_profile → RecipeTechnicalProfile
-        ├── independent Technical Facts
+  ├── has_functional_technical_profile → RecipeFunctionalTechnicalProfile
+        ├── independent Functional Technical Facts
         ├── relation-backed Facts
         ├── Derived Technical Facts
         ├── applicability rules
         └── provenance / compatibility status
+  └── has_technical_knowledge → RecipeTechnicalKnowledge
+        ├── flexible key/value technical memos
+        ├── test/performance metadata
+        ├── engineering/customer notes
+        └── evidence/file relations and searchable projection
 ```
 
 ### Identity and relations
@@ -36,7 +41,7 @@ Recipe (recipe.id)
 | `uses_upper_bearing` / `uses_lower_bearing` | formal technical Part relations; concrete supplier/catalog selection | migrate current string JSON only after identity resolution |
 | test reports | supporting evidence relation | existing Recipe technical-file relation, not a technical Fact |
 
-Upper/lower bearing are frozen as formal Recipe-to-Part relations: `Recipe --uses_upper_bearing--> Part(category=轴承)` and `Recipe --uses_lower_bearing--> Part(category=轴承)`. The Part's `id` is canonical; `轴承-202` is a designation/display projection. This is not conditional on whether a current record happens to contain a formal Part ID—legacy records need an adapter or explicit repair, rather than redefining their strings as canonical identity. Oil-seal diameter remains a dimension Fact unless a separate formal oil-seal selection is intentionally introduced. Impeller model remains a string/designation Fact until the product decides it must identify a formal catalog Part.
+Upper/lower bearing are frozen as formal Recipe-to-Part relations: `Recipe --uses_upper_bearing--> Part(category=轴承)` and `Recipe --uses_lower_bearing--> Part(category=轴承)`. The Part's `id` is canonical; `轴承-202` is a designation/display projection. This is not conditional on whether a current record happens to contain a formal Part ID—legacy records need an adapter or explicit repair, rather than redefining their strings as canonical identity. Oil-seal diameter remains a dimension Fact unless a separate formal oil-seal selection is intentionally introduced. `impellerModel` is frozen as `TECHNICAL_KNOWLEDGE`, never a Part relation or functional Fact.
 
 ## Bearing relation correction — target adapter and geometry model
 
@@ -78,8 +83,6 @@ Current `BEARING_DB` is the hard-coded geometry lookup in `api/services/rotorPar
 | `impellerSpan` | when rotor drawing applies | independent dimension |
 | `impellerThickness` | when rotor drawing applies | one fact; replaces competing JSON/column authority |
 | `threadLength`, `threadDiameter` | when rotor drawing applies | independent dimensions |
-| `impellerModel`, `impellerOutsideDiameter`, `impellerBladeCount` | when business requires them | Recipe technical/configuration facts; not current Rotor Draft inputs |
-| performance/electrical/test fields | their own applicable domains | do not imply Rotor Drawing relevance |
 
 ### Derived Technical Facts
 
@@ -90,6 +93,14 @@ Current `BEARING_DB` is the hard-coded geometry lookup in `api/services/rotorPar
 | FC bearing depths/core length/total length | Rotor Drawing parameter construction from selected bearing + final dimensions | Rotor Drawing projection, not independent Recipe facts |
 
 Materializing a derived value for performance is permissible only when marked `DERIVED`, includes input/version provenance, is invalidated when inputs change, and is never used as an independent override.
+
+## Technical Knowledge — flexible, readable, non-functional
+
+Recipe Technical Knowledge is an intentionally extensible collection rather than a fixed functional field inventory. Its current confirmed content includes `rotorLength`, `shaftDiameter`, `impellerModel`, `impellerDiameter` (outside diameter), `impellerBladeCount`, `power`, `voltage`, `current`, `frequency`, `testReportNo`, `testDate`, `testSummary`, and arbitrary custom technical fields. It may be displayed, searched, indexed, summarized by AI, associated with files, and changed as engineering documentation evolves.
+
+It must not automatically drive Rotor Drawing, BOM, cost, Part selection, identity, requiredness, policy execution, or writes. `impellerDiameter` remains distinct from functional `impellerBoreDiameter`; current source audit found no functional consumer for the former. `impellerThickness` is not Knowledge: it is the single functional Rotor thickness Fact, despite its current duplicate storage as `recipes.impeller_thickness` and `technical_data_json.impellerDepth`.
+
+The default rule for future technical fields is `TECHNICAL_KNOWLEDGE`. Adding, removing, renaming, or assigning a unit to such a field must be data-driven and require no Ontology validator, dispatcher, task-controller, semantic-router, or entity-parser change. A knowledge item becomes functional only after an explicit business decision declares its functional role, source, validation, and compatibility/migration path; neither AI inference nor a field name can promote it.
 
 ## Stainless / non-stainless conditional policy
 
@@ -111,17 +122,26 @@ PumpShell.isStainless = false
 
 | 业务概念 | 当前存储 | 当前输入来源 | 当前 Rotor 使用方式 | 目标权威 | 类型 | 是否重复 | 后续动作 |
 |---|---|---|---|---|---|---:|---|
-| upper/lower bearing | technical JSON strings | static Rotor-code selector; Template/Shell fallback | Recipe JSON highest | Recipe→concrete Part relation | `RELATION` | Yes | resolve/migrate safe IDs; retain code only as compatibility projection |
-| piece count | coil sheets + technical JSON | UI auto-copy | Rotor reads JSON | Recipe Coil configuration | `DERIVED_FROM_RELATION` | Yes | remove independent authority |
-| rotor diameter | technical JSON | user/legacy Template | Rotor JSON map | Recipe profile | `AUTHORITATIVE_FACT` | No direct column | migrate value |
-| bearing span | JSON plus formula/fallbacks | user or Shell offset formula | JSON overrides | Recipe fact or derived fact by mode | `AUTHORITATIVE_FACT` / `DERIVED_FACT` | Yes | split conditional policy |
-| stack / oil-seal / bore / span / thread | technical JSON plus legacy sources | user/compatibility | JSON map | Recipe profile | `AUTHORITATIVE_FACT` | Yes across legacy | migrate source provenance |
-| impeller thickness | column + JSON | user/Variant | JSON then column fallback | Recipe profile `impellerThickness` | `AUTHORITATIVE_FACT` | Yes | consolidate one fact |
-| impeller model/outside diameter/blades | dedicated columns | user/Variant | not in current Rotor map | Recipe profile | `AUTHORITATIVE_FACT` | No JSON fixed key | retain as profile facts if business needs |
-| barrel length | Recipe column + Variant | user/Variant | formula and BOM/cost | Recipe profile | `AUTHORITATIVE_FACT` | Yes across preset | migrate column value |
-| open offset | Shell remark | Shell UI/legacy | formula source | Recipe profile | `AUTHORITATIVE_FACT` | Yes legacy alias | add only in future migration |
+| upper/lower bearing | technical JSON strings | static Rotor-code selector; Template/Shell fallback | Recipe JSON highest | Recipe→concrete Part relation | `RELATION_BACKED_FACT` | Yes | resolve/migrate safe IDs; retain code only as compatibility projection |
+| piece count | coil sheets + technical JSON | UI auto-copy | Rotor reads JSON | Recipe Coil configuration | `DERIVED_FUNCTIONAL_FACT` | Yes | remove independent authority |
+| rotor diameter | technical JSON | user/legacy Template | Rotor JSON map | Functional Technical Profile | `FUNCTIONAL_AUTHORITATIVE_FACT` | No direct column | migrate value |
+| bearing span | JSON plus formula/fallbacks | user or Shell offset formula | JSON overrides | explicit non-stainless Fact; stainless derived Fact | `FUNCTIONAL_AUTHORITATIVE_FACT` / `DERIVED_FUNCTIONAL_FACT` | Yes | split conditional policy |
+| stack / oil-seal / bore / span / thread | technical JSON plus legacy sources | user/compatibility | JSON map | Functional Technical Profile | `FUNCTIONAL_AUTHORITATIVE_FACT` | Yes across legacy | migrate source provenance |
+| impeller thickness | column + JSON | user/Variant | JSON then column fallback | Functional Profile `impellerThickness` | `FUNCTIONAL_AUTHORITATIVE_FACT` | Yes | consolidate one fact |
+| impeller model/outside diameter/blades | dedicated columns | user/Variant | not in current Rotor/BOM/cost map | Recipe Technical Knowledge | `TECHNICAL_KNOWLEDGE` | No JSON fixed key | preserve as flexible knowledge, not profile facts |
+| barrel length | Recipe column + Variant | user/Variant | formula and BOM/cost | Functional Profile | `FUNCTIONAL_AUTHORITATIVE_FACT` plus BOM configuration use | Yes across preset | migrate column value |
+| open offset | Shell remark | Shell UI/legacy | formula source | Functional Profile | `FUNCTIONAL_AUTHORITATIVE_FACT` | Yes legacy alias | add only in future migration |
 
 ## Recommended storage architecture
+
+### Functional-profile versus knowledge split
+
+| Domain | Canonical semantic storage recommendation | Search/index role |
+|---|---|---|
+| Functional Technical Profile | one Recipe-owned structured child resource with typed functional facts, canonical relation IDs, applicability, derivations, and provenance | may be projected to Knowledge, but the profile remains the only functional source of truth |
+| Technical Knowledge | Recipe-owned extensible structured metadata collection plus formal technical-file/evidence relations | project to `knowledge_entries` / FTS / vector retrieval for AI-readable search and summaries |
+
+The existing knowledge system already builds Recipe entries from `technicalDataJson` and `recipe_technical_files` and rebuilds FTS from `knowledge_entries`. It is suited to a derived search projection. It cannot be the canonical operational store: search indexes are not complete, strongly typed, transactionally aligned functional configuration, and must never be used to drive a drawing or cost decision.
 
 ### Options evaluated
 
@@ -129,10 +149,10 @@ PumpShell.isStainless = false
 |---|---|
 | 1. Keep canonical `technical_data_json` | lowest migration cost, but weak typing, ambiguous keys/custom fields, no formal relation/provenance boundary, and already overlaps columns |
 | 2. Add dedicated columns to `recipes` | good SQL typing for a stable small set, but couples evolving technical profile to BOM/cost aggregate and encourages another partial column/JSON split |
-| 3. Dedicated structured technical-profile child resource | **recommended**: coherent validation, typed facts, relation IDs, provenance, derived declarations, extensibility and a single Rotor input boundary |
-| 4. Hybrid strict ownership | viable only if “technical profile child resource is canonical; existing Recipe columns/JSON are temporary projections.” Otherwise it preserves duplicate authority |
+| 3. Dedicated structured functional-profile child resource | **recommended for functional data**: coherent validation, typed facts, relation IDs, provenance, derived declarations, extensibility and a single Rotor input boundary |
+| 4. Hybrid strict ownership | recommended only as the two-domain model: functional child profile is canonical; flexible Recipe Technical Knowledge has its own non-functional ownership; existing columns/JSON are temporary projections. Otherwise it preserves duplicate authority |
 
-The selected Option 3 may physically use typed child fields plus a controlled extensible fact collection, but its semantic rule is strict: each business concept has one profile-owned authority. Any duplicated aggregate column is a projection/cache with explicit provenance only.
+The selected two-domain model may physically use typed functional child fields plus a controlled extensible knowledge collection, but its semantic rule is strict: each functional business concept has one profile-owned authority. Any duplicated aggregate column is a projection/cache with explicit provenance only; technical memo fields do not become profile facts simply because they are stored nearby.
 
 ### `openOffset` future representation
 
@@ -175,6 +195,8 @@ Every final or projected technical value should declare one of:
 
 For bearings, compatibility provenance additionally records the legacy source (`Recipe JSON code`, `PumpShell display default`, or `Template name heuristic`) and the resolution result. A successfully resolved Part relation becomes `RELATION_RESOLVED`; an ambiguous same-designation/supplier set remains `UNRESOLVED` until a concrete `parts.id` is chosen.
 
+For Technical Knowledge, provenance says what document, user entry, legacy field, preset, or file supplied the information, but never upgrades that information into a functional authority. AI-facing wording must distinguish “技术资料记录显示 X” from “正式功能配置为 X”.
+
 ## Option A retirement plan — PumpShell technical fields
 
 1. Define the Recipe Technical Profile and final completeness policy; no runtime switch yet.
@@ -204,6 +226,7 @@ The desired semantics fit V2 concepts—Identity, Facts, Relations, Sources, Der
 4. Relation-backed Fact declarations with canonical relation identity and display projection.
 5. Derived Fact declaration with input provenance, invalidation and non-authoritative materialization semantics.
 6. Compatibility-source policy that cannot silently outrank final facts.
+7. Generic Technical Knowledge collection: arbitrary fields with provenance and searchable/readable projection, but no automatic functional authority or field-specific validator changes.
 
 No Recipe-specific validator code should be introduced; these are generic contract capabilities.
 
