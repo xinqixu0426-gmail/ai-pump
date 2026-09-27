@@ -33,10 +33,36 @@ Recipe (recipe.id)
 | `uses_template` | normal material/configuration structure | `recipes.template_id` |
 | `uses_coil` | formal Coil relation | `recipes.coil_id` |
 | `preset_origin` | optional initialization provenance, not authority | `recipes.model_variant_id` |
-| `uses_upper_bearing` / `uses_lower_bearing` | formal technical Part relations | migrate current string JSON only after identity resolution |
+| `uses_upper_bearing` / `uses_lower_bearing` | formal technical Part relations; concrete supplier/catalog selection | migrate current string JSON only after identity resolution |
 | test reports | supporting evidence relation | existing Recipe technical-file relation, not a technical Fact |
 
-Upper/lower bearing should become relations where a selected formal Part exists. Oil-seal diameter remains a dimension Fact unless a separate formal oil-seal selection is intentionally introduced. Impeller model remains a string/designation Fact until the product decides it must identify a formal catalog Part.
+Upper/lower bearing are frozen as formal Recipe-to-Part relations: `Recipe --uses_upper_bearing--> Part(category=轴承)` and `Recipe --uses_lower_bearing--> Part(category=轴承)`. The Part's `id` is canonical; `轴承-202` is a designation/display projection. This is not conditional on whether a current record happens to contain a formal Part ID—legacy records need an adapter or explicit repair, rather than redefining their strings as canonical identity. Oil-seal diameter remains a dimension Fact unless a separate formal oil-seal selection is intentionally introduced. Impeller model remains a string/designation Fact until the product decides it must identify a formal catalog Part.
+
+## Bearing relation correction — target adapter and geometry model
+
+The current Rotor strings (`6201`, `6202`, `6203`, `6204`, `6205`, `6303`, `6304`) are `LEGACY_ROTOR_BEARING_CODE` values. `6202` is not a second bearing identity beside catalog Part `轴承-202`; it is a compatibility projection used by the present Rotor implementation. Any conversion between the designation's three-digit catalog code and a 62xx/63xx Rotor code is an adapter concern only.
+
+```text
+CURRENT
+Recipe upperBearing = "6202"
+        ↓ normalizeBearing()
+BEARING_DB["6202"]
+        ↓
+Rotor dimensions
+
+TARGET
+Recipe
+        ↓ uses_upper_bearing / uses_lower_bearing
+Part #X (for example, designation 轴承-202)
+        ↓ formal bearing technical projection
+shared bearing specification / reference engineering data
+        ↓
+Rotor dimensions
+```
+
+The recommended semantic owner of geometry is a **bearing specification profile / reference engineering catalog shared by compatible Parts**, rather than a Part-ID-specific copy. A Recipe still selects one concrete Part ID, so two suppliers' `轴承-202` records remain distinct material relations while projecting the same shared geometry when appropriate. The specification layer is engineering reference data, not a replacement canonical business entity and not a reason to make `6202` canonical.
+
+Current `BEARING_DB` is the hard-coded geometry lookup in `api/services/rotorParameters.cjs`; it is not a business identity authority. Future work must establish the formal mapping from a bearing Part to its engineering specification. Until then, compatibility adapters may normalize legacy text/code only to resolve a **unique** selected Part. Ambiguous text/model matches must require an explicit Part selection; they must not silently choose a supplier or catalog record.
 
 ### Independent authoritative Recipe Technical Facts
 
@@ -85,7 +111,7 @@ PumpShell.isStainless = false
 
 | 业务概念 | 当前存储 | 当前输入来源 | 当前 Rotor 使用方式 | 目标权威 | 类型 | 是否重复 | 后续动作 |
 |---|---|---|---|---|---|---:|---|
-| upper/lower bearing | technical JSON strings | Recipe selector; Template/Shell fallback | Recipe JSON highest | Recipe→Part relation | `RELATION` | Yes | resolve/migrate safe IDs |
+| upper/lower bearing | technical JSON strings | static Rotor-code selector; Template/Shell fallback | Recipe JSON highest | Recipe→concrete Part relation | `RELATION` | Yes | resolve/migrate safe IDs; retain code only as compatibility projection |
 | piece count | coil sheets + technical JSON | UI auto-copy | Rotor reads JSON | Recipe Coil configuration | `DERIVED_FROM_RELATION` | Yes | remove independent authority |
 | rotor diameter | technical JSON | user/legacy Template | Rotor JSON map | Recipe profile | `AUTHORITATIVE_FACT` | No direct column | migrate value |
 | bearing span | JSON plus formula/fallbacks | user or Shell offset formula | JSON overrides | Recipe fact or derived fact by mode | `AUTHORITATIVE_FACT` / `DERIVED_FACT` | Yes | split conditional policy |
@@ -134,7 +160,7 @@ Recipe ID
   → project validated Rotor Drawing parameters
 ```
 
-It must not scan Template params, ModelVariant values, PumpShell defaults or name heuristics for a completed Recipe. Those sources can exist only before profile finalization or for an explicitly labelled old-record compatibility adapter.
+It must not scan Template params, ModelVariant values, PumpShell defaults or name heuristics for a completed Recipe. In particular, it must not treat a Recipe text value such as `6202` as the selected bearing's identity. Those sources can exist only before profile finalization or for an explicitly labelled old-record compatibility adapter.
 
 ## Provenance model
 
@@ -146,6 +172,8 @@ Every final or projected technical value should declare one of:
 - `PRESET_INITIALIZATION`: ModelVariant copied into unsaved/new Recipe; after save the Recipe value becomes `RECIPE_EXPLICIT` or provenance retains both origin and confirmation.
 - `COMPATIBILITY_LEGACY`: read from old Recipe JSON, old Template params or old PumpShell fields.
 - `UNRESOLVED`: legacy record lacks enough authoritative source data; Rotor Drawing must not silently promote a fallback.
+
+For bearings, compatibility provenance additionally records the legacy source (`Recipe JSON code`, `PumpShell display default`, or `Template name heuristic`) and the resolution result. A successfully resolved Part relation becomes `RELATION_RESOLVED`; an ambiguous same-designation/supplier set remains `UNRESOLVED` until a concrete `parts.id` is chosen.
 
 ## Option A retirement plan — PumpShell technical fields
 

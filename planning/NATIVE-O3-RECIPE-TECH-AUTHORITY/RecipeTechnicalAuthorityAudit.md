@@ -1,6 +1,6 @@
 # Recipe Technical Authority / Rotor Drawing Source-of-Truth Audit
 
-> Status: audit/design only. Baseline `99546c0142ac1a2f76769b63d125efe62028075e`. No business DB was read or written. Owner decisions define target business truth; code below documents current storage and compatibility behaviour.
+> Status: audit/design only. R1 bearing-relation correction reviewed from baseline `eeb5a8868b0613ed30425f95a4cec10344aa543a`. No business DB was read or written. Owner decisions define target business truth; code below documents current storage and compatibility behaviour.
 
 ## Current storage inventory
 
@@ -69,6 +69,49 @@ The UI converts unknown JSON keys into custom fields for display (`technical-dat
 | coil | `coil_id` plus snapshot dimensions | formal relation exists; dimensions can drift as snapshots | `Recipe --uses_coil--> Coil` plus explicitly labelled configured/snapshot facts |
 | Template / Variant | IDs | formal relations exist | Template is structure relation; ModelVariant is preset provenance, not final authority |
 
+## Bearing relation correction — business identity versus legacy Rotor code
+
+Owner has corrected the earlier ambiguity: a bearing selected by a Recipe is a **concrete Part catalog record**, not a Rotor code. `parts.id` is its canonical identity. `轴承-202` is a catalog designation/display value; `6202` is only the legacy Rotor representation used by the current drawing path.
+
+### Verified current conversion chain
+
+```text
+CURRENT
+Recipe technical_data_json.upperBearing = "6202"
+        ↓ normalizeBearing()
+legacy Rotor code "6202"
+        ↓ BEARING_DB["6202"]
+hard-coded diameter/depth projection for Rotor Drawing
+
+Catalog Part #X, model "轴承-202"
+        ↓ bearingCodeOf()
+catalog code "202"
+        ↓ (legacy Rotor adapter: three digits gain leading "6")
+legacy Rotor code "6202"
+```
+
+Evidence: `apps/web-next/lib/rotor.ts:95` supplies the current code-only selector; `apps/web-next/components/technical-data-editor.tsx:355-362` persists that selection into Recipe technical JSON; `api/services/rotorParameters.cjs:1-9,70-81,190-210` normalizes and looks up the geometry. `api/services/catalogSpec.cjs:15-19` reads `naming.spec.code` for bearing catalog Parts and strips a leading `6` from legacy four-digit codes. `api/services/catalogNamingCandidates.cjs:8-14` proposes `轴承-<three-digit-code>` for historical numeric bearing names.
+
+The currently supported `BEARING_DB` keys are `6201`, `6202`, `6203`, `6204`, `6205`, `6303`, and `6304`. Under the verified catalog convention they project respectively to designations `轴承-201`, `轴承-202`, `轴承-203`, `轴承-204`, `轴承-205`, `轴承-303`, and `轴承-304`. This is a naming/adapter convention—not proof that a Rotor code is a separate business entity or that a matching catalog Part exists for every code.
+
+### Current versus target bearing model
+
+| Concern | Current implementation | Target business authority |
+|---|---|---|
+| Recipe upper/lower bearing storage | `technical_data_json.upperBearing/lowerBearing` strings from a static 62xx/63xx selector | `Recipe --uses_upper_bearing--> Part` and `Recipe --uses_lower_bearing--> Part` |
+| Canonical identity | absent from the Recipe bearing strings | concrete `parts.id` |
+| Business designation | may be normalized from text such as `轴承-202` | Part model/naming projection, never canonical ID |
+| Rotor code | `normalizeBearing()` returns a 62xx/63xx string | `LEGACY_ROTOR_BEARING_CODE` compatibility projection only |
+| Geometry source | hard-coded `BEARING_DB` diameter/depth constants | a shared bearing-specification/reference-engineering projection resolved from the selected Part |
+
+`BEARING_DB` is therefore current **engineering reference data**, not a business identity authority. The inspected Part schema, catalog naming profile, and Recipe JSON do not provide a formal Part-owned bearing geometry source to the Rotor path today. No assertion is made that the constants are the only occurrence of those dimensions elsewhere; the conclusion is limited to the current Rotor conversion path.
+
+### Concrete supplier Part versus shared engineering specification
+
+A Recipe must bind the concrete selected catalog Part ID even when two active Parts share `轴承-202` but have different suppliers. Supplier/material selection is a business relation and cannot safely be recovered from `202` or `6202`. Their common engineering dimensions should instead be owned by a shared bearing specification profile or reference engineering catalog, which the selected Part can project to. That shared specification is not a second business canonical identity and must not reclassify `6202` as one.
+
+`partCatalogReferences.cjs:4-21` already demonstrates the distinction for historical PumpShell defaults: an explicit `default*BearingPartId` is checked as one active bearing Part; a text-only value is resolved by catalog code only if exactly one candidate exists. The Rotor fallback still reads the display string and normalizes it, so both PumpShell defaults and Template part-name heuristics remain compatibility/transitional sources—not Recipe authority.
+
 ## Derived fact audit
 
 | Derived concept | Current behaviour | Target classification |
@@ -76,7 +119,7 @@ The UI converts unknown JSON keys into custom fields for display (`technical-dat
 | stainless `bearingSpan` | UI computes `customBarrelLength - Shell openOffset` and writes JSON; server repeats formula then JSON may override | `DERIVED_FACT` from Recipe barrelLength/openOffset. Current JSON value is materialized compatibility/cache, not a second authority |
 | non-stainless `bearingSpan` | current fallback chain may supply it | explicit Recipe Technical Fact; no length/offset derivation |
 | `pieceCount` | recipe drawer copies `coilSheets` into JSON every open cycle | `DERIVED_FROM_RELATION` / Recipe Coil configuration; JSON copy is projection/cache |
-| Rotor FC values | `buildFcParams()` derives bearing depths from fixed bearing catalogue, core length from piece count, total length from components | Rotor Drawing projection/derived output, not separate Recipe Facts unless a business decision says otherwise |
+| Rotor FC values | `buildFcParams()` derives bearing depths from fixed legacy `BEARING_DB`, core length from piece count, total length from components | Rotor Drawing projection/derived output. Future bearing geometry is projected after resolving the selected bearing Part relation, not from a Recipe code string |
 
 Evidence: `recipes-view.tsx:1100-1131`; `rotorTemplateDraft.cjs:194-217`; `rotorParameters.cjs:181-271`.
 
@@ -165,3 +208,5 @@ Rotor Drawing
 ## Legacy status
 
 By Owner Option A, all historical PumpShell technical fields except `isStainless` are **COMPATIBILITY ONLY**. They are not approved prefill for new Recipes. `pump_shell_templates.rotor_params_json` is also transitional/compatibility only. The target new-Recipe path must initialize technical authority from explicit user input, approved ModelVariant preset, or Recipe clone—not old Shell/Template rotor data.
+
+The same rule applies to current Rotor bearing representations: Recipe JSON `upperBearing/lowerBearing`, static `bearingOptions`, `BEARING_DB`, PumpShell display-name defaults, and Template name heuristics are compatibility implementation layers. They must not become future bearing business identity or prefill authority for a newly created Recipe. A legacy record may be adapted only when its bearing text/code resolves safely to one concrete catalog Part; ambiguous cases require explicit selection rather than guessing.
