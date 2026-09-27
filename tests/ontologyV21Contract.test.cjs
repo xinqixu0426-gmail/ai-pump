@@ -50,9 +50,11 @@ test('V2.1 is an immutable, separately addressed contract-only lift', () => {
     assert.equal(ontologyV21.access, 'CONTRACT_ONLY_NO_RUNTIME');
     assert.equal(Object.isFrozen(ontologyV21), true);
     assert.deepEqual(ontologyV21.extensions.map(extension => extension.extensionId), ['part.pump_shell']);
-    assert.deepEqual(ontologyV21.relations.map(relation => relation.relationId), ['template.uses_shell_part']);
+    assert.deepEqual(ontologyV21.relations.map(relation => relation.relationId), [
+        'template.uses_shell_part', 'recipe.uses_template', 'recipe.uses_coil',
+    ]);
     assert.deepEqual(ontologyV21.policies, []);
-    assert.deepEqual(ontologyV21.technicalKnowledgeTypes, []);
+    assert.deepEqual(ontologyV21.technicalKnowledgeTypes.map(collection => collection.collectionId), ['recipe.technical_knowledge']);
 });
 
 test('V2 Coil is lifted additively with empty optional V2.1 capabilities', () => {

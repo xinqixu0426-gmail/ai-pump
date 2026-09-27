@@ -301,14 +301,17 @@ test('baseline Coil lift, synthetic Base-only world, independent extensions and 
     assert.doesNotThrow(() => validateOntologyV21(makeSyntheticWorld({ includeExtensions: false })));
     const result = validateOntologyV21(makeSyntheticWorld());
     assert.equal(result.extensionCount, 3);
-    assert.equal(result.relationCount, 6);
+    assert.equal(result.relationCount, 8);
     assert.equal(result.policyCount, 1);
-    assert.equal(result.technicalKnowledgeTypeCount, 1);
+    assert.equal(result.technicalKnowledgeTypeCount, 2);
 });
 
 test('Base and one Extension see Base facts, while an Extension sees only its own added facts', () => {
     const oneExtension = makeSyntheticWorld();
-    oneExtension.extensions = [getExtension(oneExtension, 'component.feature_a')];
+    oneExtension.extensions = [
+        getExtension(oneExtension, 'part.pump_shell'),
+        getExtension(oneExtension, 'component.feature_a'),
+    ];
     oneExtension.relations = oneExtension.relations.filter(item => item.relationId !== 'component.extension_uses_module_b');
     assert.doesNotThrow(() => validateOntologyV21(oneExtension));
     assert.doesNotThrow(() => validateOntologyV21(makeSyntheticWorld()));
