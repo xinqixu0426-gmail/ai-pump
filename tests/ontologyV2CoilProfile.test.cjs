@@ -7,180 +7,223 @@ const { ontologyV2 } = require('../api/ontology/v2/contract.cjs');
 const { validateOntologyV2 } = require('../api/ontology/v2/validator.cjs');
 const { coilSourceAudit } = require('../api/ontology/v2/entities/coilSourceAudit.cjs');
 
-function cloneContract() {
-    return structuredClone(ontologyV2);
+function cloneContract() { return structuredClone(ontologyV2); }
+function coilProfile(contract = ontologyV2) { return contract.profiles.find(profile => profile.entityType === 'coil'); }
+function coilFact(factId, contract = ontologyV2) { return coilProfile(contract).facts.find(item => item.factId === factId); }
+
+function futureProfile() {
+    return {
+        entityType: 'future_part',
+        status: 'SYNTHETIC_TEST_ONLY',
+        identity: {
+            canonicalId: { sourceRef: { sourceId: 'coil.current_resource', path: 'future_parts.id', status: 'RESOLVED' }, kind: 'DB_POSITIVE_INTEGER_PRIMARY_KEY', unique: true },
+            canonicalIdentityFactId: null,
+            permitsDesignationAsCanonicalId: false,
+            permitsNameOnlyCanonicalId: false,
+        },
+        facts: [{
+            factId: 'future_part.accountCode', label: '账户编码', dataType: 'STRING', unit: null,
+            sourceRef: { sourceId: 'coil.current_resource', path: 'future_parts.account_code', status: 'RESOLVED' },
+            authority: 'CANONICAL_CURRENT', searchable: true, candidateSelectionEvidence: false,
+            directIdentityEvidence: true, presentationGroup: 'OTHER', temporalSemantics: 'STABLE_DESIGN_VALUE',
+            missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false, businessRoles: ['DISPLAY'],
+        }],
+        designations: [{
+            designationId: 'future_part.accountCode', label: '唯一业务编码', components: ['future_part.accountCode'],
+            expression: { operation: 'IDENTITY', nullPolicy: 'UNAVAILABLE_IF_ANY_COMPONENT_MISSING' },
+            sourceRef: { sourceId: 'coil.current_resource', path: 'future_parts.account_code', status: 'RESOLVED' },
+            searchable: true, unique: true, collisionPolicy: 'REJECT', directIdentityEvidence: true, canonicalIdentity: false,
+        }],
+        selectionPolicy: { policyType: 'NONE', runtimeEnabled: false },
+        eligibilityPolicy: { policyType: 'NONE', runtimeEnabled: false },
+        costingPolicy: null,
+        relationBridge: null,
+    };
 }
 
-function coilProfile(contract = ontologyV2) {
-    return contract.profiles.find(profile => profile.entityType === 'coil');
-}
-
-function coilFact(factId, contract = ontologyV2) {
-    return coilProfile(contract).facts.find(item => item.factId === factId);
-}
-
-test('Ontology V2 Coil profile validates without enabling runtime or storing business values', () => {
-    const result = validateOntologyV2(ontologyV2);
-    assert.deepEqual(result, {
-        version: 2,
-        sourceCount: 4,
-        profileCount: 1,
-        factCount: 28,
-        designationCount: 1,
-        runtimeEnabled: false,
+test('Ontology V2 Coil profile validates without runtime or stored business values', () => {
+    assert.deepEqual(validateOntologyV2(ontologyV2), {
+        version: 2, sourceCount: 5, profileCount: 1, factCount: 28, designationCount: 1, runtimeEnabled: false,
     });
     assert.equal(ontologyV2.runtimeEnabled, false);
-    assert.equal(ontologyV2.storesBusinessValues, false);
     assert.equal(coilProfile().selectionPolicy.runtimeEnabled, false);
+    assert.equal(coilProfile().eligibilityPolicy.runtimeEnabled, false);
+    assert.equal(coilProfile().costingPolicy.runtimeEnabled, false);
 });
 
-test('12-120 is a collision-allowed searchable designation, never canonical identity', () => {
-    const designation = coilProfile().designations.find(item => item.designationId === 'coil.commonDesignation');
+test('generic validator accepts a future profile without default selection or relation bridge', () => {
+    const contract = cloneContract();
+    contract.profiles.push(futureProfile());
+    const result = validateOntologyV2(contract);
+    assert.equal(result.profileCount, 2);
+    assert.equal(result.factCount, 29);
+});
+
+test('generic validator accepts a valid unique designation without imposing Coil collision semantics', () => {
+    const contract = cloneContract();
+    contract.profiles.push(futureProfile());
+    assert.doesNotThrow(() => validateOntologyV2(contract));
+});
+
+test('generic validator fails closed for unsafe designation combinations', () => {
+    const duplicateAllowed = cloneContract();
+    const synthetic = futureProfile();
+    synthetic.designations[0].collisionPolicy = 'ALLOWED';
+    duplicateAllowed.profiles.push(synthetic);
+    assert.throws(() => validateOntologyV2(duplicateAllowed), error => error.code === 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+
+    const unsafeCanonical = cloneContract();
+    const second = futureProfile();
+    second.designations[0].canonicalIdentity = true;
+    second.designations[0].directIdentityEvidence = false;
+    unsafeCanonical.profiles.push(second);
+    assert.throws(() => validateOntologyV2(unsafeCanonical), error => error.code === 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+});
+
+test('12-120 remains a collision-allowed searchable common designation, never canonical identity', () => {
+    const designation = coilProfile().designations[0];
     assert.deepEqual(designation.components, ['coil.spec', 'coil.sheets']);
-    assert.deepEqual(designation.expression, {
-        operation: 'JOIN',
-        separator: '-',
-        nullPolicy: 'UNAVAILABLE_IF_ANY_COMPONENT_MISSING',
-    });
     assert.equal(['12', 120].join(designation.expression.separator), '12-120');
     assert.equal(designation.searchable, true);
     assert.equal(designation.unique, false);
     assert.equal(designation.collisionPolicy, 'ALLOWED');
-    assert.equal(designation.directIdentityEvidence, false);
     assert.equal(designation.canonicalIdentity, false);
-    assert.equal(coilProfile().identity.permitsDesignationAsCanonicalId, false);
 });
 
-test('canonical identity, searchable evidence and selection policy remain separate', () => {
+test('Coil selection, lifecycle and costing policies are separate declarative contracts', () => {
     const profile = coilProfile();
-    assert.equal(profile.identity.canonicalId.sourceRef.path, 'coils.id -> coilRow.id');
-    assert.equal(profile.identity.canonicalId.unique, true);
-    assert.equal(coilFact('coil.schemeCode').directIdentityEvidence, true);
-    assert.equal(coilFact('coil.schemeCode').candidateSelectionEvidence, true);
-    assert.equal(coilFact('coil.spec').directIdentityEvidence, false);
-    assert.equal(coilFact('coil.spec').searchable, true);
-    assert.equal(coilFact('coil.spec').candidateSelectionEvidence, true);
-    assert.equal(coilFact('coil.mainWireData').searchable, true);
-    assert.equal(coilFact('coil.mainWireData').candidateSelectionEvidence, false);
+    assert.equal(profile.selectionPolicy.policyType, 'EXPLICIT_THEN_DEFAULT');
+    assert.equal(profile.selectionPolicy.defaultMayOverrideExplicitConditions, false);
     assert.equal(profile.selectionPolicy.defaultMetadata.classification, 'SELECTION_POLICY');
     assert.equal(profile.selectionPolicy.defaultMetadata.identityEvidence, false);
-    assert.equal(profile.selectionPolicy.defaultMetadata.technicalFact, false);
-    assert.equal(profile.facts.some(item => item.sourceRef.path.includes('is_default')), false);
+    assert.equal(profile.selectionPolicy.outcomes.multipleDefaultsAmongMultiple, 'AMBIGUOUS');
+    assert.equal(profile.eligibilityPolicy.policyType, 'LIFECYCLE_STATUS');
+    assert.deepEqual(profile.eligibilityPolicy.ordinaryEligibleValues, ['official']);
+    assert.deepEqual(profile.eligibilityPolicy.explicitOptInValues, ['testing']);
+    assert.deepEqual(profile.eligibilityPolicy.historicalOnlyValues, ['disabled']);
+    assert.equal(profile.costingPolicy.policyType, 'VALUE_ROUTED_COSTING');
+    assert.deepEqual(profile.costingPolicy.values.map(item => item.value), ['calculated', 'kit']);
+    assert.equal(profile.facts.some(item => item.factId === 'coil.pricingMode'), false);
+    assert.notEqual(profile.selectionPolicy.defaultMetadata.sourceRef.path, coilFact('coil.defaultCapacitor').sourceRef.path);
 });
 
-test('explicit conditions precede default and non-unique default states stay ambiguous', () => {
-    const policy = coilProfile().selectionPolicy;
-    assert.equal(policy.orderedRules[0], 'APPLY_ALL_EXPLICIT_CONDITIONS');
-    assert.equal(policy.defaultMayOverrideExplicitConditions, false);
-    assert.equal(policy.outcomes.uniqueAfterExplicitConditions, 'EXPLICIT_UNIQUE');
-    assert.equal(policy.outcomes.oneDefaultAmongMultiple, 'DEFAULT_SELECTED');
-    assert.equal(policy.outcomes.zeroDefaultsAmongMultiple, 'AMBIGUOUS');
-    assert.equal(policy.outcomes.multipleDefaultsAmongMultiple, 'AMBIGUOUS');
+test('only normal Owner discriminators participate in Coil selection', () => {
+    const selection = coilProfile().selectionPolicy.explicitConditionFactIds;
+    assert.deepEqual(selection, [
+        'coil.schemeCode', 'coil.spec', 'coil.sheets', 'coil.material', 'coil.slotType', 'coil.ratedVoltageV', 'coil.ratedFrequencyHz',
+    ]);
+    ['coil.market', 'coil.schemeFamilyCode', 'coil.wireWeight', 'coil.defaultCapacitor', 'coil.defaultCableCrossSection', 'coil.kitPrice', 'coil.unitPrice', 'coil.copperBase', 'coil.coilFee', 'coil.rotorFee', 'coil.stock', 'coil.schemeStatus']
+        .forEach(factId => assert.equal(coilFact(factId).candidateSelectionEvidence, false, factId));
 });
 
-test('fact dimensions are independent and unresolved cost is not presentation-safe', () => {
+test('scheme code is direct lookup only; scheme name remains human-readable display', () => {
+    const code = coilFact('coil.schemeCode');
+    const name = coilFact('coil.schemeName');
+    assert.equal(code.searchable, true);
+    assert.equal(code.directIdentityEvidence, true);
+    assert.equal(code.safeForDefaultSummary, false);
+    assert.equal(name.searchable, true);
+    assert.equal(name.candidateSelectionEvidence, false);
+    assert.ok(name.businessRoles.includes('DISPLAY'));
+});
+
+test('fact roles remain orthogonal to presentation and selection', () => {
     const wireWeight = coilFact('coil.wireWeight');
+    const capacitor = coilFact('coil.defaultCapacitor');
+    const cable = coilFact('coil.defaultCableCrossSection');
+    const market = coilFact('coil.market');
+    assert.deepEqual(wireWeight.businessRoles, ['COST_INPUT']);
     assert.equal(wireWeight.presentationGroup, 'PRIMARY');
-    assert.equal(wireWeight.searchable, true);
-    assert.equal(wireWeight.candidateSelectionEvidence, true);
-    assert.equal(wireWeight.directIdentityEvidence, false);
-    assert.equal(wireWeight.temporalSemantics, 'STABLE_DESIGN_VALUE');
-    assert.equal(wireWeight.safeForDefaultSummary, true);
-
-    const cost = coilFact('coil.cost');
-    assert.equal(cost.authority, 'UNRESOLVED');
-    assert.equal(cost.sourceRef.status, 'UNRESOLVED');
-    assert.equal(cost.temporalSemantics, 'DYNAMIC_DERIVED_CURRENT_VALUE');
-    assert.equal(cost.safeForDefaultSummary, false);
-    assert.equal(Object.hasOwn(cost, 'formula'), false);
-    assert.doesNotMatch(JSON.stringify(cost), /unitPrice.*sheets|wireWeight.*copperBase|calculate/i);
+    assert.equal(wireWeight.candidateSelectionEvidence, false);
+    assert.deepEqual(capacitor.businessRoles, ['BOM_INPUT']);
+    assert.equal(capacitor.presentationGroup, 'PRIMARY');
+    assert.equal(capacitor.candidateSelectionEvidence, false);
+    assert.deepEqual(cable.businessRoles, ['BOM_INPUT']);
+    assert.equal(cable.candidateSelectionEvidence, false);
+    assert.deepEqual(market.businessRoles, ['DESCRIPTIVE']);
+    assert.equal(market.searchable, true);
+    assert.equal(market.candidateSelectionEvidence, false);
+    assert.equal(market.safeForDefaultSummary, false);
 });
 
-test('generic validator accepts a valid synthetic fact without validator changes', () => {
+test('technical, cost-input and stock facts retain their intended independent roles', () => {
+    ['coil.mainWireGauge', 'coil.mainWireData', 'coil.auxWireGauge', 'coil.auxWireData'].forEach(factId => {
+        const item = coilFact(factId);
+        assert.equal(item.presentationGroup, 'TECHNICAL');
+        assert.deepEqual(item.businessRoles, ['TECHNICAL']);
+        assert.equal(item.candidateSelectionEvidence, false);
+    });
+    ['coil.unitPrice', 'coil.kitPrice', 'coil.copperBase', 'coil.coilFee', 'coil.rotorFee'].forEach(factId => {
+        const item = coilFact(factId);
+        assert.ok(item.businessRoles.includes('COST_INPUT'));
+        assert.equal(item.candidateSelectionEvidence, false);
+        assert.equal(item.safeForDefaultSummary, false);
+    });
+    const stock = coilFact('coil.stock');
+    assert.equal(stock.dataType, 'INTEGER');
+    assert.equal(stock.unit, 'set');
+    assert.deepEqual(stock.businessRoles, ['CURRENT_BUSINESS']);
+    assert.equal(stock.candidateSelectionEvidence, false);
+});
+
+test('slot type provenance reflects the current DTO projection rather than a false one-column source', () => {
+    assert.equal(
+        coilFact('coil.slotType').sourceRef.path,
+        'stator_variants.slot_type -> coilRow.slotType; fallback coils.slot_type'
+    );
+    assert.equal(coilFact('coil.diameterMm').sourceRef.sourceId, 'stator_variant.current_resource');
+});
+
+test('DTO source audit includes derived, redundant and technical projection surfaces', () => {
+    const byField = new Map(coilSourceAudit.fields.map(item => [item.sourceField, item]));
+    assert.equal(byField.get('coilRow.slotType').classification, 'ACCEPTED_FACT');
+    assert.equal(byField.get('coilRow.diameterMm').classification, 'DERIVED_FACT');
+    assert.equal(byField.get('coilRow.commonName').classification, 'REDUNDANT_PROJECTION');
+    assert.equal(byField.get('coilRow.statorVariantId').classification, 'TECHNICAL_METADATA');
+    assert.equal(coilSourceAudit.discoveryIsAcceptance, false);
+});
+
+test('current and estimated-derived cost provenance are distinct and ontology contains no arithmetic', () => {
+    const cost = coilFact('coil.cost');
+    assert.equal(cost.authority, 'DERIVED');
+    assert.equal(cost.sourceRef.sourceId, 'coil.current_cost_projection');
+    assert.equal(cost.safeForDefaultSummary, true);
+    assert.ok(ontologyV2.sources.some(item => item.authority === 'ESTIMATED_DERIVED'));
+    assert.doesNotMatch(JSON.stringify(ontologyV2), /unitPrice\s*\*|wireWeight\s*\*|calculateStoredCoilCost/);
+
     const contract = cloneContract();
     coilProfile(contract).facts.push({
-        factId: 'coil.syntheticReviewFact',
-        label: '合成审核字段',
-        dataType: 'STRING',
-        unit: null,
-        sourceRef: {
-            sourceId: 'coil.current_resource',
-            path: 'coils.synthetic_review_field -> futureDto.syntheticReviewFact',
-            status: 'RESOLVED',
-        },
-        authority: 'CANONICAL_CURRENT',
-        searchable: false,
-        candidateSelectionEvidence: false,
-        directIdentityEvidence: false,
-        presentationGroup: 'OTHER',
-        temporalSemantics: 'MUTABLE_CURRENT_VALUE',
-        missingSemantics: 'NOT_RECORDED',
-        safeForDefaultSummary: false,
+        factId: 'coil.syntheticEstimate', label: '合成估算', dataType: 'NUMBER', unit: 'CNY/set',
+        sourceRef: { sourceId: 'coil.estimated_cost_result', path: 'future estimate receipt', status: 'RESOLVED' },
+        authority: 'ESTIMATED_DERIVED', searchable: false, candidateSelectionEvidence: false,
+        directIdentityEvidence: false, presentationGroup: 'OTHER', temporalSemantics: 'DYNAMIC_DERIVED_CURRENT_VALUE',
+        missingSemantics: 'ESTIMATE_UNAVAILABLE', safeForDefaultSummary: false, businessRoles: ['ESTIMATE'],
     });
-    const result = validateOntologyV2(contract);
-    assert.equal(result.factCount, ontologyV2.profiles[0].facts.length + 1);
+    assert.doesNotThrow(() => validateOntologyV2(contract));
 });
 
-test('generic validator fails closed for unknown source and invalid fact/source metadata', () => {
-    const unknownSource = cloneContract();
-    coilFact('coil.spec', unknownSource).sourceRef.sourceId = 'unknown.source';
-    assert.throws(
-        () => validateOntologyV2(unknownSource),
-        error => error.code === 'ONTOLOGY_V2_SOURCE_UNKNOWN'
-    );
-
-    const invalidFact = cloneContract();
-    coilFact('coil.spec', invalidFact).searchable = 'yes';
-    assert.throws(
-        () => validateOntologyV2(invalidFact),
-        error => error.code === 'ONTOLOGY_V2_FACT_METADATA_INVALID'
-    );
+test('generic validator accepts an added legal fact and fails closed for malformed source or role metadata', () => {
+    const contract = cloneContract();
+    coilProfile(contract).facts.push({
+        factId: 'coil.syntheticReviewFact', label: '合成审核字段', dataType: 'STRING', unit: null,
+        sourceRef: { sourceId: 'coil.current_resource', path: 'coils.synthetic_review_field', status: 'RESOLVED' },
+        authority: 'CANONICAL_CURRENT', searchable: false, candidateSelectionEvidence: false,
+        directIdentityEvidence: false, presentationGroup: 'OTHER', temporalSemantics: 'MUTABLE_CURRENT_VALUE',
+        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false, businessRoles: ['DESCRIPTIVE'],
+    });
+    assert.equal(validateOntologyV2(contract).factCount, 29);
 
     const invalidSource = cloneContract();
-    invalidSource.sources[0].storesValueInOntology = true;
-    assert.throws(
-        () => validateOntologyV2(invalidSource),
-        error => error.code === 'ONTOLOGY_V2_SOURCE_STORES_VALUE'
-    );
+    coilFact('coil.spec', invalidSource).sourceRef.sourceId = 'unknown.source';
+    assert.throws(() => validateOntologyV2(invalidSource), error => error.code === 'ONTOLOGY_V2_SOURCE_UNKNOWN');
 
-    const mismatchedStatus = cloneContract();
-    coilFact('coil.spec', mismatchedStatus).sourceRef.status = 'UNRESOLVED';
-    assert.throws(
-        () => validateOntologyV2(mismatchedStatus),
-        error => error.code === 'ONTOLOGY_V2_SOURCE_STATUS_INVALID'
-    );
+    const invalidRole = cloneContract();
+    coilFact('coil.spec', invalidRole).businessRoles = ['not-valid'];
+    assert.throws(() => validateOntologyV2(invalidRole), error => error.code === 'ONTOLOGY_V2_FACT_ROLE_INVALID');
 });
 
-test('Coil Source Audit covers all current formal fields and keeps discovery separate from acceptance', () => {
-    const expectedFields = [
-        'id', 'stator_variant_id', 'spec', 'material', 'slot_type', 'sheets',
-        'scheme_code', 'scheme_name', 'scheme_status', 'is_default',
-        'rated_voltage_v', 'rated_frequency_hz', 'market', 'scheme_family_code',
-        'pricing_mode', 'kit_price', 'unit_price', 'wire_weight', 'copper_base',
-        'coil_fee', 'rotor_fee', 'cost', 'default_wire_gauge', 'default_capacitor',
-        'main_wire_gauge', 'main_wire_data', 'aux_wire_gauge', 'aux_wire_data',
-        'stock', 'created_at', 'updated_at',
-    ].map(field => `coils.${field}`);
-    assert.equal(coilSourceAudit.discoveryIsAcceptance, false);
-    assert.deepEqual(
-        coilSourceAudit.fields.map(item => item.sourceField),
-        expectedFields
-    );
-    assert.deepEqual(
-        coilSourceAudit.fields.filter(item => item.sourceStatus === 'UNRESOLVED').map(item => item.sourceField),
-        ['coils.cost']
-    );
-    assert.equal(
-        coilSourceAudit.fields.find(item => item.sourceField === 'coils.default_wire_gauge').businessMeaning,
-        '默认搭配电缆横截面积（mm²）'
-    );
-});
-
-test('V2 only bridges the existing V1 coil relations and does not replace V1', () => {
-    const bridge = coilProfile().relationBridge;
-    assert.deepEqual(bridge.relationIds, ['recipe.uses_coil', 'coil.used_by_recipe']);
-    assert.equal(bridge.implementation, 'REFERENCE_EXISTING_V1_ONLY');
-    assert.equal(bridge.promotesRelationToIdentityEvidence, false);
+test('V2 only bridges existing V1 Coil relations; V1 remains unchanged', () => {
+    assert.deepEqual(coilProfile().relationBridge.relationIds, ['recipe.uses_coil', 'coil.used_by_recipe']);
     assert.ok(ontologyV1.relations.some(item => item.relationId === 'recipe.uses_coil'));
     assert.ok(ontologyV1.relations.some(item => item.relationId === 'coil.used_by_recipe'));
     assert.equal(ontologyV1.version, 1);

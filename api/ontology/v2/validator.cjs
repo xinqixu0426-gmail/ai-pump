@@ -4,7 +4,7 @@ const { SourceAuthority } = require('./sources.cjs');
 
 const SOURCE_AUTHORITIES = new Set(Object.values(SourceAuthority));
 const DATA_TYPES = new Set(['STRING', 'INTEGER', 'NUMBER', 'BOOLEAN', 'DATETIME']);
-const PRESENTATION_GROUPS = new Set(['PRIMARY', 'TECHNICAL', 'SELECTION', 'OTHER']);
+const PRESENTATION_GROUPS = new Set(['PRIMARY', 'TECHNICAL', 'OTHER']);
 const TEMPORAL_SEMANTICS = new Set([
     'STABLE_DESIGN_VALUE',
     'MUTABLE_CURRENT_VALUE',
@@ -65,7 +65,7 @@ function validateFact(item, entityType, factIds, sourceMap) {
         'factId', 'label', 'dataType', 'unit', 'sourceRef', 'authority',
         'searchable', 'candidateSelectionEvidence', 'directIdentityEvidence',
         'presentationGroup', 'temporalSemantics', 'missingSemantics',
-        'safeForDefaultSummary',
+        'safeForDefaultSummary', 'businessRoles',
     ], 'ONTOLOGY_V2_FACT_FIELDS_INVALID');
     nonEmptyString(item.factId, 'ONTOLOGY_V2_FACT_ID_INVALID');
     check(
@@ -83,6 +83,12 @@ function validateFact(item, entityType, factIds, sourceMap) {
     check(PRESENTATION_GROUPS.has(item.presentationGroup), 'ONTOLOGY_V2_FACT_METADATA_INVALID');
     check(TEMPORAL_SEMANTICS.has(item.temporalSemantics), 'ONTOLOGY_V2_FACT_METADATA_INVALID');
     nonEmptyString(item.missingSemantics, 'ONTOLOGY_V2_FACT_METADATA_INVALID');
+    check(Array.isArray(item.businessRoles) && item.businessRoles.length > 0, 'ONTOLOGY_V2_FACT_ROLE_INVALID');
+    check(new Set(item.businessRoles).size === item.businessRoles.length, 'ONTOLOGY_V2_FACT_ROLE_INVALID');
+    item.businessRoles.forEach(role => {
+        nonEmptyString(role, 'ONTOLOGY_V2_FACT_ROLE_INVALID');
+        check(/^[A-Z][A-Z0-9_]*$/.test(role), 'ONTOLOGY_V2_FACT_ROLE_INVALID');
+    });
     check(
         item.sourceRef.status !== 'UNRESOLVED' || item.safeForDefaultSummary === false,
         'ONTOLOGY_V2_UNRESOLVED_FACT_UNSAFE'
@@ -93,7 +99,7 @@ function validateFact(item, entityType, factIds, sourceMap) {
 function validateProfile(profile, sourceMap, entityTypes) {
     exactKeys(profile, [
         'entityType', 'status', 'identity', 'facts', 'designations',
-        'selectionPolicy', 'relationBridge',
+        'selectionPolicy', 'eligibilityPolicy', 'costingPolicy', 'relationBridge',
     ], 'ONTOLOGY_V2_PROFILE_FIELDS_INVALID');
     nonEmptyString(profile.entityType, 'ONTOLOGY_V2_ENTITY_TYPE_INVALID');
     check(/^[a-z][a-z0-9_]*$/.test(profile.entityType), 'ONTOLOGY_V2_ENTITY_TYPE_INVALID');
@@ -132,71 +138,79 @@ function validateProfile(profile, sourceMap, entityTypes) {
         nonEmptyString(designation.label, 'ONTOLOGY_V2_DESIGNATION_INVALID');
         check(Array.isArray(designation.components) && designation.components.length > 0, 'ONTOLOGY_V2_DESIGNATION_INVALID');
         check(designation.components.every(component => factIds.has(component)), 'ONTOLOGY_V2_DESIGNATION_COMPONENT_INVALID');
-        exactKeys(designation.expression, ['operation', 'separator', 'nullPolicy'], 'ONTOLOGY_V2_DESIGNATION_INVALID');
-        check(designation.expression.operation === 'JOIN', 'ONTOLOGY_V2_DESIGNATION_INVALID');
-        nonEmptyString(designation.expression.separator, 'ONTOLOGY_V2_DESIGNATION_INVALID');
+        check(plainObject(designation.expression), 'ONTOLOGY_V2_DESIGNATION_INVALID');
+        if (designation.expression.operation === 'JOIN') {
+            exactKeys(designation.expression, ['operation', 'separator', 'nullPolicy'], 'ONTOLOGY_V2_DESIGNATION_INVALID');
+            nonEmptyString(designation.expression.separator, 'ONTOLOGY_V2_DESIGNATION_INVALID');
+        } else if (designation.expression.operation === 'IDENTITY') {
+            exactKeys(designation.expression, ['operation', 'nullPolicy'], 'ONTOLOGY_V2_DESIGNATION_INVALID');
+            check(designation.components.length === 1, 'ONTOLOGY_V2_DESIGNATION_INVALID');
+        } else {
+            fail('ONTOLOGY_V2_DESIGNATION_INVALID');
+        }
         nonEmptyString(designation.expression.nullPolicy, 'ONTOLOGY_V2_DESIGNATION_INVALID');
         validateSourceRef(designation.sourceRef, sourceMap);
         ['searchable', 'unique', 'directIdentityEvidence', 'canonicalIdentity']
             .forEach(field => boolean(designation[field], 'ONTOLOGY_V2_DESIGNATION_INVALID'));
-        check(
-            designation.unique === false
-            && designation.collisionPolicy === 'ALLOWED'
-            && designation.directIdentityEvidence === false
-            && designation.canonicalIdentity === false,
-            'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID'
-        );
+        check(['ALLOWED', 'REJECT', 'REPORT'].includes(designation.collisionPolicy), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+        check(!(designation.unique && designation.collisionPolicy === 'ALLOWED'), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+        check(!(designation.canonicalIdentity && (!designation.unique || !designation.directIdentityEvidence)), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
         designationIds.add(designation.designationId);
     }
 
     const policy = profile.selectionPolicy;
-    exactKeys(policy, [
-        'policyId', 'explicitConditionFactIds', 'defaultMetadata', 'orderedRules',
-        'outcomes', 'defaultMayOverrideExplicitConditions', 'runtimeEnabled',
-    ], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
-    nonEmptyString(policy.policyId, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
-    check(
-        Array.isArray(policy.explicitConditionFactIds)
-        && policy.explicitConditionFactIds.every(id => factIds.has(id)),
-        'ONTOLOGY_V2_SELECTION_FACT_INVALID'
-    );
-    check(new Set(policy.explicitConditionFactIds).size === policy.explicitConditionFactIds.length, 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
-    exactKeys(policy.defaultMetadata, [
-        'sourceRef', 'classification', 'identityEvidence', 'technicalFact',
-    ], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
-    validateSourceRef(policy.defaultMetadata.sourceRef, sourceMap);
-    check(
-        policy.defaultMetadata.classification === 'SELECTION_POLICY'
-        && policy.defaultMetadata.identityEvidence === false
-        && policy.defaultMetadata.technicalFact === false,
-        'ONTOLOGY_V2_DEFAULT_CLASSIFICATION_INVALID'
-    );
-    check(
-        JSON.stringify(policy.orderedRules) === JSON.stringify([
-            'APPLY_ALL_EXPLICIT_CONDITIONS',
-            'SELECT_IF_ONE_REMAINS',
-            'SELECT_IF_MULTIPLE_REMAIN_AND_EXACTLY_ONE_IS_DEFAULT',
-            'AMBIGUOUS_IF_MULTIPLE_REMAIN_AND_DEFAULT_COUNT_IS_NOT_ONE',
-        ]),
-        'ONTOLOGY_V2_SELECTION_ORDER_INVALID'
-    );
-    exactKeys(policy.outcomes, [
-        'uniqueAfterExplicitConditions', 'oneDefaultAmongMultiple',
-        'zeroDefaultsAmongMultiple', 'multipleDefaultsAmongMultiple',
-    ], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
-    check(
-        policy.outcomes.uniqueAfterExplicitConditions === 'EXPLICIT_UNIQUE'
-        && policy.outcomes.oneDefaultAmongMultiple === 'DEFAULT_SELECTED'
-        && policy.outcomes.zeroDefaultsAmongMultiple === 'AMBIGUOUS'
-        && policy.outcomes.multipleDefaultsAmongMultiple === 'AMBIGUOUS',
-        'ONTOLOGY_V2_SELECTION_OUTCOME_INVALID'
-    );
-    check(
-        policy.defaultMayOverrideExplicitConditions === false
-        && policy.runtimeEnabled === false,
-        'ONTOLOGY_V2_SELECTION_RUNTIME_INVALID'
-    );
+    check(plainObject(policy), 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+    if (policy.policyType === 'NONE') {
+        exactKeys(policy, ['policyType', 'runtimeEnabled'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+    } else if (policy.policyType === 'EXPLICIT_ONLY') {
+        exactKeys(policy, ['policyType', 'explicitConditionFactIds', 'runtimeEnabled'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        check(Array.isArray(policy.explicitConditionFactIds) && policy.explicitConditionFactIds.every(id => factIds.has(id)), 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
+        check(new Set(policy.explicitConditionFactIds).size === policy.explicitConditionFactIds.length, 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
+    } else if (policy.policyType === 'EXPLICIT_THEN_DEFAULT') {
+        exactKeys(policy, ['policyType', 'explicitConditionFactIds', 'defaultMetadata', 'orderedStages', 'outcomes', 'defaultMayOverrideExplicitConditions', 'runtimeEnabled'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        check(Array.isArray(policy.explicitConditionFactIds) && policy.explicitConditionFactIds.every(id => factIds.has(id)), 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
+        check(new Set(policy.explicitConditionFactIds).size === policy.explicitConditionFactIds.length, 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
+        exactKeys(policy.defaultMetadata, ['sourceRef', 'classification', 'identityEvidence'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        validateSourceRef(policy.defaultMetadata.sourceRef, sourceMap);
+        nonEmptyString(policy.defaultMetadata.classification, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        boolean(policy.defaultMetadata.identityEvidence, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        check(Array.isArray(policy.orderedStages) && policy.orderedStages.length > 0 && new Set(policy.orderedStages).size === policy.orderedStages.length, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        policy.orderedStages.forEach(stage => nonEmptyString(stage, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID'));
+        check(plainObject(policy.outcomes) && Object.keys(policy.outcomes).length > 0, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        Object.entries(policy.outcomes).forEach(([key, value]) => { nonEmptyString(key, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID'); nonEmptyString(value, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID'); });
+        boolean(policy.defaultMayOverrideExplicitConditions, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+    } else {
+        fail('ONTOLOGY_V2_SELECTION_POLICY_TYPE_INVALID');
+    }
+    check(policy.runtimeEnabled === false, 'ONTOLOGY_V2_SELECTION_RUNTIME_INVALID');
 
+    const eligibility = profile.eligibilityPolicy;
+    check(plainObject(eligibility), 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+    if (eligibility.policyType === 'NONE') {
+        exactKeys(eligibility, ['policyType', 'runtimeEnabled'], 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+    } else if (eligibility.policyType === 'LIFECYCLE_STATUS') {
+        exactKeys(eligibility, ['policyType', 'factId', 'ordinaryEligibleValues', 'explicitOptInValues', 'historicalOnlyValues', 'runtimeEnabled'], 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+        check(factIds.has(eligibility.factId), 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+        ['ordinaryEligibleValues', 'explicitOptInValues', 'historicalOnlyValues'].forEach(field => {
+            check(Array.isArray(eligibility[field]), 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+            eligibility[field].forEach(value => nonEmptyString(value, 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID'));
+        });
+    } else {
+        fail('ONTOLOGY_V2_ELIGIBILITY_POLICY_TYPE_INVALID');
+    }
+    check(eligibility.runtimeEnabled === false, 'ONTOLOGY_V2_ELIGIBILITY_POLICY_INVALID');
+
+    const costing = profile.costingPolicy;
+    if (costing !== null) {
+        exactKeys(costing, ['policyType', 'sourceRef', 'values', 'runtimeEnabled'], 'ONTOLOGY_V2_COSTING_POLICY_INVALID');
+        nonEmptyString(costing.policyType, 'ONTOLOGY_V2_COSTING_POLICY_INVALID');
+        validateSourceRef(costing.sourceRef, sourceMap);
+        check(Array.isArray(costing.values) && costing.values.length > 0, 'ONTOLOGY_V2_COSTING_POLICY_INVALID');
+        costing.values.forEach(value => { exactKeys(value, ['value', 'semantics'], 'ONTOLOGY_V2_COSTING_POLICY_INVALID'); nonEmptyString(value.value, 'ONTOLOGY_V2_COSTING_POLICY_INVALID'); nonEmptyString(value.semantics, 'ONTOLOGY_V2_COSTING_POLICY_INVALID'); });
+        check(costing.runtimeEnabled === false, 'ONTOLOGY_V2_COSTING_POLICY_INVALID');
+    }
+
+    if (profile.relationBridge !== null) {
     exactKeys(profile.relationBridge, [
         'ontologyVersion', 'relationIds', 'implementation', 'promotesRelationToIdentityEvidence',
     ], 'ONTOLOGY_V2_RELATION_BRIDGE_INVALID');
@@ -209,6 +223,7 @@ function validateProfile(profile, sourceMap, entityTypes) {
         && profile.relationBridge.promotesRelationToIdentityEvidence === false,
         'ONTOLOGY_V2_RELATION_BRIDGE_INVALID'
     );
+    }
     entityTypes.add(profile.entityType);
     return { factCount: factIds.size, designationCount: designationIds.size };
 }

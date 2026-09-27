@@ -16,126 +16,98 @@ const fact = (factId, label, dataType, sourcePath, options = {}) => ({
     searchable: options.searchable === true,
     candidateSelectionEvidence: options.candidateSelectionEvidence === true,
     directIdentityEvidence: options.directIdentityEvidence === true,
-    presentationGroup: options.presentationGroup || 'TECHNICAL',
+    presentationGroup: options.presentationGroup || 'OTHER',
     temporalSemantics: options.temporalSemantics || 'MUTABLE_CURRENT_VALUE',
     missingSemantics: options.missingSemantics || 'UNKNOWN_NOT_FALSE',
     safeForDefaultSummary: options.safeForDefaultSummary === true,
+    businessRoles: options.businessRoles || ['DESCRIPTIVE'],
 });
 
 const facts = [
     fact('coil.schemeCode', '方案编码', 'STRING', 'coils.scheme_code -> coilRow.schemeCode', {
-        searchable: true, candidateSelectionEvidence: true, directIdentityEvidence: true, presentationGroup: 'OTHER',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
+        searchable: true, candidateSelectionEvidence: true, directIdentityEvidence: true,
+        temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DIRECT_LOOKUP'],
     }),
     fact('coil.schemeName', '方案名称', 'STRING', 'coils.scheme_name -> coilRow.schemeName', {
-        searchable: true, presentationGroup: 'OTHER', safeForDefaultSummary: true,
+        searchable: true, safeForDefaultSummary: true, businessRoles: ['DISPLAY', 'DESCRIPTIVE'],
     }),
     fact('coil.spec', '规格俗称', 'STRING', 'coils.spec -> coilRow.spec', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
+        searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
     fact('coil.sheets', '片数', 'INTEGER', 'coils.sheets -> coilRow.sheets', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
+        searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
     fact('coil.material', '材质', 'STRING', 'coils.material -> coilRow.material', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
+        searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
-    fact('coil.slotType', '槽眼', 'STRING', 'coils.slot_type -> coilRow.slotType', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
-    }),
-    fact('coil.schemeStatus', '方案状态', 'STRING', 'coils.scheme_status -> coilRow.schemeStatus', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        safeForDefaultSummary: true,
+    fact('coil.slotType', '槽眼', 'STRING', 'stator_variants.slot_type -> coilRow.slotType; fallback coils.slot_type', {
+        searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
     fact('coil.ratedVoltageV', '额定电压', 'INTEGER', 'coils.rated_voltage_v -> coilRow.ratedVoltageV', {
-        unit: 'V', searchable: true, candidateSelectionEvidence: true,
-        presentationGroup: 'SELECTION', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true,
+        unit: 'V', searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['DESCRIPTIVE'],
     }),
     fact('coil.ratedFrequencyHz', '额定频率', 'INTEGER', 'coils.rated_frequency_hz -> coilRow.ratedFrequencyHz', {
-        unit: 'Hz', searchable: true, candidateSelectionEvidence: true,
-        presentationGroup: 'SELECTION', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true,
+        unit: 'Hz', searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['DESCRIPTIVE'],
+    }),
+    fact('coil.schemeStatus', '方案状态', 'STRING', 'coils.scheme_status -> coilRow.schemeStatus', {
+        searchable: true, businessRoles: ['LIFECYCLE'], safeForDefaultSummary: false,
     }),
     fact('coil.market', '适用市场', 'STRING', 'coils.market -> coilRow.market', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED',
-        safeForDefaultSummary: true,
+        searchable: true, temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['DESCRIPTIVE'], safeForDefaultSummary: false,
     }),
     fact('coil.schemeFamilyCode', '方案系列编码', 'STRING', 'coils.scheme_family_code -> coilRow.schemeFamilyCode', {
-        searchable: true, candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: false,
-    }),
-    fact('coil.pricingMode', '计价方式', 'STRING', 'coils.pricing_mode -> coilRow.pricingMode', {
-        candidateSelectionEvidence: true, presentationGroup: 'SELECTION',
-        temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: true,
+        temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['INTERNAL_CALCULATION'],
     }),
     fact('coil.wireWeight', '线重', 'NUMBER', 'coils.wire_weight -> coilRow.wireWeight', {
-        unit: 'kg', searchable: true, candidateSelectionEvidence: true,
-        presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true,
+        unit: 'kg', searchable: true, presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true, businessRoles: ['COST_INPUT'],
     }),
     fact('coil.defaultCapacitor', '默认电容', 'STRING', 'coils.default_capacitor -> coilRow.defaultCapacitor', {
-        unit: 'μF', searchable: true, candidateSelectionEvidence: true,
-        presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true,
+        unit: 'μF', searchable: true, presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true, businessRoles: ['BOM_INPUT'],
     }),
     fact('coil.defaultCableCrossSection', '默认搭配电缆横截面积', 'STRING', 'coils.default_wire_gauge -> coilRow.defaultWireGauge', {
-        unit: 'mm²', searchable: true, candidateSelectionEvidence: true,
-        presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true,
+        unit: 'mm²', searchable: true, presentationGroup: 'PRIMARY', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: true, businessRoles: ['BOM_INPUT'],
     }),
-    fact('coil.cost', '当前总成本', 'NUMBER', 'coils.cost -> coilRow.cost', {
-        unit: 'CNY/set', sourceId: 'coil.cost_mapping_unresolved', sourceStatus: 'UNRESOLVED',
-        authority: 'UNRESOLVED', presentationGroup: 'PRIMARY',
-        temporalSemantics: 'DYNAMIC_DERIVED_CURRENT_VALUE', missingSemantics: 'SOURCE_MAPPING_UNRESOLVED',
-        safeForDefaultSummary: false,
+    fact('coil.cost', '当前总成本', 'NUMBER', 'coilCost.calculateCoilCost(...).data.totalCost; coils.cost is the maintained materialized current representation', {
+        unit: 'CNY/set', sourceId: 'coil.current_cost_projection', authority: 'DERIVED', presentationGroup: 'PRIMARY', temporalSemantics: 'DYNAMIC_DERIVED_CURRENT_VALUE', missingSemantics: 'FORMAL_COST_RESULT_REQUIRED', safeForDefaultSummary: true, businessRoles: ['CURRENT_BUSINESS'],
     }),
     fact('coil.mainWireGauge', '主线漆包线线径', 'STRING', 'coils.main_wire_gauge -> coilRow.mainWireGauge', {
-        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false,
+        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['TECHNICAL'],
     }),
     fact('coil.mainWireData', '主线绕组数据', 'STRING', 'coils.main_wire_data -> coilRow.mainWireData', {
-        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false,
+        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['TECHNICAL'],
     }),
     fact('coil.auxWireGauge', '副线漆包线线径', 'STRING', 'coils.aux_wire_gauge -> coilRow.auxWireGauge', {
-        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false,
+        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['TECHNICAL'],
     }),
     fact('coil.auxWireData', '副线绕组数据', 'STRING', 'coils.aux_wire_data -> coilRow.auxWireData', {
-        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE',
-        missingSemantics: 'NOT_RECORDED', safeForDefaultSummary: false,
+        searchable: true, presentationGroup: 'TECHNICAL', temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['TECHNICAL'],
     }),
-    fact('coil.stock', '线圈转子库存', 'NUMBER', 'coils.stock -> coilRow.stock', {
-        unit: 'set', presentationGroup: 'OTHER', temporalSemantics: 'MUTABLE_CURRENT_VALUE',
-        missingSemantics: 'ZERO_BY_SCHEMA_DEFAULT', safeForDefaultSummary: false,
+    fact('coil.stock', '线圈转子库存', 'INTEGER', 'coils.stock -> coilRow.stock', {
+        unit: 'set', temporalSemantics: 'MUTABLE_CURRENT_VALUE', missingSemantics: 'ZERO_BY_SCHEMA_DEFAULT', businessRoles: ['CURRENT_BUSINESS'],
     }),
     fact('coil.kitPrice', '供应商套件价', 'NUMBER', 'coils.kit_price -> coilRow.kitPrice', {
-        unit: 'CNY/set', presentationGroup: 'TECHNICAL', missingSemantics: 'ZERO_WHEN_NOT_KIT',
-        safeForDefaultSummary: false,
+        unit: 'CNY/set', missingSemantics: 'ZERO_WHEN_NOT_KIT', businessRoles: ['COST_INPUT'],
     }),
     fact('coil.unitPrice', '定子单片价', 'NUMBER', 'coils.unit_price -> coilRow.unitPrice', {
-        unit: 'CNY/sheet', presentationGroup: 'TECHNICAL', safeForDefaultSummary: false,
+        unit: 'CNY/sheet', businessRoles: ['COST_INPUT'],
     }),
     fact('coil.copperBase', '铜价基数', 'NUMBER', 'coils.copper_base -> coilRow.copperBase', {
-        unit: 'CNY/kg', presentationGroup: 'TECHNICAL', temporalSemantics: 'MUTABLE_CURRENT_VALUE',
-        safeForDefaultSummary: false,
+        unit: 'CNY/kg', temporalSemantics: 'MUTABLE_CURRENT_VALUE', businessRoles: ['COST_INPUT'],
     }),
     fact('coil.coilFee', '线圈加工费', 'NUMBER', 'coils.coil_fee -> coilRow.coilFee', {
-        unit: 'CNY/set', presentationGroup: 'TECHNICAL', safeForDefaultSummary: false,
+        unit: 'CNY/set', businessRoles: ['COST_INPUT'],
     }),
     fact('coil.rotorFee', '转子加工费', 'NUMBER', 'coils.rotor_fee -> coilRow.rotorFee', {
-        unit: 'CNY/set', presentationGroup: 'TECHNICAL', safeForDefaultSummary: false,
+        unit: 'CNY/set', businessRoles: ['COST_INPUT'],
+    }),
+    fact('coil.diameterMm', '标准定子直径', 'INTEGER', 'coilRow: stator_variants.diameter_mm; fallback spec 12→120, otherwise numeric spec', {
+        unit: 'mm', sourceId: 'stator_variant.current_resource', temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DERIVED_TECHNICAL'],
     }),
     fact('coil.createdAt', '创建时间', 'DATETIME', 'coils.created_at -> coilRow.createdAt', {
-        presentationGroup: 'OTHER', temporalSemantics: 'STABLE_DESIGN_VALUE', safeForDefaultSummary: false,
+        temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['PROVENANCE'],
     }),
     fact('coil.updatedAt', '更新时间', 'DATETIME', 'coils.updated_at -> coilRow.updatedAt', {
-        presentationGroup: 'OTHER', temporalSemantics: 'MUTABLE_CURRENT_VALUE', safeForDefaultSummary: false,
+        temporalSemantics: 'MUTABLE_CURRENT_VALUE', businessRoles: ['PROVENANCE'],
     }),
 ];
 
@@ -166,20 +138,14 @@ const coilProfile = deepFreeze({
         canonicalIdentity: false,
     }],
     selectionPolicy: {
-        policyId: 'generic.explicit_then_default',
-        explicitConditionFactIds: facts.filter(item => item.candidateSelectionEvidence).map(item => item.factId),
+        policyType: 'EXPLICIT_THEN_DEFAULT',
+        explicitConditionFactIds: ['coil.schemeCode', 'coil.spec', 'coil.sheets', 'coil.material', 'coil.slotType', 'coil.ratedVoltageV', 'coil.ratedFrequencyHz'],
         defaultMetadata: {
             sourceRef: { sourceId: 'coil.current_resource', path: 'coils.is_default -> coilRow.isDefault', status: 'RESOLVED' },
             classification: 'SELECTION_POLICY',
             identityEvidence: false,
-            technicalFact: false,
         },
-        orderedRules: [
-            'APPLY_ALL_EXPLICIT_CONDITIONS',
-            'SELECT_IF_ONE_REMAINS',
-            'SELECT_IF_MULTIPLE_REMAIN_AND_EXACTLY_ONE_IS_DEFAULT',
-            'AMBIGUOUS_IF_MULTIPLE_REMAIN_AND_DEFAULT_COUNT_IS_NOT_ONE',
-        ],
+        orderedStages: ['ESTABLISH_ELIGIBLE_POOL', 'APPLY_EXPLICIT_CONDITIONS', 'UNIQUE_REMAINS', 'INSPECT_UNIQUE_DEFAULT', 'AMBIGUOUS'],
         outcomes: {
             uniqueAfterExplicitConditions: 'EXPLICIT_UNIQUE',
             oneDefaultAmongMultiple: 'DEFAULT_SELECTED',
@@ -187,6 +153,23 @@ const coilProfile = deepFreeze({
             multipleDefaultsAmongMultiple: 'AMBIGUOUS',
         },
         defaultMayOverrideExplicitConditions: false,
+        runtimeEnabled: false,
+    },
+    eligibilityPolicy: {
+        policyType: 'LIFECYCLE_STATUS',
+        factId: 'coil.schemeStatus',
+        ordinaryEligibleValues: ['official'],
+        explicitOptInValues: ['testing'],
+        historicalOnlyValues: ['disabled'],
+        runtimeEnabled: false,
+    },
+    costingPolicy: {
+        policyType: 'VALUE_ROUTED_COSTING',
+        sourceRef: { sourceId: 'coil.current_resource', path: 'coils.pricing_mode -> coilRow.pricingMode', status: 'RESOLVED' },
+        values: [
+            { value: 'calculated', semantics: 'DECOMPOSABLE_FORMAL_COST_INPUTS' },
+            { value: 'kit', semantics: 'DIRECT_SUPPLIER_KIT_PRICE' },
+        ],
         runtimeEnabled: false,
     },
     relationBridge: {
