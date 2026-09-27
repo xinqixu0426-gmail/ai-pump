@@ -1237,6 +1237,71 @@ const AI_TASK_PERSISTENCE_SCHEMA_SQL = `
     );
 `;
 
+// O4-F-A canonical Recipe technical storage.  This definition is intentionally
+// applied only by migration 89: current Recipe commands and read DTOs remain on
+// their legacy storage path until a later, separately reviewed cutover stage.
+const RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL = `
+    CREATE TABLE IF NOT EXISTS recipe_functional_technical_profiles (
+        recipe_id INTEGER PRIMARY KEY REFERENCES recipes(id),
+        rotor_diameter REAL,
+        stack_offset REAL,
+        oil_seal_diameter REAL,
+        impeller_bore_diameter REAL,
+        impeller_span REAL,
+        impeller_thickness REAL,
+        thread_length REAL,
+        thread_diameter REAL,
+        barrel_length REAL,
+        open_offset REAL,
+        bearing_span_explicit REAL,
+        upper_bearing_part_id INTEGER REFERENCES parts(id),
+        lower_bearing_part_id INTEGER REFERENCES parts(id),
+        schema_version INTEGER NOT NULL CHECK(schema_version >= 1),
+        completeness_state TEXT NOT NULL CHECK(completeness_state IN (
+            'COMPLETE', 'INCOMPLETE', 'NEEDS_REVIEW', 'LEGACY_COMPATIBILITY'
+        )),
+        migration_state TEXT NOT NULL CHECK(migration_state IN (
+            'ALREADY_CANONICAL', 'AUTO_MIGRATED',
+            'MIGRATED_WITH_COMPATIBILITY_PROVENANCE', 'NEEDS_OWNER_REVIEW',
+            'BLOCKED_UNRESOLVED'
+        )),
+        migration_version TEXT,
+        migration_fingerprint TEXT,
+        provenance_json TEXT NOT NULL DEFAULT '{}'
+            CHECK(json_valid(provenance_json) AND json_type(provenance_json) = 'object'),
+        legacy_evidence_json TEXT NOT NULL DEFAULT '{}'
+            CHECK(json_valid(legacy_evidence_json) AND json_type(legacy_evidence_json) = 'object'),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK(rotor_diameter IS NULL OR rotor_diameter > 0),
+        CHECK(stack_offset IS NULL OR stack_offset >= 0),
+        CHECK(oil_seal_diameter IS NULL OR oil_seal_diameter > 0),
+        CHECK(impeller_bore_diameter IS NULL OR impeller_bore_diameter > 0),
+        CHECK(impeller_span IS NULL OR impeller_span > 0),
+        CHECK(impeller_thickness IS NULL OR impeller_thickness > 0),
+        CHECK(thread_length IS NULL OR thread_length > 0),
+        CHECK(thread_diameter IS NULL OR thread_diameter > 0),
+        CHECK(barrel_length IS NULL OR barrel_length > 0),
+        CHECK(open_offset IS NULL OR open_offset >= 0),
+        CHECK(bearing_span_explicit IS NULL OR bearing_span_explicit > 0)
+    );
+    CREATE INDEX IF NOT EXISTS idx_recipe_functional_profile_migration
+        ON recipe_functional_technical_profiles(migration_state, completeness_state);
+    CREATE INDEX IF NOT EXISTS idx_recipe_functional_profile_upper_bearing
+        ON recipe_functional_technical_profiles(upper_bearing_part_id);
+    CREATE INDEX IF NOT EXISTS idx_recipe_functional_profile_lower_bearing
+        ON recipe_functional_technical_profiles(lower_bearing_part_id);
+
+    CREATE TABLE IF NOT EXISTS recipe_technical_knowledge (
+        recipe_id INTEGER PRIMARY KEY REFERENCES recipes(id),
+        schema_version INTEGER NOT NULL CHECK(schema_version >= 1),
+        items_json TEXT NOT NULL DEFAULT '[]'
+            CHECK(json_valid(items_json) AND json_type(items_json) = 'array'),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+`;
+
 const APPLICATION_TABLES = Object.freeze([
     'catalog_identity_profiles',
     'catalog_name_aliases',
@@ -1286,6 +1351,8 @@ const APPLICATION_TABLES = Object.freeze([
     'quotations',
     'quotation_attachment_summaries',
     'recipe_analysis_feedback',
+    'recipe_functional_technical_profiles',
+    'recipe_technical_knowledge',
     'recipe_technical_files',
     'recipes',
     'rotor_drawings',
@@ -1350,6 +1417,7 @@ module.exports = {
     CANONICAL_TABLES_SQL,
     COIL_INVENTORY_SCHEMA_SQL,
     AI_TASK_PERSISTENCE_SCHEMA_SQL,
+    RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL,
     COIL_PRICING_CONSTRAINTS_SQL,
     COIL_STOCK_COLUMN_DEFINITION,
     CORE_CONSTRAINED_TABLES,

@@ -9,7 +9,7 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 
 const { AI_TASK_PERSISTENCE_SCHEMA_SQL } = require('../api/database/schema.cjs');
-const { runMigrations } = require('../api/database/migrations.cjs');
+const { MIGRATIONS, runMigrations } = require('../api/database/migrations.cjs');
 const { createDatabaseBackup } = require('../api/services/databaseBackup.cjs');
 const { RESTORE_CONFIRMATION, restoreDatabaseBackup } = require('../api/services/databaseRestore.cjs');
 const { createAiTaskLifecycleV2 } = require('../api/services/aiTaskLifecycleV2.cjs');
@@ -185,7 +185,7 @@ test('N5.1A-R1 fingerprints every preexisting business table across migration an
     const customerId = fixture.ids['customer.benchmark']; db.prepare("INSERT INTO orders(customer_name, customer_id, items_json, created_at, updated_at) VALUES(?,?,?,?,?)").run('基准客户', customerId, '[]', NOW, NOW); db.prepare("INSERT INTO quotations(customer_id, items_json, created_at, updated_at) VALUES(?,?,?,?)").run(customerId, '[]', NOW, NOW);
     db.exec('DROP TABLE ai_task_events; DROP TABLE ai_task_evidence; DROP TABLE ai_task_steps; DROP TABLE ai_tasks;'); db.prepare('DELETE FROM schema_migrations WHERE version=88').run(); db.pragma('user_version = 87');
     const before = businessFingerprint(db); const backup = await createDatabaseBackup(db, { type: 'release', root: backupRoot, now: NOW, sourcePath: fixture.filename, gitCommit: '055a59360a870dc3e73ad33f1eeed911ea02fd40', prune: false });
-    assert.equal(runMigrations(db).currentVersion, 88); const after = businessFingerprint(db); assertFingerprintEqual(before, after); assert.equal(db.pragma('integrity_check', { simple: true }), 'ok'); assert.equal(db.pragma('foreign_key_check').length, 0); assert.equal(runMigrations(db).appliedVersions.length, 0); assertFingerprintEqual(after, businessFingerprint(db)); db.close();
+    assert.equal(runMigrations(db).currentVersion, MIGRATIONS.at(-1).version); const after = businessFingerprint(db); assertFingerprintEqual(before, after); assert.equal(db.prepare("SELECT COUNT(*) count FROM recipe_functional_technical_profiles").get().count, 0); assert.equal(db.prepare("SELECT COUNT(*) count FROM recipe_technical_knowledge").get().count, 0); assert.equal(db.pragma('integrity_check', { simple: true }), 'ok'); assert.equal(db.pragma('foreign_key_check').length, 0); assert.equal(runMigrations(db).appliedVersions.length, 0); assertFingerprintEqual(after, businessFingerprint(db)); db.close();
     await restoreDatabaseBackup({ confirmation: RESTORE_CONFIRMATION, root: backupRoot, backupPath: backup.path, targetPath: restorePath, skipPortCheck: true, now: NOW, currentGitCommit: '055a59360a870dc3e73ad33f1eeed911ea02fd40' }); const restored = new Database(restorePath, { readonly: true }); assertFingerprintEqual(before, businessFingerprint(restored)); assert.equal(restored.pragma('integrity_check', { simple: true }), 'ok'); assert.equal(restored.pragma('foreign_key_check').length, 0); restored.close(); fixture.close(); fs.rmSync(root, { recursive: true, force: true });
 });
 

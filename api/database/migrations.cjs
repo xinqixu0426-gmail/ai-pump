@@ -3,6 +3,7 @@ const { CATALOG_IDENTITY_SCHEMA_SQL } = require('./catalogSchema.cjs');
 const {
     PERSONAL_MEMORY_SCHEMA_SQL,    BUSINESS_CHANGE_INDEXES_SQL,
     AI_TASK_PERSISTENCE_SCHEMA_SQL,
+    RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL,
     BUSINESS_CHANGE_SCHEMA_SQL,
     CANONICAL_INDEXES_SQL,
     CANONICAL_TABLES_SQL,
@@ -3871,6 +3872,14 @@ const MIGRATIONS = Object.freeze([
         signature: 'ai-tasks-steps-evidence-events-task-v2-v1',
         up(db) {
             db.exec(AI_TASK_PERSISTENCE_SCHEMA_SQL);
+        },
+    },
+    {
+        version: 89,
+        name: 'recipe_canonical_technical_storage',
+        signature: 'recipe-functional-profile-technical-knowledge-v1',
+        up(db) {
+            db.exec(RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL);
         },
     },
 ]);
