@@ -31,6 +31,13 @@ Entity Profile
 
 这些概念不包含 `coil` 字段名、12-120、或固定实体/字段/关系数量。
 
+## 两条全局安全不变量
+
+- **Canonical Identity Invariant**：正式实体身份永远来自正式业务资源 ID。别名、俗称、合同号、方案编码等即使唯一，也只是查找/业务 designation，不直接替代 canonical identity。
+- **Provenance DAG Invariant**：事实来源可以一层层派生，但来源链不能形成闭环。任何来源最终必须能追溯到无环的正式来源或明确的 unresolved boundary。
+
+因此，unique designation 可以是直接查找证据，但 `canonicalIdentity` 必须为 false；source 的 `inputSourceIds` 由通用 validator 按 DAG 校验，任何直接或间接循环均 fail closed。
+
 ## 哪些是 Coil 专属知识
 
 - `coil.id` 为 canonical identity，`spec + sheets` 为 12-120 常用叫法；

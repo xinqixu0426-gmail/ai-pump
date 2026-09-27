@@ -11,6 +11,18 @@ function cloneContract() { return structuredClone(ontologyV2); }
 function coilProfile(contract = ontologyV2) { return contract.profiles.find(profile => profile.entityType === 'coil'); }
 function coilFact(factId, contract = ontologyV2) { return coilProfile(contract).facts.find(item => item.factId === factId); }
 
+function syntheticSource(sourceId, inputSourceIds = [], options = {}) {
+    return {
+        sourceId,
+        authority: options.authority || 'CANONICAL_CURRENT',
+        sourceKind: options.sourceKind || (inputSourceIds.length ? 'FORMAL_PROJECTION' : 'RAW_CURRENT_RESOURCE'),
+        inputSourceIds,
+        sourceOfTruth: 'Synthetic source for generic dependency-graph validation only',
+        readBoundary: 'TEST_ONLY_NO_RUNTIME',
+        storesValueInOntology: false,
+    };
+}
+
 function futureProfile() {
     return {
         entityType: 'future_part',
@@ -93,13 +105,25 @@ test('generic validator fails closed for unsafe designation combinations', () =>
     const unsafeCanonical = cloneContract();
     const second = futureProfile();
     second.designations[0].canonicalIdentity = true;
-    second.designations[0].directIdentityEvidence = false;
     unsafeCanonical.sources.push({
         sourceId: 'future_part.current_resource', authority: 'CANONICAL_CURRENT', sourceKind: 'RAW_CURRENT_RESOURCE', inputSourceIds: [],
         sourceOfTruth: 'Synthetic existing business resource for template validation only', readBoundary: 'TEST_ONLY_NO_RUNTIME', storesValueInOntology: false,
     });
     unsafeCanonical.profiles.push(second);
-    assert.throws(() => validateOntologyV2(unsafeCanonical), error => error.code === 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+    assert.throws(() => validateOntologyV2(unsafeCanonical), error => error.code === 'ONTOLOGY_V2_DESIGNATION_CANONICAL_IDENTITY_FORBIDDEN');
+});
+
+test('direct designation evidence remains distinct from the formal resource canonical identity', () => {
+    const contract = cloneContract();
+    addFutureEntity(contract);
+    const profile = contract.profiles.find(item => item.entityType === 'future_part');
+    assert.equal(profile.designations[0].unique, true);
+    assert.equal(profile.designations[0].collisionPolicy, 'REJECT');
+    assert.equal(profile.designations[0].directIdentityEvidence, true);
+    assert.equal(profile.designations[0].canonicalIdentity, false);
+    assert.equal(profile.identity.canonicalId.sourceRef.path, 'future_parts.id');
+    assert.equal(profile.identity.canonicalIdentityFactId, null);
+    assert.doesNotThrow(() => validateOntologyV2(contract));
 });
 
 test('12-120 remains a collision-allowed searchable common designation, never canonical identity', () => {
@@ -219,6 +243,39 @@ test('DTO source audit includes derived, redundant and technical projection surf
     assert.equal(byField.get('coilRow.statorVariantId').classification, 'TECHNICAL_METADATA');
     assert.equal(byField.get('ontology.aiFallbackDefault').sourceStatus, 'UNRESOLVED');
     assert.equal(coilSourceAudit.discoveryIsAcceptance, false);
+});
+
+test('generic source dependency graph accepts valid chains, fan-in, fan-out, and unresolved boundaries', () => {
+    const contract = cloneContract();
+    contract.sources.push(
+        syntheticSource('graph.raw_a'),
+        syntheticSource('graph.raw_b'),
+        syntheticSource('graph.projection', ['graph.raw_a', 'graph.raw_b']),
+        syntheticSource('graph.derived_a', ['graph.projection']),
+        syntheticSource('graph.derived_b', ['graph.projection']),
+        syntheticSource('graph.unresolved', ['graph.derived_a'], {
+            authority: 'UNRESOLVED', sourceKind: 'UNRESOLVED_SEMANTIC_GAP',
+        })
+    );
+    assert.doesNotThrow(() => validateOntologyV2(contract));
+});
+
+test('generic source dependency graph rejects direct and indirect cycles', () => {
+    const direct = cloneContract();
+    direct.sources.find(source => source.sourceId === 'coil.current_resource').inputSourceIds = ['coil.current_resource'];
+    assert.throws(() => validateOntologyV2(direct), error => error.code === 'ONTOLOGY_V2_SOURCE_CYCLE');
+
+    const twoNode = cloneContract();
+    twoNode.sources.push(syntheticSource('graph.a', ['graph.b']), syntheticSource('graph.b', ['graph.a']));
+    assert.throws(() => validateOntologyV2(twoNode), error => error.code === 'ONTOLOGY_V2_SOURCE_CYCLE');
+
+    const threeNode = cloneContract();
+    threeNode.sources.push(
+        syntheticSource('graph.a', ['graph.b']),
+        syntheticSource('graph.b', ['graph.c']),
+        syntheticSource('graph.c', ['graph.a'])
+    );
+    assert.throws(() => validateOntologyV2(threeNode), error => error.code === 'ONTOLOGY_V2_SOURCE_CYCLE');
 });
 
 test('current and estimated-derived cost provenance are distinct and ontology contains no arithmetic', () => {

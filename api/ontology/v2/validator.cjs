@@ -121,6 +121,9 @@ function validateProfile(profile, sourceMap, entityTypes, roleIds) {
         && profile.identity.permitsNameOnlyCanonicalId === false,
         'ONTOLOGY_V2_IDENTITY_INVALID'
     );
+    const canonicalIdentityIsResourceOwned = profile.identity.canonicalIdentityFactId === null
+        && profile.identity.permitsDesignationAsCanonicalId === false
+        && profile.identity.permitsNameOnlyCanonicalId === false;
 
     check(Array.isArray(profile.facts), 'ONTOLOGY_V2_FACT_COLLECTION_INVALID');
     const factIds = new Set();
@@ -156,6 +159,10 @@ function validateProfile(profile, sourceMap, entityTypes, roleIds) {
         check(['ALLOWED', 'REJECT', 'REPORT'].includes(designation.collisionPolicy), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
         check(!(designation.unique && designation.collisionPolicy === 'ALLOWED'), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
         check(!(designation.canonicalIdentity && (!designation.unique || !designation.directIdentityEvidence)), 'ONTOLOGY_V2_DESIGNATION_IDENTITY_INVALID');
+        check(
+            !(canonicalIdentityIsResourceOwned && designation.canonicalIdentity),
+            'ONTOLOGY_V2_DESIGNATION_CANONICAL_IDENTITY_FORBIDDEN'
+        );
         designationIds.add(designation.designationId);
     }
 
@@ -239,6 +246,19 @@ function validateProfile(profile, sourceMap, entityTypes, roleIds) {
     return { factCount: factIds.size, designationCount: designationIds.size };
 }
 
+function validateSourceDependencyGraph(sourceMap) {
+    const states = new Map();
+    const visit = sourceId => {
+        const state = states.get(sourceId);
+        if (state === 'VISITING') fail('ONTOLOGY_V2_SOURCE_CYCLE');
+        if (state === 'VISITED') return;
+        states.set(sourceId, 'VISITING');
+        sourceMap.get(sourceId).inputSourceIds.forEach(visit);
+        states.set(sourceId, 'VISITED');
+    };
+    sourceMap.forEach((_, sourceId) => visit(sourceId));
+}
+
 function validateOntologyV2(contract) {
     exactKeys(contract, [
         'version', 'status', 'runtimeEnabled', 'storesBusinessValues',
@@ -283,9 +303,10 @@ function validateOntologyV2(contract) {
     }
     for (const source of sourceMap.values()) {
         source.inputSourceIds.forEach(sourceId => {
-            check(sourceId !== source.sourceId && sourceMap.has(sourceId), 'ONTOLOGY_V2_SOURCE_INPUT_INVALID');
+            check(sourceMap.has(sourceId), 'ONTOLOGY_V2_SOURCE_INPUT_INVALID');
         });
     }
+    validateSourceDependencyGraph(sourceMap);
     check(Array.isArray(contract.profiles), 'ONTOLOGY_V2_PROFILE_COLLECTION_INVALID');
     const entityTypes = new Set();
     let factCount = 0;

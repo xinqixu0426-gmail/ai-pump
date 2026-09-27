@@ -13,8 +13,8 @@
 | 业务字段 | 当前系统字段 | 我们把它当成什么 | 为什么 | 搜索 | 缩小候选 | 决定唯一身份 | 默认展示 | 数据来源 | 还有没有疑问 |
 |---|---|---|---|---|---|---|---|---|---|
 | 具体方案 ID | `coils.id` | Canonical Identity | 正式资源主键 | 否 | 否 | 是 | 否 | coils / coilRow | 无 |
-| 常用叫法 | `spec + sheets` | Common Designation | 例如 12-120；可重复、可碰撞 | 是 | 是 | 否 | 是（作为名称） | coils / 派生合同 | 无 |
-| 方案编码 | `coils.scheme_code` | 内部直接查找证据 | 稳定键，可精确查找；老板不常说 | 是 | 仅内部强查找 | 否 | 否 | coils / coilRow | 无 |
+| 常用叫法 | `spec + sheets` | Common Designation | 例如 12-120；可重复、可碰撞；contract 禁止它替代正式资源 identity | 是 | 是 | 否 | 是（作为名称） | coils / 派生合同 | 无 |
+| 方案编码 | `coils.scheme_code` | 内部直接查找证据 | 稳定键，可精确查找；即使唯一也不是 canonical identity | 是 | 仅内部强查找 | 否 | 否 | coils / coilRow | 无 |
 | 方案名称 | `coils.scheme_name` | Display / Human-readable Fact | 供人阅读和文本搜索，不要求整串身份匹配 | 是 | 否 | 否 | 是（名称） | coils / coilRow | 无 |
 | 规格俗称 | `coils.spec` | Selection Evidence | 与片数组成普通叫法 | 是 | 是 | 否 | 否 | coils / coilRow | 无 |
 | 片数 | `coils.sheets` | Selection Evidence | 与规格一起区分常用叫法 | 是 | 是 | 否 | 否 | coils / coilRow | 无 |
@@ -70,6 +70,11 @@ disabled：仅历史或明确停用查询才可访问
 - 非正式如 12-130 的插值/外推结果是 `ESTIMATED_DERIVED`，不是新的 Coil 实体，未来必须标为估算并保留来源。
 
 V2 只记录上述来源和语义，绝不复制或执行成本公式。
+
+## 通用合同不变量（R3）
+
+- Canonical identity 只来自 `coil.id` 等正式资源 ID；designation 即使唯一且可直接查找，也不得成为 canonical identity。
+- `inputSourceIds` 是无环来源图：投影和派生可以逐层依赖正式来源，但不能直接或间接回到自己。AI fallback default 的来源仍是显式 `UNRESOLVED` 边界。
 
 ## 最终 Owner 语义摘要
 
