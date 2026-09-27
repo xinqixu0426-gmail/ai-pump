@@ -75,7 +75,7 @@ const V21Schema = deepFreeze({
     factOptional: ['valueKind', 'relationProjection', 'derivation', 'applicableWhen', 'requiredWhen', 'prohibitedWhen'],
     relationProjection: ['relationId', 'targetFactRef', 'displayProjection'],
     factRef: ['scope', 'factId', 'relationPath'],
-    derivation: ['operation', 'inputs', 'sourceRef', 'missingInputPolicy', 'materialization'],
+    derivation: ['operation', 'inputs', 'sourceRef', 'missingInputPolicy', 'materialization', 'cacheMetadata'],
     materializedCacheMetadata: ['inputRefs', 'sourceRefs', 'freshness', 'contractVersion', 'calculationVersion', 'invalidation'],
     policy: ['policyId', 'ownerEntityType', 'applicableWhen', 'factRefs', 'relationIds', 'rules', 'runtimeEnabled'],
     technicalKnowledgeCollection: ['collectionId', 'ownerEntityType', 'entrySchema', 'allowsArbitraryKeys', 'searchable', 'aiReadable', 'defaultClassification', 'runtimeEnabled'],

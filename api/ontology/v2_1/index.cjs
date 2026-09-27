@@ -5,4 +5,5 @@ module.exports = {
     ...require('./catalogs.cjs'),
     ...require('./schema.cjs'),
     ...require('./liftV2.cjs'),
+    ...require('./validator.cjs'),
 };
