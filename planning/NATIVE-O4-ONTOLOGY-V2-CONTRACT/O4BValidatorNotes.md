@@ -60,6 +60,13 @@ or fuzzy path. A RELATED path must begin at the current entity, use only
 declared relations, type-connect at every hop, end on a declared Fact, and not
 repeat an entity type.
 
+For `valueKind: RELATION_PROJECTION`, the contract is deliberately narrower:
+`targetFactRef` is a RELATED FactRef with exactly one path element, and that
+element must exactly equal `relationProjection.relationId`. Optional
+`displayProjection` follows the same one-hop binding. A same-target relation
+cannot be substituted merely because it reaches the same entity type. Multi-hop
+projection belongs to a RELATED FactRef inside `PROJECT_RELATED_FACT` instead.
+
 The canonical predicate data shapes are:
 
 ```text
@@ -147,3 +154,8 @@ O4-C will construct richer multi-feature synthetic proof scenarios. A later
 runtime-design phase may define policy evaluation, relation resolution,
 derivation execution, cache persistence, source adapters, and Technical
 Knowledge indexing. None is implemented by O4-B.
+
+O4-C must specifically stress-test conditional Extension composition,
+including whether references to Facts introduced by other conditional
+extensions can leak into a base semantic surface. That composition question is
+not changed by this relation-projection binding correction.

@@ -467,13 +467,26 @@ function validateRelationProjection(fact, entityType, entities, relationMap, sou
     exactKeysWithOptional(fact.relationProjection, ['relationId', 'targetFactRef'], ['displayProjection'], 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const relation = relationMap.get(fact.relationProjection.relationId);
     check(relation && relation.sourceEntityType === entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
-    const terminal = getFactRefTerminal(fact.relationProjection.targetFactRef, entityType, entities, relationMap, sourceMap, new Set());
+    const validateDirectTargetRef = factRef => {
+        check(
+            plainObject(factRef)
+            && factRef.scope === FactRefScope.RELATED
+            && Array.isArray(factRef.relationPath)
+            && factRef.relationPath.length === 1
+            && factRef.relationPath[0] === relation.relationId,
+            'ONTOLOGY_V21_RELATION_PROJECTION_INVALID'
+        );
+        const terminal = getFactRefTerminal(factRef, entityType, entities, relationMap, sourceMap, new Set());
+        check(terminal.entityType === relation.target.entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
+        return terminal;
+    };
+    const terminal = validateDirectTargetRef(fact.relationProjection.targetFactRef);
     check(terminal.entityType === relation.target.entityType, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     check(terminal.fact.dataType === fact.dataType && unitsCompatible(terminal.fact.unit, fact.unit), 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     const source = validateFactSourceSafety(fact, sourceMap);
     check(source.provenancePurpose === ProvenancePurpose.RELATION_PROJECTION, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     if ('displayProjection' in fact.relationProjection) {
-        getFactRefTerminal(fact.relationProjection.displayProjection, entityType, entities, relationMap, sourceMap, new Set());
+        validateDirectTargetRef(fact.relationProjection.displayProjection);
         check(fact.directIdentityEvidence === false, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
     }
 }

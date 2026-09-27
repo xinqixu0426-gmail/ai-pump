@@ -364,6 +364,88 @@ test('relation projections and RELATED FactRef paths reject invalid traversal', 
     expectCode(pathCycle, 'ONTOLOGY_V21_CROSS_ENTITY_PATH_INVALID');
 });
 
+test('relation projections bind the declared direct relation while generic RELATED derivations retain multi-hop paths', () => {
+    const sameTargetMismatch = makeContract();
+    sameTargetMismatch.relations.push(
+        relation('alpha.uses_beta_primary'),
+        relation('alpha.uses_beta_secondary')
+    );
+    getProfile(sameTargetMismatch).facts.push(fact('alpha', 'projection', {
+        dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
+        extra: {
+            valueKind: 'RELATION_PROJECTION',
+            relationProjection: {
+                relationId: 'alpha.uses_beta_primary',
+                targetFactRef: related(['alpha.uses_beta_secondary'], 'beta.value'),
+            },
+        },
+    }));
+    expectCode(sameTargetMismatch, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
+
+    const multiHopProjection = makeContract();
+    multiHopProjection.sources.push(source('gamma.current'));
+    multiHopProjection.profiles.push(profile('gamma', [fact('gamma', 'value', { dataType: 'NUMBER', unit: 'mm', businessRoles: ['FUNCTIONAL_TECHNICAL'] })]));
+    multiHopProjection.relations.push(
+        relation(),
+        relation('beta.uses_gamma', {
+            sourceEntityType: 'beta', target: { entityType: 'gamma', canonicalEndpointRequired: true }, sourceRef: sourceRef('beta.current', 'beta.gamma_id'),
+        })
+    );
+    getProfile(multiHopProjection).facts.push(fact('alpha', 'projection', {
+        dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
+        extra: {
+            valueKind: 'RELATION_PROJECTION',
+            relationProjection: { relationId: 'alpha.uses_beta', targetFactRef: related(['alpha.uses_beta', 'beta.uses_gamma'], 'gamma.value') },
+        },
+    }));
+    expectCode(multiHopProjection, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
+
+    const displayMismatch = makeContract();
+    displayMismatch.relations.push(relation('alpha.uses_beta_primary'), relation('alpha.uses_beta_secondary'));
+    getProfile(displayMismatch).facts.push(fact('alpha', 'projection', {
+        dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
+        extra: {
+            valueKind: 'RELATION_PROJECTION',
+            relationProjection: {
+                relationId: 'alpha.uses_beta_primary',
+                targetFactRef: related(['alpha.uses_beta_primary'], 'beta.value'),
+                displayProjection: related(['alpha.uses_beta_secondary'], 'beta.label'),
+            },
+        },
+    }));
+    expectCode(displayMismatch, 'ONTOLOGY_V21_RELATION_PROJECTION_INVALID');
+
+    const displayPositive = makeContract();
+    displayPositive.relations.push(relation());
+    getProfile(displayPositive).facts.push(fact('alpha', 'projection', {
+        dataType: 'NUMBER', unit: 'mm', sourceId: 'alpha.relation_projection', authority: 'DERIVED',
+        extra: {
+            valueKind: 'RELATION_PROJECTION',
+            relationProjection: {
+                relationId: 'alpha.uses_beta',
+                targetFactRef: related(['alpha.uses_beta'], 'beta.value'),
+                displayProjection: related(['alpha.uses_beta'], 'beta.label'),
+            },
+        },
+    }));
+    assert.doesNotThrow(() => validateOntologyV21(displayPositive));
+
+    const multiHopDerived = makeContract();
+    multiHopDerived.sources.push(source('gamma.current'));
+    multiHopDerived.profiles.push(profile('gamma', [fact('gamma', 'value', { dataType: 'NUMBER', unit: 'mm', businessRoles: ['FUNCTIONAL_TECHNICAL'] })]));
+    multiHopDerived.relations.push(
+        relation(),
+        relation('beta.uses_gamma', {
+            sourceEntityType: 'beta', target: { entityType: 'gamma', canonicalEndpointRequired: true }, sourceRef: sourceRef('beta.current', 'beta.gamma_id'),
+        })
+    );
+    addDerived(multiHopDerived, 'multiHopCopy', {
+        operation: 'PROJECT_RELATED_FACT', inputs: [related(['alpha.uses_beta', 'beta.uses_gamma'], 'gamma.value')], sourceRef: sourceRef('alpha.derived'),
+        missingInputPolicy: 'UNRESOLVED', materialization: 'COMPUTE_ON_READ',
+    });
+    assert.doesNotThrow(() => validateOntologyV21(multiHopDerived));
+});
+
 test('value kinds and derivation operations reject malformed or unsafe definitions', () => {
     const direct = makeContract();
     getProfile(direct).facts[0].derivation = {};
