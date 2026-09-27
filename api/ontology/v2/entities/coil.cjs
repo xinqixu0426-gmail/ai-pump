@@ -40,8 +40,8 @@ const facts = [
     fact('coil.material', '材质', 'STRING', 'coils.material -> coilRow.material', {
         searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
-    fact('coil.slotType', '槽眼', 'STRING', 'stator_variants.slot_type -> coilRow.slotType; fallback coils.slot_type', {
-        searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
+    fact('coil.slotType', '槽眼', 'STRING', 'coilRow.slotType = stator_variants.slot_type || coils.slot_type || "小眼"', {
+        sourceId: 'coil.dto_projection', searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DESCRIPTIVE'],
     }),
     fact('coil.ratedVoltageV', '额定电压', 'INTEGER', 'coils.rated_voltage_v -> coilRow.ratedVoltageV', {
         unit: 'V', searchable: true, candidateSelectionEvidence: true, temporalSemantics: 'STABLE_DESIGN_VALUE', missingSemantics: 'NOT_RECORDED', businessRoles: ['DESCRIPTIVE'],
@@ -100,8 +100,8 @@ const facts = [
     fact('coil.rotorFee', '转子加工费', 'NUMBER', 'coils.rotor_fee -> coilRow.rotorFee', {
         unit: 'CNY/set', businessRoles: ['COST_INPUT'],
     }),
-    fact('coil.diameterMm', '标准定子直径', 'INTEGER', 'coilRow: stator_variants.diameter_mm; fallback spec 12→120, otherwise numeric spec', {
-        unit: 'mm', sourceId: 'stator_variant.current_resource', temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DERIVED_TECHNICAL'],
+    fact('coil.diameterMm', '标准定子直径', 'INTEGER', 'coilRow.diameterMm = stator_variants.diameter_mm || (coils.spec === "12" ? 120 : Number(coils.spec) || 0)', {
+        unit: 'mm', sourceId: 'coil.dto_projection', temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['DERIVED_TECHNICAL'],
     }),
     fact('coil.createdAt', '创建时间', 'DATETIME', 'coils.created_at -> coilRow.createdAt', {
         temporalSemantics: 'STABLE_DESIGN_VALUE', businessRoles: ['PROVENANCE'],
@@ -113,7 +113,7 @@ const facts = [
 
 const coilProfile = deepFreeze({
     entityType: 'coil',
-    status: 'DRAFT_AWAITING_OWNER_REVIEW',
+    status: 'OWNER_REVIEWED_REFERENCE_PROFILE',
     identity: {
         canonicalId: {
             sourceRef: { sourceId: 'coil.current_resource', path: 'coils.id -> coilRow.id', status: 'RESOLVED' },
@@ -141,9 +141,18 @@ const coilProfile = deepFreeze({
         policyType: 'EXPLICIT_THEN_DEFAULT',
         explicitConditionFactIds: ['coil.schemeCode', 'coil.spec', 'coil.sheets', 'coil.material', 'coil.slotType', 'coil.ratedVoltageV', 'coil.ratedFrequencyHz'],
         defaultMetadata: {
-            sourceRef: { sourceId: 'coil.current_resource', path: 'coils.is_default -> coilRow.isDefault', status: 'RESOLVED' },
             classification: 'SELECTION_POLICY',
             identityEvidence: false,
+            existingMarkers: [{
+                markerType: 'EXISTING_LOCAL_DEFAULT_MARKER',
+                sourceRef: { sourceId: 'coil.current_resource', path: 'coils.is_default -> coilRow.isDefault', status: 'RESOLVED' },
+                semanticScope: 'official coils sharing stator_variant_id + sheets',
+            }],
+            fallbackResolver: {
+                resolverType: 'FINAL_CANDIDATE_FALLBACK_DEFAULT',
+                sourceRef: { sourceId: 'coil.ai_fallback_default', path: 'authoritative persisted resolver not yet proven', status: 'UNRESOLVED' },
+                semanticScope: 'final eligible candidate set after explicit Owner conditions',
+            },
         },
         orderedStages: ['ESTABLISH_ELIGIBLE_POOL', 'APPLY_EXPLICIT_CONDITIONS', 'UNIQUE_REMAINS', 'INSPECT_UNIQUE_DEFAULT', 'AMBIGUOUS'],
         outcomes: {

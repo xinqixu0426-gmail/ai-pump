@@ -1,8 +1,9 @@
 'use strict';
 
-const { SourceAuthority } = require('./sources.cjs');
+const { SourceAuthority, SourceKind } = require('./sources.cjs');
 
 const SOURCE_AUTHORITIES = new Set(Object.values(SourceAuthority));
+const SOURCE_KINDS = new Set(Object.values(SourceKind));
 const DATA_TYPES = new Set(['STRING', 'INTEGER', 'NUMBER', 'BOOLEAN', 'DATETIME']);
 const PRESENTATION_GROUPS = new Set(['PRIMARY', 'TECHNICAL', 'OTHER']);
 const TEMPORAL_SEMANTICS = new Set([
@@ -60,7 +61,7 @@ function validateSourceRef(sourceRef, sourceMap) {
     return source;
 }
 
-function validateFact(item, entityType, factIds, sourceMap) {
+function validateFact(item, entityType, factIds, sourceMap, roleIds) {
     exactKeys(item, [
         'factId', 'label', 'dataType', 'unit', 'sourceRef', 'authority',
         'searchable', 'candidateSelectionEvidence', 'directIdentityEvidence',
@@ -87,7 +88,7 @@ function validateFact(item, entityType, factIds, sourceMap) {
     check(new Set(item.businessRoles).size === item.businessRoles.length, 'ONTOLOGY_V2_FACT_ROLE_INVALID');
     item.businessRoles.forEach(role => {
         nonEmptyString(role, 'ONTOLOGY_V2_FACT_ROLE_INVALID');
-        check(/^[A-Z][A-Z0-9_]*$/.test(role), 'ONTOLOGY_V2_FACT_ROLE_INVALID');
+        check(roleIds.has(role), 'ONTOLOGY_V2_FACT_ROLE_UNKNOWN');
     });
     check(
         item.sourceRef.status !== 'UNRESOLVED' || item.safeForDefaultSummary === false,
@@ -96,7 +97,7 @@ function validateFact(item, entityType, factIds, sourceMap) {
     factIds.add(item.factId);
 }
 
-function validateProfile(profile, sourceMap, entityTypes) {
+function validateProfile(profile, sourceMap, entityTypes, roleIds) {
     exactKeys(profile, [
         'entityType', 'status', 'identity', 'facts', 'designations',
         'selectionPolicy', 'eligibilityPolicy', 'costingPolicy', 'relationBridge',
@@ -123,7 +124,7 @@ function validateProfile(profile, sourceMap, entityTypes) {
 
     check(Array.isArray(profile.facts), 'ONTOLOGY_V2_FACT_COLLECTION_INVALID');
     const factIds = new Set();
-    profile.facts.forEach(item => validateFact(item, profile.entityType, factIds, sourceMap));
+    profile.facts.forEach(item => validateFact(item, profile.entityType, factIds, sourceMap, roleIds));
 
     check(Array.isArray(profile.designations), 'ONTOLOGY_V2_DESIGNATION_INVALID');
     const designationIds = new Set();
@@ -170,10 +171,20 @@ function validateProfile(profile, sourceMap, entityTypes) {
         exactKeys(policy, ['policyType', 'explicitConditionFactIds', 'defaultMetadata', 'orderedStages', 'outcomes', 'defaultMayOverrideExplicitConditions', 'runtimeEnabled'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
         check(Array.isArray(policy.explicitConditionFactIds) && policy.explicitConditionFactIds.every(id => factIds.has(id)), 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
         check(new Set(policy.explicitConditionFactIds).size === policy.explicitConditionFactIds.length, 'ONTOLOGY_V2_SELECTION_FACT_INVALID');
-        exactKeys(policy.defaultMetadata, ['sourceRef', 'classification', 'identityEvidence'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
-        validateSourceRef(policy.defaultMetadata.sourceRef, sourceMap);
+        exactKeys(policy.defaultMetadata, ['classification', 'identityEvidence', 'existingMarkers', 'fallbackResolver'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
         nonEmptyString(policy.defaultMetadata.classification, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
         boolean(policy.defaultMetadata.identityEvidence, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        check(Array.isArray(policy.defaultMetadata.existingMarkers), 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        policy.defaultMetadata.existingMarkers.forEach(marker => {
+            exactKeys(marker, ['markerType', 'sourceRef', 'semanticScope'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+            nonEmptyString(marker.markerType, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+            validateSourceRef(marker.sourceRef, sourceMap);
+            nonEmptyString(marker.semanticScope, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        });
+        exactKeys(policy.defaultMetadata.fallbackResolver, ['resolverType', 'sourceRef', 'semanticScope'], 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        nonEmptyString(policy.defaultMetadata.fallbackResolver.resolverType, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
+        validateSourceRef(policy.defaultMetadata.fallbackResolver.sourceRef, sourceMap);
+        nonEmptyString(policy.defaultMetadata.fallbackResolver.semanticScope, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
         check(Array.isArray(policy.orderedStages) && policy.orderedStages.length > 0 && new Set(policy.orderedStages).size === policy.orderedStages.length, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
         policy.orderedStages.forEach(stage => nonEmptyString(stage, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID'));
         check(plainObject(policy.outcomes) && Object.keys(policy.outcomes).length > 0, 'ONTOLOGY_V2_SELECTION_POLICY_INVALID');
@@ -231,7 +242,7 @@ function validateProfile(profile, sourceMap, entityTypes) {
 function validateOntologyV2(contract) {
     exactKeys(contract, [
         'version', 'status', 'runtimeEnabled', 'storesBusinessValues',
-        'isBusinessSourceOfTruth', 'access', 'sources', 'profiles',
+        'isBusinessSourceOfTruth', 'access', 'sources', 'roleCatalog', 'profiles',
     ]);
     check(contract.version === 2, 'ONTOLOGY_V2_VERSION_UNSUPPORTED');
     nonEmptyString(contract.status);
@@ -242,26 +253,45 @@ function validateOntologyV2(contract) {
         && contract.access === 'CONTRACT_ONLY_NO_RUNTIME',
         'ONTOLOGY_V2_RUNTIME_ISOLATION_REQUIRED'
     );
+    check(Array.isArray(contract.roleCatalog) && contract.roleCatalog.length > 0, 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+    const roleIds = new Set();
+    for (const role of contract.roleCatalog) {
+        exactKeys(role, ['roleId', 'label', 'description'], 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        nonEmptyString(role.roleId, 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        check(/^[A-Z][A-Z0-9_]*$/.test(role.roleId), 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        check(!roleIds.has(role.roleId), 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        nonEmptyString(role.label, 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        nonEmptyString(role.description, 'ONTOLOGY_V2_ROLE_CATALOG_INVALID');
+        roleIds.add(role.roleId);
+    }
     check(Array.isArray(contract.sources), 'ONTOLOGY_V2_SOURCE_COLLECTION_INVALID');
     const sourceMap = new Map();
     for (const source of contract.sources) {
         exactKeys(source, [
-            'sourceId', 'authority', 'sourceOfTruth', 'readBoundary', 'storesValueInOntology',
+            'sourceId', 'authority', 'sourceKind', 'inputSourceIds', 'sourceOfTruth', 'readBoundary', 'storesValueInOntology',
         ], 'ONTOLOGY_V2_SOURCE_INVALID');
         nonEmptyString(source.sourceId, 'ONTOLOGY_V2_SOURCE_INVALID');
         check(!sourceMap.has(source.sourceId), 'ONTOLOGY_V2_SOURCE_DUPLICATE');
         check(SOURCE_AUTHORITIES.has(source.authority), 'ONTOLOGY_V2_SOURCE_INVALID');
+        check(SOURCE_KINDS.has(source.sourceKind), 'ONTOLOGY_V2_SOURCE_INVALID');
+        check(Array.isArray(source.inputSourceIds) && new Set(source.inputSourceIds).size === source.inputSourceIds.length, 'ONTOLOGY_V2_SOURCE_INVALID');
+        source.inputSourceIds.forEach(sourceId => nonEmptyString(sourceId, 'ONTOLOGY_V2_SOURCE_INVALID'));
         nonEmptyString(source.sourceOfTruth, 'ONTOLOGY_V2_SOURCE_INVALID');
         nonEmptyString(source.readBoundary, 'ONTOLOGY_V2_SOURCE_INVALID');
         check(source.storesValueInOntology === false, 'ONTOLOGY_V2_SOURCE_STORES_VALUE');
         sourceMap.set(source.sourceId, source);
+    }
+    for (const source of sourceMap.values()) {
+        source.inputSourceIds.forEach(sourceId => {
+            check(sourceId !== source.sourceId && sourceMap.has(sourceId), 'ONTOLOGY_V2_SOURCE_INPUT_INVALID');
+        });
     }
     check(Array.isArray(contract.profiles), 'ONTOLOGY_V2_PROFILE_COLLECTION_INVALID');
     const entityTypes = new Set();
     let factCount = 0;
     let designationCount = 0;
     for (const profile of contract.profiles) {
-        const result = validateProfile(profile, sourceMap, entityTypes);
+        const result = validateProfile(profile, sourceMap, entityTypes, roleIds);
         factCount += result.factCount;
         designationCount += result.designationCount;
     }

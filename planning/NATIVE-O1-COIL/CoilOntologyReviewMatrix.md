@@ -1,10 +1,10 @@
 # Coil Ontology Review Matrix
 
-> 状态：R1 Owner + Supervisor 字段审核结论已写入 V2 草稿。本文是合同审核材料，不接入 AI Runtime，不改变线圈选择、成本、库存或写入行为。
+> 状态：R2 Coil Reference Entity 合同审核材料。Coil profile 为 `OWNER_REVIEWED_REFERENCE_PROFILE`，但全部 runtime 仍禁用；AI fallback default 的正式来源尚未证明。
 
 ## 一句话规则
 
-具体线圈只由 `coil.id` 唯一确定。老板说“12-120”时，它是可重复的常用叫法；先在正式方案中按“12-120 + 可选材质/槽眼/电压/频率”缩小候选，唯一则选中，否则只在剩余候选恰有一个默认方案时兜底，其他情况必须歧义。
+具体线圈只由 `coil.id` 唯一确定。老板说“12-120”时，它是可重复的常用叫法；目标语义是在正式方案中按“12-120 + 可选材质/槽眼/电压/频率”缩小候选，唯一则选中；多项时只有未来已证明的最终候选集 fallback resolver 恰得出一个默认项才可兜底，否则必须歧义。此合同不启用该运行时。
 
 ## 字段审核矩阵
 
@@ -19,11 +19,12 @@
 | 规格俗称 | `coils.spec` | Selection Evidence | 与片数组成普通叫法 | 是 | 是 | 否 | 否 | coils / coilRow | 无 |
 | 片数 | `coils.sheets` | Selection Evidence | 与规格一起区分常用叫法 | 是 | 是 | 否 | 否 | coils / coilRow | 无 |
 | 材质 | `coils.material` | Selection Evidence | 老板可明确给出 | 是 | 是 | 否 | 否 | coils / coilRow | 无 |
-| 槽眼 | `coilRow.slotType` | Selection Evidence | 老板可明确给出；DTO 优先定子组合槽眼 | 是 | 是 | 否 | 否 | stator_variants.slot_type → fallback coils.slot_type | 无 |
+| 槽眼 | `coilRow.slotType` | Selection Evidence | 老板可明确给出；正式 DTO 投影优先定子组合槽眼，回退 coils 槽眼，再回退“小眼” | 是 | 是 | 否 | 否 | Formal Projection / coilRow | 无 |
 | 额定电压 | `coils.rated_voltage_v` | Selection Evidence | 老板可明确给出 | 是 | 是 | 否 | 否 | coils / coilRow | 空值只表示未记录 |
 | 额定频率 | `coils.rated_frequency_hz` | Selection Evidence | 老板可明确给出 | 是 | 是 | 否 | 否 | coils / coilRow | 空值只表示未记录 |
 | 方案状态 | `coils.scheme_status` | Lifecycle / Eligibility Policy | `official` 普通候选；`testing` 仅明确试验请求；`disabled` 仅历史/明确停用查询 | 是 | 不作为普通条件 | 否 | 否 | coils / coilCost | 无 |
-| 默认方案 | `coils.is_default` | Selection Policy | 多个已合格候选中恰一个默认才兜底 | 否 | 最后兜底 | 否 | 否 | coils / coilRow | 无 |
+| 现有局部默认标记 | `coils.is_default` | Existing Local Default Marker | 真实且权威，但仅在 `official + stator_variant_id + sheets` 物理分组内维护 | 否 | 否 | 否 | coils / coilRow | 它不等同最终候选集 fallback default |
+| 目标 AI fallback default | 未证明的 persisted resolver | Selection Policy 的目标 resolver | 在明确条件筛选后的最终候选集上决定唯一兜底 | 否 | 最后兜底（目标） | 否 | 否 | UNRESOLVED | **来源缺口：运行时接入前必须解决** |
 | 市场 | `coils.market` | Descriptive Fact | 仅描述备注，老板不以它选线圈 | 是 | 否 | 否 | 否 | coils / coilRow | 无 |
 | 方案系列 | `coils.scheme_family_code` | Internal Calculation Metadata | 只限定插值/外推链路 | 否 | 否 | 否 | 否 | coils / coilCost | 无 |
 | 计价方式 | `coils.pricing_mode` | Costing Policy | `calculated` 用正式成本输入；`kit` 用供应商整套价 | 否 | 否 | 否 | 否 | coils / coilRow | 无 |
@@ -34,9 +35,9 @@
 | 主/副线径与绕组数据 | `main_*` / `aux_*` | Technical Facts | 仅在询问绕组技术数据时展示 | 是 | 否 | 否 | 否 | coils / coilRow | 无 |
 | 单片价、套件价、铜价、加工费 | `unit_price/kit_price/copper_base/coil_fee/rotor_fee` | Cost Inputs | 用于成本解释，不是实体识别条件 | 否 | 否 | 否 | 否 | coils / coilCost | 无 |
 | 库存 | `coils.stock` | Current Business Fact | 线圈转子成品套数；正式 schema 为整数 | 否 | 否 | 否 | 否 | coils / coilInventory | 无 |
-| 标准直径 | `coilRow.diameterMm` | Derived Technical Fact | 优先定子组合直径，历史时按 spec 推导 | 否 | 否 | 否 | 否 | stator_variants / coilRow | 无 |
-| 定子组合 ID、时间戳 | `statorVariantId/createdAt/updatedAt` | Provenance / Technical Metadata | 追溯和来源，不是业务选择条件 | 否 | 否 | 否 | 否 | coilRow | 无 |
-| commonName 与兼容别名 | `coilRow.commonName/Id/CreatedAt/UpdatedAt` | Redundant Projection | 与正式字段重叠或仅为历史兼容 | 否 | 否 | 否 | 否 | coilRow | 无 |
+| 标准直径 | `coilRow.diameterMm` | Derived Technical Fact | Formal Projection：优先 `stator_variants.diameter_mm`；否则 spec=12→120；再否则 Number(spec) 或 0 | 否 | 否 | 否 | 否 | Formal Projection / coilRow | 无 |
+| 定子组合 ID、时间戳 | `statorVariantId/createdAt/updatedAt` | Provenance / Technical Metadata | `statorVariantId` 是 DTO 对 `coils.stator_variant_id` 的正式投影；时间戳用于追溯 | 否 | 否 | 否 | 否 | coilRow | 无 |
+| commonName 与兼容别名 | `coilRow.commonName/Id/CreatedAt/UpdatedAt` | Redundant Projection | `commonName` 是定子组合名称优先、spec 回退的正式投影；其余仅为历史兼容 | 否 | 否 | 否 | 否 | Formal Projection / coilRow | 无 |
 
 ## 选择与生命周期合同
 
@@ -45,7 +46,7 @@
   → 仅 official 进入候选池
   → 应用 common designation / 材质 / 槽眼 / 电压 / 频率等明确条件
   → 剩 1 套：EXPLICIT_UNIQUE
-  → 剩多套且恰 1 套 default：DEFAULT_SELECTED
+  → 剩多套且未来 formal fallback resolver 恰得出 1 套：DEFAULT_SELECTED
   → 否则：AMBIGUOUS
 
 testing：仅用户明确请求试验方案才可加入
@@ -53,6 +54,12 @@ disabled：仅历史或明确停用查询才可访问
 ```
 
 `is_default` 不覆盖用户明确条件；它与 `defaultCapacitor` 没有任何相同语义。
+
+### 默认来源缺口（R2 已显式建模）
+
+- **现有实现**：`coils.is_default` 是当前正式且有用的局部默认标记。命令层按 `stator_variant_id + sheets + official` 维护它，因此不同物理分组可同时存在 `is_default = 1`。
+- **目标 Ontology 语义**：在生命周期资格和 Owner 明确条件均应用后的最终候选集中，只有一个正式 fallback default 才返回 `DEFAULT_SELECTED`。
+- **状态**：目标 resolver 的持久化权威来源为 `UNRESOLVED`。V2 记录这个缺口，不把局部标记偷换成全局/最终候选集默认；任何未来 Entity Linking runtime 在解决前不得依赖 default 兜底。
 
 ## 成本与估算边界
 
@@ -74,3 +81,5 @@ V2 只记录上述来源和语义，绝不复制或执行成本公式。
 - Coil profile：`api/ontology/v2/entities/coil.cjs`
 - Coil Source Audit：`api/ontology/v2/entities/coilSourceAudit.cjs`
 - Generic validator：`api/ontology/v2/validator.cjs`
+- Role Catalog：`api/ontology/v2/roles.cjs`
+- Reference template：`planning/NATIVE-O1-COIL/OntologyV2ReferenceTemplate.md`

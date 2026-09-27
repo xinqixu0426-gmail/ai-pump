@@ -2,18 +2,20 @@
 
 const { deepFreeze } = require('../sources.cjs');
 const { sources } = require('./sources.cjs');
+const { roleCatalog } = require('./roles.cjs');
 const { coilProfile } = require('./entities/coil.cjs');
 
 const OntologyV2Version = 2;
 
 const ontologyV2 = deepFreeze({
     version: OntologyV2Version,
-    status: 'DRAFT_AWAITING_OWNER_REVIEW',
+    status: 'REFERENCE_TEMPLATE_CONTRACT_OWNER_REVIEWED',
     runtimeEnabled: false,
     storesBusinessValues: false,
     isBusinessSourceOfTruth: false,
     access: 'CONTRACT_ONLY_NO_RUNTIME',
     sources,
+    roleCatalog,
     profiles: [coilProfile],
 });
 
