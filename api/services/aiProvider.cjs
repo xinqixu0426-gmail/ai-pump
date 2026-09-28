@@ -928,6 +928,43 @@ function prepareProviderToolRequest(tools, toolChoice, config) {
     return { tools: matchingTools, toolChoice: 'required' };
 }
 
+/**
+ * Normalizes the non-streaming provider boundary without changing the
+ * transport contract of fetchAiProvider().  Callers that need SSE still keep
+ * the original Response; task semantics receives one parsed JSON payload.
+ */
+async function decodeAiProviderResponse(response) {
+    const failure = (code, message) => {
+        const error = new Error(message);
+        error.code = code;
+        return error;
+    };
+    const responseLike = response && typeof response === 'object'
+        && typeof response.text === 'function' && typeof response.ok === 'boolean';
+    if (!responseLike) {
+        if (!response || typeof response !== 'object' || Array.isArray(response)) {
+            throw failure('AI_PROVIDER_PAYLOAD_INVALID', 'AI provider returned no JSON payload.');
+        }
+        return response;
+    }
+    // Consume exactly once. Do not use response.json() after reading text,
+    // because a WHATWG Response body is single-use.
+    let raw;
+    try { raw = await response.text(); } catch (error) {
+        throw failure('AI_PROVIDER_BODY_READ_FAILED', 'AI provider response body could not be read.');
+    }
+    if (!response.ok) throw failure('AI_PROVIDER_HTTP_FAILED', `AI provider returned HTTP ${response.status}.`);
+    if (!String(raw || '').trim()) throw failure('AI_PROVIDER_EMPTY_PAYLOAD', 'AI provider returned an empty JSON payload.');
+    let payload;
+    try { payload = JSON.parse(raw); } catch (error) {
+        throw failure('AI_PROVIDER_INVALID_JSON', 'AI provider returned invalid JSON.');
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw failure('AI_PROVIDER_PAYLOAD_INVALID', 'AI provider JSON payload must be an object.');
+    }
+    return payload;
+}
+
 async function fetchAiProvider(messages, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const attachmentRouting = resolveAttachmentRouting(messages, {
@@ -1099,6 +1136,7 @@ module.exports = {
     MAX_CHAT_ATTACHMENTS,
     DEFAULT_PROVIDER_TIMEOUT_MS,
     aiProviderCapabilities,
+    decodeAiProviderResponse,
     fetchAiProvider,
     fetchProviderWithRetry,
     isProviderFallbackEligible,

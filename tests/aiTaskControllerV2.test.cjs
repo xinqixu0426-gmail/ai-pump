@@ -17,7 +17,7 @@ function fakeExecutor(options = {}) {
         calls.push({ toolName, args, executionOptions });
         if (toolName === 'get_all_recipes') {
             const rows = options.recipes ?? [{ id: 301, name: 'V550' }];
-            return verified(rows, { queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false } });
+            return verified(rows, { queryReceipt: { authoritative: true, truncated: Boolean(options.recipeCollectionTruncated), possiblyTruncated: Boolean(options.recipeCollectionTruncated) } });
         }
         if (toolName === 'search_coils') return verified(options.coils ?? [{ id: 41, schemeName: '12-220 A', schemeCode: 'A' }, { id: 42, schemeName: '12-220 B', schemeCode: 'B' }], { queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false } });
         if (toolName === 'search_parts') return { success: true, parts: options.parts ?? [{ id: 71, model: '木箱-A', supplier: '包装厂' }], queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false }, executionEvidence: { verified: true, calls: [{ method: 'GET', path: '/api/parts' }] } };
@@ -501,6 +501,39 @@ test('N4.1A exposes testing coil variants only as queryable catalogue evidence, 
     assert.deepEqual(fixture.calls.map(item => item.toolName), ['search_coils']);
     assert.match(result.answer.content, /方案状态：official、testing/);
     assert.equal(fixture.calls.some(item => item.toolName === 'compare_recipe_scenarios'), false);
+});
+
+test('S2 owner read resolves exact 12-120 through the formal coil catalogue without a model call', async () => {
+    const fixture = fakeExecutor({ coils: [{ id: 41, schemeName: '12-120 正式方案', schemeCode: '12-120', schemeStatus: 'official' }] });
+    const result = await runAiTaskControllerV2(input('12-120', 's2-coil-short'), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(result.task.goals[0].kind, 'COIL_QUERY');
+    assert.equal(result.task.budgetUsage.modelCalls, 0);
+    assert.deepEqual(fixture.calls.map(item => item.toolName), ['search_coils']);
+    assert.equal(fixture.calls[0].args.spec, '12-120');
+    assert.doesNotMatch(result.answer.content, /未能形成可验证/u);
+    const spaced = fakeExecutor({ coils: [{ id: 41, schemeName: '12-120 正式方案', schemeCode: '12-120', schemeStatus: 'official' }] });
+    const spacedResult = await runAiTaskControllerV2(input('12 - 120', 's2-coil-short-spaced'), { executeToolCall: spaced.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(spacedResult.task.goals[0].kind, 'COIL_QUERY');
+    assert.equal(spacedResult.task.budgetUsage.modelCalls, 0);
+    assert.equal(spaced.calls[0].args.spec, '12-120');
+});
+
+test('S2 owner read resolves recipe catalogue through get_all_recipes with formal empty handling', async () => {
+    const fixture = fakeExecutor({ recipes: [{ id: 301, name: 'V550', spec: '1.5kW' }, { id: 302, name: 'V750', spec: '2.2kW' }] });
+    const result = await runAiTaskControllerV2(input('列一下配方', 's2-recipe-list'), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(result.task.goals[0].kind, 'RECIPE_CATALOG_QUERY');
+    assert.equal(result.task.budgetUsage.modelCalls, 0);
+    assert.deepEqual(fixture.calls.map(item => item.toolName), ['get_all_recipes']);
+    assert.match(result.answer.content, /#301 V550（1.5kW）/u);
+    assert.match(result.answer.content, /#302 V750（2.2kW）/u);
+    const empty = fakeExecutor({ recipes: [] });
+    const emptyResult = await runAiTaskControllerV2(input('所有配方', 's2-recipe-list-empty'), { executeToolCall: empty.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(emptyResult.task.goals[0].state, 'VERIFIED');
+    assert.match(emptyResult.answer.content, /当前正式配方目录为空/u);
+    const truncated = fakeExecutor({ recipes: [{ id: 301, name: 'V550' }], recipeCollectionTruncated: true });
+    const truncatedResult = await runAiTaskControllerV2(input('查看配方目录', 's2-recipe-list-truncated'), { executeToolCall: truncated.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(truncatedResult.task.goals[0].state, 'VERIFIED');
+    assert.match(truncatedResult.answer.content, /未证明完整，不能据此称为全部配方/u);
 });
 
 test('N4.1A refuses to aggregate ambiguous coil inventory and asks for a formal variant choice', async () => {

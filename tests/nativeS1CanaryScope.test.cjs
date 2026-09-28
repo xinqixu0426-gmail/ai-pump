@@ -71,11 +71,11 @@ test('S1-B1 S1 baseline 冻结 SUPPORTED family（NATIVE-R1 后为 10 个），�
     assert.equal(baseline.version, 'S1');
     // NATIVE-R1：在 S1 的 6 个族之上新增 4 个 Native 独家负责的只读族。
     // NATIVE-R3：在 R1 的 10 族之上新增 customer-history / order-readiness 两个真实只读族。
-    assert.equal(baseline.families.length, 12);
+    assert.equal(baseline.families.length, 13);
     assert.deepEqual(baseline.families.map(family => family.familyId).sort(), [
         'business-change-read', 'coil-catalogue-cost', 'coil-catalogue-query', 'coil-inventory',
         'customer-history', 'management-overview', 'multi-goal-config-profit-readiness', 'order-readiness',
-        'quotation-read', 'recipe-cost-comparison', 'single-recipe-current-cost', 'virtual-readiness-preview',
+        'quotation-read', 'recipe-catalogue-query', 'recipe-cost-comparison', 'single-recipe-current-cost', 'virtual-readiness-preview',
     ]);
     for (const family of baseline.families) {
         assert.ok(family.questionFamily, family.familyId);
@@ -94,12 +94,12 @@ test('S1-B1 S1 baseline 冻结 SUPPORTED family（NATIVE-R1 后为 10 个），�
 
 test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原因，绝不静默删除', () => {
     const summary = ownerTrialCoverageSummary();
-    assert.equal(summary.total, 14, '总族数不因停用而减少');
+    assert.equal(summary.total, 15, '总族数不因停用而减少');
     assert.equal(suspendFamily('coil-catalogue-cost', 'S1 dry-run：该项在真实 canary 中暴露缺陷（示例记录）'), COVERAGE_STATUS.SUSPENDED);
     try {
         const after = ownerTrialCoverageSummary();
-        assert.equal(after.total, 14);
-        assert.equal(after.supported.length, 11, '停用族不再计入 SUPPORTED');
+        assert.equal(after.total, 15);
+        assert.equal(after.supported.length, 12, '停用族不再计入 SUPPORTED');
         assert.equal(after.suspended.length, 1);
         assert.equal(after.canaryEligible.includes('线圈档案成本'), false);
         const admission = canaryAdmission({ questionFamily: '线圈档案成本' });
@@ -115,8 +115,8 @@ test('S1-B2 停用是显式且可恢复的：SUPPORTED → SUSPENDED 记录原�
     }
     // NATIVE-R1：经营概况 / 报价查询 / 业务变更 / 线圈目录查询 四个族由 Native 接管，
     // SUPPORTED 由 6 变为 10（不是放宽断言，而是架构变更后的新边界）。
-    // NATIVE-R3：customer-history / order-readiness 已声明为 SUPPORTED，故为 12。
-    assert.equal(ownerTrialCoverageSummary().supported.length, 12);
+    // S2 Owner Read R1：配方目录也已由 Native 正式目录读取覆盖，故为 13。
+    assert.equal(ownerTrialCoverageSummary().supported.length, 13);
 });
 
 // ══ C/D. Admission gate ═══════════════════════════════════════════════
@@ -291,9 +291,9 @@ test('S1-I1 provider 失败：不得产生未经验证结论（正式事实仍�
     const f = fixture();
     const provider = async () => { throw Object.assign(new Error('provider timeout'), { code: 'PROVIDER_TIMEOUT' }); };
     const result = await turn(f, createTaskSessionStoreV2(), 'v550-tokoy和v750-tokoy成本差多少？', 's1-i1', { provider });
-    assert.equal(result.task.state, 'SUCCEEDED');
-    assert.deepEqual(result.task.facts.map(fact => fact.key.predicate), ['recipe.current_cost', 'recipe.current_cost', 'recipe.cost_difference']);
-    assert.deepEqual(moneyIn(result.answer.content).sort(), ['14.53', '271.98', '286.51'], '只允许正式回执金额');
+    assert.equal(result.task.state, 'FAILED');
+    assert.deepEqual(result.task.facts, []);
+    assert.equal(result.task.goals.every(goal => goal.blockers.some(item => item.code === 'SEMANTIC_TECHNICAL_FAILURE')), true);
 });
 
 test('S1-I2 正式 API 失败：不得用历史事实替代（本轮无金额）', async () => {

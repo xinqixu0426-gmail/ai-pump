@@ -9,7 +9,7 @@ const { readJsonPointer } = require('./aiTaskCapabilityAdapterV2.cjs');
 
 const STRUCTURED_READ_GOALS = Object.freeze(new Set([
     'CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'ORDER_READINESS', 'INVENTORY_QUERY',
-    'MANAGEMENT_OVERVIEW', 'BUSINESS_CHANGES', 'IMPACT_INVESTIGATION', 'COIL_QUERY',
+    'MANAGEMENT_OVERVIEW', 'BUSINESS_CHANGES', 'IMPACT_INVESTIGATION', 'COIL_QUERY', 'RECIPE_CATALOG_QUERY',
 ]));
 
 const GOAL_CAPABILITIES = Object.freeze({
@@ -19,6 +19,7 @@ const GOAL_CAPABILITIES = Object.freeze({
     MANAGEMENT_OVERVIEW: 'get_management_action_center',
     BUSINESS_CHANGES: 'search_business_changes',
     COIL_QUERY: 'search_coils',
+    RECIPE_CATALOG_QUERY: 'get_all_recipes',
 });
 
 function queryReceipt(result = {}) { return result.queryReceipt || result.receipt || null; }
@@ -83,6 +84,7 @@ function requirementsForStructuredGoal(goal, { userGoal = '', coverage = null } 
         ];
         case 'INVENTORY_QUERY': return [requirement({ requirementKey: `inventory:${subjectKey || goal.goalKey}`, predicate: subjectKey ? 'inventory.coil' : 'inventory.part', subjectKey, basis: 'FORMAL_INVENTORY_QUERY', requireComplete: Boolean(coverage?.complete) })];
         case 'COIL_QUERY': return [requirement({ requirementKey: `coil-variants:${subjectKey || goal.goalKey}`, predicate: 'coil.variant_set', subjectKey, basis: 'COIL_CATALOGUE_QUERY', requireComplete: Boolean(coverage?.complete) })];
+        case 'RECIPE_CATALOG_QUERY': return [requirement({ requirementKey: `recipe-catalogue:${goal.goalKey}`, predicate: 'recipe.catalogue', basis: 'RECIPE_CATALOGUE_QUERY', requireComplete: Boolean(coverage?.complete) })];
         case 'COIL_COST': return [requirement({ requirementKey: `coil-cost:${subjectKey || goal.goalKey}`, predicate: 'coil.current_cost', subjectKey, basis: 'FORMAL_COIL_COST_QUERY', requireComplete: true })];
         // E2-R1 FAMILY-01：双主体成本比较。三个正式事实缺一不可：
         // 主体 A 的当前完整成本、主体 B 的当前完整成本、以及**来自 compare_recipes 回执**的正式差额。

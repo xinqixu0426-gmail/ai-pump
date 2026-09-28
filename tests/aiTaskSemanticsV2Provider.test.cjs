@@ -3,13 +3,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EXTRACTION_TOOL, parseProviderCandidate, rebindCandidate, extractTaskSemanticsV2, admitGoalsV1 } = require('../api/services/aiTaskSemanticsV2.cjs');
+const { decodeAiProviderResponse } = require('../api/services/aiProvider.cjs');
 
 const candidate = { proposal: { version: 1, goalSummary: 'V550成本和库存', subjects: [{ subjectKey: 'subject_1', mention: 'V550', typeHints: ['recipe'], sources: [{ sourceQuote: 'V550' }] }], scenarios: [], goals: [{ goalKey: 'goal_1', kind: 'CURRENT_COST', description: '当前成本', subjectKeys: ['subject_1'], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [{ sourceQuote: 'V550' }], quantity: null, unitPrice: null }, { goalKey: 'goal_2', kind: 'INVENTORY_QUERY', description: '库存', subjectKeys: ['subject_1'], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [{ sourceQuote: '库存' }], quantity: null, unitPrice: null }], unparsedSpans: [] } };
 
 test('provider protocol accepts one function call or a fenced JSON object and rejects other output forms', () => {
     assert.deepEqual(parseProviderCandidate({ choices: [{ message: { tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(candidate) } }] } }] }), candidate);
     assert.deepEqual(parseProviderCandidate({ content: `\`\`\`json\n${JSON.stringify(candidate)}\n\`\`\`` }), candidate);
-    assert.throws(() => parseProviderCandidate({ content: 'plain prose { }' }), /Unexpected token/);
+    assert.throws(() => parseProviderCandidate({ content: 'plain prose { }' }), /PROVIDER_CANDIDATE_INVALID_JSON/);
     assert.throws(() => parseProviderCandidate({ tool_calls: [{ function: { name: 'search_parts', arguments: '{}' } }] }), /PROVIDER_TOOL_NAME/);
     assert.throws(() => parseProviderCandidate({ content: '' }), /PROVIDER_EMPTY/);
 });
@@ -19,6 +20,43 @@ test('provider protocol unwraps the documented function-argument parameters enve
     assert.deepEqual(parseProviderCandidate({
         tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(wrapped) } }],
     }), candidate);
+});
+
+test('provider boundary decodes parsed fixtures and a WHATWG Response exactly once', async () => {
+    const payload = { choices: [{ message: { tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(candidate) } }] } }] };
+    assert.deepEqual(await decodeAiProviderResponse(payload), payload);
+    let calls = 0;
+    const response = new Response(JSON.stringify(payload), { status: 200 });
+    const originalText = response.text.bind(response);
+    response.text = async () => { calls += 1; return originalText(); };
+    assert.deepEqual(await decodeAiProviderResponse(response), payload);
+    assert.equal(calls, 1);
+});
+
+test('WHATWG provider payload supports normal extraction and format repair, while malformed payloads fail closed', async () => {
+    const valid = { choices: [{ message: { tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(candidate) } }] } }] };
+    const normal = await extractTaskSemanticsV2({ messageRef: 'm-1', text: 'V550成本和库存', provider: async () => new Response(JSON.stringify(valid)) });
+    assert.equal(normal.status, 'COMPLETE');
+    assert.equal(normal.proposal.goals.length, 2);
+    const malformed = await extractTaskSemanticsV2({ messageRef: 'm-1', text: 'V550成本和库存', provider: async () => new Response('{') });
+    assert.equal(malformed.status, 'PARTIAL');
+    assert.equal(malformed.blockers.some(item => item.code === 'SEMANTIC_TECHNICAL_FAILURE'), true);
+    const empty = await extractTaskSemanticsV2({ messageRef: 'm-1', text: 'V550成本和库存', provider: async () => new Response(JSON.stringify({ choices: [] })) });
+    assert.equal(empty.status, 'PARTIAL');
+    assert.equal(empty.blockers.some(item => item.code === 'PROPOSAL_VALIDATION_FAILED'), true);
+    const wrongTool = await extractTaskSemanticsV2({ messageRef: 'm-1', text: 'V550成本和库存', provider: async () => new Response(JSON.stringify({ tool_calls: [{ function: { name: 'search_coils', arguments: '{}' } }] })) });
+    assert.equal(wrongTool.status, 'PARTIAL');
+    assert.equal(wrongTool.blockers.some(item => item.code === 'PROPOSAL_VALIDATION_FAILED'), true);
+});
+
+test('FORMAT_REPAIR_ONLY decodes the same WHATWG Response contract as normal extraction', async () => {
+    const invalid = { choices: [{ message: { tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify({ proposal: { ...candidate.proposal, goals: [] } }) } }] } }] };
+    const repaired = { choices: [{ message: { tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(candidate) } }] } }] };
+    let calls = 0;
+    const result = await extractTaskSemanticsV2({ messageRef: 'm-1', text: 'V550成本和库存', provider: async () => new Response(JSON.stringify(calls++ === 0 ? invalid : repaired)) });
+    assert.equal(result.status, 'COMPLETE');
+    assert.equal(result.telemetry.modelCalls, 1);
+    assert.equal(result.telemetry.formatRepairCalls, 1);
 });
 
 test('server rebinds provider quotes with the authoritative JS UTF-16 source and refuses ambiguous quotes', () => {

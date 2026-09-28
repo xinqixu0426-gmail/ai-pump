@@ -184,8 +184,8 @@ test('E2-COVERAGE-1 SUPPORTED 族必须声明真实登记的能力 / 事实 / �
     const summary = ownerTrialCoverageSummary();
     // NATIVE-R1：在 E2-R1 的 6 个族之上新增 4 个 Native 独家负责的只读族
     // （经营概况 / 报价查询 / 业务变更 / 线圈目录查询），故 SUPPORTED = 10。
-    // NATIVE-R3：再纳入 customer-history / order-readiness，故为 12。
-    assert.equal(summary.supported.length, 12, 'NATIVE-R3 后支持族应为 12（E2-R1 的 6 + R1 的 4 + R3 的 2）');
+    // S2 Owner Read R1：再纳入 Recipe catalog，故为 13。
+    assert.equal(summary.supported.length, 13, 'S2 Owner Read R1 后支持族应为 13（E2-R1 的 6 + R1 的 4 + R3 的 2 + Recipe catalog）');
     assert.equal(summary.partial.length, 1);
     assert.equal(summary.unsupported.length, 1, '仍不支持：仅剩规格/配置差异（经营概况已由 NATIVE-R1 接管）');
 });

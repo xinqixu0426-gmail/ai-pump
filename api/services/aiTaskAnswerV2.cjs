@@ -171,11 +171,12 @@ function buildTaskAnswerContractV1(task, context = {}) {
 function templateFor(goal, facts) {
     if (goal.kind === 'FILE_INSPECT' && (goal.sourceEvidenceIds || []).length) return 'FILE_SOURCE_V1';
     if (goal.kind === 'KNOWLEDGE_QUERY' && (goal.sourceEvidenceIds || []).length) return 'KNOWLEDGE_SOURCE_V1';
+    if (goal.kind === 'COIL_QUERY' && facts.some(fact => fact.evidenceState === 'VERIFIED_NEGATIVE')) return 'COIL_CATALOG_NEGATIVE_V1';
     // 比较目标在所有状态下都由自己的模板渲染：澄清给问题、缺差额给限制，绝不落到别的业务模板上。
     if (goal.kind === 'RECIPE_COST_COMPARISON') return 'RECIPE_COST_COMPARISON_V1';
     if (goal.state !== 'VERIFIED') {
-        if (facts.length > 0 && ['CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'INVENTORY_QUERY', 'COIL_QUERY', 'COIL_COST', 'BUSINESS_CHANGES'].includes(goal.kind)) return 'STRUCTURED_PARTIAL_V1';
-        if (facts.some(fact => fact.evidenceState === 'VERIFIED_NEGATIVE')) return 'RECIPE_CATALOG_NEGATIVE_V1';
+        if (facts.length > 0 && ['CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'INVENTORY_QUERY', 'COIL_QUERY', 'COIL_COST', 'BUSINESS_CHANGES', 'RECIPE_CATALOG_QUERY'].includes(goal.kind)) return 'STRUCTURED_PARTIAL_V1';
+        if (facts.some(fact => fact.evidenceState === 'VERIFIED_NEGATIVE')) return goal.kind === 'COIL_QUERY' ? 'COIL_CATALOG_NEGATIVE_V1' : 'RECIPE_CATALOG_NEGATIVE_V1';
         return 'LIMITATION_V1';
     }
     if (goal.kind === 'CURRENT_COST') return 'CURRENT_COST_V1';
@@ -187,7 +188,7 @@ function templateFor(goal, facts) {
     const structured = {
         CUSTOMER_HISTORY: 'HISTORY_V1', QUOTATION_QUERY: 'CATALOG_V1',
         ORDER_READINESS: 'READINESS_V1', INVENTORY_QUERY: 'INVENTORY_V1',
-        COIL_QUERY: 'CATALOG_V1', COIL_COST: 'CATALOG_V1', MANAGEMENT_OVERVIEW: 'MANAGEMENT_V1',
+        COIL_QUERY: 'CATALOG_V1', COIL_COST: 'CATALOG_V1', RECIPE_CATALOG_QUERY: 'RECIPE_CATALOG_V1', MANAGEMENT_OVERVIEW: 'MANAGEMENT_V1',
         BUSINESS_CHANGES: 'BUSINESS_CHANGE_V1', IMPACT_INVESTIGATION: 'IMPACT_V1',
     };
     return structured[goal.kind] || 'LIMITATION_V1';
@@ -198,7 +199,7 @@ function buildAnswerDraftV1(task) {
     return { version: 1, sections: task.goals.map(goal => {
         const claimedFacts = goal.factIds.map(id => facts.get(id)).filter(Boolean);
         const templateKey = templateFor(goal, claimedFacts);
-        const claimTypes = { CURRENT_COST_V1: 'COST', RECIPE_COST_COMPARISON_V1: 'COMPARISON', CONFIGURATION_COMPARE_V1: 'COMPARISON', RECIPE_CATALOG_NEGATIVE_V1: 'CATALOG', CHANGE_PREVIEW_V1: 'CHANGE_PREVIEW', PROFITABILITY_V1: 'COST', VIRTUAL_READINESS_V1: 'READINESS', HISTORY_V1: 'HISTORY', CATALOG_V1: 'CATALOG', INVENTORY_V1: 'INVENTORY', READINESS_V1: 'READINESS', MANAGEMENT_V1: 'MANAGEMENT', BUSINESS_CHANGE_V1: 'BUSINESS_CHANGE', IMPACT_V1: 'IMPACT', FILE_SOURCE_V1: 'SOURCE', KNOWLEDGE_SOURCE_V1: 'SOURCE', STRUCTURED_PARTIAL_V1: 'LIMITATION' };
+        const claimTypes = { CURRENT_COST_V1: 'COST', RECIPE_COST_COMPARISON_V1: 'COMPARISON', CONFIGURATION_COMPARE_V1: 'COMPARISON', RECIPE_CATALOG_NEGATIVE_V1: 'CATALOG', COIL_CATALOG_NEGATIVE_V1: 'CATALOG', RECIPE_CATALOG_V1: 'CATALOG', CHANGE_PREVIEW_V1: 'CHANGE_PREVIEW', PROFITABILITY_V1: 'COST', VIRTUAL_READINESS_V1: 'READINESS', HISTORY_V1: 'HISTORY', CATALOG_V1: 'CATALOG', INVENTORY_V1: 'INVENTORY', READINESS_V1: 'READINESS', MANAGEMENT_V1: 'MANAGEMENT', BUSINESS_CHANGE_V1: 'BUSINESS_CHANGE', IMPACT_V1: 'IMPACT', FILE_SOURCE_V1: 'SOURCE', KNOWLEDGE_SOURCE_V1: 'SOURCE', STRUCTURED_PARTIAL_V1: 'LIMITATION' };
         return { goalKey: goal.goalKey, claimType: claimTypes[templateKey] || 'LIMITATION', factIds: claimedFacts.map(fact => fact.factId), templateKey, analysisText: '' };
     }) };
 }
@@ -324,6 +325,19 @@ function renderSection(task, section) {
         return `${prefix}存在短缺：${shortages}。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。`;
     }
     if (section.templateKey === 'RECIPE_CATALOG_NEGATIVE_V1') return `当前正式配方目录中没有找到可用于整机成本计算的“${name}”配方，因此现在无法给出正式整机成本。本次只覆盖配方目录，不能据此判断整个系统是否不存在该对象。`;
+    if (section.templateKey === 'COIL_CATALOG_NEGATIVE_V1') return `正式线圈目录中没有找到“${name}”。该结论只覆盖本次正式目录查询，没有修改任何业务数据。`;
+    if (section.templateKey === 'RECIPE_CATALOG_V1') {
+        const rows = Array.isArray(values[0]?.value) ? values[0].value : [];
+        if (!rows.length) return '当前正式配方目录为空。本次只读查询，没有修改任何业务数据。';
+        const entries = rows.slice(0, 20).map(item => {
+            const identity = item?.id ?? item?.Id;
+            const label = item?.name || item?.Name || `配方#${identity}`;
+            const spec = item?.spec || item?.Spec;
+            return `${identity == null ? label : `#${identity} ${label}`}${spec ? `（${spec}）` : ''}`;
+        });
+        const complete = values[0]?.complete === true;
+        return `${complete ? '正式配方目录' : '正式配方目录的本次返回结果'}共 ${rows.length} 条：${entries.join('；')}。${complete ? '该集合已由正式回执证明完整。' : '该集合未证明完整，不能据此称为全部配方。'}本次没有修改业务数据。`;
+    }
     if (section.templateKey === 'HISTORY_V1') {
         const quotations = values.find(item => item.key.predicate === 'customer.quotation_history')?.value || [];
         const orders = values.find(item => item.key.predicate === 'customer.order_history')?.value || [];

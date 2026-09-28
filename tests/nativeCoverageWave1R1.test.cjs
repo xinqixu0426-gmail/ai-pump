@@ -375,11 +375,11 @@ test('R1-NEG-4 无上下文指代（「这两个差多少钱」）必须 fail-cl
 });
 
 // ══ 5. 覆盖清单 / canary ══════════════════════════════════════════════
-test('R1-COVERAGE-1 配方成本比较升级为 SUPPORTED；NATIVE-R3 后计数为 14 / 12 / 1 / 1 且与能力一致', () => {
+test('R1-COVERAGE-1 配方成本比较升级为 SUPPORTED；S2 Owner Read R1 后计数为 15 / 13 / 1 / 1 且与能力一致', () => {
     const summary = ownerTrialCoverageSummary();
     // NATIVE-R3：新增客户历史 / 订单 readiness 两族（连同 R1 的四个 cutover 族）。
-    assert.equal(summary.total, 14);
-    assert.equal(summary.supported.length, 12);
+    assert.equal(summary.total, 15);
+    assert.equal(summary.supported.length, 13);
     assert.equal(summary.partial.length, 1);
     assert.equal(summary.unsupported.length, 1);
     assert.deepEqual(validateCoverageAgainstCapabilities().problems, []);

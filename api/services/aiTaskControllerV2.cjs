@@ -78,6 +78,15 @@ function createEnvelope({ taskId = uuid(), ownerKey, conversationId, requestId, 
 function goalFromProposal(goal) {
     return { goalKey: goal.goalKey, kind: goal.kind, description: goal.description, subjectKeys: [...goal.subjectKeys], scenarioKeys: [...goal.scenarioKeys], dependsOn: [...goal.dependsOn], state: 'PENDING', factIds: [], sourceEvidenceIds: [], blockers: [], requirements: [] };
 }
+function markSemanticTechnicalFailure(task, blockers = []) {
+    const failure = blockers.find(item => item?.code === 'SEMANTIC_TECHNICAL_FAILURE');
+    if (!failure) return false;
+    for (const goal of task.goals.filter(item => item.state === 'PENDING')) {
+        goal.state = 'FAILED';
+        appendBlocker(goal, 'SEMANTIC_TECHNICAL_FAILURE', '语义服务响应未能验证，未执行正式读取。');
+    }
+    return true;
+}
 function unresolvedSubject(subject) {
     return { subjectKey: subject.subjectKey, mention: subject.mention, resolution: 'UNRESOLVED', selected: null, candidates: [], candidateSetComplete: false, selectionBasis: 'NONE', receiptIds: [] };
 }
@@ -428,6 +437,7 @@ async function prepareDetachedTaskV2(input = {}, dependencies = {}) {
     // base subject; retaining an empty formal list prevents false bindings.
     for (const goal of task.goals) goal.scenarioKeys = [];
     task.budgetUsage.modelCalls = semantics.telemetry.modelCalls + semantics.telemetry.formatRepairCalls;
+    markSemanticTechnicalFailure(task, semantics.blockers);
     markUnsupportedGoals(task);
     markUnsupportedProfitCurrency(task, message.content);
     validateTaskEnvelopeV2(task, { trustedReceiptsById: new Map(), sourceMessages: new Map([[messageRef, message.content]]) });
@@ -944,6 +954,7 @@ async function runStructuredReadGoalsV2({ task, proposal, message, messageRef, a
         ['MANAGEMENT_OVERVIEW', 'get_management_action_center', 'management.action_center', 'MANAGEMENT_ACTION_CENTER', 'management_action_center', '/data'],
         ['BUSINESS_CHANGES', 'search_business_changes', 'business.change_set', 'BUSINESS_CHANGE_EVENT_LOG', 'business_change_set', '/data/items'],
         ['COIL_QUERY', 'search_coils', 'coil.variant_set', 'COIL_CATALOGUE_QUERY', 'coil_catalogue', '/data'],
+        ['RECIPE_CATALOG_QUERY', 'get_all_recipes', 'recipe.catalogue', 'RECIPE_CATALOGUE_QUERY', 'recipe_catalogue', '/data'],
     ];
     for (const [kind, toolName, predicate, basis, scopeType, pointer] of globalReads) for (const goal of goalFor(kind)) {
         const subject = kind === 'COIL_QUERY' ? subjectFor(goal, 'coil') : null;
@@ -1269,6 +1280,7 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
         // do not pretend it is an executable scenario binding.
         for (const goal of task.goals) goal.scenarioKeys = [];
         task.budgetUsage.modelCalls = semantics.telemetry.modelCalls + semantics.telemetry.formatRepairCalls;
+        markSemanticTechnicalFailure(task, semantics.blockers);
         markUnsupportedGoals(task);
         markUnsupportedProfitCurrency(task, message.content);
         if (missingCableLengthUnit(message.content)) {
