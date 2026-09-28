@@ -177,23 +177,27 @@ function enforceRecipeCostComparison(proposal, { messageRef, text }) {
     return proposal;
 }
 
-// These intents are fully and deterministically grounded in the current user
-// message.  A model may add detail, but it must not silently erase one of
-// these independent read requests (for example, coil inventory + coil cost).
-const CORE_DETERMINISTIC_READ_GOALS = new Set([
-    'COIL_COST',
-    'CUSTOMER_HISTORY',
-    'MANAGEMENT_OVERVIEW',
-    'RECIPE_TECHNICAL_QUERY',
+// A model may broaden read-side investigation, but it is never allowed to
+// reduce a read request the server already grounded in the user's exact text.
+// Keep this policy generic rather than maintaining a growing exception list.
+// APPLY_CHANGE is deliberately excluded: this is a read-floor, not a way to
+// inherit or manufacture mutation authority.
+const DETERMINISTIC_READ_GOAL_KINDS = new Set([
+    'CURRENT_COST', 'RECIPE_COST_COMPARISON', 'CONFIGURATION_COMPARE',
+    'COIL_QUERY', 'RECIPE_CATALOG_QUERY', 'COIL_COST', 'INVENTORY_QUERY',
+    'ORDER_READINESS', 'CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'FILE_INSPECT',
+    'KNOWLEDGE_QUERY', 'MANAGEMENT_OVERVIEW', 'RECIPE_TECHNICAL_QUERY',
+    'BUSINESS_CHANGES', 'IMPACT_INVESTIGATION', 'PROFITABILITY',
 ]);
 
 function preserveDeterministicCoreReadGoals(proposal, fallbackProposal) {
     if (!proposal || !fallbackProposal) return proposal;
     proposal.subjects = Array.isArray(proposal.subjects) ? proposal.subjects : [];
     proposal.goals = Array.isArray(proposal.goals) ? proposal.goals : [];
+    proposal.scenarios = Array.isArray(proposal.scenarios) ? proposal.scenarios : [];
     const fallbackSubjects = new Map((fallbackProposal.subjects || []).map(subject => [subject.subjectKey, subject]));
     for (const fallbackGoal of fallbackProposal.goals || []) {
-        if (!CORE_DETERMINISTIC_READ_GOALS.has(fallbackGoal.kind) || proposal.goals.some(goal => goal.kind === fallbackGoal.kind)) continue;
+        if (!DETERMINISTIC_READ_GOAL_KINDS.has(fallbackGoal.kind)) continue;
         const subjectKeyMap = new Map();
         for (const fallbackKey of fallbackGoal.subjectKeys || []) {
             const fallbackSubject = fallbackSubjects.get(fallbackKey);
@@ -209,9 +213,36 @@ function preserveDeterministicCoreReadGoals(proposal, fallbackProposal) {
                 subjectKeyMap.set(fallbackKey, subjectKey);
             }
         }
+        const scenarioKeyMap = new Map();
+        for (const fallbackScenarioKey of fallbackGoal.scenarioKeys || []) {
+            const fallbackScenario = (fallbackProposal.scenarios || []).find(item => item.scenarioKey === fallbackScenarioKey);
+            if (!fallbackScenario) continue;
+            let scenarioKey = fallbackScenario.scenarioKey;
+            const existingScenario = proposal.scenarios.find(item => item.scenarioKey === scenarioKey);
+            if (!existingScenario) proposal.scenarios.push(structuredClone(fallbackScenario));
+            scenarioKeyMap.set(fallbackScenarioKey, scenarioKey);
+        }
+        // Same kind is not enough: a model candidate must not substitute a
+        // different subject or silently drop a quantity, price, or scenario.
+        const existing = proposal.goals.find(goal => goal.kind === fallbackGoal.kind);
+        // CONFIGURATION_COMPARE already contains the explicitly requested
+        // current baseline and candidate.  It is not a lost independent
+        // CURRENT_COST request merely because it is represented atomically.
+        if (fallbackGoal.kind === 'CURRENT_COST' && proposal.goals.some(goal => goal.kind === 'CONFIGURATION_COMPARE'
+            && (goal.subjectKeys || []).some(key => (fallbackGoal.subjectKeys || []).includes(key)))) continue;
+        if (existing) {
+            existing.subjectKeys = (fallbackGoal.subjectKeys || []).map(subjectKey => subjectKeyMap.get(subjectKey) || subjectKey);
+            if ((fallbackGoal.scenarioKeys || []).length) existing.scenarioKeys = (fallbackGoal.scenarioKeys || []).map(key => scenarioKeyMap.get(key) || key);
+            if (fallbackGoal.quantity !== null) existing.quantity = structuredClone(fallbackGoal.quantity);
+            if (fallbackGoal.unitPrice !== null) existing.unitPrice = structuredClone(fallbackGoal.unitPrice);
+            existing.requestedBasis = fallbackGoal.requestedBasis;
+            existing.sources = structuredClone(fallbackGoal.sources || []);
+            continue;
+        }
         const restored = structuredClone(fallbackGoal);
         restored.goalKey = nextGoalKey(proposal.goals);
         restored.subjectKeys = (fallbackGoal.subjectKeys || []).map(subjectKey => subjectKeyMap.get(subjectKey) || subjectKey);
+        restored.scenarioKeys = (fallbackGoal.scenarioKeys || []).map(key => scenarioKeyMap.get(key) || key);
         proposal.goals.push(restored);
     }
     return proposal;
@@ -402,7 +433,7 @@ function admitGoalsV1(proposal, { messageRef, text, fallbackProposal }) {
 function addCopperPriceBlocker(result, messageRef, text) { const match = /铜价\s*\d+(?:\.\d+)?/iu.exec(text); if (!match || /铜价\s*\d+(?:\.\d+)?\s*(?:元\/(?:公斤|千克|吨)|CNY\/(?:KG|TON))/iu.test(text)) return; const source = span(messageRef, text, match[0], match.index); if (!source) return; result.proposal.unparsedSpans = [...result.proposal.unparsedSpans, source]; result.blockers.push({ code: 'COPPER_PRICE_UNIT_AMBIGUOUS', message: '铜价缺少单位，当前不能判断价格口径。', sources: [source] }); result.status = 'PARTIAL'; }
 async function extractTaskSemanticsV2({ messageRef, text, provider = null }) { if (typeof messageRef !== 'string' || !messageRef || typeof text !== 'string' || !text) throw new Error('TASK_SEMANTICS_INPUT'); const built = deterministicProposal(messageRef, text); const directives = serverDirectives(messageRef, text); if (built.proposal.scenarios.length && /其他不变|其它不变/u.test(text)) directives.scenarioInheritance.push({ scenarioKey: 'candidate_1', policy: 'PRESERVE_UNMENTIONED_BASE_CONFIGURATION', sources: [span(messageRef, text, /其他不变|其它不变/u.exec(text)[0])] }); const critical = scanCriticalUserSpansV2({ messageRef, text }); const result = { version: 2, status: 'COMPLETE', extractionMode: 'DETERMINISTIC', proposal: built.proposal, serverDirectives: directives, blockers: [], telemetry: { modelCalls: 0, formatRepairCalls: 0, provider: null, model: null } };
     let normalOutputError = null;
-    if (!isSimple(text, built) && provider) { result.extractionMode = 'MODEL_ASSISTED'; try { const response = await provider({ messages: [{ role: 'user', content: text }], tools: [EXTRACTION_TOOL], toolChoice: 'required' }); result.telemetry.modelCalls = 1; const payload = await decodeAiProviderResponse(response); result.telemetry.provider = response?.provider || payload?.provider || null; result.telemetry.model = response?.model || payload?.model || null; try { result.proposal = normalizeCandidateSyntax(rebindCandidate(parseProviderCandidate(payload), messageRef, text), text); } catch (error) { normalOutputError = error; } } catch (error) { result.status = 'PARTIAL'; result.blockers.push({ code: 'SEMANTIC_TECHNICAL_FAILURE', message: error.code || 'AI_PROVIDER_EXTRACTION_FAILED', sources: [] }); } }
+    if (!isSimple(text, built) && provider) { result.extractionMode = 'MODEL_ASSISTED'; try { const response = await provider({ messages: [{ role: 'user', content: text }], tools: [EXTRACTION_TOOL], toolChoice: 'required' }); result.telemetry.modelCalls = 1; const payload = await decodeAiProviderResponse(response); result.telemetry.provider = response?.provider || payload?.provider || null; result.telemetry.model = response?.model || payload?.model || null; try { result.proposal = normalizeCandidateSyntax(rebindCandidate(parseProviderCandidate(payload), messageRef, text), text); if (!result.proposal?.goals?.length) normalOutputError = providerCandidateError('PROVIDER_EMPTY_GOALS'); } catch (error) { normalOutputError = error; } } catch (error) { result.status = 'PARTIAL'; result.blockers.push({ code: 'SEMANTIC_TECHNICAL_FAILURE', message: error.code || 'AI_PROVIDER_EXTRACTION_FAILED', sources: [] }); } }
     // 服务器权威：比较句必须带正式双主体比较目标（模型无权决定比较主体或降级为单主体成本）。
     result.proposal = preserveDeterministicCoreReadGoals(result.proposal, built.proposal);
     result.proposal = enforceRecipeCostComparison(result.proposal, { messageRef, text });

@@ -119,7 +119,7 @@ test('candidate customer labels retain the quoted user evidence while removing a
     assert.deepEqual(prefixed.subjects[0].sources, [quote('客户XYZ')]);
 });
 
-test('model-assisted candidates cannot erase deterministic independent core reads', async () => {
+test('model-assisted candidates cannot erase any server-grounded read request', async () => {
     const onlyInventory = {
         proposal: {
             version: 1,
@@ -134,6 +134,25 @@ test('model-assisted candidates cannot erase deterministic independent core read
     const result = await extractTaskSemanticsV2({ messageRef: 'owner-r1-model-coil', text: '12-120现在库存还有多少，成本又是多少？', provider });
     assert.deepEqual(result.proposal.goals.map(goal => goal.kind), ['INVENTORY_QUERY', 'COIL_COST']);
     assert.deepEqual(result.proposal.goals.map(goal => goal.subjectKeys), [['subject_1'], ['subject_1']]);
+});
+
+test('read floor preserves grounded subject, scenario, quantity and price when a model omits them', async () => {
+    const candidate = {
+        proposal: {
+            version: 1, goalSummary: '候选',
+            subjects: [{ subjectKey: 'subject_1', mention: 'V550', typeHints: ['recipe'], sources: [quote('V550')] }],
+            scenarios: [],
+            goals: [{ goalKey: 'goal_1', kind: 'PROFITABILITY', description: '毛利', subjectKeys: ['subject_1'], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [quote('V550')], quantity: null, unitPrice: null }],
+            unparsedSpans: [],
+        },
+    };
+    const provider = async () => ({ tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(candidate) } }] });
+    const result = await extractTaskSemanticsV2({ messageRef: 's3-read-floor', text: 'V550电缆改成5米，卖340元，做300台毛利多少？先不要保存。', provider });
+    const profit = result.proposal.goals.find(goal => goal.kind === 'PROFITABILITY');
+    assert.deepEqual(profit.quantity && { value: profit.quantity.value, unit: profit.quantity.unit }, { value: 300, unit: 'pump' });
+    assert.deepEqual(profit.unitPrice && { value: profit.unitPrice.value, unit: profit.unitPrice.unit }, { value: 340, unit: 'CNY' });
+    assert.deepEqual(profit.scenarioKeys, ['candidate_1']);
+    assert.deepEqual(result.proposal.scenarios[0].overrides.map(item => item.field), ['cableLength']);
 });
 
 test('owner acceptance R1 preserves multi-goal coil cost, natural management wording, and bounded customer-prefix identity', async () => {

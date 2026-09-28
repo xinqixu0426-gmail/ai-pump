@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "d90bdcb85c865c201e15db19e79660d5c9b4cfa58eb8b4966114a49691214cf2",
-    "diskSha256": "d90bdcb85c865c201e15db19e79660d5c9b4cfa58eb8b4966114a49691214cf2",
+    "attestedSha256": "d8eceb02c8b5cd2bc2ff40de085119570b96d6ad41619bfa4889f732578b81ee",
+    "diskSha256": "d8eceb02c8b5cd2bc2ff40de085119570b96d6ad41619bfa4889f732578b81ee",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -95,6 +95,7 @@
   ,"s2OwnerReadR1RefreshNote": "AI-NATIVE-S2-OWNER-READ-R1 updates docs/api-reference.md for the Native provider JSON boundary, deterministic exact coil shorthand, and formal Recipe catalogue read path; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"aiNativeS2OwnerAcceptanceR1RefreshNote": "AI-NATIVE-S2-OWNER-ACCEPTANCE-R1 adds the private Native AI canonical Recipe technical-profile read adapter and documents its formal-only boundary; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"aiNativeS2OwnerAcceptanceR2RefreshNote": "AI-NATIVE-S2-OWNER-ACCEPTANCE-R2 documents bounded same-conversation identity/intent continuation: fresh Recipe cost comparison reads and formal common-designation coil alternatives, without retaining old facts or receipts. This closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
+  ,"aiNativeS3ARefreshNote": "AI-NATIVE-S3-A documents the Native read-side deterministic floor: a model may add compatible safe investigation but cannot delete server-grounded read goals, identity, quantity, price, or scenario inputs. This closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,

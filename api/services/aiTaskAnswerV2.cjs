@@ -250,21 +250,21 @@ function renderSection(task, section) {
     const goals = goalMap(task); const facts = byId(task); const goal = goals.get(section.goalKey); const values = section.factIds.map(id => facts.get(id)); const name = subjectName(task, goal);
     if (section.templateKey === 'CURRENT_COST_V1') {
         const fact = values.find(item => item.key.predicate === 'recipe.current_cost');
-        return `${name}当前完整成本为 ${money(fact.value)}。本次只读查询，没有修改正式配方。`;
+        return `${name}当前完整成本为 ${money(fact.value)}。本次没有修改正式配方。`;
     }
     if (section.templateKey === 'RECIPE_TECHNICAL_V1') {
         const aggregate = values.find(item => item.key.predicate === 'recipe.technical_profile')?.value;
         const projected = technicalProjection({ profile: aggregate?.profile, relations: aggregate?.relations, requestedKeys: require('./recipeTechnicalQuestionProjection.cjs').requestedTechnicalFactKeys(task.userGoal) });
         const verified = projected.facts.filter(item => item.status === 'VERIFIED');
         const unavailable = projected.facts.filter(item => item.status !== 'VERIFIED');
-        if (!projected.canonicalPresent) return `${name}当前还没有完整的 canonical 技术档案，因此不能给出正式技术参数。${projected.completeness?.reasons?.length ? `原因：${projected.completeness.reasons.join('、')}。` : ''}`;
+        if (!projected.canonicalPresent) return `${name}当前还没有完整的 canonical 技术档案，因此不能给出这些技术参数。${projected.completeness?.reasons?.length ? `原因：${projected.completeness.reasons.join('、')}。` : ''}`;
         const labels = { rotorDiameter: '正式转子直径', stackOffset: '正式叠片偏移', oilSealDiameter: '正式油封直径', impellerBoreDiameter: '正式叶轮孔径', impellerSpan: '正式叶轮跨度', impellerThickness: '正式叶轮厚度', threadLength: '正式螺纹长度', threadDiameter: '正式螺纹直径', barrelLength: '正式机筒长度', openOffset: '正式开口偏移', bearingSpan: '正式开档', upperBearing: '正式上轴承', lowerBearing: '正式下轴承', pieceCount: '正式定子片数', pumpShell: '正式泵壳', coil: '正式线圈' };
         const display = verified.map(item => {
-            if (item.key === 'bearingSpan' && item.source === 'DERIVED') return `${labels[item.key]}为 ${item.value} mm（由 canonical 机筒长度 ${item.barrelLength} mm 与 Owner-confirmed 开口偏移 ${item.openOffset} mm 派生）`;
+            if (item.key === 'bearingSpan' && item.source === 'DERIVED') return `${labels[item.key]}为 ${item.value} mm（由机筒长度 ${item.barrelLength} mm 与已确认开口偏移 ${item.openOffset} mm 计算）`;
             return `${labels[item.key] || item.key}为 ${item.value}${item.unit ? ` ${item.unit}` : ''}`;
         });
         const missing = unavailable.map(item => `${labels[item.key] || item.key}当前不能正式给出`).join('；');
-        return `${name}${display.length ? `的${display.join('；')}。` : ''}${missing ? `${missing}。` : ''}${projected.completeness?.state === 'INCOMPLETE' ? '该 canonical 技术档案尚未完整；以上仅列出本次已正式验证的字段，未使用旧技术资料补齐。' : ''}`;
+        return `${name}${display.length ? `的${display.join('；')}。` : ''}${missing ? `${missing}。` : ''}${projected.completeness?.state === 'INCOMPLETE' ? '正式技术档案尚未完整；以上只列出已验证字段。' : ''}`;
     }
     if (section.templateKey === 'RECIPE_COST_COMPARISON_V1') {
         if (goal.state === 'NEEDS_INPUT') {
@@ -331,14 +331,20 @@ function renderSection(task, section) {
         const ratio = value => Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '不适用';
         const totals = profitability.quantity === null ? '' : ` 数量 ${profitability.quantity} 台：总成本 ${money(profitability.totalCost)}，销售额 ${money(profitability.totalRevenue)}，总毛利 ${money(profitability.totalGrossProfit)}。`;
         const priceBasis = Number.isFinite(historicalPrice) ? `按该客户上次正式报价 ${money(historicalPrice)} 作为本次假设销售价，` : '';
-        return `${name}${priceBasis}按当前正式成本 ${money(profitability.unitCost)} 与售价 ${money(profitability.unitPrice)} 试算：单台毛利 ${money(profitability.grossProfitPerUnit)}，销售毛利率 ${ratio(profitability.grossMarginOnSales)}，成本加价率 ${ratio(profitability.markupOnCost)}。${totals} 这是毛利试算，不包含运费、税费、汇率或财务费用；本次没有保存或修改正式业务数据。`;
+        const scenario = (profitability.scenarioKey && profitability.scenarioKey !== 'base')
+            || goal.requestedBasis === 'HYPOTHETICAL' || (goal.scenarioKeys || []).length > 0;
+        const costLabel = scenario ? '临时方案成本' : '当前完整成本';
+        return `${name}${priceBasis}${costLabel}为 ${money(profitability.unitCost)}，按售价 ${money(profitability.unitPrice)} 试算：\n- 单台毛利 ${money(profitability.grossProfitPerUnit)}\n- 毛利率 ${ratio(profitability.grossMarginOnSales)}\n- 成本加价率 ${ratio(profitability.markupOnCost)}。${totals}${scenario ? ' 本次只是试算，没有保存。' : ''}`;
     }
     if (section.templateKey === 'VIRTUAL_READINESS_V1') {
         const readiness = values.find(item => item.key.predicate === 'inventory.virtual_readiness')?.value;
-        const prefix = `按当前库存并扣除现有活动订单占用，${readiness.quantity}台${name}的库存管理物料`;
-        if (readiness.status === 'READY') return `${prefix}目前没有发现短缺。本结论只覆盖当前正式库存齐料口径，不代表产能或交期；本次没有创建订单或预留库存。`;
-        const shortages = readiness.shortages.map(item => `${item.model || item.requirementKey}需要${item.virtualRequiredQty}${item.inventoryUnit === 'meter' ? 'm' : item.inventoryUnit === 'set' ? '套' : '件'}，现可用于这批需求${item.availableForVirtualQty}${item.inventoryUnit === 'meter' ? 'm' : item.inventoryUnit === 'set' ? '套' : '件'}，短缺${item.shortageQty}${item.inventoryUnit === 'meter' ? 'm' : item.inventoryUnit === 'set' ? '套' : '件'}`).join('；');
-        return `${prefix}存在短缺：${shortages}。以上数值来自正式库存规划回执；本次没有创建订单或预留库存。`;
+        const prefix = `按当前库存并扣除现有活动订单占用，${readiness.quantity}台${name}`;
+        if (readiness.status === 'READY') return `${prefix}：料够。目前没有发现短缺。`;
+        const unitOf = item => item.inventoryUnit === 'meter' ? 'm' : item.inventoryUnit === 'set' ? '套' : '件';
+        const shortages = readiness.shortages || [];
+        const headline = `${prefix}：料不够，目前有 ${shortages.length} 项物料短缺。`;
+        const details = shortages.map(item => `- ${item.model || item.requirementKey}：短缺${item.shortageQty}${unitOf(item)}`).join('\n');
+        return `${headline}\n${details}`;
     }
     if (section.templateKey === 'RECIPE_CATALOG_NEGATIVE_V1') return `当前正式配方目录中没有找到可用于整机成本计算的“${name}”配方，因此现在无法给出正式整机成本。本次只覆盖配方目录，不能据此判断整个系统是否不存在该对象。`;
     if (section.templateKey === 'COIL_CATALOG_NEGATIVE_V1') return `正式线圈目录中没有找到“${name}”。该结论只覆盖本次正式目录查询，没有修改任何业务数据。`;
@@ -381,7 +387,7 @@ function renderSection(task, section) {
     // 收据指针已经绑定到该候选自己的字段（cost / 库存行），因此这里只做展示，不做汇总或推断。
     const coilCostFact = values.find(item => item.key.predicate === 'coil.current_cost');
     if (coilCostFact) {
-        return `${name}的当前线圈成本为 ${money(coilCostFact.value)}。该金额来自本次正式线圈目录回执中该方案自己的成本字段，未做覆盖、汇总或自行计算；本次没有保存或修改正式数据。`;
+        return `${name} 当前线圈成本为 ${money(coilCostFact.value)}。`;
     }
     const coilInventoryFact = values.find(item => item.key.predicate === 'inventory.coil');
     if (coilInventoryFact) {
@@ -390,7 +396,7 @@ function renderSection(task, section) {
         const unit = row.inventoryUnit === 'set' ? '套' : row.inventoryUnit === 'meter' ? 'm' : row.inventoryUnit === 'piece' ? '件' : '';
         const identity = [row.schemeCode, row.schemeName].filter(Boolean).join(' / ') || name;
         if (stock === undefined) return `${identity}的正式库存回执没有返回可展示的库存数量，因此本次不给库存结论。`;
-        return `${identity}当前正式库存为 ${Number(stock)}${unit}。该数量来自本次正式线圈库存回执中该方案自己的记录，未对多个候选方案汇总；本次没有预留或修改库存。`;
+        return `${identity} 当前正式库存为 ${Number(stock)}${unit}。`;
     }
     if (section.templateKey === 'CATALOG_V1' || section.templateKey === 'INVENTORY_V1') {
         const value = values[0]?.value;
