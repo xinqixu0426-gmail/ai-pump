@@ -1652,6 +1652,18 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         transactionality: 'initial_canonical_profile_and_knowledge_audits_business_change_and_operation_receipt_atomic',
         callers: Object.freeze(['web', 'internal']),
     }),
+    'recipes.technical_profile.migration_owner_promote': defineBusinessCapability({
+        capabilityId: 'recipes.technical_profile.migration_owner_promote',
+        domain: 'recipe',
+        inputSchema: 'POST /api/recipes/:id/technical-profile/migration-owner-promote { confirmationToken, idempotencyKey }',
+        outputSchema: 'CommandReceipt<RecipeTechnicalOwnerPromotionV1>',
+        sourceOfTruth: 'existing_migrated_canonical_recipe_technical_profile+current_migration_source_changed_assessment',
+        riskLevel: 'high', requiresConfirmation: true, supportsPreview: true,
+        previewPath: '/api/recipes/:id/technical-profile/migration-owner-promotion-preview',
+        concurrencyControl: 'confirmation_bound_existing_canonical_aggregate_and_source_drift',
+        transactionality: 'profile_metadata_audit_business_change_and_operation_receipt_atomic',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'recipes.technical_files.upload': defineBusinessCapability({
         capabilityId: 'recipes.technical_files.upload',
         domain: 'recipe',

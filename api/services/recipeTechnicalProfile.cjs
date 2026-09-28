@@ -514,9 +514,11 @@ module.exports = {
     GET_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
     bearingReference,
+    assertModeInput,
     computeCompleteness,
     createRecipeTechnicalProfileService,
     derivedBearingSpan,
     functionalFromRow,
     resolveStainlessMode,
+    validateBearingPart,
 };
