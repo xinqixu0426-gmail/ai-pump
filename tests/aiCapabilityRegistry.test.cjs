@@ -297,6 +297,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'recipes.technical_profile.get',
         'recipes.technical_profile.migration_dry_run',
         'recipes.technical_profile.migration_review_queue',
+        'recipes.technical_profile.migration_backfill',
         'customers.list',
         'customers.history',
         'templates.list',
@@ -457,6 +458,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             'expectedUpdatedAt_if_feedback_exists',
             'expectedVersion_content_sha256',
             'expectedVersion_for_mutation',
+            'confirmation_bound_migration_fingerprint+canonical_rows_absent',
         ].includes(capability.concurrencyControl));
         assert.match(capability.transactionality, /operation|external/);
         assert.match(capability.audit, /strong_audit/);

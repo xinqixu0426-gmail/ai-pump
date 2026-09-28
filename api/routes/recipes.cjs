@@ -38,6 +38,10 @@ const {
 const {
     createRecipeTechnicalMigrationDryRunService,
 } = require('../services/recipeTechnicalMigrationDryRun.cjs');
+const {
+    createRecipeTechnicalMigrationBackfillService,
+    BACKFILL_CAPABILITY_ID: RECIPE_TECHNICAL_MIGRATION_BACKFILL_CAPABILITY_ID,
+} = require('../services/recipeTechnicalMigrationBackfill.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -55,6 +59,11 @@ const recipeQueries = createRecipeQueries({
 });
 const recipeTechnicalProfileService = createRecipeTechnicalProfileService({ db });
 const recipeTechnicalMigrationDryRunService = createRecipeTechnicalMigrationDryRunService({ db });
+const recipeTechnicalMigrationBackfillService = createRecipeTechnicalMigrationBackfillService({
+    db,
+    dryRunService: recipeTechnicalMigrationDryRunService,
+    canonicalProfileService: recipeTechnicalProfileService,
+});
 
 function recipeCommandDependencies() {
     return {
@@ -194,6 +203,38 @@ router.get('/:id/technical-profile/migration-dry-run', (req, res) => {
         res.json({ success: true, data: recipeTechnicalMigrationDryRunService.assess(req.params.id) });
     } catch (error) {
         sendRecipeQueryError(res, error);
+    }
+});
+
+// O4-F-D-A is a deliberately narrow, confirmation-backed, single-Recipe
+// initial backfill. It is separate from canonical owner writes and legacy
+// Recipe routes; it never starts a batch or an Owner-review resolution.
+router.post('/:id/technical-profile/migration-backfill-preview', (req, res) => {
+    try {
+        const context = commandContextFromRequest(req, RECIPE_TECHNICAL_MIGRATION_BACKFILL_CAPABILITY_ID);
+        res.json({
+            success: true,
+            data: recipeTechnicalMigrationBackfillService.preview(req.params.id, {
+                actorKey: context.actorKey,
+                subject: context.actorKey,
+            }),
+        });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/:id/technical-profile/migration-backfill', (req, res) => {
+    try {
+        const context = commandContextFromRequest(req, RECIPE_TECHNICAL_MIGRATION_BACKFILL_CAPABILITY_ID);
+        const result = recipeTechnicalMigrationBackfillService.apply(
+            req.params.id,
+            req.body || {},
+            { ...context, subject: context.actorKey }
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
     }
 });
 
