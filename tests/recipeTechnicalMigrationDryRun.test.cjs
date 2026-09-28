@@ -4,6 +4,7 @@ const Database = require('better-sqlite3');
 const { runMigrations } = require('../api/database/migrations.cjs');
 const {
     DRY_RUN_CAPABILITY_ID,
+    MIGRATION_VERSION,
     REVIEW_QUEUE_CAPABILITY_ID,
     createRecipeTechnicalMigrationDryRunService,
 } = require('../api/services/recipeTechnicalMigrationDryRun.cjs');
@@ -72,17 +73,56 @@ function writeSnapshot(db) {
     return Object.fromEntries(tables.map(table => [table, db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count]));
 }
 
-function insertCanonicalPair(db, recipeId) {
+function insertCanonicalPair(db, recipeId, options = {}) {
     db.prepare(`
         INSERT INTO recipe_functional_technical_profiles (
             recipe_id, schema_version, completeness_state, migration_state,
+            migration_version, migration_fingerprint, rotor_diameter,
             provenance_json, legacy_evidence_json, created_at, updated_at
-        ) VALUES (?, 1, 'INCOMPLETE', 'ALREADY_CANONICAL', '{}', '{}', ?, ?)
-    `).run(recipeId, NOW, NOW);
+        ) VALUES (?, 1, ?, ?, ?, ?, ?, '{}', '{}', ?, ?)
+    `).run(
+        recipeId,
+        options.completenessState || 'INCOMPLETE',
+        options.migrationState || 'ALREADY_CANONICAL',
+        options.migrationVersion ?? null,
+        options.migrationFingerprint ?? null,
+        options.rotorDiameter ?? null,
+        NOW,
+        NOW,
+    );
     db.prepare(`
         INSERT INTO recipe_technical_knowledge (recipe_id, schema_version, items_json, created_at, updated_at)
         VALUES (?, 1, '[]', ?, ?)
     `).run(recipeId, NOW, NOW);
+}
+
+function materializeMigratedTarget(db, recipeId, assessment) {
+    const functional = assessment.target.functional;
+    assert.ok(functional, 'a migration target must be write-eligible before test materialization');
+    const values = [
+        recipeId,
+        functional.rotorDiameter, functional.stackOffset, functional.oilSealDiameter,
+        functional.impellerBoreDiameter, functional.impellerSpan, functional.impellerThickness,
+        functional.threadLength, functional.threadDiameter, functional.barrelLength,
+        functional.openOffset, functional.bearingSpanExplicit, functional.upperBearingPartId,
+        functional.lowerBearingPartId, assessment.target.completenessState,
+        assessment.target.migrationState, assessment.migrationVersion, assessment.migrationFingerprint,
+        NOW, NOW,
+    ];
+    db.prepare(`
+        INSERT INTO recipe_functional_technical_profiles (
+            recipe_id, rotor_diameter, stack_offset, oil_seal_diameter,
+            impeller_bore_diameter, impeller_span, impeller_thickness,
+            thread_length, thread_diameter, barrel_length, open_offset,
+            bearing_span_explicit, upper_bearing_part_id, lower_bearing_part_id,
+            schema_version, completeness_state, migration_state, migration_version,
+            migration_fingerprint, provenance_json, legacy_evidence_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, '{}', '{}', ?, ?)
+    `).run(...values);
+    db.prepare(`
+        INSERT INTO recipe_technical_knowledge (recipe_id, schema_version, items_json, created_at, updated_at)
+        VALUES (?, 1, ?, ?, ?)
+    `).run(recipeId, JSON.stringify(assessment.candidate.technicalKnowledge.items), NOW, NOW);
 }
 
 function insertRecipe(db, values = {}) {
@@ -253,6 +293,124 @@ test('canonical pair is never overwritten by legacy candidates and partial canon
     const partialAssessment = partial.service.assess(partial.recipeId);
     assert.equal(partialAssessment.classification, 'NEEDS_OWNER_REVIEW');
     assert.ok(partialAssessment.reasons.some(reason => reason.code === 'CANONICAL_STORAGE_PARTIAL'));
+});
+
+test('canonical disposition preserves stored review/block authority and surfaces current values separately from legacy candidates', t => {
+    const owner = fixture(t);
+    insertCanonicalPair(owner.db, owner.recipeId, { rotorDiameter: 55 });
+    const ownerAssessment = owner.service.assess(owner.recipeId);
+    assert.equal(ownerAssessment.classification, 'ALREADY_CANONICAL');
+    assert.equal(ownerAssessment.canonical.currentFunctional.rotorDiameter, 55);
+    assert.equal(ownerAssessment.candidate.functional.rotorDiameter.value, 52);
+    assert.equal(ownerAssessment.target.writeEligible, false);
+    assert.equal(ownerAssessment.target.functional, null);
+    assert.equal(ownerAssessment.canonical.currentTechnicalKnowledge.items.length, 0);
+
+    const storedReview = fixture(t);
+    insertCanonicalPair(storedReview.db, storedReview.recipeId, { migrationState: 'NEEDS_OWNER_REVIEW' });
+    const reviewAssessment = storedReview.service.assess(storedReview.recipeId);
+    assert.equal(reviewAssessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(reviewAssessment.actionRequired, true);
+    assert.ok(reviewAssessment.reasons.some(reason => reason.code === 'CANONICAL_MIGRATION_REVIEW_REQUIRED'));
+    assert.equal(reviewAssessment.target.writeEligible, false);
+
+    const storedBlocked = fixture(t);
+    insertCanonicalPair(storedBlocked.db, storedBlocked.recipeId, { migrationState: 'BLOCKED_UNRESOLVED' });
+    const blockedAssessment = storedBlocked.service.assess(storedBlocked.recipeId);
+    assert.equal(blockedAssessment.classification, 'BLOCKED_UNRESOLVED');
+    assert.equal(blockedAssessment.actionRequired, true);
+    assert.ok(blockedAssessment.reasons.some(reason => reason.code === 'CANONICAL_MIGRATION_BLOCKED'));
+
+    const partial = fixture(t);
+    partial.db.prepare(`
+        INSERT INTO recipe_functional_technical_profiles (
+            recipe_id, rotor_diameter, schema_version, completeness_state, migration_state,
+            provenance_json, legacy_evidence_json, created_at, updated_at
+        ) VALUES (?, 55, 1, 'INCOMPLETE', 'ALREADY_CANONICAL', '{}', '{}', ?, ?)
+    `).run(partial.recipeId, NOW, NOW);
+    const partialAssessment = partial.service.assess(partial.recipeId);
+    assert.equal(partialAssessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(partialAssessment.canonical.currentFunctional.rotorDiameter, 55);
+    assert.equal(partialAssessment.candidate.functional.rotorDiameter.value, 52);
+    assert.equal(partialAssessment.target.writeEligible, false);
+    assert.equal(partialAssessment.target.functional, null);
+});
+
+test('stable migration fingerprint survives exact materialization and detects migrated source drift without using canonical row state', t => {
+    const { db, recipeId, shellPartId, service } = fixture(t, { impellerThickness: null });
+    const before = writeSnapshot(db);
+    const preWrite = service.assess(recipeId);
+    assert.equal(preWrite.classification, 'AUTO_MIGRATABLE');
+    assert.match(preWrite.migrationFingerprint, /^[0-9a-f]{64}$/u);
+    assert.equal(preWrite.fingerprint, preWrite.migrationFingerprint, 'R1 alias must be explicit and stable');
+    materializeMigratedTarget(db, recipeId, preWrite);
+    const matching = service.assess(recipeId);
+    assert.equal(matching.migrationFingerprint, preWrite.migrationFingerprint);
+    assert.equal(matching.classification, 'ALREADY_CANONICAL');
+    assert.equal(matching.target.writeEligible, false);
+    assert.ok(matching.reasons.some(reason => reason.code === 'MIGRATION_FINGERPRINT_MATCH'));
+    assert.equal(matching.canonical.migrationVersion, MIGRATION_VERSION);
+
+    db.prepare(`UPDATE recipes SET technical_data_json = ? WHERE id = ?`)
+        .run(JSON.stringify({ rotorDiameter: 53, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24, impellerDepth: 3, threadLength: 14, threadDiameter: 8, upperBearing: '202', lowerBearing: '6303', bearingSpan: 80 }), recipeId);
+    const drift = service.assess(recipeId);
+    assert.notEqual(drift.migrationFingerprint, preWrite.migrationFingerprint);
+    assert.equal(drift.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(drift.canonical.currentFunctional.rotorDiameter, 52);
+    assert.equal(drift.target.writeEligible, false);
+    assert.ok(drift.reasons.some(reason => reason.code === 'MIGRATION_SOURCE_CHANGED'));
+
+    db.prepare(`UPDATE parts SET price = 123, stock = 456 WHERE id = ?`).run(shellPartId);
+    assert.equal(service.assess(recipeId).migrationFingerprint, drift.migrationFingerprint);
+    assert.notDeepEqual(writeSnapshot(db), before, 'test-only materialization is the sole intentional setup write');
+});
+
+test('migrated fingerprint/version and canonical completeness metadata fail closed into owner review', t => {
+    const missingFingerprint = fixture(t, { impellerThickness: null });
+    const candidate = missingFingerprint.service.assess(missingFingerprint.recipeId);
+    materializeMigratedTarget(missingFingerprint.db, missingFingerprint.recipeId, candidate);
+    missingFingerprint.db.prepare(`UPDATE recipe_functional_technical_profiles SET migration_fingerprint = NULL WHERE recipe_id = ?`).run(missingFingerprint.recipeId);
+    const missing = missingFingerprint.service.assess(missingFingerprint.recipeId);
+    assert.equal(missing.classification, 'NEEDS_OWNER_REVIEW');
+    assert.ok(missing.reasons.some(reason => reason.code === 'MIGRATION_FINGERPRINT_MISSING'));
+
+    const unsupported = fixture(t, { impellerThickness: null });
+    const compatible = unsupported.service.assess(unsupported.recipeId);
+    materializeMigratedTarget(unsupported.db, unsupported.recipeId, compatible);
+    unsupported.db.prepare(`UPDATE recipe_functional_technical_profiles SET migration_version = 'unsupported-v99' WHERE recipe_id = ?`).run(unsupported.recipeId);
+    const unsupportedAssessment = unsupported.service.assess(unsupported.recipeId);
+    assert.equal(unsupportedAssessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.ok(unsupportedAssessment.reasons.some(reason => reason.code === 'MIGRATION_VERSION_UNSUPPORTED'));
+
+    const needsReview = fixture(t);
+    insertCanonicalPair(needsReview.db, needsReview.recipeId, { completenessState: 'NEEDS_REVIEW' });
+    const reviewAssessment = needsReview.service.assess(needsReview.recipeId);
+    assert.equal(reviewAssessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.ok(reviewAssessment.reasons.some(reason => reason.code === 'CANONICAL_COMPLETENESS_REVIEW_REQUIRED'));
+
+    const compatibility = fixture(t, { impellerThickness: 3 });
+    const compatibilityCandidate = compatibility.service.assess(compatibility.recipeId);
+    assert.equal(compatibilityCandidate.classification, 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE');
+    materializeMigratedTarget(compatibility.db, compatibility.recipeId, compatibilityCandidate);
+    const compatibilityAssessment = compatibility.service.assess(compatibility.recipeId);
+    assert.equal(compatibilityAssessment.classification, 'ALREADY_CANONICAL');
+    assert.ok(compatibilityAssessment.reasons.some(reason => reason.code === 'MIGRATION_FINGERPRINT_MATCH'));
+});
+
+test('review queue and cohort summary honor stored canonical review and blocked states', t => {
+    const { db, recipeId, service } = fixture(t);
+    insertCanonicalPair(db, recipeId, { migrationState: 'NEEDS_OWNER_REVIEW' });
+    const blockedId = insertRecipe(db, { name: 'stored-blocked', technicalDataJson: '{}' });
+    insertCanonicalPair(db, blockedId, { migrationState: 'BLOCKED_UNRESOLVED' });
+    const templateId = Number(db.prepare('SELECT template_id AS id FROM recipes WHERE id = ?').get(recipeId).id);
+    const safeIncompleteId = insertRecipe(db, { name: 'safe-incomplete', templateId, technicalDataJson: '{}' });
+    const queue = service.reviewQueue({ limit: 10, offset: 0 });
+    assert.deepEqual(queue.items.map(item => item.recipeId), [recipeId, blockedId]);
+    assert.equal(queue.items.some(item => item.recipeId === safeIncompleteId), false);
+    const report = service.list({ limit: 10, offset: 0 });
+    assert.equal(report.cohortSummary.classifications.NEEDS_OWNER_REVIEW, 1);
+    assert.equal(report.cohortSummary.classifications.BLOCKED_UNRESOLVED, 1);
+    assert.equal(report.cohortSummary.classifications.AUTO_MIGRATABLE, 1);
 });
 
 test('unknown canonical schema versions are review-only and never treated as overwriteable canonical pairs', t => {

@@ -517,5 +517,6 @@ module.exports = {
     computeCompleteness,
     createRecipeTechnicalProfileService,
     derivedBearingSpan,
+    functionalFromRow,
     resolveStainlessMode,
 };

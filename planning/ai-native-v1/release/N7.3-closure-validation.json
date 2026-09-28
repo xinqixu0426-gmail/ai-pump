@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "967908e0387a2cea0e78d3c2f74c8244bbbed652976ac0e6372bd4edf12c638d",
-    "diskSha256": "967908e0387a2cea0e78d3c2f74c8244bbbed652976ac0e6372bd4edf12c638d",
+    "attestedSha256": "e1a0c3d9f9aa0d0620f071f846ed90e193056aacb90b867711382e00c4eadf05",
+    "diskSha256": "e1a0c3d9f9aa0d0620f071f846ed90e193056aacb90b867711382e00c4eadf05",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -83,7 +83,8 @@
   "nativeW15R1RefreshNote": "NATIVE-W1.5-R1 更新了 docs/api-reference.md（/api/ai/chat 行）：明确 V1 只支持 delta，绝对目标值语法返回 NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED，并补全数量歧义/零/方向冲突的澄清码。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
   "o4FbRefreshNote": "O4-F-B 更新了 docs/api-reference.md，登记独立的 Recipe canonical technical-profile GET/PUT；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
   "o4FcRefreshNote": "O4-F-C 更新了 docs/api-reference.md，登记只读 Recipe technical-profile migration dry-run 与派生 Owner Review Queue；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
-  "o4FcR1RefreshNote": "O4-F-C-R1 更新了 docs/api-reference.md，补全 dry-run target/missing/unresolved、关系/span 与全 cohort 聚合响应契约；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
+  "o4FcR1RefreshNote": "O4-F-C-R1 更新了 docs/api-reference.md，补全 dry-run target/missing/unresolved、关系/span 与全 cohort 聚合响应契约；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
+  "o4FcR2RefreshNote": "O4-F-C-R2 更新了 docs/api-reference.md，明确 canonical current 内容与 legacy candidate 分离、canonical disposition、migrationVersion 及不含 canonical 行状态的稳定 migrationFingerprint；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,

@@ -20,6 +20,8 @@ const NOW = '2026-09-28T00:00:00.000Z';
 let server;
 let baseUrl;
 let cookie;
+let seedSequence = 0;
+let bearingSeeded = false;
 
 function authCookie() {
     return `token=${jwt.sign({ id: 1, username: 'migration-http', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '5m' })}`;
@@ -34,26 +36,31 @@ async function getJson(pathname) {
 }
 
 function seed() {
+    seedSequence += 1;
+    const suffix = seedSequence;
     const shellPartId = Number(db.prepare(`
         INSERT INTO parts (model, category, remark, created_at, updated_at)
-        VALUES ('migration-shell', '泵壳', '{"isStainless":false}', ?, ?)
-    `).run(NOW, NOW).lastInsertRowid);
-    db.prepare(`
-        INSERT INTO parts (model, category, created_at, updated_at)
-        VALUES ('轴承-6202', '轴承', ?, ?)
-    `).run(NOW, NOW);
+        VALUES (?, '泵壳', '{"isStainless":false}', ?, ?)
+    `).run(`migration-shell-${suffix}`, NOW, NOW).lastInsertRowid);
+    if (!bearingSeeded) {
+        db.prepare(`
+            INSERT INTO parts (model, category, created_at, updated_at)
+            VALUES ('轴承-6202', '轴承', ?, ?)
+        `).run(NOW, NOW);
+        bearingSeeded = true;
+    }
     const templateId = Number(db.prepare(`
         INSERT INTO pump_shell_templates (shell_model, created_at, updated_at)
-        VALUES ('migration-template', ?, ?)
-    `).run(NOW, NOW).lastInsertRowid);
+        VALUES (?, ?, ?)
+    `).run(`migration-template-${suffix}`, NOW, NOW).lastInsertRowid);
     db.prepare(`
         INSERT INTO catalog_template_shell_bindings (template_id, shell_part_id, created_at, updated_at)
         VALUES (?, ?, ?, ?)
     `).run(templateId, shellPartId, NOW, NOW);
     return Number(db.prepare(`
         INSERT INTO recipes (name, template_id, technical_data_json, created_at, updated_at)
-        VALUES ('migration-recipe', ?, '{"rotorDiameter":52,"upperBearing":"202"}', ?, ?)
-    `).run(templateId, NOW, NOW).lastInsertRowid);
+        VALUES (?, ?, '{"rotorDiameter":52,"upperBearing":"202"}', ?, ?)
+    `).run(`migration-recipe-${suffix}`, templateId, NOW, NOW).lastInsertRowid);
 }
 
 function writeCounts() {
@@ -62,6 +69,28 @@ function writeCounts() {
         'recipe_functional_technical_profiles', 'recipe_technical_knowledge',
         'audit_log', 'business_change_events', 'api_operations', 'knowledge_entries',
     ].map(table => [table, db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count]));
+}
+
+function insertCanonicalPair(recipeId, options = {}) {
+    db.prepare(`
+        INSERT INTO recipe_functional_technical_profiles (
+            recipe_id, schema_version, completeness_state, migration_state,
+            migration_version, migration_fingerprint, provenance_json,
+            legacy_evidence_json, created_at, updated_at
+        ) VALUES (?, 1, ?, ?, ?, ?, '{}', '{}', ?, ?)
+    `).run(
+        recipeId,
+        options.completenessState || 'INCOMPLETE',
+        options.migrationState || 'ALREADY_CANONICAL',
+        options.migrationVersion ?? null,
+        options.migrationFingerprint ?? null,
+        NOW,
+        NOW,
+    );
+    db.prepare(`
+        INSERT INTO recipe_technical_knowledge (recipe_id, schema_version, items_json, created_at, updated_at)
+        VALUES (?, 1, '[]', ?, ?)
+    `).run(recipeId, NOW, NOW);
 }
 
 test.before(async () => {
@@ -124,5 +153,37 @@ test('migration dry-run HTTP rejects deleted and malformed targets without any w
     const malformed = await getJson('/api/recipes/technical-profile/migration-dry-run?limit=101');
     assert.equal(malformed.response.status, 400);
     assert.equal(malformed.payload.code, 'technical_profile_migration_query_invalid');
+    assert.deepEqual(writeCounts(), before);
+});
+
+test('migration dry-run HTTP preserves canonical state and reports migrated fingerprint drift without writes', async () => {
+    const matchingId = seed();
+    const initial = await getJson(`/api/recipes/${matchingId}/technical-profile/migration-dry-run`);
+    const migrationFingerprint = initial.payload.data.migrationFingerprint;
+    const migrationVersion = initial.payload.data.migrationVersion;
+    insertCanonicalPair(matchingId, {
+        migrationState: 'AUTO_MIGRATED', migrationVersion, migrationFingerprint,
+    });
+    const storedReviewId = seed();
+    insertCanonicalPair(storedReviewId, { migrationState: 'NEEDS_OWNER_REVIEW' });
+    const before = writeCounts();
+
+    const matching = await getJson(`/api/recipes/${matchingId}/technical-profile/migration-dry-run`);
+    assert.equal(matching.response.status, 200);
+    assert.equal(matching.payload.data.classification, 'ALREADY_CANONICAL');
+    assert.equal(matching.payload.data.migrationFingerprint, migrationFingerprint);
+    assert.equal(matching.payload.data.target.writeEligible, false);
+
+    db.prepare(`UPDATE recipes SET technical_data_json = '{"rotorDiameter":53,"upperBearing":"202"}' WHERE id = ?`).run(matchingId);
+    const drift = await getJson(`/api/recipes/${matchingId}/technical-profile/migration-dry-run`);
+    assert.equal(drift.response.status, 200);
+    assert.equal(drift.payload.data.classification, 'NEEDS_OWNER_REVIEW');
+    assert.ok(drift.payload.data.reasons.some(reason => reason.code === 'MIGRATION_SOURCE_CHANGED'));
+    assert.equal(drift.payload.data.target.writeEligible, false);
+
+    const queue = await getJson('/api/recipes/technical-profile/migration-review-queue?limit=100&offset=0');
+    assert.equal(queue.response.status, 200);
+    assert.ok(queue.payload.data.items.some(item => item.recipeId === storedReviewId));
+    assert.ok(queue.payload.data.items.some(item => item.recipeId === matchingId));
     assert.deepEqual(writeCounts(), before);
 });

@@ -8,11 +8,15 @@ const {
     FUNCTIONAL_FIELDS,
     computeCompleteness,
     derivedBearingSpan,
+    functionalFromRow,
     resolveStainlessMode,
 } = require('./recipeTechnicalProfile.cjs');
 
 const DRY_RUN_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.migration_dry_run').capabilityId;
 const REVIEW_QUEUE_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.migration_review_queue').capabilityId;
+// This version identifies the deterministic backfill contract. It is intended
+// for future persistence in migration_version, unlike the report-only route.
+const MIGRATION_VERSION = 'recipe-technical-migration-v1';
 const MIGRATION_ALGORITHM_VERSION = 'recipe-technical-migration-dry-run-v1';
 const MAX_PAGE_SIZE = 100;
 const FUNCTIONAL_PROFILE_SCHEMA_VERSION = 1;
@@ -96,6 +100,15 @@ function isJsonObject(raw) {
 
 function isJsonArray(raw) {
     try { return Array.isArray(JSON.parse(raw || '[]')); } catch { return false; }
+}
+
+function parseJsonArray(raw) {
+    try {
+        const value = JSON.parse(raw || '[]');
+        return Array.isArray(value) ? value : [];
+    } catch {
+        return [];
+    }
 }
 
 function normalizeRecipeId(value) {
@@ -288,6 +301,7 @@ function canonicalState(profile, knowledge) {
         profile.schema_version !== FUNCTIONAL_PROFILE_SCHEMA_VERSION
         || knowledge.schema_version !== TECHNICAL_KNOWLEDGE_SCHEMA_VERSION
     );
+    const validPayload = both && isJsonObject(profile.provenance_json) && isJsonArray(knowledge.items_json);
     return {
         functionalPresent: Boolean(profile), technicalKnowledgePresent: Boolean(knowledge),
         aggregateUpdatedAt: [profile?.updated_at, knowledge?.updated_at].filter(Boolean).sort().at(-1) || null,
@@ -295,20 +309,74 @@ function canonicalState(profile, knowledge) {
         knowledgeSchemaVersion: knowledge?.schema_version ?? null,
         completenessState: profile?.completeness_state ?? null,
         migrationState: profile?.migration_state ?? null,
-        supported: both && !unsupportedSchemaVersion
-            && isJsonObject(profile.provenance_json) && isJsonArray(knowledge.items_json),
+        migrationVersion: profile?.migration_version ?? null,
+        migrationFingerprint: profile?.migration_fingerprint ?? null,
+        currentFunctional: functionalFromRow(profile),
+        currentTechnicalKnowledge: knowledge ? { items: parseJsonArray(knowledge.items_json) } : null,
+        supported: both && !unsupportedSchemaVersion && validPayload,
         partial,
         unsupportedSchemaVersion,
+        invalidPayload: both && !validPayload,
     };
 }
 
-function classify(canonical, reasons, compatibilityEvidence) {
-    if (canonical.supported) return 'ALREADY_CANONICAL';
-    if (canonical.partial) return 'NEEDS_OWNER_REVIEW';
+function classifyLegacy(reasons, compatibilityEvidence) {
     if (reasons.some(reason => reason.severity === 'REVIEW')) return 'NEEDS_OWNER_REVIEW';
     if (reasons.some(reason => reason.severity === 'BLOCKED')) return 'BLOCKED_UNRESOLVED';
     if (compatibilityEvidence) return 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE';
     return 'AUTO_MIGRATABLE';
+}
+
+function canonicalDisposition(canonical, migrationFingerprint) {
+    if (!canonical.functionalPresent && !canonical.technicalKnowledgePresent) return null;
+    if (canonical.partial) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_STORAGE_PARTIAL',
+    };
+    if (canonical.unsupportedSchemaVersion) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_SCHEMA_VERSION_UNSUPPORTED',
+    };
+    if (canonical.invalidPayload || !canonical.supported) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_STORAGE_PAYLOAD_INVALID',
+    };
+    if (canonical.completenessState === 'NEEDS_REVIEW') return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_COMPLETENESS_REVIEW_REQUIRED',
+    };
+    if (canonical.migrationState === 'NEEDS_OWNER_REVIEW') return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_MIGRATION_REVIEW_REQUIRED',
+    };
+    if (canonical.migrationState === 'BLOCKED_UNRESOLVED') return {
+        classification: 'BLOCKED_UNRESOLVED',
+        reason: 'CANONICAL_MIGRATION_BLOCKED',
+    };
+    if (canonical.migrationState === 'ALREADY_CANONICAL') return {
+        classification: 'ALREADY_CANONICAL',
+        reason: 'CANONICAL_OWNER_AUTHORITY',
+    };
+    if (!['AUTO_MIGRATED', 'MIGRATED_WITH_COMPATIBILITY_PROVENANCE'].includes(canonical.migrationState)) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'CANONICAL_MIGRATION_STATE_INVALID',
+    };
+    if (canonical.migrationVersion !== MIGRATION_VERSION) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'MIGRATION_VERSION_UNSUPPORTED',
+    };
+    if (typeof canonical.migrationFingerprint !== 'string' || !/^[0-9a-f]{64}$/u.test(canonical.migrationFingerprint)) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'MIGRATION_FINGERPRINT_MISSING',
+    };
+    if (canonical.migrationFingerprint !== migrationFingerprint) return {
+        classification: 'NEEDS_OWNER_REVIEW',
+        reason: 'MIGRATION_SOURCE_CHANGED',
+    };
+    return {
+        classification: 'ALREADY_CANONICAL',
+        reason: 'MIGRATION_FINGERPRINT_MATCH',
+    };
 }
 
 function loadRecipe(db, recipeId) {
@@ -445,16 +513,92 @@ function buildSpanAssessment(policy, proposedFunctional, conditional) {
     };
 }
 
+function fingerprintBearing(bearing) {
+    return {
+        rawValue: bearing.rawValue,
+        normalizedBearingCode: bearing.normalizedBearingCode,
+        resolutionMode: bearing.resolutionMode,
+        proposedPartId: bearing.proposedPartId,
+        geometryAvailable: bearing.geometryAvailable,
+        candidates: bearing.candidates.map(candidate => ({
+            partId: candidate.partId,
+            normalizedBearingCode: candidate.normalizedBearingCode,
+        })),
+    };
+}
+
+function migrationFingerprintSnapshot({ recipe, parsed, relations, policy, shell, functional, bearings, impellerThickness, technicalKnowledge, migrationTarget, spanAssessment, reasons }) {
+    // This snapshot deliberately excludes every canonical child-row attribute.
+    // A future O4-F-D write must be able to persist this exact fingerprint and
+    // receive it again from an unchanged post-backfill source snapshot.
+    return {
+        migrationVersion: MIGRATION_VERSION,
+        recipe: {
+            id: Number(recipe.id),
+            templateId: recipe.template_id ?? null,
+            coilId: recipe.coil_id ?? null,
+            coilSheets: recipe.coil_sheets ?? null,
+            customBarrelLength: recipe.custom_barrel_length ?? null,
+            impellerModel: recipe.impeller_model ?? null,
+            impellerThickness: recipe.impeller_thickness ?? null,
+            impellerDiameter: recipe.impeller_diameter ?? null,
+            impellerBladeCount: recipe.impeller_blade_count ?? null,
+            technicalDataJson: parsed.raw,
+            technicalDataJsonValidObject: parsed.valid,
+        },
+        formalRelations: relations,
+        stainlessEvidence: {
+            policy: {
+                stainlessMode: policy.stainlessMode,
+                isStainless: policy.isStainless,
+                reasonCode: policy.reasonCode,
+                templateId: policy.templateId,
+                shellPartId: policy.shellPartId,
+            },
+            shell: shell ? {
+                partId: Number(shell.id),
+                category: shell.category,
+                deletedAt: shell.deleted_at ?? null,
+                remark: shell.remark ?? null,
+            } : null,
+        },
+        functionalCandidates: functional,
+        bearingCandidates: {
+            upper: fingerprintBearing(bearings.upper),
+            lower: fingerprintBearing(bearings.lower),
+        },
+        thickness: impellerThickness,
+        technicalKnowledge,
+        target: {
+            migrationState: migrationTarget.migrationState,
+            completenessState: migrationTarget.completenessState,
+            missingSet: migrationTarget.missingSet,
+            unresolvedSet: migrationTarget.unresolvedSet,
+            proposedFunctional: migrationTarget.proposedFunctional,
+        },
+        spanAssessment,
+        reasons: reasons.slice().sort((left, right) => left.code.localeCompare(right.code)),
+    };
+}
+
+function noWriteTarget(migrationTarget) {
+    return {
+        writeEligible: false,
+        migrationState: null,
+        completenessState: null,
+        missingSet: migrationTarget.missingSet,
+        unresolvedSet: migrationTarget.unresolvedSet,
+        functional: null,
+    };
+}
+
 function buildAssessment(db, recipe) {
     const profile = getFunctionalProfile(db, recipe.id);
     const knowledge = getTechnicalKnowledge(db, recipe.id);
-    const canonical = canonicalState(profile, knowledge);
     const parsed = parseLegacyTechnicalJson(recipe.technical_data_json);
     const policy = resolveStainlessMode(db, recipe.id, recipe);
     const reasons = [];
     if (!parsed.valid) addReason(reasons, 'TECHNICAL_DATA_JSON_INVALID', 'REVIEW');
-    if (canonical.partial) addReason(reasons, 'CANONICAL_STORAGE_PARTIAL', 'REVIEW', canonical);
-    if (canonical.unsupportedSchemaVersion) addReason(reasons, 'CANONICAL_SCHEMA_VERSION_UNSUPPORTED', 'REVIEW', canonical);
     const functional = buildDirectFunctionalCandidates(parsed.value, recipe, reasons);
     const bearings = buildBearingCandidates(db, parsed.value, reasons);
     const impellerThickness = buildThicknessCandidate(parsed.value, recipe, reasons);
@@ -476,31 +620,33 @@ function buildAssessment(db, recipe) {
     functional.lowerBearingPartId = candidate(bearings.lower.proposedPartId, bearings.lower.resolutionMode === 'EXACT_UNIQUE' ? 'MIGRATED_LEGACY_BEARING_CODE' : null, 'recipes.technical_data_json.lowerBearing', bearings.lower.rawValue, bearings.lower.resolutionMode);
     const compatibilityEvidence = impellerThickness.status === 'PROPOSED_WITH_COMPATIBILITY_EVIDENCE'
         || Object.values(technicalKnowledge.migrationEvidence).some(evidence => evidence.length > 1);
-    const classification = classify(canonical, reasons, compatibilityEvidence);
-    const target = buildTargetAssessment(db, classification, functional, policy, bearings, conditional);
-    const spanAssessment = buildSpanAssessment(policy, target.proposedFunctional, conditional);
+    const legacyClassification = classifyLegacy(reasons, compatibilityEvidence);
+    const migrationTarget = buildTargetAssessment(db, legacyClassification, functional, policy, bearings, conditional);
+    const spanAssessment = buildSpanAssessment(policy, migrationTarget.proposedFunctional, conditional);
     const relations = relationSummary(db, recipe, policy);
-    const migrationSnapshot = {
-        algorithmVersion: MIGRATION_ALGORITHM_VERSION,
-        recipe: {
-            id: Number(recipe.id), templateId: recipe.template_id ?? null, coilId: recipe.coil_id ?? null, coilSheets: recipe.coil_sheets ?? null,
-            customBarrelLength: recipe.custom_barrel_length ?? null, impellerModel: recipe.impeller_model ?? null,
-            impellerThickness: recipe.impeller_thickness ?? null, impellerDiameter: recipe.impeller_diameter ?? null,
-            impellerBladeCount: recipe.impeller_blade_count ?? null, technicalDataJson: recipe.technical_data_json ?? null,
-        },
-        canonical,
-        relations,
-        policy: { ...policy, shellRemark: shell?.remark ?? null, shellCategory: shell?.category ?? null, shellDeletedAt: shell?.deleted_at ?? null },
-        bearingCandidates: { upper: bearings.upper, lower: bearings.lower },
-        thickness: impellerThickness,
-        technicalKnowledge,
-        target,
-        spanAssessment,
-        reasons: reasons.sort((left, right) => left.code.localeCompare(right.code)),
+    const migrationFingerprint = fingerprint(migrationFingerprintSnapshot({
+        recipe, parsed, relations, policy, shell, functional, bearings,
+        impellerThickness, technicalKnowledge, migrationTarget, spanAssessment, reasons,
+    }));
+    const canonical = canonicalState(profile, knowledge);
+    const disposition = canonicalDisposition(canonical, migrationFingerprint);
+    const classification = disposition?.classification || legacyClassification;
+    const target = disposition ? noWriteTarget(migrationTarget) : {
+        writeEligible: migrationTarget.writeEligible,
+        migrationState: migrationTarget.migrationState,
+        completenessState: migrationTarget.completenessState,
+        missingSet: migrationTarget.missingSet,
+        unresolvedSet: migrationTarget.unresolvedSet,
+        functional: migrationTarget.writeEligible ? migrationTarget.proposedFunctional : null,
     };
+    const publicReasons = [
+        ...reasons,
+        ...(disposition ? [{ code: disposition.reason, severity: disposition.classification === 'BLOCKED_UNRESOLVED' ? 'BLOCKED' : disposition.classification === 'NEEDS_OWNER_REVIEW' ? 'REVIEW' : 'INFO' }] : []),
+    ].sort((left, right) => left.code.localeCompare(right.code));
     return {
         recipeId: Number(recipe.id), recipeName: recipe.name,
         algorithmVersion: MIGRATION_ALGORITHM_VERSION,
+        migrationVersion: MIGRATION_VERSION,
         classification,
         actionRequired: ['NEEDS_OWNER_REVIEW', 'BLOCKED_UNRESOLVED'].includes(classification),
         canonical,
@@ -520,15 +666,13 @@ function buildAssessment(db, recipe) {
         },
         spanAssessment,
         target: {
-            writeEligible: target.writeEligible,
-            migrationState: target.migrationState,
-            completenessState: target.completenessState,
-            missingSet: target.missingSet,
-            unresolvedSet: target.unresolvedSet,
-            functional: target.writeEligible ? target.proposedFunctional : null,
+            ...target,
         },
-        reasons: reasons.sort((left, right) => left.code.localeCompare(right.code)),
-        fingerprint: fingerprint(migrationSnapshot),
+        reasons: publicReasons,
+        migrationFingerprint,
+        // Compatibility alias retained for the R1 response shape. It always
+        // aliases migrationFingerprint; it is never a canonical-row hash.
+        fingerprint: migrationFingerprint,
     };
 }
 
@@ -649,6 +793,7 @@ module.exports = {
     DRY_RUN_CAPABILITY_ID,
     REVIEW_QUEUE_CAPABILITY_ID,
     MIGRATION_ALGORITHM_VERSION,
+    MIGRATION_VERSION,
     MigrationDryRunError,
     createRecipeTechnicalMigrationDryRunService,
 };

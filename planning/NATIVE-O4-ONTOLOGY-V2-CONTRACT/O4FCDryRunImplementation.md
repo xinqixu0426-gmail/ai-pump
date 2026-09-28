@@ -26,19 +26,25 @@ ordered by `recipes.id ASC`, and never auto-creates a canonical child row.
 
 ## Candidate and fingerprint model
 
-Every assessment returns its algorithm version, canonical-state summary,
+Every assessment returns `migrationVersion`, a stable `migrationFingerprint`, canonical-state summary,
 formal Template/Coil/Shell relation summaries, formal stainless policy,
 direct/conditional/bearing/knowledge candidates, `spanAssessment`, reason
 codes, target state, and a SHA-256 fingerprint. `target` is explicit about
 whether a later O4-F-D write is eligible, proposed migration/completeness
 states, missing and unresolved sets, and the proposed Functional value set.
-The fingerprint hashes canonical JSON for the migration-decision snapshot:
-Recipe legacy fields, raw technical JSON, canonical presence/version state,
-formal relation and stainless evidence, bearing candidates, thickness sources,
-Knowledge payload/evidence, target state, and reason inputs.
-Identical input snapshots produce identical fingerprints.
+`migrationFingerprint` hashes canonical JSON for the migration-decision snapshot:
+Recipe legacy fields, raw technical JSON, formal relation and strict stainless
+evidence, exact bearing candidate identities/codes/geometry, thickness sources,
+Knowledge payload/evidence, proposed target state, span assessment and legacy
+reason inputs. It intentionally excludes canonical-child existence and values,
+their timestamps, stored fingerprint, audit/operation/request data, pagination,
+and unrelated Part price/stock. Identical migration inputs therefore produce the
+same value before and after a future O4-F-D materializes its exact target. The
+temporary R1 response field `fingerprint` is an explicit compatibility alias
+for `migrationFingerprint`, never a hash of canonical-row state.
 
-The five mutually exclusive classifications are evaluated in this order:
+The five mutually exclusive classifications are evaluated in this order for a
+Recipe with no canonical child state:
 
 1. `ALREADY_CANONICAL` — both supported child resources exist; legacy values
    are informational and never proposed as overwrites.
@@ -51,6 +57,19 @@ The five mutually exclusive classifications are evaluated in this order:
    agreeing historical sources.
 5. `AUTO_MIGRATABLE` — no authority conflict, review requirement, or blocked
    relation remains.
+
+Canonical disposition takes precedence over that legacy-only result. A partial,
+unsupported, malformed, stored `NEEDS_OWNER_REVIEW`, or
+`completeness_state=NEEDS_REVIEW` pair returns `NEEDS_OWNER_REVIEW`; stored
+`BLOCKED_UNRESOLVED` returns blocked. A direct owner-created
+`ALREADY_CANONICAL` pair remains authoritative without a migration fingerprint.
+For `AUTO_MIGRATED` or `MIGRATED_WITH_COMPATIBILITY_PROVENANCE`, the stored
+`migration_version` must equal `recipe-technical-migration-v1` and its stored
+`migration_fingerprint` must equal the current `migrationFingerprint`; missing,
+unsupported, or drifted metadata requires review. In all canonical-present
+cases, `target.writeEligible=false`, `target.functional=null`, while
+`canonical.currentFunctional` and `canonical.currentTechnicalKnowledge` expose
+the protected current content separately from legacy `candidate` evidence.
 
 Migration classification and target completeness are independent. A
 deterministic legacy candidate may be write-eligible with
