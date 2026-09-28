@@ -513,6 +513,9 @@ module.exports = {
     FUNCTIONAL_FIELDS,
     GET_CAPABILITY_ID,
     UPDATE_CAPABILITY_ID,
+    bearingReference,
+    computeCompleteness,
     createRecipeTechnicalProfileService,
+    derivedBearingSpan,
     resolveStainlessMode,
 };

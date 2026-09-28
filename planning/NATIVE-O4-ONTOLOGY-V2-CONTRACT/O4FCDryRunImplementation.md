@@ -27,11 +27,15 @@ ordered by `recipes.id ASC`, and never auto-creates a canonical child row.
 ## Candidate and fingerprint model
 
 Every assessment returns its algorithm version, canonical-state summary,
-formal stainless policy, direct/conditional/bearing/knowledge candidates,
-reason codes, target classification, and a SHA-256 fingerprint.  The
-fingerprint hashes canonical JSON for the migration-relevant snapshot:
-Recipe legacy fields, raw technical JSON, canonical row summary, Template/Shell
-relation and stainless evidence, bearing candidates, and thickness sources.
+formal Template/Coil/Shell relation summaries, formal stainless policy,
+direct/conditional/bearing/knowledge candidates, `spanAssessment`, reason
+codes, target state, and a SHA-256 fingerprint. `target` is explicit about
+whether a later O4-F-D write is eligible, proposed migration/completeness
+states, missing and unresolved sets, and the proposed Functional value set.
+The fingerprint hashes canonical JSON for the migration-decision snapshot:
+Recipe legacy fields, raw technical JSON, canonical presence/version state,
+formal relation and stainless evidence, bearing candidates, thickness sources,
+Knowledge payload/evidence, target state, and reason inputs.
 Identical input snapshots produce identical fingerprints.
 
 The five mutually exclusive classifications are evaluated in this order:
@@ -48,10 +52,27 @@ The five mutually exclusive classifications are evaluated in this order:
 5. `AUTO_MIGRATABLE` — no authority conflict, review requirement, or blocked
    relation remains.
 
+Migration classification and target completeness are independent. A
+deterministic legacy candidate may be write-eligible with
+`migrationState=AUTO_MIGRATED` and `completenessState=INCOMPLETE`; its
+`missingSet` makes the absent Functional inputs explicit. Ambiguous, invalid,
+conflicting, or formally unresolved inputs instead remain in `unresolvedSet`
+and retain the review/blocked classification.
+
 The review queue contains exactly the `NEEDS_OWNER_REVIEW` and
 `BLOCKED_UNRESOLVED` assessments. It scans the active cohort in fixed
 `recipes.id ASC` order but retains only one bounded result page in memory, so
 queue pagination is over review items rather than over unrelated recipes.
+
+`pageSummary` describes only the returned page. `cohortSummary` is distinct:
+it scans active Recipes in fixed-size chunks, increments counts, and discards
+each assessment, so it reports full-cohort classification/action/target
+completeness counts without retaining the cohort in memory.
+
+The only supported canonical child schema versions are Functional Profile `1`
+and Technical Knowledge `1`. A complete pair with any other version is
+`NEEDS_OWNER_REVIEW`, never `ALREADY_CANONICAL`, and is never filled from
+legacy evidence.
 
 ## Frozen migration safety rules implemented
 
@@ -81,7 +102,10 @@ queue pagination is over review items rather than over unrelated recipes.
 - `pieceCount` is reported only as derived `COPY(recipes.coil_sheets)` and is
   never a stored candidate.
 - known non-functional and unknown JSON-safe non-control keys become generic
-  Technical Knowledge candidates. Functional/control keys are excluded, so
+  Technical Knowledge candidates. `candidate.technicalKnowledge.items` has
+  only the final canonical item shape (`key`, `label`, `value`, plus approved
+  optional item fields); `migrationEvidence` is a separate keyed report.
+  Conflicting legacy values omit the final item and require review. Functional/control keys are excluded, so
   neither identity, policy, BOM, cost nor Rotor authority can leak into the
   knowledge collection.
 

@@ -70,8 +70,11 @@ test.before(async () => {
     app.use(cookieParser());
     app.use('/api', authMiddleware);
     app.use('/api/recipes', recipesRouter);
-    server = await new Promise(resolve => {
-        const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
+    server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve, reject) => {
+        if (server.listening) return resolve();
+        server.once('listening', resolve);
+        server.once('error', reject);
     });
     baseUrl = `http://127.0.0.1:${server.address().port}`;
     cookie = authCookie();
@@ -93,11 +96,16 @@ test('migration dry-run and derived owner review queue HTTP endpoints are read-o
     assert.equal(one.payload.success, true);
     assert.equal(one.payload.data.recipeId, recipeId);
     assert.match(one.payload.data.fingerprint, /^[0-9a-f]{64}$/u);
+    assert.equal(typeof one.payload.data.target.writeEligible, 'boolean');
+    assert.ok(Array.isArray(one.payload.data.target.missingSet));
+    assert.ok(Array.isArray(one.payload.data.target.unresolvedSet));
 
     const report = await getJson('/api/recipes/technical-profile/migration-dry-run?limit=1&offset=0');
     assert.equal(report.response.status, 200);
     assert.equal(report.payload.data.items.length, 1);
     assert.equal(report.payload.data.page.limit, 1);
+    assert.equal(report.payload.data.pageSummary.total, 1);
+    assert.equal(report.payload.data.cohortSummary.total >= 1, true);
     const queue = await getJson('/api/recipes/technical-profile/migration-review-queue?limit=1&offset=0');
     assert.equal(queue.response.status, 200);
     assert.ok(queue.payload.data.items.every(item => item.actionRequired));

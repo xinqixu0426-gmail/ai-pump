@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "e01054ea750ff9471c78f3f64d6d062d31a2aaf525078eaf303da7f4ad77e1f4",
-    "diskSha256": "e01054ea750ff9471c78f3f64d6d062d31a2aaf525078eaf303da7f4ad77e1f4",
+    "attestedSha256": "967908e0387a2cea0e78d3c2f74c8244bbbed652976ac0e6372bd4edf12c638d",
+    "diskSha256": "967908e0387a2cea0e78d3c2f74c8244bbbed652976ac0e6372bd4edf12c638d",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -82,7 +82,8 @@
   "nativeW15RefreshNote": "NATIVE-W1.5 更新了本记录中 2 个被证据绑定的工件（docs/api-reference.md、docs/ai-native-v1-handoff.md）：接口总表的 /api/ai/chat 补全 NATIVE-W1.5 写意图走向（服务端 rollout 决定、flag=false 逐字保持 WRITE_DISABLED、flag=true 仅对唯一白名单能力下发 NATIVE_WRITE_PROPOSAL 结构化提案且该轮不执行写入、澄清与 WRITE_UNSUPPORTED 语义）；交接文档「当前事实」增加 W1.5 可达性说明。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
   "nativeW15R1RefreshNote": "NATIVE-W1.5-R1 更新了 docs/api-reference.md（/api/ai/chat 行）：明确 V1 只支持 delta，绝对目标值语法返回 NATIVE_WRITE_ABSOLUTE_STOCK_UNSUPPORTED，并补全数量歧义/零/方向冲突的澄清码。仅刷新 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷与 productRuntime 基线。",
   "o4FbRefreshNote": "O4-F-B 更新了 docs/api-reference.md，登记独立的 Recipe canonical technical-profile GET/PUT；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
-  "o4FcRefreshNote": "O4-F-C 更新了 docs/api-reference.md，登记只读 Recipe technical-profile migration dry-run 与派生 Owner Review Queue；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
+  "o4FcRefreshNote": "O4-F-C 更新了 docs/api-reference.md，登记只读 Recipe technical-profile migration dry-run 与派生 Owner Review Queue；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
+  "o4FcR1RefreshNote": "O4-F-C-R1 更新了 docs/api-reference.md，补全 dry-run target/missing/unresolved、关系/span 与全 cohort 聚合响应契约；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,

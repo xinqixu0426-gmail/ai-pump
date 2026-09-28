@@ -85,6 +85,17 @@ function insertCanonicalPair(db, recipeId) {
     `).run(recipeId, NOW, NOW);
 }
 
+function insertRecipe(db, values = {}) {
+    return Number(db.prepare(`
+        INSERT INTO recipes (name, template_id, coil_id, custom_barrel_length, impeller_thickness, technical_data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        values.name || 'additional-recipe', values.templateId ?? null, values.coilId ?? null,
+        values.barrelLength ?? null, values.impellerThickness ?? null,
+        values.technicalDataJson ?? '{}', NOW, NOW,
+    ).lastInsertRowid);
+}
+
 test('dry run proposes deterministic direct candidates, exact bearing IDs, knowledge items, and makes zero writes', t => {
     const { db, recipeId, bearing6202Id, bearing6303Id, service } = fixture(t, { impellerThickness: 3 });
     const before = writeSnapshot(db);
@@ -105,9 +116,57 @@ test('dry run proposes deterministic direct candidates, exact bearing IDs, knowl
     assert.ok(knowledgeKeys.includes('customerSpecialNote'));
     assert.equal(knowledgeKeys.includes('rotorDiameter'), false);
     assert.equal(knowledgeKeys.includes('pieceCount'), false);
+    assert.deepEqual(Object.keys(assessment.candidate.technicalKnowledge.items[0]).sort(), ['key', 'label', 'value']);
+    assert.ok(assessment.candidate.technicalKnowledge.migrationEvidence.rotorLength);
     assert.match(assessment.fingerprint, /^[0-9a-f]{64}$/u);
     assert.deepEqual(writeSnapshot(db), before);
     assert.equal(db.totalChanges, changesBefore, 'the read-only assessment must not increment SQLite changes');
+});
+
+test('target state separates safe incomplete migration from unresolved or review-only authority', t => {
+    const complete = fixture(t, { impellerThickness: 3 });
+    const completeAssessment = complete.service.assess(complete.recipeId);
+    assert.equal(completeAssessment.target.writeEligible, true);
+    assert.equal(completeAssessment.target.completenessState, 'COMPLETE');
+    assert.deepEqual(completeAssessment.target.missingSet, []);
+
+    const missingRotor = fixture(t, {
+        impellerThickness: null,
+        technicalDataJson: JSON.stringify({
+            stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24,
+            impellerDepth: 3, threadLength: 14, threadDiameter: 8, upperBearing: '202', lowerBearing: '6303', bearingSpan: 80,
+        }),
+    });
+    const missingRotorAssessment = missingRotor.service.assess(missingRotor.recipeId);
+    assert.equal(missingRotorAssessment.classification, 'AUTO_MIGRATABLE');
+    assert.equal(missingRotorAssessment.target.writeEligible, true);
+    assert.equal(missingRotorAssessment.target.completenessState, 'INCOMPLETE');
+    assert.ok(missingRotorAssessment.target.missingSet.includes('rotorDiameter'));
+
+    const missingBearing = fixture(t, {
+        impellerThickness: null,
+        technicalDataJson: JSON.stringify({
+            rotorDiameter: 52, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24,
+            impellerDepth: 3, threadLength: 14, threadDiameter: 8, lowerBearing: '6303', bearingSpan: 80,
+        }),
+    });
+    const missingBearingAssessment = missingBearing.service.assess(missingBearing.recipeId);
+    assert.equal(missingBearingAssessment.target.writeEligible, true);
+    assert.equal(missingBearingAssessment.target.completenessState, 'INCOMPLETE');
+    assert.ok(missingBearingAssessment.target.missingSet.includes('upperBearingPartId'));
+
+    const geometry = fixture(t, {
+        impellerThickness: null,
+        technicalDataJson: JSON.stringify({
+            rotorDiameter: 52, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24,
+            impellerDepth: 3, threadLength: 14, threadDiameter: 8, upperBearing: '9999', lowerBearing: '6303', bearingSpan: 80,
+        }),
+    });
+    geometry.db.prepare(`INSERT INTO parts (model, category, created_at, updated_at) VALUES ('轴承-9999', '轴承', ?, ?)`).run(NOW, NOW);
+    const geometryAssessment = geometry.service.assess(geometry.recipeId);
+    assert.equal(geometryAssessment.target.functional.upperBearingPartId !== null, true);
+    assert.equal(geometryAssessment.target.completenessState, 'INCOMPLETE');
+    assert.ok(geometryAssessment.target.unresolvedSet.some(value => value.includes('upperBearingPartId:GEOMETRY_UNRESOLVED')));
 });
 
 test('migration parser reuses the existing deterministic historical numeric grammar but preserves raw evidence', t => {
@@ -129,6 +188,9 @@ test('stainless open offset remains compatibility evidence and requires owner re
     assert.deepEqual(stainlessAssessment.candidate.functional.openOffset.rawValue, { openOffset: 21, openFactor: 1.2 });
     assert.ok(stainlessAssessment.reasons.some(reason => reason.code === 'OPEN_OFFSET_OWNER_CONFIRMATION_REQUIRED'));
     assert.equal(stainlessAssessment.candidate.functional.bearingSpanExplicit.status, 'NOT_PROPOSED_DERIVED_ONLY');
+    assert.equal(stainlessAssessment.target.writeEligible, false);
+    assert.ok(stainlessAssessment.target.missingSet.includes('openOffset'));
+    assert.equal(stainlessAssessment.spanAssessment.mode, 'STAINLESS_DERIVED');
 
     const unknown = fixture(t, { remark: '{"isStainless":0}' });
     const unknownAssessment = unknown.service.assess(unknown.recipeId);
@@ -136,6 +198,8 @@ test('stainless open offset remains compatibility evidence and requires owner re
     assert.equal(unknownAssessment.policy.isStainless, null);
     assert.equal(unknownAssessment.classification, 'BLOCKED_UNRESOLVED');
     assert.equal(unknownAssessment.candidate.functional.bearingSpanExplicit.status, 'NOT_PROPOSED_POLICY_UNRESOLVED');
+    assert.equal(unknownAssessment.target.writeEligible, false);
+    assert.ok(unknownAssessment.target.unresolvedSet.some(value => value.startsWith('policy:')));
 });
 
 test('bearing migration is exact-only: ambiguity requires review and no candidates block without selecting a Part', t => {
@@ -144,12 +208,14 @@ test('bearing migration is exact-only: ambiguity requires review and no candidat
     assert.equal(ambiguousAssessment.candidate.bearings.upper.resolutionMode, 'AMBIGUOUS');
     assert.equal(ambiguousAssessment.candidate.functional.upperBearingPartId.value, null);
     assert.equal(ambiguousAssessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(ambiguousAssessment.target.writeEligible, false);
 
     const missing = fixture(t, { technicalDataJson: JSON.stringify({ upperBearing: '9999', lowerBearing: '6303' }) });
     const missingAssessment = missing.service.assess(missing.recipeId);
     assert.equal(missingAssessment.candidate.bearings.upper.resolutionMode, 'NOT_FOUND');
     assert.equal(missingAssessment.candidate.functional.upperBearingPartId.value, null);
     assert.equal(missingAssessment.classification, 'BLOCKED_UNRESOLVED');
+    assert.equal(missingAssessment.target.writeEligible, false);
 });
 
 test('impeller thickness applies the frozen four-source matrix without JSON-first conflict selection', t => {
@@ -167,6 +233,7 @@ test('impeller thickness applies the frozen four-source matrix without JSON-firs
     assert.equal(assessment.candidate.functional.impellerThickness.status, 'CONFLICT');
     assert.equal(assessment.candidate.functional.impellerThickness.value, null);
     assert.equal(assessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(assessment.target.writeEligible, false);
 });
 
 test('canonical pair is never overwritten by legacy candidates and partial canonical state is conservatively review-only', t => {
@@ -176,6 +243,7 @@ test('canonical pair is never overwritten by legacy candidates and partial canon
     assert.equal(assessment.classification, 'ALREADY_CANONICAL');
     assert.equal(assessment.canonical.functionalPresent, true);
     assert.equal(assessment.canonical.technicalKnowledgePresent, true);
+    assert.equal(assessment.target.writeEligible, false);
 
     const partial = fixture(t);
     partial.db.prepare(`
@@ -187,25 +255,87 @@ test('canonical pair is never overwritten by legacy candidates and partial canon
     assert.ok(partialAssessment.reasons.some(reason => reason.code === 'CANONICAL_STORAGE_PARTIAL'));
 });
 
-test('collection report and derived owner review queue are bounded, ordered, deterministic, and read-only', t => {
-    const { db, recipeId, service } = fixture(t, { name: 'one' });
-    const secondId = Number(db.prepare(`
-        INSERT INTO recipes (name, technical_data_json, created_at, updated_at)
-        VALUES ('two', '{}', ?, ?)
-    `).run(NOW, NOW).lastInsertRowid);
+test('unknown canonical schema versions are review-only and never treated as overwriteable canonical pairs', t => {
+    const unknown = fixture(t);
+    insertCanonicalPair(unknown.db, unknown.recipeId);
+    unknown.db.prepare('UPDATE recipe_functional_technical_profiles SET schema_version = 2 WHERE recipe_id = ?').run(unknown.recipeId);
+    const assessment = unknown.service.assess(unknown.recipeId);
+    assert.equal(assessment.classification, 'NEEDS_OWNER_REVIEW');
+    assert.equal(assessment.canonical.supported, false);
+    assert.equal(assessment.target.writeEligible, false);
+    assert.ok(assessment.reasons.some(reason => reason.code === 'CANONICAL_SCHEMA_VERSION_UNSUPPORTED'));
+
+    const mixed = fixture(t);
+    insertCanonicalPair(mixed.db, mixed.recipeId);
+    mixed.db.prepare('UPDATE recipe_technical_knowledge SET schema_version = 2 WHERE recipe_id = ?').run(mixed.recipeId);
+    assert.equal(mixed.service.assess(mixed.recipeId).classification, 'NEEDS_OWNER_REVIEW');
+});
+
+test('collection report separates page and full-cohort counts while review queue excludes safe incomplete candidates', t => {
+    const { db, recipeId, service } = fixture(t, { name: 'compatibility', impellerThickness: 3 });
+    insertCanonicalPair(db, recipeId);
+    const templateId = Number(db.prepare('SELECT template_id AS id FROM recipes WHERE id = ?').get(recipeId).id);
+    const autoId = insertRecipe(db, {
+        name: 'auto', templateId, impellerThickness: null,
+        technicalDataJson: JSON.stringify({
+            rotorDiameter: 52, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24,
+            impellerDepth: 3, threadLength: 14, threadDiameter: 8, upperBearing: '202', lowerBearing: '6303', bearingSpan: 80,
+        }),
+    });
+    const ambiguousPartId = Number(db.prepare(`INSERT INTO parts (model, category, created_at, updated_at) VALUES ('轴承-6304', '轴承', ?, ?)`).run(NOW, NOW).lastInsertRowid);
+    assert.ok(ambiguousPartId > 0);
+    db.prepare(`INSERT INTO parts (model, category, created_at, updated_at) VALUES ('轴承-6304', '轴承', ?, ?)`).run(NOW, NOW);
+    const reviewId = insertRecipe(db, { name: 'review', templateId, technicalDataJson: JSON.stringify({ upperBearing: '6304', lowerBearing: '6303' }) });
+    const blockedId = insertRecipe(db, { name: 'blocked', technicalDataJson: '{}' });
+    const incompleteId = insertRecipe(db, { name: 'incomplete', templateId, technicalDataJson: JSON.stringify({ upperBearing: '202', lowerBearing: '6303' }) });
     const before = writeSnapshot(db);
     const first = service.list({ limit: 1, offset: 0 });
-    const repeated = service.list({ limit: 1, offset: 0 });
+    const second = service.list({ limit: 1, offset: 1 });
     assert.equal(first.capabilityId, DRY_RUN_CAPABILITY_ID);
     assert.equal(first.items.length, 1);
     assert.equal(first.items[0].recipeId, recipeId);
     assert.equal(first.page.hasMore, true);
-    assert.deepEqual(first, repeated);
+    assert.equal(first.pageSummary.total, 1);
+    assert.equal(first.cohortSummary.total, 5);
+    assert.equal(first.cohortSummary.classifications.ALREADY_CANONICAL, 1);
+    assert.equal(first.cohortSummary.classifications.AUTO_MIGRATABLE, 2);
+    assert.equal(first.cohortSummary.classifications.NEEDS_OWNER_REVIEW, 1);
+    assert.equal(first.cohortSummary.classifications.BLOCKED_UNRESOLVED, 1);
+    assert.equal(first.cohortSummary.completeAfterMigration, 1);
+    assert.equal(first.cohortSummary.incompleteAfterMigration, 1);
+    assert.deepEqual(first.cohortSummary, second.cohortSummary);
+    assert.equal(second.items[0].recipeId, autoId);
     const queue = service.reviewQueue({ limit: 10, offset: 0 });
     assert.equal(queue.capabilityId, REVIEW_QUEUE_CAPABILITY_ID);
     assert.ok(queue.items.every(item => item.actionRequired));
-    assert.ok(queue.items.some(item => item.recipeId === secondId));
+    assert.deepEqual(queue.items.map(item => item.recipeId), [reviewId, blockedId]);
+    assert.equal(queue.items.some(item => item.recipeId === incompleteId), false);
     assert.deepEqual(writeSnapshot(db), before);
+});
+
+test('fingerprint covers migration decision inputs but not irrelevant Part price or stock', t => {
+    const { db, recipeId, shellPartId, service } = fixture(t, { impellerThickness: null });
+    const first = service.assess(recipeId).fingerprint;
+    assert.equal(service.assess(recipeId).fingerprint, first);
+    db.prepare(`UPDATE recipes SET technical_data_json = ? WHERE id = ?`).run(JSON.stringify({ rotorDiameter: 53, upperBearing: '202', lowerBearing: '6303' }), recipeId);
+    const functionalChanged = service.assess(recipeId).fingerprint;
+    assert.notEqual(functionalChanged, first);
+    db.prepare(`UPDATE recipes SET template_id = NULL WHERE id = ?`).run(recipeId);
+    const templateChanged = service.assess(recipeId).fingerprint;
+    assert.notEqual(templateChanged, functionalChanged);
+    db.prepare(`UPDATE recipes SET template_id = (SELECT id FROM pump_shell_templates LIMIT 1) WHERE id = ?`).run(recipeId);
+    db.prepare(`UPDATE parts SET remark = '{"isStainless":true}' WHERE id = ?`).run(shellPartId);
+    const shellChanged = service.assess(recipeId).fingerprint;
+    assert.notEqual(shellChanged, templateChanged);
+    db.prepare(`INSERT INTO parts (model, category, created_at, updated_at) VALUES ('轴承-6202', '轴承', ?, ?)`).run(NOW, NOW);
+    const bearingChanged = service.assess(recipeId).fingerprint;
+    assert.notEqual(bearingChanged, shellChanged);
+    db.prepare(`UPDATE recipes SET technical_data_json = ? WHERE id = ?`).run(JSON.stringify({ rotorDiameter: 53, customerSpecialNote: 'changed' }), recipeId);
+    const knowledgeChanged = service.assess(recipeId).fingerprint;
+    assert.notEqual(knowledgeChanged, bearingChanged);
+    const beforeIrrelevant = knowledgeChanged;
+    db.prepare(`UPDATE parts SET price = 123, stock = 456 WHERE id = ?`).run(shellPartId);
+    assert.equal(service.assess(recipeId).fingerprint, beforeIrrelevant);
 });
 
 test('dry-run read capabilities are query-only and remain outside AI and write admission surfaces', () => {

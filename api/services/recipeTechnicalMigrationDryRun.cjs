@@ -4,12 +4,19 @@ const { parsePositiveId } = require('./validation.cjs');
 const { bearingCodeOf } = require('./catalogSpec.cjs');
 const { BEARING_DB, normalizeBearing, validateFcParam } = require('./rotorParameters.cjs');
 const { getFunctionalProfile, getTechnicalKnowledge } = require('./recipeTechnicalProfileStore.cjs');
-const { resolveStainlessMode } = require('./recipeTechnicalProfile.cjs');
+const {
+    FUNCTIONAL_FIELDS,
+    computeCompleteness,
+    derivedBearingSpan,
+    resolveStainlessMode,
+} = require('./recipeTechnicalProfile.cjs');
 
 const DRY_RUN_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.migration_dry_run').capabilityId;
 const REVIEW_QUEUE_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.migration_review_queue').capabilityId;
 const MIGRATION_ALGORITHM_VERSION = 'recipe-technical-migration-dry-run-v1';
 const MAX_PAGE_SIZE = 100;
+const FUNCTIONAL_PROFILE_SCHEMA_VERSION = 1;
+const TECHNICAL_KNOWLEDGE_SCHEMA_VERSION = 1;
 const FUNCTIONAL_JSON_FIELDS = Object.freeze([
     ['rotorDiameter', 'rotor_dia'],
     ['stackOffset', 'stack_offset'],
@@ -237,37 +244,50 @@ function buildConditionalCandidates(technical, policy, barrelLength, shellCompat
     return result;
 }
 
-function addKnowledgeItem(items, key, value, source, sourcePath) {
+function addKnowledgeItem(items, evidenceByKey, conflicts, key, value, source, sourcePath) {
     if (value === undefined || value === null || value === '' || !jsonSafe(value)) return;
     const existing = items.get(key);
     const evidence = { source, sourcePath, rawValue: value };
+    const evidenceItems = evidenceByKey.get(key) || [];
+    evidenceItems.push(evidence);
+    evidenceByKey.set(key, evidenceItems);
+    if (conflicts.has(key)) return;
     if (!existing) {
-        items.set(key, { key, label: key, value, provenance: [evidence] });
+        items.set(key, { key, label: key, value });
     } else if (canonicalJson(existing.value) === canonicalJson(value)) {
-        existing.provenance.push(evidence);
+        return;
     } else {
-        existing.provenance.push({ ...evidence, conflict: true });
-        existing.conflict = true;
+        items.delete(key);
+        conflicts.add(key);
     }
 }
 
 function buildKnowledgeCandidates(technical, recipe, reasons) {
     const items = new Map();
+    const evidenceByKey = new Map();
+    const conflicts = new Set();
     for (const [key, value] of Object.entries(technical)) {
         if (FUNCTIONAL_CONTROL_KEYS.has(key)) continue;
-        addKnowledgeItem(items, key, value, 'MIGRATED_RECIPE_TECHNICAL_JSON', `recipes.technical_data_json.${key}`);
+        addKnowledgeItem(items, evidenceByKey, conflicts, key, value, 'MIGRATED_RECIPE_TECHNICAL_JSON', `recipes.technical_data_json.${key}`);
     }
     for (const [column, key] of [
         ['impeller_model', 'impellerModel'], ['impeller_diameter', 'impellerDiameter'], ['impeller_blade_count', 'impellerBladeCount'],
-    ]) addKnowledgeItem(items, key, recipe[column], 'MIGRATED_RECIPE_COLUMN', `recipes.${column}`);
+    ]) addKnowledgeItem(items, evidenceByKey, conflicts, key, recipe[column], 'MIGRATED_RECIPE_COLUMN', `recipes.${column}`);
     const ordered = [...items.values()].sort((left, right) => left.key.localeCompare(right.key));
-    for (const item of ordered.filter(item => item.conflict)) addReason(reasons, 'TECHNICAL_KNOWLEDGE_DUPLICATE_CONFLICT', 'REVIEW', { key: item.key, provenance: item.provenance });
-    return ordered;
+    for (const key of [...conflicts].sort()) addReason(reasons, 'TECHNICAL_KNOWLEDGE_DUPLICATE_CONFLICT', 'REVIEW', { key, evidence: evidenceByKey.get(key) });
+    return {
+        items: ordered,
+        migrationEvidence: Object.fromEntries([...evidenceByKey.entries()].sort(([left], [right]) => left.localeCompare(right))),
+    };
 }
 
 function canonicalState(profile, knowledge) {
     const both = Boolean(profile && knowledge);
     const partial = Boolean(profile || knowledge) && !both;
+    const unsupportedSchemaVersion = both && (
+        profile.schema_version !== FUNCTIONAL_PROFILE_SCHEMA_VERSION
+        || knowledge.schema_version !== TECHNICAL_KNOWLEDGE_SCHEMA_VERSION
+    );
     return {
         functionalPresent: Boolean(profile), technicalKnowledgePresent: Boolean(knowledge),
         aggregateUpdatedAt: [profile?.updated_at, knowledge?.updated_at].filter(Boolean).sort().at(-1) || null,
@@ -275,9 +295,10 @@ function canonicalState(profile, knowledge) {
         knowledgeSchemaVersion: knowledge?.schema_version ?? null,
         completenessState: profile?.completeness_state ?? null,
         migrationState: profile?.migration_state ?? null,
-        supported: both && profile.schema_version >= 1 && knowledge.schema_version >= 1
+        supported: both && !unsupportedSchemaVersion
             && isJsonObject(profile.provenance_json) && isJsonArray(knowledge.items_json),
         partial,
+        unsupportedSchemaVersion,
     };
 }
 
@@ -292,7 +313,7 @@ function classify(canonical, reasons, compatibilityEvidence) {
 
 function loadRecipe(db, recipeId) {
     const recipe = db.prepare(`
-        SELECT id, name, template_id, coil_sheets, custom_barrel_length,
+        SELECT id, name, template_id, coil_id, coil_sheets, custom_barrel_length,
                impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
                technical_data_json, deleted_at
         FROM recipes WHERE id = ? AND deleted_at IS NULL
@@ -306,6 +327,124 @@ function snapshotShell(db, policy) {
     return db.prepare('SELECT id, category, remark, deleted_at FROM parts WHERE id = ?').get(policy.shellPartId) || null;
 }
 
+function relationSummary(db, recipe, policy) {
+    const templateId = recipe.template_id === null || recipe.template_id === undefined ? null : Number(recipe.template_id);
+    const coilId = recipe.coil_id === null || recipe.coil_id === undefined ? null : Number(recipe.coil_id);
+    const template = templateId === null ? null : db.prepare('SELECT id FROM pump_shell_templates WHERE id = ?').get(templateId);
+    const coil = coilId === null ? null : db.prepare('SELECT id FROM coils WHERE id = ?').get(coilId);
+    let shellStatus = 'ABSENT';
+    if (policy.shellPartId) {
+        const shell = db.prepare('SELECT id, category, deleted_at FROM parts WHERE id = ?').get(policy.shellPartId);
+        if (!shell || shell.deleted_at) shellStatus = 'TARGET_MISSING_OR_INACTIVE';
+        else if (shell.category !== '泵壳') shellStatus = 'TARGET_CATEGORY_INVALID';
+        else shellStatus = 'RESOLVED';
+    }
+    return {
+        template: { templateId, status: templateId === null ? 'ABSENT' : template ? 'RESOLVED' : 'TARGET_MISSING_OR_INACTIVE' },
+        coil: { coilId, status: coilId === null ? 'ABSENT' : coil ? 'RESOLVED' : 'TARGET_MISSING_OR_INACTIVE' },
+        shellPart: { partId: policy.shellPartId ?? null, status: shellStatus },
+    };
+}
+
+function proposedValue(item) {
+    return item && /^PROPOSED(?:_|$)/u.test(item.status) ? item.value : null;
+}
+
+function buildProposedFunctional(functional) {
+    const proposed = Object.fromEntries(FUNCTIONAL_FIELDS.map(field => [field, proposedValue(functional[field])]));
+    proposed.upperBearingPartId = functional.upperBearingPartId?.status === 'EXACT_UNIQUE'
+        ? functional.upperBearingPartId.value : null;
+    proposed.lowerBearingPartId = functional.lowerBearingPartId?.status === 'EXACT_UNIQUE'
+        ? functional.lowerBearingPartId.value : null;
+    return proposed;
+}
+
+function addMissing(missingSet, field, item) {
+    if (item?.status === 'MISSING') missingSet.add(field);
+}
+
+function addUnresolved(unresolvedSet, field, item) {
+    if (!item || ['MISSING', 'PROPOSED', 'PROPOSED_WITH_COMPATIBILITY_EVIDENCE', 'EXACT_UNIQUE', 'NOT_APPLICABLE'].includes(item.status)) return;
+    unresolvedSet.add(`${field}:${item.status}`);
+}
+
+function buildTargetAssessment(db, classification, functional, policy, bearings, conditional) {
+    const proposedFunctional = buildProposedFunctional(functional);
+    const missingSet = new Set();
+    const unresolvedSet = new Set();
+    for (const field of ['rotorDiameter', 'stackOffset', 'oilSealDiameter', 'impellerBoreDiameter', 'impellerSpan', 'impellerThickness', 'threadLength', 'threadDiameter']) {
+        addMissing(missingSet, field, functional[field]);
+        addUnresolved(unresolvedSet, field, functional[field]);
+    }
+    for (const [field, bearing] of [['upperBearingPartId', bearings.upper], ['lowerBearingPartId', bearings.lower]]) {
+        if (bearing.resolutionMode === 'MISSING') missingSet.add(field);
+        else if (bearing.resolutionMode !== 'EXACT_UNIQUE') unresolvedSet.add(`${field}:${bearing.resolutionMode}`);
+        else if (!bearing.geometryAvailable) unresolvedSet.add(`${field}:GEOMETRY_UNRESOLVED`);
+    }
+
+    if (policy.stainlessMode === 'STAINLESS') {
+        addMissing(missingSet, 'barrelLength', conditional.barrelLength);
+        addUnresolved(unresolvedSet, 'barrelLength', conditional.barrelLength);
+        missingSet.add('openOffset');
+        unresolvedSet.add('openOffset:OWNER_CONFIRMATION_REQUIRED');
+    } else if (policy.stainlessMode === 'NON_STAINLESS') {
+        addMissing(missingSet, 'bearingSpanExplicit', conditional.bearingSpanExplicit);
+        addUnresolved(unresolvedSet, 'bearingSpanExplicit', conditional.bearingSpanExplicit);
+    } else {
+        unresolvedSet.add(`policy:${policy.reasonCode}`);
+    }
+
+    const completeness = computeCompleteness(db, proposedFunctional, policy, true);
+    for (const reason of completeness.reasons) {
+        if (reason.endsWith('_GEOMETRY_UNRESOLVED')) unresolvedSet.add(reason);
+        if (reason === 'STAINLESS_BEARING_SPAN_INVALID') {
+            missingSet.add('derivedBearingSpan');
+            unresolvedSet.add(reason);
+        }
+    }
+    const writeEligible = ['AUTO_MIGRATABLE', 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE'].includes(classification);
+    return {
+        writeEligible,
+        migrationState: classification === 'AUTO_MIGRATABLE' ? 'AUTO_MIGRATED'
+            : classification === 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE' ? 'MIGRATED_WITH_COMPATIBILITY_PROVENANCE' : null,
+        completenessState: writeEligible ? completeness.state : null,
+        missingSet: [...missingSet].sort(),
+        unresolvedSet: [...unresolvedSet].sort(),
+        proposedFunctional,
+        completeness,
+    };
+}
+
+function buildSpanAssessment(policy, proposedFunctional, conditional) {
+    const legacyBearingSpan = conditional.bearingSpanExplicit.rawValue ?? null;
+    if (policy.stainlessMode === 'STAINLESS') {
+        const derived = derivedBearingSpan(proposedFunctional, policy);
+        const legacy = parseMigrationNumeric(legacyBearingSpan, 'bearing_span');
+        const comparison = !derived.valid ? 'NOT_COMPARABLE'
+            : legacy.status === 'MISSING' ? 'MISSING'
+                : legacy.status !== 'PROPOSED' ? 'NOT_COMPARABLE'
+                    : legacy.value === derived.value ? 'MATCH' : 'MISMATCH';
+        return {
+            mode: 'STAINLESS_DERIVED', proposedBearingSpanExplicit: null,
+            derivedBearingSpan: derived.value, legacyBearingSpan,
+            comparison, writeAuthority: derived.valid ? 'DERIVED_CANONICAL' : 'NONE',
+        };
+    }
+    if (policy.stainlessMode === 'NON_STAINLESS') {
+        return {
+            mode: 'NON_STAINLESS_EXPLICIT', proposedBearingSpanExplicit: proposedFunctional.bearingSpanExplicit,
+            derivedBearingSpan: null, legacyBearingSpan,
+            comparison: conditional.bearingSpanExplicit.status === 'MISSING' ? 'MISSING' : 'NOT_COMPARABLE',
+            writeAuthority: proposedFunctional.bearingSpanExplicit === null ? 'NONE' : 'EXPLICIT_RECIPE',
+        };
+    }
+    return {
+        mode: 'UNKNOWN_OR_UNRESOLVED', proposedBearingSpanExplicit: null,
+        derivedBearingSpan: null, legacyBearingSpan,
+        comparison: 'NOT_COMPARABLE', writeAuthority: 'NONE',
+    };
+}
+
 function buildAssessment(db, recipe) {
     const profile = getFunctionalProfile(db, recipe.id);
     const knowledge = getTechnicalKnowledge(db, recipe.id);
@@ -315,6 +454,7 @@ function buildAssessment(db, recipe) {
     const reasons = [];
     if (!parsed.valid) addReason(reasons, 'TECHNICAL_DATA_JSON_INVALID', 'REVIEW');
     if (canonical.partial) addReason(reasons, 'CANONICAL_STORAGE_PARTIAL', 'REVIEW', canonical);
+    if (canonical.unsupportedSchemaVersion) addReason(reasons, 'CANONICAL_SCHEMA_VERSION_UNSUPPORTED', 'REVIEW', canonical);
     const functional = buildDirectFunctionalCandidates(parsed.value, recipe, reasons);
     const bearings = buildBearingCandidates(db, parsed.value, reasons);
     const impellerThickness = buildThicknessCandidate(parsed.value, recipe, reasons);
@@ -335,20 +475,28 @@ function buildAssessment(db, recipe) {
     functional.upperBearingPartId = candidate(bearings.upper.proposedPartId, bearings.upper.resolutionMode === 'EXACT_UNIQUE' ? 'MIGRATED_LEGACY_BEARING_CODE' : null, 'recipes.technical_data_json.upperBearing', bearings.upper.rawValue, bearings.upper.resolutionMode);
     functional.lowerBearingPartId = candidate(bearings.lower.proposedPartId, bearings.lower.resolutionMode === 'EXACT_UNIQUE' ? 'MIGRATED_LEGACY_BEARING_CODE' : null, 'recipes.technical_data_json.lowerBearing', bearings.lower.rawValue, bearings.lower.resolutionMode);
     const compatibilityEvidence = impellerThickness.status === 'PROPOSED_WITH_COMPATIBILITY_EVIDENCE'
-        || technicalKnowledge.some(item => item.provenance.length > 1);
+        || Object.values(technicalKnowledge.migrationEvidence).some(evidence => evidence.length > 1);
     const classification = classify(canonical, reasons, compatibilityEvidence);
+    const target = buildTargetAssessment(db, classification, functional, policy, bearings, conditional);
+    const spanAssessment = buildSpanAssessment(policy, target.proposedFunctional, conditional);
+    const relations = relationSummary(db, recipe, policy);
     const migrationSnapshot = {
         algorithmVersion: MIGRATION_ALGORITHM_VERSION,
         recipe: {
-            id: Number(recipe.id), templateId: recipe.template_id ?? null, coilSheets: recipe.coil_sheets ?? null,
+            id: Number(recipe.id), templateId: recipe.template_id ?? null, coilId: recipe.coil_id ?? null, coilSheets: recipe.coil_sheets ?? null,
             customBarrelLength: recipe.custom_barrel_length ?? null, impellerModel: recipe.impeller_model ?? null,
             impellerThickness: recipe.impeller_thickness ?? null, impellerDiameter: recipe.impeller_diameter ?? null,
             impellerBladeCount: recipe.impeller_blade_count ?? null, technicalDataJson: recipe.technical_data_json ?? null,
         },
         canonical,
+        relations,
         policy: { ...policy, shellRemark: shell?.remark ?? null, shellCategory: shell?.category ?? null, shellDeletedAt: shell?.deleted_at ?? null },
         bearingCandidates: { upper: bearings.upper, lower: bearings.lower },
         thickness: impellerThickness,
+        technicalKnowledge,
+        target,
+        spanAssessment,
+        reasons: reasons.sort((left, right) => left.code.localeCompare(right.code)),
     };
     return {
         recipeId: Number(recipe.id), recipeName: recipe.name,
@@ -357,6 +505,7 @@ function buildAssessment(db, recipe) {
         actionRequired: ['NEEDS_OWNER_REVIEW', 'BLOCKED_UNRESOLVED'].includes(classification),
         canonical,
         policy,
+        relations,
         sourceSnapshot: {
             technicalDataJson: { raw: parsed.raw, validObject: parsed.valid },
             customBarrelLength: recipe.custom_barrel_length ?? null,
@@ -366,18 +515,44 @@ function buildAssessment(db, recipe) {
         candidate: {
             functional,
             bearings,
-            technicalKnowledge: { items: technicalKnowledge },
+            technicalKnowledge,
             stainlessBearingSpanEvidence: conditional.stainlessBearingSpanEvidence,
+        },
+        spanAssessment,
+        target: {
+            writeEligible: target.writeEligible,
+            migrationState: target.migrationState,
+            completenessState: target.completenessState,
+            missingSet: target.missingSet,
+            unresolvedSet: target.unresolvedSet,
+            functional: target.writeEligible ? target.proposedFunctional : null,
         },
         reasons: reasons.sort((left, right) => left.code.localeCompare(right.code)),
         fingerprint: fingerprint(migrationSnapshot),
     };
 }
 
+function emptySummary() {
+    return {
+        total: 0,
+        classifications: Object.fromEntries(['ALREADY_CANONICAL', 'AUTO_MIGRATABLE', 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE', 'NEEDS_OWNER_REVIEW', 'BLOCKED_UNRESOLVED'].map(key => [key, 0])),
+        actionRequired: 0,
+        completeAfterMigration: 0,
+        incompleteAfterMigration: 0,
+    };
+}
+
+function addToSummary(summary, item) {
+    summary.total += 1;
+    summary.classifications[item.classification] += 1;
+    if (item.actionRequired) summary.actionRequired += 1;
+    if (item.target.completenessState === 'COMPLETE') summary.completeAfterMigration += 1;
+    if (item.target.completenessState === 'INCOMPLETE') summary.incompleteAfterMigration += 1;
+    return summary;
+}
+
 function summarize(items) {
-    const classifications = Object.fromEntries(['ALREADY_CANONICAL', 'AUTO_MIGRATABLE', 'MIGRATABLE_WITH_COMPATIBILITY_PROVENANCE', 'NEEDS_OWNER_REVIEW', 'BLOCKED_UNRESOLVED'].map(key => [key, 0]));
-    for (const item of items) classifications[item.classification] += 1;
-    return { total: items.length, classifications, actionRequired: items.filter(item => item.actionRequired).length };
+    return items.reduce(addToSummary, emptySummary());
 }
 
 function createRecipeTechnicalMigrationDryRunService(dependencies) {
@@ -392,7 +567,7 @@ function createRecipeTechnicalMigrationDryRunService(dependencies) {
     function list(input = {}) {
         const { limit, offset } = normalizeCollectionQuery(input);
         const rows = db.prepare(`
-            SELECT id, name, template_id, coil_sheets, custom_barrel_length,
+            SELECT id, name, template_id, coil_id, coil_sheets, custom_barrel_length,
                    impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
                    technical_data_json, deleted_at
             FROM recipes WHERE deleted_at IS NULL
@@ -401,10 +576,25 @@ function createRecipeTechnicalMigrationDryRunService(dependencies) {
         const hasMore = rows.length > limit;
         const items = rows.slice(0, limit).map(recipe => buildAssessment(db, recipe));
         const activeRecipeCount = Number(db.prepare('SELECT COUNT(*) AS count FROM recipes WHERE deleted_at IS NULL').get().count);
+        const cohortSummary = emptySummary();
+        const cohortRows = db.prepare(`
+            SELECT id, name, template_id, coil_id, coil_sheets, custom_barrel_length,
+                   impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
+                   technical_data_json, deleted_at
+            FROM recipes WHERE deleted_at IS NULL
+            ORDER BY id ASC LIMIT ? OFFSET ?
+        `);
+        for (let cohortOffset = 0; ; cohortOffset += MAX_PAGE_SIZE) {
+            const cohortChunk = cohortRows.all(MAX_PAGE_SIZE, cohortOffset);
+            if (cohortChunk.length === 0) break;
+            for (const recipe of cohortChunk) addToSummary(cohortSummary, buildAssessment(db, recipe));
+            if (cohortChunk.length < MAX_PAGE_SIZE) break;
+        }
         return {
             capabilityId: DRY_RUN_CAPABILITY_ID,
             items,
-            summary: summarize(items),
+            pageSummary: summarize(items),
+            cohortSummary,
             cohort: { activeRecipeCount },
             page: { limit, offset, hasMore, nextOffset: hasMore ? offset + limit : null },
         };
@@ -413,7 +603,7 @@ function createRecipeTechnicalMigrationDryRunService(dependencies) {
     function reviewQueue(input = {}) {
         const { limit, offset } = normalizeCollectionQuery(input);
         const selectRows = db.prepare(`
-            SELECT id, name, template_id, coil_sheets, custom_barrel_length,
+            SELECT id, name, template_id, coil_id, coil_sheets, custom_barrel_length,
                    impeller_model, impeller_thickness, impeller_diameter, impeller_blade_count,
                    technical_data_json, deleted_at
             FROM recipes WHERE deleted_at IS NULL
@@ -446,7 +636,7 @@ function createRecipeTechnicalMigrationDryRunService(dependencies) {
         return {
             capabilityId: REVIEW_QUEUE_CAPABILITY_ID,
             items,
-            summary: summarize(items),
+            pageSummary: summarize(items),
             cohort: { activeRecipeCount },
             page: { limit, offset, hasMore, nextOffset: hasMore ? offset + limit : null, returned: items.length },
         };
