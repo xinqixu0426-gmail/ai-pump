@@ -295,6 +295,8 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'recipes.inventory_status',
         'recipes.resolve_identity',
         'recipes.technical_profile.get',
+        'recipes.technical_profile.migration_dry_run',
+        'recipes.technical_profile.migration_review_queue',
         'customers.list',
         'customers.history',
         'templates.list',

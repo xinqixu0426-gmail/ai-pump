@@ -35,6 +35,9 @@ const {
     createRecipeTechnicalProfileService,
     UPDATE_CAPABILITY_ID: RECIPE_TECHNICAL_PROFILE_UPDATE_CAPABILITY_ID,
 } = require('../services/recipeTechnicalProfile.cjs');
+const {
+    createRecipeTechnicalMigrationDryRunService,
+} = require('../services/recipeTechnicalMigrationDryRun.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -51,6 +54,7 @@ const recipeQueries = createRecipeQueries({
     getSetting,
 });
 const recipeTechnicalProfileService = createRecipeTechnicalProfileService({ db });
+const recipeTechnicalMigrationDryRunService = createRecipeTechnicalMigrationDryRunService({ db });
 
 function recipeCommandDependencies() {
     return {
@@ -164,6 +168,32 @@ router.post('/save-payload-draft', (req, res) => {
     } catch (error) {
         if (error.statusCode) return sendCommandError(res, error);
         res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// O4-F-C dry-run endpoints are read-only reports. They deliberately do not
+// route through the canonical PUT command or create a persisted review queue.
+router.get('/technical-profile/migration-dry-run', (req, res) => {
+    try {
+        res.json({ success: true, data: recipeTechnicalMigrationDryRunService.list(req.query || {}) });
+    } catch (error) {
+        sendRecipeQueryError(res, error);
+    }
+});
+
+router.get('/technical-profile/migration-review-queue', (req, res) => {
+    try {
+        res.json({ success: true, data: recipeTechnicalMigrationDryRunService.reviewQueue(req.query || {}) });
+    } catch (error) {
+        sendRecipeQueryError(res, error);
+    }
+});
+
+router.get('/:id/technical-profile/migration-dry-run', (req, res) => {
+    try {
+        res.json({ success: true, data: recipeTechnicalMigrationDryRunService.assess(req.params.id) });
+    } catch (error) {
+        sendRecipeQueryError(res, error);
     }
 });
 
