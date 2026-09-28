@@ -85,13 +85,55 @@ function parseLegacyTechnicalJson(raw) {
     }
 }
 
-function parseJsonObject(raw) {
-    try {
-        const value = JSON.parse(raw || '{}');
-        return plainObject(value) ? value : {};
-    } catch {
-        return {};
+function pumpShellMigrationEvidence(shell) {
+    if (!shell) {
+        return {
+            partId: null,
+            lifecycleStatus: 'ABSENT',
+            category: null,
+            remarkParseStatus: 'EMPTY',
+            isStainlessEvidence: { present: false, rawType: 'absent', value: null },
+            compatibilityOffsetEvidence: { openOffset: null, openFactor: null },
+        };
     }
+    const rawRemark = shell.remark;
+    let metadata = null;
+    let remarkParseStatus = 'EMPTY';
+    if (rawRemark !== null && rawRemark !== undefined && rawRemark !== '') {
+        try {
+            const parsed = JSON.parse(rawRemark);
+            if (plainObject(parsed)) {
+                metadata = parsed;
+                remarkParseStatus = 'VALID_OBJECT';
+            } else {
+                remarkParseStatus = 'INVALID';
+            }
+        } catch {
+            remarkParseStatus = 'INVALID';
+        }
+    }
+    const hasIsStainless = Boolean(metadata && Object.prototype.hasOwnProperty.call(metadata, 'isStainless'));
+    const rawIsStainless = hasIsStainless ? metadata.isStainless : undefined;
+    const rawType = !hasIsStainless ? 'absent'
+        : rawIsStainless === null ? 'null'
+            : Array.isArray(rawIsStainless) ? 'array' : typeof rawIsStainless;
+    return {
+        partId: Number(shell.id),
+        lifecycleStatus: shell.deleted_at ? 'INACTIVE' : 'ACTIVE',
+        category: shell.category ?? null,
+        remarkParseStatus,
+        isStainlessEvidence: {
+            present: hasIsStainless,
+            rawType,
+            // Only an actual boolean participates in the formal policy. Other
+            // values are represented by their type, never by arbitrary JSON.
+            value: typeof rawIsStainless === 'boolean' ? rawIsStainless : null,
+        },
+        compatibilityOffsetEvidence: {
+            openOffset: metadata?.openOffset ?? null,
+            openFactor: metadata?.openFactor ?? null,
+        },
+    };
 }
 
 function isJsonObject(raw) {
@@ -527,7 +569,7 @@ function fingerprintBearing(bearing) {
     };
 }
 
-function migrationFingerprintSnapshot({ recipe, parsed, relations, policy, shell, functional, bearings, impellerThickness, technicalKnowledge, migrationTarget, spanAssessment, reasons }) {
+function migrationFingerprintSnapshot({ recipe, parsed, relations, policy, pumpShellEvidence, functional, bearings, impellerThickness, technicalKnowledge, migrationTarget, spanAssessment, reasons }) {
     // This snapshot deliberately excludes every canonical child-row attribute.
     // A future O4-F-D write must be able to persist this exact fingerprint and
     // receive it again from an unchanged post-backfill source snapshot.
@@ -547,7 +589,7 @@ function migrationFingerprintSnapshot({ recipe, parsed, relations, policy, shell
             technicalDataJsonValidObject: parsed.valid,
         },
         formalRelations: relations,
-        stainlessEvidence: {
+        pumpShellEvidence: {
             policy: {
                 stainlessMode: policy.stainlessMode,
                 isStainless: policy.isStainless,
@@ -555,12 +597,7 @@ function migrationFingerprintSnapshot({ recipe, parsed, relations, policy, shell
                 templateId: policy.templateId,
                 shellPartId: policy.shellPartId,
             },
-            shell: shell ? {
-                partId: Number(shell.id),
-                category: shell.category,
-                deletedAt: shell.deleted_at ?? null,
-                remark: shell.remark ?? null,
-            } : null,
+            shell: pumpShellEvidence,
         },
         functionalCandidates: functional,
         bearingCandidates: {
@@ -603,12 +640,12 @@ function buildAssessment(db, recipe) {
     const bearings = buildBearingCandidates(db, parsed.value, reasons);
     const impellerThickness = buildThicknessCandidate(parsed.value, recipe, reasons);
     const shell = snapshotShell(db, policy);
-    const shellMetadata = parseJsonObject(shell?.remark);
+    const pumpShellEvidence = pumpShellMigrationEvidence(shell);
     const conditional = buildConditionalCandidates(
         parsed.value,
         policy,
         functional.barrelLength,
-        { openOffset: shellMetadata.openOffset ?? null, openFactor: shellMetadata.openFactor ?? null },
+        pumpShellEvidence.compatibilityOffsetEvidence,
         reasons,
     );
     const technicalKnowledge = buildKnowledgeCandidates(parsed.value, recipe, reasons);
@@ -625,7 +662,7 @@ function buildAssessment(db, recipe) {
     const spanAssessment = buildSpanAssessment(policy, migrationTarget.proposedFunctional, conditional);
     const relations = relationSummary(db, recipe, policy);
     const migrationFingerprint = fingerprint(migrationFingerprintSnapshot({
-        recipe, parsed, relations, policy, shell, functional, bearings,
+        recipe, parsed, relations, policy, pumpShellEvidence, functional, bearings,
         impellerThickness, technicalKnowledge, migrationTarget, spanAssessment, reasons,
     }));
     const canonical = canonicalState(profile, knowledge);

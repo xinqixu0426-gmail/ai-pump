@@ -496,6 +496,95 @@ test('fingerprint covers migration decision inputs but not irrelevant Part price
     assert.equal(service.assess(recipeId).fingerprint, beforeIrrelevant);
 });
 
+test('PumpShell fingerprint evidence is normalized and excludes unrelated remark defaults', t => {
+    const baseRemark = {
+        isStainless: false,
+        openOffset: 20,
+        openFactor: 1.2,
+        defaultUpperBearing: '6202',
+        defaultLowerBearing: '6303',
+        defaultOilSealDia: 20,
+        defaultBearingSpan: 80,
+        defaultImpellerDiameter: 100,
+        defaultThreadLength: 14,
+        defaultStackOffset: 1,
+        note: 'unchanged',
+    };
+    const { db, recipeId, shellPartId, service } = fixture(t, { remark: JSON.stringify(baseRemark), impellerThickness: null });
+    const assess = () => service.assess(recipeId);
+    const baseline = assess().migrationFingerprint;
+    const setRemark = value => db.prepare('UPDATE parts SET remark = ? WHERE id = ?').run(value, shellPartId);
+
+    db.prepare('UPDATE parts SET price = 123, stock = 456 WHERE id = ?').run(shellPartId);
+    assert.equal(assess().migrationFingerprint, baseline);
+
+    for (const [key, value] of Object.entries({
+        defaultUpperBearing: '6304', defaultLowerBearing: '6201', defaultOilSealDia: 22,
+        defaultBearingSpan: 81, defaultImpellerDiameter: 101, defaultThreadLength: 15,
+        defaultStackOffset: 2, note: 'changed metadata only',
+    })) {
+        setRemark(JSON.stringify({ ...baseRemark, [key]: value }));
+        assert.equal(assess().migrationFingerprint, baseline, `${key} must not affect migration evidence`);
+    }
+    setRemark('{\n  "openFactor": 1.2,\n  "note": "unchanged",\n  "isStainless": false,\n  "openOffset": 20,\n  "defaultUpperBearing": "6202"\n}');
+    assert.equal(assess().migrationFingerprint, baseline, 'JSON key order and whitespace must not drift');
+
+    setRemark(JSON.stringify({ ...baseRemark, isStainless: true }));
+    assert.notEqual(assess().migrationFingerprint, baseline);
+    setRemark(JSON.stringify(Object.fromEntries(Object.entries(baseRemark).filter(([key]) => key !== 'isStainless'))));
+    assert.notEqual(assess().migrationFingerprint, baseline);
+    setRemark(JSON.stringify({ ...baseRemark, isStainless: 0 }));
+    const numericPolicy = assess();
+    assert.notEqual(numericPolicy.migrationFingerprint, baseline);
+    assert.equal(numericPolicy.policy.stainlessMode, 'UNKNOWN_OR_UNRESOLVED');
+    setRemark('{broken');
+    assert.notEqual(assess().migrationFingerprint, baseline, 'invalid JSON must not collide with valid empty evidence');
+
+    setRemark(JSON.stringify({ ...baseRemark, openOffset: 21 }));
+    assert.notEqual(assess().migrationFingerprint, baseline);
+    setRemark(JSON.stringify({ ...baseRemark, openFactor: 1.3 }));
+    assert.notEqual(assess().migrationFingerprint, baseline);
+
+    setRemark(JSON.stringify(baseRemark));
+    const alternateShellId = Number(db.prepare(`
+        INSERT INTO parts (model, category, remark, created_at, updated_at)
+        VALUES ('alternate-shell', '泵壳', ?, ?, ?)
+    `).run(JSON.stringify(baseRemark), NOW, NOW).lastInsertRowid);
+    db.prepare('UPDATE catalog_template_shell_bindings SET shell_part_id = ? WHERE template_id = (SELECT template_id FROM recipes WHERE id = ?)')
+        .run(alternateShellId, recipeId);
+    assert.notEqual(assess().migrationFingerprint, baseline, 'formal shell binding identity is relevant');
+    db.prepare('UPDATE catalog_template_shell_bindings SET shell_part_id = ? WHERE template_id = (SELECT template_id FROM recipes WHERE id = ?)')
+        .run(shellPartId, recipeId);
+    db.prepare("UPDATE parts SET category = '轴承' WHERE id = ?").run(shellPartId);
+    assert.notEqual(assess().migrationFingerprint, baseline, 'shell category is relevant');
+    db.prepare("UPDATE parts SET category = '泵壳', deleted_at = ? WHERE id = ?").run(NOW, shellPartId);
+    assert.notEqual(assess().migrationFingerprint, baseline, 'shell lifecycle is relevant');
+});
+
+test('irrelevant PumpShell defaults do not drift a matching migrated canonical pair', t => {
+    const baseRemark = { isStainless: false, openOffset: 20, openFactor: 1.2, defaultUpperBearing: '6202' };
+    const { db, recipeId, shellPartId, service } = fixture(t, { remark: JSON.stringify(baseRemark), impellerThickness: null });
+    const preWrite = service.assess(recipeId);
+    materializeMigratedTarget(db, recipeId, preWrite);
+    const matching = service.assess(recipeId);
+    assert.equal(matching.classification, 'ALREADY_CANONICAL');
+    assert.equal(matching.migrationFingerprint, preWrite.migrationFingerprint);
+
+    db.prepare('UPDATE parts SET remark = ? WHERE id = ?')
+        .run(JSON.stringify({ ...baseRemark, defaultUpperBearing: '6304' }), shellPartId);
+    const irrelevant = service.assess(recipeId);
+    assert.equal(irrelevant.classification, 'ALREADY_CANONICAL');
+    assert.equal(irrelevant.migrationFingerprint, preWrite.migrationFingerprint);
+    assert.equal(irrelevant.reasons.some(reason => reason.code === 'MIGRATION_SOURCE_CHANGED'), false);
+
+    db.prepare('UPDATE parts SET remark = ? WHERE id = ?')
+        .run(JSON.stringify({ ...baseRemark, openOffset: 21 }), shellPartId);
+    const relevant = service.assess(recipeId);
+    assert.equal(relevant.classification, 'NEEDS_OWNER_REVIEW');
+    assert.notEqual(relevant.migrationFingerprint, preWrite.migrationFingerprint);
+    assert.ok(relevant.reasons.some(reason => reason.code === 'MIGRATION_SOURCE_CHANGED'));
+});
+
 test('dry-run read capabilities are query-only and remain outside AI and write admission surfaces', () => {
     assert.equal(getBusinessCapability(DRY_RUN_CAPABILITY_ID).access, 'query');
     assert.equal(getBusinessCapability(REVIEW_QUEUE_CAPABILITY_ID).access, 'query');

@@ -43,6 +43,15 @@ same value before and after a future O4-F-D materializes its exact target. The
 temporary R1 response field `fingerprint` is an explicit compatibility alias
 for `migrationFingerprint`, never a hash of canonical-row state.
 
+PumpShell remark is not hashed as raw JSON. Its normalized fingerprint evidence
+is limited to `{partId,lifecycleStatus,category,remarkParseStatus,
+isStainlessEvidence:{present,rawType,value},compatibilityOffsetEvidence:
+{openOffset,openFactor}}`. Thus formatting/key order and unrelated historical
+`defaultXXX`/note metadata cannot create source drift, while formal stainless
+authority, compatibility offset evidence, binding identity, category and
+lifecycle remain migration-relevant. Invalid remark is represented by
+`remarkParseStatus=INVALID`, rather than arbitrary raw invalid bytes.
+
 The five mutually exclusive classifications are evaluated in this order for a
 Recipe with no canonical child state:
 

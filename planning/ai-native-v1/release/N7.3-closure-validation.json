@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "e1a0c3d9f9aa0d0620f071f846ed90e193056aacb90b867711382e00c4eadf05",
-    "diskSha256": "e1a0c3d9f9aa0d0620f071f846ed90e193056aacb90b867711382e00c4eadf05",
+    "attestedSha256": "a37a47a0988d181549d90b68be011bcb9789ac4e21b6cf36d822cbf84f398bed",
+    "diskSha256": "a37a47a0988d181549d90b68be011bcb9789ac4e21b6cf36d822cbf84f398bed",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -84,7 +84,8 @@
   "o4FbRefreshNote": "O4-F-B 更新了 docs/api-reference.md，登记独立的 Recipe canonical technical-profile GET/PUT；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
   "o4FcRefreshNote": "O4-F-C 更新了 docs/api-reference.md，登记只读 Recipe technical-profile migration dry-run 与派生 Owner Review Queue；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
   "o4FcR1RefreshNote": "O4-F-C-R1 更新了 docs/api-reference.md，补全 dry-run target/missing/unresolved、关系/span 与全 cohort 聚合响应契约；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
-  "o4FcR2RefreshNote": "O4-F-C-R2 更新了 docs/api-reference.md，明确 canonical current 内容与 legacy candidate 分离、canonical disposition、migrationVersion 及不含 canonical 行状态的稳定 migrationFingerprint；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
+  "o4FcR2RefreshNote": "O4-F-C-R2 更新了 docs/api-reference.md，明确 canonical current 内容与 legacy candidate 分离、canonical disposition、migrationVersion 及不含 canonical 行状态的稳定 migrationFingerprint；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
+  "o4FcR3RefreshNote": "O4-F-C-R3 更新了 docs/api-reference.md，收紧 PumpShell migrationFingerprint evidence：不再哈希整段 remark，只纳入严格 isStainless、openOffset/openFactor 兼容证据、解析状态和正式 Shell 身份状态；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,
