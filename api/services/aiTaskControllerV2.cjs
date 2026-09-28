@@ -322,6 +322,13 @@ const SUBJECT_ENTITY_TYPE_BY_GOAL = Object.freeze({
     INVENTORY_QUERY: 'coil', COIL_COST: 'coil', COIL_QUERY: 'coil',
     CURRENT_COST: 'recipe', CONFIGURATION_COMPARE: 'recipe', PROFITABILITY: 'recipe',
 });
+const CONTINUATION_RECIPE_COMPARISON_DESCRIPTION = '比较两个已继承 canonical 配方的当前完整成本';
+const CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS_DESCRIPTION = '需要确认要比较的两个已继承 canonical 配方';
+const CONTINUATION_COIL_SAME_SPEC_DESCRIPTION = '查询当前 canonical 线圈的其他同规格正式方案';
+const ELLIPTICAL_CONTINUATION_RE = /^(?:那|那么)?\s*.+?\s*(?:呢|怎么样)[？?。！!]*$/u;
+const GENERIC_PRONOUN_MENTION_RE = /^(?:它|这(?:个|款|型号)?|那(?:个|款|型号)?)$/u;
+const TWO_RECIPE_COMPARISON_RE = /这两个[^，。；,;！!？?]{0,12}(?:差多少|差价|差额|比较|对比)/u;
+const SAME_SPEC_COIL_RE = /其他[^，。；,;！!？?]{0,8}同规格(?:方案|线圈)?/u;
 /** 线圈的重新读取选择器：优先用户原来的正式简写（12-200），否则退回 canonical 展示名。 */
 function coilReadSelector(subject) {
     const mention = String(subject?.mention || '').trim().replace(/\s+/gu, '');
@@ -342,6 +349,7 @@ function continuationSubjects(task) {
                 canonicalIdentity: identity, displayName: subject.selected.displayName,
                 entity: subject.selected,
                 schemeCode: subject.selected.schemeCode || null,
+                commonDesignation: subject.selected.commonDesignation || null,
                 readSelector: subject.selected.entityType === 'coil'
                     ? (subject.selected.schemeCode || coilReadSelector(subject))
                     : subject.selected.displayName,
@@ -375,6 +383,7 @@ function focusFromEntity(entity, { subjectKey = null } = {}) {
         entityType, entityId, canonicalIdentity: `${entityType}:${entityId}`,
         displayName: entity.displayName, entity, subjectKey,
         schemeCode: entity.schemeCode || null,
+        commonDesignation: entity.commonDesignation || null,
         // 线圈优先用正式方案编码（search_coils 的正式过滤器），其次用户原来的简写；
         // 配方用 canonical 名称。选择器只用于**重新读取**，身份仍由本轮回执核对。
         readSelector: entityType === 'coil' ? (entity.schemeCode || entity.displayName) : entity.displayName,
@@ -634,6 +643,60 @@ function injectInheritedSubjects({ proposal, messageRef, text, continuation, sel
         mutated = true;
     }
     return { focus, mutated };
+}
+
+// R2 deliberately recognizes only three bounded continuation forms.  It
+// carries canonical identities/goal kind into a new task; every resulting
+// fact still needs a new formal receipt in this turn.
+function injectBoundedContinuationGoals({ proposal, messageRef, text, continuation }) {
+    const focus = new Map();
+    const accumulated = [...(continuation?.lastCanonicalSubjects || [])];
+    const priorKinds = Array.isArray(continuation?.lastGoalKinds) ? continuation.lastGoalKinds : [];
+    const messageSource = source(messageRef, text, text) || { messageRef, start: 0, end: text.length, text };
+    const addSubject = (entry, index) => {
+        const subjectKey = `subject_continuation_${index + 1}`;
+        proposal.subjects.push({ subjectKey, mention: entry.displayName, typeHints: [entry.entityType], sources: [messageSource] });
+        focus.set(subjectKey, { focus: entry });
+        return subjectKey;
+    };
+    const removeOther = () => { proposal.goals = proposal.goals.filter(goal => !(goal.kind === 'OTHER' && goal.description === '用户请求需要进一步理解')); };
+
+    if (TWO_RECIPE_COMPARISON_RE.test(text)) {
+        const recipes = accumulated.filter(item => item.entityType === 'recipe');
+        removeOther();
+        const exactTwo = recipes.length === 2;
+        const subjectKeys = exactTwo ? recipes.map(addSubject) : [];
+        proposal.goals.push({
+            goalKey: 'goal_continuation_comparison', kind: 'RECIPE_COST_COMPARISON',
+            description: exactTwo ? CONTINUATION_RECIPE_COMPARISON_DESCRIPTION : CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS_DESCRIPTION,
+            subjectKeys, scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [messageSource], quantity: null, unitPrice: null,
+        });
+        return { focus, mutated: true };
+    }
+
+    if (SAME_SPEC_COIL_RE.test(text)) {
+        const focusIdentity = continuation?.pendingFocus || null;
+        const coil = accumulated.find(item => item.canonicalIdentity === focusIdentity && item.entityType === 'coil') || null;
+        if (!coil) return { focus, mutated: false };
+        removeOther();
+        const subjectKey = addSubject(coil, 0);
+        proposal.goals.push({
+            goalKey: 'goal_continuation_coil_same_spec', kind: 'COIL_QUERY', description: CONTINUATION_COIL_SAME_SPEC_DESCRIPTION,
+            subjectKeys: [subjectKey], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [messageSource], quantity: null, unitPrice: null,
+        });
+        return { focus, mutated: true };
+    }
+
+    const explicitRecipes = proposal.subjects.filter(subject => subject.typeHints.includes('recipe'));
+    const alreadyExplicitBusinessGoal = proposal.goals.some(goal => goal.kind !== 'OTHER');
+    const explicitlyNamedRecipe = explicitRecipes.length === 1 && !GENERIC_PRONOUN_MENTION_RE.test(explicitRecipes[0].mention.trim());
+    if (priorKinds.length === 1 && priorKinds[0] === 'CURRENT_COST' && explicitlyNamedRecipe
+        && !alreadyExplicitBusinessGoal && ELLIPTICAL_CONTINUATION_RE.test(text)) {
+        removeOther();
+        proposal.goals.push({ goalKey: 'goal_continuation_current_cost', kind: 'CURRENT_COST', description: '查询当前成本', subjectKeys: [explicitRecipes[0].subjectKey], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [messageSource], quantity: null, unitPrice: null });
+        return { focus, mutated: true };
+    }
+    return { focus, mutated: false };
 }
 function replaceSubjectBinding(task, binding) {
     task.subjects = task.subjects.map(subject => subject.subjectKey === binding.subjectKey ? binding : subject);
@@ -958,8 +1021,38 @@ async function runStructuredReadGoalsV2({ task, proposal, message, messageRef, a
     ];
     for (const [kind, toolName, predicate, basis, scopeType, pointer] of globalReads) for (const goal of goalFor(kind)) {
         const subject = kind === 'COIL_QUERY' ? subjectFor(goal, 'coil') : null;
-        const args = kind === 'COIL_QUERY' && subject ? { spec: subject.mention } : {};
-        const sources = kind === 'COIL_QUERY' && subject ? [userSource('/spec', subject.sources[0] || source(messageRef, message.content, subject.mention))] : [];
+        const sameSpecContinuation = kind === 'COIL_QUERY' && goal.description === CONTINUATION_COIL_SAME_SPEC_DESCRIPTION;
+        const inherited = subject ? inheritedFocus?.get(subject.subjectKey)?.focus || null : null;
+        if (sameSpecContinuation && (!inherited || inherited.entityType !== 'coil')) {
+            markStructuredGap(goal, 'COIL_COMMON_DESIGNATION_UNAVAILABLE', '当前没有可复核的正式线圈身份，不能猜测同规格方案。');
+            continue;
+        }
+        let args = kind === 'COIL_QUERY' && subject ? { spec: subject.mention } : {};
+        let sources = kind === 'COIL_QUERY' && subject ? [userSource('/spec', subject.sources[0] || source(messageRef, message.content, subject.mention))] : [];
+        if (sameSpecContinuation) {
+            const identityArgs = inherited.schemeCode ? { schemeCode: inherited.schemeCode } : null;
+            if (!identityArgs) { markStructuredGap(goal, 'COIL_COMMON_DESIGNATION_UNAVAILABLE', '当前正式线圈身份没有稳定方案编码，不能猜测同规格方案。'); continue; }
+            const identityRead = await execute({ toolName: 'search_coils', args: identityArgs, argumentSources: [inheritedSource('/schemeCode')], goalKeys: [goal.goalKey] });
+            if (!identityRead.receipt) { goal.state = 'FAILED'; appendBlocker(goal, 'COIL_COMMON_DESIGNATION_UNAVAILABLE', '本轮正式线圈身份复核没有获得已验证回执。'); continue; }
+            const binding = bindInheritedSubject({ adapter, subjectKey: subject.subjectKey, mention: subject.mention, toolName: 'search_coils', receiptId: identityRead.receipt.receiptId, focus: inherited });
+            if (!binding) { goal.state = 'FAILED'; appendBlocker(goal, 'CONTINUATION_IDENTITY_MISMATCH', '本轮正式线圈目录没有确认继承的线圈身份，不能继续查询同规格方案。'); continue; }
+            replaceSubjectBinding(task, binding);
+            const commonDesignation = binding.selected.commonDesignation || null;
+            if (!commonDesignation) {
+                const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: [], prompt: '当前正式线圈记录没有可用于同规格查询的规格标识，请明确要查询的线圈规格。', reasonCode: 'COIL_COMMON_DESIGNATION_UNAVAILABLE', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
+                task.questions.push(question); goal.state = 'NEEDS_INPUT'; appendBlocker(goal, 'COIL_COMMON_DESIGNATION_UNAVAILABLE', '正式线圈记录缺少 common designation，不能从显示名猜测。', question.questionId); pending = { kind: 'coilSameSpec', questionId: question.questionId }; continue;
+            }
+            const candidateRows = readJsonPointer(identityRead.receipt.result, '/data');
+            const candidateRow = Array.isArray(candidateRows)
+                ? candidateRows.find(row => String(row?.id ?? row?.Id) === binding.selected.entityId)
+                : null;
+            const designationField = Object.hasOwn(candidateRow || {}, 'spec') ? 'spec'
+                : (Object.hasOwn(candidateRow || {}, 'commonDesignation') ? 'commonDesignation' : null);
+            if (!designationField) { goal.state = 'FAILED'; appendBlocker(goal, 'COIL_COMMON_DESIGNATION_UNAVAILABLE', '正式线圈回执没有可追溯的规格字段，不能查询同规格方案。'); continue; }
+            const candidatePointer = findCandidatePointer(identityRead.receipt, binding.selected).replace(/\/id$/u, `/${designationField}`);
+            args = { spec: commonDesignation };
+            sources = [receiptSource('/spec', identityRead.receipt.receiptId, candidatePointer)];
+        }
         const result = await execute({ toolName, args, argumentSources: sources, goalKeys: [goal.goalKey] });
         if (!result.receipt) { goal.state = 'FAILED'; appendBlocker(goal, 'STRUCTURED_READ_UNAVAILABLE', '正式只读能力没有获得已验证回执。'); continue; }
         const coverage = kind === 'MANAGEMENT_OVERVIEW' ? null : collectionCoverageV1({ result: result.receipt.result, capabilityId: result.receipt.capabilityId, scopeType });
@@ -1043,20 +1136,21 @@ async function runStructuredReadGoalsV2({ task, proposal, message, messageRef, a
         for (const [index, subject] of subjects.entries()) {
             const kindForRole = index === 0 ? 'recipeComparisonA' : 'recipeComparisonB';
             const prior = task.subjects.find(item => item.subjectKey === subject.subjectKey);
+            const inheritedEntry = inheritedFocus?.get(subject.subjectKey) || null;
             // 已在上一轮绑定的主体：本轮**重新正式读取**（回执必须是本轮 planRevision，且身份要再次核对），
             // 身份从上一轮的 canonical 绑定继承（BASELINE_INHERITANCE），不重新按名字猜。
-            const inherited = prior?.selected && ['UNIQUE', 'SELECTED'].includes(prior.resolution)
-                ? { entityType: prior.selected.entityType, entityId: prior.selected.entityId, displayName: prior.selected.displayName, schemeCode: prior.selected.schemeCode || null }
-                : null;
-            if (inherited) bindings.push(prior);
+            const inherited = inheritedEntry?.focus || (prior?.selected && ['UNIQUE', 'SELECTED'].includes(prior.resolution)
+                ? focusFromEntity(prior.selected, { subjectKey: prior.subjectKey }) : null);
             const mentionSpan = subject.sources[0] || source(messageRef, message.content, subject.mention);
             const keyword = inherited ? inherited.displayName : subject.mention;
             const lookup = await execute({ toolName: 'get_all_recipes', args: { keyword }, argumentSources: [inherited ? inheritedSource('/keyword') : userSource('/keyword', mentionSpan)], goalKeys: [goal.goalKey] });
             if (!lookup.receipt) { goal.state = 'FAILED'; appendBlocker(goal, 'RECIPE_COMPARISON_CATALOGUE_UNAVAILABLE', '正式配方目录读取没有获得已验证回执。'); stopped = true; break; }
             bindingReceipts.set(index, lookup.receipt);
-            if (inherited) continue;
             const choiceId = pendingKind === kindForRole ? existing?.pending?.questionId : null;
-            const binding = adapter.bindSubject({ subjectKey: subject.subjectKey, mention: subject.mention, toolName: 'get_all_recipes', receiptId: lookup.receipt.receiptId, selectionBasis: 'EXACT', choiceId });
+            const binding = inherited
+                ? bindInheritedSubject({ adapter, subjectKey: subject.subjectKey, mention: subject.mention, toolName: 'get_all_recipes', receiptId: lookup.receipt.receiptId, focus: inherited })
+                : adapter.bindSubject({ subjectKey: subject.subjectKey, mention: subject.mention, toolName: 'get_all_recipes', receiptId: lookup.receipt.receiptId, selectionBasis: 'EXACT', choiceId });
+            if (inherited && !binding) { goal.state = 'FAILED'; appendBlocker(goal, 'CONTINUATION_IDENTITY_MISMATCH', '本轮正式配方目录没有确认继承的配方身份，不能继续比较。'); stopped = true; break; }
             replaceSubjectBinding(task, binding);
             if (binding.resolution === 'MULTIPLE') {
                 const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: binding.candidates, prompt: `“${subject.mention}”有多个正式配方，请选择一个后再进行成本比较。`, reasonCode: 'RECIPE_COMPARISON_AMBIGUOUS', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
@@ -1270,7 +1364,10 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
         }
         // E2-R1 §B：跨轮 canonical 主体继承。只把**身份**接进本轮无标识指代的问题；
         // 目标/事实/可变业务数值都不继承，必须在本轮重新正式读取。
-        const injection = injectInheritedSubjects({ proposal, messageRef, text: message.content, continuation: existing?.continuation || null, selectedChoice, pendingKind });
+        const boundedContinuation = injectBoundedContinuationGoals({ proposal, messageRef, text: message.content, continuation: existing?.continuation || null });
+        const injection = boundedContinuation.mutated
+            ? { focus: new Map([...boundedContinuation.focus]), mutated: true }
+            : injectInheritedSubjects({ proposal, messageRef, text: message.content, continuation: existing?.continuation || null, selectedChoice, pendingKind });
         inheritedFocus = injection.focus;
         if (injection.mutated) validateTaskProposalV1(proposal, { sourceMessages: new Map([[messageRef, message.content]]) });
         task = createEnvelope({ taskId: input.taskId || undefined, ownerKey, conversationId, requestId, userGoal: message.content, writePolicy: semantics.serverDirectives.businessWritePolicy, clock, maxActiveMs: Math.min(DEFAULT_ACTIVE_MS, Number(input.timeoutMs) || DEFAULT_ACTIVE_MS) });
@@ -1286,6 +1383,11 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
         markSemanticTechnicalFailure(task, semantics.blockers);
         markUnsupportedGoals(task);
         markUnsupportedProfitCurrency(task, message.content);
+        for (const goal of task.goals.filter(item => item.description === CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS_DESCRIPTION)) {
+            const candidates = (existing?.continuation?.lastCanonicalSubjects || []).filter(item => item.entityType === 'recipe').map(item => item.entity);
+            const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates, prompt: '当前上下文不能唯一确定要比较的两个配方，请明确写出两个正式配方。', reasonCode: 'CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
+            task.questions.push(question); goal.state = 'NEEDS_INPUT'; appendBlocker(goal, 'CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS', '继承的配方身份不是恰好两个，不能猜测比较对象。', question.questionId);
+        }
         if (missingCableLengthUnit(message.content)) {
             let configGoal = task.goals.find(goal => goal.kind === 'CONFIGURATION_COMPARE' || goal.kind === 'PREPARE_CHANGE');
             if (!configGoal) {

@@ -165,6 +165,9 @@ function projectCanonicalRecord(entityType, record) {
         schemeCode: entityType === 'coil' && typeof record?.schemeCode === 'string' && record.schemeCode
             ? record.schemeCode
             : null,
+        commonDesignation: entityType === 'coil' && typeof (record?.commonDesignation || record?.spec) === 'string' && (record.commonDesignation || record.spec).trim()
+            ? (record.commonDesignation || record.spec).trim()
+            : null,
     };
     validateCanonicalEntity(entity);
     return entity;

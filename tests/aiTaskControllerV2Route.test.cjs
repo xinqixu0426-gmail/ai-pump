@@ -11,18 +11,34 @@ test('N3.2 isolated /api/ai/chat injection emits only validated Task V2 content 
     // The fixture configures a temporary SQLite file before loading the chat
     // route, so this route-level proof cannot touch the project database.
     const proposal = { proposal: { version: 1, goalSummary: 'V550成本和库存', subjects: [{ subjectKey: 'subject_1', mention: 'V550', typeHints: ['recipe'], sources: [{ sourceQuote: 'V550' }] }], scenarios: [], goals: [{ goalKey: 'goal_1', kind: 'CURRENT_COST', description: '查询当前成本', subjectKeys: ['subject_1'], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [{ sourceQuote: 'V550' }], quantity: null, unitPrice: null }], unparsedSpans: [] } };
-    const providerResponse = { choices: [{ message: { tool_calls: [{ function: { name: 'submit_ai_task_proposal_candidate_v1', arguments: JSON.stringify(proposal) } }] } }] };
+    const providerResponseFor = content => {
+        const recipeMention = /V750/u.test(content) ? 'V750' : 'V550';
+        const isEllipticalRecipeCost = /那V750呢？/u.test(content);
+        const isTwoRecipeComparison = /这两个差多少/u.test(content);
+        const taskProposal = isTwoRecipeComparison
+            ? { proposal: { version: 1, goalSummary: content, subjects: [], scenarios: [], goals: [], unparsedSpans: [] } }
+            : { proposal: {
+                ...proposal.proposal,
+                goalSummary: content,
+                subjects: [{ subjectKey: 'subject_1', mention: recipeMention, typeHints: ['recipe'], sources: [{ sourceQuote: recipeMention }] }],
+                goals: isEllipticalRecipeCost ? [] : proposal.proposal.goals,
+            } };
+        return { choices: [{ message: { tool_calls: [{ function: { name: 'submit_ai_task_proposal_candidate_v1', arguments: JSON.stringify(taskProposal) } }] } }] };
+    };
     const runtime = await startAiHttpRuntime({ aiChatOptions: {
         nativeTaskDelegation: true,
         taskSemanticsProvider: async request => {
             const content = request.messages?.at(-1)?.content || '';
-            return new Response(content.includes('provider-invalid') ? '{' : JSON.stringify(providerResponse));
+            return new Response(content.includes('provider-invalid') ? '{' : JSON.stringify(providerResponseFor(content)));
         },
     } });
     t.after(async () => runtime.close());
     runtime.db.prepare(`UPDATE recipes
         SET name = 'V550', coil_spec = '12', coil_sheets = 120, coil_material = '冷轧', coil_slot_type = '小眼'
         WHERE id = 301`).run();
+    runtime.db.prepare(`UPDATE recipes
+        SET name = 'V750', coil_spec = '12', coil_sheets = 120, coil_material = '冷轧', coil_slot_type = '小眼'
+        WHERE id = 302`).run();
     runtime.db.prepare(`UPDATE coils
         SET scheme_status = 'official', pricing_mode = 'kit', kit_price = 20, cost = 20
         WHERE id = 501`).run();
@@ -66,6 +82,23 @@ test('N3.2 isolated /api/ai/chat injection emits only validated Task V2 content 
     assert.equal(canonicalDetail.state, 'SUCCEEDED');
     assert.match(canonicalAbsent.find(event => event.type === 'content').content, /没有完整的 canonical 技术档案/u);
     assert.doesNotMatch(canonicalAbsent.find(event => event.type === 'content').content, /technical_data_json|Rotor shadow/u);
+    const continuationConversationId = 'owner-r2-route-cost';
+    const chatInConversation = async content => {
+        const routeResponse = await fetch(`${runtime.baseUrl}/api/ai/chat`, {
+            method: 'POST', headers: runtime.headers(),
+            body: JSON.stringify({ conversationId: continuationConversationId, messages: [{ role: 'user', content }] }),
+        });
+        assert.equal(routeResponse.status, 200);
+        return [...(await routeResponse.text()).matchAll(/^data: (.+)$/gmu)].map(match => JSON.parse(match[1]));
+    };
+    const continuationCost1 = await chatInConversation('V550现在成本多少？');
+    const continuationCost2 = await chatInConversation('那V750呢？');
+    const continuationCompare = await chatInConversation('这两个差多少？');
+    for (const events of [continuationCost1, continuationCost2, continuationCompare]) {
+        assert.equal(events.find(event => event.type === 'detail').state, 'SUCCEEDED', JSON.stringify(events));
+    }
+    assert.match(continuationCost2.find(event => event.type === 'content').content, /V750当前完整成本/u);
+    assert.match(continuationCompare.find(event => event.type === 'content').content, /V550.*V750|V750.*V550/u);
     const modelResponse = await fetch(`${runtime.baseUrl}/api/ai/chat`, { method: 'POST', headers: runtime.headers(), body: JSON.stringify({ conversationId: 's2-model-response', messages: [{ role: 'user', content: 'V550成本和库存' }] }) });
     const modelEvents = [...(await modelResponse.text()).matchAll(/^data: (.+)$/gmu)].map(match => JSON.parse(match[1]));
     assert.equal(modelEvents.find(event => event.type === 'detail').goals[0].state, 'VERIFIED');

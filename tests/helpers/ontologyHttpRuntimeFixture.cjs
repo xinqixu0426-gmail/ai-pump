@@ -53,6 +53,7 @@ const API_MOUNT_ORDER = Object.freeze([
 const READ_ONLY_PREVIEWS = [
     /^\/api\/coils\/calculate$/,
     /^\/api\/cost\/(?:full-estimate|dynamic|parts|profitability-preview)$/,
+    /^\/api\/cost\/recipe-difference$/,
     /^\/api\/inventory\/virtual-readiness-preview$/,
     /^\/api\/recipes\/(?:bom-draft|cost-draft|[1-9][0-9]*\/cost-preview)$/,
     /^\/api\/recipes\/[1-9][0-9]*\/scenario-compare-preview$/,

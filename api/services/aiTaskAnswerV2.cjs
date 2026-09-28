@@ -396,6 +396,13 @@ function renderSection(task, section) {
         const value = values[0]?.value;
         const rows = Array.isArray(value) ? value : (Array.isArray(value?.items) ? value.items : []);
         const count = Array.isArray(value) ? value.length : (Array.isArray(value?.items) ? value.items.length : null);
+        if (goal.description === '查询当前 canonical 线圈的其他同规格正式方案') {
+            const current = task.subjects.find(subject => subject.subjectKey === goal.subjectKeys[0])?.selected || null;
+            const alternatives = rows.filter(item => String(item?.id ?? item?.coilId ?? '') !== String(current?.entityId ?? ''));
+            if (!alternatives.length) return '当前正式目录中没有其他同规格方案。本次结果来自新的正式线圈目录查询，未汇总库存或修改业务数据。';
+            const labels = alternatives.slice(0, 20).map(item => [item.schemeCode, item.schemeName || item.name || item.spec].filter(Boolean).join(' / '));
+            return `与当前方案${current?.schemeCode ? ` ${current.schemeCode}` : ''}同规格的其他正式方案有 ${alternatives.length} 个：${labels.join('；')}。本次按正式规格目录重新查询，未汇总库存或修改业务数据。`;
+        }
         const statuses = [...new Set(rows.map(item => item?.schemeStatus).filter(value => typeof value === 'string' && value))];
         return `${name === '该对象' ? '本次正式目录查询' : name}已取得正式${section.templateKey === 'INVENTORY_V1' ? '库存' : '目录'}结果${count === null ? '' : `，返回 ${count} 条记录`}${statuses.length ? `；方案状态：${statuses.join('、')}` : ''}。展示范围以本次正式查询回执为准，未对多个候选方案自行汇总。`;
     }

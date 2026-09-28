@@ -17,7 +17,9 @@ function fakeExecutor(options = {}) {
         calls.push({ toolName, args, executionOptions });
         if (toolName === 'get_all_recipes') {
             const rows = options.recipes ?? [{ id: 301, name: 'V550' }];
-            return verified(rows, { queryReceipt: { authoritative: true, truncated: Boolean(options.recipeCollectionTruncated), possiblyTruncated: Boolean(options.recipeCollectionTruncated) } });
+            const keyword = String(args?.keyword || '').trim().toLowerCase();
+            const filtered = options.filterRecipeKeyword && keyword ? rows.filter(item => String(item.name || '').toLowerCase().includes(keyword)) : rows;
+            return verified(filtered, { queryReceipt: { authoritative: true, truncated: Boolean(options.recipeCollectionTruncated), possiblyTruncated: Boolean(options.recipeCollectionTruncated) } });
         }
         if (toolName === 'get_recipe_technical_profile') return verified(options.technical || {
             recipe: { id: 301, name: 'V550' },
@@ -29,13 +31,30 @@ function fakeExecutor(options = {}) {
             },
             relations: { pieceCount: 120, coil: { id: 41, displayName: '12-120', schemeCode: 'COIL-001', material: '铜', slotType: '圆槽' }, pumpShell: { id: 72, displayName: '不锈钢泵壳' } },
         });
-        if (toolName === 'search_coils') return verified(options.coils ?? [{ id: 41, schemeName: '12-220 A', schemeCode: 'A' }, { id: 42, schemeName: '12-220 B', schemeCode: 'B' }], { queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false } });
+        if (toolName === 'search_coils') return verified(typeof options.coils === 'function' ? options.coils(args, calls) : (options.coils ?? [{ id: 41, schemeName: '12-220 A', schemeCode: 'A' }, { id: 42, schemeName: '12-220 B', schemeCode: 'B' }]), { queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false } });
+        if (toolName === 'compare_recipes') {
+            const recipes = options.recipes ?? [{ id: 301, name: 'V550' }, { id: 302, name: 'V750' }];
+            const recipe1 = recipes.find(item => String(item.id) === String(args.recipe1)) || { id: Number(args.recipe1), name: 'V550' };
+            const recipe2 = recipes.find(item => String(item.id) === String(args.recipe2)) || { id: Number(args.recipe2), name: 'V750' };
+            const costs = typeof options.comparisonCosts === 'function'
+                ? options.comparisonCosts({ recipe1, recipe2, calls })
+                : (options.comparisonCosts ?? { [recipe1.id]: 108.5, [recipe2.id]: 128.5 });
+            return verified({ recipe1: { name: recipe1.name, cost: costs[recipe1.id] }, recipe2: { name: recipe2.name, cost: costs[recipe2.id] }, costDiff: costs[recipe2.id] - costs[recipe1.id] });
+        }
         if (toolName === 'search_parts') return { success: true, parts: options.parts ?? [{ id: 71, model: '木箱-A', supplier: '包装厂' }], queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false }, executionEvidence: { verified: true, calls: [{ method: 'GET', path: '/api/parts' }] } };
-        if (toolName === 'preview_recipe_cost') return verified(options.preview ?? { recipeId: args.recipeId, recipeName: 'V550', currentTotalCost: 108.5, pricingComplete: true });
+        if (toolName === 'preview_recipe_cost') {
+            const currentTotalCost = typeof options.currentCosts === 'function'
+                ? options.currentCosts({ recipeId: String(args.recipeId), calls })
+                : (options.currentCosts?.[String(args.recipeId)] ?? 108.5);
+            return verified(options.preview ?? { recipeId: args.recipeId, recipeName: String(args.recipeId) === '302' ? 'V750' : 'V550', currentTotalCost, pricingComplete: true });
+        }
         if (toolName === 'compare_recipe_scenarios') {
             const scenario = args.scenarios[0];
-            const base = { scenarioKey: 'base', configurationHash: 'base-configuration', cost: { complete: !options.incomplete, currentTotalCost: options.incomplete ? null : 108.5 }, appliedOverrides: {}, notApplied: [] };
-            const candidate = { scenarioKey: scenario.scenarioKey, configurationHash: 'candidate-configuration', cost: { complete: options.incomplete ? false : true, currentTotalCost: options.incomplete ? null : 116.5 }, appliedOverrides: scenario.overrides, notApplied: options.notApplied ? ['cableLength'] : [] };
+            const currentTotalCost = typeof options.currentCosts === 'function'
+                ? options.currentCosts({ recipeId: String(args.recipeId), calls })
+                : (options.currentCosts?.[String(args.recipeId)] ?? 108.5);
+            const base = { scenarioKey: 'base', configurationHash: 'base-configuration', cost: { complete: !options.incomplete, currentTotalCost: options.incomplete ? null : currentTotalCost }, appliedOverrides: {}, notApplied: [] };
+            const candidate = { scenarioKey: scenario.scenarioKey, configurationHash: 'candidate-configuration', cost: { complete: options.incomplete ? false : true, currentTotalCost: options.incomplete ? null : currentTotalCost + 8 }, appliedOverrides: scenario.overrides, notApplied: options.notApplied ? ['cableLength'] : [] };
             return verified({ ...(options.scenarioPreviewFlag ? { preview: true } : {}), readSetId: crypto.randomUUID(), recipe: { id: 301, name: 'V550' }, scenarios: [base, candidate], comparisons: [{ baseScenarioKey: 'base', candidateScenarioKey: scenario.scenarioKey, status: options.notApplied ? 'OVERRIDE_NOT_APPLIED' : options.incomplete ? 'INCOMPLETE' : 'COMPARABLE', delta: options.incomplete || options.notApplied ? null : 8, currency: 'CNY' }] });
         }
         if (toolName === 'preview_profitability') {
@@ -159,6 +178,81 @@ test('owner acceptance R1 verifies inventory and cost for the same formally boun
     assert.equal(fixture.calls.filter(call => call.toolName === 'search_coils').length, 2);
     assert.match(result.answer.content, /当前正式库存为 12/u);
     assert.match(result.answer.content, /当前线圈成本为 ¥8\.50/u);
+});
+
+test('owner acceptance R2 continues current cost only with a new canonical recipe, then freshly compares exactly two recipes', async () => {
+    const fixture = fakeExecutor({ recipes: [{ id: 301, name: 'V550' }, { id: 302, name: 'V750' }], filterRecipeKeyword: true, comparisonCosts: { 301: 119, 302: 137 } });
+    const sessionStore = createTaskSessionStoreV2();
+    const turn1 = await runAiTaskControllerV2(input('V550现在成本多少？', 'owner-r2-cost-1', 'owner-r2-cost'), { executeToolCall: fixture.execute, sessionStore });
+    const turn2 = await runAiTaskControllerV2(input('那V750呢？', 'owner-r2-cost-2', 'owner-r2-cost'), { executeToolCall: fixture.execute, sessionStore });
+    const turn3 = await runAiTaskControllerV2(input('这两个差多少？', 'owner-r2-cost-3', 'owner-r2-cost'), { executeToolCall: fixture.execute, sessionStore });
+    assert.equal(turn1.task.goals[0].kind, 'CURRENT_COST');
+    assert.equal(turn2.task.goals[0].kind, 'CURRENT_COST');
+    assert.equal(sessionStore.get('server-owner', 'owner-r2-cost').continuation.lastCanonicalSubjects.at(-1).entityId, '302');
+    assert.equal(turn3.task.goals[0].kind, 'RECIPE_COST_COMPARISON');
+    assert.equal(turn3.task.goals[0].state, 'VERIFIED');
+    assert.deepEqual(sessionStore.get('server-owner', 'owner-r2-cost').continuation.lastCanonicalSubjects.map(subject => subject.entityId), ['301', '302']);
+    assert.deepEqual(fixture.calls.slice(-3).map(call => [call.toolName, call.args]), [
+        ['get_all_recipes', { keyword: 'V550' }], ['get_all_recipes', { keyword: 'V750' }], ['compare_recipes', { recipe1: '301', recipe2: '302' }],
+    ]);
+    assert.match(turn3.answer.content, /¥18\.00/u);
+});
+
+test('owner acceptance R2 never reuses an old current-cost fact across continued recipe turns', async () => {
+    const currentCosts = { 301: 100, 302: 150 };
+    const fixture = fakeExecutor({
+        recipes: [{ id: 301, name: 'V550' }, { id: 302, name: 'V750' }],
+        filterRecipeKeyword: true,
+        currentCosts,
+        comparisonCosts: () => ({ ...currentCosts }),
+    });
+    const sessionStore = createTaskSessionStoreV2();
+    const turn1 = await runAiTaskControllerV2(input('V550现在成本多少？', 'owner-r2-fresh-1', 'owner-r2-fresh'), { executeToolCall: fixture.execute, sessionStore });
+    currentCosts[302] = 175;
+    const turn2 = await runAiTaskControllerV2(input('那V750呢？', 'owner-r2-fresh-2', 'owner-r2-fresh'), { executeToolCall: fixture.execute, sessionStore });
+    currentCosts[301] = 120;
+    currentCosts[302] = 190;
+    const turn3 = await runAiTaskControllerV2(input('这两个差多少？', 'owner-r2-fresh-3', 'owner-r2-fresh'), { executeToolCall: fixture.execute, sessionStore });
+    assert.match(turn1.answer.content, /¥100\.00/u);
+    assert.match(turn2.answer.content, /¥175\.00/u);
+    assert.match(turn3.answer.content, /¥70\.00/u);
+    assert.equal(fixture.calls.filter(call => call.toolName === 'compare_recipe_scenarios').length, 2);
+    assert.equal(fixture.calls.filter(call => call.toolName === 'compare_recipes').length, 1);
+});
+
+test('owner acceptance R2 continues coil cost, then reads other same-spec schemes from the formal common designation', async () => {
+    const coils = [
+        { id: 41, schemeName: '12-120 常规', schemeCode: 'COIL-001', spec: '12-120', stock: 12, cost: 8.5 },
+        { id: 42, schemeName: '12-120 加强', schemeCode: 'COIL-002', spec: '12-120', stock: 8, cost: 9.1 },
+    ];
+    let coilReads = 0;
+    const fixture = fakeExecutor({ coils: () => (coilReads++ < 3 ? [coils[0]] : coils) }); const sessionStore = createTaskSessionStoreV2();
+    const turn1 = await runAiTaskControllerV2(input('12-120还有多少？', 'owner-r2-coil-1', 'owner-r2-coil'), { executeToolCall: fixture.execute, sessionStore });
+    const turn2 = await runAiTaskControllerV2(input('它成本呢？', 'owner-r2-coil-2', 'owner-r2-coil'), { executeToolCall: fixture.execute, sessionStore });
+    const turn3 = await runAiTaskControllerV2(input('有其他同规格方案吗？', 'owner-r2-coil-3', 'owner-r2-coil'), { executeToolCall: fixture.execute, sessionStore });
+    assert.equal(turn1.task.goals[0].kind, 'INVENTORY_QUERY');
+    assert.equal(turn2.task.goals[0].kind, 'COIL_COST');
+    assert.equal(turn3.task.goals[0].kind, 'COIL_QUERY');
+    assert.equal(turn3.task.goals[0].state, 'VERIFIED');
+    const lastCalls = fixture.calls.slice(-2);
+    assert.deepEqual(lastCalls.map(call => call.args), [{ schemeCode: 'COIL-001' }, { spec: '12-120' }]);
+    assert.match(turn3.answer.content, /COIL-002/u);
+    assert.doesNotMatch(turn3.answer.content, /COIL-001；/u);
+});
+
+test('owner acceptance R2 keeps continuation bounded to one conversation and rejects ambiguous inherited comparison', async () => {
+    const fixture = fakeExecutor({ recipes: [{ id: 301, name: 'V550' }, { id: 302, name: 'V750' }, { id: 303, name: 'V800' }], filterRecipeKeyword: true }); const sessionStore = createTaskSessionStoreV2();
+    const isolated = await runAiTaskControllerV2(input('那V750呢？', 'owner-r2-isolated', 'new-conversation'), { executeToolCall: fixture.execute, sessionStore });
+    assert.notEqual(isolated.task.goals[0].kind, 'CURRENT_COST');
+    await runAiTaskControllerV2(input('V550现在成本多少？', 'owner-r2-many-1', 'owner-r2-many'), { executeToolCall: fixture.execute, sessionStore });
+    await runAiTaskControllerV2(input('那V750呢？', 'owner-r2-many-2', 'owner-r2-many'), { executeToolCall: fixture.execute, sessionStore });
+    await runAiTaskControllerV2(input('那V800呢？', 'owner-r2-many-3', 'owner-r2-many'), { executeToolCall: fixture.execute, sessionStore });
+    const ambiguous = await runAiTaskControllerV2(input('这两个差多少？', 'owner-r2-many-4', 'owner-r2-many'), { executeToolCall: fixture.execute, sessionStore });
+    assert.equal(ambiguous.task.state, 'WAITING_INPUT');
+    assert.equal(ambiguous.task.questions[0].reasonCode, 'CONTINUATION_RECIPE_COMPARISON_AMBIGUOUS');
+    const explicit = await runAiTaskControllerV2(input('那V750库存够不够？', 'owner-r2-explicit', 'owner-r2-explicit'), { executeToolCall: fixture.execute, sessionStore });
+    assert.equal(explicit.task.goals[0].kind, 'INVENTORY_QUERY');
+    assert.equal(explicit.task.goals[0].state, 'NEEDS_INPUT');
 });
 
 test('N4.2A verifies an inherited configuration comparison and grounds profit in one preview receipt', async () => {
