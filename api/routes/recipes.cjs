@@ -42,6 +42,10 @@ const {
     createRecipeTechnicalMigrationBackfillService,
     BACKFILL_CAPABILITY_ID: RECIPE_TECHNICAL_MIGRATION_BACKFILL_CAPABILITY_ID,
 } = require('../services/recipeTechnicalMigrationBackfill.cjs');
+const {
+    createRecipeTechnicalMigrationReviewResolutionService,
+    REVIEW_CAPABILITY_ID: RECIPE_TECHNICAL_MIGRATION_REVIEW_RESOLVE_CAPABILITY_ID,
+} = require('../services/recipeTechnicalMigrationReviewResolution.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -60,6 +64,11 @@ const recipeQueries = createRecipeQueries({
 const recipeTechnicalProfileService = createRecipeTechnicalProfileService({ db });
 const recipeTechnicalMigrationDryRunService = createRecipeTechnicalMigrationDryRunService({ db });
 const recipeTechnicalMigrationBackfillService = createRecipeTechnicalMigrationBackfillService({
+    db,
+    dryRunService: recipeTechnicalMigrationDryRunService,
+    canonicalProfileService: recipeTechnicalProfileService,
+});
+const recipeTechnicalMigrationReviewResolutionService = createRecipeTechnicalMigrationReviewResolutionService({
     db,
     dryRunService: recipeTechnicalMigrationDryRunService,
     canonicalProfileService: recipeTechnicalProfileService,
@@ -228,6 +237,37 @@ router.post('/:id/technical-profile/migration-backfill', (req, res) => {
     try {
         const context = commandContextFromRequest(req, RECIPE_TECHNICAL_MIGRATION_BACKFILL_CAPABILITY_ID);
         const result = recipeTechnicalMigrationBackfillService.apply(
+            req.params.id,
+            req.body || {},
+            { ...context, subject: context.actorKey }
+        );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+// O4-F-D-B1 is deliberately separate from automatic backfill and canonical
+// PUT: it can only first-create an absent aggregate from current review evidence.
+router.post('/:id/technical-profile/migration-review-preview', (req, res) => {
+    try {
+        const context = commandContextFromRequest(req, RECIPE_TECHNICAL_MIGRATION_REVIEW_RESOLVE_CAPABILITY_ID);
+        res.json({
+            success: true,
+            data: recipeTechnicalMigrationReviewResolutionService.preview(req.params.id, req.body || {}, {
+                actorKey: context.actorKey,
+                subject: context.actorKey,
+            }),
+        });
+    } catch (error) {
+        sendCommandError(res, error);
+    }
+});
+
+router.post('/:id/technical-profile/migration-review-resolve', (req, res) => {
+    try {
+        const context = commandContextFromRequest(req, RECIPE_TECHNICAL_MIGRATION_REVIEW_RESOLVE_CAPABILITY_ID);
+        const result = recipeTechnicalMigrationReviewResolutionService.apply(
             req.params.id,
             req.body || {},
             { ...context, subject: context.actorKey }
