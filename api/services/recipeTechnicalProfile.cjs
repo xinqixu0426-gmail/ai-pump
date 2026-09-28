@@ -14,6 +14,7 @@ const {
     persistTechnicalKnowledge,
     writeRecipeTechnicalAudit,
 } = require('./recipeTechnicalProfileStore.cjs');
+const { recipeTechnicalRuntimeFlags } = require('./recipeTechnicalRuntimeFlags.cjs');
 
 const GET_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.get').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('recipes.technical_profile.update').capabilityId;
@@ -438,6 +439,10 @@ function createRecipeTechnicalProfileService(dependencies) {
     if (!db) throw new Error('Recipe technical profile 缺少 db');
     const auditWriter = dependencies.writeAuditLog || ((action, table, recipeId, before, after, context, now) => writeRecipeTechnicalAudit(db, action, table, recipeId, before, after, context, now));
     const clock = dependencies.now || (() => new Date());
+    const runtimeFlags = dependencies.runtimeFlags || (() => recipeTechnicalRuntimeFlags(dependencies.env));
+    const projectLegacy = dependencies.applyLegacyProjection || ((input) => (
+        require('./recipeTechnicalLegacyProjection.cjs').applyLegacyProjection(db, input)
+    ));
 
     function get(recipeIdValue) {
         const recipeId = normalizeRecipeId(recipeIdValue);
@@ -487,17 +492,39 @@ function createRecipeTechnicalProfileService(dependencies) {
                 desiredKnowledge.recipe_id = recipeId;
                 const profileWrite = persistFunctionalProfile(db, desiredProfile);
                 const knowledgeWrite = persistTechnicalKnowledge(db, desiredKnowledge);
+                const projectionEnabled = Boolean(runtimeFlags().legacyProjectionEnabled);
+                const legacyWrite = projectionEnabled
+                    ? projectLegacy({ recipeId, functional, policy, now })
+                    : null;
                 const writes = [
                     [profileWrite, 'recipe_functional_technical_profiles'],
                     [knowledgeWrite, 'recipe_technical_knowledge'],
+                    ...(legacyWrite ? [[legacyWrite, 'recipes']] : []),
                 ].filter(([write]) => write.changed);
                 const auditIds = writes.map(([write, table]) => auditWriter(write.action, table, recipeId, write.before, write.after, auditContext, now));
                 const afterProfile = profileWrite.after;
                 const afterKnowledge = knowledgeWrite.after;
                 const dto = buildDto(db, recipeId, afterProfile, afterKnowledge, policy);
-                const changes = writes.map(([, table]) => ({ resourceType: 'recipe', resourceId: recipeId, field: table === 'recipe_functional_technical_profiles' ? 'technicalProfile' : 'technicalKnowledge' }));
+                const changes = writes.map(([, table]) => ({
+                    resourceType: 'recipe', resourceId: recipeId,
+                    field: table === 'recipe_functional_technical_profiles'
+                        ? 'technicalProfile'
+                        : table === 'recipe_technical_knowledge'
+                            ? 'technicalKnowledge'
+                            : 'legacyTechnicalCompatibilityProjection',
+                }));
                 return {
-                    data: { technicalProfile: dto },
+                    data: {
+                        technicalProfile: dto,
+                        ...(legacyWrite ? {
+                            legacyCompatibilityProjection: {
+                                enabled: true,
+                                changed: legacyWrite.changed,
+                                version: 'recipe-technical-legacy-projection-v1',
+                                projectedKeys: legacyWrite.projection.projectedKeys,
+                            },
+                        } : {}),
+                    },
                     resource: { type: 'recipeTechnicalProfile', ids: [recipeId] },
                     changes,
                     auditIds,

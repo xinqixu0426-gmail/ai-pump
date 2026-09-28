@@ -52,7 +52,7 @@ function listOrderPumpModels(db) {
     return models;
 }
 
-function buildRecipeRotorDraft(db, recipeIdValue) {
+function buildLegacyRecipeRotorDraft(db, recipeIdValue) {
     const recipeId = parsePositiveId(recipeIdValue);
     if (!recipeId) {
         throw rotorQueryError(
@@ -92,6 +92,13 @@ function buildRecipeRotorDraft(db, recipeIdValue) {
         templateId: recipe.template_id || null,
         variantId: recipe.model_variant_id || null,
     };
+}
+
+function buildRecipeRotorDraft(db, recipeIdValue) {
+    // Load lazily so the selector can import the isolated legacy builder
+    // without creating a module-initialization cycle.
+    const { createRecipeRotorRuntimeSelector } = require('./recipeRotorRuntimeSelector.cjs');
+    return createRecipeRotorRuntimeSelector({ db }).buildRecipeRotorDraft(recipeIdValue);
 }
 
 function buildTemplateRotorDraft(
@@ -239,6 +246,7 @@ function listRotorLinkTargets(db) {
 module.exports = {
     RotorQueryError,
     buildRecipeRotorDraft,
+    buildLegacyRecipeRotorDraft,
     buildTemplateRotorDraft,
     listOrderPumpModels,
     listRotorLinkTargets,

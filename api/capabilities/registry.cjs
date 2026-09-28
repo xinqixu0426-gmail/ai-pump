@@ -694,8 +694,8 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'rotor.recipe_draft': defineQueryCapability({
         capabilityId: 'rotor.recipe_draft', domain: 'rotor',
         inputSchema: 'POST /api/rotor/recipe-draft { recipeId }',
-        outputSchema: 'RotorRecipeDraft with patch, hints and source IDs; ambiguous shell returns 409 with candidates',
-        sourceOfTruth: 'recipes+pump_shell_templates+unique_active_shell_catalog+rotorTemplateDraft',
+        outputSchema: 'RotorRecipeDraft with patch, hints, source IDs and optional technicalRuntime cutover diagnostic',
+        sourceOfTruth: 'recipeRotorRuntimeSelector(canonical_recipe_technical_profile_when_enabled_and_current_else_whole_record_legacy_compatibility)',
         riskLevel: 'low', callers: Object.freeze(['web', 'internal']),
     }),
     'rotor.template_draft': defineQueryCapability({

@@ -1,7 +1,7 @@
 // O4-F-E compares isolated legacy compatibility output with isolated canonical
 // authority.  It never selects a source for production Rotor reads.
 const { parsePositiveId } = require('./validation.cjs');
-const { buildRecipeRotorDraft } = require('./rotorQueries.cjs');
+const { buildLegacyRecipeRotorDraft } = require('./rotorQueries.cjs');
 const { normalizeBearing } = require('./rotorParameters.cjs');
 const { createRecipeTechnicalRotorAdapter } = require('./recipeTechnicalRotorAdapter.cjs');
 
@@ -19,7 +19,7 @@ function comparable(value, key) {
 }
 
 function legacyCompatibilityDraft(db, recipeId) {
-    const draft = buildRecipeRotorDraft(db, recipeId);
+    const draft = buildLegacyRecipeRotorDraft(db, recipeId);
     return { mode: 'LEGACY_COMPATIBILITY', recipeId, patch: draft.patch || {}, hints: draft.hints || [], draft };
 }
 

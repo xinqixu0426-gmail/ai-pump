@@ -7,6 +7,8 @@ const {
     UPDATE_CAPABILITY_ID,
     createRecipeTechnicalProfileService,
 } = require('../api/services/recipeTechnicalProfile.cjs');
+const { legacyProjectionMatches } = require('../api/services/recipeTechnicalLegacyProjection.cjs');
+const { buildLegacyRecipeRotorDraft } = require('../api/services/rotorQueries.cjs');
 const {
     getBusinessCapability,
     listAiCapabilities,
@@ -134,6 +136,65 @@ test('first canonical aggregate PUT writes only new tables, audits each child, e
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM business_change_events').get().count, 1);
     assert.deepEqual(db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId), legacy);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries').get().count, 0);
+});
+
+test('enabled canonical-to-legacy projection updates only compatibility functional fields and preserves custom JSON', t => {
+    const { db, recipeId, bearingPartId } = fixture(t);
+    let projectionEnabled = false;
+    const service = createRecipeTechnicalProfileService({
+        db,
+        now: () => new Date(NOW),
+        runtimeFlags: () => ({ canonicalReadEnabled: false, legacyProjectionEnabled: projectionEnabled }),
+    });
+    const first = service.update(recipeId, input(bearingPartId), context('technical-profile:projection-create'));
+    const original = JSON.parse(db.prepare('SELECT technical_data_json FROM recipes WHERE id = ?').get(recipeId).technical_data_json);
+    original.customHistoricalKey = 'keep';
+    db.prepare('UPDATE recipes SET technical_data_json = ? WHERE id = ?').run(JSON.stringify(original), recipeId);
+    projectionEnabled = true;
+    const result = service.update(recipeId, input(bearingPartId, {
+        expectedUpdatedAt: first.technicalProfile.updatedAt,
+        functional: { ...functional(bearingPartId), rotorDiameter: 61, impellerThickness: 4, barrelLength: 130, openOffset: 30 },
+    }), context('technical-profile:projection-update'));
+    const legacy = db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId);
+    const projected = JSON.parse(legacy.technical_data_json);
+    assert.equal(result.legacyCompatibilityProjection.version, 'recipe-technical-legacy-projection-v1');
+    assert.equal(projected.customHistoricalKey, 'keep');
+    assert.equal(projected.rotorDiameter, 61);
+    assert.equal(projected.impellerDepth, 4);
+    assert.equal(projected.bearingSpan, 100);
+    assert.equal(projected.upperBearing, '6202');
+    assert.equal(Object.hasOwn(projected, 'power'), false);
+    assert.equal(legacy.custom_barrel_length, 130);
+    assert.equal(legacy.impeller_thickness, 4);
+    assert.equal(legacyProjectionMatches(db, recipeId, result.technicalProfile.functional, result.technicalProfile.policy).matches, true);
+    assert.equal(buildLegacyRecipeRotorDraft(db, recipeId).patch.rotor_dia, '61');
+    assert.equal(db.prepare(`SELECT COUNT(*) AS count FROM audit_log WHERE record_id = ? AND table_name = 'recipes'`).get(recipeId).count, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM knowledge_entries').get().count, 0);
+});
+
+test('projection disabled retains O4-F-B legacy isolation, and a projection failure rolls back canonical changes', t => {
+    const { db, recipeId, bearingPartId } = fixture(t);
+    const before = db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId);
+    const disabled = createRecipeTechnicalProfileService({
+        db, now: () => new Date(NOW),
+        runtimeFlags: () => ({ canonicalReadEnabled: false, legacyProjectionEnabled: false }),
+    });
+    const first = disabled.update(recipeId, input(bearingPartId), context('technical-profile:projection-off'));
+    assert.deepEqual(db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId), before);
+    const beforeProfile = db.prepare('SELECT rotor_diameter, updated_at FROM recipe_functional_technical_profiles WHERE recipe_id = ?').get(recipeId);
+    const beforeKnowledge = db.prepare('SELECT items_json, updated_at FROM recipe_technical_knowledge WHERE recipe_id = ?').get(recipeId);
+    const failing = createRecipeTechnicalProfileService({
+        db, now: () => new Date(NOW),
+        runtimeFlags: () => ({ canonicalReadEnabled: false, legacyProjectionEnabled: true }),
+        applyLegacyProjection: () => { throw Object.assign(new Error('forced projection failure'), { code: 'forced_projection_failure' }); },
+    });
+    assert.throws(() => failing.update(recipeId, input(bearingPartId, {
+        expectedUpdatedAt: first.technicalProfile.updatedAt,
+        functional: { ...functional(bearingPartId), rotorDiameter: 62 },
+    }), context('technical-profile:projection-failure')), error => error.code === 'forced_projection_failure');
+    assert.deepEqual(db.prepare('SELECT rotor_diameter, updated_at FROM recipe_functional_technical_profiles WHERE recipe_id = ?').get(recipeId), beforeProfile);
+    assert.deepEqual(db.prepare('SELECT items_json, updated_at FROM recipe_technical_knowledge WHERE recipe_id = ?').get(recipeId), beforeKnowledge);
+    assert.deepEqual(db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId), before);
 });
 
 test('canonical update is strict about aggregate concurrency and no-op writes preserve the version and business audit state', t => {
