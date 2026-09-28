@@ -189,6 +189,23 @@ function compactBearingEvidence(bearing) {
     };
 }
 
+function pumpShellCompatibilityEvidence(rawEvidence) {
+    if (!plainObject(rawEvidence)) return null;
+    const openOffset = rawEvidence.openOffset ?? null;
+    const openFactor = rawEvidence.openFactor ?? null;
+    if (openOffset === null && openFactor === null) return null;
+    return {
+        openOffset: {
+            sourcePath: 'parts.remark.openOffset',
+            rawValue: openOffset,
+        },
+        openFactor: {
+            sourcePath: 'parts.remark.openFactor',
+            rawValue: openFactor,
+        },
+    };
+}
+
 function buildLegacyEvidence(assessment) {
     const thickness = assessment.candidate.functional.impellerThickness;
     const shellEvidence = assessment.candidate.functional.openOffset?.rawValue ?? null;
@@ -196,7 +213,6 @@ function buildLegacyEvidence(assessment) {
         schema: 'recipe-technical-migration-legacy-evidence-v1',
         migrationVersion: assessment.migrationVersion,
         migrationFingerprint: assessment.migrationFingerprint,
-        pieceCountLegacyEvidence: assessment.sourceSnapshot.pieceCount,
         bearingEvidence: {
             upper: compactBearingEvidence(assessment.candidate.bearings.upper),
             lower: compactBearingEvidence(assessment.candidate.bearings.lower),
@@ -206,7 +222,7 @@ function buildLegacyEvidence(assessment) {
             column: thickness?.column ? { sourcePath: thickness.column.sourcePath, rawValue: thickness.column.rawValue, normalizedValue: thickness.column.value } : null,
         },
         spanAssessment: assessment.spanAssessment,
-        pumpShellCompatibilityEvidence: shellEvidence === null ? null : { sourcePath: 'parts.remark.openOffset', value: shellEvidence },
+        pumpShellCompatibilityEvidence: pumpShellCompatibilityEvidence(shellEvidence),
         technicalKnowledgeMigrationEvidence: assessment.candidate.technicalKnowledge.migrationEvidence,
     };
 }

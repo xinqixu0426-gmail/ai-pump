@@ -87,11 +87,57 @@ test('eligible compatibility-provenance dry run backfills both canonical rows at
     const evidence = JSON.parse(profile.legacy_evidence_json);
     assert.equal(evidence.migrationFingerprint, assessment.migrationFingerprint);
     assert.equal(Object.prototype.hasOwnProperty.call(evidence, 'pumpShellCompatibilityEvidence'), true);
+    assert.deepEqual(evidence.bearingEvidence.upper, {
+        rawValue: '202', normalizedBearingCode: '6202', resolutionMode: 'EXACT_UNIQUE',
+        candidateIds: [upperId], selectedPartId: upperId, geometryAvailable: true,
+    });
+    assert.deepEqual(evidence.thicknessEvidence.json, {
+        sourcePath: 'recipes.technical_data_json.impellerDepth', rawValue: 3, normalizedValue: 3,
+    });
+    assert.deepEqual(evidence.thicknessEvidence.column, {
+        sourcePath: 'recipes.impeller_thickness', rawValue: 3, normalizedValue: 3,
+    });
+    assert.deepEqual(evidence.technicalKnowledgeMigrationEvidence.rotorLength, [{
+        source: 'MIGRATED_RECIPE_TECHNICAL_JSON', sourcePath: 'recipes.technical_data_json.rotorLength', rawValue: 150,
+    }]);
     assert.deepEqual(JSON.parse(knowledge.items_json).map(item => item.key), ['rotorLength']);
     assert.equal(JSON.parse(knowledge.items_json)[0].source.sourceKind, 'MIGRATED_TECHNICAL_KNOWLEDGE');
     assert.deepEqual(db.prepare(`SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?`).get(recipeId), beforeLegacy);
     assert.equal(counts(db).knowledge_entries, 0);
     assert.equal(dryRun.assess(recipeId).classification, 'ALREADY_CANONICAL');
+});
+
+test('legacy evidence keeps pieceCount derived and labels each PumpShell compatibility value by its real JSON path', t => {
+    const { db, recipeId, dryRun, service } = fixture(t, {
+        remark: '{"isStainless":false,"openOffset":21,"openFactor":1.2,"defaultUpperBearing":"6202","note":"legacy note"}',
+        impellerThickness: 3,
+        technicalDataJson: JSON.stringify({
+            rotorDiameter: 52, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12,
+            impellerSpan: 24, impellerDepth: 3, threadLength: 14, threadDiameter: 8,
+            upperBearing: '202', lowerBearing: '6303', bearingSpan: 80, pieceCount: 999,
+        }),
+    });
+    const before = dryRun.assess(recipeId);
+    assert.equal(before.sourceSnapshot.pieceCount.value, 160);
+    assert.equal(before.sourceSnapshot.pieceCount.storedMigrationCandidate, false);
+    const plan = preview(service, recipeId);
+    apply(service, recipeId, plan.confirmationToken, 'recipe-backfill-test-evidence-001');
+    const profile = db.prepare(`SELECT * FROM recipe_functional_technical_profiles WHERE recipe_id = ?`).get(recipeId);
+    const knowledge = db.prepare(`SELECT items_json FROM recipe_technical_knowledge WHERE recipe_id = ?`).get(recipeId);
+    const evidence = JSON.parse(profile.legacy_evidence_json);
+    assert.equal(Object.prototype.hasOwnProperty.call(evidence, 'pieceCountLegacyEvidence'), false);
+    assert.deepEqual(evidence.pumpShellCompatibilityEvidence, {
+        openOffset: { sourcePath: 'parts.remark.openOffset', rawValue: 21 },
+        openFactor: { sourcePath: 'parts.remark.openFactor', rawValue: 1.2 },
+    });
+    assert.equal(JSON.stringify(evidence).includes('defaultUpperBearing'), false);
+    assert.equal(JSON.stringify(evidence).includes('legacy note'), false);
+    assert.equal(JSON.stringify(evidence).includes('"isStainless"'), false);
+    assert.equal(JSON.stringify(evidence).includes('pieceCount'), false);
+    assert.equal(JSON.stringify(evidence).includes('OWNER_SELECTED'), false);
+    assert.equal(Object.keys(profile).some(key => key.includes('piece_count')), false);
+    assert.equal(JSON.parse(knowledge.items_json).some(item => item.key === 'pieceCount'), false);
+    assert.equal(profile.open_offset, null, 'compatibility evidence must not become Recipe authority');
 });
 
 test('safe incomplete target remains incomplete without fabricating missing fields', t => {

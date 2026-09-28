@@ -33,11 +33,13 @@ one normal Recipe business-change event atomically.
 kept as `MIGRATED_WITH_COMPATIBILITY_PROVENANCE`. No D-A value is marked
 `OWNER_SELECTED` or `OWNER_CANONICAL_WRITE`.
 
-`legacy_evidence_json` contains only bounded historical evidence: piece-count
-derivation context, exact bearing candidate evidence, thickness inputs, span
-assessment, limited PumpShell compatibility offset evidence, and Technical
-Knowledge migration sources. It does not dump a PumpShell remark/defaults or
-turn compatibility evidence into canonical authority.
+`legacy_evidence_json` contains only bounded historical evidence: exact bearing
+candidate evidence, thickness inputs, span assessment, per-path PumpShell
+compatibility `openOffset`/`openFactor` evidence, and Technical Knowledge
+migration sources. It deliberately does not label the derived
+`recipes.coil_sheets` pieceCount as legacy evidence. It does not dump a
+PumpShell remark/defaults or turn compatibility evidence into canonical
+authority.
 
 ## Verification and boundary
 

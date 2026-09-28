@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "a37a47a0988d181549d90b68be011bcb9789ac4e21b6cf36d822cbf84f398bed",
-    "diskSha256": "a37a47a0988d181549d90b68be011bcb9789ac4e21b6cf36d822cbf84f398bed",
+    "attestedSha256": "542efc1d30a4edd0e985f5ea42c334ea64349dbd6f033f99e7598c63d541d2d9",
+    "diskSha256": "542efc1d30a4edd0e985f5ea42c334ea64349dbd6f033f99e7598c63d541d2d9",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -86,6 +86,7 @@
   "o4FcR1RefreshNote": "O4-F-C-R1 更新了 docs/api-reference.md，补全 dry-run target/missing/unresolved、关系/span 与全 cohort 聚合响应契约；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
   "o4FcR2RefreshNote": "O4-F-C-R2 更新了 docs/api-reference.md，明确 canonical current 内容与 legacy candidate 分离、canonical disposition、migrationVersion 及不含 canonical 行状态的稳定 migrationFingerprint；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。",
   "o4FcR3RefreshNote": "O4-F-C-R3 更新了 docs/api-reference.md，收紧 PumpShell migrationFingerprint evidence：不再哈希整段 remark，只纳入严格 isStainless、openOffset/openFactor 兼容证据、解析状态和正式 Shell 身份状态；本记录仅刷新该既有手工工件的 canonical sha256，不改动历史基线 revision/tree、ReleaseEvidenceV1 载荷或任何运行时行为。"
+  ,"o4FdARefreshNote": "O4-F-D-A updated docs/api-reference.md to register the deterministic Recipe technical migration backfill preview/apply API; this closure update refreshes only that existing handoff artifact's canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,
