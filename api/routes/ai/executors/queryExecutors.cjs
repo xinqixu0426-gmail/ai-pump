@@ -400,6 +400,35 @@ async function executeQueryTool(toolName, args, internalFetch, options = {}) {
             };
         }
 
+        case 'get_recipe_technical_profile': {
+            const recipeId = Number(args.recipeId);
+            const profile = await getJson(internalFetch, `/api/recipes/${recipeId}/technical-profile`, '配方正式技术档案读取失败');
+            const recipe = canonicalApiResource(await getJson(internalFetch, `/api/recipes/${recipeId}`, '配方正式关系读取失败'));
+            // Only Recipe-owned relations are enriched here.  In particular, no
+            // legacy technical fields from the Recipe response are projected.
+            const relations = {
+                pieceCount: Number.isFinite(recipe.coilSheets) ? recipe.coilSheets : null,
+                coil: null,
+                pumpShell: null,
+            };
+            if (Number.isInteger(recipe.coilId) && recipe.coilId > 0) {
+                const coils = await getJson(internalFetch, '/api/coils', '线圈正式关系读取失败');
+                const coil = coils.map(canonicalApiResource).find(item => Number(item.id) === recipe.coilId) || null;
+                if (coil) relations.coil = { id: Number(coil.id), displayName: coil.schemeName || coil.name || coil.spec || null, schemeCode: coil.schemeCode || null, material: coil.material || null, slotType: coil.slotType || null };
+            }
+            const shellPartId = Number(profile?.policy?.shellPartId);
+            if (Number.isInteger(shellPartId) && shellPartId > 0) {
+                const parts = await getJson(internalFetch, '/api/parts', '泵壳正式关系读取失败');
+                const shell = parts.map(canonicalApiResource).find(item => Number(item.id) === shellPartId) || null;
+                if (shell) relations.pumpShell = { id: Number(shell.id), displayName: shell.model || shell.name || null, model: shell.model || null };
+            }
+            return {
+                success: true,
+                data: { recipe: { id: recipeId, name: recipe.name || null }, profile, relations },
+                sources: [{ sourceTable: 'recipe_functional_technical_profiles', sourceId: recipeId, title: `${recipe.name || recipeId} 正式技术档案` }],
+            };
+        }
+
         case 'get_recipe_parts': {
             if (!Number.isSafeInteger(args.recipeId) || args.recipeId < 1) {
                 return { success: false, code: 'RELATION_REQUEST_INVALID', error: '缺少有效的正式配方ID（recipeId）' };

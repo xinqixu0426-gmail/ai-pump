@@ -9,7 +9,7 @@ const { readJsonPointer } = require('./aiTaskCapabilityAdapterV2.cjs');
 
 const STRUCTURED_READ_GOALS = Object.freeze(new Set([
     'CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'ORDER_READINESS', 'INVENTORY_QUERY',
-    'MANAGEMENT_OVERVIEW', 'BUSINESS_CHANGES', 'IMPACT_INVESTIGATION', 'COIL_QUERY', 'RECIPE_CATALOG_QUERY',
+    'MANAGEMENT_OVERVIEW', 'BUSINESS_CHANGES', 'IMPACT_INVESTIGATION', 'COIL_QUERY', 'RECIPE_CATALOG_QUERY', 'RECIPE_TECHNICAL_QUERY',
 ]));
 
 const GOAL_CAPABILITIES = Object.freeze({
@@ -20,6 +20,7 @@ const GOAL_CAPABILITIES = Object.freeze({
     BUSINESS_CHANGES: 'search_business_changes',
     COIL_QUERY: 'search_coils',
     RECIPE_CATALOG_QUERY: 'get_all_recipes',
+    RECIPE_TECHNICAL_QUERY: 'get_recipe_technical_profile',
 });
 
 function queryReceipt(result = {}) { return result.queryReceipt || result.receipt || null; }
@@ -86,6 +87,7 @@ function requirementsForStructuredGoal(goal, { userGoal = '', coverage = null } 
         case 'COIL_QUERY': return [requirement({ requirementKey: `coil-variants:${subjectKey || goal.goalKey}`, predicate: 'coil.variant_set', subjectKey, basis: 'COIL_CATALOGUE_QUERY', requireComplete: Boolean(coverage?.complete) })];
         case 'RECIPE_CATALOG_QUERY': return [requirement({ requirementKey: `recipe-catalogue:${goal.goalKey}`, predicate: 'recipe.catalogue', basis: 'RECIPE_CATALOGUE_QUERY', requireComplete: Boolean(coverage?.complete) })];
         case 'COIL_COST': return [requirement({ requirementKey: `coil-cost:${subjectKey || goal.goalKey}`, predicate: 'coil.current_cost', subjectKey, basis: 'FORMAL_COIL_COST_QUERY', requireComplete: true })];
+        case 'RECIPE_TECHNICAL_QUERY': return [requirement({ requirementKey: `recipe-technical:${subjectKey || goal.goalKey}`, predicate: 'recipe.technical_profile', subjectKey, basis: 'CANONICAL_RECIPE_TECHNICAL_PROFILE', requireComplete: true })];
         // E2-R1 FAMILY-01：双主体成本比较。三个正式事实缺一不可：
         // 主体 A 的当前完整成本、主体 B 的当前完整成本、以及**来自 compare_recipes 回执**的正式差额。
         // 差额 predicate 绑定在主体 A 上（A 是差额的说法基准）；金额永远来自回执，控制器不相减。

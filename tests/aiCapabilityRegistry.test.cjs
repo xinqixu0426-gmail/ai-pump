@@ -23,6 +23,7 @@ const NATIVE_ONLY_TOOL_NAMES = Object.freeze([
     'compare_recipe_scenarios',
     'preview_profitability',
     'preview_virtual_readiness',
+    'get_recipe_technical_profile',
 ]);
 
 test('AI 能力注册表：全部工具唯一登记且具备强制契约字段', () => {
@@ -57,8 +58,8 @@ test('AI 能力注册表：全部工具唯一登记且具备强制契约字段',
             `${name} 不得进入冻结的 Legacy AI_TOOLS 目录`
         );
         assert.ok(
-            capability.access === 'read' && capability.operation === 'preview',
-            `${name} 必须是只读 preview 能力`
+            capability.access === 'read' && ['preview', 'query'].includes(capability.operation),
+            `${name} 必须是只读 preview/query 能力`
         );
     }
 

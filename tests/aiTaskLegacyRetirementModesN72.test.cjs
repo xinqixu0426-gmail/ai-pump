@@ -69,10 +69,11 @@ test('N7.2 CALLER_GRAPH: the deduplication seam has exactly the intended static 
     assert.equal(/router\.(get|post|put|patch|delete)\(/u.test(controller), false);
     assert.equal(/require\(['"][^'"]*aiNativeToolDefinitionsV2/u.test(controller), false);
 
-    // The Native tool surface is unchanged by this slice.
+    // The Native tool surface keeps its retired cost path absent; the explicit
+    // canonical technical aggregate read is separately registered by S2 R1.
     const definitions = fs.readFileSync(path.join(ROOT, 'api/services/aiNativeToolDefinitionsV2.cjs'), 'utf8');
     const toolNames = [...definitions.matchAll(/name: '([a-z_]+)'/gu)].map(match => match[1]);
-    assert.deepEqual(toolNames, ['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness']);
+    assert.deepEqual(toolNames, ['get_recipe_technical_profile', 'compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness']);
 });
 
 test('N7.2 CALLER_GRAPH: the duplicate base-cost site is reachable only when no accepted receipt covers it', () => {

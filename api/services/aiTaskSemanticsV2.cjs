@@ -1,4 +1,5 @@
 'use strict';
+const { requestedTechnicalFactKeys } = require('./recipeTechnicalQuestionProjection.cjs');
 
 const { validateTaskProposalV1 } = require('./aiTaskValidationV2.cjs');
 // E2-R1：配方成本比较的语义**只有一个权威**：E1-B 已建立的业务语义层
@@ -42,6 +43,10 @@ function subjectMentions(messageRef, text) {
     for (const match of text.matchAll(/(?:\bV\d+|\b\d{1,2}-\d{2,3}\b)/giu)) add(match[0], /^V\d+/iu.test(match[0]) ? ['recipe'] : ['coil'], match.index);
     for (const match of text.matchAll(/(?:订单\s*#?\d+|订单号\s*#?\d+)/giu)) add(match[0], ['order'], match.index);
     for (const match of text.matchAll(/([A-Za-z][A-Za-z0-9_-]{1,48})\s*客户/gu)) add(match[1], ['customer'], match.index);
+    for (const match of text.matchAll(/客户\s*([A-Za-z][A-Za-z0-9_-]{1,48})/gu)) add(match[1], ['customer'], match.index + match[0].indexOf(match[1]));
+    for (const match of text.matchAll(/客户\s*([\p{Script=Han}]{2,8}?)(?=(?:以前|历史|的报价|报价|订单|[，。！？!?\s]|$))/gu)) {
+        if (!/^(?:有什么|哪些|多少|特殊|相关|的)/u.test(match[1])) add(match[1], ['customer'], match.index + match[0].indexOf(match[1]));
+    }
     for (const match of text.matchAll(/(?:报价\s*#?\d+|报价单\s*#?\d+)/giu)) add(match[0], ['quotation'], match.index);
     return result;
 }
@@ -172,6 +177,46 @@ function enforceRecipeCostComparison(proposal, { messageRef, text }) {
     return proposal;
 }
 
+// These intents are fully and deterministically grounded in the current user
+// message.  A model may add detail, but it must not silently erase one of
+// these independent read requests (for example, coil inventory + coil cost).
+const CORE_DETERMINISTIC_READ_GOALS = new Set([
+    'COIL_COST',
+    'CUSTOMER_HISTORY',
+    'MANAGEMENT_OVERVIEW',
+    'RECIPE_TECHNICAL_QUERY',
+]);
+
+function preserveDeterministicCoreReadGoals(proposal, fallbackProposal) {
+    if (!proposal || !fallbackProposal) return proposal;
+    proposal.subjects = Array.isArray(proposal.subjects) ? proposal.subjects : [];
+    proposal.goals = Array.isArray(proposal.goals) ? proposal.goals : [];
+    const fallbackSubjects = new Map((fallbackProposal.subjects || []).map(subject => [subject.subjectKey, subject]));
+    for (const fallbackGoal of fallbackProposal.goals || []) {
+        if (!CORE_DETERMINISTIC_READ_GOALS.has(fallbackGoal.kind) || proposal.goals.some(goal => goal.kind === fallbackGoal.kind)) continue;
+        const subjectKeyMap = new Map();
+        for (const fallbackKey of fallbackGoal.subjectKeys || []) {
+            const fallbackSubject = fallbackSubjects.get(fallbackKey);
+            if (!fallbackSubject) continue;
+            const matchingSubject = proposal.subjects.find(subject => subject.mention === fallbackSubject.mention
+                && (subject.typeHints || []).some(hint => (fallbackSubject.typeHints || []).includes(hint)));
+            if (matchingSubject) subjectKeyMap.set(fallbackKey, matchingSubject.subjectKey);
+            else {
+                let subjectKey = fallbackSubject.subjectKey;
+                let suffix = 2;
+                while (proposal.subjects.some(subject => subject.subjectKey === subjectKey)) subjectKey = `${fallbackSubject.subjectKey}_${suffix++}`;
+                proposal.subjects.push({ ...structuredClone(fallbackSubject), subjectKey });
+                subjectKeyMap.set(fallbackKey, subjectKey);
+            }
+        }
+        const restored = structuredClone(fallbackGoal);
+        restored.goalKey = nextGoalKey(proposal.goals);
+        restored.subjectKeys = (fallbackGoal.subjectKeys || []).map(subjectKey => subjectKeyMap.get(subjectKey) || subjectKey);
+        proposal.goals.push(restored);
+    }
+    return proposal;
+}
+
 function overrideFor(messageRef, text) { const values = []; const cable = /(?:电缆|线缆)[^，。；,;！!？?]{0,8}?(\d+(?:\.\d+)?)\s*(米|m|cm)/iu.exec(text); if (cable) { const quote = cable[0]; const source = span(messageRef, text, quote, cable.index); let value = Number(cable[1]); if (/cm/iu.test(cable[2])) value /= 100; values.push({ field: 'cableLength', value, unit: 'm', sources: [source] }); }
     // The prefix may contain verbs such as “换成”, but must never consume a digit from
     // the shorthand itself ("线圈换成12-220" previously became "2-220").
@@ -196,7 +241,7 @@ function overrideFor(messageRef, text) { const values = []; const cable = /(?:�
  */
 function nameCandidateRecipeSubject(messageRef, text, subjects) {
     if (subjects.some(item => item.typeHints.includes('recipe'))) return null;
-    if (!/成本|多少钱|价格|单价|试算/u.test(text)) return null;
+    if (!/成本|多少钱|价格|单价|试算/u.test(text) && requestedTechnicalFactKeys(text).length === 0) return null;
     const token = extractRequestedTarget(text);
     if (!token || token.length < 2 || token.length > 60) return null;
     // 线圈简写与纯数字不属于配方名称候选（分别由线圈通道与标签通道处理）。
@@ -216,11 +261,11 @@ function nameCandidateRecipeSubject(messageRef, text, subjects) {
     subjects.push(subject);
     return subject;
 }
-function deterministicProposal(messageRef, text) { const subjects = subjectMentions(messageRef, text); const exactCoil = exactCoilCommonDesignation(messageRef, text, subjects); const source = span(messageRef, text, subjects[0]?.sources?.[0]?.text || text) || { messageRef, start: 0, end: text.length, text }; const overrides = overrideFor(messageRef, text); const recipeSubject = subjects.find(item => item.typeHints.includes('recipe')) || nameCandidateRecipeSubject(messageRef, text, subjects); const customerSubject = subjects.find(item => item.typeHints.includes('customer')); const orderSubject = subjects.find(item => item.typeHints.includes('order')); const coilSubject = subjects.find(item => item.typeHints.includes('coil')); const sourceScenarioRequest = /按(?:报告|资料|文件)[^，。；,;！!？?]{0,24}(?:电缆长度|电缆)[^，。；,;！!？?]{0,24}试算/u.test(text); const scenarios = (overrides.length || sourceScenarioRequest) ? [{ scenarioKey: 'candidate_1', label: sourceScenarioRequest ? '按资料候选配置试算' : '用户候选配置', baseSubjectKey: recipeSubject?.subjectKey || 'subject_1', overrides, sources: sourceScenarioRequest ? [source] : overrides.flatMap(item => item.sources) }] : []; const goals = []; const add = (kind, description, scenarioKeys = [], subject = recipeSubject) => goals.push({ goalKey: `goal_${goals.length + 1}`, kind, description, subjectKeys: subject ? [subject.subjectKey] : [], scenarioKeys, dependsOn: [], requestedBasis: scenarioKeys.length ? 'HYPOTHETICAL' : 'CURRENT', sources: [source], quantity: null, unitPrice: null });
+function deterministicProposal(messageRef, text) { const subjects = subjectMentions(messageRef, text); const exactCoil = exactCoilCommonDesignation(messageRef, text, subjects); const source = span(messageRef, text, subjects[0]?.sources?.[0]?.text || text) || { messageRef, start: 0, end: text.length, text }; const overrides = overrideFor(messageRef, text); const recipeSubject = subjects.find(item => item.typeHints.includes('recipe')) || nameCandidateRecipeSubject(messageRef, text, subjects); const customerSubject = subjects.find(item => item.typeHints.includes('customer')); const orderSubject = subjects.find(item => item.typeHints.includes('order')); const coilSubject = subjects.find(item => item.typeHints.includes('coil')); const requestedTechnicalFacts = recipeSubject ? requestedTechnicalFactKeys(text) : []; const sourceScenarioRequest = /按(?:报告|资料|文件)[^，。；,;！!？?]{0,24}(?:电缆长度|电缆)[^，。；,;！!？?]{0,24}试算/u.test(text); const scenarios = (overrides.length || sourceScenarioRequest) ? [{ scenarioKey: 'candidate_1', label: sourceScenarioRequest ? '按资料候选配置试算' : '用户候选配置', baseSubjectKey: recipeSubject?.subjectKey || 'subject_1', overrides, sources: sourceScenarioRequest ? [source] : overrides.flatMap(item => item.sources) }] : []; const goals = []; const add = (kind, description, scenarioKeys = [], subject = recipeSubject) => goals.push({ goalKey: `goal_${goals.length + 1}`, kind, description, subjectKeys: subject ? [subject.subjectKey] : [], scenarioKeys, dependsOn: [], requestedBasis: scenarioKeys.length ? 'HYPOTHETICAL' : 'CURRENT', sources: [source], quantity: null, unitPrice: null });
     // S2-R3-P1：齐料/缺料（readiness）语义 → INVENTORY_QUERY（虚拟数量齐料预览）目标。
     // 判据是**业务含义**（业务语义层的 readinessProfile：物料词 + 齐备/缺口谓词，或齐料预览类复合词），
     // 不是触发短语清单；数量是本句的独立结构化槽位，与词序无关。
-    const readiness = recipeSubject && !orderSubject ? readinessProfile(text) : null;
+    const readiness = !orderSubject ? readinessProfile(text) : null;
     const readinessGoal = () => goals.find(goal => goal.kind === 'INVENTORY_QUERY');
     const readinessSource = recipeSubject?.sources?.[0] || source;
     if (readiness?.active) {
@@ -235,6 +280,7 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
             requestedBasis: 'CURRENT', sources: [readinessSource], quantity: null, unitPrice: null,
         });
     }
+    if (requestedTechnicalFacts.length) add('RECIPE_TECHNICAL_QUERY', '读取正式 canonical 配方技术档案', [], recipeSubject);
     // FAMILY-01：配方成本比较走正式的 RECIPE_COST_COMPARISON 双主体目标
     // （语义判定来自 E1-B 业务语义层，见 recipeCostComparisonSubjects）。
     const comparisonDetected = recipeCostComparisonSubjects(messageRef, text);
@@ -253,7 +299,7 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
     if (/客户|以前(?:报过|买过)|历史(?:报价|订单)?/u.test(text) && customerSubject) add('CUSTOMER_HISTORY', '查询客户正式历史', [], customerSubject);
     if (/报价(?:单)?|当前报价/u.test(text) && !/以前|历史/u.test(text)) add('QUOTATION_QUERY', '查询正式报价', [], subjects.find(item => item.typeHints.includes('quotation')) || customerSubject || recipeSubject);
     if (/订单.*(?:不能生产|缺什么|下一步|齐料|准备|怎么样)|(?:不能生产|缺什么|下一步|齐料|准备).*订单/u.test(text) && orderSubject) add('ORDER_READINESS', '调查订单当前生产准备状态与正式处理方案', [], orderSubject);
-    if (/管理|待办|优先处理|风险/u.test(text)) add('MANAGEMENT_OVERVIEW', '读取管理行动中心', [], null);
+    if (/管理|待办|优先处理|风险|(?:今天|现在)?(?:有哪些|有什么|要)?(?:事情|事项|工作)(?:需要)?(?:我)?处理|今天要处理什么/u.test(text)) add('MANAGEMENT_OVERVIEW', '读取管理行动中心', [], null);
     if (/改了什么|变更|变化记录/u.test(text)) add('BUSINESS_CHANGES', '查询正式业务变更记录', [], null);
     if (/影响哪些|影响范围|需要重算|需要复核/u.test(text)) add('IMPACT_INVESTIGATION', '查询正式影响投影', [], recipeSubject || coilSubject || null);
     if (readiness?.active) {
@@ -269,7 +315,8 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
     // 线圈成本比较在本阶段未落地：两个及以上线圈主体 + 比较意图时 fail-closed，
     // 不得用「其中一个线圈的成本」冒充比较结果。
     const coilCostComparison = comparisonIsPrimary(text) && subjects.filter(item => item.typeHints.includes('coil')).length >= 2 && COIL_COMPARISON_INTENT.test(text);
-    if (!goals.length && !recipeSubject && coilSubject && !coilCostComparison && /成本|多少钱|价格|单价|试算/u.test(text)) add('COIL_COST', '查询线圈方案当前成本', [], coilSubject);
+    if (!recipeSubject && coilSubject && !coilCostComparison && /成本|多少钱|价格|单价|试算/u.test(text) && !goals.some(goal => goal.kind === 'COIL_COST')) add('COIL_COST', '查询线圈方案当前成本', [], coilSubject);
+    if (!recipeSubject && !coilSubject && /(?:这个|该|那)?线圈[^，。；,;！!？?]{0,12}(?:成本|多少钱|价格|单价)/u.test(text)) add('COIL_COST', '查询线圈方案当前成本', [], null);
     if (exactCoil || /正式方案|线圈方案|有哪些方案/u.test(text)) add('COIL_QUERY', '查询线圈方案', [], coilSubject);
     if (/(?:列(?:一)?下|列出|查看|看一下|有哪些|所有|全部)\s*(?:的)?配方|配方(?:列表|目录)/u.test(text)) add('RECIPE_CATALOG_QUERY', '查询正式配方目录', [], null);
     // File and knowledge are candidate investigations only.  No document title
@@ -299,7 +346,7 @@ function deterministicProposal(messageRef, text) { const subjects = subjectMenti
     }
     if (!goals.length) add('OTHER', '用户请求需要进一步理解'); const proposal = { version: 1, goalSummary: text.slice(0, 2000), subjects, scenarios, goals, unparsedSpans: [] }; return { proposal, overrides };
 }
-function isSimple(text, built) { const goal = built.proposal.goals[0]; return built.proposal.goals.length === 1 && ['CURRENT_COST', 'COIL_QUERY', 'INVENTORY_QUERY', 'RECIPE_CATALOG_QUERY'].includes(goal.kind) && built.proposal.scenarios.length === 0 && ((goal.kind === 'RECIPE_CATALOG_QUERY' && built.proposal.subjects.length === 0) || built.proposal.subjects.length === 1) && !/(?:改|换|用|做\d|卖\d|利润|其他不变|其它不变|不要|不带)/u.test(text); }
+function isSimple(text, built) { const goal = built.proposal.goals[0]; const technical = goal?.kind === 'RECIPE_TECHNICAL_QUERY'; return built.proposal.goals.length === 1 && ['CURRENT_COST', 'COIL_QUERY', 'INVENTORY_QUERY', 'RECIPE_CATALOG_QUERY', 'RECIPE_TECHNICAL_QUERY'].includes(goal.kind) && built.proposal.scenarios.length === 0 && ((goal.kind === 'RECIPE_CATALOG_QUERY' && built.proposal.subjects.length === 0) || built.proposal.subjects.length === 1) && !(technical ? /(?:改|换|做\d|卖\d|利润|其他不变|其它不变|不要|不带)/u : /(?:改|换|用|做\d|卖\d|利润|其他不变|其它不变|不要|不带)/u).test(text); }
 function providerCandidateError(code) { return Object.assign(new Error(code), { code }); }
 function unwrapProviderCandidate(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw providerCandidateError('PROVIDER_NON_OBJECT');
@@ -312,7 +359,7 @@ function unwrapProviderCandidate(value) {
 }
 function parseProviderCandidate(response) { const message = response?.choices?.[0]?.message || response; const tool = message?.tool_calls?.[0]?.function; if (tool) { if (tool.name !== EXTRACTION_TOOL.function.name) throw providerCandidateError('PROVIDER_TOOL_NAME'); try { return unwrapProviderCandidate(JSON.parse(tool.arguments)); } catch (error) { if (error?.code) throw error; throw providerCandidateError('PROVIDER_CANDIDATE_INVALID_JSON'); } } let content = message?.content; if (typeof content !== 'string') throw providerCandidateError('PROVIDER_EMPTY'); content = content.trim().replace(/^```(?:json)?\s*/iu, '').replace(/\s*```$/u, ''); if (!content) throw providerCandidateError('PROVIDER_EMPTY'); try { return unwrapProviderCandidate(JSON.parse(content)); } catch (error) { if (error?.code) throw error; throw providerCandidateError('PROVIDER_CANDIDATE_INVALID_JSON'); } }
 function rebindCandidate(candidate, messageRef, text) { const proposal = candidate.proposal || candidate; const walk = value => { if (Array.isArray(value)) return value.map(walk); if (!value || typeof value !== 'object') return value; const next = {}; for (const [key, child] of Object.entries(value)) { if (key === 'sourceQuote') continue; if (key === 'sources' && Array.isArray(child)) next.sources = child.map(item => item?.text ? item : span(messageRef, text, item?.sourceQuote || item)).filter(Boolean); else next[key] = walk(child); } return next; }; return walk(proposal); }
-function normalizeCandidateSyntax(proposal, text) { if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return proposal; const typeHints = new Set(['part', 'coil', 'template', 'recipe', 'customer', 'quotation', 'order', 'file', 'knowledge', 'business_record']); const bases = new Set(['CURRENT', 'SAVED', 'HYPOTHETICAL', 'UNKNOWN']); const next = structuredClone(proposal); if (Array.isArray(next.subjects)) for (const subject of next.subjects) if (Array.isArray(subject?.typeHints)) { subject.typeHints = subject.typeHints.filter(item => typeHints.has(item)); if (subject.typeHints.includes('customer') && typeof subject.mention === 'string') subject.mention = subject.mention.replace(/\s*客户$/u, '').trim() || subject.mention; const model = typeof subject.mention === 'string' ? /V\d+/iu.exec(subject.mention) : null; if (model && (subject.typeHints.includes('recipe') || subject.typeHints.length === 0)) { subject.mention = model[0]; if (!subject.typeHints.length) subject.typeHints = ['recipe']; } } if (Array.isArray(next.scenarios)) for (const scenario of next.scenarios) if (Array.isArray(scenario?.overrides)) { scenario.overrides = scenario.overrides.filter(item => item && item.value !== null && item.value !== undefined); for (const override of scenario.overrides) if (override.field === 'cableLength' && override.unit === '米') override.unit = 'm'; }
+function normalizeCandidateSyntax(proposal, text) { if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return proposal; const typeHints = new Set(['part', 'coil', 'template', 'recipe', 'customer', 'quotation', 'order', 'file', 'knowledge', 'business_record']); const bases = new Set(['CURRENT', 'SAVED', 'HYPOTHETICAL', 'UNKNOWN']); const next = structuredClone(proposal); if (Array.isArray(next.subjects)) for (const subject of next.subjects) if (Array.isArray(subject?.typeHints)) { subject.typeHints = subject.typeHints.filter(item => typeHints.has(item)); if (subject.typeHints.includes('customer') && typeof subject.mention === 'string') subject.mention = subject.mention.replace(/^\s*客户\s*/u, '').replace(/\s*客户$/u, '').trim() || subject.mention; const model = typeof subject.mention === 'string' ? /V\d+/iu.exec(subject.mention) : null; if (model && (subject.typeHints.includes('recipe') || subject.typeHints.length === 0)) { subject.mention = model[0]; if (!subject.typeHints.length) subject.typeHints = ['recipe']; } } if (Array.isArray(next.scenarios)) for (const scenario of next.scenarios) if (Array.isArray(scenario?.overrides)) { scenario.overrides = scenario.overrides.filter(item => item && item.value !== null && item.value !== undefined); for (const override of scenario.overrides) if (override.field === 'cableLength' && override.unit === '米') override.unit = 'm'; }
     if (Array.isArray(next.goals)) { for (const goal of next.goals) { if (!bases.has(goal?.requestedBasis)) goal.requestedBasis = goal?.scenarioKeys?.length ? 'HYPOTHETICAL' : 'CURRENT'; if (goal.kind === 'CURRENT_COST' && goal.scenarioKeys?.length && /比较|比一下|对比/u.test(text)) goal.kind = 'CONFIGURATION_COMPARE'; if (goal.quantity?.unit && ['台', 'pcs'].includes(goal.quantity.unit)) goal.quantity.unit = 'pump'; if (goal.unitPrice?.unit && ['元', '元/台', 'CNY/台'].includes(goal.unitPrice.unit)) goal.unitPrice.unit = 'CNY'; }
         next.goals = next.goals.filter(goal => goal.kind !== 'OTHER' || !(Array.isArray(goal.sources) && goal.sources.length && goal.sources.every(source => /先不要保存|不要保存|只试算|其他不变|其它不变/u.test(source.text || ''))));
     }
@@ -357,13 +404,14 @@ async function extractTaskSemanticsV2({ messageRef, text, provider = null }) { i
     let normalOutputError = null;
     if (!isSimple(text, built) && provider) { result.extractionMode = 'MODEL_ASSISTED'; try { const response = await provider({ messages: [{ role: 'user', content: text }], tools: [EXTRACTION_TOOL], toolChoice: 'required' }); result.telemetry.modelCalls = 1; const payload = await decodeAiProviderResponse(response); result.telemetry.provider = response?.provider || payload?.provider || null; result.telemetry.model = response?.model || payload?.model || null; try { result.proposal = normalizeCandidateSyntax(rebindCandidate(parseProviderCandidate(payload), messageRef, text), text); } catch (error) { normalOutputError = error; } } catch (error) { result.status = 'PARTIAL'; result.blockers.push({ code: 'SEMANTIC_TECHNICAL_FAILURE', message: error.code || 'AI_PROVIDER_EXTRACTION_FAILED', sources: [] }); } }
     // 服务器权威：比较句必须带正式双主体比较目标（模型无权决定比较主体或降级为单主体成本）。
+    result.proposal = preserveDeterministicCoreReadGoals(result.proposal, built.proposal);
     result.proposal = enforceRecipeCostComparison(result.proposal, { messageRef, text });
     result.goalAdmissions = admitGoalsV1(result.proposal, { messageRef, text, fallbackProposal: built.proposal });
     let validationError = null;
     try { validateTaskProposalV1(result.proposal, { sourceMessages: new Map([[messageRef, text]]) }); } catch (error) { validationError = error; }
     if ((validationError || normalOutputError) && result.extractionMode === 'MODEL_ASSISTED' && result.telemetry.modelCalls === 1) try {
         const response = await provider({ messages: [{ role: 'system', content: 'FORMAT_REPAIR_ONLY: keep the same user goals, subject mentions, scenarios, numbers and source text. Return the supplied TaskProposalV1 corrected only to its exact schema. If the supplied candidate is absent, return a schema-valid candidate directly from the unchanged original user text. Allowed typeHints: part, coil, template, recipe, customer, quotation, order, file, knowledge, business_record. requestedBasis: CURRENT, SAVED, HYPOTHETICAL, UNKNOWN. Proposed override values must be boolean, finite number or string; omit absent overrides. Do not add IDs, authorization, verification, completeness, receipts or write policy.' }, { role: 'user', content: JSON.stringify({ originalUserText: text, proposal: normalOutputError ? null : result.proposal }) }], tools: [EXTRACTION_TOOL], toolChoice: 'required', formatRepair: true });
-        result.telemetry.formatRepairCalls = 1; const payload = await decodeAiProviderResponse(response); result.telemetry.provider = response?.provider || payload?.provider || result.telemetry.provider; result.telemetry.model = response?.model || payload?.model || result.telemetry.model; result.proposal = normalizeCandidateSyntax(rebindCandidate(parseProviderCandidate(payload), messageRef, text), text); validateTaskProposalV1(result.proposal, { sourceMessages: new Map([[messageRef, text]]) }); validationError = null; normalOutputError = null;
+        result.telemetry.formatRepairCalls = 1; const payload = await decodeAiProviderResponse(response); result.telemetry.provider = response?.provider || payload?.provider || result.telemetry.provider; result.telemetry.model = response?.model || payload?.model || result.telemetry.model; result.proposal = preserveDeterministicCoreReadGoals(normalizeCandidateSyntax(rebindCandidate(parseProviderCandidate(payload), messageRef, text), text), built.proposal); result.proposal = enforceRecipeCostComparison(result.proposal, { messageRef, text }); validateTaskProposalV1(result.proposal, { sourceMessages: new Map([[messageRef, text]]) }); validationError = null; normalOutputError = null;
     } catch (error) { validationError = error; }
     if (validationError || normalOutputError) { const error = validationError || normalOutputError; result.status = 'PARTIAL'; result.blockers.push({ code: String(error.code || '').startsWith('AI_PROVIDER_') ? 'SEMANTIC_TECHNICAL_FAILURE' : 'PROPOSAL_VALIDATION_FAILED', message: error.code || error.message, sources: [] });
         // A failed provider candidate must never escape as a malformed object
@@ -374,4 +422,4 @@ async function extractTaskSemanticsV2({ messageRef, text, provider = null }) { i
         result.proposal.unparsedSpans = [...(Array.isArray(result.proposal.unparsedSpans) ? result.proposal.unparsedSpans : []), ...critical]; }
     addCopperPriceBlocker(result, messageRef, text); coverage(result, critical); return result;
 }
-module.exports = { EXTRACTION_TOOL, enforceRecipeCostComparison, recipeCostComparisonIntent, recipeCostComparisonSubjects, extractTaskSemanticsV2, normalizeCandidateSyntax, parseProviderCandidate, rebindCandidate, scanCriticalUserSpansV2, admitGoalsV1, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION };
+module.exports = { EXTRACTION_TOOL, enforceRecipeCostComparison, preserveDeterministicCoreReadGoals, recipeCostComparisonIntent, recipeCostComparisonSubjects, extractTaskSemanticsV2, normalizeCandidateSyntax, parseProviderCandidate, rebindCandidate, scanCriticalUserSpansV2, admitGoalsV1, VIRTUAL_READINESS_DESCRIPTION, READINESS_MULTI_SUBJECT_DESCRIPTION };

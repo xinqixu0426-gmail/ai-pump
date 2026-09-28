@@ -19,6 +19,16 @@ function fakeExecutor(options = {}) {
             const rows = options.recipes ?? [{ id: 301, name: 'V550' }];
             return verified(rows, { queryReceipt: { authoritative: true, truncated: Boolean(options.recipeCollectionTruncated), possiblyTruncated: Boolean(options.recipeCollectionTruncated) } });
         }
+        if (toolName === 'get_recipe_technical_profile') return verified(options.technical || {
+            recipe: { id: 301, name: 'V550' },
+            profile: {
+                recipeId: 301, canonicalPresent: true,
+                functional: { rotorDiameter: 61, stackOffset: 1, oilSealDiameter: 20, impellerBoreDiameter: 12, impellerSpan: 24, impellerThickness: 3, threadLength: 14, threadDiameter: 8, barrelLength: 150, openOffset: 15, bearingSpan: 135, bearingSpanSource: 'DERIVED', upperBearingPartId: 150, lowerBearingPartId: 151 },
+                bearingReferences: { upper: { partId: 150, model: '轴承-202', engineeringCode: '6202' }, lower: { partId: 151, model: '轴承-203', engineeringCode: '6203' } },
+                completeness: { state: 'COMPLETE', reasons: [] },
+            },
+            relations: { pieceCount: 120, coil: { id: 41, displayName: '12-120', schemeCode: 'COIL-001', material: '铜', slotType: '圆槽' }, pumpShell: { id: 72, displayName: '不锈钢泵壳' } },
+        });
         if (toolName === 'search_coils') return verified(options.coils ?? [{ id: 41, schemeName: '12-220 A', schemeCode: 'A' }, { id: 42, schemeName: '12-220 B', schemeCode: 'B' }], { queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false } });
         if (toolName === 'search_parts') return { success: true, parts: options.parts ?? [{ id: 71, model: '木箱-A', supplier: '包装厂' }], queryReceipt: { authoritative: true, truncated: false, possiblyTruncated: false }, executionEvidence: { verified: true, calls: [{ method: 'GET', path: '/api/parts' }] } };
         if (toolName === 'preview_recipe_cost') return verified(options.preview ?? { recipeId: args.recipeId, recipeName: 'V550', currentTotalCost: 108.5, pricingComplete: true });
@@ -70,6 +80,85 @@ test('N3.1 creates a deterministic read-only current-cost task with server-owned
     assert.equal(Object.hasOwn(result.task.facts[0], 'receiptId'), false);
     assert.match(result.answer.content, /V550当前完整成本为 ¥108\.50/);
     assert.equal(result.answer.answerModelCalls, 0);
+});
+
+test('owner acceptance R1 reads a single canonical technical aggregate without legacy technical fallback', async () => {
+    const fixture = fakeExecutor();
+    const result = await runAiTaskControllerV2(input('V550转子直径多少？上轴承是什么？开档是多少？', 'owner-r1-tech'), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+    const goal = result.task.goals.find(item => item.kind === 'RECIPE_TECHNICAL_QUERY');
+    assert.equal(result.task.state, 'SUCCEEDED');
+    assert.equal(goal.state, 'VERIFIED');
+    assert.deepEqual(fixture.calls.map(item => item.toolName), ['get_all_recipes', 'get_recipe_technical_profile']);
+    assert.match(result.answer.content, /正式转子直径为 61 mm/u);
+    assert.match(result.answer.content, /轴承-202（Part #150；工程代码 6202）/u);
+    assert.match(result.answer.content, /正式开档为 135 mm/u);
+    assert.doesNotMatch(result.answer.content, /technical_data_json|Rotor shadow/u);
+});
+
+test('owner acceptance R1 projects the remaining B4 facts from the same canonical aggregate', async () => {
+    const cases = [
+        ['V550用的下轴承是什么？', /轴承-203（Part #151；工程代码 6203）/u],
+        ['V550叶轮孔径多少？', /正式叶轮孔径为 12 mm/u],
+        ['V550叶轮厚度多少？', /正式叶轮厚度为 3 mm/u],
+        ['V550定子多少片？', /正式定子片数为 120 片/u],
+        ['V550对应哪个泵壳？', /正式泵壳为 不锈钢泵壳/u],
+        ['V550用的哪个线圈？', /正式线圈为 12-120/u],
+    ];
+    for (const [text, expected] of cases) {
+        const fixture = fakeExecutor();
+        const result = await runAiTaskControllerV2(input(text, `owner-r1-tech-${text}`), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+        assert.equal(result.task.goals.find(item => item.kind === 'RECIPE_TECHNICAL_QUERY').state, 'VERIFIED', text);
+        assert.deepEqual(fixture.calls.map(item => item.toolName), ['get_all_recipes', 'get_recipe_technical_profile'], text);
+        assert.match(result.answer.content, expected, text);
+    }
+});
+
+test('owner acceptance R1 keeps absent canonical technical data unavailable instead of using legacy values', async () => {
+    const fixture = fakeExecutor({ technical: { recipe: { id: 301, name: 'V750' }, profile: { recipeId: 301, canonicalPresent: false, functional: null, completeness: { state: 'INCOMPLETE', reasons: ['CANONICAL_FUNCTIONAL_PROFILE_ABSENT'] } }, relations: { pieceCount: 120, coil: null, pumpShell: null } } });
+    const result = await runAiTaskControllerV2(input('V750转子直径多少？', 'owner-r1-tech-absent'), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(result.task.state, 'SUCCEEDED');
+    assert.match(result.answer.content, /没有完整的 canonical 技术档案/u);
+    assert.doesNotMatch(result.answer.content, /61 mm/u);
+});
+
+test('owner acceptance R1 asks actionable no-tool clarifications for missing coil identity and readiness target plus quantity', async () => {
+    const coilFixture = fakeExecutor();
+    const coil = await runAiTaskControllerV2(input('这个线圈成本多少？', 'owner-r1-clarify-coil'), { executeToolCall: coilFixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(coil.task.state, 'WAITING_INPUT');
+    assert.equal(coil.task.questions[0].reasonCode, 'COIL_IDENTITY_REQUIRED');
+    assert.equal(coilFixture.calls.length, 0);
+    assert.match(coil.answer.content, /请说明要查询哪个线圈方案/u);
+
+    const readinessFixture = fakeExecutor();
+    const readiness = await runAiTaskControllerV2(input('库存够不够？', 'owner-r1-clarify-readiness'), { executeToolCall: readinessFixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(readiness.task.state, 'WAITING_INPUT');
+    assert.equal(readiness.task.questions[0].reasonCode, 'VIRTUAL_READINESS_TARGET_AND_QUANTITY_REQUIRED');
+    assert.equal(readinessFixture.calls.length, 0);
+    assert.match(readiness.answer.content, /哪个配方.*多少台/u);
+});
+
+test('owner acceptance R1 displays formal recipe and coil ambiguity candidates rather than choosing one', async () => {
+    const recipeFixture = fakeExecutor({ recipes: [{ id: 301, name: 'V550大脚板-2寸-经典款' }, { id: 302, name: 'V750大脚板-2寸-经典款' }] });
+    const recipe = await runAiTaskControllerV2(input('大脚板-2寸-经典款现在成本多少？', 'owner-r1-recipe-ambiguous'), { executeToolCall: recipeFixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(recipe.task.state, 'WAITING_INPUT');
+    assert.match(recipe.answer.content, /V550大脚板-2寸-经典款/u);
+    assert.match(recipe.answer.content, /V750大脚板-2寸-经典款/u);
+
+    const coilFixture = fakeExecutor({ coils: [{ id: 41, schemeName: '正式方案', schemeCode: 'COIL-0006' }, { id: 42, schemeName: '正式方案', schemeCode: 'COIL-0010' }] });
+    const coil = await runAiTaskControllerV2(input('12-220库存多少？', 'owner-r1-coil-ambiguous'), { executeToolCall: coilFixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(coil.task.state, 'WAITING_INPUT');
+    assert.match(coil.answer.content, /COIL-0006/u);
+    assert.match(coil.answer.content, /COIL-0010/u);
+});
+
+test('owner acceptance R1 verifies inventory and cost for the same formally bound coil', async () => {
+    const fixture = fakeExecutor({ coils: [{ id: 41, schemeName: '12-120 正式方案', schemeCode: 'COIL-001', stock: 12, cost: 8.5 }] });
+    const result = await runAiTaskControllerV2(input('12-120现在库存还有多少，成本又是多少？', 'owner-r1-coil-multi'), { executeToolCall: fixture.execute, sessionStore: createTaskSessionStoreV2() });
+    assert.equal(result.task.state, 'SUCCEEDED');
+    assert.deepEqual(result.task.goals.map(goal => [goal.kind, goal.state]), [['INVENTORY_QUERY', 'VERIFIED'], ['COIL_COST', 'VERIFIED']]);
+    assert.equal(fixture.calls.filter(call => call.toolName === 'search_coils').length, 2);
+    assert.match(result.answer.content, /当前正式库存为 12/u);
+    assert.match(result.answer.content, /当前线圈成本为 ¥8\.50/u);
 });
 
 test('N4.2A verifies an inherited configuration comparison and grounds profit in one preview receipt', async () => {

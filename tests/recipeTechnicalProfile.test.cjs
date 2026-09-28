@@ -382,10 +382,10 @@ test('a business-change failure rolls back both canonical rows, audits, and oper
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, 0);
 });
 
-test('Business capabilities are registered without creating an AI or Native write exposure', () => {
+test('Business capabilities expose only the canonical technical read to Native AI, never the write', () => {
     assert.equal(getBusinessCapability(GET_CAPABILITY_ID).access, 'query');
     assert.equal(getBusinessCapability(UPDATE_CAPABILITY_ID).access, 'write');
-    assert.equal(JSON.stringify(listAiCapabilities()).includes(GET_CAPABILITY_ID), false);
+    assert.equal(JSON.stringify(listAiCapabilities()).includes(GET_CAPABILITY_ID), true);
     assert.equal(JSON.stringify(listAiCapabilities()).includes(UPDATE_CAPABILITY_ID), false);
     assert.equal(writeCapabilityNames().includes('recipes.technical_profile.update'), false);
 });

@@ -110,10 +110,48 @@ test('provider and privilege failures fail closed without business calls or repe
     assert.equal(repeated.status, 'PARTIAL');
 });
 
-test('candidate customer labels retain the quoted user evidence while removing a generic trailing 客户 label before formal lookup', () => {
+test('candidate customer labels retain the quoted user evidence while removing a generic prefix or trailing 客户 label before formal lookup', () => {
     const proposal = normalizeCandidateSyntax({ subjects: [{ subjectKey: 'customer_abc', mention: 'ABC客户', typeHints: ['customer'], sources: [quote('ABC客户')] }] }, 'ABC客户历史');
     assert.equal(proposal.subjects[0].mention, 'ABC');
     assert.deepEqual(proposal.subjects[0].sources, [quote('ABC客户')]);
+    const prefixed = normalizeCandidateSyntax({ subjects: [{ subjectKey: 'customer_xyz', mention: '客户XYZ', typeHints: ['customer'], sources: [quote('客户XYZ')] }] }, '客户XYZ以前的报价');
+    assert.equal(prefixed.subjects[0].mention, 'XYZ');
+    assert.deepEqual(prefixed.subjects[0].sources, [quote('客户XYZ')]);
+});
+
+test('model-assisted candidates cannot erase deterministic independent core reads', async () => {
+    const onlyInventory = {
+        proposal: {
+            version: 1,
+            goalSummary: '库存',
+            subjects: [{ subjectKey: 'subject_1', mention: '12-120', typeHints: ['coil'], sources: [quote('12-120')] }],
+            scenarios: [],
+            goals: [{ goalKey: 'goal_1', kind: 'INVENTORY_QUERY', description: '库存', subjectKeys: ['subject_1'], scenarioKeys: [], dependsOn: [], requestedBasis: 'CURRENT', sources: [quote('12-120')], quantity: null, unitPrice: null }],
+            unparsedSpans: [],
+        },
+    };
+    const provider = async () => ({ provider: 'test-provider', model: 'test-model', tool_calls: [{ function: { name: EXTRACTION_TOOL.function.name, arguments: JSON.stringify(onlyInventory) } }] });
+    const result = await extractTaskSemanticsV2({ messageRef: 'owner-r1-model-coil', text: '12-120现在库存还有多少，成本又是多少？', provider });
+    assert.deepEqual(result.proposal.goals.map(goal => goal.kind), ['INVENTORY_QUERY', 'COIL_COST']);
+    assert.deepEqual(result.proposal.goals.map(goal => goal.subjectKeys), [['subject_1'], ['subject_1']]);
+});
+
+test('owner acceptance R1 preserves multi-goal coil cost, natural management wording, and bounded customer-prefix identity', async () => {
+    const coil = await extractTaskSemanticsV2({ messageRef: 'owner-r1-coil', text: '12-120现在库存还有多少，成本又是多少？' });
+    assert.deepEqual(coil.proposal.goals.map(goal => goal.kind), ['INVENTORY_QUERY', 'COIL_COST']);
+    assert.deepEqual(coil.proposal.goals.map(goal => goal.subjectKeys), [['subject_1'], ['subject_1']]);
+    const management = await extractTaskSemanticsV2({ messageRef: 'owner-r1-management', text: '今天有哪些事情需要我处理？' });
+    assert.deepEqual(management.proposal.goals.map(goal => goal.kind), ['MANAGEMENT_OVERVIEW']);
+    const customer = await extractTaskSemanticsV2({ messageRef: 'owner-r1-customer', text: '列一下不存在客户XYZ以前的报价。' });
+    assert.deepEqual(customer.proposal.goals.map(goal => goal.kind), ['CUSTOMER_HISTORY']);
+    assert.equal(customer.proposal.subjects.find(subject => subject.typeHints.includes('customer')).mention, 'XYZ');
+});
+
+test('owner acceptance R1 produces bounded clarification goals for missing coil and readiness target plus quantity', async () => {
+    const coil = await extractTaskSemanticsV2({ messageRef: 'owner-r1-missing-coil', text: '这个线圈成本多少？' });
+    assert.deepEqual(coil.proposal.goals.map(goal => [goal.kind, goal.subjectKeys]), [['COIL_COST', []]]);
+    const readiness = await extractTaskSemanticsV2({ messageRef: 'owner-r1-readiness', text: '库存够不够？' });
+    assert.deepEqual(readiness.proposal.goals.map(goal => [goal.kind, goal.subjectKeys]), [['INVENTORY_QUERY', []]]);
 });
 
 test('N4.2B does not turn a quotation quantity into virtual readiness without a production or readiness request', async () => {

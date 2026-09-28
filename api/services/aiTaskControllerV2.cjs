@@ -157,7 +157,7 @@ function candidateChoiceLabel(entity, candidates) {
     if (!displayName) return displayName;
     const siblings = candidates.filter(candidate => String(candidate?.displayName ?? '').trim() === displayName);
     if (siblings.length <= 1) return displayName;
-    const discriminator = String(entity?.schemeCode ?? '').trim() || String(entity?.entityId ?? '').trim();
+    const discriminator = [entity?.schemeCode, entity?.material, entity?.slotType].filter(value => String(value ?? '').trim()).map(value => String(value).trim()).join('；') || String(entity?.entityId ?? '').trim();
     return discriminator ? `${displayName}（${discriminator}）` : displayName;
 }
 function questionForCandidates({ goalKeys, candidates, prompt, reasonCode, planRevision, clock = Date, ttlMs = 20 * 60 * 1000 }) {
@@ -1004,7 +1004,10 @@ async function runStructuredReadGoalsV2({ task, proposal, message, messageRef, a
     // 金额一律从正式回执的 cost 指针读取，不做任何自行计算。
     for (const goal of goalFor('COIL_COST')) {
         const subject = subjectFor(goal, 'coil');
-        if (!subject) { markStructuredGap(goal, 'COIL_COST_IDENTITY_REQUIRED', '当前候选理解没有绑定到单一正式线圈方案；不能聚合多个方案成本。'); continue; }
+        if (!subject) {
+            const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: [], prompt: '请说明要查询哪个线圈方案，例如“12-120”或正式方案编码。', reasonCode: 'COIL_IDENTITY_REQUIRED', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
+            task.questions.push(question); goal.state = 'NEEDS_INPUT'; appendBlocker(goal, 'COIL_IDENTITY_REQUIRED', '线圈成本查询缺少单一正式线圈方案。', question.questionId); pending = { kind: 'coilCost', questionId: question.questionId }; continue;
+        }
         const mentionSpan = subject.sources[0] || source(messageRef, message.content, subject.mention);
         const choiceId = pendingKind === 'coilCost' ? existing?.pending?.questionId : null;
         const inheritedEntry = inheritedFocus?.get(subject.subjectKey) || null;
@@ -1309,6 +1312,12 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
             continue;
         }
         const semanticGoal = proposal.goals.find(item => item.goalKey === goal.goalKey);
+        if (!semanticGoal?.subjectKeys?.length) {
+            const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: [], prompt: '请告诉我要检查哪个配方，以及按多少台做齐料预览，例如“V550 300台”。', reasonCode: 'VIRTUAL_READINESS_TARGET_AND_QUANTITY_REQUIRED', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
+            task.questions.push(question); goal.state = 'NEEDS_INPUT';
+            appendBlocker(goal, 'VIRTUAL_READINESS_TARGET_AND_QUANTITY_REQUIRED', '虚拟齐料预览同时缺少配方目标和生产数量。', question.questionId);
+            continue;
+        }
         if (!Number.isSafeInteger(semanticGoal?.quantity?.value) || semanticGoal.quantity.value < 1) {
             const question = questionForCandidates({ goalKeys: [goal.goalKey], candidates: [], prompt: '请确认本次要按多少台进行虚拟齐料预览，例如“300台”。', reasonCode: 'VIRTUAL_READINESS_QUANTITY_REQUIRED', planRevision: task.planRevision, clock, ttlMs: sessionStore.ttlMs });
             task.questions.push(question); goal.state = 'NEEDS_INPUT';
@@ -1383,7 +1392,7 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
         ownerKey, conversationId, selectedChoice, pendingKind, existing, inheritedFocus,
     });
     const documentRun = await runDocumentGoalsV2({ task, proposal, message, messageRef, adapter, execute, clock, sessionStore, selectedChoice, pendingKind });
-    const activeGoals = task.goals.filter(goal => (LEGACY_READ_GOALS.has(goal.kind) || isVirtualReadinessGoal(goal, proposal, message.content)) && goal.state === 'PENDING');
+    const activeGoals = task.goals.filter(goal => (LEGACY_READ_GOALS.has(goal.kind) || goal.kind === 'RECIPE_TECHNICAL_QUERY' || isVirtualReadinessGoal(goal, proposal, message.content)) && goal.state === 'PENDING');
     const inheritedRecipeSubject = proposal.subjects.find(subject => subject.typeHints.includes('recipe')) || null;
     const inheritedRecipeEntry = inheritedRecipeSubject ? inheritedFocus?.get(inheritedRecipeSubject.subjectKey) : null;
     // §B5：上一轮焦点不唯一时先澄清，绝不自行选择哪个主体。
@@ -1430,6 +1439,18 @@ async function runAiTaskControllerV2(input = {}, dependencies = {}) {
                 for (const goal of activeGoals) { goal.state = 'FAILED'; appendBlocker(goal, 'RECIPE_RESOLUTION_UNAVAILABLE', '配方目录结果不完整或不可用。'); }
             } else {
                 const selectedRecipe = binding.selected;
+                for (const technicalGoal of goalByKind(task, 'RECIPE_TECHNICAL_QUERY').filter(goal => goal.state === 'PENDING')) {
+                    const technical = await execute({
+                        toolName: 'get_recipe_technical_profile', args: { recipeId: Number(selectedRecipe.entityId) },
+                        argumentSources: [receiptSource('/recipeId', recipeSearch.receipt.receiptId, findCandidatePointer(recipeSearch.receipt, selectedRecipe))],
+                        goalKeys: [technicalGoal.goalKey],
+                    });
+                    if (!technical.receipt) { technicalGoal.state = 'FAILED'; appendBlocker(technicalGoal, 'CANONICAL_TECHNICAL_PROFILE_READ_FAILED', '正式 canonical 技术档案读取没有获得已验证回执。'); continue; }
+                    try {
+                        const fact = structuredFact({ receipt: technical.receipt, pointer: '/data', entityType: 'recipe', entityId: selectedRecipe.entityId, predicate: 'recipe.technical_profile', basis: 'CANONICAL_RECIPE_TECHNICAL_PROFILE', planRevision: task.planRevision, clock });
+                        finishStructuredGoal(task, technicalGoal, [fact], requirementsForStructuredGoal(technicalGoal));
+                    } catch (error) { technicalGoal.state = 'FAILED'; appendBlocker(technicalGoal, 'CANONICAL_TECHNICAL_PROFILE_RESULT_INVALID', error.code || error.message); }
+                }
                 const configGoal = task.goals.find(goal => goal.kind === 'CONFIGURATION_COMPARE' || goal.kind === 'PREPARE_CHANGE');
                 const semanticScenario = proposal.scenarios[0] || null;
                 let readinessScenarioContext = null;

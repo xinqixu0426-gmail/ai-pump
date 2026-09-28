@@ -84,6 +84,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
         'get_recipe_parts',
         'get_recipes_by_part',
         'get_recipe_detail',
+        'get_recipe_technical_profile',
         'get_recipe_technical_files',
         'build_recipe_bom_draft',
         'preview_recipe_cost',
@@ -141,6 +142,7 @@ const DOMAIN_CAPABILITY_NAMES = Object.freeze({
 const AI_CAPABILITY_DISPLAY_NAMES = Object.freeze({
     search_business_changes: '查询业务变更',
     get_management_action_center: '读取管理待办',
+    get_recipe_technical_profile: '读取配方正式技术档案',
     plan_factory_workflow: '生成工厂工作流计划',
     get_business_alerts: '读取经营异常',
     get_dashboard_summary: '读取运营看板',
@@ -276,6 +278,7 @@ const AI_EXECUTOR_CAPABILITY_NAMES = Object.freeze({
         'get_recipe_parts',
         'get_recipes_by_part',
         'get_recipe_detail',
+        'get_recipe_technical_profile',
         'get_recipe_technical_files',
         'get_recent_orders',
         'search_quotations',
@@ -367,6 +370,7 @@ const LIVE_BUSINESS_EVIDENCE_NAMES = new Set([
     'get_recipe_parts',
     'get_recipes_by_part',
     'get_recipe_detail',
+    'get_recipe_technical_profile',
     'get_recipe_technical_files',
     'preview_recipe_cost',
     'compare_recipe_scenarios',
@@ -452,6 +456,7 @@ const LIVE_CAPABILITY_NAMES = new Set([
     'get_recipe_parts',
     'get_recipes_by_part',
     'get_recipe_detail',
+    'get_recipe_technical_profile',
     'get_recipe_technical_files',
     'dynamic_config_cost',
     'get_recent_orders',
@@ -542,9 +547,10 @@ const PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES = new Set([
     'compare_recipe_scenarios',
     'preview_profitability',
     'preview_virtual_readiness',
+    'get_recipe_technical_profile',
 ]);
 
-const NATIVE_ONLY_AI_TOOL_NAMES = new Set(['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness']);
+const NATIVE_ONLY_AI_TOOL_NAMES = new Set(['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness', 'get_recipe_technical_profile']);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     search_business_changes: Object.freeze(['business_changes.list']),
@@ -555,6 +561,7 @@ const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     get_quotation_detail: Object.freeze(['quotations.detail']),
     get_purchase_overview: Object.freeze(['purchasing.overview']),
     get_all_recipes: Object.freeze(['recipes.list']),
+    get_recipe_technical_profile: Object.freeze(['recipes.technical_profile.get']),
     get_recipes_by_coil: Object.freeze(['recipes.by_coil']),
     get_recipe_parts: Object.freeze(['ontology.relations.resolve']),
     get_recipes_by_part: Object.freeze(['ontology.relations.resolve']),
@@ -1379,7 +1386,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         outputSchema: 'RecipeTechnicalProfileV1 canonical-only aggregate DTO',
         sourceOfTruth: 'recipe_functional_technical_profiles+recipe_technical_knowledge+recipes+pump_shell_templates+catalog_template_shell_bindings+parts',
         riskLevel: 'low',
-        callers: Object.freeze(['web', 'internal']),
+        callers: Object.freeze(['web', 'ai', 'internal']),
     }),
     'recipes.technical_profile.rotor_shadow': defineQueryCapability({
         capabilityId: 'recipes.technical_profile.rotor_shadow',
@@ -2267,6 +2274,7 @@ function sourceOfTruthFor(name, domains) {
     const overrides = {
         build_recipe_bom_draft: 'recipeBomEngine+saved_template_ids+current_catalog',
         get_recipe_detail: 'recipeServiceAndCostEngine',
+        get_recipe_technical_profile: 'recipes.technical_profile.get',
         preview_pump_shell_cost: 'recipeBomEngineAndCostEngine',
         preview_profitability: 'recipes.scenario_compare_preview+formal_profitability_arithmetic',
         preview_virtual_readiness: 'orderPlanning+activeOrderReadiness+current_recipe_scenario_bom',

@@ -61,6 +61,11 @@ test('N3.2 isolated /api/ai/chat injection emits only validated Task V2 content 
     const recipeDetail = recipes.find(event => event.type === 'detail');
     assert.equal(recipeDetail.goals[0].state, 'VERIFIED');
     assert.match(recipes.find(event => event.type === 'content').content, /#301 V550/u);
+    const canonicalAbsent = await chat('V550转子直径多少？');
+    const canonicalDetail = canonicalAbsent.find(event => event.type === 'detail');
+    assert.equal(canonicalDetail.state, 'SUCCEEDED');
+    assert.match(canonicalAbsent.find(event => event.type === 'content').content, /没有完整的 canonical 技术档案/u);
+    assert.doesNotMatch(canonicalAbsent.find(event => event.type === 'content').content, /technical_data_json|Rotor shadow/u);
     const modelResponse = await fetch(`${runtime.baseUrl}/api/ai/chat`, { method: 'POST', headers: runtime.headers(), body: JSON.stringify({ conversationId: 's2-model-response', messages: [{ role: 'user', content: 'V550成本和库存' }] }) });
     const modelEvents = [...(await modelResponse.text()).matchAll(/^data: (.+)$/gmu)].map(match => JSON.parse(match[1]));
     assert.equal(modelEvents.find(event => event.type === 'detail').goals[0].state, 'VERIFIED');

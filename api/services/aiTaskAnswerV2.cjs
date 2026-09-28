@@ -6,8 +6,9 @@
 const crypto = require('node:crypto');
 const { validateTaskEnvelopeV2 } = require('./aiTaskValidationV2.cjs');
 const { validateSourceEvidenceClaimV1 } = require('./aiTaskDocumentsV2.cjs');
+const { technicalProjection } = require('./recipeTechnicalQuestionProjection.cjs');
 
-const SECTION_TYPES = new Set(['COST', 'COMPARISON', 'CATALOG', 'HISTORY', 'INVENTORY', 'READINESS', 'MANAGEMENT', 'BUSINESS_CHANGE', 'IMPACT', 'SOURCE', 'LIMITATION', 'CHANGE_PREVIEW']);
+const SECTION_TYPES = new Set(['COST', 'COMPARISON', 'CATALOG', 'HISTORY', 'INVENTORY', 'READINESS', 'MANAGEMENT', 'TECHNICAL', 'BUSINESS_CHANGE', 'IMPACT', 'SOURCE', 'LIMITATION', 'CHANGE_PREVIEW']);
 const exact = (value, keys, code) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(code);
     const actual = Object.keys(value);
@@ -174,6 +175,7 @@ function templateFor(goal, facts) {
     if (goal.kind === 'COIL_QUERY' && facts.some(fact => fact.evidenceState === 'VERIFIED_NEGATIVE')) return 'COIL_CATALOG_NEGATIVE_V1';
     // 比较目标在所有状态下都由自己的模板渲染：澄清给问题、缺差额给限制，绝不落到别的业务模板上。
     if (goal.kind === 'RECIPE_COST_COMPARISON') return 'RECIPE_COST_COMPARISON_V1';
+    if (goal.kind === 'RECIPE_TECHNICAL_QUERY') return goal.state === 'VERIFIED' ? 'RECIPE_TECHNICAL_V1' : 'LIMITATION_V1';
     if (goal.state !== 'VERIFIED') {
         if (facts.length > 0 && ['CUSTOMER_HISTORY', 'QUOTATION_QUERY', 'INVENTORY_QUERY', 'COIL_QUERY', 'COIL_COST', 'BUSINESS_CHANGES', 'RECIPE_CATALOG_QUERY'].includes(goal.kind)) return 'STRUCTURED_PARTIAL_V1';
         if (facts.some(fact => fact.evidenceState === 'VERIFIED_NEGATIVE')) return goal.kind === 'COIL_QUERY' ? 'COIL_CATALOG_NEGATIVE_V1' : 'RECIPE_CATALOG_NEGATIVE_V1';
@@ -199,7 +201,7 @@ function buildAnswerDraftV1(task) {
     return { version: 1, sections: task.goals.map(goal => {
         const claimedFacts = goal.factIds.map(id => facts.get(id)).filter(Boolean);
         const templateKey = templateFor(goal, claimedFacts);
-        const claimTypes = { CURRENT_COST_V1: 'COST', RECIPE_COST_COMPARISON_V1: 'COMPARISON', CONFIGURATION_COMPARE_V1: 'COMPARISON', RECIPE_CATALOG_NEGATIVE_V1: 'CATALOG', COIL_CATALOG_NEGATIVE_V1: 'CATALOG', RECIPE_CATALOG_V1: 'CATALOG', CHANGE_PREVIEW_V1: 'CHANGE_PREVIEW', PROFITABILITY_V1: 'COST', VIRTUAL_READINESS_V1: 'READINESS', HISTORY_V1: 'HISTORY', CATALOG_V1: 'CATALOG', INVENTORY_V1: 'INVENTORY', READINESS_V1: 'READINESS', MANAGEMENT_V1: 'MANAGEMENT', BUSINESS_CHANGE_V1: 'BUSINESS_CHANGE', IMPACT_V1: 'IMPACT', FILE_SOURCE_V1: 'SOURCE', KNOWLEDGE_SOURCE_V1: 'SOURCE', STRUCTURED_PARTIAL_V1: 'LIMITATION' };
+        const claimTypes = { CURRENT_COST_V1: 'COST', RECIPE_COST_COMPARISON_V1: 'COMPARISON', CONFIGURATION_COMPARE_V1: 'COMPARISON', RECIPE_CATALOG_NEGATIVE_V1: 'CATALOG', COIL_CATALOG_NEGATIVE_V1: 'CATALOG', RECIPE_CATALOG_V1: 'CATALOG', RECIPE_TECHNICAL_V1: 'TECHNICAL', CHANGE_PREVIEW_V1: 'CHANGE_PREVIEW', PROFITABILITY_V1: 'COST', VIRTUAL_READINESS_V1: 'READINESS', HISTORY_V1: 'HISTORY', CATALOG_V1: 'CATALOG', INVENTORY_V1: 'INVENTORY', READINESS_V1: 'READINESS', MANAGEMENT_V1: 'MANAGEMENT', BUSINESS_CHANGE_V1: 'BUSINESS_CHANGE', IMPACT_V1: 'IMPACT', FILE_SOURCE_V1: 'SOURCE', KNOWLEDGE_SOURCE_V1: 'SOURCE', STRUCTURED_PARTIAL_V1: 'LIMITATION' };
         return { goalKey: goal.goalKey, claimType: claimTypes[templateKey] || 'LIMITATION', factIds: claimedFacts.map(fact => fact.factId), templateKey, analysisText: '' };
     }) };
 }
@@ -249,6 +251,20 @@ function renderSection(task, section) {
     if (section.templateKey === 'CURRENT_COST_V1') {
         const fact = values.find(item => item.key.predicate === 'recipe.current_cost');
         return `${name}当前完整成本为 ${money(fact.value)}。本次只读查询，没有修改正式配方。`;
+    }
+    if (section.templateKey === 'RECIPE_TECHNICAL_V1') {
+        const aggregate = values.find(item => item.key.predicate === 'recipe.technical_profile')?.value;
+        const projected = technicalProjection({ profile: aggregate?.profile, relations: aggregate?.relations, requestedKeys: require('./recipeTechnicalQuestionProjection.cjs').requestedTechnicalFactKeys(task.userGoal) });
+        const verified = projected.facts.filter(item => item.status === 'VERIFIED');
+        const unavailable = projected.facts.filter(item => item.status !== 'VERIFIED');
+        if (!projected.canonicalPresent) return `${name}当前还没有完整的 canonical 技术档案，因此不能给出正式技术参数。${projected.completeness?.reasons?.length ? `原因：${projected.completeness.reasons.join('、')}。` : ''}`;
+        const labels = { rotorDiameter: '正式转子直径', stackOffset: '正式叠片偏移', oilSealDiameter: '正式油封直径', impellerBoreDiameter: '正式叶轮孔径', impellerSpan: '正式叶轮跨度', impellerThickness: '正式叶轮厚度', threadLength: '正式螺纹长度', threadDiameter: '正式螺纹直径', barrelLength: '正式机筒长度', openOffset: '正式开口偏移', bearingSpan: '正式开档', upperBearing: '正式上轴承', lowerBearing: '正式下轴承', pieceCount: '正式定子片数', pumpShell: '正式泵壳', coil: '正式线圈' };
+        const display = verified.map(item => {
+            if (item.key === 'bearingSpan' && item.source === 'DERIVED') return `${labels[item.key]}为 ${item.value} mm（由 canonical 机筒长度 ${item.barrelLength} mm 与 Owner-confirmed 开口偏移 ${item.openOffset} mm 派生）`;
+            return `${labels[item.key] || item.key}为 ${item.value}${item.unit ? ` ${item.unit}` : ''}`;
+        });
+        const missing = unavailable.map(item => `${labels[item.key] || item.key}当前不能正式给出`).join('；');
+        return `${name}${display.length ? `的${display.join('；')}。` : ''}${missing ? `${missing}。` : ''}${projected.completeness?.state === 'INCOMPLETE' ? '该 canonical 技术档案尚未完整；以上仅列出本次已正式验证的字段，未使用旧技术资料补齐。' : ''}`;
     }
     if (section.templateKey === 'RECIPE_COST_COMPARISON_V1') {
         if (goal.state === 'NEEDS_INPUT') {
@@ -406,7 +422,9 @@ function renderSection(task, section) {
     }
     if (goal.state === 'NEEDS_INPUT') {
         const question = task.questions.find(item => item.goalKeys.includes(goal.goalKey) && item.answeredAt === null);
-        return question ? question.prompt : limitationFor(goal);
+        if (!question) return limitationFor(goal);
+        const choices = question.choices?.length ? ` 当前正式候选：${question.choices.map(choice => choice.label).join('；')}。` : '';
+        return `${question.prompt}${choices}`;
     }
     // S2-R1 §D：缺对象时给出**范围受限**的正式负结果措辞（不改变 fact/scope/evidence/state）。
     const missingInCoilCatalogue = goal.blockers.find(item => [

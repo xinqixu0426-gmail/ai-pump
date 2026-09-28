@@ -7,6 +7,14 @@ const AI_NATIVE_TOOLS_V2 = Object.freeze([
     Object.freeze({
         type: 'function',
         function: Object.freeze({
+            name: 'get_recipe_technical_profile',
+            description: '读取一个已由正式配方目录确认身份的配方 canonical 技术档案。只返回正式技术事实及正式关系，不读取 legacy technical_data_json，也不返回 Rotor shadow。',
+            parameters: Object.freeze({ type: 'object', additionalProperties: false, properties: { recipeId: { type: 'integer', minimum: 1 } }, required: ['recipeId'] }),
+        }),
+    }),
+    Object.freeze({
+        type: 'function',
+        function: Object.freeze({
             name: 'compare_recipe_scenarios',
             description: '在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份，表面处理费用只能由用户或正式配方政策提供，不能传入零件价格、成本或铜价。',
             parameters: Object.freeze({
