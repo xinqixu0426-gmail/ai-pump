@@ -77,6 +77,16 @@ function input(bearingPartId, overrides = {}) {
     };
 }
 
+function rejectedWriteState(db, recipeId) {
+    return {
+        functionalRows: db.prepare('SELECT COUNT(*) AS count FROM recipe_functional_technical_profiles WHERE recipe_id = ?').get(recipeId).count,
+        knowledgeRows: db.prepare('SELECT COUNT(*) AS count FROM recipe_technical_knowledge WHERE recipe_id = ?').get(recipeId).count,
+        audits: db.prepare('SELECT COUNT(*) AS count FROM audit_log WHERE record_id = ?').get(recipeId).count,
+        events: db.prepare('SELECT COUNT(*) AS count FROM business_change_events').get().count,
+        legacy: db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId),
+    };
+}
+
 test('canonical query is read-only, absent-safe, and never reconstructs legacy Recipe technical data', t => {
     const { db, recipeId, service } = fixture(t);
     const before = db.prepare('SELECT technical_data_json, custom_barrel_length, impeller_thickness FROM recipes WHERE id = ?').get(recipeId);
@@ -139,20 +149,122 @@ test('canonical update is strict about aggregate concurrency and no-op writes pr
     assert.throws(() => service.update(recipeId, input(bearingPartId, { expectedUpdatedAt: current, functional: { ...functional(bearingPartId), rotorDiameter: 60 } }), context('technical-profile:test-002')), error => error.code === 'idempotency_key_conflict');
 });
 
-test('formal stainless resolver is strict: false is non-stainless and missing metadata is unresolved, never coerced false', t => {
-    const nonStainless = fixture(t, false);
-    const nonInput = input(nonStainless.bearingPartId, { functional: functional(nonStainless.bearingPartId, { barrelLength: null, openOffset: null, bearingSpanExplicit: 81 }) });
-    const nonResult = nonStainless.service.update(nonStainless.recipeId, nonInput, context('technical-profile:test-006'));
-    assert.equal(nonResult.technicalProfile.policy.stainlessMode, 'NON_STAINLESS');
-    assert.equal(nonResult.technicalProfile.functional.bearingSpan, 81);
-    assert.equal(nonResult.technicalProfile.functional.bearingSpanSource, 'EXPLICIT');
+test('formal stainless resolver accepts only actual JSON booleans and never coerces unknown values to false', t => {
+    const cases = [
+        { name: 'true', remark: '{"isStainless":true}', stainlessMode: 'STAINLESS', isStainless: true },
+        { name: 'false', remark: '{"isStainless":false}', stainlessMode: 'NON_STAINLESS', isStainless: false },
+        { name: 'numeric one', remark: '{"isStainless":1}' },
+        { name: 'numeric zero', remark: '{"isStainless":0}' },
+        { name: 'string true', remark: '{"isStainless":"true"}' },
+        { name: 'string false', remark: '{"isStainless":"false"}' },
+        { name: 'null', remark: '{"isStainless":null}' },
+        { name: 'missing', remark: '{}' },
+        { name: 'invalid JSON', remark: '{not-json' },
+        { name: 'array JSON', remark: '[]' },
+    ];
+    for (const current of cases) {
+        const { db, recipeId, shellPartId, service } = fixture(t);
+        db.prepare('UPDATE parts SET remark = ? WHERE id = ?').run(current.remark, shellPartId);
+        const result = service.get(recipeId);
+        if (current.stainlessMode) {
+            assert.equal(result.policy.stainlessMode, current.stainlessMode, current.name);
+            assert.equal(result.policy.isStainless, current.isStainless, current.name);
+        } else {
+            assert.equal(result.policy.stainlessMode, 'UNKNOWN_OR_UNRESOLVED', current.name);
+            assert.equal(result.policy.isStainless, null, current.name);
+        }
+    }
+});
 
-    const unresolved = fixture(t, true);
-    unresolved.db.prepare('UPDATE parts SET remark = ? WHERE id = ?').run('{}', unresolved.shellPartId);
-    const absent = unresolved.service.get(unresolved.recipeId);
-    assert.equal(absent.policy.stainlessMode, 'UNKNOWN_OR_UNRESOLVED');
-    assert.equal(absent.policy.isStainless, null);
-    assert.throws(() => unresolved.service.update(unresolved.recipeId, input(unresolved.bearingPartId), context('technical-profile:test-007')), error => error.code === 'technical_profile_policy_unresolved_field');
+test('numeric 1 and 0 shell metadata cannot unlock either conditional canonical write branch or create side effects', t => {
+    for (const [index, current] of [
+        {
+            name: 'numeric zero cannot unlock non-stainless explicit span',
+            remark: '{"isStainless":0}',
+            functionalOverrides: { barrelLength: null, openOffset: null, bearingSpanExplicit: 81 },
+        },
+        {
+            name: 'numeric one cannot unlock stainless barrel and offset',
+            remark: '{"isStainless":1}',
+            functionalOverrides: {},
+        },
+    ].entries()) {
+        const { db, recipeId, shellPartId, bearingPartId, service } = fixture(t);
+        db.prepare('UPDATE parts SET remark = ? WHERE id = ?').run(current.remark, shellPartId);
+        const before = rejectedWriteState(db, recipeId);
+        assert.throws(() => service.update(
+            recipeId,
+            input(bearingPartId, { functional: functional(bearingPartId, current.functionalOverrides) }),
+            context(`technical-profile:strict-mode:${index}`),
+        ), error => error.code === 'technical_profile_policy_unresolved_field', current.name);
+        assert.deepEqual(rejectedWriteState(db, recipeId), before, current.name);
+    }
+});
+
+test('canonical functional fields accept actual JSON numbers for every numeric field in its resolved policy branch', t => {
+    const cases = [
+        ['rotorDiameter', 52], ['stackOffset', 0], ['oilSealDiameter', 20],
+        ['impellerBoreDiameter', 12], ['impellerSpan', 24], ['impellerThickness', 3],
+        ['threadLength', 14], ['threadDiameter', 8], ['barrelLength', 120], ['openOffset', 20],
+        ['bearingSpanExplicit', 81],
+    ];
+    for (const [field, value] of cases) {
+        const current = fixture(t, field === 'bearingSpanExplicit' ? false : true);
+        const overrides = field === 'bearingSpanExplicit'
+            ? { barrelLength: null, openOffset: null, bearingSpanExplicit: value }
+            : { [field]: value };
+        const result = current.service.update(
+            current.recipeId,
+            input(current.bearingPartId, { functional: functional(current.bearingPartId, overrides) }),
+            context(`technical-profile:number:${field}`),
+        );
+        assert.equal(result.technicalProfile.functional[field], value, field);
+    }
+});
+
+test('canonical functional fields reject numeric strings, empty strings, whitespace, booleans, and non-number values without mutation', t => {
+    const stringCases = [
+        ['rotorDiameter', '52'], ['stackOffset', '1'], ['oilSealDiameter', '20'],
+        ['impellerBoreDiameter', '12'], ['impellerSpan', '24'], ['impellerThickness', '3'],
+        ['threadLength', '14'], ['threadDiameter', '8'], ['barrelLength', '120'], ['openOffset', '20'],
+        ['bearingSpanExplicit', '80'],
+    ];
+    for (const [field, value] of stringCases) {
+        const current = fixture(t, field === 'bearingSpanExplicit' ? false : true);
+        const overrides = field === 'bearingSpanExplicit'
+            ? { barrelLength: null, openOffset: null, bearingSpanExplicit: value }
+            : { [field]: value };
+        const before = rejectedWriteState(current.db, current.recipeId);
+        assert.throws(() => current.service.update(
+            current.recipeId,
+            input(current.bearingPartId, { functional: functional(current.bearingPartId, overrides) }),
+            context(`technical-profile:string:${field}`),
+        ), error => error.code === 'technical_profile_functional_invalid', field);
+        assert.deepEqual(rejectedWriteState(current.db, current.recipeId), before, field);
+    }
+    for (const value of ['', ' ', true, false, {}, []]) {
+        const current = fixture(t);
+        const before = rejectedWriteState(current.db, current.recipeId);
+        assert.throws(() => current.service.update(
+            current.recipeId,
+            input(current.bearingPartId, { functional: functional(current.bearingPartId, { rotorDiameter: value }) }),
+            context(`technical-profile:invalid-number:${JSON.stringify(value)}`),
+        ), error => error.code === 'technical_profile_functional_invalid');
+        assert.deepEqual(rejectedWriteState(current.db, current.recipeId), before, String(value));
+    }
+});
+
+test('bearing part identifiers remain strict actual positive integers', t => {
+    for (const value of ['12', 12.5, 0, -1, true, false, '']) {
+        const current = fixture(t);
+        const before = rejectedWriteState(current.db, current.recipeId);
+        assert.throws(() => current.service.update(
+            current.recipeId,
+            input(current.bearingPartId, { functional: functional(current.bearingPartId, { upperBearingPartId: value }) }),
+            context(`technical-profile:invalid-bearing:${JSON.stringify(value)}`),
+        ), error => error.code === 'technical_profile_functional_invalid');
+        assert.deepEqual(rejectedWriteState(current.db, current.recipeId), before, String(value));
+    }
 });
 
 test('conditional mode and bearing binding are fail-closed while a selected bearing identity survives missing geometry as incomplete', t => {

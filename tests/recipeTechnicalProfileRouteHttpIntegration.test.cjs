@@ -20,6 +20,7 @@ const NOW = '2026-09-28T00:00:00.000Z';
 let server;
 let baseUrl;
 let cookie;
+let fixtureSequence = 0;
 
 function authCookie() {
     return `token=${jwt.sign({ id: 1, username: 'technical-profile-http', role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '5m' })}`;
@@ -40,27 +41,29 @@ async function requestJson(method, pathname, body, headers = {}) {
 }
 
 function seed() {
+    fixtureSequence += 1;
+    const suffix = String(fixtureSequence);
     const shellPartId = Number(db.prepare(`
         INSERT INTO parts (model, category, remark, created_at, updated_at)
-        VALUES ('http-shell', '泵壳', '{"isStainless":true}', ?, ?)
-    `).run(NOW, NOW).lastInsertRowid);
+        VALUES (?, '泵壳', '{"isStainless":true}', ?, ?)
+    `).run(`http-shell-${suffix}`, NOW, NOW).lastInsertRowid);
     const bearingPartId = Number(db.prepare(`
         INSERT INTO parts (model, category, created_at, updated_at)
         VALUES ('轴承-6202', '轴承', ?, ?)
     `).run(NOW, NOW).lastInsertRowid);
     const templateId = Number(db.prepare(`
         INSERT INTO pump_shell_templates (shell_model, created_at, updated_at)
-        VALUES ('http-template', ?, ?)
-    `).run(NOW, NOW).lastInsertRowid);
+        VALUES (?, ?, ?)
+    `).run(`http-template-${suffix}`, NOW, NOW).lastInsertRowid);
     db.prepare(`
         INSERT INTO catalog_template_shell_bindings (template_id, shell_part_id, created_at, updated_at)
         VALUES (?, ?, ?, ?)
     `).run(templateId, shellPartId, NOW, NOW);
     const recipeId = Number(db.prepare(`
         INSERT INTO recipes (name, template_id, technical_data_json, custom_barrel_length, created_at, updated_at)
-        VALUES ('http-recipe', ?, '{"rotorDiameter":999}', 88, ?, ?)
-    `).run(templateId, NOW, NOW).lastInsertRowid);
-    return { bearingPartId, recipeId };
+        VALUES (?, ?, '{"rotorDiameter":999}', 88, ?, ?)
+    `).run(`http-recipe-${suffix}`, templateId, NOW, NOW).lastInsertRowid);
+    return { bearingPartId, recipeId, shellPartId };
 }
 
 function payload(bearingPartId, expectedUpdatedAt = null) {
@@ -139,4 +142,47 @@ test('canonical technical-profile HTTP query/command returns deterministic error
     const missingPut = await requestJson('PUT', '/api/recipes/999999/technical-profile', { functional: {}, technicalKnowledge: { items: [] }, expectedUpdatedAt: null }, { 'idempotency-key': 'recipe-technical-http:404' });
     assert.equal(missingPut.response.status, 404);
     assert.equal(missingPut.payload.code, 'recipe_not_found');
+});
+
+test('canonical technical-profile HTTP PUT rejects numeric strings and numeric stainless flags without writes, audit, or events', async () => {
+    const strictNumber = seed();
+    const strictNumberLegacy = db.prepare('SELECT technical_data_json, custom_barrel_length FROM recipes WHERE id = ?').get(strictNumber.recipeId);
+    const numericStringBody = payload(strictNumber.bearingPartId);
+    numericStringBody.functional.rotorDiameter = '52';
+    const numericString = await requestJson(
+        'PUT',
+        `/api/recipes/${strictNumber.recipeId}/technical-profile`,
+        numericStringBody,
+        { 'idempotency-key': 'recipe-technical-http:strict-number' },
+    );
+    assert.ok(numericString.response.status >= 400 && numericString.response.status < 500);
+    assert.equal(numericString.payload.success, false);
+    assert.equal(numericString.payload.code, 'technical_profile_functional_invalid');
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_functional_technical_profiles WHERE recipe_id = ?').get(strictNumber.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_technical_knowledge WHERE recipe_id = ?').get(strictNumber.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM audit_log WHERE record_id = ?').get(strictNumber.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM business_change_events').get().count, 1);
+    assert.deepEqual(db.prepare('SELECT technical_data_json, custom_barrel_length FROM recipes WHERE id = ?').get(strictNumber.recipeId), strictNumberLegacy);
+
+    const strictMode = seed();
+    db.prepare('UPDATE parts SET remark = ? WHERE id = ?').run('{"isStainless":0}', strictMode.shellPartId);
+    const strictModeLegacy = db.prepare('SELECT technical_data_json, custom_barrel_length FROM recipes WHERE id = ?').get(strictMode.recipeId);
+    const nonStainlessBody = payload(strictMode.bearingPartId);
+    nonStainlessBody.functional.barrelLength = null;
+    nonStainlessBody.functional.openOffset = null;
+    nonStainlessBody.functional.bearingSpanExplicit = 80;
+    const numericFlag = await requestJson(
+        'PUT',
+        `/api/recipes/${strictMode.recipeId}/technical-profile`,
+        nonStainlessBody,
+        { 'idempotency-key': 'recipe-technical-http:strict-flag' },
+    );
+    assert.equal(numericFlag.response.status, 409);
+    assert.equal(numericFlag.payload.success, false);
+    assert.equal(numericFlag.payload.code, 'technical_profile_policy_unresolved_field');
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_functional_technical_profiles WHERE recipe_id = ?').get(strictMode.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_technical_knowledge WHERE recipe_id = ?').get(strictMode.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM audit_log WHERE record_id = ?').get(strictMode.recipeId).count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM business_change_events').get().count, 1);
+    assert.deepEqual(db.prepare('SELECT technical_data_json, custom_barrel_length FROM recipes WHERE id = ?').get(strictMode.recipeId), strictModeLegacy);
 });

@@ -124,12 +124,10 @@ function resolveStainlessMode(db, recipeId, recipe = null) {
     let metadata;
     try { metadata = JSON.parse(part.remark || '{}'); } catch { metadata = null; }
     const value = metadata?.isStainless;
-    const explicitBoolean = typeof value === 'boolean'
-        ? value
-        : value === 1 ? true : value === 0 ? false : null;
-    if (explicitBoolean === null) {
+    if (typeof value !== 'boolean') {
         return { stainlessMode: 'UNKNOWN_OR_UNRESOLVED', isStainless: null, reasonCode: 'PUMP_SHELL_STAINLESS_MISSING', templateId: Number(template.id), shellPartId: Number(part.id) };
     }
+    const explicitBoolean = value;
     return {
         stainlessMode: explicitBoolean ? 'STAINLESS' : 'NON_STAINLESS',
         isStainless: explicitBoolean,
@@ -139,17 +137,15 @@ function resolveStainlessMode(db, recipeId, recipe = null) {
 }
 
 function normalizeOptionalNumber(field, value) {
-    if (value === null || value === undefined || value === '') return null;
-    if (typeof value === 'boolean' || typeof value === 'object') throw error('technical_profile_functional_invalid', `${field} 必须是数字或 null`, 400);
-    const number = typeof value === 'string' ? Number(value.trim()) : value;
-    if (!Number.isFinite(number) || !NUMERIC_RULES[field](number)) {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value) || !NUMERIC_RULES[field](value)) {
         throw error('technical_profile_functional_invalid', `${field} 数值不合法`, 422);
     }
-    return number;
+    return value;
 }
 
 function normalizePartId(field, value) {
-    if (value === null || value === undefined || value === '') return null;
+    if (value === null || value === undefined) return null;
     if (!Number.isInteger(value) || value <= 0) {
         throw error('technical_profile_functional_invalid', `${field} 必须是正整数或 null`, 400);
     }
