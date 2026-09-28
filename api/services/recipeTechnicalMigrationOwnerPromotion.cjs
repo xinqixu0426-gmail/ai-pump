@@ -43,7 +43,17 @@ function buildSnapshot(db, recipeId, canonical, dryRun) {
     const completeness = computeCompleteness(db, dto.functional, dto.policy, true);
     const assessment = dryRun.assess(recipeId);
     const reasons = assessment.reasons || [];
-    if (assessment.classification !== 'NEEDS_OWNER_REVIEW' || !reasons.some(reason => reason.code === 'MIGRATION_SOURCE_CHANGED') || reasons.some(reason => reason.code !== 'MIGRATION_SOURCE_CHANGED')) {
+    // An incomplete canonical aggregate is still a legitimate owner-adoption
+    // target.  Source drift is the only review concern D-B2 may settle; any
+    // other REVIEW or BLOCKED concern remains outside this narrow command.
+    const migrationSourceChanged = reasons.some(reason => (
+        reason.code === 'MIGRATION_SOURCE_CHANGED' && reason.severity === 'REVIEW'
+    ));
+    const disallowedReason = reasons.some(reason => (
+        reason.severity === 'BLOCKED'
+        || (reason.severity === 'REVIEW' && reason.code !== 'MIGRATION_SOURCE_CHANGED')
+    ));
+    if (assessment.classification !== 'NEEDS_OWNER_REVIEW' || !migrationSourceChanged || disallowedReason) {
         throw fail('technical_profile_migration_owner_promotion_not_eligible', 'D-B2 仅支持 MIGRATION_SOURCE_CHANGED review');
     }
     return {
