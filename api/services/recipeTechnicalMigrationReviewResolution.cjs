@@ -12,6 +12,7 @@ const {
 } = require('./recipeTechnicalProfileStore.cjs');
 const {
     FUNCTIONAL_FIELDS, computeCompleteness, createRecipeTechnicalProfileService,
+    derivedBearingSpan,
 } = require('./recipeTechnicalProfile.cjs');
 const { createRecipeTechnicalMigrationDryRunService } = require('./recipeTechnicalMigrationDryRun.cjs');
 
@@ -135,6 +136,15 @@ function currentBearing(db, bearing, selected, position) {
     const part = db.prepare(`SELECT id, category, deleted_at FROM parts WHERE id = ?`).get(selected);
     if (!part || part.deleted_at || part.category !== '轴承') throw error('technical_profile_migration_review_stale', '已选轴承已失效或类别变化', 409);
 }
+function assertSelectedBearingLifecycle(db, resolution) {
+    for (const [field, position] of [['upperBearingPartId', 'upper'], ['lowerBearingPartId', 'lower']]) {
+        if (!Object.hasOwn(resolution, field)) continue;
+        const part = db.prepare(`SELECT id, category, deleted_at FROM parts WHERE id = ?`).get(resolution[field]);
+        if (!part || part.deleted_at || part.category !== '轴承') {
+            throw error('technical_profile_migration_review_stale', `预览后 ${position} bearing 已失效或类别变化`, 409);
+        }
+    }
+}
 function selectedThickness(assessment, sourcePath) {
     const candidate = assessment.candidate.functional.impellerThickness;
     const source = [candidate.json, candidate.column].find(item => item?.sourcePath === sourcePath && typeof item.value === 'number' && item.value > 0);
@@ -249,6 +259,32 @@ function assertApplyInput(input) {
     return { confirmationToken: input.confirmationToken.trim(), idempotencyKey: input.idempotencyKey.trim() };
 }
 
+// The canonical query is the consumer-facing read boundary.  Verify it rather
+// than treating the rows written above as equivalent to its DTO contract.
+function assertCanonicalReadback(dto, recipeId, resolved) {
+    if (!dto || dto.recipeId !== recipeId || !dto.functional || !dto.technicalKnowledge
+        || dto.completeness?.state !== resolved.completeness.state
+        || dto.migration?.state !== 'ALREADY_CANONICAL'
+        || dto.migration?.version !== null || dto.migration?.fingerprint !== null) {
+        throw error('technical_profile_migration_review_readback_failed', 'Owner review canonical DTO 读回校验失败，已回滚', 500);
+    }
+    for (const field of FUNCTIONAL_FIELDS) {
+        if ((dto.functional[field] ?? null) !== (resolved.functional[field] ?? null)) {
+            throw error('technical_profile_migration_review_readback_failed', `Canonical DTO Functional ${field} 读回不一致`, 500);
+        }
+    }
+    const actualItems = dto.technicalKnowledge.items.map(item => {
+        const copy = { ...item }; delete copy.source; return copy;
+    });
+    if (stableJson(actualItems) !== stableJson(resolved.items)) {
+        throw error('technical_profile_migration_review_readback_failed', 'Canonical DTO Technical Knowledge 读回不一致', 500);
+    }
+    const span = derivedBearingSpan(resolved.functional, dto.policy);
+    if ((dto.functional.bearingSpan ?? null) !== (span.value ?? null) || dto.functional.bearingSpanSource !== span.source) {
+        throw error('technical_profile_migration_review_readback_failed', 'Canonical DTO bearingSpan 派生语义不一致', 500);
+    }
+}
+
 function createRecipeTechnicalMigrationReviewResolutionService(dependencies = {}) {
     const db = dependencies.db; if (!db) throw new Error('Recipe technical migration review resolution 缺少 db');
     const dryRun = dependencies.dryRunService || createRecipeTechnicalMigrationDryRunService({ db });
@@ -270,6 +306,7 @@ function createRecipeTechnicalMigrationReviewResolutionService(dependencies = {}
         const commandNow = new Date(clock());
         return persistentCommand({ db, ...context, actorKey: context.actorKey || subject, capabilityId: REVIEW_CAPABILITY_ID, operationId: confirmation.operationId, idempotencyKey: parsed.idempotencyKey, input: confirmation.input, now: commandNow, requestKnowledgeSync: () => {}, businessChange: standardBusinessChange({ domain: 'recipe', eventType: 'updated', reason: 'canonical technical migration owner review resolution', entityRefs: () => [{ entityType: 'recipe', entityId: recipeId, role: 'primary' }] }), execute: ({ auditContext }) => {
             if (getFunctionalProfile(db, recipeId) || getTechnicalKnowledge(db, recipeId)) throw error('technical_profile_migration_review_stale', 'canonical 子资源已在预览后出现，D-B1 不得覆盖', 409);
+            assertSelectedBearingLifecycle(db, confirmation.input.normalizedResolution);
             const assessment = dryRun.assess(recipeId); const resolved = buildResolution(db, assessment, { resolution: confirmation.input.normalizedResolution }); const current = decisionSnapshot(assessment, resolved);
             if (stableJson(current) !== stableJson(confirmation.input)) throw error('technical_profile_migration_review_stale', '迁移来源、候选、policy 或 Owner 决策在预览后发生变化', 409);
             if (getFunctionalProfile(db, recipeId) || getTechnicalKnowledge(db, recipeId)) throw error('technical_profile_migration_review_stale', 'canonical 子资源已在预览后出现，D-B1 不得覆盖', 409);
@@ -280,11 +317,11 @@ function createRecipeTechnicalMigrationReviewResolutionService(dependencies = {}
             const profile = getFunctionalProfile(db, recipeId); const knowledge = getTechnicalKnowledge(db, recipeId);
             if (!profile || !knowledge || profile.migration_state !== 'ALREADY_CANONICAL' || profile.migration_version !== null || profile.migration_fingerprint !== null || profile.completeness_state !== resolved.completeness.state || stableJson(JSON.parse(knowledge.items_json).map(item => { const copy = { ...item }; delete copy.source; return copy; })) !== stableJson(resolved.items)) throw error('technical_profile_migration_review_readback_failed', 'Owner review canonical 读回校验失败，已回滚', 500);
             for (const field of FUNCTIONAL_FIELDS) if ((profile[PROFILE_COLUMN_BY_FIELD[field]] ?? null) !== (resolved.functional[field] ?? null)) throw error('technical_profile_migration_review_readback_failed', `Functional ${field} 读回不一致`, 500);
-            const dto = canonical.get(recipeId); const post = dryRun.assess(recipeId);
+            const dto = canonical.get(recipeId); assertCanonicalReadback(dto, recipeId, resolved); const post = dryRun.assess(recipeId);
             if (post.classification !== 'ALREADY_CANONICAL' || post.target.writeEligible !== false || !post.reasons.some(reason => reason.code === 'CANONICAL_OWNER_AUTHORITY')) throw error('technical_profile_migration_review_post_verify_failed', 'Owner canonical post-write dry-run 校验失败，已回滚', 500);
             return { data: { recipeId, resolutionVersion: RESOLUTION_VERSION, sourceMigrationVersion: assessment.migrationVersion, sourceMigrationFingerprint: assessment.migrationFingerprint, resolvedIssueCodes: resolved.reviews.map(reason => reason.code), migrationStateAfter: 'ALREADY_CANONICAL', technicalProfile: dto, postWriteDryRun: { classification: post.classification, writeEligible: post.target.writeEligible } }, resource: { type: 'recipeTechnicalProfile', ids: [recipeId] }, changes: [{ resourceType: 'recipe', resourceId: recipeId, field: 'technicalProfile' }, { resourceType: 'recipe', resourceId: recipeId, field: 'technicalKnowledge' }], auditIds, requiredAuditCount: 2 };
         } });
     }
     return Object.freeze({ preview, apply });
 }
-module.exports = { REVIEW_CAPABILITY_ID, RESOLUTION_VERSION, SUPPORTED_REVIEW_ISSUES: Object.freeze([...SUPPORTED]), createRecipeTechnicalMigrationReviewResolutionService };
+module.exports = { REVIEW_CAPABILITY_ID, RESOLUTION_VERSION, SUPPORTED_REVIEW_ISSUES: Object.freeze([...SUPPORTED]), assertCanonicalReadback, createRecipeTechnicalMigrationReviewResolutionService };
