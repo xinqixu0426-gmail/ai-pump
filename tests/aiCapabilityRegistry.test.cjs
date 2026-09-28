@@ -295,6 +295,7 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
         'recipes.inventory_status',
         'recipes.resolve_identity',
         'recipes.technical_profile.get',
+        'recipes.technical_profile.rotor_shadow',
         'recipes.technical_profile.migration_dry_run',
         'recipes.technical_profile.migration_review_queue',
         'recipes.technical_profile.migration_backfill',
@@ -473,6 +474,15 @@ test('正式业务能力注册表：已迁移 query 和 command 统一登记完�
             assert.match(capability.previewPath, /^\/api\//);
         }
     }
+});
+
+test('Rotor shadow formal query remains outside AI and MCP capability exposure', () => {
+    const formalId = 'recipes.technical_profile.rotor_shadow';
+    assert.ok(getBusinessCapability(formalId));
+    assert.ok(!Object.values(AI_CAPABILITY_REGISTRY).some(capability => (
+        capability.formalCapabilityIds || []
+    ).includes(formalId)));
+    assert.equal(WRITE_TOOLS.has('recipe_technical_rotor_shadow'), false);
 });
 
 test('报价查询工具关联正式只读能力', () => {

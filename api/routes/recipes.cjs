@@ -50,6 +50,12 @@ const {
     createRecipeTechnicalMigrationOwnerPromotionService,
     PROMOTION_CAPABILITY_ID: RECIPE_TECHNICAL_MIGRATION_OWNER_PROMOTION_CAPABILITY_ID,
 } = require('../services/recipeTechnicalMigrationOwnerPromotion.cjs');
+const {
+    createRecipeTechnicalRotorAdapter,
+} = require('../services/recipeTechnicalRotorAdapter.cjs');
+const {
+    createRecipeTechnicalRotorShadowService,
+} = require('../services/recipeTechnicalRotorShadow.cjs');
 const router = Router();
 const technicalFileUpload = multer({
     storage: multer.memoryStorage(),
@@ -81,6 +87,14 @@ const recipeTechnicalMigrationOwnerPromotionService = createRecipeTechnicalMigra
     db,
     dryRunService: recipeTechnicalMigrationDryRunService,
     canonicalProfileService: recipeTechnicalProfileService,
+});
+const recipeTechnicalRotorAdapter = createRecipeTechnicalRotorAdapter({
+    db,
+    canonicalProfileService: recipeTechnicalProfileService,
+});
+const recipeTechnicalRotorShadowService = createRecipeTechnicalRotorShadowService({
+    db,
+    canonicalAdapter: recipeTechnicalRotorAdapter,
 });
 
 function recipeCommandDependencies() {
@@ -219,6 +233,16 @@ router.get('/technical-profile/migration-review-queue', (req, res) => {
 router.get('/:id/technical-profile/migration-dry-run', (req, res) => {
     try {
         res.json({ success: true, data: recipeTechnicalMigrationDryRunService.assess(req.params.id) });
+    } catch (error) {
+        sendRecipeQueryError(res, error);
+    }
+});
+
+// O4-F-E is a read-only inspection boundary.  It creates both isolated
+// candidates for parity analysis but never alters the live Rotor read path.
+router.get('/:id/technical-profile/rotor-shadow', (req, res) => {
+    try {
+        res.json({ success: true, data: recipeTechnicalRotorShadowService.inspect(req.params.id) });
     } catch (error) {
         sendRecipeQueryError(res, error);
     }

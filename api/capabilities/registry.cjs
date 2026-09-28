@@ -1381,6 +1381,15 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'internal']),
     }),
+    'recipes.technical_profile.rotor_shadow': defineQueryCapability({
+        capabilityId: 'recipes.technical_profile.rotor_shadow',
+        domain: 'recipe',
+        inputSchema: 'GET /api/recipes/:id/technical-profile/rotor-shadow',
+        outputSchema: 'RecipeTechnicalRotorShadowV1 canonical Rotor input plus isolated legacy compatibility comparison',
+        sourceOfTruth: 'recipe_functional_technical_profiles+recipe_technical_knowledge+recipes+formal_recipe_template_shell_part_relation+exact_bearing_parts+legacy_rotor_compatibility_draft',
+        riskLevel: 'low',
+        callers: Object.freeze(['web', 'internal']),
+    }),
     'recipes.technical_profile.migration_dry_run': defineQueryCapability({
         capabilityId: 'recipes.technical_profile.migration_dry_run',
         domain: 'recipe',

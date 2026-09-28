@@ -141,11 +141,14 @@ test('N7.3-R1 closure record separates the product runtime and handoff baselines
     assert.equal(record.releaseEvidence.payloadSha256, payloadSha);
     assert.equal(record.releaseEvidence.sideFileMatches, true);
 
-    // Every attested artifact must still match: no silent doc drift.
+    // Every current artifact must still match: no silent doc drift.  A later
+    // closure-refresh commit may attest a tracked worktree change before its
+    // candidate commit exists, so `diskSha256` is compared in the same
+    // canonical LF/Git-blob byte space but against the current worktree.
     assert.equal(record.handoffArtifactIntegrity.checked, evidence.handoffArtifacts.length);
     assert.equal(record.handoffArtifactIntegrity.allMatch, true, `drifted: ${record.handoffArtifactIntegrity.mismatches.join(', ')}`);
     for (const item of record.handoffArtifactIntegrity.artifacts) {
-        const disk = canonicalEvidenceHash(item.path).sha256;
+        const disk = canonicalEvidenceHash(item.path, { preferWorktree: true }).sha256;
         assert.equal(disk, item.attestedSha256, `artifact drifted: ${item.path}`);
     }
 

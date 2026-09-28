@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "98ef7fcefa79d11ffb1c5e598db5d9365cd359628a52cf2f203658733e32b29a",
-    "diskSha256": "98ef7fcefa79d11ffb1c5e598db5d9365cd359628a52cf2f203658733e32b29a",
+    "attestedSha256": "d8914b2721fac8f229db7fb5143cfc35a586c0d48bf1ad2b78a540d4e8343e40",
+    "diskSha256": "d8914b2721fac8f229db7fb5143cfc35a586c0d48bf1ad2b78a540d4e8343e40",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -89,6 +89,7 @@
   ,"o4FdARefreshNote": "O4-F-D-A updated docs/api-reference.md to register the deterministic Recipe technical migration backfill preview/apply API; this closure update refreshes only that existing handoff artifact's canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"o4FdB1RefreshNote": "O4-F-D-B1 adds the explicit Recipe technical migration Owner-review resolution preview/apply API; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"o4FdB2RefreshNote": "O4-F-D-B2 adds the explicit migrated Recipe technical authority promotion preview/apply API; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
+  ,"o4FeRefreshNote": "O4-F-E adds the read-only canonical Recipe Rotor shadow inspection API; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,
