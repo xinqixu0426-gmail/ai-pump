@@ -33,6 +33,8 @@ const {
     stringifyRecipeConfigurationPolicy,
 } = require('./recipeConfigurationPolicy.cjs');
 const { resolvePersistedCoilSelection } = require('./persistedCoilSelection.cjs');
+const { recipeTechnicalRuntimeFlags } = require('./recipeTechnicalRuntimeFlags.cjs');
+const { inspectLegacyTechnicalMutation } = require('./recipeTechnicalLegacyWriteGuard.cjs');
 
 const CREATE_CAPABILITY_ID = requireBusinessCapability('recipes.create').capabilityId;
 const UPDATE_CAPABILITY_ID = requireBusinessCapability('recipes.update').capabilityId;
@@ -847,6 +849,8 @@ function executeRecipeUpdate(
         camelPayload
     );
     const compatibilityWarnings = createCompatibilityWarnings(input, recipeId);
+    const runtimeFlags = dependencies.recipeTechnicalRuntimeFlags
+        || (() => recipeTechnicalRuntimeFlags(dependencies.env));
     if (!expectedUpdatedAt) {
         compatibilityWarnings.push({
             code: 'expected_updated_at_missing_compatibility',
@@ -877,6 +881,25 @@ function executeRecipeUpdate(
                 currentPreviewHash,
                 '配方保存草稿已经变化，请重新预览并确认'
             );
+            const legacyTechnicalGuard = inspectLegacyTechnicalMutation({
+                db: dependencies.db,
+                recipeId,
+                currentRecipe: current,
+                normalizedRecipePayload: payload,
+                freezeEnabled: Boolean(runtimeFlags().legacyWriteFreezeEnabled),
+            });
+            if (!legacyTechnicalGuard.allowed) {
+                const frozen = recipeCommandError(
+                    'recipe_technical_legacy_write_frozen',
+                    '该配方的技术权威已迁移到 canonical 技术档案，请通过 technical-profile API 更新',
+                    409
+                );
+                frozen.details = {
+                    recipeId,
+                    changedFields: legacyTechnicalGuard.changedProtectedFields,
+                };
+                throw frozen;
+            }
             assertCatalogPhysicalUpdate(dependencies.db, 'recipe', current, payload);
             const write = dependencies.safeUpdate(
                 'recipes',

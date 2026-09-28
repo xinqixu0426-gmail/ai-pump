@@ -8,6 +8,7 @@ const { buildLegacyRecipeRotorDraft } = require('../api/services/rotorQueries.cj
 const {
     CANONICAL_READ_FLAG,
     LEGACY_PROJECTION_FLAG,
+    LEGACY_WRITE_FREEZE_FLAG,
     recipeTechnicalRuntimeFlags,
 } = require('../api/services/recipeTechnicalRuntimeFlags.cjs');
 
@@ -38,15 +39,17 @@ function fixture(t, options = {}) {
         }, technicalKnowledge: { items: [] }, expectedUpdatedAt: null,
     }, { actorKey: 'test:selector', idempotencyKey: `selector-create-${recipeId}`, operationId: `op-selector-${recipeId}` });
     const selector = enabled => createRecipeRotorRuntimeSelector({
-        db, flags: () => ({ canonicalReadEnabled: enabled, legacyProjectionEnabled: false }),
+        // The selector must remain safe in the intended initial cutover
+        // configuration where all three gates are enabled.
+        db, flags: () => ({ canonicalReadEnabled: enabled, legacyProjectionEnabled: true, legacyWriteFreezeEnabled: true }),
     });
     return { db, recipeId, upperBearingPartId, lowerBearingPartId, selector };
 }
 
 test('Recipe technical runtime flags are explicitly disabled unless strict true is configured', () => {
-    assert.deepEqual(recipeTechnicalRuntimeFlags({}), { canonicalReadEnabled: false, legacyProjectionEnabled: false });
-    assert.deepEqual(recipeTechnicalRuntimeFlags({ [CANONICAL_READ_FLAG]: 'true', [LEGACY_PROJECTION_FLAG]: 'TRUE' }), { canonicalReadEnabled: true, legacyProjectionEnabled: true });
-    assert.deepEqual(recipeTechnicalRuntimeFlags({ [CANONICAL_READ_FLAG]: '1', [LEGACY_PROJECTION_FLAG]: 'yes' }), { canonicalReadEnabled: false, legacyProjectionEnabled: false });
+    assert.deepEqual(recipeTechnicalRuntimeFlags({}), { canonicalReadEnabled: false, legacyProjectionEnabled: false, legacyWriteFreezeEnabled: false });
+    assert.deepEqual(recipeTechnicalRuntimeFlags({ [CANONICAL_READ_FLAG]: 'true', [LEGACY_PROJECTION_FLAG]: 'TRUE', [LEGACY_WRITE_FREEZE_FLAG]: 'true' }), { canonicalReadEnabled: true, legacyProjectionEnabled: true, legacyWriteFreezeEnabled: true });
+    assert.deepEqual(recipeTechnicalRuntimeFlags({ [CANONICAL_READ_FLAG]: '1', [LEGACY_PROJECTION_FLAG]: 'yes', [LEGACY_WRITE_FREEZE_FLAG]: 'on' }), { canonicalReadEnabled: false, legacyProjectionEnabled: false, legacyWriteFreezeEnabled: false });
 });
 
 test('Rotor selector keeps byte-compatible legacy draft while canonical read flag is off', t => {

@@ -39,8 +39,8 @@
    {
     "role": "API_REFERENCE",
     "path": "docs/api-reference.md",
-    "attestedSha256": "bc27917fa78ebd4d05a58284defb8354c27fe942ec7449497d1d6ff468adec36",
-    "diskSha256": "bc27917fa78ebd4d05a58284defb8354c27fe942ec7449497d1d6ff468adec36",
+    "attestedSha256": "6f24fbc033b871a9643f755d1194b6b624bd3628a9b8662b7356c847951ff643",
+    "diskSha256": "6f24fbc033b871a9643f755d1194b6b624bd3628a9b8662b7356c847951ff643",
     "hashSource": "git_blob",
     "matches": true
    },
@@ -91,6 +91,7 @@
   ,"o4FdB2RefreshNote": "O4-F-D-B2 adds the explicit migrated Recipe technical authority promotion preview/apply API; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"o4FeRefreshNote": "O4-F-E adds the read-only canonical Recipe Rotor shadow inspection API; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
   ,"o4FfRefreshNote": "O4-F-F documents the feature-gated canonical Recipe Rotor runtime cutover and one-way canonical-to-legacy compatibility projection; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
+  ,"o4FgRefreshNote": "O4-F-G documents the feature-gated freeze of legacy Recipe technical writes once canonical child storage exists, plus the O4 landing closure; this closure update refreshes only the current API reference canonical SHA-256 and does not modify the historical handoff revision/tree, ReleaseEvidenceV1 payload, or productRuntime baseline."
  },
  "handoffPackageWorktree": {
   "cleanAtValidation": true,

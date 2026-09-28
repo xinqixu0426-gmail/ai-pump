@@ -116,6 +116,12 @@ function createFixture() {
             finding_type TEXT,
             decision TEXT
         );
+        CREATE TABLE recipe_functional_technical_profiles (
+            recipe_id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE recipe_technical_knowledge (
+            recipe_id INTEGER PRIMARY KEY
+        );
         INSERT INTO parts (
             model, category, price, supplier, stock, remark, created_at, updated_at
         ) VALUES (
@@ -189,6 +195,7 @@ function createFixture() {
         stock: row.stock,
         updatedAt: row.updated_at,
     });
+    let legacyWriteFreezeEnabled = false;
     const dependencies = {
         db,
         dbGetAllParts: () => db.prepare(`
@@ -223,8 +230,13 @@ function createFixture() {
         },
         invalidatePartsCache() {},
         refreshFactoryRuleCandidates() {},
+        recipeTechnicalRuntimeFlags: () => ({ legacyWriteFreezeEnabled }),
     };
-    return { db, dependencies };
+    return {
+        db,
+        dependencies,
+        setLegacyWriteFreezeEnabled(value) { legacyWriteFreezeEnabled = Boolean(value); },
+    };
 }
 
 function draftInput(overrides = {}) {
@@ -492,6 +504,78 @@ test('配方更新使用当前版本、预览绑定和持久幂等', () => {
         assert.equal(first.recipe.updatedAt, NEXT_UPDATED_AT);
         assert.equal(replay.idempotentReplay, true);
         assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM recipes').get().count, 1);
+    } finally {
+        fixture.db.close();
+    }
+});
+
+test('canonical-owned Recipe freezes only changed legacy technical authority while preserving legacy compatibility and ordinary edits', () => {
+    const fixture = createFixture();
+    try {
+        const created = executeRecipeCreate(
+            fixture.dependencies,
+            buildRecipeSavePayloadDraft(fixture.dependencies, draftInput()),
+            commandContext(CREATE_CAPABILITY_ID, 'freeze-seed')
+        );
+        const recipeId = created.recipe.id;
+        fixture.setLegacyWriteFreezeEnabled(true);
+
+        const legacyTechnicalDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput({
+            recipeId, expectedUpdatedAt: created.recipe.updatedAt,
+            technicalData: { rotorDiameter: 52 },
+        }));
+        // Canonical-absent records retain their temporary compatibility path.
+        const absentAllowed = executeRecipeUpdate(
+            fixture.dependencies, recipeId, legacyTechnicalDraft,
+            commandContext(UPDATE_CAPABILITY_ID, 'freeze-absent-allowed')
+        );
+        assert.equal(JSON.parse(fixture.db.prepare('SELECT technical_data_json FROM recipes WHERE id = ?').get(recipeId).technical_data_json).rotorDiameter, '52');
+
+        fixture.db.prepare('INSERT INTO recipe_technical_knowledge (recipe_id) VALUES (?)').run(recipeId);
+        const before = {
+            recipe: fixture.db.prepare('SELECT technical_data_json, name FROM recipes WHERE id = ?').get(recipeId),
+            audits: fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count,
+            operations: fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count,
+        };
+        const blockedDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput({
+            recipeId, expectedUpdatedAt: absentAllowed.recipe.updatedAt,
+            technicalData: { rotorDiameter: 61 },
+        }));
+        assert.throws(() => executeRecipeUpdate(
+            fixture.dependencies, recipeId, blockedDraft,
+            commandContext(UPDATE_CAPABILITY_ID, 'freeze-canonical-block')
+        ), error => error.code === 'recipe_technical_legacy_write_frozen'
+            && error.statusCode === 409
+            && error.details.recipeId === recipeId
+            && error.details.changedFields.includes('technical_data_json'));
+        assert.deepEqual(fixture.db.prepare('SELECT technical_data_json, name FROM recipes WHERE id = ?').get(recipeId), before.recipe);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM audit_log').get().count, before.audits);
+        assert.equal(fixture.db.prepare('SELECT COUNT(*) AS count FROM api_operations').get().count, before.operations);
+
+        // Full legacy payloads are acceptable when their protected JSON is
+        // semantically unchanged and the requested edit is nontechnical.
+        const sameTechnicalDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput({
+            recipeId, expectedUpdatedAt: absentAllowed.recipe.updatedAt,
+            form: { ...draftInput().form, name: '冻结后仍可改名' },
+            technicalData: { rotorDiameter: 52 },
+        }));
+        const renamed = executeRecipeUpdate(
+            fixture.dependencies, recipeId, sameTechnicalDraft,
+            commandContext(UPDATE_CAPABILITY_ID, 'freeze-nontechnical')
+        );
+        assert.equal(renamed.recipe.name, '冻结后仍可改名');
+        assert.equal(JSON.parse(fixture.db.prepare('SELECT technical_data_json FROM recipes WHERE id = ?').get(recipeId).technical_data_json).rotorDiameter, '52');
+
+        fixture.setLegacyWriteFreezeEnabled(false);
+        const rollbackDraft = buildRecipeSavePayloadDraft(fixture.dependencies, draftInput({
+            recipeId, expectedUpdatedAt: renamed.recipe.updatedAt,
+            technicalData: { rotorDiameter: 63 },
+        }));
+        executeRecipeUpdate(
+            fixture.dependencies, recipeId, rollbackDraft,
+            commandContext(UPDATE_CAPABILITY_ID, 'freeze-rollback')
+        );
+        assert.equal(JSON.parse(fixture.db.prepare('SELECT technical_data_json FROM recipes WHERE id = ?').get(recipeId).technical_data_json).rotorDiameter, '63');
     } finally {
         fixture.db.close();
     }

@@ -144,7 +144,9 @@ test('enabled canonical-to-legacy projection updates only compatibility function
     const service = createRecipeTechnicalProfileService({
         db,
         now: () => new Date(NOW),
-        runtimeFlags: () => ({ canonicalReadEnabled: false, legacyProjectionEnabled: projectionEnabled }),
+        // The initial trial enables all three flags.  The formal legacy
+        // command guard must not interfere with this internal projection.
+        runtimeFlags: () => ({ canonicalReadEnabled: true, legacyProjectionEnabled: projectionEnabled, legacyWriteFreezeEnabled: true }),
     });
     const first = service.update(recipeId, input(bearingPartId), context('technical-profile:projection-create'));
     const original = JSON.parse(db.prepare('SELECT technical_data_json FROM recipes WHERE id = ?').get(recipeId).technical_data_json);
