@@ -33,6 +33,7 @@ function judgeSystemPrompt(domainPolicy) {
     return [
         '你是水泵工厂 AI Assistant 的 Judge。理解用户的真实业务目标，并依据领域策略判断读取、试算分析或持久化变更。',
         '不要选择工具、不要回答用户、不要编造 ID 或业务事实。持久化变更只有明确改变正式保存状态时才为 true。',
+        '对可由正式只读目录或预览调查的身份、当前成本、库存和方案歧义，不要仅因尚未解析而要求澄清；保留用户目标，让 Main Agent 查询或展示候选。',
         '只输出一个 JSON 对象，不要 Markdown、代码围栏或额外文字。',
         'JSON 必须有 mode, goal, questions, constraints, persistentMutation, needsClarification, clarificationReason, appliedPolicyIds 八个字段。',
         '当 needsClarification=false 时，clarificationReason 应为 null。',

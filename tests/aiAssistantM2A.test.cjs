@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { AGENT_TOOLS, AgentToolError, executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
-const { mainAgentSystemPrompt } = require('../api/services/ai-assistant/mainAgent.cjs');
+const { mainAgentSystemPrompt, toolCallsFrom } = require('../api/services/ai-assistant/mainAgent.cjs');
 
 function evidence() { return { verified: true, calls: [{ method: 'GET', path: '/internal-only' }] }; }
 function formal(name, args) {
@@ -39,6 +39,10 @@ test('M2-A exposes only the core read/analyze tool surface and generic prompt', 
     const prompt = mainAgentSystemPrompt('policy');
     assert.doesNotMatch(prompt, /V550|340|cableLength|先用 find_recipe/);
     assert.match(prompt, /自主选择必要工具和顺序/);
+    assert.deepEqual(toolCallsFrom({ tool_calls: [
+        { id: 'a', function: { name: 'find_recipe', arguments: '{"keyword":"V550"}' } },
+        { id: 'b', function: { name: 'find_coils', arguments: '{"spec":"12","sheets":120}' } },
+    ] }).map(call => call.name), ['find_recipe', 'find_coils']);
 });
 
 test('recipe IDs bind only from a unique formal result and all money is projected from formal tools', async () => {

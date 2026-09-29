@@ -62,36 +62,22 @@ async function assistantMessage(response) {
 
 function toolCallsFrom(message) {
     if (!Array.isArray(message.tool_calls) || message.tool_calls.length === 0) return [];
-    if (message.tool_calls.length !== 1) {
-        throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'M1 每次 Main Agent 响应只允许一个工具调用');
-    }
-    const call = message.tool_calls[0];
-    const name = String(call?.function?.name || '').trim();
-    const rawArgs = call?.function?.arguments;
-    if (!name || typeof rawArgs !== 'string') {
-        throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具调用格式无效');
-    }
-    let args;
-    try {
-        args = JSON.parse(rawArgs);
-    } catch {
-        throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具参数不是有效 JSON');
-    }
-    if (!args || typeof args !== 'object' || Array.isArray(args)) {
-        throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具参数必须是对象');
-    }
-    return [{ id: String(call.id || `tool-${name}`), name, args }];
+    return message.tool_calls.map(call => {
+        const name = String(call?.function?.name || '').trim();
+        const rawArgs = call?.function?.arguments;
+        if (!name || typeof rawArgs !== 'string') throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具调用格式无效');
+        let args;
+        try { args = JSON.parse(rawArgs); } catch { throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具参数不是有效 JSON'); }
+        if (!args || typeof args !== 'object' || Array.isArray(args)) throw new MainAgentError('MAIN_AGENT_TOOL_CALL_INVALID', 'Main Agent 工具参数必须是对象');
+        return { id: String(call.id || `tool-${name}`), name, args };
+    });
 }
 
-function safeAssistantToolMessage(message, call) {
+function safeAssistantToolMessage(message, calls) {
     return {
         role: 'assistant',
         content: typeof message.content === 'string' ? message.content : '',
-        tool_calls: [{
-            id: call.id,
-            type: 'function',
-            function: { name: call.name, arguments: JSON.stringify(call.args) },
-        }],
+        tool_calls: calls.map(call => ({ id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } })),
     };
 }
 
@@ -155,31 +141,27 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 }
                 return { answer, toolResults, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
             }
-            if (toolResults.length >= MAX_TOOL_CALLS) {
+            if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
                 throw new MainAgentError('MAIN_AGENT_TOOL_BUDGET_EXCEEDED', 'Main Agent 超过工具调用上限');
             }
-            const call = calls[0];
-            const callKey = canonicalToolCall(call);
-            if (callKeys.has(callKey)) {
-                throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
+            for (const call of calls) {
+                const callKey = canonicalToolCall(call);
+                if (callKeys.has(callKey)) throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
+                callKeys.add(callKey);
             }
-            callKeys.add(callKey);
-            let result;
-            try {
-                result = await runTool(call.name, call.args, {
-                    resolvedRecipeIds,
-                    resolvedRecipeBindings,
-                    resolvedCoilBindings,
-                    signal: input.signal,
-                }, {
-                    executeToolCall: dependencies.executeToolCall,
-                });
-            } catch (error) {
-                throw new MainAgentError(error?.code || 'MAIN_AGENT_TOOL_FAILED', error?.message || 'Main Agent 工具调用失败');
+            messages.push(safeAssistantToolMessage(message, calls));
+            for (const call of calls) {
+                let result;
+                try {
+                    result = await runTool(call.name, call.args, {
+                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, signal: input.signal,
+                    }, { executeToolCall: dependencies.executeToolCall });
+                } catch (error) {
+                    throw new MainAgentError(error?.code || 'MAIN_AGENT_TOOL_FAILED', error?.message || 'Main Agent 工具调用失败');
+                }
+                toolResults.push(result);
+                messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });
             }
-            toolResults.push(result);
-            messages.push(safeAssistantToolMessage(message, call));
-            messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });
         }
         throw new MainAgentError('MAIN_AGENT_MODEL_BUDGET_EXCEEDED', 'Main Agent 未在模型调用预算内完成回答');
     });
