@@ -81,7 +81,7 @@ function coilCostProjection(data) {
 function coilInventoryProjection(raw, coilId) {
     const coil = (Array.isArray(raw?.data) ? raw.data : []).find(item => Number(item?.id ?? item?.Id) === coilId);
     if (!coil) return [];
-    return [{ coilId, commonDesignation: `${coil.spec}-${coil.sheets}`, schemeCode: coil.schemeCode || null, schemeName: coil.schemeName || null, quantity: coil.stock ?? null, unit: '件', inventoryBasis: '当前在库' }];
+    return [{ coilId, commonDesignation: `${coil.spec}-${coil.sheets}`, schemeCode: coil.schemeCode || null, schemeName: coil.schemeName || null, quantity: coil.stock ?? null, inventoryBasis: '当前在库' }];
 }
 function profitabilityProjection(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return null;

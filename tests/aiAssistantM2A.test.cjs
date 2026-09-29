@@ -21,9 +21,9 @@ function formal(name, args) {
     if (name === 'compare_recipes') return Promise.resolve({ success: true, recipe1: { name: 'V550', cost: 268.7 }, recipe2: { name: 'V750', cost: 289.01 }, costDiff: '20.31', costBasis: 'currentFullCost', executionEvidence: evidence() });
     if (name === 'search_coils') {
         const data = args.spec === '12' ? [
-            { id: 501, spec: '12', sheets: 120, schemeCode: 'A', schemeName: '钢带小眼', material: '钢带', slotType: '小眼', stock: 8 },
-            { id: 502, spec: '12', sheets: 120, schemeCode: 'B', schemeName: '冷轧国标眼', material: '冷轧', slotType: '国标眼', stock: 4 },
-        ] : [{ id: 503, spec: '18', sheets: 120, schemeCode: 'C', schemeName: '唯一方案', material: '冷轧', slotType: '国标眼', stock: 7 }];
+            { id: 501, spec: '12', sheets: 120, schemeCode: 'A', schemeName: '钢带小眼', material: '钢带', slotType: '小眼', stock: 8, privateInventoryRow: 'must-not-project' },
+            { id: 502, spec: '12', sheets: 120, schemeCode: 'B', schemeName: '冷轧国标眼', material: '冷轧', slotType: '国标眼', stock: 4, privateInventoryRow: 'must-not-project' },
+        ] : [{ id: 503, spec: '18', sheets: 120, schemeCode: 'C', schemeName: '唯一方案', material: '冷轧', slotType: '国标眼', stock: 7, privateInventoryRow: 'must-not-project' }];
         return Promise.resolve({ success: true, data: args.schemeCode ? data.filter(item => item.schemeCode === args.schemeCode) : data, executionEvidence: evidence() });
     }
     if (name === 'calculate_coil_cost') return Promise.resolve({ success: true, data: { coilId: args.coilId, spec: '18', sheets: 120, schemeCode: 'C', schemeName: '唯一方案', totalCost: 166.51, sourceVersions: 'private' }, executionEvidence: evidence() });
@@ -77,7 +77,9 @@ test('ambiguous coils remain distinct and cannot be silently used for inventory 
     await assert.rejects(() => call('coil_cost', { coilId: 501 }, state), error => error instanceof AgentToolError && error.code === 'AGENT_TOOL_IDENTITY_UNVERIFIED');
     await call('find_coils', { spec: '18', sheets: 120 }, state);
     const inventory = await call('coil_inventory', { coilId: 503 }, state);
-    assert.deepEqual(inventory.data[0], { coilId: 503, commonDesignation: '18-120', schemeCode: 'C', schemeName: '唯一方案', quantity: 7, unit: '件', inventoryBasis: '当前在库' });
+    assert.deepEqual(inventory.data[0], { coilId: 503, commonDesignation: '18-120', schemeCode: 'C', schemeName: '唯一方案', quantity: 7, inventoryBasis: '当前在库' });
+    assert.equal('unit' in inventory.data[0], false);
+    assert.equal('privateInventoryRow' in inventory.data[0], false);
     const cost = await call('coil_cost', { coilId: 503 }, state);
     assert.equal(cost.data.unitCost, 166.51);
 });
