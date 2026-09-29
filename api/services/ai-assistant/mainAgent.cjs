@@ -30,6 +30,7 @@ function mainAgentSystemPrompt(domainPolicy) {
         '自主选择必要工具和顺序；信息不足时继续调查，信息足够时停止。必须回答每个重要用户问题。',
         '正式金额只能引用工具返回的正式结果；不要自行计算、猜测数据库 ID，或混淆当前成本、临时情景与历史口径。',
         '实体名称不是数据库身份：只使用本轮正式身份工具返回的 ID。遇到歧义的配方或线圈，不得静默选择、合并或相加，应展示候选或简洁澄清。',
+        '会话中的历史提及只是语言上下文；新一轮使用具体 ID 前，先用本轮正式身份工具重新查询和绑定。',
         '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
         '相关领域策略：',
@@ -144,10 +145,11 @@ async function runMainAgent(input = {}, dependencies = {}) {
             if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
                 throw new MainAgentError('MAIN_AGENT_TOOL_BUDGET_EXCEEDED', 'Main Agent 超过工具调用上限');
             }
+            const batchKeys = new Set();
             for (const call of calls) {
                 const callKey = canonicalToolCall(call);
-                if (callKeys.has(callKey)) throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
-                callKeys.add(callKey);
+                if (callKeys.has(callKey) || batchKeys.has(callKey)) throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
+                batchKeys.add(callKey);
             }
             messages.push(safeAssistantToolMessage(message, calls));
             for (const call of calls) {
@@ -157,8 +159,16 @@ async function runMainAgent(input = {}, dependencies = {}) {
                         resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, signal: input.signal,
                     }, { executeToolCall: dependencies.executeToolCall });
                 } catch (error) {
-                    throw new MainAgentError(error?.code || 'MAIN_AGENT_TOOL_FAILED', error?.message || 'Main Agent 工具调用失败');
+                    result = {
+                        success: false,
+                        agentToolName: call.name,
+                        verified: false,
+                        data: null,
+                        code: 'TOOL_ARGUMENT_REJECTED',
+                        message: '该工具调用缺少本轮已验证的正式身份或参数无效；请先查询正式候选后再继续。',
+                    };
                 }
+                if (result.success) callKeys.add(canonicalToolCall(call));
                 toolResults.push(result);
                 messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(result) });
             }
