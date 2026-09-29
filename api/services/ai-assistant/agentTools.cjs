@@ -1,6 +1,7 @@
 'use strict';
 
 const { executeToolCall } = require('../../routes/ai/executor.cjs');
+const { prepareProtectedPartStockProposal } = require('./protectedPartStock.cjs');
 
 class AgentToolError extends Error {
     constructor(code, message) { super(message); this.name = 'AgentToolError'; this.code = code; }
@@ -30,6 +31,10 @@ const AGENT_TOOLS = Object.freeze([
     tool('preview_virtual_readiness', '按当前库存和活动订单占用，预览已确认配方生产指定数量时的齐料和缺料。只读。', {
         recipeId: { type: 'integer', minimum: 1 }, quantity: { type: 'integer', minimum: 1, maximum: 100000 },
     }, ['recipeId', 'quantity']),
+]);
+const PROTECTED_PROPOSAL_TOOLS = Object.freeze([
+    tool('find_part', '按用户给出的完整型号查询正式零件候选。多个候选不会替用户选择。', { keyword: { type: 'string', minLength: 1, maxLength: 120 } }, ['keyword']),
+    tool('prepare_part_stock_adjustment', '为本轮唯一确认的正式零件准备库存增减的受保护预览。不会执行写入；Owner 必须在模型之外确认。', { partId: { type: 'integer', minimum: 1 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['partId', 'delta']),
 ]);
 
 function strictObject(value, fields, label) {
@@ -63,6 +68,12 @@ function rawCoils(result) {
         if (!Number.isSafeInteger(id) || id <= 0 || !spec || !Number.isFinite(sheets)) return [];
         return [{ id, spec, sheets, schemeCode: String(coil?.schemeCode || '').trim() || null, schemeName: String(coil?.schemeName || '').trim() || null,
             material: String(coil?.material || '').trim() || null, slotType: String(coil?.slotType || '').trim() || null }];
+    });
+}
+function rawParts(result) {
+    return (Array.isArray(result?.parts) ? result.parts : Array.isArray(result?.data) ? result.data : []).flatMap(part => {
+        const id = Number(part?.id ?? part?.Id); const model = String(part?.model || '').trim();
+        return Number.isSafeInteger(id) && id > 0 && model ? [{ id, model, category: String(part.category || '').trim() || null, supplier: String(part.supplier || '').trim() || null }] : [];
     });
 }
 function coilProjection(coils) { return coils.slice(0, 30).map(coil => ({ id: coil.id, commonDesignation: `${coil.spec}-${coil.sheets}`, schemeCode: coil.schemeCode, schemeName: coil.schemeName, material: coil.material, slotType: coil.slotType })); }
@@ -104,6 +115,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     const recipeIds = context.resolvedRecipeIds instanceof Set ? context.resolvedRecipeIds : new Set();
     const recipeBindings = bindingMap(context, 'resolvedRecipeBindings');
     const coilBindings = bindingMap(context, 'resolvedCoilBindings');
+    const partBindings = bindingMap(context, 'resolvedPartBindings');
     const formal = (toolName, toolArgs) => runFormalTool(toolName, toolArgs, { allowWrite: false, signal: context.signal });
 
     if (name === 'find_recipe' || name === 'list_recipes') {
@@ -112,6 +124,19 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
         const result = await formal('get_all_recipes', keyword ? { keyword } : {}); const recipes = rawRecipes(result);
         if (result?.success !== false && recipes.length === 1) { recipeIds.add(recipes[0].id); recipeBindings.set(recipes[0].id, recipes[0]); }
         return safeProjection(name, result, recipeProjection(recipes));
+    }
+    if (name === 'find_part') {
+        strictObject(args, ['keyword'], name); const keyword = requiredText(args.keyword, 'find_part.keyword', 120);
+        const result = await formal('search_parts', { keyword }); const parts = rawParts(result);
+        if (result?.success !== false && parts.length === 1) partBindings.set(parts[0].id, parts[0]);
+        return safeProjection(name, result, parts.slice(0, 20));
+    }
+    if (name === 'prepare_part_stock_adjustment') {
+        strictObject(args, ['partId', 'delta'], name);
+        const partId = boundId(args.partId, 'partId', new Set(partBindings.keys())); const part = partBindings.get(partId);
+        const prepared = await prepareProtectedPartStockProposal({ part, delta: args.delta, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool });
+        if (typeof context.setProtectedProposal === 'function') context.setProtectedProposal(prepared);
+        return { success: true, agentToolName: name, verified: true, data: { ...prepared.proposal, confirmationRequired: true } };
     }
     if (name === 'recipe_current_cost') {
         strictObject(args, ['recipeId'], name); const recipeId = boundId(args.recipeId, 'recipeId', recipeIds);
@@ -153,4 +178,4 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     throw new AgentToolError('AGENT_TOOL_NOT_ALLOWED', `M2-A 不允许调用工具：${String(name || '')}`);
 }
 
-module.exports = { AGENT_TOOLS, AgentToolError, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, profitabilityProjection, readinessProjection, recipeComparisonProjection, recipeCostProjection };
+module.exports = { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, AgentToolError, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, profitabilityProjection, rawParts, readinessProjection, recipeComparisonProjection, recipeCostProjection };

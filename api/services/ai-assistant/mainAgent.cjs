@@ -3,7 +3,7 @@
 const { fetchAiProvider, decodeAiProviderResponse } = require('../aiProvider.cjs');
 const { resolveProviderConfig } = require('../aiProviderRegistry.cjs');
 const { withAgentSpan, withModelSpan } = require('../observability.cjs');
-const { AGENT_TOOLS, executeAgentTool } = require('./agentTools.cjs');
+const { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, executeAgentTool } = require('./agentTools.cjs');
 
 const MAX_TOOL_CALLS = 6;
 const MAX_MAIN_MODEL_CALLS = 7;
@@ -24,14 +24,17 @@ function boundedConversation(recentConversation = []) {
         .map(message => ({ role: message.role, content: message.content.slice(0, 2_000) }));
 }
 
-function mainAgentSystemPrompt(domainPolicy) {
+function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY') {
+    const protectedProposal = mode === 'PROTECTED_PROPOSAL';
     return [
         '你是水泵工厂 AI Assistant 的 Main Agent。理解原始用户问题与 Judge 摘要，使用提供的只读工具取得所需正式业务事实后，自然、简洁地回答中文。',
         '自主选择必要工具和顺序；信息不足时继续调查，信息足够时停止。必须回答每个重要用户问题。',
         '正式金额只能引用工具返回的正式结果；不要自行计算、猜测数据库 ID，或混淆当前成本、临时情景与历史口径。',
         '实体名称不是数据库身份：只使用本轮正式身份工具返回的 ID。遇到歧义的配方或线圈，不得静默选择、合并或相加，应展示候选或简洁澄清。',
         '会话中的历史提及只是语言上下文；新一轮使用具体 ID 前，先用本轮正式身份工具重新查询和绑定。',
-        '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
+        protectedProposal
+            ? '本轮只能准备一项库存调整的受保护提案。必须先用 find_part 唯一确认身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
+            : '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
         '相关领域策略：',
         domainPolicy,
@@ -41,10 +44,11 @@ function mainAgentSystemPrompt(domainPolicy) {
 async function defaultMainModelCall(messages, options = {}) {
     const config = resolveProviderConfig('deepseek', options.env || process.env);
     if (!config.apiKey) throw new MainAgentError('DEEPSEEK_NOT_CONFIGURED', 'DeepSeek 未配置，无法执行 Main Agent');
-    return withModelSpan({ provider: 'deepseek', model: config.model, streaming: false, toolDefinitionCount: AGENT_TOOLS.length }, () => (
+    const tools = options.tools || AGENT_TOOLS;
+    return withModelSpan({ provider: 'deepseek', model: config.model, streaming: false, toolDefinitionCount: tools.length }, () => (
         fetchAiProvider(messages, {
             config,
-            tools: AGENT_TOOLS,
+            tools,
             stream: false,
             signal: options.signal,
             timeoutMs: options.timeoutMs,
@@ -99,10 +103,12 @@ async function runMainAgent(input = {}, dependencies = {}) {
     if (!judge || typeof judge !== 'object') throw new MainAgentError('MAIN_AGENT_INPUT_INVALID', '缺少 Judge 结果');
     const modelCall = dependencies.modelCall || defaultMainModelCall;
     const runTool = dependencies.executeAgentTool || executeAgentTool;
+    const proposalMode = input.mode === 'PROTECTED_PROPOSAL';
+    const exposedTools = proposalMode ? PROTECTED_PROPOSAL_TOOLS : AGENT_TOOLS;
     const startedAt = Date.now();
     const timeoutMs = runtimeLimit(input);
     const messages = [
-        { role: 'system', content: mainAgentSystemPrompt(input.domainPolicy || '') },
+        { role: 'system', content: mainAgentSystemPrompt(input.domainPolicy || '', input.mode) },
         ...boundedConversation(input.recentConversation),
         {
             role: 'user',
@@ -114,6 +120,8 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const resolvedRecipeIds = new Set();
     const resolvedRecipeBindings = new Map();
     const resolvedCoilBindings = new Map();
+    const resolvedPartBindings = new Map();
+    let protectedProposal = null;
 
     return withAgentSpan({ route: 'ai_assistant_m1_main_agent', requestId: input.requestId, streaming: false }, async () => {
         for (let modelCalls = 0; modelCalls < MAX_MAIN_MODEL_CALLS; modelCalls += 1) {
@@ -127,7 +135,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
                     signal: input.signal,
                     timeoutMs: Math.max(1, timeoutMs - (Date.now() - startedAt)),
                     stage: 'main_agent',
-                    tools: AGENT_TOOLS,
+                    tools: exposedTools,
                 }));
             } catch (error) {
                 if (error instanceof MainAgentError) throw error;
@@ -140,13 +148,16 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 if (judge.mode !== 'GENERAL' && toolResults.length === 0) {
                     throw new MainAgentError('MAIN_AGENT_FORMAL_TOOL_REQUIRED', 'Main Agent 未取得正式工具结果');
                 }
-                return { answer, toolResults, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
+                if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
+                return { answer, toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
             }
             if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
                 throw new MainAgentError('MAIN_AGENT_TOOL_BUDGET_EXCEEDED', 'Main Agent 超过工具调用上限');
             }
             const batchKeys = new Set();
             for (const call of calls) {
+                if (!exposedTools.some(item => item.function.name === call.name)) throw new MainAgentError('MAIN_AGENT_TOOL_NOT_ALLOWED', 'Main Agent 调用了当前模式未暴露的工具。');
+                if (proposalMode && protectedProposal) throw new MainAgentError('MAIN_AGENT_TOOL_AFTER_PROPOSAL', '受保护提案形成后不得继续调用工具。');
                 const callKey = canonicalToolCall(call);
                 if (callKeys.has(callKey) || batchKeys.has(callKey)) throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
                 batchKeys.add(callKey);
@@ -156,7 +167,8 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 let result;
                 try {
                     result = await runTool(call.name, call.args, {
-                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, signal: input.signal,
+                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, resolvedPartBindings, confirmationSubject: input.confirmationSubject, signal: input.signal,
+                        setProtectedProposal: value => { protectedProposal = value; },
                     }, { executeToolCall: dependencies.executeToolCall });
                 } catch (error) {
                     result = {

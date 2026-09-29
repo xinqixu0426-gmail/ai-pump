@@ -1035,6 +1035,8 @@ AI 工具：
 - `get_factory_knowledge_health`：只读诊断自动同步状态、失败原因和人工恢复建议。
 - `get_management_action_center`：只读汇总今天优先处理的订单、经营、质量、规则学习和知识库健康事项。
 - `adjust_part_stock`：按零件精确型号批量增减零件库库存；属于 critical 写工具。服务端统一识别文字和符号库存增量，在确认前通过正式零件 Query 唯一解析目标并调用正式库存 Preview；零匹配返回相似候选，多匹配返回真实候选，预览不完整时停止，均不签发确认。确认卡仅由结构化 executor 回执生成并展示标准型号和正式 API 的当前/预计库存，模型文字无确认效力。预览凭证作为不下发客户端的服务端上下文绑定 AI confirmation token，确认后只调用一次正式 Command 并整批事务执行；随后核对 operation/audit、逐项变更数量和值并通过正式零件 Query 回读最终库存，任一不一致不得输出成功。
+
+隔离的 `api/services/ai-assistant` 候选运行时仅在 Judge 判定为持久化库存变更时，向 Main Agent 暴露 `find_part` 和只预览的 `prepare_part_stock_adjustment`；后者没有执行权限，确认令牌不会发送给模型。Owner 确认由候选运行时之外的受保护函数消费既有确认令牌，仍复用上述 executor、正式 API、审计和回读链路。该候选路径尚未接入公共 `/api/ai/chat`。
 - `batch_update_prices`：按正式类别批量调价，或通过 `targets` 明确指定 1–8 个零件；属于 high 写工具。明确目标使用 `partId` 或完整 `model+supplier`，但两种选择器都必须在确认前通过本轮正式零件 Query 重新唯一绑定。零匹配、多匹配、重复目标、缺价，或正式 Preview 跳过、warning、价格漂移时不签发确认；确认卡完整展示全部标准零件身份及 Preview 的当前/预计价格。确认后消费服务端绑定的 `/prices-preview` 上下文执行一次 `/prices`，并核对 operation/audit、无重复的精确逐项 changes 集合和正式价格回读。
 - `adjust_coil_stock`：按“规格俗称-片数”批量调整独立线圈成品库存，例如 `12-120` 表示规格 12、片数 120；属于写工具。确认卡生成前由 `aiCoilStockExecution` 唯一匹配正式材质/槽眼方案并调用正式 Preview，卡片展示数据库标准方案和变更前后库存；正式 Preview 凭证只绑定在服务端 AI confirmation token 中，确认后直接调用原子 Command，不再次信任模型参数。不得改写零件库存，匹配多个方案时停止并要求明确。
 - `sync_factory_knowledge`：同步知识索引；因为会写 `knowledge_entries`，必须经过 AI 写操作确认。

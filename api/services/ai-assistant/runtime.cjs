@@ -2,6 +2,7 @@
 
 const { loadDomainPolicy, runJudge } = require('./judge.cjs');
 const { runMainAgent } = require('./mainAgent.cjs');
+const { executeProtectedPartStockConfirmation } = require('./protectedPartStock.cjs');
 
 class AiAssistantRuntimeError extends Error {
     constructor(code, message) {
@@ -25,15 +26,6 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         requestId: input.requestId,
     }, { modelCall: dependencies.judgeModelCall });
 
-    if (judgeResult.output.persistentMutation) {
-        return {
-            status: 'PERSISTENT_MUTATION_REQUIRES_PROTECTED_PATH',
-            judge: judgeResult.output,
-            judgeRepaired: judgeResult.repaired,
-            answer: '该请求需要走受保护的提案与 Owner 确认流程；M1 试运行时不会执行或准备写入。',
-            toolResults: [],
-        };
-    }
     if (judgeResult.output.needsClarification || judgeResult.output.mode === 'UNCLEAR') {
         return {
             status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
@@ -46,7 +38,7 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         };
     }
 
-    if (!['READ', 'ANALYZE', 'GENERAL'].includes(judgeResult.output.mode)) {
+    if (!['READ', 'ANALYZE', 'GENERAL', 'PERSIST_MUTATION'].includes(judgeResult.output.mode)) {
         return {
             status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
             judge: judgeResult.output,
@@ -56,6 +48,7 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         };
     }
 
+    const proposalMode = judgeResult.output.persistentMutation === true;
     const main = await runMainAgent({
         userMessage,
         recentConversation: input.recentConversation,
@@ -65,20 +58,27 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         signal: input.signal,
         maxRuntimeMs: input.maxRuntimeMs,
         requestId: input.requestId,
+        mode: proposalMode ? 'PROTECTED_PROPOSAL' : 'READ_ONLY',
+        confirmationSubject: input.confirmationSubject,
     }, {
         modelCall: dependencies.mainModelCall,
         executeAgentTool: dependencies.executeAgentTool,
         executeToolCall: dependencies.executeToolCall,
     });
     return {
-        status: 'COMPLETED',
+        status: proposalMode ? 'PROPOSAL_READY' : 'COMPLETED',
         judge: judgeResult.output,
         judgeRepaired: judgeResult.repaired,
         answer: main.answer,
         toolResults: main.toolResults,
         modelCalls: { judge: judgeResult.repaired ? 2 : 1, main: main.modelCalls },
         durationMs: main.durationMs,
+        ...(proposalMode ? { proposal: main.protectedProposal.proposal, confirmation: main.protectedProposal.confirmation } : {}),
     };
 }
 
-module.exports = { AiAssistantRuntimeError, runAiAssistantM1 };
+async function confirmAiAssistantPartStockProposal(input = {}, dependencies = {}) {
+    return executeProtectedPartStockConfirmation(input, dependencies);
+}
+
+module.exports = { AiAssistantRuntimeError, confirmAiAssistantPartStockProposal, runAiAssistantM1 };

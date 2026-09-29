@@ -288,17 +288,15 @@ test('tool and Main Agent failures do not enter Task V2 or create writes', async
     }
 });
 
-test('persistent contrast stops before Main Agent tools', async () => {
+test('persistent contrast requires the M2-B protected proposal path', async () => {
     let mainCalled = false;
-    const result = await runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
+    await assert.rejects(() => runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
         judgeModelCall: judgeModel({
             ...previewJudge,
             mode: 'PERSIST_MUTATION', persistentMutation: true,
             goal: '正式修改 V550 电缆并保存', constraints: ['正式保存'], appliedPolicyIds: ['RULE-01', 'RULE-02'],
         }),
-        mainModelCall: async () => { mainCalled = true; throw new Error('must not run'); },
-    });
-    assert.equal(result.status, 'PERSISTENT_MUTATION_REQUIRES_PROTECTED_PATH');
-    assert.equal(mainCalled, false);
-    assert.deepEqual(result.toolResults, []);
+        mainModelCall: async () => { mainCalled = true; throw new Error('proposal requires owner subject'); },
+    }), error => error instanceof MainAgentError && error.code === 'MAIN_AGENT_MODEL_FAILED');
+    assert.equal(mainCalled, true);
 });
