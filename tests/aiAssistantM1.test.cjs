@@ -155,8 +155,9 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
             return response({ content: JSON.stringify(previewJudge) });
         },
         mainModelCall: mainSequence((messages, options) => {
-            assert.deepEqual(options.tools.map(tool => tool.function.name), ['find_recipe', 'preview_profitability']);
-            assert.match(messages[0].content, /工具结果足够后直接用中文回答/);
+            assert.ok(options.tools.some(tool => tool.function.name === 'find_recipe'));
+            assert.ok(options.tools.some(tool => tool.function.name === 'preview_profitability'));
+            assert.match(messages[0].content, /自主选择必要工具和顺序/);
             const formal = JSON.parse(messages.at(-1).content);
             assert.deepEqual(Object.keys(formal.data).sort(), [
                 'costBasis', 'costComplete', 'currency', 'grossMarginOnSales', 'grossProfitPerUnit',
@@ -212,7 +213,7 @@ test('tool failures expose only bounded safe metadata', async () => {
         verified: false,
         data: null,
         code: 'FORMAL_TOOL_FAILED',
-        message: '正式业务工具暂不可用，无法完成本次试算。',
+        message: '正式业务工具暂不可用，无法完成本次查询。',
     });
 });
 
@@ -237,18 +238,16 @@ test('formal result mutation reaches Main Agent rather than a hardcoded amount',
 });
 
 test('tool and Main Agent failures do not enter Task V2 or create writes', async () => {
-    await assert.rejects(
-        () => runAiAssistantM1({ userMessage: INPUT }, {
-            judgeModelCall: judgeModel(),
-            mainModelCall: mainSequence(() => '不应到达'),
-            executeToolCall: async (name, args) => (
-                name === 'get_all_recipes'
-                    ? formalToolResult(name, args)
-                    : { success: false, code: 'FORMAL_DOWN', error: 'formal preview unavailable' }
-            ),
-        }),
-        error => error instanceof MainAgentError && error.code === 'MAIN_AGENT_FORMAL_PREVIEW_REQUIRED'
-    );
+    const toolFailure = await runAiAssistantM1({ userMessage: INPUT }, {
+        judgeModelCall: judgeModel(),
+        mainModelCall: mainSequence(() => '正式工具暂不可用，未能完成试算。'),
+        executeToolCall: async (name, args) => (
+            name === 'get_all_recipes'
+                ? formalToolResult(name, args)
+                : { success: false, code: 'FORMAL_DOWN', error: 'formal preview unavailable' }
+        ),
+    });
+    assert.equal(toolFailure.toolResults.at(-1).success, false);
     await assert.rejects(
         () => runAiAssistantM1({ userMessage: INPUT }, {
             judgeModelCall: judgeModel(),

@@ -34,7 +34,7 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
             toolResults: [],
         };
     }
-    if (judgeResult.output.mode !== 'ANALYZE' || judgeResult.output.needsClarification) {
+    if (judgeResult.output.needsClarification || judgeResult.output.mode === 'UNCLEAR') {
         return {
             status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
             judge: judgeResult.output,
@@ -42,6 +42,16 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
             answer: judgeResult.output.needsClarification
                 ? judgeResult.output.clarificationReason
                 : 'M1 仅开放配方临时毛利试算，请说明需要试算的配方、临时配置和售价。',
+            toolResults: [],
+        };
+    }
+
+    if (!['READ', 'ANALYZE', 'GENERAL'].includes(judgeResult.output.mode)) {
+        return {
+            status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
+            judge: judgeResult.output,
+            judgeRepaired: judgeResult.repaired,
+            answer: 'M2-A 当前无法安全处理该请求，请补充需要查询的工厂业务对象。',
             toolResults: [],
         };
     }
