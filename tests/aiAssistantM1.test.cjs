@@ -1,0 +1,204 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const { JudgeError, runJudge } = require('../api/services/ai-assistant/judge.cjs');
+const { MainAgentError } = require('../api/services/ai-assistant/mainAgent.cjs');
+const { runAiAssistantM1 } = require('../api/services/ai-assistant/runtime.cjs');
+
+const INPUT = 'V550电缆改成5米，卖340元，毛利多少？先不要保存。';
+const previewJudge = Object.freeze({
+    mode: 'ANALYZE',
+    goal: '试算 V550 电缆临时改为 5 米、售价 340 元时的毛利',
+    questions: ['V550 临时方案成本和毛利是多少？'],
+    constraints: ['V550', '电缆长度 5 米', '售价 340 CNY', '不保存'],
+    persistentMutation: false,
+    needsClarification: false,
+    clarificationReason: null,
+    appliedPolicyIds: ['RULE-01', 'RULE-05', 'RULE-08'],
+});
+
+function response(message) {
+    return { choices: [{ message }] };
+}
+
+function toolCall(name, args, id) {
+    return response({ content: null, tool_calls: [{ id, type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
+}
+
+function formalToolResult(name, args) {
+    if (name === 'get_all_recipes') {
+        assert.deepEqual(args, { keyword: 'V550' });
+        return {
+            success: true,
+            data: [{ id: 55, name: 'V550', updatedAt: '2026-09-29T00:00:00.000Z' }],
+            executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes?keyword=V550' }] },
+        };
+    }
+    assert.equal(name, 'preview_profitability');
+    assert.equal(args.basisRef.recipeId, 55);
+    assert.equal(args.basisRef.comparisonInput.scenarios[0].overrides.cableLength, 5);
+    assert.equal(args.unitPrice, 340);
+    assert.equal(args.currency, 'CNY');
+    return {
+        success: true,
+        data: {
+            costComplete: true,
+            unitCost: 281.25,
+            grossProfit: 58.75,
+            grossMargin: 0.1728,
+            markup: 0.2089,
+            currency: 'CNY',
+            basis: 'CURRENT_REBUILT_SCENARIO',
+        },
+        executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/cost/profitability-preview' }] },
+    };
+}
+
+function mainSequence(answerFactory) {
+    let index = 0;
+    return async (messages, options) => {
+        index += 1;
+        if (index === 1) return toolCall('find_recipe', { keyword: 'V550' }, 'tool-recipe');
+        if (index === 2) return toolCall('preview_profitability', { recipeId: 55, cableLength: 5, unitPrice: 340 }, 'tool-profit');
+        assert.equal(index, 3);
+        return response({ content: answerFactory(messages, options) });
+    };
+}
+
+function judgeModel(output = previewJudge) {
+    return async () => response({ content: JSON.stringify(output) });
+}
+
+test('Judge classifies the preview and persistent contrast without GoalKind', async () => {
+    const preview = await runJudge({ userMessage: INPUT }, { modelCall: judgeModel() });
+    assert.equal(preview.output.mode, 'ANALYZE');
+    assert.equal(preview.output.persistentMutation, false);
+    assert.deepEqual(preview.output.constraints, previewJudge.constraints);
+    const persistent = await runJudge({ userMessage: '把V550电缆正式改成5米并保存。' }, {
+        modelCall: judgeModel({
+            ...previewJudge,
+            mode: 'PERSIST_MUTATION',
+            goal: '正式保存 V550 电缆长度为 5 米',
+            constraints: ['V550', '正式保存'],
+            persistentMutation: true,
+            appliedPolicyIds: ['RULE-01', 'RULE-02'],
+        }),
+    });
+    assert.equal(persistent.output.mode, 'PERSIST_MUTATION');
+    assert.equal(persistent.output.persistentMutation, true);
+});
+
+test('Judge permits exactly one format repair and otherwise fails in the new runtime', async () => {
+    let calls = 0;
+    const repaired = await runJudge({ userMessage: INPUT }, {
+        modelCall: async () => {
+            calls += 1;
+            return response({ content: calls === 1 ? '{invalid' : JSON.stringify(previewJudge) });
+        },
+    });
+    assert.equal(calls, 2);
+    assert.equal(repaired.repaired, true);
+    await assert.rejects(
+        () => runJudge({ userMessage: INPUT }, { modelCall: async () => response({ content: 'not json' }) }),
+        error => error instanceof JudgeError && error.code === 'JUDGE_FORMAT_INVALID'
+    );
+});
+
+test('M1 runs the V550 preview through isolated Judge, formal tools and Main Agent answer', async () => {
+    const toolCalls = [];
+    let businessWrites = 0;
+    const result = await runAiAssistantM1({ userMessage: INPUT }, {
+        judgeModelCall: async (messages, options) => {
+            assert.equal(options.tools, undefined);
+            assert.match(messages[0].content, /不要选择工具/);
+            return response({ content: JSON.stringify(previewJudge) });
+        },
+        mainModelCall: mainSequence((messages, options) => {
+            assert.deepEqual(options.tools.map(tool => tool.function.name), ['find_recipe', 'preview_profitability']);
+            assert.match(messages[0].content, /工具结果足够后直接用中文回答/);
+            const formal = JSON.parse(messages.at(-1).content);
+            assert.equal(formal.data.unitCost, 281.25);
+            assert.equal(formal.data.grossProfit, 58.75);
+            return 'V550 电缆临时改为 5 米后，成本约 ¥281.25。按售价 ¥340，单台毛利 ¥58.75，毛利率约 17.28%。本次只是试算，没有保存。';
+        }),
+        executeToolCall: async (name, args, options) => {
+            toolCalls.push({ name, args, options });
+            assert.equal(options.allowWrite, false);
+            if (options.allowWrite) businessWrites += 1;
+            return formalToolResult(name, args);
+        },
+    });
+    assert.equal(result.status, 'COMPLETED');
+    assert.equal(result.judge.mode, 'ANALYZE');
+    assert.equal(result.judge.persistentMutation, false);
+    assert.deepEqual(toolCalls.map(call => call.name), ['get_all_recipes', 'preview_profitability']);
+    assert.match(result.answer, /¥281\.25/);
+    assert.match(result.answer, /没有保存/);
+    assert.equal(result.toolResults.length, 2);
+    assert.equal(businessWrites, 0);
+});
+
+test('formal result mutation reaches Main Agent rather than a hardcoded amount', async () => {
+    const result = await runAiAssistantM1({ userMessage: INPUT }, {
+        judgeModelCall: judgeModel(),
+        mainModelCall: mainSequence(messages => {
+            const formal = JSON.parse(messages.at(-1).content);
+            return `正式结果：成本 ¥${formal.data.unitCost}，毛利 ¥${formal.data.grossProfit}，本次没有保存。`;
+        }),
+        executeToolCall: async (name, args) => {
+            if (name === 'get_all_recipes') return formalToolResult(name, args);
+            const result = formalToolResult(name, args);
+            result.data.unitCost = 299.99;
+            result.data.grossProfit = 40.01;
+            return result;
+        },
+    });
+    assert.match(result.answer, /¥299\.99/);
+    assert.match(result.answer, /¥40\.01/);
+    assert.doesNotMatch(result.answer, /281\.25|58\.75/);
+});
+
+test('tool and Main Agent failures do not enter Task V2 or create writes', async () => {
+    await assert.rejects(
+        () => runAiAssistantM1({ userMessage: INPUT }, {
+            judgeModelCall: judgeModel(),
+            mainModelCall: mainSequence(() => '不应到达'),
+            executeToolCall: async (name, args) => (
+                name === 'get_all_recipes'
+                    ? formalToolResult(name, args)
+                    : { success: false, code: 'FORMAL_DOWN', error: 'formal preview unavailable' }
+            ),
+        }),
+        error => error instanceof MainAgentError && error.code === 'MAIN_AGENT_FORMAL_PREVIEW_REQUIRED'
+    );
+    await assert.rejects(
+        () => runAiAssistantM1({ userMessage: INPUT }, {
+            judgeModelCall: judgeModel(),
+            mainModelCall: async () => { throw new Error('provider down'); },
+            executeToolCall: formalToolResult,
+        }),
+        error => error instanceof MainAgentError && error.code === 'MAIN_AGENT_MODEL_FAILED'
+    );
+    for (const filename of ['judge.cjs', 'mainAgent.cjs', 'agentTools.cjs', 'runtime.cjs']) {
+        const source = fs.readFileSync(path.join(__dirname, '..', 'api/services/ai-assistant', filename), 'utf8');
+        assert.doesNotMatch(source, /aiTaskSemanticsV2|aiTaskControllerV2|aiTaskAnswerV2|GoalKind|TaskEnvelopeV2/);
+    }
+});
+
+test('persistent contrast stops before Main Agent tools', async () => {
+    let mainCalled = false;
+    const result = await runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
+        judgeModelCall: judgeModel({
+            ...previewJudge,
+            mode: 'PERSIST_MUTATION', persistentMutation: true,
+            goal: '正式修改 V550 电缆并保存', constraints: ['正式保存'], appliedPolicyIds: ['RULE-01', 'RULE-02'],
+        }),
+        mainModelCall: async () => { mainCalled = true; throw new Error('must not run'); },
+    });
+    assert.equal(result.status, 'PERSISTENT_MUTATION_REQUIRES_PROTECTED_PATH');
+    assert.equal(mainCalled, false);
+    assert.deepEqual(result.toolResults, []);
+});
