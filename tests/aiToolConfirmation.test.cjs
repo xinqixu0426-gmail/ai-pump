@@ -1,7 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const {
     AiToolConfirmationError,
     completeAiToolConfirmation,
@@ -325,34 +323,4 @@ test('AI 确认协议：只读能力不能签发写操作确认 token', () => {
         }),
         error => error.code === 'confirmation_not_allowed' && error.statusCode === 400
     );
-});
-
-test('AI 确认协议：正式确认路由只执行 token 中的服务端参数', () => {
-    const source = fs.readFileSync(
-        path.join(__dirname, '..', 'api/routes/ai/chat.cjs'),
-        'utf8'
-    );
-    const route = source.slice(
-        source.indexOf("router.post('/api/ai/confirm-tool'"),
-        source.indexOf('/**\n * 通用 AI 对话处理函数')
-    );
-
-    assert.match(route, /confirmation_token_required/);
-    assert.match(route, /executeConfirmedAiTool/);
-    assert.doesNotMatch(route, /executeToolCall/);
-});
-
-test('AI 确认协议：编辑卡片通过独立 Preview 路由重新校验', () => {
-    const source = fs.readFileSync(
-        path.join(__dirname, '..', 'api/routes/ai/chat.cjs'),
-        'utf8'
-    );
-    const start = source.indexOf("router.post('/api/ai/confirm-tool/preview'");
-    const route = source.slice(
-        start,
-        source.indexOf("router.post('/api/ai/confirm-tool'", start + 1)
-    );
-    assert.match(route, /reviseAiToolConfirmation/);
-    assert.match(route, /confirmation_revision_payload_required/);
-    assert.doesNotMatch(route, /executeConfirmedAiTool/);
 });

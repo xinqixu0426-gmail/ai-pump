@@ -12,7 +12,7 @@ class AiAssistantRuntimeError extends Error {
     }
 }
 
-async function runAiAssistantM1(input = {}, dependencies = {}) {
+async function runAiAssistant(input = {}, dependencies = {}) {
     const userMessage = String(input.userMessage || '').trim();
     if (!userMessage) throw new AiAssistantRuntimeError('AI_ASSISTANT_INPUT_INVALID', '缺少用户消息');
     const domainPolicy = dependencies.domainPolicy || loadDomainPolicy();
@@ -40,7 +40,7 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
             judgeRepaired: judgeResult.repaired,
             answer: judgeResult.output.needsClarification
                 ? judgeResult.output.clarificationReason
-                : 'M1 仅开放配方临时毛利试算，请说明需要试算的配方、临时配置和售价。',
+                : '请补充需要查询或试算的工厂业务对象。',
             toolResults: [],
         };
     }
@@ -50,7 +50,7 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
             status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
             judge: judgeResult.output,
             judgeRepaired: judgeResult.repaired,
-            answer: 'M2-A 当前无法安全处理该请求，请补充需要查询的工厂业务对象。',
+            answer: '当前无法安全处理该请求，请补充需要查询的工厂业务对象。',
             toolResults: [],
         };
     }
@@ -90,4 +90,4 @@ async function confirmAiAssistantPartStockProposal(input = {}, dependencies = {}
     return executeProtectedPartStockConfirmation(input, dependencies);
 }
 
-module.exports = { AiAssistantRuntimeError, confirmAiAssistantPartStockProposal, runAiAssistantM1 };
+module.exports = { AiAssistantRuntimeError, confirmAiAssistantPartStockProposal, runAiAssistant };

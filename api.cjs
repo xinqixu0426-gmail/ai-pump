@@ -24,7 +24,6 @@ const {
   isProductionEnvironment,
   parseCorsOrigins,
 } = require('./api/services/environment.cjs');
-const { startupAiNativeRolloutSummary } = require('./api/services/aiNativeRolloutPolicy.cjs');
 
 const app = express();
 const appLogger = createLogger('api');
@@ -282,14 +281,12 @@ app.use((error, req, res, next) => {
 
 // ── 启动 ──
 const server = app.listen(PORT, '0.0.0.0', () => {
-    const nativeRollout = startupAiNativeRolloutSummary(process.env);
     console.log(`========================================`);
     console.log(`水泵工厂管理系统 API 已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
     console.log(`运行平台: ${process.platform} | 环境模式: ${IS_PRODUCTION ? '🚀 生产模式 (Secure Cookie)' : '🛠  开发模式 (Lax Cookie)'}`);
     console.log(`========================================`);
     console.log(`🔒 认证系统已启用`);
-    console.log(`[AI Native] mode=${nativeRollout.mode} authority=${nativeRollout.authority} writeEnabled=${nativeRollout.writeEnabled}`);
     console.log(`   登录接口: POST /api/auth/login`);
     console.log(`   登出接口: POST /api/auth/logout`);
     console.log(`   状态检查: GET  /api/auth/check`);

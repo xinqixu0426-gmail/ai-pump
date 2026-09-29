@@ -542,15 +542,15 @@ const PREVIEW_CAPABILITY_NAMES = new Set([
 const PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES = new Set([
     'get_recipe_parts',
     'get_recipes_by_part',
-    // N2.2 is callable only by Task V2.  Keeping it out of the frozen legacy
-    // catalogue prevents a schema addition from changing old runtime routing.
+    // These capabilities are intentionally reserved for the reviewed assistant
+    // surface and are not part of the generic MCP catalogue.
     'compare_recipe_scenarios',
     'preview_profitability',
     'preview_virtual_readiness',
     'get_recipe_technical_profile',
 ]);
 
-const NATIVE_ONLY_AI_TOOL_NAMES = new Set(['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness', 'get_recipe_technical_profile']);
+const PRIVATE_ASSISTANT_TOOL_NAMES = new Set(['compare_recipe_scenarios', 'preview_profitability', 'preview_virtual_readiness', 'get_recipe_technical_profile']);
 
 const AI_FORMAL_CAPABILITY_IDS = Object.freeze({
     search_business_changes: Object.freeze(['business_changes.list']),
@@ -1934,15 +1934,6 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         riskLevel: 'low',
         callers: Object.freeze(['web', 'internal']),
     }),
-    'ai.tool_confirmation.repreview': definePreviewCapability({
-        capabilityId: 'ai.tool_confirmation.repreview',
-        domain: 'ai',
-        inputSchema: 'POST /api/ai/confirm-tool/preview { confirmationToken, toolName, args }',
-        outputSchema: 'AiToolResult<EditableConfirmationPreview>',
-        sourceOfTruth: 'pending_ai_confirmation+AI_TOOLS_input_schema+formal_write_preflight',
-        riskLevel: 'low',
-        callers: Object.freeze(['web']),
-    }),
     'ai.evaluations.runs.start': defineBusinessCapability({
         capabilityId: 'ai.evaluations.runs.start',
         recordsBusinessChange: false,
@@ -2465,26 +2456,23 @@ function assertAiToolRegistryComplete(aiTools = []) {
         .filter(Boolean));
     const registeredNames = new Set(Object.keys(AI_CAPABILITY_REGISTRY));
     const missing = [...toolNames].filter(name => !registeredNames.has(name));
-    // The frozen Legacy catalogue is not the only legitimate caller of the AI
-    // capability registry.  The accepted AI Native V1 design keeps its own
-    // deliberately constrained tool surface (N2.2: three preview tools) out of
-    // the Legacy catalogue on purpose, so those registrations are not
-    // orphans.  Every exemption must still be a registered capability AND
-    // explicitly declared private-assistant-only, so this guard keeps failing
-    // on a genuinely unreachable registration or on an unexpected Native
-    // exposure instead of being silently widened.
-    const nativeOnlyExempt = [...NATIVE_ONLY_AI_TOOL_NAMES].filter(name => !toolNames.has(name));
-    const unexpectedNativeExemptions = nativeOnlyExempt.filter(name => (
+    // The generic MCP catalogue is not the only legitimate caller of the AI
+    // capability registry. The reviewed assistant owns a deliberately
+    // constrained private surface. Every exemption must still be registered
+    // and explicitly private-assistant-only, preventing an unreachable
+    // registration or unexpected exposure from being silently accepted.
+    const privateAssistantExempt = [...PRIVATE_ASSISTANT_TOOL_NAMES].filter(name => !toolNames.has(name));
+    const unexpectedPrivateAssistantExemptions = privateAssistantExempt.filter(name => (
         !registeredNames.has(name)
         || !PRIVATE_ASSISTANT_ONLY_CAPABILITY_NAMES.has(name)
     ));
     const orphaned = [...registeredNames].filter(name => (
-        !toolNames.has(name) && !nativeOnlyExempt.includes(name)
+        !toolNames.has(name) && !privateAssistantExempt.includes(name)
     ));
-    if (missing.length || orphaned.length || unexpectedNativeExemptions.length) {
+    if (missing.length || orphaned.length || unexpectedPrivateAssistantExemptions.length) {
         throw new Error(
             `AI 能力注册表不完整: missing=[${missing.join(', ')}], orphaned=[${orphaned.join(', ')}]`
-            + `, unexpected_native_exemptions=[${unexpectedNativeExemptions.join(', ')}]`
+            + `, unexpected_private_assistant_exemptions=[${unexpectedPrivateAssistantExemptions.join(', ')}]`
         );
     }
     const invalidMetadata = listAiCapabilities()

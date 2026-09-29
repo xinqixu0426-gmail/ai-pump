@@ -1230,19 +1230,13 @@ test('API 静态契约：V9.1 统一文件对象保留原文件、类型和业�
 
 test('API 静态契约：V9.1 AI 聊天附件经过统一文件库并按模型能力传递', () => {
     const chat = readAiPromptContractSource();
-    const provider = readUtf8(path.join(repoRoot, 'api/services/aiProvider.cjs'));
-    const providerRegistry = readUtf8(path.join(repoRoot, 'api/services/aiProviderRegistry.cjs'));
     const conversations = readUtf8(path.join(repoRoot, 'api/services/aiConversations.cjs'));
     const aiView = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai-view.tsx'));
     const aiAttachments = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiAttachments.ts'));
     const aiComposer = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/AiComposer.tsx'));
 
-    assert.match(chat, /router\.get\('\/api\/ai\/capabilities'/);
-    assert.match(chat, /fetchAiProvider/);
-    assert.match(providerRegistry, /AI_PROVIDER/);
-    assert.match(providerRegistry, /KIMI_API_KEY/);
-    assert.match(provider, /type: 'image_url'/);
-    assert.match(provider, /不支持直接识图/);
+    assert.match(chat, /runAiAssistant/);
+    assert.doesNotMatch(chat, /providerPreference|aiProvider/);
     assert.match(conversations, /resolveMessageAttachments/);
     assert.match(conversations, /FROM factory_files/);
     assert.match(aiAttachments, /uploadFactoryFile/);
@@ -1543,24 +1537,6 @@ test('API 静态契约：V8.4 执行历史保存结果、错误和实时恢复�
 });
 
 
-test('API 静态契约：NATIVE-HC1 后 dispatcher 只调度 Native，生产不再引用 Legacy AI runtime', () => {
-    const chat = readUtf8(path.join(repoRoot, 'api/routes/ai/chat.cjs'));
-    const v3Entry = readUtf8(path.join(repoRoot, 'api/services/aiDispatcherV3.cjs'));
-    const aiClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));
-    const messageStream = readUtf8(path.join(repoRoot, 'apps/web-next/components/ai/useAiMessageStream.ts'));
-
-    assert.match(chat, /runAiDispatcherV3/);
-    // HC1：dispatcher 只引用 Native 任务运行时；Legacy runtime 零引用。
-    assert.match(v3Entry, /runAiTaskControllerV2/);
-    assert.doesNotMatch(v3Entry, /require\(['"][^'"]*aiAssistantRuntime|require\(['"][^'"]*aiAgentRuntimeV3/u,
-        'dispatcher 不得 require 任何 Legacy AI runtime');
-    assert.doesNotMatch(v3Entry, /runAiAssistant|runAiAgentRuntimeV3/u,
-        'dispatcher 不得调用任何 Legacy AI runtime 入口');
-    assert.match(v3Entry, /native_write_disabled/);
-    assert.match(v3Entry, /ai_unavailable/);
-    assert.match(aiClient, /\/api\/ai\/chat/);
-    void messageStream;
-});
 
 test('API 静态契约：PWA AI 流中断自动重试且不保存不完整回复', () => {
     const aiClient = readUtf8(path.join(repoRoot, 'apps/web-next/lib/ai.ts'));

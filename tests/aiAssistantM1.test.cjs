@@ -7,7 +7,7 @@ const test = require('node:test');
 const { JudgeError, runJudge, validateJudgeOutput } = require('../api/services/ai-assistant/judge.cjs');
 const { executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
 const { MainAgentError } = require('../api/services/ai-assistant/mainAgent.cjs');
-const { runAiAssistantM1 } = require('../api/services/ai-assistant/runtime.cjs');
+const { runAiAssistant } = require('../api/services/ai-assistant/runtime.cjs');
 
 const INPUT = 'V550电缆改成5米，卖340元，毛利多少？先不要保存。';
 const previewJudge = Object.freeze({
@@ -174,7 +174,7 @@ test('Judge repair retains bounded conversation and repeats the strict contract'
 test('M1 runs the V550 preview through isolated Judge, formal tools and Main Agent answer', async () => {
     const toolCalls = [];
     let businessWrites = 0;
-    const result = await runAiAssistantM1({ userMessage: INPUT }, {
+    const result = await runAiAssistant({ userMessage: INPUT }, {
         judgeModelCall: async (messages, options) => {
             assert.equal(options.tools, undefined);
             assert.match(messages[0].content, /不要选择工具/);
@@ -244,7 +244,7 @@ test('tool failures expose only bounded safe metadata', async () => {
 });
 
 test('formal result mutation reaches Main Agent rather than a hardcoded amount', async () => {
-    const result = await runAiAssistantM1({ userMessage: INPUT }, {
+    const result = await runAiAssistant({ userMessage: INPUT }, {
         judgeModelCall: judgeModel(),
         mainModelCall: mainSequence(messages => {
             const formal = JSON.parse(messages.at(-1).content);
@@ -264,7 +264,7 @@ test('formal result mutation reaches Main Agent rather than a hardcoded amount',
 });
 
 test('tool and Main Agent failures do not enter Task V2 or create writes', async () => {
-    const toolFailure = await runAiAssistantM1({ userMessage: INPUT }, {
+    const toolFailure = await runAiAssistant({ userMessage: INPUT }, {
         judgeModelCall: judgeModel(),
         mainModelCall: mainSequence(() => '正式工具暂不可用，未能完成试算。'),
         executeToolCall: async (name, args) => (
@@ -275,7 +275,7 @@ test('tool and Main Agent failures do not enter Task V2 or create writes', async
     });
     assert.equal(toolFailure.toolResults.at(-1).success, false);
     await assert.rejects(
-        () => runAiAssistantM1({ userMessage: INPUT }, {
+        () => runAiAssistant({ userMessage: INPUT }, {
             judgeModelCall: judgeModel(),
             mainModelCall: async () => { throw new Error('provider down'); },
             executeToolCall: formalToolResult,
@@ -290,7 +290,7 @@ test('tool and Main Agent failures do not enter Task V2 or create writes', async
 
 test('persistent contrast fails closed when the server write gate is absent', async () => {
     let mainCalled = false;
-    const result = await runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
+    const result = await runAiAssistant({ userMessage: '把V550电缆正式改成5米并保存。' }, {
         judgeModelCall: judgeModel({
             ...previewJudge,
             mode: 'PERSIST_MUTATION', persistentMutation: true,

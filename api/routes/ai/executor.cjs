@@ -30,7 +30,7 @@ const {
 const {
     getAiToolInputSchema,
     validateAiToolArgs,
-} = require('../../services/aiToolInputValidatorV2.cjs');
+} = require('../../services/aiToolInputValidator.cjs');
 const { withToolSpan } = require('../../services/observability.cjs');
 
 const TOOL_EXECUTORS = Object.freeze({
@@ -375,15 +375,9 @@ async function executeToolCallImplementation(toolName, args, options = {}) {
                     ...options,
                     confirmationRows: prepared.confirmationRows,
                     proposal: prepared.proposal,
-                    // Formal preflight data remains authoritative.  A caller may
-                    // add a server-owned task reference, but cannot replace the
-                    // preflight context used by the protected command.
-                    executionContext: {
-                        ...(prepared.executionContext || {}),
-                        ...(options.executionContext?.nativeTask
-                            ? { nativeTask: options.executionContext.nativeTask }
-                            : {}),
-                    },
+                    // Formal preflight data remains authoritative and owns the
+                    // execution context used by the protected command.
+                    executionContext: prepared.executionContext || {},
                 });
             } catch (error) {
                 if (options.signal?.aborted || error?.name === 'AbortError'

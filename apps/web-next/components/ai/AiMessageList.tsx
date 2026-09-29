@@ -2,11 +2,11 @@
 
 import { memo, useEffect, useState, type RefObject } from 'react';
 import { Bot, BrainCircuit, Clock3, Gauge, Hash, Loader2, MessageSquareWarning, RotateCcw, ThumbsUp, UserRound, Wrench } from 'lucide-react';
-import type { AiAnswerFeedback, AiAttachment, AiToolResult, AiTurnMetrics } from '@/lib/ai';
+import type { AiAnswerFeedback, AiAttachment, AiTurnMetrics } from '@/lib/ai';
 import { aiStarterSamples } from '@/components/ai/AiConversationSidebars';
 import { AiMessageAttachments } from '@/components/ai/AiAttachmentDisplays';
 import { AnswerProcess, type ChatItem } from '@/components/ai/AiAnswerProcess';
-import { NativeWriteProposalCard } from '@/components/ai/NativeWriteProposalCard';
+import { AiAssistantWriteProposalCard } from '@/components/ai/AiAssistantWriteProposalCard';
 import { StreamingText } from '@/components/ai/ai-text';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -84,28 +84,6 @@ function LiveAiStatus({ label, startedAt }: { label: string; startedAt?: number 
   );
 }
 
-function confirmedWriteContent(item: ChatItem) {
-  const hasProtectedWrite = item.toolPlan?.steps?.some(
-    (step) => step.mode === 'write' && step.requiresConfirmation,
-  );
-  if (!hasProtectedWrite) return null;
-
-  const receipt = [...(item.toolResults || [])].reverse().find((tool) => {
-    if (!tool.result || typeof tool.result !== 'object') return false;
-    const result = tool.result as Record<string, unknown>;
-    return result.success === true && result.requiresConfirmation !== true;
-  });
-  if (!receipt?.result || typeof receipt.result !== 'object') return null;
-
-  const result = receipt.result as Record<string, unknown>;
-  const summary = typeof result.message === 'string' && result.message.trim()
-    ? result.message.trim()
-    : typeof result.summary === 'string' && result.summary.trim()
-      ? result.summary.trim()
-      : '操作已通过正式 API 执行完成。';
-  return `## 已执行\n\n${summary}`;
-}
-
 export const AiMessageList = memo(function AiMessageList({
   items,
   panel,
@@ -116,7 +94,6 @@ export const AiMessageList = memo(function AiMessageList({
   contentRef,
   onRunSample,
   onArchive,
-  onConfirmed,
   onConfirmWriteProposal,
   onCancelWriteProposal,
   onRetry,
@@ -133,7 +110,6 @@ export const AiMessageList = memo(function AiMessageList({
   contentRef: RefObject<HTMLDivElement>;
   onRunSample: (prompt: string) => void;
   onArchive: (attachment: AiAttachment) => void;
-  onConfirmed: (messageId: string, index: number, result: AiToolResult) => void;
   onConfirmWriteProposal: (messageId: string) => void;
   onCancelWriteProposal: (messageId: string) => void;
   onRetry: (item: ChatItem) => void;
@@ -184,9 +160,7 @@ export const AiMessageList = memo(function AiMessageList({
 
       {items.map((item) => {
         const answerFeedback = item.persistedMessageId ? feedbackByMessageId[item.persistedMessageId] : undefined;
-        const displayContent = item.role === 'assistant'
-          ? confirmedWriteContent(item) || item.content
-          : item.content;
+        const displayContent = item.content;
         const hasAnswerProcess = item.role === 'assistant' && Boolean(
           item.toolPlan || item.toolCalls?.length || item.toolResults?.length
         );
@@ -216,14 +190,13 @@ export const AiMessageList = memo(function AiMessageList({
               {item.role === 'assistant' ? (
                 <AnswerProcess
                   item={item}
-                  onConfirmed={(index, next) => onConfirmed(item.id, index, next)}
                   onSendPrompt={onRunSample}
                   shortcutDisabled={loading}
                 />
               ) : null}
               {item.role === 'assistant' && item.writeProposal ? (
                 <div className="mt-3">
-                  <NativeWriteProposalCard
+                  <AiAssistantWriteProposalCard
                     card={item.writeProposal}
                     onConfirm={() => onConfirmWriteProposal(item.id)}
                     onCancel={() => onCancelWriteProposal(item.id)}

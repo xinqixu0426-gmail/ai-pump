@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { runAiAssistantM1, confirmAiAssistantPartStockProposal } = require('../api/services/ai-assistant/runtime.cjs');
+const { runAiAssistant, confirmAiAssistantPartStockProposal } = require('../api/services/ai-assistant/runtime.cjs');
 const { PROTECTED_PROPOSAL_TOOLS } = require('../api/services/ai-assistant/agentTools.cjs');
 
 const judge = Object.freeze({ mode: 'PERSIST_MUTATION', goal: '将零件 P-100 库存增加 3 并保存', questions: ['把 P-100 库存增加 3'], constraints: ['P-100', '增加 3', '正式保存'], persistentMutation: true, needsClarification: false, clarificationReason: null, appliedPolicyIds: ['RULE-02', 'RULE-04'] });
@@ -14,7 +14,7 @@ const call = (name, args, id) => response({ content: null, tool_calls: [{ id, ty
 test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path', async () => {
     const formalCalls = [];
     let mainRound = 0;
-    const result = await runAiAssistantM1({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test' }, {
+    const result = await runAiAssistant({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test' }, {
         writeAllowed: true,
         judgeModelCall: async () => response({ content: JSON.stringify(judge) }),
         mainModelCall: async (_messages, options) => {
@@ -69,7 +69,7 @@ test('M2-B confirmation consumes only the protected token and preserves formal r
 
 test('M2-B-R1 server write gate is dependency-only and fails closed before Main Agent or proposal', async () => {
     let mainCalls = 0; let formalCalls = 0;
-    const result = await runAiAssistantM1({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test', writeAllowed: true }, {
+    const result = await runAiAssistant({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test', writeAllowed: true }, {
         writeAllowed: false,
         judgeModelCall: async () => response({ content: JSON.stringify(judge) }),
         mainModelCall: async () => { mainCalls += 1; throw new Error('must not run'); },

@@ -7,7 +7,7 @@ const {
     listMcpTools,
 } = require('../api/mcp/catalog.cjs');
 const { getAiCapability } = require('../api/capabilities/registry.cjs');
-const { validateAiToolArgs } = require('../api/services/aiToolInputValidatorV2.cjs');
+const { validateAiToolArgs } = require('../api/services/aiToolInputValidator.cjs');
 const {
     executeMcpWriteTool,
     resetMcpWriteFlowsForTests,

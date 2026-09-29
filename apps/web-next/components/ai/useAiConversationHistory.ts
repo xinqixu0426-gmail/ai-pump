@@ -1,6 +1,6 @@
 'use client';
 
-import { hydrateHistoricalWriteCard } from '@/lib/ai-write-proposal.cjs';
+import { hydrateHistoricalWriteCard } from '@/lib/ai-assistant-write-proposal.cjs';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -109,8 +109,6 @@ export function useAiConversationHistory(locked: boolean) {
           attachments: message.metadata?.attachments || [],
           provider: message.metadata?.provider,
           metrics: message.metadata?.metrics,
-          turnState: message.metadata?.turnState,
-          nativeTaskId: message.metadata?.nativeTaskId,
           // NATIVE-W2 §17：历史卡片一律不可执行（不持久化 token，也绝不用显示值重建请求）。
           writeProposal: message.metadata?.writeProposal ? hydrateHistoricalWriteCard() : undefined,
           persistedMessageId: message.id,

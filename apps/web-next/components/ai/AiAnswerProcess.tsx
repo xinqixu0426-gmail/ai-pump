@@ -1,23 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   ArrowUpRight,
-  Check,
   ChevronDown,
   FileSearch,
-  Loader2,
-  Pencil,
-  ShieldAlert,
   Wrench,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/field';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
-  confirmAiTool,
-  reviseAiToolConfirmation,
   type AiAttachment,
   type AiKnowledgeSource,
   type AiProviderInfo,
@@ -52,71 +44,11 @@ export type ChatItem = {
   attachments?: AiAttachment[];
   provider?: AiProviderInfo;
   metrics?: AiTurnMetrics;
-  turnState?: import('@/lib/ai').AiTurnStateV3;
   retryable?: boolean;
-  nativeTaskId?: string;
   /** NATIVE-W2：服务端签发的库存调整提案卡片状态（结构化，不扁平化为 Markdown）。 */
-  writeProposal?: import('@/lib/ai-write-proposal.cjs').NativeWriteCard;
+  writeProposal?: import('@/lib/ai-assistant-write-proposal.cjs').AiAssistantWriteCard;
   startedAt?: number;
 };
-
-type ConfirmationResult = {
-  requiresConfirmation?: boolean;
-  confirmation?: {
-    confirmationToken?: string;
-    operationId?: string;
-    expiresAt?: string;
-    toolName: string;
-    args?: unknown;
-    title?: string;
-    summary?: string;
-    warning?: string;
-    rows?: Array<{ label: string; value: string }>;
-    editableFields?: ConfirmationEditableField[];
-  };
-};
-
-type ConfirmationEditableField = {
-  key: string;
-  label: string;
-  type: 'string' | 'number' | 'integer' | 'boolean' | 'json';
-  required?: boolean;
-  locked?: boolean;
-  value?: unknown;
-  options?: unknown[];
-  description?: string;
-};
-
-function isConfirmationResult(value: unknown): value is ConfirmationResult {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    (value as ConfirmationResult).requiresConfirmation &&
-    (value as ConfirmationResult).confirmation?.toolName
-  );
-}
-
-function fallbackEditableFields(args: unknown): ConfirmationEditableField[] {
-  return Object.entries(asRecord(args)).map(([key, value]) => ({
-    key,
-    label: key,
-    type: typeof value === 'boolean'
-      ? 'boolean'
-      : typeof value === 'number'
-        ? 'number'
-        : value && typeof value === 'object'
-          ? 'json'
-          : 'string',
-    locked: /(?:^id$|Id$|Ids$|Version$|UpdatedAt$|Hash$|Token$|Key$)/.test(key),
-    value,
-  }));
-}
-
-function initialFieldDraft(field: ConfirmationEditableField) {
-  if (field.type === 'boolean') return field.value === true;
-  if (field.type === 'json') return field.value == null ? '' : JSON.stringify(field.value, null, 2);
-  return field.value == null ? '' : String(field.value);
-}
 
 function collectAnswerEvidence(toolResults: AiToolResult[] = []) {
   const sourceById = new Map<number, AiKnowledgeSource>();
@@ -270,216 +202,16 @@ function ToolPlanPanel({ plan }: { plan: AiToolPlan }) {
 
 function ToolResultCard({
   item,
-  onConfirmed,
   onSendPrompt,
   shortcutDisabled = false,
   readOnly = false,
 }: {
   item: AiToolResult;
-  onConfirmed: (next: AiToolResult) => void;
   onSendPrompt?: (prompt: string) => void;
   shortcutDisabled?: boolean;
   readOnly?: boolean;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [revising, setRevising] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string | boolean>>({});
-  const [error, setError] = useState('');
   const result = item.result;
-  const confirmation = isConfirmationResult(result) ? result.confirmation : undefined;
-  const editableFields = useMemo(() => (
-    confirmation
-      ? confirmation.editableFields?.length
-        ? confirmation.editableFields
-        : fallbackEditableFields(confirmation.args)
-      : []
-  ), [confirmation]);
-
-  useEffect(() => {
-    if (!confirmation?.confirmationToken) return;
-    setDraft(Object.fromEntries(editableFields.map((field) => [field.key, initialFieldDraft(field)])));
-    setEditing(false);
-    setError('');
-  }, [confirmation?.confirmationToken, editableFields]);
-
-  if (isConfirmationResult(result)) {
-    async function handleConfirm() {
-      if (!confirmation?.confirmationToken) {
-        setError('这张确认卡片已过期，请重新发起操作。');
-        return;
-      }
-      try {
-        setConfirming(true);
-        setError('');
-        const next = await confirmAiTool(confirmation.confirmationToken);
-        onConfirmed(next);
-      } catch (err) {
-        setError((err as Error).message || '确认执行失败');
-      } finally {
-        setConfirming(false);
-      }
-    }
-
-    async function handleRevise() {
-      if (!confirmation?.confirmationToken) {
-        setError('这张确认卡片已过期，请重新发起操作。');
-        return;
-      }
-      try {
-        setRevising(true);
-        setError('');
-        const args = { ...asRecord(confirmation.args) };
-        for (const field of editableFields) {
-          if (field.locked) continue;
-          const value = draft[field.key];
-          if (field.type === 'boolean') {
-            args[field.key] = value === true;
-            continue;
-          }
-          const text = String(value ?? '').trim();
-          if (!text) {
-            if (field.required) throw new Error(`${field.label}为必填项`);
-            delete args[field.key];
-            continue;
-          }
-          if (field.type === 'number' || field.type === 'integer') {
-            const numberValue = Number(text);
-            if (!Number.isFinite(numberValue)) throw new Error(`${field.label}必须是有效数字`);
-            if (field.type === 'integer' && !Number.isInteger(numberValue)) {
-              throw new Error(`${field.label}必须是整数`);
-            }
-            args[field.key] = numberValue;
-            continue;
-          }
-          if (field.type === 'json') {
-            try {
-              args[field.key] = JSON.parse(text);
-            } catch {
-              throw new Error(`${field.label}必须是有效 JSON`);
-            }
-            continue;
-          }
-          args[field.key] = text;
-        }
-        const next = await reviseAiToolConfirmation(
-          confirmation.confirmationToken,
-          confirmation.toolName,
-          args,
-        );
-        onConfirmed(next);
-      } catch (err) {
-        setError((err as Error).message || '更新确认预览失败');
-      } finally {
-        setRevising(false);
-      }
-    }
-
-    return (
-      <div className="rounded-panel border border-amber-200 bg-amber-50 p-3 shadow-panel">
-        <div className="flex items-start gap-2">
-          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-amber-200 bg-white text-amber-700">
-            <ShieldAlert size={17} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-amber-950">{confirmation?.title || '待确认操作'}</div>
-            {confirmation?.summary ? <div className="mt-1 text-sm text-amber-900">{confirmation.summary}</div> : null}
-            {!editing && Array.isArray(confirmation?.rows) && confirmation.rows.length > 0 ? (
-              <div className="mt-2 grid gap-1 text-xs text-amber-950 sm:grid-cols-2">
-                {confirmation.rows.map((row, index) => (
-                  <div key={`${row.label}-${index}`} className="flex min-w-0 justify-between gap-3 rounded-md border border-amber-200/80 bg-white/70 px-2 py-1">
-                    <span className="text-amber-700">{row.label}</span>
-                    <span className="truncate font-medium">{row.value}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {editing ? (
-              <div className="mt-3 grid gap-3 rounded-md border border-amber-200 bg-white p-3 sm:grid-cols-2">
-                {editableFields.map((field) => (
-                  <Field
-                    key={field.key}
-                    label={<span>{field.label}{field.locked ? <span className="ml-1 font-normal text-amber-700">· 系统绑定</span> : null}</span>}
-                    required={field.required}
-                    hint={field.description || undefined}
-                    className={field.type === 'json' ? 'sm:col-span-2' : ''}
-                  >
-                    {field.type === 'boolean' ? (
-                      <span className="flex h-9 items-center gap-2 rounded-md border border-line px-3 text-sm text-ink">
-                        <Checkbox
-                          checked={draft[field.key] === true}
-                          disabled={field.locked || revising}
-                          onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.checked }))}
-                        />
-                        {draft[field.key] === true ? '是' : '否'}
-                      </span>
-                    ) : field.type === 'json' ? (
-                      <Textarea
-                        rows={5}
-                        value={String(draft[field.key] ?? '')}
-                        disabled={field.locked || revising}
-                        onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                        className="font-mono text-xs focus:border-amber-400 focus:ring-amber-100"
-                      />
-                    ) : Array.isArray(field.options) && field.options.length > 0 ? (
-                      <Select
-                        compact
-                        value={String(draft[field.key] ?? '')}
-                        disabled={field.locked || revising}
-                        onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                        className="focus:border-amber-400 focus:ring-amber-100"
-                      >
-                        {!field.required ? <option value="">不设置</option> : null}
-                        {field.options.map((option) => <option key={String(option)} value={String(option)}>{String(option)}</option>)}
-                      </Select>
-                    ) : (
-                      <Input
-                        compact
-                        type={field.type === 'number' || field.type === 'integer' ? 'number' : 'text'}
-                        step={field.type === 'integer' ? 1 : field.type === 'number' ? 'any' : undefined}
-                        value={String(draft[field.key] ?? '')}
-                        disabled={field.locked || revising}
-                        onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                        className="focus:border-amber-400 focus:ring-amber-100"
-                      />
-                    )}
-                  </Field>
-                ))}
-              </div>
-            ) : null}
-            {confirmation?.warning ? <div className="mt-2 text-xs text-amber-800">{confirmation.warning}</div> : null}
-            {error ? <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">{error}</div> : null}
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {readOnly ? (
-                <span className="text-xs text-amber-700">历史记录，仅供查看</span>
-              ) : editing ? (
-                <>
-                  <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={revising}>
-                    取消
-                  </Button>
-                  <Button size="sm" variant="primary" onClick={handleRevise} disabled={revising} icon={revising ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}>
-                    更新预览
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {editableFields.some((field) => !field.locked) ? (
-                    <Button size="sm" variant="secondary" onClick={() => setEditing(true)} disabled={confirming} icon={<Pencil size={14} />}>
-                      编辑参数
-                    </Button>
-                  ) : null}
-                  <Button size="sm" variant="primary" onClick={handleConfirm} disabled={confirming} icon={confirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}>
-                    确认执行
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const Icon = resultIcon(item.name);
   const record = asRecord(result);
   const failed = record.success === false;
@@ -517,12 +249,10 @@ function ToolResultCard({
 
 export function AnswerProcess({
   item,
-  onConfirmed,
   onSendPrompt,
   shortcutDisabled = false,
 }: {
   item: ChatItem;
-  onConfirmed: (index: number, next: AiToolResult) => void;
   onSendPrompt: (prompt: string) => void;
   shortcutDisabled?: boolean;
 }) {
@@ -530,10 +260,7 @@ export function AnswerProcess({
   const evidence = collectAnswerEvidence(toolResults);
   const hasEvidence = evidence.hasLiveBusiness || evidence.hasKnowledgeSnapshot || evidence.sources.length > 0;
   const hasProcess = Boolean(item.toolPlan || item.toolCalls?.length || toolResults.length);
-  const requiresAttention = toolResults.some(tool => {
-    if (isConfirmationResult(tool.result)) return true;
-    return asRecord(tool.result).success === false;
-  });
+  const requiresAttention = toolResults.some(tool => asRecord(tool.result).success === false);
   const [open, setOpen] = useState(requiresAttention);
   useEffect(() => {
     if (requiresAttention) setOpen(true);
@@ -586,7 +313,6 @@ export function AnswerProcess({
                 key={`${tool.name}-${index}`}
                 item={tool}
                 readOnly={item.historical}
-                onConfirmed={(next) => onConfirmed(index, next)}
                 onSendPrompt={onSendPrompt}
                 shortcutDisabled={shortcutDisabled}
               />

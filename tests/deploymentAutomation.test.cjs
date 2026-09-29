@@ -11,8 +11,8 @@ test('Mac Mini 一键发布：Windows 入口只部署已推送提交并通过 st
     const pkg = JSON.parse(read('package.json'));
 
     assert.match(pkg.scripts['deploy:macmini'], /deploy-macmini\.ps1/);
-    assert.match(pkg.scripts['verify:release'], /verify:ai-native-release/);
-    assert.match(pkg.scripts['verify:ai-native-release'], /run-ai-native-quality-gate\.cjs/);
+    assert.match(pkg.scripts['verify:release'], /verify:ai-assistant-release/);
+    assert.equal(pkg.scripts['verify:ai-native-release'], undefined);
     assert.match(wrapper, /--untracked-files=no/);
     assert.match(wrapper, /origin\/\$Branch/);
     assert.match(wrapper, /Start-Process[\s\S]*-FilePath 'ssh'/);

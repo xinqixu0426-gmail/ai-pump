@@ -2,13 +2,12 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState, type RefObject } from 'react';
 import { Bot, Loader2, Mic, MicOff, Paperclip, ReceiptText, Send, X } from 'lucide-react';
-import type { AiAttachment, AiCapabilities, AiProviderPreference } from '@/lib/ai';
+import type { AiAttachment, AiCapabilities } from '@/lib/ai';
 import type { AiPageContext } from '@/lib/page-context';
 import { AiPendingAttachmentStrip } from '@/components/ai/AiAttachmentDisplays';
 import { restoreRejectedDraft } from '@/components/ai/ai-composer-state';
 import { useAiSpeechInput } from '@/components/ai/useAiSpeechInput';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/field';
 
 export type AiComposerHandle = {
   append: (value: string) => void;
@@ -28,12 +27,10 @@ type AiComposerProps = {
   uploadingAttachment: boolean;
   attachmentError: string;
   aiCapabilities: AiCapabilities | null;
-  providerPreference: AiProviderPreference;
   fileInputRef: RefObject<HTMLInputElement>;
   onSelectAttachments: (files: FileList | null) => void;
   onRemoveAttachment: (attachment: AiAttachment) => void;
   onStop: () => void;
-  onProviderPreferenceChange: (preference: AiProviderPreference) => void;
   onSend: (input: string) => Promise<boolean>;
 };
 
@@ -45,12 +42,10 @@ export const AiComposer = forwardRef<AiComposerHandle, AiComposerProps>(function
   uploadingAttachment,
   attachmentError,
   aiCapabilities,
-  providerPreference,
   fileInputRef,
   onSelectAttachments,
   onRemoveAttachment,
   onStop,
-  onProviderPreferenceChange,
   onSend,
 }, ref) {
   const [input, setInput] = useState('');
@@ -65,10 +60,6 @@ export const AiComposer = forwardRef<AiComposerHandle, AiComposerProps>(function
     toggleVoiceInput,
   } = useAiSpeechInput(input, setInput);
   inputValueRef.current = input;
-  const providerOptions = (aiCapabilities?.providerOptions || []).filter((option) => option.available);
-  const selectedProvider = providerOptions.find((option) => option.value === providerPreference)
-    || providerOptions.find((option) => option.value === 'default');
-  const selectedSupportsImages = selectedProvider?.supportsImages ?? aiCapabilities?.supportsImages;
 
   function stopVoiceAndSetInput(value: string | ((current: string) => string)) {
     stopVoiceInput();
@@ -177,22 +168,9 @@ export const AiComposer = forwardRef<AiComposerHandle, AiComposerProps>(function
               aria-label="上传文件或图片"
               title="上传文件或图片"
             />
-            <div className="relative min-w-0 max-w-[12rem] flex-1" title={selectedProvider ? `${selectedProvider.displayName}·${selectedProvider.model}` : '模型选择'}>
+            <div className="relative min-w-0 max-w-[12rem] flex-1" title="DeepSeek">
               <Bot size={14} className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-muted" />
-              <Select
-                compact
-                value={providerPreference}
-                onChange={(event) => onProviderPreferenceChange(event.target.value as AiProviderPreference)}
-                disabled={loading || providerOptions.length === 0}
-                aria-label="选择 AI 模型"
-                className="h-8 min-w-0 max-w-full rounded-full border-transparent bg-transparent py-0 pl-8 pr-2 text-xs font-medium hover:border-line hover:bg-white focus:bg-white"
-              >
-                {providerOptions.map((option) => (
-                  <option key={option.value} value={option.value} title={option.model}>
-                    {option.displayName}
-                  </option>
-                ))}
-              </Select>
+              <span className="inline-flex h-8 items-center rounded-full py-0 pl-8 pr-2 text-xs font-medium text-muted">DeepSeek</span>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -222,9 +200,9 @@ export const AiComposer = forwardRef<AiComposerHandle, AiComposerProps>(function
           {speechError || '正在聆听…再次点击麦克风结束'}
         </div>
       ) : null}
-      {attachmentError || (pendingAttachments.some((item) => item.detectedType === 'image') && aiCapabilities && !selectedSupportsImages) ? (
+      {attachmentError || (pendingAttachments.some((item) => item.detectedType === 'image') && aiCapabilities && !aiCapabilities.supportsImages) ? (
         <div className={`px-2 pt-1.5 text-xs ${attachmentError ? 'text-rose-600' : 'text-amber-700'}`}>
-          {attachmentError || `图片会保存在会话中，但当前 ${selectedProvider?.displayName || aiCapabilities?.displayName} 不支持识图。`}
+          {attachmentError || '图片会保存在会话中，但当前助手不支持识图。'}
         </div>
       ) : null}
     </form>

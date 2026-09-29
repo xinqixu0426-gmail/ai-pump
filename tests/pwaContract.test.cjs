@@ -104,7 +104,6 @@ test('AI 契约：桌面 AI 直连后端 SSE 并使用 Markdown 流式渲染', (
     assert.match(conversationHistory, /listAiConversations/);
     assert.match(aiView, /openConversation/);
     assert.match(aiView, /新建会话/);
-    assert.match(answerProcess, /历史记录，仅供查看/);
     assert.match(aiView, /h-\[calc\(100vh-8rem\)\]/);
     assert.match(composer, /ai-mobile-composer shrink-0 border-t border-line bg-white/);
     assert.match(aiText, /function MarkdownContent/);

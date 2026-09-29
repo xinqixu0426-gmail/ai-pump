@@ -103,14 +103,3 @@ test('业务变更契约：事件是知识和向量的可重建投影源', () =>
     assert.match(autoSync, /'business_change_events'/);
     assert.doesNotMatch(autoSync, /'audit_log'/);
 });
-
-test('业务变更契约：AI 明确区分变更历史和管理待办', () => {
-    // NATIVE-HC2：原断言读的是已删除的 Legacy 提示词/规划器。Native 用「两个不同的正式域 +
-    // 两个不同的结构化只读能力」表达同一不变量，因此改指当前生效的实现。
-    const structuredReads = read('api/services/aiTaskStructuredReadsV2.cjs');
-    const registry = read('api/capabilities/registry.cjs');
-    assert.match(structuredReads, /BUSINESS_CHANGES: 'search_business_changes'/);
-    assert.match(structuredReads, /MANAGEMENT_OVERVIEW: 'get_management_action_center'/);
-    assert.match(registry, /business_history: Object\.freeze\(\[\s*'search_business_changes',/);
-    assert.match(registry, /management: Object\.freeze\(\[[\s\S]*?'get_management_action_center'/);
-});

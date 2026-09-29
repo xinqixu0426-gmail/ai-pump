@@ -16,7 +16,7 @@
  *
  * 本模块同时被两层消费，因此两层不可能再漂移：
  *   - 业务语义层 `business-semantics/questionSemantics.cjs`（Legacy / 语义帧 / answer boundary）；
- *   - Task V2 语义层 `services/aiTaskSemanticsV2.cjs`（Native 目标规划）。
+ *   - 历史 AI 语义层（已退役）。
  */
 
 // ── 数量槽位 ─────────────────────────────────────────────────────────────

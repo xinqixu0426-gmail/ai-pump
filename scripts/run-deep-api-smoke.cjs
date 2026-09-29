@@ -1232,7 +1232,6 @@ async function readCoreResources() {
         ['知识向量同步记录', '/api/knowledge/vector-sync-runs?limit=5'],
         ['知识搜索', '/api/knowledge?query=V750&limit=5'],
         ['AI 会话列表', '/api/ai/conversations?limit=5'],
-        ['AI 模型能力', '/api/ai/capabilities'],
         ['AI 问题反馈', '/api/ai/feedback?limit=5'],
         ['AI 回归概况', '/api/ai/evaluations/overview'],
     ];
@@ -4162,28 +4161,6 @@ async function run() {
             await testCatalogReferenceBindings(path.join(temp, 'pump.db'));
         }
         if (DEEP_API_SCOPE === 'all') {
-            const legacyConfirmation = await request(
-                'AI旧确认参数不能直接执行',
-                'POST',
-                '/api/ai/confirm-tool',
-                { toolName: 'delete_part', args: { id: 1 } },
-                [409]
-            );
-            assert(
-                legacyConfirmation.payload?.code === 'confirmation_token_required',
-                'AI旧确认请求未返回 confirmation_token_required'
-            );
-            const invalidConfirmation = await request(
-                'AI伪造确认token被拒绝',
-                'POST',
-                '/api/ai/confirm-tool',
-                { confirmationToken: 'not-a-valid-confirmation-token' },
-                [400]
-            );
-            assert(
-                invalidConfirmation.payload?.code === 'confirmation_token_invalid',
-                'AI伪造确认 token 未被拒绝'
-            );
             const missingApi = await request('不存在 API 返回 JSON 404', 'GET', '/api/not-found', undefined, [404]);
             assert(missingApi.payload?.success === false, '不存在 API 未返回标准 JSON 错误');
 

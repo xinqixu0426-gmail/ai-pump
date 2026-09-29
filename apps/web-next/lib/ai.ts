@@ -7,8 +7,8 @@ import {
   proxyStreamFetch,
   type ApiResponse,
 } from './api';
-import { confirmNativeWriteProposal } from './ai-write-proposal-client.cjs';
-import type { NativeWriteCard } from './ai-write-proposal.cjs';
+import { confirmAiAssistantWriteProposal } from './ai-assistant-write-proposal-client.cjs';
+import type { AiAssistantWriteCard } from './ai-assistant-write-proposal.cjs';
 import type { AiPageContext } from './page-context';
 import type { FactoryFile } from './files';
 
@@ -83,83 +83,6 @@ export type AiToolResult = {
   result: unknown;
 };
 
-export type AiResourceClarification = {
-  version: 3;
-  kind: 'resource_selection';
-  entityType: string;
-  entityLabel?: string;
-  query?: string;
-  candidates: Array<{
-    index: number;
-    label: string;
-    description?: string;
-    canonicalId?: number | null;
-    canonicalName?: string;
-  }>;
-};
-
-export type AiResolutionContext = AiResourceClarification & {
-  sourceTool: string;
-};
-
-export type AiTurnStateV3 = {
-  version: 3;
-  kind: 'agent_turn_state';
-  resolvedEntities: Array<{
-    entityType: string;
-    id: number | null;
-    name: string;
-    originalMention: string;
-    confidence: number | null;
-    resolutionStatus: string;
-  }>;
-  capabilities: string[];
-};
-
-export function findAiResolutionContext(toolResults: AiToolResult[] = []): AiResolutionContext | null {
-  for (const tool of [...toolResults].reverse()) {
-    if (!tool.result || typeof tool.result !== 'object') continue;
-    const clarification = (tool.result as { clarification?: AiResourceClarification }).clarification;
-    if (
-      clarification?.version === 3
-      && clarification.kind === 'resource_selection'
-      && Array.isArray(clarification.candidates)
-      && clarification.candidates.length > 1
-    ) {
-      return { ...clarification, sourceTool: tool.name };
-    }
-  }
-  return null;
-}
-
-export function findAiTurnStateV3(toolResults: AiToolResult[] = []): AiTurnStateV3 | null {
-  const resolvedEntities: AiTurnStateV3['resolvedEntities'] = [];
-  for (const tool of toolResults) {
-    if (!tool.result || typeof tool.result !== 'object') continue;
-    const receipt = (tool.result as {
-      resolutionReceipt?: {
-        kind?: string;
-        entityType?: string;
-        originalMention?: string;
-        status?: string;
-        selected?: { id?: number | null; name?: string; score?: number } | null;
-      };
-    }).resolutionReceipt;
-    if (receipt?.kind !== 'entity_resolution' || !receipt.selected || !receipt.entityType) continue;
-    resolvedEntities.push({
-      entityType: receipt.entityType,
-      id: Number.isInteger(Number(receipt.selected.id)) ? Number(receipt.selected.id) : null,
-      name: String(receipt.selected.name || ''),
-      originalMention: String(receipt.originalMention || ''),
-      confidence: Number.isFinite(Number(receipt.selected.score)) ? Number(receipt.selected.score) : null,
-      resolutionStatus: String(receipt.status || ''),
-    });
-  }
-  const capabilities = [...new Set(toolResults.map(tool => tool.name).filter(Boolean))];
-  if (resolvedEntities.length === 0 && capabilities.length === 0) return null;
-  return { version: 3, kind: 'agent_turn_state', resolvedEntities, capabilities };
-}
-
 export type AiKnowledgeSource = {
   kind: 'knowledge_snapshot';
   knowledgeEntryId: number;
@@ -203,8 +126,6 @@ export type AiConversationMessage = {
     attachments?: AiAttachment[];
     provider?: AiProviderInfo;
     metrics?: AiTurnMetrics;
-    turnState?: AiTurnStateV3;
-    nativeTaskId?: string;
     writeProposal?: AiWriteProposalHistory;
   };
   createdAt: string;
@@ -513,45 +434,39 @@ export type AiStreamEvent =
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
   | ({ type: 'metrics' } & AiTurnMetrics)
-  | { type: 'turn_state'; turnState: AiTurnStateV3 }
-  | NativeWriteProposalStreamEvent
+  | AiAssistantWriteProposalStreamEvent
   | { type: 'done' }
   | { type: 'error'; message: string; code?: string };
 
 /**
- * NATIVE-W2：Native 写 V1 的结构化提案事件（唯一获批能力）。
+ * NATIVE-W2：助理写入 的结构化提案事件（唯一获批能力）。
  * 只承载服务端冻结的展示事实与不透明执行身份；不做任何前端计算。
  */
-export type NativeWriteProposalStreamEvent = {
+export type AiAssistantWriteProposalStreamEvent = {
   type: 'write_proposal';
-  stage: 'NATIVE_WRITE_PROPOSAL';
+  stage: 'AI_ASSISTANT_WRITE_PROPOSAL';
   proposal: {
-    kind?: string;
     capabilityId: string;
-    items: Array<{
+    item: {
       partId: number;
       model: string;
       currentStock: number;
       delta: number;
       nextStock: number;
       clampedToZero?: boolean;
-    }>;
+    };
   };
   confirmation: {
     confirmationToken: string;
-    operationId?: string | null;
     expiresAt?: string | null;
-    toolName: string;
-    args: { items: Array<{ model: string; changeQty: number }> };
   };
-  task: { taskId: string; revision: number; state: string; statusPath?: string };
 };
 
 /**
  * 历史会话里只保留「这里曾有一张提案卡」的**非执行**标记：
  * 不持久化 confirmationToken，也不持久化任何可用来自行重建执行请求的数值。
  */
-export type AiWriteProposalHistory = { capabilityId: string; taskId: string };
+export type AiWriteProposalHistory = { capabilityId: string };
 
 export const AI_CONTEXT_MESSAGE_LIMIT = 10;
 export const AI_STREAM_INTERRUPTED_CODE = 'AI_STREAM_INTERRUPTED';
@@ -610,10 +525,7 @@ export async function streamAiChat(
   onEvent: (event: AiStreamEvent) => void,
   signal?: AbortSignal,
   pageContext?: AiPageContext | null,
-  resolutionContext?: AiResolutionContext | null,
-  turnState?: AiTurnStateV3 | null,
   conversationId?: string,
-  providerPreference: AiProviderPreference = 'default'
 ): Promise<void> {
   let response: Response;
   try {
@@ -630,9 +542,6 @@ export async function streamAiChat(
             view: pageContext.view,
           },
         } : {}),
-        ...(resolutionContext ? { resolutionContext } : {}),
-        ...(turnState ? { turnState } : {}),
-        providerPreference,
       }),
       signal,
     });
@@ -763,12 +672,12 @@ export async function updateAiSystemPrompt(prompt: string): Promise<void> {
  * 只转发服务端签发的不透明身份；不做目标重解析、数量重算、幂等键生成或二次预览。
  * 成功只由服务端 verified 结果判定（含必要时的有界对账）。
  */
-export function executeNativeWriteProposal(card: NativeWriteCard) {
-  return confirmNativeWriteProposal({ request: nativeWriteProposalRequest, card });
+export function executeAiAssistantWriteProposal(card: AiAssistantWriteCard) {
+  return confirmAiAssistantWriteProposal({ request: aiAssistantWriteProposalRequest, card });
 }
 
 /** 提案卡片的 HTTP 适配器：保留后端 `code`，供失败映射使用（不打印任何 token）。 */
-async function nativeWriteProposalRequest(
+async function aiAssistantWriteProposalRequest(
   path: string,
   options: { method: string; body?: string }
 ): Promise<{ status: number; body: unknown }> {
@@ -1196,76 +1105,4 @@ export async function configureAiSystemEvaluationCase(
   });
   if (!result.success || !result.data) throw new Error(result.error || '更新系统检查项失败');
   return rememberAiEvaluationCaseVersion(result.data);
-}
-
-export async function confirmAiTool(confirmationToken: string): Promise<AiToolResult> {
-  const result = await proxyRequest<ApiResponse<AiToolResult>>('/api/ai/confirm-tool', {
-    method: 'POST',
-    body: JSON.stringify({ confirmationToken }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '确认执行失败');
-  return result.data;
-}
-
-export async function reviseAiToolConfirmation(
-  confirmationToken: string,
-  toolName: string,
-  args: Record<string, unknown>
-): Promise<AiToolResult> {
-  const result = await proxyRequest<ApiResponse<AiToolResult>>('/api/ai/confirm-tool/preview', {
-    method: 'POST',
-    body: JSON.stringify({ confirmationToken, toolName, args }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '更新确认预览失败');
-  return result.data;
-}
-
-export type AiTaskState = 'NEW' | 'UNDERSTANDING' | 'RESOLVING' | 'RUNNING' | 'WAITING_INPUT' | 'WAITING_APPROVAL' | 'VERIFYING' | 'SUSPENDED' | 'RECONCILING' | 'SUCCEEDED' | 'PARTIAL' | 'UNSUPPORTED' | 'FAILED' | 'CANCELLED';
-export type AiTaskPublicView = {
-  version: 1;
-  taskId: string;
-  parentTaskId: string | null;
-  conversationId: string | null;
-  revision: number;
-  planRevision: number;
-  state: AiTaskState;
-  executionMode: 'FOREGROUND' | 'DETACHED';
-  userGoal: string;
-  goals: Array<{ goalKey: string; description: string; state: string; blockers: Array<{ code: string; message: string; questionId: string | null }> }>;
-  steps: Array<{ stepId: string; displayName: string; state: string; errorCode: string | null }>;
-  questions: Array<{ questionId: string; planRevision: number; goalKeys: string[]; prompt: string; reasonCode: string; choices: Array<{ choiceId: string; label: string; entity: unknown }>; candidateSetHash: string; expiresAt: string; answeredAt: string | null }>;
-  resultSummary: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-export type AiTaskAcknowledgement = { version: 1; taskId: string; revision: number; state: AiTaskState; executionMode: 'DETACHED'; statusPath: string };
-
-export async function startAiTask(conversationId: number, userMessageId: number): Promise<AiTaskAcknowledgement> {
-  const result = await proxyRequest<ApiResponse<AiTaskAcknowledgement>>('/api/ai/tasks', {
-    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-start') },
-    body: JSON.stringify({ version: 1, conversationId: `chat-${conversationId}`, userMessageId, executionMode: 'DETACHED' }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '创建后台任务失败');
-  return result.data;
-}
-export async function getAiTask(taskId: string): Promise<AiTaskPublicView> {
-  const result = await proxyRequest<ApiResponse<AiTaskPublicView>>(`/api/ai/tasks/${encodeURIComponent(taskId)}`);
-  if (!result.success || !result.data) throw new Error(result.error || '读取后台任务失败');
-  return result.data;
-}
-export async function resumeAiTask(task: AiTaskPublicView, answers: Array<{ questionId: string; choiceId: string | null; answerText: string | null }>): Promise<AiTaskAcknowledgement> {
-  const result = await proxyRequest<ApiResponse<AiTaskAcknowledgement>>(`/api/ai/tasks/${encodeURIComponent(task.taskId)}/resume`, {
-    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-resume') },
-    body: JSON.stringify({ version: 1, expectedRevision: task.revision, answers, executionMode: 'DETACHED' }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '继续后台任务失败');
-  return result.data;
-}
-export async function cancelAiTask(task: AiTaskPublicView, reason = ''): Promise<{ taskId: string; revision: number; state: AiTaskState }> {
-  const result = await proxyRequest<ApiResponse<{ taskId: string; revision: number; state: AiTaskState }>>(`/api/ai/tasks/${encodeURIComponent(task.taskId)}/cancel`, {
-    method: 'POST', headers: { 'Idempotency-Key': createIdempotencyKey('ai-task-cancel') },
-    body: JSON.stringify({ version: 1, expectedRevision: task.revision, reason }),
-  });
-  if (!result.success || !result.data) throw new Error(result.error || '停止后台任务失败');
-  return result.data;
 }

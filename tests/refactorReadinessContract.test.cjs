@@ -595,7 +595,6 @@ test('Next UI 契约：AI 回答依据和处理过程默认折叠且异常自动
     assert.match(answerProcess, /查看处理过程/);
     assert.match(answerProcess, /open=\{open\}/);
     assert.match(answerProcess, /if \(requiresAttention\) setOpen\(true\)/);
-    assert.match(answerProcess, /isConfirmationResult\(tool\.result\)/);
     assert.match(answerProcess, /asRecord\(tool\.result\)\.success === false/);
     assert.ok(messageList.indexOf('<AnswerProcess') < messageList.indexOf('<StreamingText'));
     assert.match(messageList, /hasAnswerProcess/);
@@ -2299,43 +2298,6 @@ test('Next UI 契约：AI 工作台弹层独立展示且写入状态仍由专属
     assert.doesNotMatch(dialogs, /proxyRequest|proxyFetch|fetch\(/);
 });
 
-test('Next UI 契约：AI 回答依据、确认卡片和业务结果按职责拆分', () => {
-    const aiView = readUtf8('apps/web-next/components/ai-view.tsx');
-    const messageList = readUtf8('apps/web-next/components/ai/AiMessageList.tsx');
-    const answerProcess = readUtf8('apps/web-next/components/ai/AiAnswerProcess.tsx');
-    const businessResult = readUtf8('apps/web-next/components/ai/AiBusinessResult.tsx');
-    const workflowResults = readUtf8('apps/web-next/components/ai/AiWorkflowResults.tsx');
-    const primitives = readUtf8('apps/web-next/components/ai/AiResultPrimitives.tsx');
-
-    assert.match(aiView, /<AiMessageList/);
-    assert.match(aiView, /const revisedArgs = confirmation\?\.args/);
-    assert.match(aiView, /argsSummary: Object\.entries\(revisedArgs\)/);
-    assert.match(messageList, /from '@\/components\/ai\/AiAnswerProcess'/);
-    assert.match(messageList, /<AnswerProcess/);
-    assert.match(messageList, /function confirmedWriteContent\(item: ChatItem\)/);
-    assert.match(messageList, /step\.mode === 'write' && step\.requiresConfirmation/);
-    assert.match(messageList, /return `## 已执行\\n\\n\$\{summary\}`/);
-    assert.match(aiView, /useAiMessageStream/);
-    assert.doesNotMatch(aiView, /function ToolResultCard|function BusinessResult|function AnswerEvidence/);
-    assert.match(answerProcess, /export function AnswerProcess/);
-    assert.match(answerProcess, /function ToolResultCard/);
-    assert.match(answerProcess, /confirmAiTool\(confirmation\.confirmationToken\)/);
-    assert.match(answerProcess, /reviseAiToolConfirmation\(/);
-    assert.match(answerProcess, />\s*编辑参数\s*</);
-    assert.match(answerProcess, />\s*更新预览\s*</);
-    assert.match(answerProcess, /isConfirmationResult\(result\)/);
-    assert.match(answerProcess, /readOnly \? undefined : onSendPrompt/);
-    assert.match(businessResult, /export function BusinessResult/);
-    assert.match(businessResult, /FactoryExecutionPlanResult/);
-    assert.match(workflowResults, /export function FactoryExecutionPlanResult/);
-    assert.match(workflowResults, /buildFactoryWorkflowShortcutPrompt/);
-    assert.match(primitives, /export function DataTable/);
-    assert.match(primitives, /export function attachmentParserText/);
-    assert.doesNotMatch(answerProcess, /fetch\(/);
-    assert.doesNotMatch(businessResult, /proxyRequest|proxyFetch|fetch\(/);
-    assert.doesNotMatch(workflowResults, /proxyRequest|proxyFetch|fetch\(/);
-    assert.doesNotMatch(primitives, /proxyRequest|proxyFetch|fetch\(/);
-});
 
 test('Next UI 契约：AI 会话侧栏、历史状态和流式消息状态按职责拆分', () => {
     const aiView = readUtf8('apps/web-next/components/ai-view.tsx');

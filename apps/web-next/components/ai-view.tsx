@@ -19,19 +19,14 @@ import { InlineNotice } from '@/components/ui/notice';
 import { FadePanel } from '@/components/motion/fade-panel';
 import {
   appendAiConversationMessage,
-  executeNativeWriteProposal,
+  executeAiAssistantWriteProposal,
   createAiConversation,
-  findAiResolutionContext,
-  findAiTurnStateV3,
   getAiSystemPrompt,
   isRetryableAiStreamError,
   streamAiChat,
-  updateAiConversationMessage,
   updateAiSystemPrompt,
   type AiAttachment,
   type AiConversationSummary,
-  type AiProviderPreference,
-  type AiToolResult,
 } from '@/lib/ai';
 import { syncFactoryKnowledge, type KnowledgeSyncStats } from '@/lib/knowledge';
 import type { AiPageContext } from '@/lib/page-context';
@@ -49,7 +44,7 @@ import {
   type AiSampleCategory,
 } from '@/components/ai/AiConversationSidebars';
 import { useAiConversationHistory } from '@/components/ai/useAiConversationHistory';
-import { isExecutableCard, reduceWriteCard } from '@/lib/ai-write-proposal.cjs';
+import { isExecutableCard, reduceWriteCard } from '@/lib/ai-assistant-write-proposal.cjs';
 import {
   applyAiStreamEvent,
   useAiMessageStream,
@@ -58,7 +53,6 @@ import { useAiAttachments } from '@/components/ai/useAiAttachments';
 import { AiAttachmentArchiveController } from '@/components/ai/AiAttachmentArchiveController';
 import { AiComposer, type AiComposerHandle } from '@/components/ai/AiComposer';
 import { AiMessageList } from '@/components/ai/AiMessageList';
-import { AiTaskWorkbench } from '@/components/ai/AiTaskWorkbench';
 import { useAiAnswerFeedback } from '@/components/ai/useAiAnswerFeedback';
 
 function makeId() {
@@ -66,8 +60,6 @@ function makeId() {
 }
 
 const MAX_AI_STREAM_ATTEMPTS = 2;
-const AI_PROVIDER_PREFERENCE_STORAGE_KEY = 'pump-ai-provider-preference';
-const AI_PROVIDER_PREFERENCES: AiProviderPreference[] = ['default', 'local', 'deepseek', 'kimi'];
 
 function useStableEvent<Args extends unknown[], Result>(handler: (...args: Args) => Result) {
   const handlerRef = useRef(handler);
@@ -160,11 +152,8 @@ export function AiView({
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
   const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  const [latestTaskMessageId, setLatestTaskMessageId] = useState<number | null>(null);
-  const [nativeTaskId, setNativeTaskId] = useState<string | null>(null);
   // NATIVE-W2：同一张卡片只允许一个在途确认（前端防重复；后端幂等仍是真正的保护）。
   const writeConfirmInFlightRef = useRef<Set<string>>(new Set());
-  const [providerPreference, setProviderPreference] = useState<AiProviderPreference>('default');
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollContentRef = useRef<HTMLDivElement | null>(null);
@@ -195,23 +184,6 @@ export function AiView({
       ? `所有对话固定使用 ${aiCapabilities.displayName}`
       : aiRoutingStatusText;
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY) as AiProviderPreference | null;
-    if (stored && AI_PROVIDER_PREFERENCES.includes(stored)) setProviderPreference(stored);
-  }, []);
-
-  useEffect(() => {
-    if (!aiCapabilities?.providerOptions?.length) return;
-    const selected = aiCapabilities.providerOptions.find((option) => option.value === providerPreference);
-    if (selected?.available) return;
-    setProviderPreference('default');
-    window.localStorage.setItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY, 'default');
-  }, [aiCapabilities, providerPreference]);
-
-  function changeProviderPreference(preference: AiProviderPreference) {
-    setProviderPreference(preference);
-    window.localStorage.setItem(AI_PROVIDER_PREFERENCE_STORAGE_KEY, preference);
-  }
   const {
     feedbackByMessageId,
     feedbackTarget,
@@ -332,13 +304,6 @@ export function AiView({
       content,
       ...(attachments.length > 0 ? { attachments } : {}),
     }];
-    const latestAssistant = [...items].reverse().find((item) => item.role === 'assistant');
-    const resolutionContext = retrying
-      ? null
-      : findAiResolutionContext(latestAssistant?.toolResults);
-    const turnState = retrying
-      ? null
-      : latestAssistant?.turnState || findAiTurnStateV3(latestAssistant?.toolResults);
     const streamAssistantId = retrying ? retryAssistantId! : assistantId;
     setItems((current) => retrying
       ? current.map((item) => (item.id === streamAssistantId ? { ...assistantItem, id: streamAssistantId } : item))
@@ -361,12 +326,11 @@ export function AiView({
         addConversation(conversation);
       }
       if (!retrying) {
-        const savedUser = await appendAiConversationMessage(conversationId, {
+        await appendAiConversationMessage(conversationId, {
           role: 'user',
           content,
           metadata: attachments.length > 0 ? { attachments } : undefined,
         });
-        setLatestTaskMessageId(savedUser.id);
         markAttachmentsPersisted(attachments);
       }
       options?.onDraftPersisted?.(true);
@@ -389,7 +353,7 @@ export function AiView({
           await streamAiChat(nextMessages, (event) => {
             finalAssistantItem = applyAiStreamEvent(finalAssistantItem, event);
             updateAssistant(streamAssistantId, (item) => applyAiStreamEvent(item, event));
-          }, controller.signal, pageContext, resolutionContext, turnState, conversationTransportId(conversationId!), providerPreference);
+          }, controller.signal, pageContext, conversationTransportId(conversationId!));
           streamCompleted = true;
           break;
         } catch (error) {
@@ -447,13 +411,11 @@ export function AiView({
               toolResults: finalAssistantItem.toolResults,
               provider: finalAssistantItem.provider,
               metrics: finalAssistantItem.metrics,
-              turnState: finalAssistantItem.turnState,
               // 只记录「这里曾有一张提案卡」：不持久化 token，也不持久化任何可重建请求的数值。
               ...(finalAssistantItem.writeProposal?.event
                 ? {
                   writeProposal: {
                     capabilityId: finalAssistantItem.writeProposal.event.proposal.capabilityId,
-                    taskId: finalAssistantItem.writeProposal.event.task.taskId,
                   },
                 }
                 : {}),
@@ -470,49 +432,6 @@ export function AiView({
     }
   }
 
-  function replaceToolResult(messageId: string, oldIndex: number, next: AiToolResult) {
-    const currentItem = items.find((item) => item.id === messageId);
-    const toolResults = (currentItem?.toolResults || []).map((tool, index) => (index === oldIndex ? next : tool));
-    const nextResult = next.result && typeof next.result === 'object'
-      ? next.result as Record<string, unknown>
-      : {};
-    const confirmation = nextResult.confirmation && typeof nextResult.confirmation === 'object'
-      ? nextResult.confirmation as Record<string, unknown>
-      : null;
-    const revisedArgs = confirmation?.args && typeof confirmation.args === 'object' && !Array.isArray(confirmation.args)
-      ? confirmation.args as Record<string, unknown>
-      : null;
-    const toolCalls = revisedArgs
-      ? (currentItem?.toolCalls || []).map((call, index) => (
-          index === oldIndex ? { ...call, args: revisedArgs } : call
-        ))
-      : currentItem?.toolCalls;
-    const toolPlan = revisedArgs && currentItem?.toolPlan
-      ? {
-          ...currentItem.toolPlan,
-          steps: currentItem.toolPlan.steps.map((step, index) => (
-            index === oldIndex
-              ? {
-                  ...step,
-                  argsSummary: Object.entries(revisedArgs).slice(0, 12).map(([key, value]) => ({
-                    key,
-                    value: typeof value === 'object' ? JSON.stringify(value) : String(value),
-                  })),
-                }
-              : step
-          )),
-        }
-      : currentItem?.toolPlan;
-    updateAssistant(messageId, (item) => ({ ...item, toolPlan, toolCalls, toolResults }));
-    if (activeConversationId && currentItem?.persistedMessageId) {
-      void updateAiConversationMessage(activeConversationId, currentItem.persistedMessageId, {
-        toolPlan,
-        toolCalls,
-        toolResults,
-      }).catch((error) => setHistoryError((error as Error).message || '更新会话记录失败'));
-    }
-  }
-
   function hasPendingDraft() {
     return Boolean(composerRef.current?.hasDraft() || pendingAttachments.length > 0);
   }
@@ -522,8 +441,6 @@ export function AiView({
     discardAllPendingAttachments();
     clearActiveConversation();
     setItems([]);
-    setLatestTaskMessageId(null);
-    setNativeTaskId(null);
     resetFeedback();
     composerRef.current?.clear();
     setAsideMode('history');
@@ -546,9 +463,6 @@ export function AiView({
     composerRef.current?.clear();
     setFeedbackByMessageId(opened.feedbackByMessageId);
     setItems(opened.items);
-    const latestUser = [...opened.items].reverse().find((item) => item.role === 'user' && item.persistedMessageId);
-    setLatestTaskMessageId(latestUser?.persistedMessageId || null);
-    setNativeTaskId(latestUser?.nativeTaskId || null);
     autoFollowRef.current = true;
     setShowJumpToLatest(false);
     setMobileSidebarOpen(false);
@@ -589,7 +503,7 @@ export function AiView({
       item.writeProposal ? { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'confirm' }) } : item
     ));
     try {
-      const result = await executeNativeWriteProposal(current);
+      const result = await executeAiAssistantWriteProposal(current);
       updateAssistant(messageId, (item) => {
         if (!item.writeProposal) return item;
         if (result.kind === 'verified') {
@@ -604,9 +518,6 @@ export function AiView({
               failure: result.failure,
             }),
           };
-        }
-        if (result.kind === 'reconciling') {
-          return { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'reconcile' }) };
         }
         return item;
       });
@@ -752,9 +663,6 @@ export function AiView({
   }
 
   const runMessageSample = useStableEvent((prompt: string) => void sendMessage(prompt));
-  const confirmMessageTool = useStableEvent((messageId: string, index: number, result: AiToolResult) => {
-    replaceToolResult(messageId, index, result);
-  });
   const retryMessage = useStableEvent((item: ChatItem) => retryAssistant(item));
   const markMessageHelpful = useStableEvent((item: ChatItem) => void markAnswerHelpful(item));
   const reportMessageIssue = useStableEvent((item: ChatItem) => openAnswerIssue(item));
@@ -907,30 +815,12 @@ export function AiView({
               contentRef={scrollContentRef}
               onRunSample={runMessageSample}
               onArchive={setArchiveAttachment}
-              onConfirmed={confirmMessageTool}
               onConfirmWriteProposal={(messageId) => void confirmWriteProposal(messageId)}
               onCancelWriteProposal={cancelWriteProposal}
               onRetry={retryMessage}
               onMarkHelpful={markMessageHelpful}
               onReportIssue={reportMessageIssue}
               onScroll={scrollMessages}
-            />
-
-            <AiTaskWorkbench
-              conversationId={activeConversationId}
-              userMessageId={latestTaskMessageId}
-              initialTaskId={nativeTaskId}
-              onTaskCreated={async (taskId) => {
-                if (!activeConversationId || !latestTaskMessageId) return;
-                const item = items.find((candidate) => candidate.persistedMessageId === latestTaskMessageId);
-                await updateAiConversationMessage(activeConversationId, latestTaskMessageId, { attachments: item?.attachments || [], nativeTaskId: taskId });
-                setNativeTaskId(taskId);
-              }}
-              persistAnswerMessage={async (content) => {
-                if (!activeConversationId) throw new Error('会话不存在');
-                const saved = await appendAiConversationMessage(activeConversationId, { role: 'user', content });
-                setLatestTaskMessageId(saved.id);
-              }}
             />
 
             {showJumpToLatest ? (
@@ -954,12 +844,10 @@ export function AiView({
               uploadingAttachment={uploadingAttachment}
               attachmentError={attachmentError}
               aiCapabilities={aiCapabilities}
-              providerPreference={providerPreference}
               fileInputRef={fileInputRef}
               onSelectAttachments={(files) => void selectAttachments(files)}
               onRemoveAttachment={discardPendingAttachment}
               onStop={stopStream}
-              onProviderPreferenceChange={changeProviderPreference}
               onSend={sendComposerDraft}
             />
           </section>

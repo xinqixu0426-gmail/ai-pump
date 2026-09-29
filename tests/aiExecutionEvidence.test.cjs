@@ -224,15 +224,6 @@ test('AI 统一证据门：全部写工具都登记正式能力且确认路由�
         assert.equal(capability.requiresConfirmation, true);
     }
 
-    const chatRoute = fs.readFileSync(
-        path.join(__dirname, '..', 'api/routes/ai/chat.cjs'),
-        'utf8'
-    );
-    const confirmSection = chatRoute.slice(
-        chatRoute.indexOf("router.post('/api/ai/confirm-tool'"),
-        chatRoute.indexOf('/**\n * 通用 AI 对话处理函数')
-    );
-    assert.match(confirmSection, /executeConfirmedAiTool/);
     const executionService = fs.readFileSync(
         path.join(__dirname, '..', 'api/services/aiConfirmedToolExecution.cjs'),
         'utf8'

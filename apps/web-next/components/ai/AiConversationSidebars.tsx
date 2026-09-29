@@ -29,7 +29,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 export type AiSampleCategory = '常用' | '成本' | '订单' | '质量';
 export type AiAsideMode = 'history' | 'templates';
 
-export type AiTaskSample = {
+export type AiAssistantSample = {
   category: AiSampleCategory;
   icon: LucideIcon;
   label: string;
@@ -49,7 +49,7 @@ const sampleCategoryOptions: Array<{ value: AiSampleCategory; label: string }> =
   { value: '质量', label: '质量' },
 ];
 
-export const aiTaskSamples: AiTaskSample[] = [
+export const aiAssistantSamples: AiAssistantSample[] = [
   { category: '常用', icon: ClipboardList, label: '最近订单', prompt: '查一下最近 5 个订单' },
   { category: '常用', icon: FileSearch, label: '转子出图', prompt: '用 V750 模板出 160 片转子图' },
   { category: '成本', icon: Database, label: '成本查询', prompt: 'V750 的成本是多少' },
@@ -62,7 +62,7 @@ export const aiTaskSamples: AiTaskSample[] = [
   { category: '质量', icon: FileSearch, label: '零件检索', prompt: '找所有螺丝零件' },
 ];
 
-export const aiStarterSamples = aiTaskSamples.filter((sample) => (
+export const aiStarterSamples = aiAssistantSamples.filter((sample) => (
   ['最近订单', '成本查询', '待采购', '今日待办'].includes(sample.label)
 ));
 
@@ -212,7 +212,7 @@ export function AiDesktopSidebar({
   onRunSample,
   onEditPrompt,
 }: AiDesktopSidebarProps) {
-  const visibleSamples = aiTaskSamples.filter((sample) => sample.category === activeSampleCategory);
+  const visibleSamples = aiAssistantSamples.filter((sample) => sample.category === activeSampleCategory);
 
   return (
     <aside className={`${hidden ? 'hidden' : 'hidden lg:flex'} min-h-0 min-w-0 flex-col border-r border-line bg-white p-4`}>
@@ -359,7 +359,7 @@ export function AiMobileConversationDrawer({
   onSampleCategoryChange,
   onRunSample,
 }: AiMobileConversationDrawerProps) {
-  const visibleSamples = aiTaskSamples.filter((sample) => sample.category === activeSampleCategory);
+  const visibleSamples = aiAssistantSamples.filter((sample) => sample.category === activeSampleCategory);
 
   return (
     <Drawer
