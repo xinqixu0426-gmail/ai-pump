@@ -47,9 +47,9 @@ function formalToolResult(name, args) {
         data: {
             costComplete: true,
             unitCost: 281.25,
-            grossProfit: 58.75,
-            grossMargin: 0.1728,
-            markup: 0.2089,
+            grossProfitPerUnit: 58.75,
+            grossMarginOnSales: 0.1728,
+            markupOnCost: 0.2089,
             currency: 'CNY',
             basis: 'CURRENT_REBUILT_SCENARIO',
         },
@@ -120,8 +120,12 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
             assert.deepEqual(options.tools.map(tool => tool.function.name), ['find_recipe', 'preview_profitability']);
             assert.match(messages[0].content, /工具结果足够后直接用中文回答/);
             const formal = JSON.parse(messages.at(-1).content);
+            assert.deepEqual(Object.keys(formal.data).sort(), [
+                'costBasis', 'costComplete', 'currency', 'grossMarginOnSales', 'grossProfitPerUnit',
+                'markupOnCost', 'scenarioKey', 'unitCost', 'unitPrice',
+            ]);
             assert.equal(formal.data.unitCost, 281.25);
-            assert.equal(formal.data.grossProfit, 58.75);
+            assert.equal(formal.data.grossProfitPerUnit, 58.75);
             return 'V550 电缆临时改为 5 米后，成本约 ¥281.25。按售价 ¥340，单台毛利 ¥58.75，毛利率约 17.28%。本次只是试算，没有保存。';
         }),
         executeToolCall: async (name, args, options) => {
@@ -146,13 +150,13 @@ test('formal result mutation reaches Main Agent rather than a hardcoded amount',
         judgeModelCall: judgeModel(),
         mainModelCall: mainSequence(messages => {
             const formal = JSON.parse(messages.at(-1).content);
-            return `正式结果：成本 ¥${formal.data.unitCost}，毛利 ¥${formal.data.grossProfit}，本次没有保存。`;
+            return `正式结果：成本 ¥${formal.data.unitCost}，毛利 ¥${formal.data.grossProfitPerUnit}，本次没有保存。`;
         }),
         executeToolCall: async (name, args) => {
             if (name === 'get_all_recipes') return formalToolResult(name, args);
             const result = formalToolResult(name, args);
             result.data.unitCost = 299.99;
-            result.data.grossProfit = 40.01;
+            result.data.grossProfitPerUnit = 40.01;
             return result;
         },
     });

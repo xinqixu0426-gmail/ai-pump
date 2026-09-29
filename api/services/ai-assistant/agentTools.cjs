@@ -97,19 +97,23 @@ function formalProfitabilityArgs({ recipeId, cableLength, unitPrice }) {
     };
 }
 
-function conciseProjection(agentToolName, formalToolName, result) {
+function conciseProjection(agentToolName, formalToolName, result, data = result?.data ?? null) {
     const evidence = result?.executionEvidence;
     return {
         success: result?.success !== false,
         agentToolName,
         formalToolName,
-        data: result?.data ?? null,
-        summary: result?.summary || null,
+        data,
+        summary: null,
         code: result?.code || null,
-        error: result?.error || null,
-        provenance: result?.provenance || null,
+        error: result?.error ? String(result.error).slice(0, 500) : null,
+        provenance: null,
         execution: evidence
-            ? { verified: evidence.verified === true, kind: evidence.kind || null, calls: evidence.calls || [] }
+            ? {
+                verified: evidence.verified === true,
+                kind: evidence.kind || null,
+                calls: (evidence.calls || []).map(call => ({ method: call.method || null, path: call.path || null })),
+            }
             : null,
     };
 }
@@ -118,6 +122,31 @@ function resolvedRecipeIdsFrom(result) {
     return (Array.isArray(result?.data) ? result.data : [])
         .map(recipe => Number(recipe?.id ?? recipe?.Id))
         .filter(id => Number.isSafeInteger(id) && id > 0);
+}
+
+function recipeIdentityProjection(result) {
+    return (Array.isArray(result?.data) ? result.data : []).slice(0, 10).flatMap(recipe => {
+        const id = Number(recipe?.id ?? recipe?.Id);
+        const name = String(recipe?.name || '').trim();
+        if (!Number.isSafeInteger(id) || id <= 0 || !name) return [];
+        const spec = String(recipe?.spec || '').trim();
+        return [{ id, name, ...(spec ? { spec } : {}) }];
+    });
+}
+
+function profitabilityProjection(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    return {
+        costComplete: data.costComplete === true,
+        currency: data.currency || null,
+        costBasis: data.costBasis || null,
+        scenarioKey: data.scenarioKey || null,
+        unitPrice: data.unitPrice ?? null,
+        unitCost: data.unitCost ?? null,
+        grossProfitPerUnit: data.grossProfitPerUnit ?? null,
+        grossMarginOnSales: data.grossMarginOnSales ?? null,
+        markupOnCost: data.markupOnCost ?? null,
+    };
 }
 
 async function executeAgentTool(name, args, context = {}, dependencies = {}) {
@@ -129,9 +158,10 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
         const validated = findRecipeArgs(args);
         const result = await runFormalTool('get_all_recipes', validated, { allowWrite: false, signal: context.signal });
         const recipeIds = resolvedRecipeIdsFrom(result);
+        const data = recipeIdentityProjection(result);
         if (result?.success !== false && recipeIds.length === 1) resolvedRecipeIds.add(recipeIds[0]);
         return {
-            ...conciseProjection('find_recipe', 'get_all_recipes', result),
+            ...conciseProjection('find_recipe', 'get_all_recipes', result, data),
             resolvedIdentity: recipeIds.length === 1
                 ? { status: 'UNIQUE', recipeId: recipeIds[0] }
                 : { status: recipeIds.length === 0 ? 'NOT_FOUND' : 'AMBIGUOUS', recipeId: null },
@@ -143,7 +173,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
             allowWrite: false,
             signal: context.signal,
         });
-        return conciseProjection('preview_profitability', 'preview_profitability', result);
+        return conciseProjection('preview_profitability', 'preview_profitability', result, profitabilityProjection(result?.data));
     }
     throw new AgentToolError('AGENT_TOOL_NOT_ALLOWED', `M1 不允许调用工具：${String(name || '')}`);
 }
@@ -154,4 +184,6 @@ module.exports = {
     conciseProjection,
     executeAgentTool,
     formalProfitabilityArgs,
+    profitabilityProjection,
+    recipeIdentityProjection,
 };
