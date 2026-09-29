@@ -36,6 +36,7 @@ function judgeSystemPrompt(domainPolicy) {
         '对可由正式只读目录或预览调查的身份、当前成本、库存和方案歧义，不要仅因尚未解析而要求澄清；保留用户目标，让 Main Agent 查询或展示候选。',
         '只输出一个 JSON 对象，不要 Markdown、代码围栏或额外文字。',
         'JSON 必须有 mode, goal, questions, constraints, persistentMutation, needsClarification, clarificationReason, appliedPolicyIds 八个字段。',
+        '对业务请求，questions 必须用平实语言列出每个需要回应的实际目标；不要遗漏并列问题，也不要无故留空。',
         '当 needsClarification=false 时，clarificationReason 应为 null。',
         `mode 只能是 ${JUDGE_MODES.join(' | ')}；appliedPolicyIds 只能使用 ${POLICY_IDS.join(', ')}。`,
         '',

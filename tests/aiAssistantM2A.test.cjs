@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { AGENT_TOOLS, AgentToolError, executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
 const { mainAgentSystemPrompt, toolCallsFrom } = require('../api/services/ai-assistant/mainAgent.cjs');
+const { judgeSystemPrompt } = require('../api/services/ai-assistant/judge.cjs');
 
 function evidence() { return { verified: true, calls: [{ method: 'GET', path: '/internal-only' }] }; }
 function formal(name, args) {
@@ -39,6 +40,7 @@ test('M2-A exposes only the core read/analyze tool surface and generic prompt', 
     const prompt = mainAgentSystemPrompt('policy');
     assert.doesNotMatch(prompt, /V550|340|cableLength|先用 find_recipe/);
     assert.match(prompt, /自主选择必要工具和顺序/);
+    assert.match(judgeSystemPrompt('policy'), /不要遗漏并列问题/);
     assert.deepEqual(toolCallsFrom({ tool_calls: [
         { id: 'a', function: { name: 'find_recipe', arguments: '{"keyword":"V550"}' } },
         { id: 'b', function: { name: 'find_coils', arguments: '{"spec":"12","sheets":120}' } },
