@@ -145,6 +145,32 @@ test('Judge permits exactly one repair while genuine clarification remains stric
     assert.equal(clarificationCalls, 2);
 });
 
+test('Judge repair retains bounded conversation and repeats the strict contract', async () => {
+    const calls = [];
+    const result = await runJudge({
+        userMessage: '这两个差多少？',
+        recentConversation: [
+            { role: 'user', content: 'V550现在成本多少？' },
+            { role: 'assistant', content: 'V550 当前成本是 268.70 元。' },
+            { role: 'user', content: '那V750呢？' },
+            { role: 'assistant', content: 'V750 当前成本是 289.01 元。' },
+        ],
+    }, {
+        modelCall: async messages => {
+            calls.push(messages);
+            return response({ content: calls.length === 1 ? 'V750 比 V550 贵 20.31 元。' : JSON.stringify({
+                ...previewJudge,
+                mode: 'READ', goal: '比较会话中 V550 与 V750 的当前正式成本',
+                questions: ['V550 和 V750 的当前正式成本差多少？'], constraints: ['需正式比较'],
+            }) });
+        },
+    });
+    assert.equal(result.repaired, true);
+    assert.equal(calls.length, 2);
+    assert.match(calls[1][0].content, /必须且只能有/);
+    assert.match(calls[1][1].content, /V550现在成本多少/);
+});
+
 test('M1 runs the V550 preview through isolated Judge, formal tools and Main Agent answer', async () => {
     const toolCalls = [];
     let businessWrites = 0;

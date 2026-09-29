@@ -157,8 +157,13 @@ async function runJudge(input = {}, dependencies = {}) {
         } catch (firstError) {
             if (!['JUDGE_FORMAT_INVALID', 'JUDGE_SCHEMA_INVALID'].includes(firstError?.code)) throw firstError;
             const repairMessages = [
-                { role: 'system', content: '你是 JSON 格式修复器。仅输出符合指定八字段契约的一个 JSON 对象；不得增加字段、不得输出 Markdown。' },
-                { role: 'user', content: `原始用户消息：${userMessage}\n先前无效输出：${String(rawContent || '').slice(0, 4_000)}\n请只修复格式，不新增业务事实。` },
+                { role: 'system', content: [
+                    '你是 JSON 格式修复器。只输出一个 JSON 对象，不得输出 Markdown、答案、工具选择或额外字段。',
+                    '对象必须且只能有 mode, goal, questions, constraints, persistentMutation, needsClarification, clarificationReason, appliedPolicyIds 八个字段。',
+                    `mode 只能是 ${JUDGE_MODES.join(' | ')}；persistentMutation 和 needsClarification 必须是布尔值；questions、constraints、appliedPolicyIds 必须是字符串数组；clarificationReason 在 needsClarification=false 时必须为 null；appliedPolicyIds 只能使用 ${POLICY_IDS.join(', ')}。`,
+                    '保留原始用户意图和已给出的会话语言上下文；不要回答用户、不要选择工具、不要编造 ID 或业务事实。',
+                ].join('\n') },
+                { role: 'user', content: `有界会话上下文：${JSON.stringify(context)}\n原始用户消息：${userMessage}\n先前无效输出：${String(rawContent || '').slice(0, 4_000)}\n请只修复为上述结构化 Judge 契约。` },
             ];
             try {
                 rawContent = await responseContent(await modelCall(repairMessages, {
