@@ -17,11 +17,15 @@ test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path
     const result = await runAiAssistant({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test' }, {
         writeAllowed: true,
         judgeModelCall: async () => response({ content: JSON.stringify(judge) }),
-        mainModelCall: async (_messages, options) => {
+        mainModelCall: async (messages, options) => {
             assert.deepEqual(options.tools.map(item => item.function.name), ['find_part', 'prepare_part_stock_adjustment']);
             mainRound += 1;
             if (mainRound === 1) return call('find_part', { keyword: 'P-100' }, 'part');
-            if (mainRound === 2) return call('prepare_part_stock_adjustment', { partId: 9, delta: 3 }, 'proposal');
+            if (mainRound === 2) {
+                const identity = JSON.parse(messages.at(-1).content);
+                assert.equal('id' in identity.data[0], false);
+                return call('prepare_part_stock_adjustment', { partRef: identity.data[0].partRef, delta: 3 }, 'proposal');
+            }
             return response({ content: '已为 P-100 准备库存从 8 增加到 11 的提案；请由 Owner 在受保护确认步骤中批准。' });
         },
         executeToolCall: async (name, args, options) => {
@@ -41,7 +45,7 @@ test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path
     const proposalTool = result.toolResults.at(-1);
     assert.equal(JSON.stringify(proposalTool).includes('confirmationToken'), false);
     assert.equal(JSON.stringify(proposalTool).includes('privateRow'), false);
-    assert.equal(JSON.stringify(result.toolResults[0]).includes('stock'), false);
+    assert.equal(JSON.stringify(result.toolResults[0]).includes('stock'), true);
 });
 
 test('M2-B rejects ambiguous part identity and does not issue a proposal', async () => {
@@ -49,7 +53,7 @@ test('M2-B rejects ambiguous part identity and does not issue a proposal', async
     const { executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
     const found = await executeAgentTool('find_part', { keyword: 'P-100' }, context, { executeToolCall: async () => ({ success: true, parts: [{ id: 1, model: 'P-100' }, { id: 2, model: 'P-100' }] }) });
     assert.equal(found.data.length, 2);
-    await assert.rejects(() => executeAgentTool('prepare_part_stock_adjustment', { partId: 1, delta: 1 }, context, {}), error => error.code === 'AGENT_TOOL_IDENTITY_UNVERIFIED');
+    await assert.rejects(() => executeAgentTool('prepare_part_stock_adjustment', { partRef: 'part_1', delta: 1 }, context, {}), error => error.code === 'AGENT_TOOL_IDENTITY_UNVERIFIED');
 });
 
 test('M2-B confirmation consumes only the protected token and preserves formal receipt/readback', async () => {

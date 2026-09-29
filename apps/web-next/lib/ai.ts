@@ -868,12 +868,6 @@ export async function batchDeleteAiConversations(ids: number[]): Promise<number[
   return result.data.ids;
 }
 
-export async function getAiCapabilities(): Promise<AiCapabilities> {
-  const result = await proxyRequest<ApiResponse<AiCapabilities>>('/api/ai/capabilities');
-  if (!result.success || !result.data) throw new Error(result.error || '读取 AI 模型能力失败');
-  return result.data;
-}
-
 export async function listAiAnswerFeedback(filters: {
   conversationId?: number;
   status?: AiAnswerFeedbackStatus;

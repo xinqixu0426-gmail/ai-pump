@@ -36,7 +36,7 @@ function context() { return { resolvedRecipeIds: new Set(), resolvedRecipeBindin
 async function call(name, args, state) { return executeAgentTool(name, args, state, { executeToolCall: formal }); }
 
 test('M2-A exposes only the core read/analyze tool surface and generic prompt', () => {
-    assert.deepEqual(AGENT_TOOLS.map(item => item.function.name), ['find_recipe', 'list_recipes', 'recipe_current_cost', 'compare_recipe_costs', 'find_coils', 'coil_inventory', 'coil_cost', 'preview_profitability', 'preview_virtual_readiness']);
+    assert.deepEqual(AGENT_TOOLS.map(item => item.function.name), ['find_recipe', 'list_recipes', 'recipe_current_cost', 'compare_recipe_costs', 'find_coils', 'coil_inventory', 'coil_cost', 'find_part', 'part_inventory', 'preview_part_stock_change', 'preview_profitability', 'preview_virtual_readiness']);
     const prompt = mainAgentSystemPrompt('policy');
     assert.doesNotMatch(prompt, /V550|340|cableLength|先用 find_recipe/);
     assert.match(prompt, /自主选择必要工具和顺序/);
@@ -95,4 +95,43 @@ test('M0 core 16 deterministic acceptance fixtures are covered by the generic to
     assert.equal(CORE_16.length, 16);
     const names = new Set(AGENT_TOOLS.map(item => item.function.name));
     for (const [, needed] of CORE_16) for (const name of needed) assert.ok(names.has(name), `${name} must be exposed`);
+});
+
+test('generic multi-scheme coil discovery cannot self-bind a later narrowed result', async () => {
+    const state = { ...context(), ambiguousCoilKeys: new Set(), userMessage: '查询 18-88 的库存' };
+    const variants = [{ id: 31, spec: '18', sheets: 88, schemeCode: 'A', schemeName: '方案A', material: '材质甲', slotType: '槽型甲' }, { id: 32, spec: '18', sheets: 88, schemeCode: 'B', schemeName: '方案B', material: '材质乙', slotType: '槽型乙' }];
+    const run = async (_name, args) => ({ success: true, data: args.schemeCode ? [variants[0]] : variants });
+    await executeAgentTool('find_coils', { spec: '18', sheets: 88 }, state, { executeToolCall: run });
+    await executeAgentTool('find_coils', { spec: '18', sheets: 88, schemeCode: 'A' }, state, { executeToolCall: run });
+    await assert.rejects(() => executeAgentTool('coil_inventory', { coilId: 31 }, state, { executeToolCall: run }), error => error.code === 'AGENT_TOOL_IDENTITY_UNVERIFIED');
+});
+
+test('generic normalized part identity and base profitability use formal data without a proposal', async () => {
+    const state = { ...context(), resolvedPartBindings: new Map() };
+    const part = { id: 61, model: '机械密封-16*28', stock: 7 };
+    let baseProfitabilityArgs = null;
+    const run = async (name, _args) => {
+        if (name === 'search_parts') return { success: true, parts: [part], executionEvidence: evidence() };
+        if (name === 'preview_profitability') {
+            baseProfitabilityArgs = _args;
+            return { success: true, data: { costComplete: true, currency: 'CNY', costBasis: 'CURRENT_REBUILT_BASE', scenarioKey: 'current', unitPrice: 360, unitCost: 200, grossProfitPerUnit: 160, grossMarginOnSales: 0.4, markupOnCost: 0.8 }, executionEvidence: evidence() };
+        }
+        throw Error(name);
+    };
+    const found = await executeAgentTool('find_part', { keyword: '机械密封－16×28' }, state, { executeToolCall: run });
+    assert.equal(found.data[0].model, part.model);
+    assert.equal('id' in found.data[0], false);
+    assert.deepEqual((await executeAgentTool('preview_part_stock_change', { partRef: found.data[0].partRef, delta: 10 }, state, { executeToolCall: run })).data, { model: part.model, currentStock: 7, delta: 10, nextStock: 17, clampedToZero: false, preview: true });
+    state.resolvedRecipeIds.add(12);
+    const profit = await executeAgentTool('preview_profitability', { recipeId: 12, unitPrice: 360 }, state, { executeToolCall: run });
+    assert.equal(profit.data.costBasis, 'CURRENT_REBUILT_BASE');
+    assert.deepEqual(baseProfitabilityArgs, {
+        version: 1,
+        basisRef: {
+            kind: 'SCENARIO_COMPARISON', recipeId: 12,
+            comparisonInput: { version: 1, baselinePolicy: 'CURRENT_REBUILT', scenarios: [{ scenarioKey: 'current', label: '当前正式配置', overrides: {} }] },
+            scenarioKey: 'current',
+        },
+        unitPrice: 360, quantity: null, currency: 'CNY',
+    });
 });

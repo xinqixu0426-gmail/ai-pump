@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getAiCapabilities, type AiAttachment, type AiCapabilities } from '@/lib/ai';
+import { type AiAttachment, type AiCapabilities } from '@/lib/ai';
 import { deleteFactoryFile, getFactoryFile, uploadFactoryFile } from '@/lib/files';
 
 function storedFileAttachment(stored: Awaited<ReturnType<typeof getFactoryFile>>): AiAttachment {
@@ -16,31 +16,22 @@ function storedFileAttachment(stored: Awaited<ReturnType<typeof getFactoryFile>>
     parserSummary: stored.parserSummary,
   };
 }
+const ASSISTANT_CAPABILITIES: AiCapabilities = {
+  provider: 'deepseek', displayName: 'DeepSeek', model: 'DeepSeek', supportsImages: false,
+  supportsFiles: true, acceptedFileTypes: ['pdf', 'spreadsheet', 'image', 'text'], maxAttachments: 4,
+  maxFileSize: 20 * 1024 * 1024, providerOptions: [],
+};
 
 export function useAiAttachments(initialAttachmentId?: number) {
-  const [aiCapabilities, setAiCapabilities] = useState<AiCapabilities | null>(null);
-  const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
-  const [capabilitiesError, setCapabilitiesError] = useState('');
+  const [aiCapabilities] = useState<AiCapabilities>(ASSISTANT_CAPABILITIES);
+  const [capabilitiesLoading] = useState(false);
+  const [capabilitiesError] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<AiAttachment[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initialAttachmentAppliedRef = useRef<number | null>(null);
   const transientAttachmentIdsRef = useRef(new Set<number>());
-
-  useEffect(() => {
-    void getAiCapabilities()
-      .then((capabilities) => {
-        setAiCapabilities(capabilities);
-        setCapabilitiesError('');
-      })
-      .catch((error) => {
-        const message = (error as Error).message || '读取模型能力失败';
-        setCapabilitiesError(message);
-        setAttachmentError(message);
-      })
-      .finally(() => setCapabilitiesLoading(false));
-  }, []);
 
   useEffect(() => {
     if (!initialAttachmentId || initialAttachmentAppliedRef.current === initialAttachmentId) return;

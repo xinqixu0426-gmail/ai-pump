@@ -33,7 +33,7 @@ function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY') {
         '实体名称不是数据库身份：只使用本轮正式身份工具返回的 ID。遇到歧义的配方或线圈，不得静默选择、合并或相加，应展示候选或简洁澄清。',
         '会话中的历史提及只是语言上下文；新一轮使用具体 ID 前，先用本轮正式身份工具重新查询和绑定。',
         protectedProposal
-            ? '本轮只能准备一项库存调整的受保护提案。必须先用 find_part 唯一确认身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
+            ? '本轮只能准备一项库存调整的受保护提案。必须先用 find_part 唯一确认身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。find_part 返回的 partRef 仅是本轮工具句柄，绝不能在自然语言答复中提及。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
             : '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
         '相关领域策略：',
@@ -95,6 +95,12 @@ function runtimeLimit(input) {
     if (!Number.isFinite(value)) return DEFAULT_RUNTIME_MS;
     return Math.max(10_000, Math.min(Math.trunc(value), 180_000));
 }
+function hasFormalMoneyFailure(results) {
+    return results.some(result => result?.agentToolName === 'preview_profitability' && result?.success === false);
+}
+function containsMonetaryClaim(text) {
+    return /(?:¥|￥|\bCNY\b|元\s*(?:\/|每|$)|\d+(?:\.\d+)?\s*(?:元|CNY|%))/.test(String(text || ''));
+}
 
 async function runMainAgent(input = {}, dependencies = {}) {
     const userMessage = String(input.userMessage || '').trim();
@@ -120,6 +126,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const resolvedRecipeIds = new Set();
     const resolvedRecipeBindings = new Map();
     const resolvedCoilBindings = new Map();
+    const ambiguousCoilKeys = new Set();
     const resolvedPartBindings = new Map();
     let protectedProposal = null;
 
@@ -149,6 +156,9 @@ async function runMainAgent(input = {}, dependencies = {}) {
                     throw new MainAgentError('MAIN_AGENT_FORMAL_TOOL_REQUIRED', 'Main Agent 未取得正式工具结果');
                 }
                 if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
+                if (hasFormalMoneyFailure(toolResults) && containsMonetaryClaim(answer)) {
+                    return { answer: '正式毛利试算未成功完成，因此暂时不能提供正式利润或毛利金额。请稍后重试正式试算。', toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
+                }
                 return { answer, toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
             }
             if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
@@ -167,7 +177,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 let result;
                 try {
                     result = await runTool(call.name, call.args, {
-                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, resolvedPartBindings, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
+                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, ambiguousCoilKeys, resolvedPartBindings, userMessage, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
                         setProtectedProposal: value => { protectedProposal = value; },
                     }, { executeToolCall: dependencies.executeToolCall });
                 } catch (error) {
@@ -194,6 +204,7 @@ module.exports = {
     MAX_MAIN_MODEL_CALLS,
     MAX_TOOL_CALLS,
     MainAgentError,
+    containsMonetaryClaim,
     defaultMainModelCall,
     mainAgentSystemPrompt,
     runMainAgent,

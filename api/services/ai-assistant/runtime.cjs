@@ -16,15 +16,24 @@ async function runAiAssistant(input = {}, dependencies = {}) {
     const userMessage = String(input.userMessage || '').trim();
     if (!userMessage) throw new AiAssistantRuntimeError('AI_ASSISTANT_INPUT_INVALID', '缺少用户消息');
     const domainPolicy = dependencies.domainPolicy || loadDomainPolicy();
-    const judgeResult = await runJudge({
-        userMessage,
-        recentConversation: input.recentConversation,
-        domainPolicy,
-        env: input.env,
-        signal: input.signal,
-        timeoutMs: input.judgeTimeoutMs,
-        requestId: input.requestId,
-    }, { modelCall: dependencies.judgeModelCall });
+    let judgeResult;
+    try {
+        judgeResult = await runJudge({
+            userMessage,
+            recentConversation: input.recentConversation,
+            domainPolicy,
+            env: input.env,
+            signal: input.signal,
+            timeoutMs: input.judgeTimeoutMs,
+            requestId: input.requestId,
+        }, { modelCall: dependencies.judgeModelCall });
+    } catch (error) {
+        if (String(error?.code || '').startsWith('JUDGE_')) return {
+            status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED', judge: null, judgeRepaired: true,
+            answer: '请说明要调整哪个对象，以及希望改成什么或调整多少。', toolResults: [],
+        };
+        throw error;
+    }
 
     if (judgeResult.output.persistentMutation && dependencies.writeAllowed !== true) {
         return {

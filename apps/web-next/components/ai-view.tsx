@@ -152,7 +152,7 @@ export function AiView({
   const [archiveAttachment, setArchiveAttachment] = useState<AiAttachment | null>(null);
   const [draftTransition, setDraftTransition] = useState<{ type: 'new' } | { type: 'open'; conversationId: number } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  // NATIVE-W2：同一张卡片只允许一个在途确认（前端防重复；后端幂等仍是真正的保护）。
+  // 同一张卡片只允许一个在途确认；后端幂等仍是真正的保护。
   const writeConfirmInFlightRef = useRef<Set<string>>(new Set());
   const composerRef = useRef<AiComposerHandle | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);

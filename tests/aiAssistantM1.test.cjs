@@ -103,6 +103,24 @@ test('Judge classifies the preview and persistent contrast without GoalKind', as
     );
 });
 
+test('Judge contract keeps formal identity resolution and protected confirmation out of user clarification', async () => {
+    const calls = [];
+    await runJudge({ userMessage: '把某正式库存增加5并保存。' }, {
+        modelCall: async messages => {
+            calls.push(messages);
+            return response({ content: JSON.stringify({
+                ...previewJudge,
+                mode: 'PERSIST_MUTATION', persistentMutation: true,
+                goal: '正式增加库存', questions: ['将指定正式库存增加 5 并保存'],
+                constraints: ['先解析正式身份', '需 Owner 在模型外确认'],
+                appliedPolicyIds: ['RULE-02', 'RULE-08'],
+            }) });
+        },
+    });
+    assert.match(calls[0][0].content, /正式身份解析、读取当前库存、形成预览，以及 Owner 在模型之外确认，都是系统后续步骤/);
+    assert.match(calls[0][0].content, /needsClarification=false/);
+});
+
 test('Judge normalizes harmless false clarification metadata without a repair call', async () => {
     let calls = 0;
     const result = await runJudge({ userMessage: INPUT }, {

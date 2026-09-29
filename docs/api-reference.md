@@ -513,6 +513,8 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 `POST /api/ai/chat` 仅供已认证 Owner 使用。它传入当前用户消息和有界的普通 user/assistant 会话文本，依次调用隔离的 DeepSeek Judge 与 DeepSeek Main Agent；Main Agent 只能经受限正式工具读取或试算业务事实。没有 Provider 请求覆盖、canary、shadow、确定性语义路由或旧运行时回退。
 
+当前 Assistant 工具面中的 `find_part`、`part_inventory` 与 `preview_part_stock_change` 都是只读能力：零件身份先通过正式目录唯一绑定，模型只获得本轮临时 `partRef` 句柄，不获得内部 `partId`；库存假设由正式当前库存生成预览且不会签发确认令牌。受保护写入仍只有 `prepare_part_stock_adjustment`，只在持久化变更模式暴露，确认令牌永不进入模型上下文。`preview_profitability` 的 `unitPrice` 必填，配置覆盖可选；未给覆盖时使用一个无覆盖的 `CURRENT_REBUILT` 当前正式配置情景。线圈候选在同一轮发现多个正式方案后保持歧义，模型自行加方案筛选不得建立绑定，只有用户明确提供正式区分属性才能绑定。
+
 读取完成时 SSE 发送 `content` 与 `done`。Judge 判定持久库存变更且服务器写开关开启时，Main Agent 只能生成 `AI_ASSISTANT_WRITE_PROPOSAL`：事件包含受保护预览的 `capabilityId`、单一零件的正式当前/增量/预计库存及不透明 `confirmationToken`。令牌不进入模型、正文、会话持久化或普通日志。浏览器仅将令牌提交至 `POST /api/ai/write/confirm`；该端点再次校验 Owner 与服务器写开关，消费冻结确认并仅在正式审计和回读都成功时返回已验证结果。无法证明提交效果时返回 `UNKNOWN_EFFECT` 与 `manualReviewRequired`，不会重试。
 
 ### 有界业务集合查询（只读）
