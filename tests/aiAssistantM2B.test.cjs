@@ -15,6 +15,7 @@ test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path
     const formalCalls = [];
     let mainRound = 0;
     const result = await runAiAssistantM1({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test' }, {
+        writeAllowed: true,
         judgeModelCall: async () => response({ content: JSON.stringify(judge) }),
         mainModelCall: async (_messages, options) => {
             assert.deepEqual(options.tools.map(item => item.function.name), ['find_part', 'prepare_part_stock_adjustment']);
@@ -30,7 +31,7 @@ test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path
             assert.deepEqual(args, { items: [{ model: 'P-100', changeQty: 3 }] });
             assert.equal(options.allowWrite, false);
             assert.equal(options.confirmationSubject, 'owner-test');
-            return { success: true, requiresConfirmation: true, confirmation: { confirmationToken: 'A'.repeat(43), operationId: 'confirmation-op', expiresAt: '2026-10-01T00:00:00.000Z', proposal: { items: [{ partId: 9, model: 'P-100', currentStock: 8, delta: 3, nextStock: 11, clampedToZero: false }] } } };
+            return { success: true, requiresConfirmation: true, confirmation: { confirmationToken: 'A'.repeat(43), operationId: 'confirmation-op', expiresAt: '2026-10-01T00:00:00.000Z', proposal: { capabilityId: 'inventory.parts.batch_adjust_stock', items: [{ partId: 9, model: 'P-100', currentStock: 8, delta: 3, nextStock: 11, clampedToZero: false }] } } };
         },
     });
     assert.equal(result.status, 'PROPOSAL_READY');
@@ -54,6 +55,7 @@ test('M2-B rejects ambiguous part identity and does not issue a proposal', async
 test('M2-B confirmation consumes only the protected token and preserves formal receipt/readback', async () => {
     let invoked = 0;
     const result = await confirmAiAssistantPartStockProposal({ confirmationToken: 'token', confirmationSubject: 'owner-test' }, {
+        writeAllowed: true,
         executeConfirmedAiTool: async input => {
             invoked += 1;
             assert.equal(input.expectedToolName, 'adjust_part_stock');
@@ -62,7 +64,44 @@ test('M2-B confirmation consumes only the protected token and preserves formal r
     });
     assert.equal(invoked, 1);
     assert.deepEqual(result.receipt, { operationId: 'formal-op', auditIds: [77], idempotentReplay: false, readback: [{ id: 9, model: 'P-100', stock: 11 }] });
-    await assert.rejects(() => confirmAiAssistantPartStockProposal({ confirmationToken: 'token' }, {}), error => error.code === 'AI_ASSISTANT_CONFIRMATION_SUBJECT_REQUIRED');
+    await assert.rejects(() => confirmAiAssistantPartStockProposal({ confirmationToken: 'token' }, { writeAllowed: true }), error => error.code === 'AI_ASSISTANT_CONFIRMATION_SUBJECT_REQUIRED');
+});
+
+test('M2-B-R1 server write gate is dependency-only and fails closed before Main Agent or proposal', async () => {
+    let mainCalls = 0; let formalCalls = 0;
+    const result = await runAiAssistantM1({ userMessage: '把 P-100 库存增加 3 并保存。', confirmationSubject: 'owner-test', writeAllowed: true }, {
+        writeAllowed: false,
+        judgeModelCall: async () => response({ content: JSON.stringify(judge) }),
+        mainModelCall: async () => { mainCalls += 1; throw new Error('must not run'); },
+        executeToolCall: async () => { formalCalls += 1; throw new Error('must not run'); },
+    });
+    assert.equal(result.status, 'WRITE_DISABLED');
+    assert.equal(mainCalls, 0); assert.equal(formalCalls, 0); assert.deepEqual(result.toolResults, []);
+});
+
+test('M2-B-R1 confirmation gate rejects before token consumption or execution', async () => {
+    let executed = 0;
+    await assert.rejects(() => confirmAiAssistantPartStockProposal({ confirmationToken: 'valid-token', confirmationSubject: 'owner-a' }, {
+        writeAllowed: false,
+        executeConfirmedAiTool: async () => { executed += 1; },
+    }), error => error.code === 'AI_ASSISTANT_WRITE_DISABLED');
+    assert.equal(executed, 0);
+});
+
+test('M2-B-R1 post-admission uncertainty is manual-review UNKNOWN_EFFECT without retry', async () => {
+    let executions = 0;
+    await assert.rejects(() => confirmAiAssistantPartStockProposal({ confirmationToken: 'valid-token', confirmationSubject: 'owner-a' }, {
+        writeAllowed: true,
+        executeConfirmedAiTool: async () => { executions += 1; const error = new Error('response lost'); error.operationId = 'formal-op-unknown'; throw error; },
+    }), error => error.code === 'UNKNOWN_EFFECT' && error.operationId === 'formal-op-unknown' && error.manualReviewRequired === true);
+    assert.equal(executions, 1);
+});
+
+test('M2-B-R1 pre-admission rejection stays ordinary and is never UNKNOWN_EFFECT', async () => {
+    await assert.rejects(() => confirmAiAssistantPartStockProposal({ confirmationToken: 'bad-token', confirmationSubject: 'owner-a' }, {
+        writeAllowed: true,
+        executeConfirmedAiTool: async () => { const error = new Error('bad token'); error.code = 'confirmation_token_invalid'; throw error; },
+    }), error => error.code === 'confirmation_token_invalid');
 });
 
 test('M2-B runtime imports no Task V2, command route, semantic router, or old fallback', () => {

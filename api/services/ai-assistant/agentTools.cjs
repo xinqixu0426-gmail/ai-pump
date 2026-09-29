@@ -134,7 +134,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     if (name === 'prepare_part_stock_adjustment') {
         strictObject(args, ['partId', 'delta'], name);
         const partId = boundId(args.partId, 'partId', new Set(partBindings.keys())); const part = partBindings.get(partId);
-        const prepared = await prepareProtectedPartStockProposal({ part, delta: args.delta, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool });
+        const prepared = await prepareProtectedPartStockProposal({ part, delta: args.delta, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
         if (typeof context.setProtectedProposal === 'function') context.setProtectedProposal(prepared);
         return { success: true, agentToolName: name, verified: true, data: { ...prepared.proposal, confirmationRequired: true } };
     }

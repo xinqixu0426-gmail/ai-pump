@@ -288,15 +288,16 @@ test('tool and Main Agent failures do not enter Task V2 or create writes', async
     }
 });
 
-test('persistent contrast requires the M2-B protected proposal path', async () => {
+test('persistent contrast fails closed when the server write gate is absent', async () => {
     let mainCalled = false;
-    await assert.rejects(() => runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
+    const result = await runAiAssistantM1({ userMessage: '把V550电缆正式改成5米并保存。' }, {
         judgeModelCall: judgeModel({
             ...previewJudge,
             mode: 'PERSIST_MUTATION', persistentMutation: true,
             goal: '正式修改 V550 电缆并保存', constraints: ['正式保存'], appliedPolicyIds: ['RULE-01', 'RULE-02'],
         }),
         mainModelCall: async () => { mainCalled = true; throw new Error('proposal requires owner subject'); },
-    }), error => error instanceof MainAgentError && error.code === 'MAIN_AGENT_MODEL_FAILED');
-    assert.equal(mainCalled, true);
+    });
+    assert.equal(result.status, 'WRITE_DISABLED');
+    assert.equal(mainCalled, false);
 });

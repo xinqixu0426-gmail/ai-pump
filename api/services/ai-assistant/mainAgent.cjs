@@ -167,7 +167,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 let result;
                 try {
                     result = await runTool(call.name, call.args, {
-                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, resolvedPartBindings, confirmationSubject: input.confirmationSubject, signal: input.signal,
+                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, resolvedPartBindings, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
                         setProtectedProposal: value => { protectedProposal = value; },
                     }, { executeToolCall: dependencies.executeToolCall });
                 } catch (error) {

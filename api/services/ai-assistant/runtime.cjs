@@ -26,6 +26,13 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         requestId: input.requestId,
     }, { modelCall: dependencies.judgeModelCall });
 
+    if (judgeResult.output.persistentMutation && dependencies.writeAllowed !== true) {
+        return {
+            status: 'WRITE_DISABLED', judge: judgeResult.output, judgeRepaired: judgeResult.repaired,
+            answer: 'AI 写入当前未开放，本次没有执行任何修改。', toolResults: [],
+        };
+    }
+
     if (judgeResult.output.needsClarification || judgeResult.output.mode === 'UNCLEAR') {
         return {
             status: 'JUDGE_CLARIFICATION_OR_UNSUPPORTED',
@@ -60,10 +67,12 @@ async function runAiAssistantM1(input = {}, dependencies = {}) {
         requestId: input.requestId,
         mode: proposalMode ? 'PROTECTED_PROPOSAL' : 'READ_ONLY',
         confirmationSubject: input.confirmationSubject,
+        writeAllowed: dependencies.writeAllowed,
     }, {
         modelCall: dependencies.mainModelCall,
         executeAgentTool: dependencies.executeAgentTool,
         executeToolCall: dependencies.executeToolCall,
+        writeAllowed: dependencies.writeAllowed,
     });
     return {
         status: proposalMode ? 'PROPOSAL_READY' : 'COMPLETED',
