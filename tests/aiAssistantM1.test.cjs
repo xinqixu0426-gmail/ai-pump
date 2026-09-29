@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { JudgeError, runJudge } = require('../api/services/ai-assistant/judge.cjs');
+const { JudgeError, runJudge, validateJudgeOutput } = require('../api/services/ai-assistant/judge.cjs');
+const { executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
 const { MainAgentError } = require('../api/services/ai-assistant/mainAgent.cjs');
 const { runAiAssistantM1 } = require('../api/services/ai-assistant/runtime.cjs');
 
@@ -33,7 +34,7 @@ function formalToolResult(name, args) {
         assert.deepEqual(args, { keyword: 'V550' });
         return {
             success: true,
-            data: [{ id: 55, name: 'V550', updatedAt: '2026-09-29T00:00:00.000Z' }],
+            data: [{ id: 55, name: 'V550', spec: '2-inch', updatedAt: '2026-09-29T00:00:00.000Z', partsJson: '["internal"]' }],
             executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'GET', path: '/api/recipes?keyword=V550' }] },
         };
     }
@@ -51,7 +52,14 @@ function formalToolResult(name, args) {
             grossMarginOnSales: 0.1728,
             markupOnCost: 0.2089,
             currency: 'CNY',
-            basis: 'CURRENT_REBUILT_SCENARIO',
+            costBasis: 'CURRENT_REBUILT_SCENARIO',
+            scenarioKey: 'candidate',
+            unitPrice: 340,
+            profitabilityId: 'internal-profitability-id',
+            configurationHash: 'internal-configuration-hash',
+            readSetId: 'internal-read-set',
+            scenarioContext: { internal: true },
+            comparison: { internal: true },
         },
         executionEvidence: { verified: true, kind: 'formal_api_query', calls: [{ method: 'POST', path: '/api/cost/profitability-preview' }] },
     };
@@ -89,9 +97,26 @@ test('Judge classifies the preview and persistent contrast without GoalKind', as
     });
     assert.equal(persistent.output.mode, 'PERSIST_MUTATION');
     assert.equal(persistent.output.persistentMutation, true);
+    assert.throws(
+        () => validateJudgeOutput({ ...previewJudge, mode: 'PERSIST_MUTATION', persistentMutation: false }),
+        error => error instanceof JudgeError && error.code === 'JUDGE_SCHEMA_INVALID'
+    );
 });
 
-test('Judge permits exactly one format repair and otherwise fails in the new runtime', async () => {
+test('Judge normalizes harmless false clarification metadata without a repair call', async () => {
+    let calls = 0;
+    const result = await runJudge({ userMessage: INPUT }, {
+        modelCall: async () => {
+            calls += 1;
+            return response({ content: JSON.stringify({ ...previewJudge, clarificationReason: '无需进一步澄清' }) });
+        },
+    });
+    assert.equal(calls, 1);
+    assert.equal(result.repaired, false);
+    assert.equal(result.output.clarificationReason, null);
+});
+
+test('Judge permits exactly one repair while genuine clarification remains strict', async () => {
     let calls = 0;
     const repaired = await runJudge({ userMessage: INPUT }, {
         modelCall: async () => {
@@ -105,6 +130,19 @@ test('Judge permits exactly one format repair and otherwise fails in the new run
         () => runJudge({ userMessage: INPUT }, { modelCall: async () => response({ content: 'not json' }) }),
         error => error instanceof JudgeError && error.code === 'JUDGE_FORMAT_INVALID'
     );
+    let clarificationCalls = 0;
+    await assert.rejects(
+        () => runJudge({ userMessage: INPUT }, {
+            modelCall: async () => {
+                clarificationCalls += 1;
+                return response({ content: JSON.stringify({
+                    ...previewJudge, needsClarification: true, clarificationReason: null,
+                }) });
+            },
+        }),
+        error => error instanceof JudgeError && error.code === 'JUDGE_SCHEMA_INVALID'
+    );
+    assert.equal(clarificationCalls, 2);
 });
 
 test('M1 runs the V550 preview through isolated Judge, formal tools and Main Agent answer', async () => {
@@ -143,6 +181,39 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
     assert.match(result.answer, /没有保存/);
     assert.equal(result.toolResults.length, 2);
     assert.equal(businessWrites, 0);
+    assert.deepEqual(result.toolResults[0], {
+        success: true,
+        agentToolName: 'find_recipe',
+        verified: true,
+        data: [{ id: 55, name: 'V550' }],
+    });
+    assert.deepEqual(result.toolResults[1].data, {
+        costComplete: true,
+        currency: 'CNY',
+        costBasis: 'CURRENT_REBUILT_SCENARIO',
+        scenarioKey: 'candidate',
+        unitPrice: 340,
+        unitCost: 281.25,
+        grossProfitPerUnit: 58.75,
+        grossMarginOnSales: 0.1728,
+        markupOnCost: 0.2089,
+    });
+    assert.equal('execution' in result.toolResults[0], false);
+    assert.equal('provenance' in result.toolResults[1], false);
+});
+
+test('tool failures expose only bounded safe metadata', async () => {
+    const result = await executeAgentTool('find_recipe', { keyword: 'V550' }, { resolvedRecipeIds: new Set() }, {
+        executeToolCall: async () => ({ success: false, code: 'INTERNAL_BACKEND_PATH', error: 'stack /api/private secret' }),
+    });
+    assert.deepEqual(result, {
+        success: false,
+        agentToolName: 'find_recipe',
+        verified: false,
+        data: null,
+        code: 'FORMAL_TOOL_FAILED',
+        message: '正式业务工具暂不可用，无法完成本次试算。',
+    });
 });
 
 test('formal result mutation reaches Main Agent rather than a hardcoded amount', async () => {

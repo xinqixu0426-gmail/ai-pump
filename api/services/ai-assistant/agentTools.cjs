@@ -97,24 +97,18 @@ function formalProfitabilityArgs({ recipeId, cableLength, unitPrice }) {
     };
 }
 
-function conciseProjection(agentToolName, formalToolName, result, data = result?.data ?? null) {
+function conciseProjection(agentToolName, result, data = result?.data ?? null) {
     const evidence = result?.executionEvidence;
+    const success = result?.success !== false;
     return {
-        success: result?.success !== false,
+        success,
         agentToolName,
-        formalToolName,
-        data,
-        summary: null,
-        code: result?.code || null,
-        error: result?.error ? String(result.error).slice(0, 500) : null,
-        provenance: null,
-        execution: evidence
-            ? {
-                verified: evidence.verified === true,
-                kind: evidence.kind || null,
-                calls: (evidence.calls || []).map(call => ({ method: call.method || null, path: call.path || null })),
-            }
-            : null,
+        verified: evidence?.verified === true,
+        data: success ? data : null,
+        ...(success ? {} : {
+            code: 'FORMAL_TOOL_FAILED',
+            message: '正式业务工具暂不可用，无法完成本次试算。',
+        }),
     };
 }
 
@@ -129,8 +123,7 @@ function recipeIdentityProjection(result) {
         const id = Number(recipe?.id ?? recipe?.Id);
         const name = String(recipe?.name || '').trim();
         if (!Number.isSafeInteger(id) || id <= 0 || !name) return [];
-        const spec = String(recipe?.spec || '').trim();
-        return [{ id, name, ...(spec ? { spec } : {}) }];
+        return [{ id, name }];
     });
 }
 
@@ -160,12 +153,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
         const recipeIds = resolvedRecipeIdsFrom(result);
         const data = recipeIdentityProjection(result);
         if (result?.success !== false && recipeIds.length === 1) resolvedRecipeIds.add(recipeIds[0]);
-        return {
-            ...conciseProjection('find_recipe', 'get_all_recipes', result, data),
-            resolvedIdentity: recipeIds.length === 1
-                ? { status: 'UNIQUE', recipeId: recipeIds[0] }
-                : { status: recipeIds.length === 0 ? 'NOT_FOUND' : 'AMBIGUOUS', recipeId: null },
-        };
+        return conciseProjection('find_recipe', result, data);
     }
     if (name === 'preview_profitability') {
         const validated = profitabilityArgs(args, resolvedRecipeIds);
@@ -173,7 +161,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
             allowWrite: false,
             signal: context.signal,
         });
-        return conciseProjection('preview_profitability', 'preview_profitability', result, profitabilityProjection(result?.data));
+        return conciseProjection('preview_profitability', result, profitabilityProjection(result?.data));
     }
     throw new AgentToolError('AGENT_TOOL_NOT_ALLOWED', `M1 不允许调用工具：${String(name || '')}`);
 }

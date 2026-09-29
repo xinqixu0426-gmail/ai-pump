@@ -35,6 +35,7 @@ function judgeSystemPrompt(domainPolicy) {
         '不要选择工具、不要回答用户、不要编造 ID 或业务事实。持久化变更只有明确改变正式保存状态时才为 true。',
         '只输出一个 JSON 对象，不要 Markdown、代码围栏或额外文字。',
         'JSON 必须有 mode, goal, questions, constraints, persistentMutation, needsClarification, clarificationReason, appliedPolicyIds 八个字段。',
+        '当 needsClarification=false 时，clarificationReason 应为 null。',
         `mode 只能是 ${JUDGE_MODES.join(' | ')}；appliedPolicyIds 只能使用 ${POLICY_IDS.join(', ')}。`,
         '',
         '领域策略：',
@@ -93,9 +94,12 @@ function validateJudgeOutput(value) {
     }
     const clarificationReason = value.needsClarification
         ? validateString(value.clarificationReason, 'clarificationReason', { max: 500 })
-        : value.clarificationReason === null
-            ? null
-            : (() => { throw new JudgeError('JUDGE_SCHEMA_INVALID', '不需澄清时 clarificationReason 必须为 null'); })();
+        : (() => {
+            if (value.clarificationReason !== null && typeof value.clarificationReason !== 'string') {
+                throw new JudgeError('JUDGE_SCHEMA_INVALID', '不需澄清时 clarificationReason 必须为 null 或字符串');
+            }
+            return null;
+        })();
     const appliedPolicyIds = validateStringList(value.appliedPolicyIds, 'appliedPolicyIds', 8);
     if (appliedPolicyIds.some(id => !POLICY_IDS.includes(id))) {
         throw new JudgeError('JUDGE_SCHEMA_INVALID', 'Judge 使用了未知领域策略 ID');
