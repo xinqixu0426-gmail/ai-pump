@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "d3308883abde014c59a7b47b19adcf9bfd6ef09c",
+  "purpose": "M3 Before baseline only. This manifest records evidence; it does not route, configure, or alter the AI runtime.",
+  "cases": [
+    {"id":"R-01","type":"REAL_MODEL","title":"V550 current cost","input":"V550现在成本多少？","expected":"Formal current recipe cost; no write proposal.","evidence":"Production Owner HTTP sample, PASS, 5.250s"},
+    {"id":"R-02","type":"REAL_MODEL","title":"Multi-goal recipe cost and coil stock","input":"V550现在成本多少？顺便看看12-120还有多少库存。","expected":"Both goals answered from formal facts; no write proposal.","evidence":"Production Owner HTTP sample, PASS, 5.752s"},
+    {"id":"R-03","type":"REAL_MODEL","title":"Current-config profitability","input":"V750按现在配置卖360，毛利多少？","expected":"Formal base/current profitability preview; no write.","evidence":"Production Owner HTTP sample, PASS, 5.669s"},
+    {"id":"R-04","type":"REAL_MODEL","title":"Part stock what-if","input":"如果O型圈-110*2.65库存增加10，会变成多少？先不要保存。","expected":"Formal stock plus deterministic preview; no proposal or write.","evidence":"Production Owner HTTP sample, PASS, 4.940s"},
+    {"id":"R-05","type":"REAL_MODEL","title":"Unsupported order query","input":"查一下最近5个订单。","expected":"Safe refusal without invented order facts.","evidence":"Production Owner HTTP sample, PASS safety boundary, 3.930s"},
+    {"id":"R-06","type":"REAL_MODEL","title":"Unsupported technical profile","input":"V550的技术参数是什么？","expected":"Safe refusal; current answer exposes an internal recipe ID, recorded as M3B-08.","evidence":"Production Owner HTTP sample, 4.241s"},
+    {"id":"R-07","type":"REAL_MODEL","title":"Conversation start","input":"V550现在成本多少？","expected":"Formal cost answer as the first context turn.","evidence":"Production Owner HTTP sample, PASS, 5.672s"},
+    {"id":"R-08","type":"REAL_MODEL","title":"Conversation follow-up","input":"那V750呢？","expected":"Uses supplied plain conversation context and rebinds formal recipe identity.","evidence":"Production Owner HTTP sample, PASS, 4.697s"},
+    {"id":"R-09","type":"REAL_MODEL","title":"Conversation comparison","input":"这两个差多少？","expected":"Formal cost comparison after supplied conversation context.","evidence":"Production Owner HTTP sample, PASS, 6.881s"},
+    {"id":"D-01","type":"DETERMINISTIC","title":"Main tool surface count","input":"Load AGENT_TOOLS","expected":"Exactly 12 read/preview tools.","evidence":"agentTools.cjs export enumeration"},
+    {"id":"D-02","type":"DETERMINISTIC","title":"Protected tool surface count","input":"Load PROTECTED_PROPOSAL_TOOLS","expected":"Exactly find_part and prepare_part_stock_adjustment.","evidence":"agentTools.cjs export enumeration"},
+    {"id":"D-03","type":"DETERMINISTIC","title":"Direct write exclusion","input":"Inspect ordinary Agent tool names","expected":"adjust_part_stock is never exposed to Main Agent.","evidence":"agentTools.cjs tool declarations"},
+    {"id":"D-04","type":"DETERMINISTIC","title":"Owner-only chat boundary","input":"Non-Owner POST /api/ai/chat","expected":"Rejected before model or formal business access.","evidence":"aiAssistantHttpCutover.test.cjs"},
+    {"id":"D-05","type":"DETERMINISTIC","title":"Server write kill switch","input":"PERSIST_MUTATION with server writeAllowed=false","expected":"WRITE_DISABLED; no proposal token or tool call.","evidence":"aiAssistantM2B.test.cjs"},
+    {"id":"D-06","type":"DETERMINISTIC","title":"Protected proposal zero-write","input":"Prepare one Part stock adjustment","expected":"Preview only before Owner confirmation.","evidence":"aiAssistantM2B.test.cjs"},
+    {"id":"D-07","type":"DETERMINISTIC","title":"Formal money failure guard","input":"Profitability tool fails","expected":"No model-supplied substitute monetary result.","evidence":"aiAssistantM1.test.cjs and mainAgent.cjs"},
+    {"id":"D-08","type":"DETERMINISTIC","title":"Identity ambiguity guard","input":"Multiple formal coil candidates","expected":"No silent first-match identity binding.","evidence":"aiAssistantM2A.test.cjs and agentTools.cjs"},
+    {"id":"S-01","type":"STATIC_AUDIT","title":"Retired runtime absent","input":"Inspect public route/import graph","expected":"No Dispatcher V3, Task route, or Task worker active path.","evidence":"verify-ai-assistant-release.cjs"},
+    {"id":"S-02","type":"STATIC_AUDIT","title":"No dynamic capability broker","input":"Inspect runtime tool exposure","expected":"Fixed AGENT_TOOLS array is used per read mode.","evidence":"mainAgent.cjs and agentTools.cjs"},
+    {"id":"S-03","type":"STATIC_AUDIT","title":"Attachment context drop","input":"Send attachment-bearing Web message","expected":"Chat route retains only role/content; attachment data is not passed to runtime.","evidence":"ai.ts and chat.cjs"},
+    {"id":"S-04","type":"STATIC_AUDIT","title":"Page context drop","input":"Send pageContext from Web client","expected":"Chat route/runtime ignores pageContext.","evidence":"ai.ts and chat.cjs"},
+    {"id":"S-05","type":"STATIC_AUDIT","title":"Factory policy configuration","input":"Inspect Domain Policy loading","expected":"Policy is deployment Markdown with no product editing, publish, or rollback contract.","evidence":"judge.cjs and domain-policy.md"},
+    {"id":"S-06","type":"STATIC_AUDIT","title":"No Fact Ledger or answer validator","input":"Inspect runtime response flow","expected":"Ephemeral toolResults and free-form answer only; no persisted claim/evidence ledger or general validator.","evidence":"runtime.cjs, mainAgent.cjs, chat.cjs"},
+    {"id":"S-07","type":"STATIC_AUDIT","title":"No phase metrics transport","input":"Inspect SSE output","expected":"Only provider/content/done plus proposal; no progress, tool, token, or latency events.","evidence":"chat.cjs"}
+  ]
+}
