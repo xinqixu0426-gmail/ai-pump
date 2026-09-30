@@ -5,6 +5,7 @@ const MAX_MENTION_LENGTH = 160;
 const MAX_ENTITY_TYPES_PER_REQUEST = 6;
 const MAX_CANDIDATES_PER_TYPE = 10;
 const MAX_TOTAL_CANDIDATES = 30;
+const MAX_CANONICAL_LABEL_SCAN_ROWS = 1_000;
 
 const SUPPORTED_ENTITY_TYPES = Object.freeze([
     'coil',
@@ -204,6 +205,16 @@ function normalizedFormalAlias(value) {
     return String(value || '').normalize('NFKC').trim().replace(/\s+/gu, ' ');
 }
 
+// Some formal recipe names begin with a stable model label followed by a
+// non-alphanumeric display suffix (for example a configuration description).
+// The label is a deterministic projection of the current canonical name, not
+// a substring/fuzzy search and not a user-text intent rule. It resolves only
+// if the complete formal candidate set is unique.
+function canonicalRecipeLabel(name) {
+    const match = String(name || '').trim().match(/^([A-Za-z]+[0-9]+)(?=[^A-Za-z0-9]|$)/u);
+    return match ? match[1].toLocaleLowerCase('zh-CN') : null;
+}
+
 function createEntityLookupService({ db } = {}) {
     if (!db || typeof db.prepare !== 'function') {
         throw new TypeError('实体查询服务缺少数据库依赖');
@@ -316,6 +327,24 @@ function createEntityLookupService({ db } = {}) {
         } };
     }
 
+    function lookupRecipeCanonicalLabel(mention) {
+        const normalizedMention = String(mention || '').trim().toLocaleLowerCase('zh-CN');
+        if (!normalizedMention) return { complete: true, candidates: [] };
+        const rows = db.prepare(`
+            SELECT id, name
+            FROM recipes
+            WHERE deleted_at IS NULL
+            ORDER BY id
+            LIMIT ?
+        `).all(MAX_CANONICAL_LABEL_SCAN_ROWS + 1);
+        const complete = rows.length <= MAX_CANONICAL_LABEL_SCAN_ROWS;
+        const candidates = rows
+            .filter(row => canonicalRecipeLabel(row.name) === normalizedMention)
+            .slice(0, MAX_CANDIDATES_PER_TYPE)
+            .map(row => candidateProjection('recipe', row, 'CANONICAL_LABEL_EXACT'));
+        return { complete, candidates };
+    }
+
     function lookupEntities(input) {
         const request = validateEntityLookupRequest(input);
         const candidates = [];
@@ -328,6 +357,9 @@ function createEntityLookupService({ db } = {}) {
                 result = lookupExact(entityType, request.mention);
                 if (entityType === 'part' && result.candidates.length === 0) {
                     result = lookupNormalizedPart(request.mention);
+                }
+                if (entityType === 'recipe' && result.candidates.length === 0) {
+                    result = lookupRecipeCanonicalLabel(request.mention);
                 }
                 const resolution = exactResolution(entityType, result.candidates);
                 if (resolution) resolutions.push(resolution);
@@ -374,10 +406,12 @@ module.exports = {
     EntityLookupError,
     MATCH_POLICIES,
     MAX_CANDIDATES_PER_TYPE,
+    MAX_CANONICAL_LABEL_SCAN_ROWS,
     MAX_ENTITY_TYPES_PER_REQUEST,
     MAX_MENTION_LENGTH,
     MAX_TOTAL_CANDIDATES,
     SUPPORTED_ENTITY_TYPES,
+    canonicalRecipeLabel,
     createEntityLookupService,
     normalizedFormalAlias,
     validateEntityLookupRequest,

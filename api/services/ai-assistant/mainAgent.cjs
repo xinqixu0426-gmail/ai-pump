@@ -106,6 +106,62 @@ function validationFailureGoals(judge = {}) {
     const count = Math.max(1, Array.isArray(judge.questions) ? judge.questions.length : 0);
     return Object.freeze(Array.from({ length: count }, (_, questionIndex) => Object.freeze({ questionIndex, status: 'UNAVAILABLE', factIds: [] })));
 }
+function boundedInvestigationAnswer(ledgerSnapshot, judge) {
+    const available = (ledgerSnapshot?.facts || []).find(fact => fact?.verified && fact.predicate === 'formal_result_available')
+        || (ledgerSnapshot?.facts || []).find(fact => fact?.verified) || null;
+    const factIds = available ? [available.factId] : [];
+    const answer = available
+        ? '本轮已完成可用的正式查询，但没有足够的正式事实可靠完成全部问题；请缩小查询范围或补充对象。'
+        : '当前未能取得可用于回答的正式业务事实；请缩小查询范围或补充对象。';
+    return JSON.stringify({
+        answer,
+        claims: available ? [{ text: answer, factIds }] : [],
+        goals: (Array.isArray(judge?.questions) ? judge.questions : ['查询']).map((_, questionIndex) => ({
+            questionIndex, status: available ? 'PARTIAL' : 'UNAVAILABLE', factIds,
+        })),
+    });
+}
+function needsFormalInvestigation(ledgerSnapshot, judge) {
+    if (!['READ', 'ANALYZE', 'PERSIST_MUTATION'].includes(judge?.mode)) return false;
+    // A failed formal call is a fail-closed boundary, not a reason to keep
+    // asking the model to plan around unavailable evidence. The final
+    // validator will return the bounded verified-safe response instead.
+    if ((ledgerSnapshot?.observations || []).some(observation => observation?.success === false)) return false;
+    const facts = Array.isArray(ledgerSnapshot?.facts) ? ledgerSnapshot.facts : [];
+    if (facts.some(fact => fact?.verified && !['identity_resolved', 'identity_ambiguous', 'identity_not_found'].includes(fact.predicate))) return false;
+    // Identity ambiguity/not-found is itself a formal answer boundary. It is
+    // safer to let the Agent ask a clarification than force another lookup.
+    return !facts.some(fact => ['identity_ambiguous', 'identity_not_found'].includes(fact?.predicate));
+}
+function fastFormalAnswer(ledgerSnapshot, judge) {
+    if (judge?.mode !== 'READ' || !Array.isArray(judge?.questions) || judge.questions.length !== 1) return null;
+    const supported = new Map([
+        ['current_cost', '当前正式成本'], ['unit_cost', '当前正式成本'],
+        ['inventory_quantity', '当前库存'], ['current_stock', '当前库存'], ['status', '当前状态'],
+    ]);
+    const facts = (ledgerSnapshot?.facts || []).filter(fact => fact?.verified && supported.has(fact.predicate) && fact.entity?.canonicalName);
+    // A formal response can legitimately project the same business scalar in
+    // more than one field (for example `current_cost` and `unit_cost`). That
+    // is corroboration, not a license to pick between conflicting values.
+    // Select only one predicate family for one resolved entity, and only if
+    // its distinct formal value is unique. Anything else returns to the
+    // normal Agent/validator path.
+    let fact = null;
+    for (const predicates of [['current_cost', 'unit_cost'], ['current_stock', 'inventory_quantity'], ['status']]) {
+        const candidates = facts.filter(item => predicates.includes(item.predicate));
+        const entityKeys = new Set(candidates.map(item => `${item.entity.type}:${item.entity.id}`));
+        const values = new Set(candidates.map(item => `${item.unit || ''}:${String(item.value)}`));
+        if (candidates.length > 0 && entityKeys.size === 1 && values.size === 1) {
+            fact = candidates.find(item => item.predicate === predicates[0]) || candidates[0];
+            break;
+        }
+    }
+    if (!fact) return null;
+    const label = supported.get(fact.predicate);
+    const value = fact.unit === 'CNY' ? `¥${fact.value}` : String(fact.value);
+    const answer = `${fact.entity.canonicalName} 的${label}为 ${value}${fact.unit === 'COUNT' ? '' : ''}。`;
+    return JSON.stringify({ answer, claims: [{ text: answer, factIds: [fact.factId] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: [fact.factId] }] });
+}
 async function runMainAgent(input = {}, dependencies = {}) {
     const userMessage = String(input.userMessage || '').trim();
     if (!userMessage) throw new MainAgentError('MAIN_AGENT_INPUT_INVALID', '缺少用户消息');
@@ -113,9 +169,11 @@ async function runMainAgent(input = {}, dependencies = {}) {
     if (!judge || typeof judge !== 'object') throw new MainAgentError('MAIN_AGENT_INPUT_INVALID', '缺少 Judge 结果');
     const modelCall = dependencies.modelCall || defaultMainModelCall;
     const runTool = dependencies.executeAgentTool || executeAgentTool;
+    const telemetry = dependencies.telemetry || { stage(_name, operation) { return operation(); } };
+    const reportProgress = typeof dependencies.onProgress === 'function' ? dependencies.onProgress : () => {};
     const proposalMode = input.mode === 'PROTECTED_PROPOSAL';
-    const broker = proposalMode ? null : (dependencies.selectCapabilities || selectCapabilities)({ judge, resolvedEntities: input.resolvedEntities });
-    const exposedTools = proposalMode ? protectedProposalTools(judge) : broker.tools;
+    let broker = proposalMode ? null : telemetry.stage('broker', () => (dependencies.selectCapabilities || selectCapabilities)({ judge, resolvedEntities: input.resolvedEntities, routeClass: input.routeClass }));
+    let exposedTools = proposalMode ? protectedProposalTools(judge) : broker.tools;
     const startedAt = Date.now();
     const timeoutMs = runtimeLimit(input);
     const messages = [
@@ -139,6 +197,16 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const selectedToolNames = new Set((broker?.capabilities || []).map(capability => capability.toolName));
     let protectedProposal = null;
 
+    function completed(rawAnswer, modelCalls) {
+        const ledgerSnapshot = factLedger.snapshot();
+        if (judge.mode !== 'GENERAL' && ledgerSnapshot.facts.length === 0 && !String(rawAnswer).includes('当前未能取得可用于回答的正式业务事实')) {
+            throw new MainAgentError('MAIN_AGENT_FORMAL_TOOL_REQUIRED', 'Main Agent 未取得正式工具结果');
+        }
+        if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
+        const answerValidation = telemetry.stage('answerValidation', () => (dependencies.validateAnswer || validateAnswer)(rawAnswer, { ledger: ledgerSnapshot, judge, mode: judge.mode, proposalOnly: proposalMode }));
+        return { answer: answerValidation.answer, toolResults, factLedger: ledgerSnapshot, answerValidation, goalStatuses: answerValidation.goals || validationFailureGoals(judge), protectedProposal, modelCalls, durationMs: Date.now() - startedAt, broker };
+    }
+
     return withAgentSpan({ route: 'ai_assistant_main_agent', requestId: input.requestId, streaming: false,
         availableCapabilityCount: broker?.availableCapabilityCount ?? 0,
         selectedCapabilityCount: broker?.selectedCapabilityCount ?? 0,
@@ -158,41 +226,43 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 }));
             } catch (error) {
                 if (error instanceof MainAgentError) throw error;
-                throw new MainAgentError(error?.code || 'MAIN_AGENT_MODEL_FAILED', 'Main Agent 调用失败');
+                // Provider/transport errors may carry arbitrary third-party
+                // codes (including assertion codes in isolated fixtures).
+                // Do not promote those into a product contract.
+                throw new MainAgentError('MAIN_AGENT_MODEL_FAILED', 'Main Agent 调用失败');
             }
             const calls = toolCallsFrom(message);
             if (calls.length === 0) {
                 const rawAnswer = String(message.content || '').trim();
                 if (!rawAnswer) throw new MainAgentError('MAIN_AGENT_RESPONSE_INVALID', 'Main Agent 未返回工具调用或最终回答');
-                const ledgerSnapshot = factLedger.snapshot();
-                if (judge.mode !== 'GENERAL' && ledgerSnapshot.facts.length === 0) {
-                    throw new MainAgentError('MAIN_AGENT_FORMAL_TOOL_REQUIRED', 'Main Agent 未取得正式工具结果');
+                if (needsFormalInvestigation(factLedger.snapshot(), judge) && modelCalls + 1 < MAX_MAIN_MODEL_CALLS) {
+                    messages.push({ role: 'assistant', content: rawAnswer });
+                    messages.push({ role: 'system', content: '尚未取得足以回答的正式业务事实。请先调用当前已暴露的正式只读工具；不得仅依据实体名称、页面或会话内容作答。' });
+                    continue;
                 }
-                if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
-                const answerValidation = (dependencies.validateAnswer || validateAnswer)(rawAnswer, { ledger: ledgerSnapshot, judge, mode: judge.mode, proposalOnly: proposalMode });
-                return { answer: answerValidation.answer, toolResults, factLedger: ledgerSnapshot, answerValidation, goalStatuses: answerValidation.goals || validationFailureGoals(judge), protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt, broker };
+                return completed(rawAnswer, modelCalls + 1);
             }
-            if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
-                throw new MainAgentError('MAIN_AGENT_TOOL_BUDGET_EXCEEDED', 'Main Agent 超过工具调用上限');
-            }
+            if (toolResults.length + calls.length > MAX_TOOL_CALLS) return completed(boundedInvestigationAnswer(factLedger.snapshot(), judge), modelCalls + 1);
             const batchKeys = new Set();
             for (const call of calls) {
                 if (!exposedTools.some(item => item.function.name === call.name)) throw new MainAgentError('MAIN_AGENT_TOOL_NOT_ALLOWED', 'Main Agent 调用了当前模式未暴露的工具。');
                 if (proposalMode && protectedProposal) throw new MainAgentError('MAIN_AGENT_TOOL_AFTER_PROPOSAL', '受保护提案形成后不得继续调用工具。');
                 const callKey = canonicalToolCall(call);
-                if (callKeys.has(callKey) || batchKeys.has(callKey)) throw new MainAgentError('MAIN_AGENT_REPEATED_TOOL_CALL', 'Main Agent 重复了相同工具调用');
+                if (callKeys.has(callKey) || batchKeys.has(callKey)) return completed(boundedInvestigationAnswer(factLedger.snapshot(), judge), modelCalls + 1);
                 batchKeys.add(callKey);
             }
             messages.push(safeAssistantToolMessage(message, calls));
             for (const call of calls) {
                 let result;
                 try {
-                    result = await runTool(call.name, call.args, {
+                    reportProgress({ stage: /^resolve_/.test(call.name) ? 'resolving_entity' : (proposalMode ? 'preparing_write_proposal' : 'reading_formal_data'), routeClass: input.routeClass || 'GENERAL' });
+                    const telemetryStage = /^resolve_/.test(call.name) ? 'ontology' : 'tool';
+                    result = await telemetry.stage(telemetryStage, () => runTool(call.name, call.args, {
                         resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, ambiguousCoilKeys, resolvedPartBindings, entityBindings, selectedToolNames, pageContext: input.investigationContext?.pageContext || null, userMessage, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
                         setProtectedProposal: value => { protectedProposal = value; },
                     }, { executeToolCall: dependencies.executeToolCall, resolveAgentEntity: dependencies.resolveAgentEntity,
                         lookupEntities: dependencies.lookupEntities, internalFetch: dependencies.internalFetch,
-                        resolvePageContextEntity: dependencies.resolvePageContextEntity });
+                        resolvePageContextEntity: dependencies.resolvePageContextEntity }));
                 } catch (error) {
                     result = {
                         success: false,
@@ -205,11 +275,32 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 }
                 if (result.success) callKeys.add(canonicalToolCall(call));
                 toolResults.push(result);
-                const appended = factLedger.appendToolResult({ toolName: call.name, args: call.args, result, entityBindings });
+                const appended = telemetry.stage('factProjection', () => factLedger.appendToolResult({ toolName: call.name, args: call.args, result, entityBindings }));
                 messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(modelProjection(result, appended.factIds)) });
             }
+            // A SIMPLE_READ begins compactly, then receives the formal
+            // read/preview profile for an entity only after Ontology has
+            // verified that entity in this very turn. This is deterministic
+            // broker state, not text-based tool routing.
+            if (!proposalMode && input.routeClass === 'SIMPLE_READ' && entityBindings.size > 0) {
+                const nextBroker = telemetry.stage('broker', () => (dependencies.selectCapabilities || selectCapabilities)({
+                    judge,
+                    resolvedEntities: [...entityBindings.values()],
+                    routeClass: input.routeClass,
+                }));
+                if (nextBroker.capabilities.some(item => !selectedToolNames.has(item.toolName))) {
+                    broker = nextBroker;
+                    exposedTools = nextBroker.tools;
+                    selectedToolNames.clear();
+                    for (const capability of nextBroker.capabilities) selectedToolNames.add(capability.toolName);
+                }
+            }
+            if (input.routeClass === 'SIMPLE_READ' && !proposalMode) {
+                const rawAnswer = fastFormalAnswer(factLedger.snapshot(), judge);
+                if (rawAnswer) return completed(rawAnswer, modelCalls + 1);
+            }
         }
-        throw new MainAgentError('MAIN_AGENT_MODEL_BUDGET_EXCEEDED', 'Main Agent 未在模型调用预算内完成回答');
+        return completed(boundedInvestigationAnswer(factLedger.snapshot(), judge), MAX_MAIN_MODEL_CALLS);
     });
 }
 
@@ -219,6 +310,9 @@ module.exports = {
     MAX_TOOL_CALLS,
     MainAgentError,
     defaultMainModelCall,
+    boundedInvestigationAnswer,
+    fastFormalAnswer,
+    needsFormalInvestigation,
     mainAgentSystemPrompt,
     runMainAgent,
     toolCallsFrom,

@@ -43,7 +43,19 @@ const DOMAIN_TOOL_NAMES = Object.freeze({
     knowledge: Object.freeze(['search_factory_knowledge']),
     file: Object.freeze(['get_recipe_technical_files', 'search_factory_file_archive_targets']),
     template: Object.freeze(['search_templates', 'get_template_detail']),
-    general: Object.freeze(['get_dashboard_summary']),
+    // Initial SIMPLE_READ admission starts with a compact, entity-free query
+    // surface. Once Ontology verifies an entity, the broker replaces this
+    // with that entity's relevant formal profile for the next model call.
+    general: Object.freeze(['get_dashboard_summary', 'get_recent_orders', 'search_quotations', 'search_customers', 'search_business_changes', 'search_factory_knowledge']),
+});
+
+const RESOLVED_ENTITY_DOMAINS = Object.freeze({
+    recipe: Object.freeze(['recipe', 'cost', 'technical_profile']),
+    coil: Object.freeze(['coil', 'cost', 'inventory']),
+    part: Object.freeze(['part', 'catalog', 'inventory']),
+    order: Object.freeze(['order', 'procurement']),
+    customer: Object.freeze(['customer', 'quotation']),
+    template: Object.freeze(['template']),
 });
 
 const ENTITY_ARGUMENTS = Object.freeze({
@@ -97,11 +109,13 @@ function boundToolDefinition(name) {
     }) });
 }
 
-function normalizedDomains(judge = {}, resolvedEntities = []) {
+function normalizedDomains(judge = {}, resolvedEntities = [], routeClass = 'GENERAL') {
     const allowed = new Set(Object.keys(DOMAIN_TOOL_NAMES));
-    const domains = Array.isArray(judge.domains) ? judge.domains : [];
+    const domains = Array.isArray(judge.domains) ? [...judge.domains] : [];
+    const resolvedDomains = [];
     for (const entity of Array.isArray(resolvedEntities) ? resolvedEntities : []) {
         const entityType = String(entity?.entityType || '');
+        resolvedDomains.push(...(RESOLVED_ENTITY_DOMAINS[entityType] || []));
         if (entityType === 'part') domains.push('part');
         if (entityType === 'coil') domains.push('coil');
         if (entityType === 'recipe') domains.push('recipe');
@@ -109,12 +123,13 @@ function normalizedDomains(judge = {}, resolvedEntities = []) {
         if (entityType === 'customer') domains.push('customer');
         if (entityType === 'template') domains.push('template');
     }
+    if (routeClass === 'SIMPLE_READ' && resolvedDomains.length) return [...new Set(resolvedDomains)].filter(domain => allowed.has(domain));
     const selected = [...new Set(domains.filter(domain => allowed.has(domain)))];
     return selected.length ? selected : ['general'];
 }
 
 function selectCapabilities(input = {}) {
-    const domains = normalizedDomains(input.judge, input.resolvedEntities);
+    const domains = normalizedDomains(input.judge, input.resolvedEntities, input.routeClass);
     const names = [];
     const cursors = new Map(domains.map(domain => [domain, 0]));
     // Round-robin preserves a bounded slot for every Judge-selected domain

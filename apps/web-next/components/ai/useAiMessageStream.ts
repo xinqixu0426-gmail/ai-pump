@@ -29,6 +29,7 @@ export function applyAiStreamEvent(item: ChatItem, event: AiStreamEvent): ChatIt
     const { type: _type, ...metrics } = event;
     return { ...item, metrics };
   }
+  if (event.type === 'reference_context') return { ...item, referenceEntities: event.entities };
   // NATIVE-W2：结构化提案 -> 显式卡片状态（不经 Markdown 重建）。
   if (event.type === 'write_proposal') return { ...item, writeProposal: createWriteCard(event) };
   if (event.type === 'done') return { ...item, status: 'done', statusMessage: '' };
@@ -58,6 +59,7 @@ export function useAiMessageStream() {
         role: item.role,
         content: item.content,
         ...(item.attachments?.length ? { attachments: item.attachments } : {}),
+        ...(item.referenceEntities?.length ? { referenceEntities: item.referenceEntities } : {}),
       }))
   ), [items]);
 

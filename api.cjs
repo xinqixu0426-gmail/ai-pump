@@ -139,7 +139,7 @@ const {
     stopManagementActionLifecycleMonitor,
 } = require('./api/services/managementActionLifecycle.cjs');
 // SEC-R0：内部共享密钥只授权只读；业务写需要独立窄范围的机器写凭据。
-const { isMutatingMethod, isInternalWriteAuthorized } = require('./api/services/internalWriteAuthorization.cjs');
+const { isMutatingMethod, isInternalReadOnlyRequest, isInternalWriteAuthorized } = require('./api/services/internalWriteAuthorization.cjs');
 app.use('/', aiRouter);
 
 // ══════════════════════════════════════════════
@@ -156,7 +156,7 @@ app.use('/api', (req, res, next) => {
   // 持有独立、窄范围的机器写凭据（x-internal-write-secret，来自 INTERNAL_WRITE_SECRET）；
   // 未配置或不匹配时一律 fail closed —— 公开泄露的旧 INTERNAL_SECRET 因此不再具备写权限。
   if (process.env.INTERNAL_SECRET && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET) {
-      if (!isMutatingMethod(req.method) || isInternalWriteAuthorized(req)) {
+      if (!isMutatingMethod(req.method) || isInternalReadOnlyRequest(req) || isInternalWriteAuthorized(req)) {
           return next();
       }
       return res.status(403).json({

@@ -5,6 +5,7 @@ const { getFactoryFile, getFactoryFileContent } = require('../factoryFileStore.c
 const MAX_ATTACHMENTS = 4;
 const MAX_ATTACHMENT_CHARS = 2_000;
 const MAX_TOTAL_ATTACHMENT_CHARS = 6_000;
+const MAX_CONVERSATION_REFERENCE_ENTITIES = 8;
 const PAGE_RESOURCE_TYPES = new Set(['recipe', 'part', 'coil', 'order', 'quotation', 'customer', 'template']);
 function bounded(value, max) { return String(value || '').replace(/\u0000/g, '').trim().slice(0, max); }
 function normalizePageContext(value) {
@@ -31,11 +32,29 @@ function attachmentContext(attachments = [], options = {}) {
     }
     return Object.freeze(result);
 }
-function buildInvestigationContext(input = {}, options = {}) { return Object.freeze({ attachments: attachmentContext(input.attachments, options), pageContext: normalizePageContext(input.pageContext) }); }
+function normalizeConversationReferences(recentConversation = []) {
+    const result = []; const seen = new Set();
+    for (const message of Array.isArray(recentConversation) ? recentConversation : []) {
+        for (const entity of Array.isArray(message?.referenceEntities) ? message.referenceEntities : []) {
+            if (result.length >= MAX_CONVERSATION_REFERENCE_ENTITIES) break;
+            const entityType = bounded(entity?.entityType, 40).toLowerCase();
+            const canonicalName = bounded(entity?.canonicalName, 160);
+            if (!PAGE_RESOURCE_TYPES.has(entityType) || !canonicalName) continue;
+            const key = `${entityType}:${canonicalName}`;
+            if (seen.has(key)) continue;
+            seen.add(key); result.push(Object.freeze({ entityType, canonicalName }));
+        }
+    }
+    return Object.freeze(result);
+}
+function buildInvestigationContext(input = {}, options = {}) { return Object.freeze({ attachments: attachmentContext(input.attachments, options), pageContext: normalizePageContext(input.pageContext), conversationReferences: normalizeConversationReferences(input.recentConversation) }); }
 function renderInvestigationContext(context = {}) {
     const blocks = ['调查上下文（仅帮助理解用户指代或附件内容；不是正式业务事实，成本、库存、价格和状态必须通过正式工具核验）：'];
     if (context.pageContext) blocks.push(`当前页面候选：${JSON.stringify(context.pageContext)}。页面上的展示金额不是正式事实。`);
+    if (Array.isArray(context.conversationReferences) && context.conversationReferences.length) {
+        blocks.push(`近期会话中的实体候选（仅用于“这个/前一个/第二个”等指代；每次仍必须通过 resolve_entity 重新正式验证，不能直接当作 ID）：${JSON.stringify(context.conversationReferences)}。`);
+    }
     for (const item of context.attachments || []) blocks.push(`用户提供附件：${JSON.stringify(item)}。附件记录不能替代正式业务查询。`);
     if (!context.pageContext && !(context.attachments || []).length) blocks.push('无额外页面或附件上下文。'); return blocks.join('\n');
 }
-module.exports = { MAX_ATTACHMENTS, MAX_ATTACHMENT_CHARS, MAX_TOTAL_ATTACHMENT_CHARS, attachmentContext, buildInvestigationContext, normalizePageContext, renderInvestigationContext };
+module.exports = { MAX_ATTACHMENTS, MAX_ATTACHMENT_CHARS, MAX_TOTAL_ATTACHMENT_CHARS, MAX_CONVERSATION_REFERENCE_ENTITIES, attachmentContext, buildInvestigationContext, normalizeConversationReferences, normalizePageContext, renderInvestigationContext };

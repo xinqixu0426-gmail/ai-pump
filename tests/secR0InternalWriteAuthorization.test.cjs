@@ -216,6 +216,27 @@ async function assertSecR0Authorization(runtime, tag) {
     const internalRead = await fetch(`${baseUrl}/api/parts`, { headers: { 'x-internal-secret': INTERNAL_SECRET } });
     assert.equal(internalRead.status, 200, '内部只读必须保持可用');
 
+    // POST is only transport here: entity lookup is an explicitly registered
+    // logical read and must not require, imply, or receive machine write power.
+    const entityLookup = await fetch(`${baseUrl}/api/entity-lookup`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+        body: JSON.stringify({ version: 1, mention: 'SEC-R0-no-such-entity', entityTypes: ['part'], matchPolicy: 'EXACT' }),
+    });
+    assert.equal(entityLookup.status, 200, 'registered internal read POST must remain available without write secret');
+    assert.equal((await entityLookup.json()).success, true);
+
+    const relationResolve = await fetch(`${baseUrl}/api/relations/resolve`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
+        body: JSON.stringify({
+            ontologyVersion: 1,
+            relationId: 'recipe.contains_part',
+            root: { entityType: 'recipe', canonicalId: 999999 },
+            pageSize: 1,
+        }),
+    });
+    assert.equal(relationResolve.status, 422, 'registered relation query must reach its formal resolver without write power');
+    assert.notEqual((await relationResolve.json()).code, 'INTERNAL_WRITE_FORBIDDEN');
+
     // G. 内部写 + 专用机器写凭据 → 放行（合法内部自动化保持可用）
     const internalWrite = await postPart(baseUrl, {
         'x-internal-secret': INTERNAL_SECRET,

@@ -8,6 +8,10 @@ const SENSITIVE_KEYS = new Set([
     'confirmationToken', 'partId', 'recipeId', 'coilId', 'orderId', 'customerId',
     'operationId', 'idempotencyKey', 'argsHash', 'proposalHash', 'executionEvidence',
 ]);
+const MAX_MODEL_PROJECTION_BYTES = 4 * 1024;
+const MAX_MODEL_PROJECTION_ARRAY_ITEMS = 12;
+const MAX_MODEL_PROJECTION_OBJECT_FIELDS = 24;
+const MAX_MODEL_PROJECTION_DEPTH = 4;
 
 function finite(value) {
     const number = Number(value);
@@ -159,14 +163,28 @@ function createFactLedger() {
 }
 
 function modelProjection(result, factIds) {
-    const redact = value => {
-        if (Array.isArray(value)) return value.map(redact);
-        if (!value || typeof value !== 'object') return value;
-        return Object.fromEntries(Object.entries(value)
-            .filter(([key]) => !SENSITIVE_KEYS.has(key))
-            .map(([key, child]) => [key, redact(child)]));
+    const budget = { remaining: MAX_MODEL_PROJECTION_BYTES };
+    const consume = value => {
+        const source = Buffer.from(String(value), 'utf8');
+        const accepted = source.subarray(0, Math.max(0, budget.remaining));
+        budget.remaining -= accepted.length;
+        return accepted.toString('utf8');
     };
-    return { ...redact(result), factRefs: factIds };
+    const project = (value, depth = 0) => {
+        if (value === null || value === undefined) return value;
+        if (typeof value === 'string') return consume(value);
+        if (typeof value === 'number' || typeof value === 'boolean') { consume(String(value)); return value; }
+        if (depth >= MAX_MODEL_PROJECTION_DEPTH || budget.remaining <= 0) return '[内容已截断]';
+        if (Array.isArray(value)) return value.slice(0, MAX_MODEL_PROJECTION_ARRAY_ITEMS).map(item => project(item, depth + 1));
+        if (typeof value !== 'object') return consume(String(value));
+        const output = {};
+        for (const [key, child] of Object.entries(value)) {
+            if (SENSITIVE_KEYS.has(key) || Object.keys(output).length >= MAX_MODEL_PROJECTION_OBJECT_FIELDS || budget.remaining <= 0) continue;
+            output[consume(key)] = project(child, depth + 1);
+        }
+        return output;
+    };
+    return { ...project(result), factRefs: Array.isArray(factIds) ? factIds.slice(0, 96) : [] };
 }
 
-module.exports = { createFactLedger, modelProjection };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection };

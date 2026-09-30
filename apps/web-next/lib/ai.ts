@@ -18,6 +18,8 @@ export type AiChatMessage = {
   role: AiRole;
   content: string;
   attachments?: AiAttachment[];
+  /** Candidate names from a previous verified turn; never carries IDs. */
+  referenceEntities?: Array<{ entityType: string; canonicalName: string }>;
 };
 
 export type AiAttachment = Pick<
@@ -76,6 +78,21 @@ export type AiTurnMetrics = {
     completionTokens: number;
     totalTokens: number;
   } | null;
+  requestId?: string | null;
+  policyVersion?: number | string | null;
+  routeClass?: 'SIMPLE_READ' | 'GENERAL' | string;
+  judgeUsed?: boolean;
+  selectedDomains?: string[];
+  selectedCapabilities?: string[];
+  exposedToolCount?: number;
+  ontologyResolutionCount?: number;
+  factCount?: number;
+  goalCount?: number;
+  goalStatuses?: string[];
+  validatorResult?: string | null;
+  writeProposalCreated?: boolean;
+  writeExecuted?: boolean;
+  timings?: Record<string, number>;
 };
 
 export type AiToolResult = {
@@ -127,6 +144,7 @@ export type AiConversationMessage = {
     provider?: AiProviderInfo;
     metrics?: AiTurnMetrics;
     writeProposal?: AiWriteProposalHistory;
+    referenceEntities?: Array<{ entityType: string; canonicalName: string }>;
   };
   createdAt: string;
   updatedAt: string;
@@ -434,6 +452,7 @@ export type AiStreamEvent =
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'detail'; detailType?: string; toolResults?: AiToolResult[] }
   | ({ type: 'metrics' } & AiTurnMetrics)
+  | { type: 'reference_context'; entities: Array<{ entityType: string; canonicalName: string }> }
   | AiAssistantWriteProposalStreamEvent
   | { type: 'done' }
   | { type: 'error'; message: string; code?: string };

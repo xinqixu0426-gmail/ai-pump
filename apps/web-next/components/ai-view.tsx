@@ -423,6 +423,9 @@ export function AiView({
               toolResults: finalAssistantItem.toolResults,
               provider: finalAssistantItem.provider,
               metrics: finalAssistantItem.metrics,
+              ...(finalAssistantItem.referenceEntities?.length
+                ? { referenceEntities: finalAssistantItem.referenceEntities }
+                : {}),
               // 只记录「这里曾有一张提案卡」：不持久化 token，也不持久化任何可重建请求的数值。
               ...(finalAssistantItem.writeProposal?.event
                 ? {

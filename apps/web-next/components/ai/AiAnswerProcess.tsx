@@ -45,6 +45,8 @@ export type ChatItem = {
   provider?: AiProviderInfo;
   metrics?: AiTurnMetrics;
   retryable?: boolean;
+  /** Safe candidate labels for the next turn; IDs are intentionally absent. */
+  referenceEntities?: Array<{ entityType: string; canonicalName: string }>;
   /** NATIVE-W2：服务端签发的库存调整提案卡片状态（结构化，不扁平化为 Markdown）。 */
   writeProposal?: import('@/lib/ai-assistant-write-proposal.cjs').AiAssistantWriteCard;
   startedAt?: number;

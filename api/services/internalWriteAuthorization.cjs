@@ -19,9 +19,29 @@ const crypto = require('node:crypto');
 
 const MUTATING_METHODS = Object.freeze(new Set(['POST', 'PUT', 'PATCH', 'DELETE']));
 const MINIMUM_WRITE_SECRET_LENGTH = 32;
+// A transport POST is not necessarily a business mutation. Keep this tiny
+// allowlist at the authorization boundary for formally registered query
+// endpoints that require a request body. Any new entry needs an API contract
+// review; it must never be inferred from a caller-provided capability name.
+const INTERNAL_READ_ONLY_POST_PATHS = Object.freeze(new Set([
+    '/api/entity-lookup',
+    '/api/entity-span-candidates',
+    // Both relation endpoints are bounded formal query contracts. Their POST
+    // body carries lookup criteria/pagination only; neither invokes a
+    // business command or changes persisted state.
+    '/api/relations/read',
+    '/api/relations/resolve',
+]));
 
 function isMutatingMethod(method) {
     return MUTATING_METHODS.has(String(method || '').toUpperCase());
+}
+
+function isInternalReadOnlyRequest(req = {}) {
+    if (String(req.method || '').toUpperCase() !== 'POST') return false;
+    const rawPath = String(req.originalUrl || req.baseUrl && req.path || req.path || '').split('?')[0];
+    const path = rawPath.startsWith('/api/') ? rawPath : `/api${rawPath.startsWith('/') ? rawPath : `/${rawPath}`}`;
+    return INTERNAL_READ_ONLY_POST_PATHS.has(path);
 }
 
 function equalSecret(left, right) {
@@ -55,7 +75,9 @@ function isInternalWriteAuthorized(req, env = process.env) {
 module.exports = {
     MUTATING_METHODS,
     MINIMUM_WRITE_SECRET_LENGTH,
+    INTERNAL_READ_ONLY_POST_PATHS,
     isMutatingMethod,
+    isInternalReadOnlyRequest,
     configuredInternalWriteSecret,
     internalWriteAuthorizationConfigured,
     isInternalWriteAuthorized,

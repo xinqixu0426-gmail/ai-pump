@@ -222,6 +222,20 @@ test('formal recipe alias resolution is exact, unique, typed, active, and curren
     db.close();
 });
 
+test('formal canonical recipe labels are generic exact identity projections and preserve ambiguity', () => {
+    const db = createDb();
+    db.prepare('INSERT INTO recipes (id, name, spec) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)')
+        .run(1, 'PX410-标准款', '', 2, 'PX420大脚板', '', 3, 'PX420经济款', '');
+    const lookup = createEntityLookupService({ db }).lookupEntities;
+    const unique = lookup(validRequest({ mention: 'px410', entityTypes: ['recipe'], matchPolicy: 'EXACT' }));
+    assert.deepEqual(unique.candidates, [{ entityType: 'recipe', canonicalId: '1', canonicalName: 'PX410-标准款', matchKind: 'CANONICAL_LABEL_EXACT' }]);
+    const ambiguous = lookup(validRequest({ mention: 'PX420', entityTypes: ['recipe'], matchPolicy: 'EXACT' }));
+    assert.equal(ambiguous.candidateCount, 2);
+    assert.equal(ambiguous.complete, true);
+    assert.equal(lookup(validRequest({ mention: 'PX41', entityTypes: ['recipe'], matchPolicy: 'EXACT' })).candidateCount, 0);
+    db.close();
+});
+
 test('formal recipe alias resolution fails closed for ambiguity and unavailable targets', () => {
     const db = createDb();
     db.prepare('INSERT INTO recipes (id, name, spec, deleted_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)')
