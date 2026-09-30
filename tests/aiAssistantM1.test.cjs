@@ -19,6 +19,7 @@ const previewJudge = Object.freeze({
     needsClarification: false,
     clarificationReason: null,
     appliedPolicyIds: ['RULE-01', 'RULE-05', 'RULE-08'],
+    domains: ['recipe', 'cost'],
 });
 
 function response(message) {
@@ -69,11 +70,16 @@ function mainSequence(answerFactory) {
     let index = 0;
     return async (messages, options) => {
         index += 1;
-        if (index === 1) return toolCall('find_recipe', { keyword: 'V550' }, 'tool-recipe');
+        if (index === 1) return toolCall('resolve_entity', { entityType: 'recipe', mention: 'V550' }, 'tool-recipe');
         if (index === 2) return toolCall('preview_profitability', { recipeId: 55, cableLength: 5, unitPrice: 340 }, 'tool-profit');
         assert.equal(index, 3);
         return response({ content: answerFactory(messages, options) });
     };
+}
+
+async function resolveRecipe(input) {
+    assert.deepEqual(input, { entityType: 'recipe', mention: 'V550', signal: undefined });
+    return { entityType: 'recipe', mention: 'V550', status: 'RESOLVED', canonicalId: '55', canonicalName: 'V550', candidates: [], source: 'formal', verified: true, matchKind: 'EXACT' };
 }
 
 function judgeModel(output = previewJudge) {
@@ -199,7 +205,7 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
             return response({ content: JSON.stringify(previewJudge) });
         },
         mainModelCall: mainSequence((messages, options) => {
-            assert.ok(options.tools.some(tool => tool.function.name === 'find_recipe'));
+            assert.ok(options.tools.some(tool => tool.function.name === 'resolve_entity'));
             assert.ok(options.tools.some(tool => tool.function.name === 'preview_profitability'));
             assert.match(messages[0].content, /自主选择必要工具和顺序/);
             const formal = JSON.parse(messages.at(-1).content);
@@ -217,21 +223,18 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
             if (options.allowWrite) businessWrites += 1;
             return formalToolResult(name, args);
         },
+        resolveAgentEntity: resolveRecipe,
     });
     assert.equal(result.status, 'COMPLETED');
     assert.equal(result.judge.mode, 'ANALYZE');
     assert.equal(result.judge.persistentMutation, false);
-    assert.deepEqual(toolCalls.map(call => call.name), ['get_all_recipes', 'preview_profitability']);
+    assert.deepEqual(toolCalls.map(call => call.name), ['preview_profitability']);
     assert.match(result.answer, /¥281\.25/);
     assert.match(result.answer, /没有保存/);
     assert.equal(result.toolResults.length, 2);
     assert.equal(businessWrites, 0);
-    assert.deepEqual(result.toolResults[0], {
-        success: true,
-        agentToolName: 'find_recipe',
-        verified: true,
-        data: [{ id: 55, name: 'V550' }],
-    });
+    assert.equal(result.toolResults[0].agentToolName, 'resolve_entity');
+    assert.equal(result.toolResults[0].data.canonicalId, '55');
     assert.deepEqual(result.toolResults[1].data, {
         costComplete: true,
         currency: 'CNY',
@@ -269,12 +272,12 @@ test('formal result mutation reaches Main Agent rather than a hardcoded amount',
             return `正式结果：成本 ¥${formal.data.unitCost}，毛利 ¥${formal.data.grossProfitPerUnit}，本次没有保存。`;
         }),
         executeToolCall: async (name, args) => {
-            if (name === 'get_all_recipes') return formalToolResult(name, args);
             const result = formalToolResult(name, args);
             result.data.unitCost = 299.99;
             result.data.grossProfitPerUnit = 40.01;
             return result;
         },
+        resolveAgentEntity: resolveRecipe,
     });
     assert.match(result.answer, /¥299\.99/);
     assert.match(result.answer, /¥40\.01/);
@@ -285,11 +288,10 @@ test('tool and Main Agent failures do not enter Task V2 or create writes', async
     const toolFailure = await runAiAssistant({ userMessage: INPUT }, {
         judgeModelCall: judgeModel(),
         mainModelCall: mainSequence(() => '正式工具暂不可用，未能完成试算。'),
-        executeToolCall: async (name, args) => (
-            name === 'get_all_recipes'
-                ? formalToolResult(name, args)
-                : { success: false, code: 'FORMAL_DOWN', error: 'formal preview unavailable' }
+        executeToolCall: async (_name, _args) => (
+            { success: false, code: 'FORMAL_DOWN', error: 'formal preview unavailable' }
         ),
+        resolveAgentEntity: resolveRecipe,
     });
     assert.equal(toolFailure.toolResults.at(-1).success, false);
     await assert.rejects(

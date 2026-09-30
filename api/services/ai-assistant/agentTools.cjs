@@ -2,6 +2,11 @@
 
 const { executeToolCall } = require('../../routes/ai/executor.cjs');
 const { prepareProtectedPartStockProposal } = require('./protectedPartStock.cjs');
+const { resolveAgentEntity, resolvePageContextEntity } = require('../../ontology/agentResolver.cjs');
+const {
+    RESOLVE_ENTITY_TOOL,
+    executeBrokeredCapability,
+} = require('./capabilityBroker.cjs');
 
 class AgentToolError extends Error {
     constructor(code, message) { super(message); this.name = 'AgentToolError'; this.code = code; }
@@ -36,8 +41,8 @@ const AGENT_TOOLS = Object.freeze([
     }, ['recipeId', 'quantity']),
 ]);
 const PROTECTED_PROPOSAL_TOOLS = Object.freeze([
-    tool('find_part', '按用户给出的完整型号查询正式零件候选。多个候选不会替用户选择。', { keyword: { type: 'string', minLength: 1, maxLength: 120 } }, ['keyword']),
-    tool('prepare_part_stock_adjustment', '为本轮唯一确认的正式零件准备库存增减的受保护预览。不会执行写入；Owner 必须在模型之外确认。', { partRef: { type: 'string', minLength: 1, maxLength: 40 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['partRef', 'delta']),
+    RESOLVE_ENTITY_TOOL,
+    tool('prepare_part_stock_adjustment', '为本轮唯一确认的正式零件准备库存增减的受保护预览。不会执行写入；Owner 必须在模型之外确认。partId 必须来自本轮 resolve_entity 的唯一正式结果。', { partId: { type: 'integer', minimum: 1 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['partId', 'delta']),
 ]);
 
 function strictObject(value, fields, label) {
@@ -155,6 +160,30 @@ function formalReadinessArgs(recipeId, quantity) {
 }
 function bindingMap(context, field) { return context[field] instanceof Map ? context[field] : new Map(); }
 
+function bindOntologyResolution(resolution, context, recipeIds, recipeBindings, coilBindings, partBindings) {
+    if (resolution.status !== 'RESOLVED') return;
+    const bindings = context.entityBindings instanceof Map ? context.entityBindings : new Map();
+    bindings.set(`${resolution.entityType}:${Number(resolution.canonicalId)}`, resolution);
+    context.entityBindings = bindings;
+    if (resolution.entityType === 'recipe') {
+        recipeIds.add(Number(resolution.canonicalId));
+        recipeBindings.set(Number(resolution.canonicalId), { id: Number(resolution.canonicalId), name: resolution.canonicalName });
+    }
+    if (resolution.entityType === 'coil') {
+        const attributes = resolution.identityAttributes || {};
+        coilBindings.set(Number(resolution.canonicalId), {
+            id: Number(resolution.canonicalId), spec: attributes.spec, sheets: attributes.sheets,
+            schemeCode: attributes.schemeCode, schemeName: resolution.canonicalName,
+            material: attributes.material, slotType: attributes.slotType,
+        });
+    }
+    if (resolution.entityType === 'part') {
+        partBindings.set(`ontology_part_${Number(resolution.canonicalId)}`, {
+            id: Number(resolution.canonicalId), model: resolution.canonicalName, stock: null,
+        });
+    }
+}
+
 async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     const runFormalTool = dependencies.executeToolCall || executeToolCall;
     const recipeIds = context.resolvedRecipeIds instanceof Set ? context.resolvedRecipeIds : new Set();
@@ -162,6 +191,36 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     const coilBindings = bindingMap(context, 'resolvedCoilBindings');
     const partBindings = bindingMap(context, 'resolvedPartBindings');
     const formal = (toolName, toolArgs) => runFormalTool(toolName, toolArgs, { allowWrite: false, signal: context.signal });
+
+    if (name === 'resolve_entity') {
+        strictObject(args, ['entityType', 'mention'], name);
+        const resolver = dependencies.resolveAgentEntity || resolveAgentEntity;
+        const resolution = await resolver({ entityType: args.entityType, mention: args.mention, signal: context.signal }, {
+            internalFetch: dependencies.internalFetch,
+            lookupEntities: dependencies.lookupEntities,
+        });
+        bindOntologyResolution(resolution, context, recipeIds, recipeBindings, coilBindings, partBindings);
+        return { success: resolution.status === 'RESOLVED', agentToolName: name,
+            verified: resolution.verified === true, data: resolution,
+            ...(resolution.status === 'RESOLVED' ? {} : { code: `ENTITY_${resolution.status}`, message: '正式实体未能唯一确认。' }) };
+    }
+
+    if (name === 'resolve_page_context_entity') {
+        strictObject(args, ['entityType'], name);
+        const resolver = dependencies.resolvePageContextEntity || resolvePageContextEntity;
+        const resolution = await resolver({ entityType: args.entityType, pageContext: context.pageContext, signal: context.signal }, {
+            executeToolCall: runFormalTool,
+        });
+        bindOntologyResolution(resolution, context, recipeIds, recipeBindings, coilBindings, partBindings);
+        return { success: resolution.status === 'RESOLVED', agentToolName: name,
+            verified: resolution.verified === true, data: resolution,
+            ...(resolution.status === 'RESOLVED' ? {} : { code: `ENTITY_${resolution.status}`, message: '页面候选未能通过正式身份验证。' }) };
+    }
+
+    if (context.selectedToolNames instanceof Set && context.selectedToolNames.has(name)
+        && !['preview_profitability', 'preview_virtual_readiness'].includes(name)) {
+        return executeBrokeredCapability(name, args, context, { executeToolCall: runFormalTool });
+    }
 
     if (name === 'find_recipe' || name === 'list_recipes') {
         strictObject(args, name === 'find_recipe' ? ['keyword'] : [], name);
@@ -183,8 +242,19 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
         return safeProjection(name, result, partProjection(parts, partBindings, result?.success !== false && exact.length === 1 ? exact[0].id : null));
     }
     if (name === 'prepare_part_stock_adjustment') {
-        strictObject(args, ['partRef', 'delta'], name);
-        const part = boundPart(args.partRef, 'partRef', partBindings);
+        const fields = Object.keys(args || {});
+        const usesCanonicalId = fields.includes('partId');
+        strictObject(args, usesCanonicalId ? ['partId', 'delta'] : ['partRef', 'delta'], name);
+        const part = usesCanonicalId
+            ? (() => {
+                const bindings = context.entityBindings instanceof Map ? context.entityBindings : new Map();
+                const id = Number(args.partId); const entity = bindings.get(`part:${id}`);
+                if (!Number.isSafeInteger(id) || id <= 0 || !entity?.verified || !entity.canonicalName) {
+                    throw new AgentToolError('AGENT_TOOL_IDENTITY_UNVERIFIED', 'partId 必须来自本轮唯一正式 Ontology 身份结果');
+                }
+                return { id, model: entity.canonicalName };
+            })()
+            : boundPart(args.partRef, 'partRef', partBindings);
         const prepared = await prepareProtectedPartStockProposal({ part, delta: args.delta, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
         if (typeof context.setProtectedProposal === 'function') context.setProtectedProposal(prepared);
         return { success: true, agentToolName: name, verified: true, data: { model: prepared.proposal.part.model, currentStock: prepared.proposal.currentStock, delta: prepared.proposal.delta, nextStock: prepared.proposal.nextStock, clampedToZero: prepared.proposal.clampedToZero, confirmationRequired: true } };
@@ -248,4 +318,4 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     throw new AgentToolError('AGENT_TOOL_NOT_ALLOWED', `M2-A 不允许调用工具：${String(name || '')}`);
 }
 
-module.exports = { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, AgentToolError, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, normalizePartIdentity, profitabilityProjection, rawParts, readinessProjection, recipeComparisonProjection, recipeCostProjection };
+module.exports = { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, AgentToolError, bindOntologyResolution, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, normalizePartIdentity, profitabilityProjection, rawParts, readinessProjection, recipeComparisonProjection, recipeCostProjection };

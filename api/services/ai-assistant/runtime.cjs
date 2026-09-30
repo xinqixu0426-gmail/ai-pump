@@ -90,6 +90,11 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         modelCall: dependencies.mainModelCall,
         executeAgentTool: dependencies.executeAgentTool,
         executeToolCall: dependencies.executeToolCall,
+        selectCapabilities: dependencies.selectCapabilities,
+        resolveAgentEntity: dependencies.resolveAgentEntity,
+        resolvePageContextEntity: dependencies.resolvePageContextEntity,
+        lookupEntities: dependencies.lookupEntities,
+        internalFetch: dependencies.internalFetch,
         writeAllowed: dependencies.writeAllowed,
     });
     return {
@@ -99,6 +104,7 @@ async function runAiAssistant(input = {}, dependencies = {}) {
         policyVersion,
         answer: main.answer,
         toolResults: main.toolResults,
+        capabilityBroker: main.broker || null,
         modelCalls: { judge: judgeResult.repaired ? 2 : 1, main: main.modelCalls },
         durationMs: main.durationMs,
         ...(proposalMode ? { proposal: main.protectedProposal.proposal, confirmation: main.protectedProposal.confirmation } : {}),

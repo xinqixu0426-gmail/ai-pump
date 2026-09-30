@@ -10,6 +10,9 @@ const runtime = read('api/services/ai-assistant/runtime.cjs');
 const policyStore = read('api/services/ai-assistant/domainPolicyStore.cjs');
 const context = read('api/services/ai-assistant/context.cjs');
 const tools = read('api/services/ai-assistant/agentTools.cjs');
+const mainAgent = read('api/services/ai-assistant/mainAgent.cjs');
+const broker = read('api/services/ai-assistant/capabilityBroker.cjs');
+const agentResolver = read('api/ontology/agentResolver.cjs');
 const client = read('apps/web-next/lib/ai-assistant-write-proposal-client.cjs');
 const requiredAbsent = [
     'api/services/aiDispatcherV3.cjs',
@@ -32,4 +35,9 @@ assert.match(chat, /pageContext/); assert.match(chat, /attachments/);
 assert.match(policyStore, /domain_policy_versions/); assert.match(policyStore, /DOMAIN_POLICY_CONFLICT/);
 assert.match(context, /不是正式业务事实/);
 assert.match(tools, /prepare_part_stock_adjustment/); assert.doesNotMatch(tools, /tool\('adjust_part_stock'/);
+assert.match(mainAgent, /selectCapabilities/); assert.doesNotMatch(mainAgent, /\bAGENT_TOOLS\b/);
+assert.match(broker, /listAiCapabilities/); assert.match(broker, /capability\.access !== 'write'/);
+assert.match(broker, /AGENT_CAPABILITY_NOT_SELECTED/); assert.match(broker, /AGENT_TOOL_IDENTITY_UNVERIFIED/);
+assert.match(agentResolver, /lookupEntities/); assert.match(agentResolver, /AMBIGUOUS/);
+assert.match(tools, /resolve_entity/); assert.match(tools, /resolve_page_context_entity/);
 console.log('AI assistant public cutover release gate: PASS');

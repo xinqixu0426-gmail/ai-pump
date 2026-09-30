@@ -3,8 +3,9 @@
 const { fetchAiProvider, decodeAiProviderResponse } = require('../aiProvider.cjs');
 const { resolveProviderConfig } = require('../aiProviderRegistry.cjs');
 const { withAgentSpan, withModelSpan } = require('../observability.cjs');
-const { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, executeAgentTool } = require('./agentTools.cjs');
+const { PROTECTED_PROPOSAL_TOOLS, executeAgentTool } = require('./agentTools.cjs');
 const { renderInvestigationContext } = require('./context.cjs');
+const { selectCapabilities } = require('./capabilityBroker.cjs');
 
 const MAX_TOOL_CALLS = 6;
 const MAX_MAIN_MODEL_CALLS = 7;
@@ -34,8 +35,8 @@ function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY', policyVersion =
         '实体名称不是数据库身份：只使用本轮正式身份工具返回的 ID。遇到歧义的配方或线圈，不得静默选择、合并或相加，应展示候选或简洁澄清。',
         '会话中的历史提及只是语言上下文；新一轮使用具体 ID 前，先用本轮正式身份工具重新查询和绑定。',
         protectedProposal
-            ? '本轮只能准备一项库存调整的受保护提案。必须先用 find_part 唯一确认身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。find_part 返回的 partRef 仅是本轮工具句柄，绝不能在自然语言答复中提及。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
-            : '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
+            ? '本轮只能准备一项库存调整的受保护提案。必须先用 resolve_entity 唯一确认 part 身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。canonicalId 仅是工具参数，绝不能在自然语言答复中提及。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
+            : '本轮没有写工具。先用 resolve_entity 获得唯一正式身份；当前页面指代可用 resolve_page_context_entity 作正式验证。再把工具结果中的 canonicalId 用于要求实体身份的能力。不得猜测 ID；AMBIGUOUS、NOT_FOUND 或 INCOMPLETE 都不能自行选择。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
         `本轮固定的已发布工厂规则版本：${policyVersion}。`,
         '相关领域策略：',
@@ -46,7 +47,8 @@ function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY', policyVersion =
 async function defaultMainModelCall(messages, options = {}) {
     const config = resolveProviderConfig('deepseek', options.env || process.env);
     if (!config.apiKey) throw new MainAgentError('DEEPSEEK_NOT_CONFIGURED', 'DeepSeek 未配置，无法执行 Main Agent');
-    const tools = options.tools || AGENT_TOOLS;
+    const tools = Array.isArray(options.tools) ? options.tools : [];
+    if (tools.length === 0) throw new MainAgentError('MAIN_AGENT_TOOLS_MISSING', '本轮没有可用的正式调查能力。');
     return withModelSpan({ provider: 'deepseek', model: config.model, streaming: false, toolDefinitionCount: tools.length }, () => (
         fetchAiProvider(messages, {
             config,
@@ -112,7 +114,8 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const modelCall = dependencies.modelCall || defaultMainModelCall;
     const runTool = dependencies.executeAgentTool || executeAgentTool;
     const proposalMode = input.mode === 'PROTECTED_PROPOSAL';
-    const exposedTools = proposalMode ? PROTECTED_PROPOSAL_TOOLS : AGENT_TOOLS;
+    const broker = proposalMode ? null : (dependencies.selectCapabilities || selectCapabilities)({ judge, resolvedEntities: input.resolvedEntities });
+    const exposedTools = proposalMode ? PROTECTED_PROPOSAL_TOOLS : broker.tools;
     const startedAt = Date.now();
     const timeoutMs = runtimeLimit(input);
     const messages = [
@@ -131,9 +134,14 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const resolvedCoilBindings = new Map();
     const ambiguousCoilKeys = new Set();
     const resolvedPartBindings = new Map();
+    const entityBindings = new Map();
+    const selectedToolNames = new Set((broker?.capabilities || []).map(capability => capability.toolName));
     let protectedProposal = null;
 
-    return withAgentSpan({ route: 'ai_assistant_m1_main_agent', requestId: input.requestId, streaming: false }, async () => {
+    return withAgentSpan({ route: 'ai_assistant_main_agent', requestId: input.requestId, streaming: false,
+        availableCapabilityCount: broker?.availableCapabilityCount ?? 0,
+        selectedCapabilityCount: broker?.selectedCapabilityCount ?? 0,
+        exposedToolCount: exposedTools.length, domains: broker?.domains || ['inventory'] }, async () => {
         for (let modelCalls = 0; modelCalls < MAX_MAIN_MODEL_CALLS; modelCalls += 1) {
             if (Date.now() - startedAt > timeoutMs) {
                 throw new MainAgentError('MAIN_AGENT_TIMEOUT', 'Main Agent 超过本轮运行时间限制');
@@ -160,9 +168,9 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 }
                 if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
                 if (hasFormalMoneyFailure(toolResults) && containsMonetaryClaim(answer)) {
-                    return { answer: '正式毛利试算未成功完成，因此暂时不能提供正式利润或毛利金额。请稍后重试正式试算。', toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
+                    return { answer: '正式毛利试算未成功完成，因此暂时不能提供正式利润或毛利金额。请稍后重试正式试算。', toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt, broker };
                 }
-                return { answer, toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt };
+                return { answer, toolResults, protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt, broker };
             }
             if (toolResults.length + calls.length > MAX_TOOL_CALLS) {
                 throw new MainAgentError('MAIN_AGENT_TOOL_BUDGET_EXCEEDED', 'Main Agent 超过工具调用上限');
@@ -180,9 +188,11 @@ async function runMainAgent(input = {}, dependencies = {}) {
                 let result;
                 try {
                     result = await runTool(call.name, call.args, {
-                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, ambiguousCoilKeys, resolvedPartBindings, userMessage, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
+                        resolvedRecipeIds, resolvedRecipeBindings, resolvedCoilBindings, ambiguousCoilKeys, resolvedPartBindings, entityBindings, selectedToolNames, pageContext: input.investigationContext?.pageContext || null, userMessage, confirmationSubject: input.confirmationSubject, writeAllowed: input.writeAllowed, signal: input.signal,
                         setProtectedProposal: value => { protectedProposal = value; },
-                    }, { executeToolCall: dependencies.executeToolCall });
+                    }, { executeToolCall: dependencies.executeToolCall, resolveAgentEntity: dependencies.resolveAgentEntity,
+                        lookupEntities: dependencies.lookupEntities, internalFetch: dependencies.internalFetch,
+                        resolvePageContextEntity: dependencies.resolvePageContextEntity });
                 } catch (error) {
                     result = {
                         success: false,

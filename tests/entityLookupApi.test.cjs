@@ -19,7 +19,7 @@ const { shouldRecheckManagementActions } = require('../api/services/managementAc
 function createDb() {
     const db = new Database(':memory:');
     db.exec(`
-        CREATE TABLE coils (id INTEGER PRIMARY KEY, spec TEXT, sheets INTEGER, scheme_code TEXT, scheme_name TEXT);
+        CREATE TABLE coils (id INTEGER PRIMARY KEY, spec TEXT, sheets INTEGER, scheme_code TEXT, scheme_name TEXT, material TEXT, slot_type TEXT, scheme_status TEXT, is_default INTEGER, scheme_family_code TEXT);
         CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, deleted_at TEXT);
         CREATE TABLE orders (id INTEGER PRIMARY KEY, contract_no TEXT, customer_name TEXT, deleted_at TEXT);
         CREATE TABLE parts (id INTEGER PRIMARY KEY, model TEXT, deleted_at TEXT);
@@ -84,8 +84,8 @@ test('valid batch and subset requests return exact minimal candidates', () => {
     assert.equal(batch.complete, true);
     assert.equal(batch.candidateCount, 2);
     assert.deepEqual(batch.candidates, [
-        { entityType: 'coil', canonicalId: '2', matchKind: 'EXACT', bindingRefs: [{ kind: 'schemeCode', value: 'ENTITY-001' }] },
-        { entityType: 'part', canonicalId: '1', matchKind: 'EXACT' },
+        { entityType: 'coil', canonicalId: '2', canonicalName: 'Coil A', matchKind: 'EXACT', identityAttributes: { spec: 'A', sheets: 10, schemeCode: 'ENTITY-001', material: null, slotType: null, schemeStatus: null, isDefault: false, schemeFamilyCode: null } },
+        { entityType: 'part', canonicalId: '1', canonicalName: 'ENTITY-001', matchKind: 'EXACT' },
     ]);
     const subset = service.lookupEntities(validRequest({ entityTypes: ['part'] }));
     assert.equal(subset.attemptedEntityTypes, 1);
@@ -136,6 +136,21 @@ test('zero, same-type, cross-type, and duplicate-field matches preserve multipli
     db.close();
 });
 
+test('same coil designation preserves each formal scheme as an ambiguous candidate set', () => {
+    const db = createDb();
+    db.prepare(`INSERT INTO coils (id, spec, sheets, scheme_code, scheme_name, material, slot_type, scheme_status, is_default, scheme_family_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(1, '18', 90, 'COIL-A', '18-90 A', 'steel', 'small', 'ACTIVE', 1, 'F-A',
+            2, '18', 90, 'COIL-B', '18-90 B', 'copper', 'large', 'ACTIVE', 0, 'F-B');
+    const result = createEntityLookupService({ db }).lookupEntities(validRequest({
+        mention: '18-90', entityTypes: ['coil'], matchPolicy: 'EXACT',
+    }));
+    assert.equal(result.complete, true);
+    assert.equal(result.candidateCount, 2);
+    assert.deepEqual(result.candidates.map(item => item.identityAttributes.schemeCode), ['COIL-A', 'COIL-B']);
+    db.close();
+});
+
 test('candidate cap is explicit and never reported complete', () => {
     const db = createDb();
     const insert = db.prepare('INSERT INTO parts (id, model) VALUES (?, ?)');
@@ -162,6 +177,23 @@ test('contains, prefix, and punctuation-different mentions are not accepted', ()
     db.close();
 });
 
+test('part identity permits only exact normalized catalog representation, and keeps normalized duplicates ambiguous', () => {
+    const db = createDb();
+    db.prepare('INSERT INTO parts (id, model) VALUES (?, ?)').run(1, '机械密封-16*28');
+    const lookup = createEntityLookupService({ db }).lookupEntities;
+    const normalized = lookup(validRequest({ mention: '机械密封－16×28', entityTypes: ['part'], matchPolicy: 'EXACT' }));
+    assert.deepEqual(normalized.candidates, [{
+        entityType: 'part', canonicalId: '1', canonicalName: '机械密封-16*28', matchKind: 'NORMALIZED_EXACT',
+    }]);
+
+    db.prepare('INSERT INTO parts (id, model) VALUES (?, ?)').run(2, '机械密封 - 16 * 28');
+    const ambiguous = lookup(validRequest({ mention: '机械密封－16×28', entityTypes: ['part'], matchPolicy: 'EXACT' }));
+    assert.equal(ambiguous.candidateCount, 2);
+    assert.equal(ambiguous.complete, true);
+    assert.equal(lookup(validRequest({ mention: '机械密封-16', entityTypes: ['part'], matchPolicy: 'EXACT' })).candidateCount, 0);
+    db.close();
+});
+
 test('formal recipe alias resolution is exact, unique, typed, active, and current-name-first', () => {
     const db = createDb();
     db.prepare('INSERT INTO recipes (id, name, spec) VALUES (?, ?, ?), (?, ?, ?)')
@@ -173,7 +205,7 @@ test('formal recipe alias resolution is exact, unique, typed, active, and curren
 
     const alias = lookup(validRequest({ mention: '老V550经典款', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' }));
     assert.equal(alias.complete, true);
-    assert.deepEqual(alias.candidates, [{ entityType: 'recipe', canonicalId: '1', matchKind: 'APPROVED_ALIAS' }]);
+    assert.deepEqual(alias.candidates, [{ entityType: 'recipe', canonicalId: '1', canonicalName: '配方-V550-当前', matchKind: 'APPROVED_ALIAS' }]);
     assert.deepEqual(alias.resolutions[0], {
         entityType: 'recipe', state: 'FORMAL_ALIAS_MATCH', candidateCount: 1,
         canonicalType: 'recipe', canonicalId: '1', canonicalCurrentName: '配方-V550-当前', matchedAlias: '老V550经典款',
@@ -181,7 +213,7 @@ test('formal recipe alias resolution is exact, unique, typed, active, and curren
     });
 
     const currentWins = lookup(validRequest({ mention: '老V550经典款', entityTypes: ['recipe'], matchPolicy: 'EXACT_OR_APPROVED_ALIAS' }));
-    assert.deepEqual(currentWins.candidates, [{ entityType: 'recipe', canonicalId: '2', matchKind: 'EXACT' }]);
+    assert.deepEqual(currentWins.candidates, [{ entityType: 'recipe', canonicalId: '2', canonicalName: '老V550经典款', matchKind: 'EXACT' }]);
     assert.equal(currentWins.resolutions[0].state, 'CANONICAL_NAME_MATCH');
     assert.equal(lookup(validRequest({ mention: 'V550经典', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' })).candidateCount, 0);
     assert.equal(lookup(validRequest({ mention: '不存在的旧名', entityTypes: ['recipe'], matchPolicy: 'APPROVED_ALIAS' })).resolutions[0].state, 'ALIAS_NOT_FOUND');

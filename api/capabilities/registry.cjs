@@ -860,7 +860,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
         sourceOfTruth: 'canonical_business_tables+catalog_name_aliases+catalog_identity_profiles',
         transactionality: 'read_transaction',
         riskLevel: 'low',
-        callers: Object.freeze(['internal']),
+        callers: Object.freeze(['ai', 'internal']),
     }),
     'business_changes.revision': defineQueryCapability({
         capabilityId: 'business_changes.revision',

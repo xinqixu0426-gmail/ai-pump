@@ -8,8 +8,8 @@ const { supplyCoilSpanCandidates } = require('../api/routes/ai/internalApiClient
 const { shouldRecheckManagementActions } = require('../api/services/managementActionLifecycle.cjs');
 function fixture(rows) {
     const db = new Database(':memory:');
-    db.exec('CREATE TABLE coils(id INTEGER PRIMARY KEY, scheme_name TEXT, scheme_code TEXT, spec TEXT, sheets INTEGER)');
-    rows.forEach(([name, code], i) => db.prepare('INSERT INTO coils VALUES(?,?,?,?,?)').run(i + 1, name, code, 'generic', 1));
+    db.exec('CREATE TABLE coils(id INTEGER PRIMARY KEY, scheme_name TEXT, scheme_code TEXT, spec TEXT, sheets INTEGER, material TEXT, slot_type TEXT, scheme_status TEXT, is_default INTEGER, scheme_family_code TEXT)');
+    rows.forEach(([name, code], i) => db.prepare('INSERT INTO coils (id, scheme_name, scheme_code, spec, sheets) VALUES(?,?,?,?,?)').run(i + 1, name, code, 'generic', 1));
     return { db, supply: createEntitySpanCandidateService({ db }).supply };
 }
 const input = sourceText => ({ version: 1, entityScope: 'coil', sourceText });

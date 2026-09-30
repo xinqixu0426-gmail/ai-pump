@@ -92,7 +92,8 @@ function validateEntityLookupRequest(input) {
 const EXACT_LOOKUPS = Object.freeze({
     coil: Object.freeze({
         sql: `
-            SELECT id, scheme_code
+            SELECT id, scheme_code, scheme_name, spec, sheets, material, slot_type,
+                scheme_status, is_default, scheme_family_code
             FROM coils
             WHERE scheme_code = ? COLLATE NOCASE
                OR scheme_name = ? COLLATE NOCASE
@@ -105,7 +106,7 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
     customer: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, name
             FROM customers
             WHERE deleted_at IS NULL
               AND name = ? COLLATE NOCASE
@@ -116,7 +117,7 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
     order: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, contract_no, customer_name
             FROM orders
             WHERE deleted_at IS NULL
               AND (
@@ -131,7 +132,7 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
     part: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, model
             FROM parts
             WHERE deleted_at IS NULL
               AND model = ? COLLATE NOCASE
@@ -142,7 +143,7 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
     recipe: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, name
             FROM recipes
             WHERE deleted_at IS NULL
               AND (name = ? COLLATE NOCASE OR spec = ? COLLATE NOCASE)
@@ -153,7 +154,7 @@ const EXACT_LOOKUPS = Object.freeze({
     }),
     template: Object.freeze({
         sql: `
-            SELECT id
+            SELECT id, shell_model
             FROM pump_shell_templates
             WHERE deleted_at IS NULL AND shell_model = ? COLLATE NOCASE
             ORDER BY id
@@ -162,6 +163,42 @@ const EXACT_LOOKUPS = Object.freeze({
         parameters: mention => [mention],
     }),
 });
+
+// This is an identity representation normalization, not a business search
+// heuristic. It deliberately only equates catalog punctuation and spacing that
+// have the same canonical display meaning. Formal identity remains unique only
+// when exactly one active formal row has this normalized value.
+function normalizeFormalIdentity(value) {
+    return String(value || '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN')
+        .replace(/[‐‑‒–—−]/gu, '-')
+        .replace(/[×x＊*]/gu, '*')
+        .replace(/\s+/gu, '');
+}
+
+function candidateProjection(entityType, row, matchKind) {
+    const canonicalName = entityType === 'coil'
+        ? String(row.scheme_name || `${row.spec || ''}-${row.sheets ?? ''}`).trim()
+        : String(row.name || row.model || row.shell_model || row.contract_no || row.customer_name || '').trim();
+    const candidate = {
+        entityType,
+        canonicalId: String(row.id),
+        canonicalName,
+        matchKind,
+    };
+    if (entityType === 'coil') {
+        candidate.identityAttributes = {
+            spec: String(row.spec || ''),
+            sheets: Number(row.sheets),
+            schemeCode: String(row.scheme_code || '') || null,
+            material: String(row.material || '') || null,
+            slotType: String(row.slot_type || '') || null,
+            schemeStatus: String(row.scheme_status || '') || null,
+            isDefault: row.is_default === 1,
+            schemeFamilyCode: String(row.scheme_family_code || '') || null,
+        };
+    }
+    return candidate;
+}
 
 function normalizedFormalAlias(value) {
     return String(value || '').normalize('NFKC').trim().replace(/\s+/gu, ' ');
@@ -179,13 +216,26 @@ function createEntityLookupService({ db } = {}) {
             MAX_CANDIDATES_PER_TYPE + 1
         );
         const complete = rows.length <= MAX_CANDIDATES_PER_TYPE;
-        const candidates = rows.slice(0, MAX_CANDIDATES_PER_TYPE).map(row => ({
-            entityType,
-            canonicalId: String(row.id),
-            matchKind: 'EXACT',
-            ...(entityType === 'coil' && typeof row.scheme_code === 'string' && row.scheme_code.length
-                ? { bindingRefs: [{ kind: 'schemeCode', value: row.scheme_code }] } : {}),
-        }));
+        const candidates = rows.slice(0, MAX_CANDIDATES_PER_TYPE)
+            .map(row => candidateProjection(entityType, row, 'EXACT'));
+        return { complete, candidates };
+    }
+
+    function lookupNormalizedPart(mention) {
+        const normalizedMention = normalizeFormalIdentity(mention);
+        if (!normalizedMention) return { complete: true, candidates: [] };
+        const rows = db.prepare(`
+            SELECT id, model
+            FROM parts
+            WHERE deleted_at IS NULL
+            ORDER BY id
+            LIMIT ?
+        `).all(MAX_CANDIDATES_PER_TYPE + 1_001);
+        const complete = rows.length <= MAX_CANDIDATES_PER_TYPE + 1_000;
+        const candidates = rows
+            .filter(row => normalizeFormalIdentity(row.model) === normalizedMention)
+            .slice(0, MAX_CANDIDATES_PER_TYPE)
+            .map(row => candidateProjection('part', row, 'NORMALIZED_EXACT'));
         return { complete, candidates };
     }
 
@@ -231,9 +281,8 @@ function createEntityLookupService({ db } = {}) {
         }
         const live = [...liveById.values()];
         const candidates = live.map(row => ({
-            entityType: 'recipe',
-            canonicalId: String(row.recipeId),
-            matchKind: 'APPROVED_ALIAS',
+            entityType: 'recipe', canonicalId: String(row.recipeId),
+            canonicalName: row.canonicalCurrentName, matchKind: 'APPROVED_ALIAS',
         }));
         if (live.length === 1 && complete) {
             const row = live[0];
@@ -277,6 +326,9 @@ function createEntityLookupService({ db } = {}) {
             let result = { complete: true, candidates: [] };
             if (request.matchPolicy !== 'APPROVED_ALIAS') {
                 result = lookupExact(entityType, request.mention);
+                if (entityType === 'part' && result.candidates.length === 0) {
+                    result = lookupNormalizedPart(request.mention);
+                }
                 const resolution = exactResolution(entityType, result.candidates);
                 if (resolution) resolutions.push(resolution);
             }

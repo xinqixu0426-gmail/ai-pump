@@ -10,7 +10,7 @@ const { runAiAssistant } = require('../api/services/ai-assistant/runtime.cjs');
 function resetPolicy() {
     dbAccessors.db.exec('DELETE FROM domain_policy_audit; DELETE FROM domain_policy_drafts; DELETE FROM domain_policy_versions;');
 }
-function judgeOutput() { return JSON.stringify({ mode: 'GENERAL', goal: '说明', questions: ['说明'], constraints: [], persistentMutation: false, needsClarification: false, clarificationReason: null, appliedPolicyIds: ['RULE-01'] }); }
+function judgeOutput() { return JSON.stringify({ mode: 'GENERAL', goal: '说明', questions: ['说明'], constraints: [], persistentMutation: false, needsClarification: false, clarificationReason: null, appliedPolicyIds: ['RULE-01'], domains: ['general'] }); }
 function mainAnswer() { return { choices: [{ message: { content: '已依据正式工具核验。' } }] }; }
 
 test('Domain Policy draft, publish, immutable history, diff, rollback, audit and stale protection are deterministic', () => {
