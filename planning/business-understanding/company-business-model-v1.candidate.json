@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "company-business-model-v1-candidate",
+  "status": "REVIEW_ARTIFACT_NOT_RUNTIME_AUTHORITY",
+  "scope": "Core pump-product domain only; this file neither changes nor overrides Business APIs, Ontology, Domain Policy, or runtime behavior.",
+  "authorityOrder": [
+    "current formal Business Code / Business API behavior",
+    "current database Schema / Migration",
+    "current active Ontology contract",
+    "current Domain Policy",
+    "current active domain documentation"
+  ],
+  "concepts": [
+    {
+      "id": "STATOR",
+      "label": "定子组合",
+      "definition": "A physical stator variant, uniquely defined in current storage by standard diameter, material, and slot type. commonName is a designation, not the physical identity.",
+      "notDefinition": "Not a winding scheme, not a coil inventory record, and not a finished pump.",
+      "identity": { "keys": ["stator_variants.id"], "selectionTuple": ["diameter_mm", "material", "slot_type"] },
+      "evidence": [{ "path": "api/database/schema.cjs", "table": "stator_variants", "fields": ["id", "diameter_mm", "material", "slot_type"], "symbol": "CANONICAL_TABLES_SQL" }, { "path": "docs/coil-domain.md", "section": "1. 业务对象 / 定子组合" }],
+      "status": "CONFIRMED_FROM_SCHEMA"
+    },
+    {
+      "id": "COIL_SCHEME",
+      "label": "绕组方案（正式线圈方案）",
+      "definition": "A formal winding/rotor scheme belonging to a stator variant and carrying sheet count, lifecycle, technical, selection, cost, and stock attributes. Its canonical database identity is coils.id; scheme_code is a stable business scheme code.",
+      "notDefinition": "Not merely the common designation spec-sheets, and not a generic Part record.",
+      "identity": { "keys": ["coils.id", "coils.scheme_code"], "designation": "coils.spec + '-' + coils.sheets", "designationUnique": false },
+      "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "fields": ["id", "stator_variant_id", "sheets", "scheme_code", "scheme_status", "scheme_family_code"] }, { "path": "api/ontology/v2/entities/coil.cjs", "symbol": "coilProfile.identity and coil.commonDesignation" }, { "path": "docs/coil-domain.md", "section": "1. 业务对象 / 绕组方案" }],
+      "status": "CONFIRMED_FROM_SCHEMA"
+    },
+    {
+      "id": "COIL",
+      "label": "线圈转子（本系统语境）",
+      "definition": "The business-facing inventory and cost object represented by a formal COIL_SCHEME record. The formal BOM row labels it 线圈转子 and uses inventoryType=coil only when a specific coilId exists.",
+      "notDefinition": "Not a row in the ordinary parts catalogue and not a stator alone.",
+      "identity": { "canonicalId": "coils.id", "schemeCode": "coils.scheme_code", "commonDesignation": "spec-sheets" },
+      "evidence": [{ "path": "api/services/recipeBomEngine.cjs", "symbol": "buildRecipeBomDraft", "fields": ["coilId", "inventoryType: coil", "name: 线圈转子"] }, { "path": "api/db.cjs", "symbol": "coilRow", "fields": ["cost", "stock", "schemeCode"] }],
+      "status": "CONFIRMED_FROM_CODE"
+    },
+    {
+      "id": "TEMPLATE",
+      "label": "泵壳模板",
+      "definition": "A reusable pump-shell structure and its reusable fixed/component configuration. It can be costed as a shell bundle or as shell components plus fixed parts; it is not a complete recipe BOM.",
+      "notDefinition": "Not an independently sellable finished pump configuration and not a recipe-specific configuration.",
+      "identity": { "keys": ["pump_shell_templates.id"], "designation": "shell_model", "designationUnique": true },
+      "evidence": [{ "path": "api/database/schema.cjs", "table": "pump_shell_templates", "fields": ["shell_model", "parts_json", "shell_components_json", "cost_mode", "bundle_cost"] }, { "path": "api/services/templateCommands.cjs", "symbols": ["validateShellComponents", "validateTemplatePartReferences", "normalizeCreateInput"] }, { "path": "api/ontology/v2_1/entities/template.cjs", "symbol": "templateSupportingProfile" }],
+      "status": "CONFIRMED_FROM_SCHEMA"
+    },
+    {
+      "id": "RECIPE",
+      "label": "配方（可生产成品配置）",
+      "definition": "The persisted, named, product-level configuration that binds a template and optionally a precise coil scheme, carries configuration and technical fields, and persists a rebuilt BOM/cost snapshot on formal save.",
+      "notDefinition": "Not just a template, not only a cost number, and not an unbound collection of parts.",
+      "identity": { "keys": ["recipes.id"], "designation": "recipes.name", "designationUnique": false },
+      "evidence": [{ "path": "api/database/schema.cjs", "table": "recipes", "fields": ["name", "template_id", "coil_id", "parts_json", "technical_data_json", "saved_total_cost"] }, { "path": "api/services/recipeCommands.cjs", "symbol": "buildRecipeSavePayloadDraft" }, { "path": "api/ontology/v2_1/entities/recipe.cjs", "symbol": "recipeProfile" }],
+      "status": "CONFIRMED_FROM_SCHEMA"
+    },
+    {
+      "id": "BOM",
+      "label": "正式 BOM / 物料与配置组成",
+      "definition": "A configuration-expanded list of material, coil, and process/cost rows produced by buildRecipeBomDraft and persisted as recipes.parts_json when a recipe is formally saved. It is the composition used for formal costing and production-related flows.",
+      "notDefinition": "Not synonymous with Template and not synonymous with Recipe; a template contributes inputs and a recipe owns configuration plus a saved BOM snapshot.",
+      "identity": { "persistentLocation": "recipes.parts_json", "rowIdentity": "partId when a Part-backed item is uniquely bound; coilId for a formal coil row; some rows are non-Part business/cost rows" },
+      "evidence": [{ "path": "api/services/recipeBomEngine.cjs", "symbol": "buildRecipeBomDraft" }, { "path": "api/services/recipeCommands.cjs", "symbol": "buildRecipeSavePayloadDraft", "field": "partsJson: JSON.stringify(authoritativeBom.parts)" }, { "path": "docs/business-flow.md", "section": "4. 成本快照规则" }],
+      "status": "CONFIRMED_FROM_CODE"
+    },
+    {
+      "id": "PART",
+      "label": "零件目录项",
+      "definition": "A catalogued physical part with model, category, subcategory, supplier, current price, and on-hand stock. Stable identity is parts.id; model alone is a non-unique designation and supplier participates in exact fallback binding.",
+      "notDefinition": "Not every BOM row, and not a coil scheme inventory record.",
+      "identity": { "keys": ["parts.id"], "designation": "model", "fallbackBinding": "model + supplier exact unique match" },
+      "evidence": [{ "path": "api/database/schema.cjs", "table": "parts", "fields": ["id", "model", "category", "supplier", "price", "stock"] }, { "path": "api/services/bomPartIdentity.cjs", "symbols": ["resolveCatalogPartIdentity", "bindStableBomPartIdentities"] }, { "path": "api/ontology/v2_1/entities/part.cjs", "symbol": "partProfile" }],
+      "status": "CONFIRMED_FROM_SCHEMA"
+    },
+    {
+      "id": "FINISHED_PUMP",
+      "label": "成品泵（业务概念）",
+      "definition": "The current code uses a Recipe's named, saved configuration as the production-facing finished-product configuration. No separate canonical finished_pump table or active Ontology entity was found in this core-domain audit.",
+      "notDefinition": "Not a Template, and not necessarily the same as a free-form model name or a pump_model_variant preset.",
+      "identity": { "currentOperationalBinding": "recipes.id / recipes.name", "dedicatedEntity": null },
+      "evidence": [{ "path": "api/services/recipeCommands.cjs", "symbol": "buildRecipeSavePayloadDraft", "field": "name" }, { "path": "api/services/costQueries.cjs", "symbol": "finished-product selector behavior", "note": "Recipe is used as the finished-model search target." }, { "path": "api/database/schema.cjs", "table": "recipes" }],
+      "status": "UNRESOLVED"
+    }
+  ],
+  "attributes": [
+    { "id": "stator.diameterMm", "label": "标准定子直径", "definition": "Physical stator diameter in millimetres.", "classification": "IDENTITY", "evidence": [{ "path": "api/database/schema.cjs", "table": "stator_variants", "field": "diameter_mm" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "stator.material", "label": "定子材质", "definition": "One of the formal material values used with stator identity.", "classification": "IDENTITY", "evidence": [{ "path": "api/database/schema.cjs", "table": "stator_variants", "field": "material" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "stator.slotType", "label": "槽眼", "definition": "One of the formal slot types used with stator identity.", "classification": "IDENTITY", "evidence": [{ "path": "api/database/schema.cjs", "table": "stator_variants", "field": "slot_type" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.spec", "label": "规格俗称", "definition": "Stored common designation component; it is not a canonical scheme identity.", "classification": "DISPLAY / ALIAS", "evidence": [{ "path": "api/ontology/v2/entities/coil.cjs", "symbol": "fact('coil.spec')" }], "status": "CONFIRMED_FROM_ONTOLOGY" },
+    { "id": "coil.sheets", "label": "片数", "definition": "Positive sheet count for the scheme; it is not power or inventory quantity.", "classification": "DESIGN ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "field": "sheets" }, { "path": "api/services/coilCost.cjs", "symbol": "calculateCoilCost" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.schemeCode", "label": "方案编码", "definition": "Stable per-scheme code; a canonical business identifier in addition to coils.id.", "classification": "IDENTITY", "evidence": [{ "path": "api/database/migrations.cjs", "migration": "70 multi_official_coil_schemes", "field": "scheme_code" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.schemeFamilyCode", "label": "方案系列编码", "definition": "Selection/binding attribute for calculated interpolation or extrapolation when an exact scheme is absent; it is not itself a universal scheme identity.", "classification": "SELECTION ATTRIBUTE", "evidence": [{ "path": "docs/coil-domain.md", "section": "2. 成本匹配" }, { "path": "api/services/coilCost.cjs", "symbol": "calculateCoilCost" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "coil.schemeStatus", "label": "方案状态", "definition": "Lifecycle status controlling ordinary eligibility: official, testing, or disabled.", "classification": "SELECTION ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "field": "scheme_status" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.isDefault", "label": "默认方案标记", "definition": "Optional default selection among official schemes in a bounded stator-and-sheet scope; it cannot override explicit criteria.", "classification": "SELECTION ATTRIBUTE", "evidence": [{ "path": "api/ontology/v2/entities/coil.cjs", "symbol": "coilProfile.selectionPolicy" }], "status": "CONFIRMED_FROM_ONTOLOGY" },
+    { "id": "coil.ratedVoltageV", "label": "额定电压", "definition": "Recorded electrical design attribute, not a universal identity key by itself.", "classification": "TECHNICAL ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "field": "rated_voltage_v" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.ratedFrequencyHz", "label": "额定频率", "definition": "Recorded electrical design attribute, not a universal identity key by itself.", "classification": "TECHNICAL ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "field": "rated_frequency_hz" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.windingData", "label": "主副线绕组数据", "definition": "Main/auxiliary wire gauge and wire data held as technical attributes.", "classification": "TECHNICAL ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "fields": ["main_wire_gauge", "main_wire_data", "aux_wire_gauge", "aux_wire_data"] }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "coil.defaultAccessories", "label": "默认电容与电缆横截面积", "definition": "BOM input/default matching attributes; default_wire_gauge is documented as cable cross-section in mm².", "classification": "SELECTION ATTRIBUTE", "evidence": [{ "path": "docs/coil-domain.md", "section": "1. 业务对象 / 绕组方案" }, { "path": "api/database/schema.cjs", "table": "coils", "fields": ["default_capacitor", "default_wire_gauge"] }], "status": "SUPPORTED_BY_ACTIVE_DOC" },
+    { "id": "coil.costInputs", "label": "线圈成本输入", "definition": "Calculated schemes use unit price, sheets, wire weight, copper base, coil fee, and rotor fee; kit schemes use kit price.", "classification": "COST ATTRIBUTE", "evidence": [{ "path": "api/services/coilCost.cjs", "symbol": "calculateStoredCoilCost" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "template.shellModel", "label": "壳型", "definition": "Unique template designation.", "classification": "DISPLAY / ALIAS", "evidence": [{ "path": "api/database/schema.cjs", "table": "pump_shell_templates", "field": "shell_model" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "template.costMode", "label": "模板成本模式", "definition": "components means priced shell components; bundle means a bundle cost for a bound pump-shell Part.", "classification": "COST ATTRIBUTE", "evidence": [{ "path": "api/services/templateQueries.cjs", "symbol": "buildTemplateCostParts" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "recipe.configuration", "label": "产品级配置", "definition": "Persisted recipe inputs include template, coil, float, cable, packing, optional parts, barrel, impeller, technical data and applicable wages/settings.", "classification": "DESIGN ATTRIBUTE", "evidence": [{ "path": "api/database/schema.cjs", "table": "recipes", "fields": ["template_id", "coil_id", "has_float", "has_cable", "custom_barrel_length", "technical_data_json"] }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "recipe.costSnapshots", "label": "配方成本与 BOM 快照", "definition": "saved_total_cost and parts_json represent persisted save-time outputs; current recalculation is a distinct formal concept.", "classification": "COST ATTRIBUTE", "evidence": [{ "path": "docs/business-flow.md", "section": "4. 成本快照规则" }], "status": "SUPPORTED_BY_ACTIVE_DOC" },
+    { "id": "part.model", "label": "零件型号", "definition": "A searchable but non-unique designation.", "classification": "DISPLAY / ALIAS", "evidence": [{ "path": "api/ontology/v2_1/entities/part.cjs", "symbol": "part.modelDesignation" }], "status": "CONFIRMED_FROM_ONTOLOGY" },
+    { "id": "part.supplier", "label": "供应商", "definition": "Participates in exact fallback catalog identity matching when a stable partId is absent.", "classification": "SELECTION ATTRIBUTE", "evidence": [{ "path": "api/services/bomPartIdentity.cjs", "symbol": "resolveCatalogPartIdentity" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "part.category", "label": "零件分类", "definition": "Formal classification used by services, including pump shell and shell-component validation.", "classification": "DESIGN ATTRIBUTE", "evidence": [{ "path": "api/services/templateCommands.cjs", "symbol": "validateShellComponents" }], "status": "CONFIRMED_FROM_CODE" }
+  ],
+  "relations": [
+    { "id": "coil_scheme.belongs_to_stator", "label": "绕组方案归属定子组合", "definition": "A coil record optionally references a stator variant.", "source": "COIL_SCHEME", "relation": "BELONGS_TO", "target": "STATOR", "cardinality": "many-to-zero-or-one", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/database/schema.cjs", "table": "coils", "field": "stator_variant_id -> stator_variants.id" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "recipe.uses_template", "label": "配方使用模板", "definition": "A recipe optionally binds one pump-shell template; a template can be reused by multiple recipes in the data model.", "source": "RECIPE", "relation": "USES", "target": "TEMPLATE", "cardinality": "many-to-zero-or-one", "ontology": { "represented": true, "runtimeEnabled": false }, "evidence": [{ "path": "api/ontology/v2_1/entities/recipe.cjs", "symbol": "recipe.uses_template" }, { "path": "api/database/schema.cjs", "table": "recipes", "field": "template_id" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "recipe.uses_coil", "label": "配方选择线圈方案", "definition": "A recipe optionally binds a specific formal coil scheme.", "source": "RECIPE", "relation": "USES", "target": "COIL_SCHEME", "cardinality": "many-to-zero-or-one", "ontology": { "represented": true, "runtimeEnabled": false }, "evidence": [{ "path": "api/ontology/v2_1/entities/recipe.cjs", "symbol": "recipe.uses_coil" }, { "path": "api/database/schema.cjs", "table": "recipes", "field": "coil_id" }], "status": "CONFIRMED_FROM_SCHEMA" },
+    { "id": "recipe.expands_to_bom", "label": "配方展开为 BOM", "definition": "Formal recipe saving builds an authoritative BOM and persists its rows as parts_json.", "source": "RECIPE", "relation": "EXPANDS_TO", "target": "BOM", "cardinality": "one-to-one-current-snapshot", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/services/recipeCommands.cjs", "symbol": "buildRecipeSavePayloadDraft" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "bom.references_part", "label": "BOM 引用零件", "definition": "Part-backed BOM rows carry a stable partId after formal identity binding; some BOM rows are not ordinary Part rows.", "source": "BOM", "relation": "REFERENCES", "target": "PART", "cardinality": "many-to-zero-or-one-per-row", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/services/bomPartIdentity.cjs", "symbol": "bindStableBomPartIdentities" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "template.uses_shell_part", "label": "模板绑定泵壳零件", "definition": "A template may bind at most one canonical pump-shell Part through a unique binding table.", "source": "TEMPLATE", "relation": "USES", "target": "PART", "cardinality": "one-to-zero-or-one", "ontology": { "represented": true, "runtimeEnabled": false }, "evidence": [{ "path": "api/ontology/v2_1/entities/template.cjs", "symbol": "template.uses_shell_part" }], "status": "CONFIRMED_FROM_ONTOLOGY" },
+    { "id": "template.contributes_fixed_parts", "label": "模板贡献固定件", "definition": "Template parts_json contributes fixed material rows when a recipe BOM is built.", "source": "TEMPLATE", "relation": "CONTRIBUTES", "target": "BOM", "cardinality": "one-to-many", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/services/recipeBomEngine.cjs", "symbol": "buildRecipeBomDraft", "field": "template.partsJson" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "template.contributes_shell_components", "label": "模板贡献泵壳搭配组件", "definition": "Template shellComponentsJson contributes bundle or component-cost rows to the expanded BOM.", "source": "TEMPLATE", "relation": "CONTRIBUTES", "target": "BOM", "cardinality": "one-to-many", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/services/recipeBomEngine.cjs", "symbol": "buildRecipeBomDraft", "field": "template.shellComponentsJson" }], "status": "CONFIRMED_FROM_CODE" },
+    { "id": "recipe.realizes_finished_pump", "label": "配方承载可生产成品配置", "definition": "Operationally inferred from formal recipe saving and order/cost use; a dedicated finished-pump entity is absent.", "source": "RECIPE", "relation": "REALIZES", "target": "FINISHED_PUMP", "cardinality": "unresolved", "ontology": { "represented": false, "runtimeEnabled": false }, "evidence": [{ "path": "api/services/recipeCommands.cjs", "symbol": "buildRecipeSavePayloadDraft" }], "status": "UNRESOLVED" },
+    { "id": "recipe.has_technical_profile", "label": "配方具有技术档案", "definition": "Recipe technical data is persisted in technical_data_json and formally described by the recipe Ontology profile.", "source": "RECIPE", "relation": "HAS", "target": "RECIPE_TECHNICAL_PROFILE", "cardinality": "one-to-zero-or-one", "ontology": { "represented": "facts-only", "runtimeEnabled": false }, "evidence": [{ "path": "api/database/schema.cjs", "table": "recipes", "field": "technical_data_json" }, { "path": "api/ontology/v2_1/entities/recipe.cjs", "symbol": "recipeProfile facts" }], "status": "CONFIRMED_FROM_SCHEMA" }
+  ],
+  "unresolved": [
+    { "id": "finished_pump.dedicated_entity", "label": "独立成品泵实体", "definition": "No dedicated finished-pump table/entity was found; whether the Owner wants a distinct business concept beyond Recipe is a business decision.", "evidence": [{ "path": "api/database/schema.cjs", "symbol": "CANONICAL_TABLES_SQL" }], "status": "UNRESOLVED" },
+    { "id": "template.owner_language_scope", "label": "老板日常语言中的模板粒度", "definition": "Code proves storage and composition behavior but cannot determine the Owner's intended shop-floor meaning of 模板.", "evidence": [{ "path": "api/services/templateCommands.cjs", "symbol": "normalizeCreateInput" }], "status": "UNRESOLVED" },
+    { "id": "recipe_name_product_semantics", "label": "V550 等名称的业务语义", "definition": "Code binds recipe.name but does not determine whether every designation should mean market product model, recipe revision, or both.", "evidence": [{ "path": "api/db.cjs", "symbol": "recipeRow" }], "status": "UNRESOLVED" }
+  ]
+}
