@@ -10,6 +10,10 @@ const { PROTECTED_PROPOSAL_TOOLS } = require('../api/services/ai-assistant/agent
 const judge = Object.freeze({ mode: 'PERSIST_MUTATION', goal: '将零件 P-100 库存增加 3 并保存', questions: ['把 P-100 库存增加 3'], constraints: ['P-100', '增加 3', '正式保存'], persistentMutation: true, needsClarification: false, clarificationReason: null, appliedPolicyIds: ['RULE-02', 'RULE-04'], domains: ['part', 'inventory'] });
 const response = message => ({ choices: [{ message }] });
 const call = (name, args, id) => response({ content: null, tool_calls: [{ id, type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
+const finalEnvelope = (messages, answer) => {
+    const factIds = messages.filter(message => message.role === 'tool').flatMap(message => JSON.parse(message.content).factRefs || []);
+    return JSON.stringify({ answer, claims: [{ text: answer, factIds }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds }] });
+};
 
 test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path', async () => {
     const formalCalls = [];
@@ -26,7 +30,8 @@ test('M2-B keeps the model on a proposal-only, uniquely grounded part-stock path
                 assert.equal(identity.data.canonicalId, '9');
                 return call('prepare_part_stock_adjustment', { partId: 9, delta: 3 }, 'proposal');
             }
-            return response({ content: '已为 P-100 准备库存从 8 增加到 11 的提案；请由 Owner 在受保护确认步骤中批准。' });
+            const answer = '已为 P-100 准备库存从 8 增加到 11 的提案；请由 Owner 在受保护确认步骤中批准。';
+            return response({ content: finalEnvelope(messages, answer) });
         },
         executeToolCall: async (name, args, options) => {
             formalCalls.push({ name, args, options });

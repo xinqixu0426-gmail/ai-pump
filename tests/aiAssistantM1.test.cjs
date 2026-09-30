@@ -66,6 +66,16 @@ function formalToolResult(name, args) {
     };
 }
 
+function finalEnvelope(messages, answer, status = 'COMPLETED') {
+    const factIds = messages.filter(message => message.role === 'tool')
+        .flatMap(message => JSON.parse(message.content).factRefs || []);
+    return JSON.stringify({
+        answer,
+        claims: factIds.length ? [{ text: answer, factIds }] : [],
+        goals: [{ questionIndex: 0, status, factIds }],
+    });
+}
+
 function mainSequence(answerFactory) {
     let index = 0;
     return async (messages, options) => {
@@ -73,7 +83,7 @@ function mainSequence(answerFactory) {
         if (index === 1) return toolCall('resolve_entity', { entityType: 'recipe', mention: 'V550' }, 'tool-recipe');
         if (index === 2) return toolCall('preview_profitability', { recipeId: 55, cableLength: 5, unitPrice: 340 }, 'tool-profit');
         assert.equal(index, 3);
-        return response({ content: answerFactory(messages, options) });
+        return response({ content: finalEnvelope(messages, answerFactory(messages, options)) });
     };
 }
 

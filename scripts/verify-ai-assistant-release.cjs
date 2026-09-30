@@ -13,6 +13,8 @@ const tools = read('api/services/ai-assistant/agentTools.cjs');
 const mainAgent = read('api/services/ai-assistant/mainAgent.cjs');
 const broker = read('api/services/ai-assistant/capabilityBroker.cjs');
 const agentResolver = read('api/ontology/agentResolver.cjs');
+const factLedger = read('api/services/ai-assistant/factLedger.cjs');
+const answerValidator = read('api/services/ai-assistant/answerValidator.cjs');
 const client = read('apps/web-next/lib/ai-assistant-write-proposal-client.cjs');
 const requiredAbsent = [
     'api/services/aiDispatcherV3.cjs',
@@ -40,4 +42,8 @@ assert.match(broker, /listAiCapabilities/); assert.match(broker, /capability\.ac
 assert.match(broker, /AGENT_CAPABILITY_NOT_SELECTED/); assert.match(broker, /AGENT_TOOL_IDENTITY_UNVERIFIED/);
 assert.match(agentResolver, /lookupEntities/); assert.match(agentResolver, /AMBIGUOUS/);
 assert.match(tools, /resolve_entity/); assert.match(tools, /resolve_page_context_entity/);
+assert.match(runtime, /createFactLedger/); assert.match(mainAgent, /validateAnswer/);
+assert.match(factLedger, /FORMAL_API/); assert.match(factLedger, /technicalFailure/);
+assert.match(answerValidator, /GOAL_STATUS_MISSING/); assert.match(answerValidator, /MONEY_CLAIM_UNGROUNDED/);
+assert.doesNotMatch(mainAgent, /toolResults\.length\s*===\s*0/);
 console.log('AI assistant public cutover release gate: PASS');

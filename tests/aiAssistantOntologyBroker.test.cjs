@@ -134,12 +134,12 @@ test('Main Agent receives broker tools rather than the retired fixed agent surfa
     const answer = await runMainAgent({
         userMessage: '刚才那个配方的零件有哪些？',
         recentConversation: [{ role: 'user', content: 'V550 现在成本多少？' }, { role: 'assistant', content: '已查询。' }],
-        judge: { mode: 'GENERAL', domains: ['recipe'], persistentMutation: false },
+        judge: { mode: 'GENERAL', domains: ['recipe'], questions: ['确认配方'], persistentMutation: false },
         domainPolicy: '回答先给结论。', policyVersion: '3',
     }, {
         modelCall: async (_messages, options) => {
             suppliedTools = options.tools.map(item => item.function.name);
-            return { choices: [{ message: { content: '请先确认具体配方。' } }] };
+            return { choices: [{ message: { content: JSON.stringify({ answer: '请先确认具体配方。', claims: [], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: [] }] }) } }] };
         },
     });
     assert.ok(suppliedTools.includes('resolve_entity'));
