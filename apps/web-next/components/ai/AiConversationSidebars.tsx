@@ -310,7 +310,7 @@ export function AiDesktopSidebar({
       )}
       <div className="mt-3 border-t border-line pt-2">
         <Button variant="ghost" size="sm" className="w-full justify-start text-muted" icon={<Pencil size={15} />} onClick={onEditPrompt} disabled={promptBusy}>
-          工厂配置
+          工厂规则
         </Button>
       </div>
     </aside>
@@ -478,7 +478,7 @@ export function AiMobileConversationDrawer({
 
             <div className="border-t border-line pt-2">
               <Button variant="ghost" className="w-full justify-start" icon={<Pencil size={16} />} onClick={onEditPrompt} disabled={promptBusy}>
-                编辑工厂配置
+                编辑工厂规则
               </Button>
             </div>
     </Drawer>

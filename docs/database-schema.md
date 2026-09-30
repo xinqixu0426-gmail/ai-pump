@@ -20,11 +20,12 @@
 
 ## 当前版本
 
-代码定义的当前版本为 `89`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
+代码定义的当前版本为 `90`；具体环境以 `schema_migrations` 为准。版本 68 对应的 WPS 集成功能已经弃用，但迁移记录和表结构作为历史兼容墓碑永久保留，确保已升级数据库无需降级或恢复旧备份即可继续运行；当前业务代码不读取或写入该表。
 
 | 版本 | 名称 | 作用 |
 |---|---|---|
 | 89 | `recipe_canonical_technical_storage` | 新增 Recipe 功能技术档案和技术资料两张一对一空表及索引；只增加 Schema，不回填、不读取旧 `technical_data_json`、不改变既有 Recipe 读写或 Rotor 运行时 |
+| 90 | `ai_assistant_domain_policy_versions` | 新增独立的 Domain Policy 不可变发布版本、单一草稿和审计表；不改变 Business API、成本、库存或历史 Task 表 |
 | 88 | `ai_native_durable_task_persistence` | 新增 AI Native V2 的任务、步骤、证据和事件四张持久化表；仅保存服务端任务状态、可核验证据和有序生命周期事件，不启动后台 Worker、不开放公共任务 API，也不改写业务数据 |
 | 87 | `recipes_name_identity_lookup` | 为 `recipes(name)` 增加非删除行的部分索引，使正式有界身份读（`recipes.resolve_identity`）按配方名解析唯一身份时保持有界；只建索引，不修改任何业务数据 |
 | 86 | `retire_legacy_ai_release_cases` | 删除九条旧核心 AI 发布用例及其运行结果（引用实体已随数据库清理不存在，负责人 2026-09-19 决定退役）；不修改业务数据，重复执行安全 |
@@ -132,7 +133,7 @@
 - `ai_evaluation_cases.source_feedback_id` 将一条明确纠错最多关联到一个回归案例。`review_status/confidence_score/generation_note/proposal_hash` 保存自动提取依据和审核状态；所有反馈候选初始均为 `pending + disabled`，只有人工批准后才允许对应规则生效。规则正文或范围变化会更新 proposal hash、升高版本并重新待审；`release_gate_enabled` 额外控制无人值守发布门禁。长期纠正规则停用时关联案例同步禁用，反馈和历史评测结果仍保留。
 - 九条 `source_type=system` 的内置 AI 检查用例曾是代码版本化的核心检查基线（迁移 47 恢复并校准最初 7 条，迁移 63 增加线圈绕组档案检查，迁移 76 增加完整模板配置成本检查；迁移 57 曾为解除部署阻断统一停用，迁移 59 恢复页面手动检查，迁移 72 将已批准系统用例纳入发布门禁，迁移 73 按固定 `case_key` 恢复原 8 条）。2026-09-19 因这些用例引用的实体已随数据库清理不存在，负责人决定全部退役：迁移 86 删除用例行及其运行结果，`api/services/aiEvaluationReleasePolicy.cjs` 的 `CORE_AI_RELEASE_CASE_KEYS` 显式置空。当前 `ai_evaluation_cases` 没有系统用例，也没有可执行的发布门禁用例；清单非空时"缺失/停用/待审/退出门禁即拒绝启动"的规则仍然有效，普通管理接口也仍拒绝停用 `release_gate_enabled=1` 的用例。恢复 AI 质量信号必须重新按当前真实实体编写用例，并通过一次显式清单变更写回。
 - `NODE_ENV=test` 时 `api/db.cjs` 只打开 `PUMP_TEST_DATABASE_PATH` 指定的按进程临时 SQLite；`npm test` 自动创建并清理这些数据库。发布验证不会迁移或写入生产 `pump.db`，生产迁移只随 API 服务启动执行。
-- `config.ai-factory-profile` 保存用户可编辑的工厂术语、偏好和操作习惯，最大 8000 字符；不可编辑核心规则和领域规则保存在代码中。历史 `config.ai-system-prompt` 首次迁移前备份为 `ai-system-prompt-legacy-backup`。
+- `domain_policy_versions`、`domain_policy_drafts` 与 `domain_policy_audit` 保存唯一的可编辑 Domain Policy：不可变发布版本、受版本保护草稿和发布/回滚审计。历史 `config.ai-factory-profile` 仅可在首次 bootstrap 时迁入有效 Owner 规则，之后不参与 Assistant runtime。
 - `recipe_analysis_feedback.finding_snapshot_json.evidenceContext` 由服务端写入反馈时的配方、泵壳模板和时间，用于防止配方更换模板后旧证据错误转移；旧记录没有该字段时继续按当前模板兼容。
 - `pump_shell_templates.shell_components_json` 的自由搭配计价项支持 `componentType=subassembly`。小套件父项仍绑定零件库“泵壳搭配”型号；一级 `subassemblyContents: [{ name, qty, referenceUnitPrice?, note? }]` 保存组成说明和可选非负参考单价。`referenceUnitPrice` 只用于页面查询、小计和差额比较，不建立子零件价格、正式成本或库存关系；旧记录缺少该字段时按“未填写”兼容，因此本功能不新增数据表或迁移。
 - `factory_rule_candidates` 保留支持证据和审核状态，并记录 `support_count/special_case_count/ignored_count/confidence_score`；范围漂移证据保存在 `learning_evidence_json.drifted`，配方内容修改后的过期证据保存在 `learning_evidence_json.outdated`，两者都不计入支持数和置信度；`learning_hash` 与 `reviewed_learning_hash` 用于确定新证据出现后是否需要重新审核。

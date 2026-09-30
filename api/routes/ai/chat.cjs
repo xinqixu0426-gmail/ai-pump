@@ -1,10 +1,9 @@
 'use strict';
 
 const express = require('express');
-const authMiddleware = require('../../authMiddleware.cjs');
-const { verifyAuthentication, isAuthenticatedOwner } = require('../../services/ownerAuthentication.cjs');
 const { runAiAssistant, confirmAiAssistantPartStockProposal } = require('../../services/ai-assistant/runtime.cjs');
 const { writeAllowed } = require('../../services/ai-assistant/policy.cjs');
+const { ownerAuth } = require('./ownerAuth.cjs');
 
 const router = express.Router();
 const DEFAULT_AI_CHAT_TIMEOUT_MS = 180_000;
@@ -12,18 +11,15 @@ const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
 function boundedDuration(value, fallback, minimum, maximum) { const parsed = Number(value); return Number.isFinite(parsed) ? Math.min(Math.max(Math.trunc(parsed), minimum), maximum) : fallback; }
 function aiChatTimeoutMs(env = process.env) { return boundedDuration(env.AI_CHAT_TIMEOUT_MS, DEFAULT_AI_CHAT_TIMEOUT_MS, 10_000, 900_000); }
 function sseHeartbeatMs(env = process.env) { return boundedDuration(env.AI_SSE_HEARTBEAT_MS, DEFAULT_SSE_HEARTBEAT_MS, 5_000, 60_000); }
-function ownerAuth(req, res, next) {
-    return authMiddleware(req, res, () => {
-        const auth = verifyAuthentication(req.cookies?.token, process.env);
-        if (!isAuthenticatedOwner(auth, process.env)) return res.status(403).json({ success: false, code: 'AI_OWNER_ONLY', error: 'AI 助手当前仅对 Owner 开放。' });
-        req.aiAssistantOwner = auth; next();
-    });
-}
 function plainMessages(messages) {
     const valid = (Array.isArray(messages) ? messages : []).filter(item => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string' && item.content.trim());
     const current = [...valid].reverse().find(item => item.role === 'user'); if (!current) return null;
     const index = valid.lastIndexOf(current);
-    return { userMessage: current.content.trim(), recentConversation: valid.slice(Math.max(0, index - 4), index).map(item => ({ role: item.role, content: item.content.slice(0, 2_000) })) };
+    return {
+        userMessage: current.content.trim(),
+        recentConversation: valid.slice(Math.max(0, index - 4), index).map(item => ({ role: item.role, content: item.content.slice(0, 2_000) })),
+        attachments: Array.isArray(current.attachments) ? current.attachments : [],
+    };
 }
 function writeSse(res, type, payload = {}) { res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`); }
 function proposalEvent(result) {
@@ -41,7 +37,7 @@ async function handleAiChat(req, res, options = {}) {
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), options.timeoutMs || aiChatTimeoutMs(options.env)); timeout.unref?.();
     const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(': heartbeat\n\n'); }, options.heartbeatMs || sseHeartbeatMs(options.env)); heartbeat.unref?.();
     try {
-        const result = await (options.runAiAssistant || runAiAssistant)({ ...parsed, confirmationSubject: req.aiAssistantOwner.sub, signal: controller.signal, requestId: req.requestId || null }, { writeAllowed: resolveWriteAllowed(options), judgeModelCall: options.judgeModelCall, mainModelCall: options.mainModelCall, executeToolCall: options.executeToolCall });
+        const result = await (options.runAiAssistant || runAiAssistant)({ ...parsed, pageContext: req.body?.pageContext, confirmationSubject: req.aiAssistantOwner.sub, signal: controller.signal, requestId: req.requestId || null }, { writeAllowed: resolveWriteAllowed(options), judgeModelCall: options.judgeModelCall, mainModelCall: options.mainModelCall, executeToolCall: options.executeToolCall, policySnapshot: options.policySnapshot, contextBuilder: options.contextBuilder });
         writeSse(res, 'provider', { provider: 'deepseek', displayName: 'DeepSeek' }); writeSse(res, 'content', { content: result.answer });
         if (result.status === 'PROPOSAL_READY') writeSse(res, 'write_proposal', proposalEvent(result));
         writeSse(res, 'done');

@@ -7,6 +7,8 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const chat = read('api/routes/ai/chat.cjs');
 const routes = read('api/routes/ai.cjs');
 const runtime = read('api/services/ai-assistant/runtime.cjs');
+const policyStore = read('api/services/ai-assistant/domainPolicyStore.cjs');
+const context = read('api/services/ai-assistant/context.cjs');
 const tools = read('api/services/ai-assistant/agentTools.cjs');
 const client = read('apps/web-next/lib/ai-assistant-write-proposal-client.cjs');
 const requiredAbsent = [
@@ -25,5 +27,9 @@ assert.doesNotMatch(routes, /tasks\.cjs/); assert.match(chat, /\/api\/ai\/write\
 assert.match(client, /\/api\/ai\/write\/confirm/); assert.doesNotMatch(client, /\/api\/ai\/tasks\//);
 assert.doesNotMatch(client, /write-execute|write-reconcile|expectedRevision|toolName|args/);
 assert.match(runtime, /writeAllowed/); assert.doesNotMatch(runtime, /aiTask|TaskV2|aiProtectedCommandRoute/);
+assert.match(runtime, /getPublishedPolicySnapshot/); assert.match(runtime, /buildInvestigationContext/); assert.doesNotMatch(runtime, /loadDomainPolicy/);
+assert.match(chat, /pageContext/); assert.match(chat, /attachments/);
+assert.match(policyStore, /domain_policy_versions/); assert.match(policyStore, /DOMAIN_POLICY_CONFLICT/);
+assert.match(context, /不是正式业务事实/);
 assert.match(tools, /prepare_part_stock_adjustment/); assert.doesNotMatch(tools, /tool\('adjust_part_stock'/);
 console.log('AI assistant public cutover release gate: PASS');

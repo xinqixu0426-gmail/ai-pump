@@ -1,12 +1,11 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
 const { fetchAiProvider, decodeAiProviderResponse } = require('../aiProvider.cjs');
 const { resolveProviderConfig } = require('../aiProviderRegistry.cjs');
 const { withAgentSpan, withModelSpan } = require('../observability.cjs');
+const { renderInvestigationContext } = require('./context.cjs');
+const { BOOTSTRAP_POLICY_PATH: DOMAIN_POLICY_PATH, getPublishedPolicySnapshot } = require('./domainPolicyStore.cjs');
 
-const DOMAIN_POLICY_PATH = path.join(__dirname, 'domain-policy.md');
 const JUDGE_MODES = Object.freeze(['READ', 'ANALYZE', 'PERSIST_MUTATION', 'GENERAL', 'UNCLEAR']);
 const POLICY_IDS = Object.freeze(['RULE-01', 'RULE-02', 'RULE-03', 'RULE-04', 'RULE-05', 'RULE-06', 'RULE-07', 'RULE-08']);
 
@@ -19,7 +18,7 @@ class JudgeError extends Error {
 }
 
 function loadDomainPolicy() {
-    return fs.readFileSync(DOMAIN_POLICY_PATH, 'utf8');
+    return getPublishedPolicySnapshot().policyContent;
 }
 
 function boundedConversation(recentConversation = []) {
@@ -29,7 +28,7 @@ function boundedConversation(recentConversation = []) {
         .map(message => ({ role: message.role, content: message.content.slice(0, 2_000) }));
 }
 
-function judgeSystemPrompt(domainPolicy) {
+function judgeSystemPrompt(domainPolicy, policyVersion = 'bootstrap') {
     return [
         '你是水泵工厂 AI Assistant 的 Judge。理解用户的真实业务目标，并依据领域策略判断读取、试算分析或持久化变更。',
         '不要选择工具、不要回答用户、不要编造 ID 或业务事实。持久化变更只有明确改变正式保存状态时才为 true。',
@@ -42,6 +41,7 @@ function judgeSystemPrompt(domainPolicy) {
         '当 needsClarification=false 时，clarificationReason 应为 null。',
         `mode 只能是 ${JUDGE_MODES.join(' | ')}；appliedPolicyIds 只能使用 ${POLICY_IDS.join(', ')}。`,
         '',
+        `本轮固定的已发布工厂规则版本：${policyVersion}。`,
         '领域策略：',
         domainPolicy,
     ].join('\n');
@@ -140,12 +140,15 @@ async function responseContent(response) {
 async function runJudge(input = {}, dependencies = {}) {
     const userMessage = String(input.userMessage || '').trim();
     if (!userMessage) throw new JudgeError('JUDGE_INPUT_INVALID', '缺少用户消息');
-    const domainPolicy = input.domainPolicy || loadDomainPolicy();
+    const fallbackSnapshot = input.domainPolicy ? null : getPublishedPolicySnapshot();
+    const domainPolicy = input.domainPolicy || fallbackSnapshot.policyContent;
+    const policyVersion = input.policyVersion || fallbackSnapshot?.policyVersion || 'provided';
     const modelCall = dependencies.modelCall || defaultJudgeModelCall;
     const context = boundedConversation(input.recentConversation);
     const initialMessages = [
-        { role: 'system', content: judgeSystemPrompt(domainPolicy) },
+        { role: 'system', content: judgeSystemPrompt(domainPolicy, policyVersion) },
         ...context,
+        { role: 'system', content: renderInvestigationContext(input.investigationContext) },
         { role: 'user', content: userMessage },
     ];
 
@@ -166,7 +169,7 @@ async function runJudge(input = {}, dependencies = {}) {
                     'needsClarification=true 只适用于必须由用户补充且不能通过允许的正式查询/预览获得的信息；身份解析、库存读取、预览和模型外 Owner 确认不是澄清理由。若用户已明确要求保存正式业务状态且给出可解析对象和具体变更，则使用 PERSIST_MUTATION 且 needsClarification=false。questions 只列目标，不表示追问。',
                     '保留原始用户意图和已给出的会话语言上下文；不要回答用户、不要选择工具、不要编造 ID 或业务事实。',
                 ].join('\n') },
-                { role: 'user', content: `有界会话上下文：${JSON.stringify(context)}\n原始用户消息：${userMessage}\n先前无效输出：${String(rawContent || '').slice(0, 4_000)}\n请只修复为上述结构化 Judge 契约。` },
+                { role: 'user', content: `有界会话上下文：${JSON.stringify(context)}\n${renderInvestigationContext(input.investigationContext)}\n原始用户消息：${userMessage}\n先前无效输出：${String(rawContent || '').slice(0, 4_000)}\n请只修复为上述结构化 Judge 契约。` },
             ];
             try {
                 rawContent = await responseContent(await modelCall(repairMessages, {

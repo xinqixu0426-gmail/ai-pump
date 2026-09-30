@@ -713,20 +713,17 @@ test('关键 API 集成契约：V8.4 执行历史独立记录结果并按实时�
     assert.doesNotMatch(history, /safeUpdate\('(?:orders|quotations|parts|recipes)'/);
 });
 
-test('关键 API 集成契约：工厂提示配置由版本化 command service 写入', () => {
-    const route = readUtf8('api/routes/ai/prompt.cjs');
-    const service = readUtf8('api/services/factoryProfileService.cjs');
+test('关键 API 集成契约：Domain Policy 由 Owner 版本化服务写入', () => {
+    const route = readUtf8('api/routes/ai/domainPolicy.cjs');
+    const service = readUtf8('api/services/ai-assistant/domainPolicyStore.cjs');
     const web = readUtf8('apps/web-next/lib/ai.ts');
 
-    assert.match(route, /executeFactoryProfileUpdate\(/);
-    assert.match(route, /commandContextFromRequest\(/);
-    assert.doesNotMatch(route, /setConfig\(/);
-    assert.match(service, /executePersistentCommand/);
-    assert.match(service, /expectedVersion/);
-    assert.match(service, /setConfig\(/);
-    assert.match(web, /system-prompt\?includeMeta=1/);
-    assert.match(web, /Idempotency-Key/);
-    assert.match(web, /expectedVersion:\s*factoryProfileVersion/);
+    assert.match(route, /ownerAuth/);
+    assert.match(route, /publishDraft/);
+    assert.match(service, /DOMAIN_POLICY_CONFLICT/);
+    assert.match(service, /domain_policy_versions/);
+    assert.match(web, /\/api\/ai\/domain-policy/);
+    assert.doesNotMatch(web, /\/api\/ai\/system-prompt/);
 });
 
 test('关键 API 集成契约：/api/quality/recipe-analysis 只生成配方智能建议不写库', () => {

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   AlertCircle,
   Archive,
@@ -17,6 +19,7 @@ import { Checkbox } from '@/components/ui/field';
 import type {
   AiAnswerFeedbackRating,
   AiAttachment,
+  DomainPolicyVersion,
 } from '@/lib/ai';
 import type {
   FactoryFileArchiveTarget,
@@ -526,25 +529,45 @@ export function KnowledgeSyncDialog({
   );
 }
 
-type SystemPromptDialogProps = {
+type DomainPolicyDialogProps = {
   draft: string;
   loading: boolean;
   saving: boolean;
   error: string;
   onDraftChange: (value: string) => void;
   onSave: () => void | Promise<void>;
+  onPublish: () => void | Promise<void>;
+  onRollback: (versionId: number) => void | Promise<void>;
+  onViewVersion: (version: DomainPolicyVersion) => void | Promise<void>;
+  publishedVersion: number | null;
+  draftSaved: boolean;
+  versions: DomainPolicyVersion[];
+  diff: Array<{ line: number; before: string; after: string }>;
+  diffLabel: string;
+  viewedVersion: DomainPolicyVersion | null;
   onClose: () => void;
 };
 
-export function SystemPromptDialog({
+export function DomainPolicyDialog({
   draft,
   loading,
   saving,
   error,
   onDraftChange,
   onSave,
+  onPublish,
+  onRollback,
+  onViewVersion,
+  publishedVersion,
+  draftSaved,
+  versions,
+  diff,
+  diffLabel,
+  viewedVersion,
   onClose,
-}: SystemPromptDialogProps) {
+}: DomainPolicyDialogProps) {
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
+  const nextVersion = publishedVersion == null ? null : publishedVersion + 1;
   return (
     <Dialog
       open
@@ -560,8 +583,8 @@ export function SystemPromptDialog({
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div>
-            <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">编辑工厂配置</h2>
-            <p className="mt-1 text-xs text-muted">用于术语、偏好和操作习惯；核心安全与业务规则由系统维护。</p>
+            <h2 id="ai-prompt-title" className="text-base font-semibold text-ink">Domain Policy / 工厂规则</h2>
+            <p className="mt-1 text-xs text-muted">草稿不会影响 AI；保存后请显式发布。核心安全与正式业务规则由系统维护。</p>
           </div>
           <Button
             variant="ghost"
@@ -578,13 +601,13 @@ export function SystemPromptDialog({
           {loading ? (
             <div className="flex min-h-72 items-center justify-center gap-2 text-sm text-muted">
               <Loader2 size={16} className="animate-spin" />
-              正在读取工厂配置
+              正在读取工厂规则
             </div>
           ) : (
             <textarea
               value={draft}
               onChange={(event) => onDraftChange(event.target.value)}
-              aria-label="工厂个性化配置"
+              aria-label="Domain Policy 工厂规则草稿"
               autoFocus
               className="h-[min(58vh,560px)] min-h-72 w-full resize-y rounded-md border border-line bg-slate-50 px-3 py-3 font-mono text-sm leading-6 text-ink outline-none transition-colors focus:border-slate-400"
               disabled={saving}
@@ -597,13 +620,44 @@ export function SystemPromptDialog({
             </div>
           ) : null}
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+        <div className="border-t border-line px-4 py-3">
+          <div className="mb-3 text-xs text-muted">当前已发布版本：{publishedVersion ? `V${publishedVersion}` : '加载中'}。发布已保存草稿后将创建新的不可变版本 {nextVersion ? `V${nextVersion}` : ''}；历史版本可查看并基于历史内容创建新的发布版本。</div>
+          {versions.length > 1 ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {versions.slice(0, 6).map(version => (
+                <span key={version.id} className="inline-flex gap-1">
+                  <Button variant="ghost" size="sm" disabled={saving} onClick={() => void onViewVersion(version)}>查看 V{version.version}</Button>
+                  {version.status === 'SUPERSEDED' ? <Button variant="ghost" size="sm" disabled={saving} onClick={() => void onRollback(version.id)}>回滚</Button> : null}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {viewedVersion ? <pre className="mb-3 max-h-28 overflow-auto rounded border border-line bg-slate-50 p-2 whitespace-pre-wrap font-mono text-xs text-muted" aria-label={`版本 V${viewedVersion.version} 内容`}>{viewedVersion.content}</pre> : null}
+          {diff.length > 0 ? (
+            <div className="mb-3 max-h-28 overflow-auto rounded border border-line bg-slate-50 p-2 font-mono text-xs text-muted">
+              <div>{diffLabel}：{diff.length} 处变更</div>
+              {diff.slice(0, 8).map(change => <div key={change.line}>L{change.line} − {change.before || '∅'} / + {change.after || '∅'}</div>)}
+            </div>
+          ) : null}
+          <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" onClick={onClose} disabled={saving}>取消</Button>
           <Button variant="primary" icon={saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} onClick={() => void onSave()} disabled={loading || saving || !draft.trim()}>
-            {saving ? '保存中' : '保存'}
+            {saving ? '保存中' : '保存草稿'}
           </Button>
+          <Button variant="primary" onClick={() => setPublishConfirmationOpen(true)} disabled={loading || saving || !draft.trim() || !draftSaved}>发布已保存草稿</Button>
+          </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={publishConfirmationOpen}
+        layer="assistant"
+        title="发布工厂规则"
+        description={<>将把当前已保存草稿发布为 {nextVersion ? `V${nextVersion}` : '新版本'}。发布后，新 AI 请求才会使用该版本。</>}
+        confirmLabel="确认发布"
+        busy={saving}
+        onConfirm={() => { setPublishConfirmationOpen(false); void onPublish(); }}
+        onClose={() => setPublishConfirmationOpen(false)}
+      />
     </Dialog>
   );
 }

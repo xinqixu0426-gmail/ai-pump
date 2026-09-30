@@ -3882,6 +3882,55 @@ const MIGRATIONS = Object.freeze([
             db.exec(RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL);
         },
     },
+    {
+        version: 90,
+        name: 'ai_assistant_domain_policy_versions',
+        signature: 'immutable-published-domain-policy-draft-audit-v1',
+        up(db) {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS domain_policy_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version_number INTEGER NOT NULL UNIQUE,
+                    content TEXT NOT NULL CHECK(TRIM(content) <> ''),
+                    status TEXT NOT NULL CHECK(status IN ('PUBLISHED', 'SUPERSEDED')),
+                    source_version_id INTEGER,
+                    actor TEXT NOT NULL DEFAULT '',
+                    reason TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    published_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(source_version_id) REFERENCES domain_policy_versions(id)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_policy_one_published
+                    ON domain_policy_versions(status) WHERE status = 'PUBLISHED';
+                CREATE TABLE IF NOT EXISTS domain_policy_drafts (
+                    id INTEGER PRIMARY KEY CHECK(id = 1),
+                    content TEXT NOT NULL CHECK(TRIM(content) <> ''),
+                    base_version_id INTEGER NOT NULL,
+                    resource_version TEXT NOT NULL,
+                    actor TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(base_version_id) REFERENCES domain_policy_versions(id)
+                );
+                CREATE TABLE IF NOT EXISTS domain_policy_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action TEXT NOT NULL CHECK(action IN ('BOOTSTRAP', 'DRAFT_SAVED', 'PUBLISHED', 'ROLLED_BACK')),
+                    version_id INTEGER,
+                    previous_version_id INTEGER,
+                    actor TEXT NOT NULL DEFAULT '',
+                    reason TEXT NOT NULL DEFAULT '',
+                    detail_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(version_id) REFERENCES domain_policy_versions(id),
+                    FOREIGN KEY(previous_version_id) REFERENCES domain_policy_versions(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_domain_policy_audit_created
+                    ON domain_policy_audit(created_at DESC, id DESC);
+            `);
+        },
+    },
 ]);
 
 function migrationChecksum(migration) {

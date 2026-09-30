@@ -4,6 +4,7 @@ const { fetchAiProvider, decodeAiProviderResponse } = require('../aiProvider.cjs
 const { resolveProviderConfig } = require('../aiProviderRegistry.cjs');
 const { withAgentSpan, withModelSpan } = require('../observability.cjs');
 const { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, executeAgentTool } = require('./agentTools.cjs');
+const { renderInvestigationContext } = require('./context.cjs');
 
 const MAX_TOOL_CALLS = 6;
 const MAX_MAIN_MODEL_CALLS = 7;
@@ -24,7 +25,7 @@ function boundedConversation(recentConversation = []) {
         .map(message => ({ role: message.role, content: message.content.slice(0, 2_000) }));
 }
 
-function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY') {
+function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY', policyVersion = 'bootstrap') {
     const protectedProposal = mode === 'PROTECTED_PROPOSAL';
     return [
         '你是水泵工厂 AI Assistant 的 Main Agent。理解原始用户问题与 Judge 摘要，使用提供的只读工具取得所需正式业务事实后，自然、简洁地回答中文。',
@@ -36,6 +37,7 @@ function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY') {
             ? '本轮只能准备一项库存调整的受保护提案。必须先用 find_part 唯一确认身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。find_part 返回的 partRef 仅是本轮工具句柄，绝不能在自然语言答复中提及。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
             : '本轮没有写工具。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
+        `本轮固定的已发布工厂规则版本：${policyVersion}。`,
         '相关领域策略：',
         domainPolicy,
     ].join('\n');
@@ -114,8 +116,9 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const startedAt = Date.now();
     const timeoutMs = runtimeLimit(input);
     const messages = [
-        { role: 'system', content: mainAgentSystemPrompt(input.domainPolicy || '', input.mode) },
+        { role: 'system', content: mainAgentSystemPrompt(input.domainPolicy || '', input.mode, input.policyVersion) },
         ...boundedConversation(input.recentConversation),
+        { role: 'system', content: renderInvestigationContext(input.investigationContext) },
         {
             role: 'user',
             content: `${userMessage}\n\nJudge 结果（用于理解目标，不是业务事实）：${JSON.stringify(judge)}`,

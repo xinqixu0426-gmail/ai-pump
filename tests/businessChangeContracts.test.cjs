@@ -46,7 +46,6 @@ test('业务变更契约：核心正式命令显式声明业务事件而不是�
         'modelVariantCommands.cjs',
         'businessSettingCommands.cjs',
         'runtimeSettingCommands.cjs',
-        'factoryProfileService.cjs',
         'factoryWorkflowCommands.cjs',
         'qualityRuleCommands.cjs',
         'rotorCommands.cjs',

@@ -23,8 +23,9 @@ function readUtf8(filePath) {
 function readAiPromptContractSource() {
     return [
         'api/routes/ai/chat.cjs',
-        'api/routes/ai/prompt.cjs',
-        'api/services/factoryProfileService.cjs',
+        'api/routes/ai/domainPolicy.cjs',
+        'api/services/ai-assistant/domainPolicyStore.cjs',
+        'api/services/ai-assistant/context.cjs',
     ].map(filePath => readUtf8(path.join(repoRoot, filePath))).join('\n');
 }
 
@@ -1762,7 +1763,7 @@ test('API 静态契约：系统设置写入必须进入审计日志', () => {
     assert.match(section, /SETTING_UPDATE|SETTING_INSERT/);
 });
 
-test('API 静态契约：AI 工厂配置修改必须进入审计日志且不能覆盖核心规则', () => {
+test('API 静态契约：Domain Policy 修改必须审计、版本保护且不能覆盖核心规则', () => {
     const db = readUtf8(path.join(repoRoot, 'api/db.cjs'));
     const promptRoute = readAiPromptContractSource();
     const sectionStart = db.indexOf('function setConfig');
@@ -1771,14 +1772,13 @@ test('API 静态契约：AI 工厂配置修改必须进入审计日志且不能�
 
     assert.match(section, /writeAuditLog\(/);
     assert.match(section, /CONFIG_UPDATE|CONFIG_INSERT/);
-    assert.match(promptRoute, /executeFactoryProfileUpdate\(/);
-    assert.match(promptRoute, /executePersistentCommand\(/);
-    assert.match(promptRoute, /setConfig\(\s*FACTORY_PROFILE_KEY,\s*profile,\s*auditContext/);
+    assert.match(promptRoute, /domain_policy_audit/);
+    assert.match(promptRoute, /DOMAIN_POLICY_CONFLICT/);
+    assert.match(promptRoute, /safeInsert\('domain_policy_versions'/);
     assert.match(promptRoute, /expectedVersion/);
-    assert.match(promptRoute, /工厂配置不能为空/);
-    assert.match(promptRoute, /FACTORY_PROFILE_MAX_LENGTH = 8000/);
-    assert.match(promptRoute, /不能覆盖核心安全、数据来源或写入确认规则/);
-    assert.match(promptRoute, /LEGACY_BACKUP_KEY/);
+    assert.match(promptRoute, /工厂规则不能为空/);
+    assert.match(promptRoute, /MAX_POLICY_LENGTH = 16_000/);
+    assert.match(promptRoute, /不能覆盖核心安全、正式事实来源或写入确认边界/);
     assert.doesNotMatch(promptRoute, /INSERT OR REPLACE INTO config/);
 });
 

@@ -130,6 +130,7 @@ const costRouter = require('./api/routes/cost.cjs');
 
 // AI 路由内部按端点校验 JWT Cookie 或 INTERNAL_SECRET。
 const aiRouter = require('./api/routes/ai.cjs');
+const { getPublishedPolicySnapshot } = require('./api/services/ai-assistant/domainPolicyStore.cjs');
 const { requestFullAutoKnowledgeSync } = require('./api/services/knowledgeAutoSync.cjs');
 const {
     requestManagementActionLifecycleRecheck,
@@ -308,9 +309,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       costRouter.runCopperPriceUpdate();
     }
 
-    // 加载 AI System Prompt
-    console.log('[启动] 正在加载 AI System Prompt...');
-    aiRouter.loadSystemPromptFromDB();
+    // Domain Policy 只在首次启动时从 bootstrap seed 建立不可变 Published 版本。
+    console.log('[启动] 正在确认已发布的 Domain Policy...');
+    getPublishedPolicySnapshot();
 
     if (!IS_TEST_CONTEXT) {
       // 启动后自动核对派生知识；内容哈希确保只写入真实变化。

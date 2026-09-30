@@ -40,15 +40,18 @@ function ownerHeaders() {
 }
 
 test('public chat is Owner-only and emits Task-free content/done SSE through runAiAssistant', async () => {
-    let calls = 0;
+    let calls = 0; let runtimeInput = null;
     await withServer({
         env: OWNER_ENV,
         writeAllowed: () => false,
-        runAiAssistant: async () => { calls += 1; return { status: 'COMPLETED', answer: 'V550 当前成本来自正式工具。' }; },
+        runAiAssistant: async input => { calls += 1; runtimeInput = input; return { status: 'COMPLETED', answer: 'V550 当前成本来自正式工具。' }; },
     }, async base => {
         const denied = await fetch(`${base}/api/ai/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'V550成本？' }] }) });
         assert.equal(denied.status, 401);
-        const response = await fetch(`${base}/api/ai/chat`, { method: 'POST', headers: ownerHeaders(), body: JSON.stringify({ messages: [{ role: 'user', content: 'V550成本？' }] }) });
+        const response = await fetch(`${base}/api/ai/chat`, { method: 'POST', headers: ownerHeaders(), body: JSON.stringify({
+            messages: [{ role: 'user', content: 'V550成本？', attachments: [{ id: 91 }] }],
+            pageContext: { resourceType: 'recipe', resourceId: 12, path: '/recipes/12', view: 'detail' },
+        }) });
         const body = await response.text();
         assert.equal(response.status, 200);
         assert.match(body, /"type":"content"/);
@@ -56,6 +59,8 @@ test('public chat is Owner-only and emits Task-free content/done SSE through run
         assert.doesNotMatch(body, /taskId|planRevision|expectedRevision/);
     });
     assert.equal(calls, 1);
+    assert.deepEqual(runtimeInput.attachments, [{ id: 91 }]);
+    assert.deepEqual(runtimeInput.pageContext, { resourceType: 'recipe', resourceId: 12, path: '/recipes/12', view: 'detail' });
 });
 
 test('proposal SSE exposes only task-free business facts and opaque confirmation token', async () => {

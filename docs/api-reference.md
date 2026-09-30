@@ -11,7 +11,7 @@
 - [当前技术债](./technical-debt.md)：尚未完成的正确性、测试、维护性和条件触发项。
 - Git 历史：保存实施过程，不作为当前接口契约。
 
-当前源码共有 265 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
+当前源码共有 269 个 Express 路由声明。表内出现不代表推荐新调用：标为兼容或观察的入口仅供现有调用方迁移，新增页面、AI 工具和内部服务必须使用标准入口。
 
 ## 1. 通用约定
 
@@ -41,7 +41,7 @@
 | 常规 `/api/*` | JWT Cookie | `app.use('/api', authMiddleware)` 后保护 |
 | 转子图纸 `/drawings/*` | JWT Cookie | 保留历史静态 URL，但发送文件前必须通过 `authMiddleware`；未登录或无效 Cookie 返回 401 |
 | 内部服务 | `x-internal-secret` | 与 `INTERNAL_SECRET` 匹配时绕过 JWT |
-| AI / 工厂配置 | JWT Cookie 或 `x-internal-secret` | 路由内部单独校验 |
+| AI Assistant / Domain Policy | 已认证 Owner JWT Cookie | 路由内部单独校验；内部机器凭据不能作为 Owner 操作 |
 | 通用 MCP `/mcp` | 每个 Agent 独立 Bearer service token | 默认关闭；基础目录为固定只读白名单，写工具还需全局开关、认证身份和逐工具 allowlist；不接受 JWT 或 `INTERNAL_SECRET`，不以客户端自报名称作为授权身份 |
 
 ## 3. 认证
@@ -568,11 +568,15 @@ parts.stock 的 stockStatus 只接受正式 low(0<stock≤5)/out(stock≤0)/atte
 
 | 方法 | 路径 | 入参 | 返回/说明 |
 |---|---|---|---|
-| `POST` | `/api/ai/chat` | `{ messages: [{ role, content }], conversationId?, pageContext? }` | Owner-only SSE assistant. The current/latest user message and a bounded plain user/assistant history are sent to isolated DeepSeek Judge and Main Agent contexts; no request field can select a provider. Successful read/analysis emits `content`, optional `metrics`, then `done`. A persistent stock request with server `AI_NATIVE_WRITE_ENABLED=true` may emit one Task-free `{ type: "write_proposal", stage: "AI_ASSISTANT_WRITE_PROPOSAL", proposal: { capabilityId, item: { partId, model, currentStock, delta, nextStock, clampedToZero } }, confirmation: { confirmationToken, expiresAt } }`; no business write occurs in this request. When the server gate is disabled it returns the bounded `WRITE_DISABLED` answer without Main Agent proposal tools, token, preview or write. |
+| `POST` | `/api/ai/chat` | `{ messages: [{ role, content, attachments? }], conversationId?, pageContext? }` | Owner-only SSE assistant. The current/latest user message and a bounded plain user/assistant history are sent to isolated DeepSeek Judge and Main Agent contexts; no request field can select a provider. At request start both agents receive one immutable Published Domain Policy snapshot. Up to 4 trusted Factory File IDs are resolved through the existing parser into bounded `USER_PROVIDED_CONTEXT`; parser failures remain explicit and neither attachments nor page values are formal business facts. Successful read/analysis emits `content`, optional `metrics`, then `done`. A persistent stock request with server `AI_NATIVE_WRITE_ENABLED=true` may emit one Task-free `{ type: "write_proposal", stage: "AI_ASSISTANT_WRITE_PROPOSAL", proposal: { capabilityId, item: { partId, model, currentStock, delta, nextStock, clampedToZero } }, confirmation: { confirmationToken, expiresAt } }`; no business write occurs in this request. When the server gate is disabled it returns the bounded `WRITE_DISABLED` answer without Main Agent proposal tools, token, preview or write. |
 | `POST` | `/api/ai/write/confirm` | `{ confirmationToken }` | Canonical authenticated Owner only; internal machine credentials do not count as approval. The body accepts only the opaque token and server configuration must still enable writes before token consumption. It executes only the frozen `adjust_part_stock` confirmation through formal audit and readback, returning bounded verified `{ partId, model, stock }`. `UNKNOWN_EFFECT` returns `manualReviewRequired=true`; the client must not retry or poll. |\n
 
-| `GET` | `/api/ai/system-prompt` | 默认无参数；新调用使用 `includeMeta=1` | 兼容路径；默认继续返回配置字符串。`includeMeta=1` 返回 `{ prompt, version, sourceOfTruth }`，其中 `version` 是当前内容 SHA-256，供并发保存；不返回系统核心规则 |
-| `PUT` | `/api/ai/system-prompt` | `{ prompt, expectedVersion?, idempotencyKey? }`；推荐请求头 `Idempotency-Key` | 能力 `ai.factory_profile.update`。更新内存和 SQLite `config.ai-factory-profile`；不能为空，最大 8000 字符，不能覆盖核心安全、来源和写入确认边界。新 Web 调用先读内容版本再保存；配置、operation 和强审计同一事务提交，相同命令安全重放。旧无版本/幂等键调用继续执行并返回 warning |
+| `GET` | `/api/ai/domain-policy` | 无 | Owner-only。返回当前不可变 Published Domain Policy 与可编辑 Draft；Draft 的 `version` 是并发保护令牌，运行中的 Assistant 只读取 Published。 |
+| `PUT` | `/api/ai/domain-policy/draft` | `{ content, expectedVersion, reason? }` | Owner-only。保存 Draft，必须携带当前 Draft `expectedVersion`；版本不一致返回 `DOMAIN_POLICY_CONFLICT`，保存不改变运行时 Policy。 |
+| `GET` | `/api/ai/domain-policy/versions` | 无 | Owner-only。返回不可变 Published/SUPERSEDED 历史和 Domain Policy 审计。 |
+| `GET` | `/api/ai/domain-policy/diff` | `from=<versionId|draft>&to=<versionId|draft>` | Owner-only。返回稳定的逐行文本差异，支持 Draft 对当前 Published 和任意两个历史版本。 |
+| `POST` | `/api/ai/domain-policy/publish` | `{ expectedDraftVersion, expectedPublishedVersion, reason? }` | Owner-only。显式将当前 Draft 创建为新的 immutable PUBLISHED 版本；旧 PUBLISHED 标记 SUPERSEDED，并写入审计。 |
+| `POST` | `/api/ai/domain-policy/rollback` | `{ versionId, expectedPublishedVersion, reason? }` | Owner-only。复制历史版本内容创建新的 immutable PUBLISHED 版本，不会改写任何历史版本，并写入审计。 |
 | `POST` | `/mcp` | MCP Streamable HTTP JSON-RPC；请求头 `Authorization: Bearer <service-token>`；现代客户端同时发送协议 `_meta`/标准 MCP 头 | 通用无状态入口。官方 SDK v2 原生服务 `2026-07-28` 协议，并以同一 server factory 兼容 2025 版 `initialize` 流程。支持 `server/discover`、`tools/list`、`tools/call` 和 2026 `input_required` form elicitation；工具同时声明 `inputSchema/outputSchema`，结果同时返回文本 JSON 与 `structuredContent`。对象输入从唯一 AI tool schema 派生，并显式设置 `additionalProperties=false`；入口先限流、鉴权，再独立解析 JSON。默认只导出固定 Query/Preview 白名单；现代客户端只有同时通过全局写开关、认证 `clientId` 和该身份逐工具 allowlist 时，才额外看到被授权的 Preview + Confirmation 命令，不能因取得 `mcp:write` scope 看见其他写工具。全部执行仍复用 capability registry、executor、internal API client、正式 API 与执行证据门 |
 | `GET` | `/mcp` | 同上鉴权 | 当前为无状态服务，不建立旧协议 SSE 会话；返回 `405` |
 | `DELETE` | `/mcp` | 同上鉴权 | 当前不签发 `Mcp-Session-Id`，没有可删除会话；返回 `405` |
@@ -597,7 +601,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 工具结果、资料和记忆作为不可信数据处理，不能获得写权限。新运行器记录工具耗时、结果状态和提供商 usage；观测数据不是业务事实来源。当前默认链不产生旧两阶段意图信封。
 
-注册表共登记 84 个 AI 工具、当前 144 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。正式工具 schema 位于 `api/services/aiFormalToolDefinitions.cjs`，并复用同一注册表、validator 与 executor。`WRITE_TOOLS` 是注册表投影。新助手只暴露允许的只读/预览工具，持久化修改只能通过受保护提案与 Owner 确认；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。
+注册表共登记 84 个 AI 工具、当前 147 个已迁移正式业务能力；登记总数不代表当前聊天全部开放。AI 工具名称、displayName、读写属性、风险、来源、executorKey 和 resultProvenance 统一在 `api/capabilities/registry.cjs` 登记。正式工具 schema 位于 `api/services/aiFormalToolDefinitions.cjs`，并复用同一注册表、validator 与 executor。`WRITE_TOOLS` 是注册表投影。新助手只暴露允许的只读/预览工具，持久化修改只能通过受保护提案与 Owner 确认；未登记、schema 不匹配、标识无依据或不在 allowlist 的调用在 API 前拒绝。
 
 已迁移能力契约摘要（完整机器事实以 `api/capabilities/registry.cjs` 为准）：
 
@@ -713,7 +717,6 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 | `ai.feedback.retest` | HTTP/Web | maintenance/write | 当前复测回答/工具依据 + 回答反馈 | medium | 复测流程本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 复测快照、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.feedback.review` | HTTP/Web | maintenance/write | `ai_answer_feedback` | medium | 处理按钮本身是明确动作 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 处理状态、operation 和强审计同一 SQLite 事务 | 默认 HTTP |
 | `ai.learning_rules.update` | HTTP/Web | maintenance/write | 长期纠正规则 + 派生回归用例 | medium | 启停/编辑按钮本身是明确治理动作 | 无 | 90 天持久化幂等 + 规则 `expectedUpdatedAt` | 规则、回归用例、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
-| `ai.factory_profile.update` | HTTP/Web | command/write | `config.ai-factory-profile` | medium | 页面保存本身是明确动作 | 无 | 90 天持久化幂等 + 内容 SHA-256 `expectedVersion` | 配置、operation 和强审计同一 SQLite 事务；提交后才更新进程内配置 | 默认 HTTP |
 | `quality.recipe_feedback.save` | HTTP/Web/`set_recipe_analysis_feedback` | maintenance/write | 当前配方 + 检查反馈 + 派生候选规则 | medium | 页面判断或 AI 外层确认 | 无 | 90 天持久化幂等；已有反馈绑定 `expectedUpdatedAt` | 反馈、候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `quality.recipe_feedback.resolve` | HTTP/Web | maintenance/write | 当前配方智能检查 + 检查反馈 + 派生候选规则 | medium | 页面确认已解决 | 无 | 90 天持久化幂等 + 反馈 `expectedUpdatedAt` | 反馈、候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
 | `quality.rule_candidates.refresh` | HTTP/Web/`refresh_factory_rule_candidates` | maintenance/write | 配方反馈 + 当前配方版本 + 候选规则 | medium | 运维按钮或 AI 外层确认 | 无 | 90 天持久化幂等；SQLite 即时事务串行重算 | 候选、事件、派生知识、operation 和逐项强审计同一 SQLite 事务 | 默认 HTTP |
@@ -727,7 +730,7 @@ MCP 写目录、确认协议、executor 或正式 command 变更还必须运行 
 
 转子两项在 AI 层仍先返回确认卡片，未确认时不调用正式 CAD 或打印 API；AI 确认完成后，executor 还必须调用正式 `/draw-preview` 或 `/print/:jobId/preview` 获取业务确认凭证。正式出图预览只要包含安全警报，AI 就返回 `rotor_draw_preview_warning` 和完整 `warnings`，不调用 `/draw`；Web 则在确认框逐条展示警报，用户明确选择继续后才能消费 token。AI 确认卡片包含 `confirmationToken/operationId/argsHash/expiresAt`，正式业务预览包含独立的 `confirmationToken/operationId/inputHash/expiresAt/suggestedIdempotencyKey`。两层 token 都保存在单机 API 进程内，服务重启后自动失效；正式 operation 回执持久化在 SQLite，网络重试不会重复出图或打印。`drawings.rotor.generate_pdf` 显式登记 `completionMode=accepted_async`：正式 queued 记录、operation 和强审计原子提交后可返回 `accepted`，AI/MCP 只能说明任务已受理并返回 `jobId`，必须通过 `/api/rotor/status/:jobId` 回读终态；打印和其他普通命令仍只接受 `completed` 作为成功证据。库存、报价转订单、采购、订单核心写入、订单准备动作与待办、配方核心 CRUD、配方性能测试报告附件、转子、人工知识同步、知识资料上传/删除以及文件归档/解除关联正式命令已经使用数据库持久化回执、资源版本或预览绑定和强审计。
 
-系统提示词按四层动态组装：不可编辑核心规则、当前工具路由命中的业务领域规则、可编辑工厂配置、与本轮问题相关的已启用纠正规则。普通闲聊不加载业务领域规则；业务问题只加载当前领域，关闭动态工具路由时加载全部领域作为故障回退。最终回复只呈现面向用户的结果，不展示内部思考、逐步推理、工具选择或处理过程；简单问题使用短段落，一般问题可使用一个简短标题和 2-5 个短要点，保留结论、关键数字或异常、必要下一步和风险。用户要求原因时提供可核验的关键依据，而非内部推理链；写入确认、失败原因和关键风险不得省略。工具计划、调用结果和来源由 Web 正文上方的默认折叠区承载。旧 `config.ai-system-prompt` 首次启动时先备份到 `ai-system-prompt-legacy-backup`，再按当前 8000 字和核心边界校验迁移；不合格旧内容只保留备份并回退安全默认配置。把保存逻辑从 route 抽到 `factoryProfileService`，内容 SHA-256 作为兼容表没有时间戳时的正式版本；事务成功后才替换进程内配置，审计失败会连同配置和 operation 一并回滚。核心规则和领域规则始终高于工厂配置和纠正规则。
+Domain Policy（工厂规则）是当前 Assistant 唯一的可编辑业务理解来源。每轮开始时从独立版本表读取一次 Published immutable snapshot，并将相同 `policyVersion/policyContent` 同时传给 Judge 和 Main Agent；Draft 永不进入运行时。显式 Publish 创建新版本并将旧版本标为 SUPERSEDED；Rollback 复制历史内容创建又一个新 Published 版本，历史不会被改写。Markdown `api/services/ai-assistant/domain-policy.md` 只在没有 Published Policy 时作为 bootstrap seed。旧 `config.ai-factory-profile` 仅在首次 bootstrap 时按安全边界迁移其有效 Owner 规则，之后不再作为 Assistant runtime source。Domain Policy 只定义术语、处理和回答原则，不能覆盖代码强制的安全、事实来源、成本/库存算法、认证或确认机制。最终回复只呈现面向用户的结果，不展示内部思考、逐步推理、工具选择或处理过程；写入确认、失败原因和关键风险不得省略。
 
 规则执行采用统一优先级：系统核心规则 > 当前领域规则 > 已批准配方检查规则 > 正式工厂事实 > 用户回答纠错 > 工厂个性化配置。`sourceTable=business_rules` 是可直接引用的正式工厂事实；`factory_rule_candidates` 在知识索引中只是可追溯副本，只由配方智能检查服务执行。`factory_ai_rules` 不进入通用知识索引，只能在本轮经审批、有效期、范围和冲突解析后注入。纠正规则由可管理的 `conflictGroup` 明确定义规则主题，再结合范围、对象和类型生成稳定 `conflictKey`；原问题只是适用示例，不参与冲突身份。同组相同 `instruction` 按优先级、版本和更新时间去重；不同 `instruction` 由更高优先级胜出，最高优先级并列时整组标记为 `conflicted` 并暂停。
 

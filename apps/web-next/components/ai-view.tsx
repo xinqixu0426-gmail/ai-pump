@@ -21,10 +21,16 @@ import {
   appendAiConversationMessage,
   executeAiAssistantWriteProposal,
   createAiConversation,
-  getAiSystemPrompt,
+  getDomainPolicy,
+  getDomainPolicyDiff,
+  getDomainPolicyVersions,
   isRetryableAiStreamError,
   streamAiChat,
-  updateAiSystemPrompt,
+  publishDomainPolicy,
+  rollbackDomainPolicy,
+  saveDomainPolicyDraft,
+  type DomainPolicyDraft,
+  type DomainPolicyVersion,
   type AiAttachment,
   type AiConversationSummary,
 } from '@/lib/ai';
@@ -34,7 +40,7 @@ import {
   AnswerFeedbackDialog,
   DeleteConversationDialog,
   KnowledgeSyncDialog,
-  SystemPromptDialog,
+  DomainPolicyDialog,
 } from '@/components/ai/AiWorkspaceDialogs';
 import type { ChatItem } from '@/components/ai/AiAnswerProcess';
 import {
@@ -145,6 +151,12 @@ export function AiView({
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptError, setPromptError] = useState('');
+  const [policyDraftMeta, setPolicyDraftMeta] = useState<DomainPolicyDraft | null>(null);
+  const [publishedPolicy, setPublishedPolicy] = useState<DomainPolicyVersion | null>(null);
+  const [policyVersions, setPolicyVersions] = useState<DomainPolicyVersion[]>([]);
+  const [policyDiff, setPolicyDiff] = useState<Array<{ line: number; before: string; after: string }>>([]);
+  const [policyDiffLabel, setPolicyDiffLabel] = useState('Draft 与当前 Published 差异');
+  const [policyViewedVersion, setPolicyViewedVersion] = useState<DomainPolicyVersion | null>(null);
   const [knowledgeSyncOpen, setKnowledgeSyncOpen] = useState(false);
   const [knowledgeSyncing, setKnowledgeSyncing] = useState(false);
   const [knowledgeSyncResult, setKnowledgeSyncResult] = useState<KnowledgeSyncStats | null>(null);
@@ -491,7 +503,7 @@ export function AiView({
     void performOpenConversation(transition.conversationId);
   }
 
-  /** NATIVE-W2：确认执行。只用服务端签发的不透明身份，成功后只信服务端核实结果。 */
+  /** 确认执行：只用服务端签发的不透明身份，成功后只信服务端核实结果。 */
   async function confirmWriteProposal(messageId: string) {
     if (writeConfirmInFlightRef.current.has(messageId)) return;
     const current = items.find((candidate) => candidate.id === messageId)?.writeProposal;
@@ -526,7 +538,7 @@ export function AiView({
     }
   }
 
-  /** NATIVE-W2：取消只是本地失活——不发起任何执行请求，零写入。 */
+  /** 取消只是本地失活——不发起任何执行请求，零写入。 */
   function cancelWriteProposal(messageId: string) {
     updateAssistant(messageId, (item) => (
       item.writeProposal ? { ...item, writeProposal: reduceWriteCard(item.writeProposal, { type: 'cancel' }) } : item
@@ -617,9 +629,16 @@ export function AiView({
     setPromptLoading(true);
     setPromptError('');
     try {
-      setPromptDraft(await getAiSystemPrompt());
+      const policy = await getDomainPolicy();
+      setPromptDraft(policy.draft.content);
+      setPolicyDraftMeta(policy.draft);
+      setPublishedPolicy(policy.published);
+      setPolicyVersions((await getDomainPolicyVersions()).versions);
+      setPolicyDiff((await getDomainPolicyDiff(policy.published.id, 'draft')).changes);
+      setPolicyDiffLabel('Draft 与当前 Published 差异');
+      setPolicyViewedVersion(null);
     } catch (error) {
-      setPromptError((error as Error).message || '读取工厂配置失败');
+      setPromptError((error as Error).message || '读取工厂规则失败');
     } finally {
       setPromptLoading(false);
     }
@@ -628,20 +647,63 @@ export function AiView({
   async function savePrompt() {
     const prompt = promptDraft.trim();
     if (!prompt) {
-      setPromptError('工厂配置不能为空');
+      setPromptError('工厂规则不能为空');
       return;
     }
     setPromptSaving(true);
     setPromptError('');
     try {
-      await updateAiSystemPrompt(prompt);
+      if (!policyDraftMeta) throw new Error('工厂规则版本尚未加载');
+      const nextDraft = await saveDomainPolicyDraft(prompt, policyDraftMeta.version);
+      setPolicyDraftMeta(nextDraft);
       setPromptDraft(prompt);
-      setPromptOpen(false);
+      if (publishedPolicy) {
+        setPolicyDiff((await getDomainPolicyDiff(publishedPolicy.id, 'draft')).changes);
+        setPolicyDiffLabel('Draft 与当前 Published 差异');
+      }
     } catch (error) {
-      setPromptError((error as Error).message || '保存工厂配置失败');
+      setPromptError((error as Error).message || '保存工厂规则草稿失败');
     } finally {
       setPromptSaving(false);
     }
+  }
+
+  async function publishPrompt() {
+    if (!policyDraftMeta || !publishedPolicy) return;
+    setPromptSaving(true); setPromptError('');
+    try {
+      await publishDomainPolicy(policyDraftMeta.version, publishedPolicy.version);
+      const policy = await getDomainPolicy();
+      setPromptDraft(policy.draft.content); setPolicyDraftMeta(policy.draft); setPublishedPolicy(policy.published);
+      setPolicyVersions((await getDomainPolicyVersions()).versions);
+      setPolicyDiff([]);
+      setPolicyDiffLabel('Draft 与当前 Published 差异'); setPolicyViewedVersion(null);
+    } catch (error) { setPromptError((error as Error).message || '发布工厂规则失败'); }
+    finally { setPromptSaving(false); }
+  }
+
+  async function rollbackPrompt(versionId: number) {
+    if (!publishedPolicy) return;
+    setPromptSaving(true); setPromptError('');
+    try {
+      await rollbackDomainPolicy(versionId, publishedPolicy.version);
+      const policy = await getDomainPolicy();
+      setPromptDraft(policy.draft.content); setPolicyDraftMeta(policy.draft); setPublishedPolicy(policy.published);
+      setPolicyVersions((await getDomainPolicyVersions()).versions);
+      setPolicyDiff([]);
+      setPolicyDiffLabel('Draft 与当前 Published 差异'); setPolicyViewedVersion(null);
+    } catch (error) { setPromptError((error as Error).message || '回滚工厂规则失败'); }
+    finally { setPromptSaving(false); }
+  }
+
+  async function viewPolicyVersion(version: DomainPolicyVersion) {
+    if (!publishedPolicy) return;
+    setPromptError('');
+    try {
+      setPolicyViewedVersion(version);
+      setPolicyDiff((await getDomainPolicyDiff(publishedPolicy.id, version.id)).changes);
+      setPolicyDiffLabel(`当前 Published 与 V${version.version} 差异`);
+    } catch (error) { setPromptError((error as Error).message || '读取历史版本差异失败'); }
   }
 
   function openKnowledgeSync() {
@@ -969,13 +1031,22 @@ export function AiView({
       ) : null}
 
       {promptOpen ? (
-        <SystemPromptDialog
+        <DomainPolicyDialog
           draft={promptDraft}
           loading={promptLoading}
           saving={promptSaving}
           error={promptError}
           onDraftChange={setPromptDraft}
           onSave={savePrompt}
+          onPublish={publishPrompt}
+          onRollback={rollbackPrompt}
+          onViewVersion={viewPolicyVersion}
+          publishedVersion={publishedPolicy?.version || null}
+          draftSaved={Boolean(policyDraftMeta && policyDraftMeta.content === promptDraft.trim())}
+          versions={policyVersions}
+          diff={policyDiff}
+          diffLabel={policyDiffLabel}
+          viewedVersion={policyViewedVersion}
           onClose={() => setPromptOpen(false)}
         />
       ) : null}

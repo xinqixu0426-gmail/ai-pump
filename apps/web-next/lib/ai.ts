@@ -439,7 +439,7 @@ export type AiStreamEvent =
   | { type: 'error'; message: string; code?: string };
 
 /**
- * NATIVE-W2：助理写入 的结构化提案事件（唯一获批能力）。
+ * 助理库存调整的 Task-free 结构化提案事件（唯一获批能力）。
  * 只承载服务端冻结的展示事实与不透明执行身份；不做任何前端计算。
  */
 export type AiAssistantWriteProposalStreamEvent = {
@@ -634,41 +634,56 @@ export async function generateAiDraftFromAttachments(
   return result;
 }
 
-export async function getAiSystemPrompt(): Promise<string> {
-  const result = await proxyRequest<ApiResponse<string | {
-    prompt: string;
-    version: string;
-  }>>('/api/ai/system-prompt?includeMeta=1');
-  if (!result.success || !result.data) throw new Error(result.error || '读取工厂配置失败');
-  if (typeof result.data === 'string') {
-    factoryProfileVersion = null;
-    return result.data;
-  }
-  if (typeof result.data.prompt !== 'string') throw new Error('工厂配置响应格式无效');
-  factoryProfileVersion = result.data.version || null;
-  return result.data.prompt;
-}
+export type DomainPolicyVersion = {
+  id: number;
+  version: number;
+  content: string;
+  status: 'PUBLISHED' | 'SUPERSEDED';
+  publishedAt: string;
+};
+export type DomainPolicyDraft = { content: string; baseVersionId: number; version: string; updatedAt: string };
+export type DomainPolicyState = { published: DomainPolicyVersion; draft: DomainPolicyDraft };
 
-export async function updateAiSystemPrompt(prompt: string): Promise<void> {
-  const result = await proxyRequest<ApiResponse<{
-    version?: string;
-    profile?: { version?: string };
-  }>>('/api/ai/system-prompt', {
-    method: 'PUT',
-    headers: {
-      'Idempotency-Key': createIdempotencyKey('factory-profile'),
-    },
-    body: JSON.stringify({
-      prompt,
-      ...(factoryProfileVersion ? { expectedVersion: factoryProfileVersion } : {}),
-    }),
+export async function getDomainPolicy(): Promise<DomainPolicyState> {
+  const result = await proxyRequest<ApiResponse<DomainPolicyState>>('/api/ai/domain-policy');
+  if (!result.success || !result.data?.published || !result.data?.draft) throw new Error(result.error || '读取工厂规则失败');
+  return result.data;
+}
+export async function saveDomainPolicyDraft(content: string, expectedVersion: string): Promise<DomainPolicyDraft> {
+  const result = await proxyRequest<ApiResponse<DomainPolicyDraft>>('/api/ai/domain-policy/draft', {
+    method: 'PUT', body: JSON.stringify({ content, expectedVersion }),
   });
-  if (!result.success) throw new Error(result.error || '保存工厂配置失败');
-  factoryProfileVersion = result.data?.profile?.version || result.data?.version || null;
+  if (!result.success || !result.data) throw new Error(result.error || '保存工厂规则草稿失败');
+  return result.data;
+}
+export async function publishDomainPolicy(expectedDraftVersion: string, expectedPublishedVersion: number): Promise<DomainPolicyVersion> {
+  const result = await proxyRequest<ApiResponse<DomainPolicyVersion>>('/api/ai/domain-policy/publish', {
+    method: 'POST', body: JSON.stringify({ expectedDraftVersion, expectedPublishedVersion }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '发布工厂规则失败');
+  return result.data;
+}
+export async function getDomainPolicyVersions(): Promise<{ versions: DomainPolicyVersion[] }> {
+  const result = await proxyRequest<ApiResponse<{ versions: DomainPolicyVersion[] }>>('/api/ai/domain-policy/versions');
+  if (!result.success || !result.data) throw new Error(result.error || '读取工厂规则历史失败');
+  return result.data;
+}
+export type DomainPolicyDiff = { changes: Array<{ line: number; before: string; after: string }> };
+export async function getDomainPolicyDiff(from: number | 'draft', to: number | 'draft'): Promise<DomainPolicyDiff> {
+  const result = await proxyRequest<ApiResponse<DomainPolicyDiff>>(`/api/ai/domain-policy/diff?from=${encodeURIComponent(String(from))}&to=${encodeURIComponent(String(to))}`);
+  if (!result.success || !result.data) throw new Error(result.error || '读取工厂规则差异失败');
+  return result.data;
+}
+export async function rollbackDomainPolicy(versionId: number, expectedPublishedVersion: number): Promise<DomainPolicyVersion> {
+  const result = await proxyRequest<ApiResponse<DomainPolicyVersion>>('/api/ai/domain-policy/rollback', {
+    method: 'POST', body: JSON.stringify({ versionId, expectedPublishedVersion }),
+  });
+  if (!result.success || !result.data) throw new Error(result.error || '回滚工厂规则失败');
+  return result.data;
 }
 
 /**
- * NATIVE-W2：确认执行一次库存调整提案。
+ * 确认执行一次服务器签发的库存调整提案。
  * 只转发服务端签发的不透明身份；不做目标重解析、数量重算、幂等键生成或二次预览。
  * 成功只由服务端 verified 结果判定（含必要时的有界对账）。
  */
@@ -708,7 +723,6 @@ const aiEvaluationCaseVersions = new Map<number, string>();
 const aiAnswerFeedbackVersions = new Map<number, string>();
 const aiAnswerFeedbackByMessage = new Map<number, string>();
 const factoryAiRuleVersions = new Map<number, string>();
-let factoryProfileVersion: string | null = null;
 
 function conversationMessageVersionKey(conversationId: number, messageId: number) {
   return `${conversationId}:${messageId}`;

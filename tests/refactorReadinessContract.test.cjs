@@ -2276,12 +2276,12 @@ test('Next UI 契约：AI 工作台弹层独立展示且写入状态仍由专属
     assert.match(aiView, /<AnswerFeedbackDialog/);
     assert.match(aiView, /<DeleteConversationDialog/);
     assert.match(aiView, /<KnowledgeSyncDialog/);
-    assert.match(aiView, /<SystemPromptDialog/);
+    assert.match(aiView, /<DomainPolicyDialog/);
     assert.match(attachmentArchive, /await archiveFactoryFile\(/);
     assert.match(answerFeedback, /await submitAiAnswerFeedback\(/);
     assert.match(conversationHistory, /await deleteAiConversation\(/);
     assert.match(aiView, /await syncFactoryKnowledge\(/);
-    assert.match(aiView, /await updateAiSystemPrompt\(/);
+    assert.match(aiView, /await saveDomainPolicyDraft\(/);
     assert.doesNotMatch(aiView, /aria-labelledby="file-archive-title"/);
     assert.doesNotMatch(aiView, /aria-labelledby="answer-feedback-title"/);
     assert.doesNotMatch(aiView, /aria-labelledby="knowledge-sync-title"/);
@@ -2290,11 +2290,11 @@ test('Next UI 契约：AI 工作台弹层独立展示且写入状态仍由专属
     assert.match(dialogs, /export function AnswerFeedbackDialog/);
     assert.match(dialogs, /export function DeleteConversationDialog/);
     assert.match(dialogs, /export function KnowledgeSyncDialog/);
-    assert.match(dialogs, /export function SystemPromptDialog/);
+    assert.match(dialogs, /export function DomainPolicyDialog/);
     assert.match(dialogs, /from '@\/components\/ui\/dialog'/);
     assert.match(dialogPrimitive, /role="dialog"/);
     assert.match(dialogPrimitive, /openDialogStack/);
-    assert.doesNotMatch(dialogs, /archiveFactoryFile|submitAiAnswerFeedback|deleteAiConversation|syncFactoryKnowledge|updateAiSystemPrompt/);
+    assert.doesNotMatch(dialogs, /archiveFactoryFile|submitAiAnswerFeedback|deleteAiConversation|syncFactoryKnowledge|saveDomainPolicyDraft/);
     assert.doesNotMatch(dialogs, /proxyRequest|proxyFetch|fetch\(/);
 });
 

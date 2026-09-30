@@ -116,25 +116,24 @@ function insertKnowledge(db, recipeId, overrides = {}) {
     });
 }
 
-test('O4-F-A appends only migration 89 and registers the two persistent application tables', () => {
+test('schema preserves migration 89 and appends the independent domain-policy tables at migration 90', () => {
     const migration = MIGRATIONS.at(-1);
-    assert.equal(migration.version, 89);
-    assert.equal(migration.name, 'recipe_canonical_technical_storage');
-    assert.equal(migration.signature, 'recipe-functional-profile-technical-knowledge-v1');
-    assert.equal(MIGRATIONS.at(-2).version, 88);
+    assert.equal(migration.version, 90);
+    assert.equal(migration.name, 'ai_assistant_domain_policy_versions');
+    assert.equal(MIGRATIONS.at(-2).version, 89);
     assert.ok(APPLICATION_TABLES.includes('recipe_functional_technical_profiles'));
     assert.ok(APPLICATION_TABLES.includes('recipe_technical_knowledge'));
     assert.doesNotMatch(RECIPE_TECHNICAL_PROFILE_SCHEMA_SQL, /\b(?:ALTER|INSERT|UPDATE|DELETE)\b/i);
 });
 
-test('migration 89 adds empty tables only, preserves existing Recipe rows, and is idempotent', t => {
+test('migrations 89 and 90 preserve existing Recipe rows and are idempotent', t => {
     const db = createPre89Fixture(t);
     const recipesBefore = db.prepare('SELECT * FROM recipes ORDER BY id').all();
     const first = runMigrations(db, { now: NOW });
 
-    assert.deepEqual(first.appliedVersions, [89]);
-    assert.equal(first.currentVersion, 89);
-    assert.equal(db.pragma('user_version', { simple: true }), 89);
+    assert.deepEqual(first.appliedVersions, [89, 90]);
+    assert.equal(first.currentVersion, 90);
+    assert.equal(db.pragma('user_version', { simple: true }), 90);
     assert.deepEqual(db.prepare('SELECT * FROM recipes ORDER BY id').all(), recipesBefore);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_functional_technical_profiles').get().count, 0);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_technical_knowledge').get().count, 0);
@@ -143,13 +142,13 @@ test('migration 89 adds empty tables only, preserves existing Recipe rows, and i
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM recipe_technical_knowledge').get().count, 0);
 });
 
-test('a fresh database reaches version 89 with the exact one-to-one table shape, foreign keys, indexes, and no triggers', t => {
+test('a fresh database reaches version 90 while retaining the canonical technical table shape', t => {
     const db = openMemoryDatabase();
     t.after(() => db.close());
     const result = runMigrations(db, { now: NOW });
 
-    assert.equal(result.currentVersion, 89);
-    assert.equal(db.pragma('user_version', { simple: true }), 89);
+    assert.equal(result.currentVersion, 90);
+    assert.equal(db.pragma('user_version', { simple: true }), 90);
     assert.deepEqual(
         db.pragma('table_info(recipe_functional_technical_profiles)').map(column => column.name),
         PROFILE_COLUMNS
