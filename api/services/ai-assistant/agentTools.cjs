@@ -1,7 +1,7 @@
 'use strict';
 
 const { executeToolCall } = require('../../routes/ai/executor.cjs');
-const { prepareProtectedPartStockProposal } = require('./protectedPartStock.cjs');
+const { prepareProtectedWriteProposal, selectProtectedWriteTools } = require('./protectedWriteBroker.cjs');
 const { resolveAgentEntity, resolvePageContextEntity } = require('../../ontology/agentResolver.cjs');
 const {
     RESOLVE_ENTITY_TOOL,
@@ -43,6 +43,9 @@ const AGENT_TOOLS = Object.freeze([
 const PROTECTED_PROPOSAL_TOOLS = Object.freeze([
     RESOLVE_ENTITY_TOOL,
     tool('prepare_part_stock_adjustment', '为本轮唯一确认的正式零件准备库存增减的受保护预览。不会执行写入；Owner 必须在模型之外确认。partId 必须来自本轮 resolve_entity 的唯一正式结果。', { partId: { type: 'integer', minimum: 1 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['partId', 'delta']),
+    tool('prepare_coil_stock_adjustment', '为本轮唯一确认的正式线圈方案准备库存增减预览；不会执行写入。coilId 必须来自本轮 resolve_entity 的唯一正式结果。', { coilId: { type: 'integer', minimum: 1 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['coilId', 'delta']),
+    tool('prepare_recipe_update', '为本轮唯一确认的正式配方准备修改预览；只允许提供明确的新名称或新规格，确认在模型外完成。', { recipeId: { type: 'integer', minimum: 1 }, newName: { type: 'string', minLength: 1, maxLength: 120 }, newSpec: { type: 'string', maxLength: 1000 }, clearSpec: { type: 'boolean' } }, ['recipeId']),
+    tool('prepare_order_status_update', '为本轮唯一确认的正式订单准备状态修改预览；状态机由正式业务 API 校验，确认在模型外完成。', { orderId: { type: 'integer', minimum: 1 }, status: { type: 'string', enum: ['待采购', '已关闭', '已取消'] }, reason: { type: 'string', maxLength: 500 } }, ['orderId', 'status']),
 ]);
 
 function strictObject(value, fields, label) {
@@ -64,6 +67,18 @@ function boundPart(value, field, bindings) {
     const part = bindings.get(partRef);
     if (!part) throw new AgentToolError('AGENT_TOOL_IDENTITY_UNVERIFIED', `${field} 必须来自本轮唯一正式身份结果`);
     return part;
+}
+function boundEntity(value, entityType, bindings) {
+    const id = Number(value); const entity = bindings.get(`${entityType}:${id}`);
+    if (!Number.isSafeInteger(id) || id <= 0 || !entity?.verified || !entity.canonicalName) {
+        throw new AgentToolError('AGENT_TOOL_IDENTITY_UNVERIFIED', `${entityType} 必须来自本轮唯一正式 Ontology 身份结果`);
+    }
+    return { id, name: entity.canonicalName, attributes: entity.identityAttributes || {} };
+}
+function integerDelta(value) {
+    const delta = Number(value);
+    if (!Number.isSafeInteger(delta) || delta === 0) throw new AgentToolError('AGENT_TOOL_ARGS_INVALID', '调整量必须是非零整数');
+    return delta;
 }
 function safeProjection(agentToolName, result, data) {
     if (result?.success !== false) return { success: true, agentToolName, verified: result?.executionEvidence?.verified === true, data };
@@ -255,9 +270,33 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
                 return { id, model: entity.canonicalName };
             })()
             : boundPart(args.partRef, 'partRef', partBindings);
-        const prepared = await prepareProtectedPartStockProposal({ part, delta: args.delta, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
+        const prepared = await prepareProtectedWriteProposal({ toolName: 'adjust_part_stock', args: { items: [{ model: part.model, changeQty: args.delta }] }, expectedIdentity: { type: 'part', id: part.id }, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
         if (typeof context.setProtectedProposal === 'function') context.setProtectedProposal(prepared);
-        return { success: true, agentToolName: name, verified: true, data: { model: prepared.proposal.part.model, currentStock: prepared.proposal.currentStock, delta: prepared.proposal.delta, nextStock: prepared.proposal.nextStock, clampedToZero: prepared.proposal.clampedToZero, confirmationRequired: true } };
+        return { success: true, agentToolName: name, verified: true, data: { ...prepared.proposal, confirmationRequired: true } };
+    }
+    if (name === 'prepare_coil_stock_adjustment') {
+        strictObject(args, ['coilId', 'delta'], name);
+        const coil = boundEntity(args.coilId, 'coil', context.entityBindings instanceof Map ? context.entityBindings : new Map());
+        const delta = integerDelta(args.delta);
+        const attributes = coil.attributes;
+        const prepared = await prepareProtectedWriteProposal({ toolName: 'adjust_coil_stock', args: { items: [{ model: `${attributes.spec}-${attributes.sheets}`, changeQty: delta, ...(attributes.material ? { material: attributes.material } : {}), ...(attributes.slotType ? { slotType: attributes.slotType } : {}), ...(attributes.schemeCode ? { schemeCode: attributes.schemeCode } : {}) }] }, expectedIdentity: { type: 'coil', id: coil.id }, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
+        context.setProtectedProposal?.(prepared);
+        return { success: true, agentToolName: name, verified: true, data: prepared.proposal };
+    }
+    if (name === 'prepare_recipe_update') {
+        strictObject(args, ['recipeId', 'newName', 'newSpec', 'clearSpec'], name);
+        const recipe = boundEntity(args.recipeId, 'recipe', context.entityBindings instanceof Map ? context.entityBindings : new Map());
+        if (args.newName === undefined && args.newSpec === undefined && args.clearSpec !== true) throw new AgentToolError('AGENT_TOOL_ARGS_INVALID', '请提供至少一项明确的配方修改内容');
+        const prepared = await prepareProtectedWriteProposal({ toolName: 'update_recipe', args: { recipeName: recipe.name, ...(args.newName !== undefined ? { newName: requiredText(args.newName, 'newName', 120) } : {}), ...(args.newSpec !== undefined ? { newSpec: String(args.newSpec).slice(0, 1000) } : {}), ...(args.clearSpec === true ? { clearSpec: true } : {}) }, expectedIdentity: { type: 'recipe', id: recipe.id }, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
+        context.setProtectedProposal?.(prepared);
+        return { success: true, agentToolName: name, verified: true, data: prepared.proposal };
+    }
+    if (name === 'prepare_order_status_update') {
+        strictObject(args, ['orderId', 'status', 'reason'], name);
+        const order = boundEntity(args.orderId, 'order', context.entityBindings instanceof Map ? context.entityBindings : new Map());
+        const prepared = await prepareProtectedWriteProposal({ toolName: 'update_order_status', args: { orderId: order.id, status: requiredText(args.status, 'status', 20), ...(args.reason !== undefined ? { reason: String(args.reason).slice(0, 500) } : {}) }, expectedIdentity: { type: 'order', id: order.id }, confirmationSubject: context.confirmationSubject, signal: context.signal }, { executeToolCall: runFormalTool, writeAllowed: context.writeAllowed });
+        context.setProtectedProposal?.(prepared);
+        return { success: true, agentToolName: name, verified: true, data: prepared.proposal };
     }
     if (name === 'part_inventory' || name === 'preview_part_stock_change') {
         strictObject(args, name === 'part_inventory' ? ['partRef'] : ['partRef', 'delta'], name);
@@ -318,4 +357,10 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
     throw new AgentToolError('AGENT_TOOL_NOT_ALLOWED', `M2-A 不允许调用工具：${String(name || '')}`);
 }
 
-module.exports = { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, AgentToolError, bindOntologyResolution, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, normalizePartIdentity, profitabilityProjection, rawParts, readinessProjection, recipeComparisonProjection, recipeCostProjection };
+function protectedProposalTools(judge = {}) {
+    const selected = new Set(selectProtectedWriteTools(judge).map(item => item.toolName));
+    const adapterFor = { adjust_part_stock: 'prepare_part_stock_adjustment', adjust_coil_stock: 'prepare_coil_stock_adjustment', update_recipe: 'prepare_recipe_update', update_order_status: 'prepare_order_status_update' };
+    return Object.freeze(PROTECTED_PROPOSAL_TOOLS.filter(item => item.function.name === RESOLVE_ENTITY_TOOL.function.name
+        || [...selected].some(toolName => adapterFor[toolName] === item.function.name)));
+}
+module.exports = { AGENT_TOOLS, PROTECTED_PROPOSAL_TOOLS, AgentToolError, bindOntologyResolution, coilCostProjection, coilInventoryProjection, executeAgentTool, formalProfitabilityArgs, formalReadinessArgs, normalizePartIdentity, profitabilityProjection, rawParts, readinessProjection, recipeComparisonProjection, recipeCostProjection, protectedProposalTools };

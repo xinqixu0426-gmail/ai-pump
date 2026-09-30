@@ -439,7 +439,7 @@ export type AiStreamEvent =
   | { type: 'error'; message: string; code?: string };
 
 /**
- * 助理库存调整的 Task-free 结构化提案事件（唯一获批能力）。
+ * 助理受保护写的 Task-free 结构化提案事件。
  * 只承载服务端冻结的展示事实与不透明执行身份；不做任何前端计算。
  */
 export type AiAssistantWriteProposalStreamEvent = {
@@ -447,8 +447,12 @@ export type AiAssistantWriteProposalStreamEvent = {
   stage: 'AI_ASSISTANT_WRITE_PROPOSAL';
   proposal: {
     capabilityId: string;
-    item: {
-      partId: number;
+    target: { entityType?: string; displayName: string };
+    changes: Array<{ field: string; current?: unknown; proposed?: unknown; delta?: number }>;
+    currentState?: Record<string, unknown>;
+    proposedState?: Record<string, unknown>;
+    warnings?: string[];
+    item?: {
       model: string;
       currentStock: number;
       delta: number;

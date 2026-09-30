@@ -2,7 +2,7 @@
 
 const { runJudge } = require('./judge.cjs');
 const { runMainAgent } = require('./mainAgent.cjs');
-const { executeProtectedPartStockConfirmation } = require('./protectedPartStock.cjs');
+const { executeProtectedWriteConfirmation } = require('./protectedWriteBroker.cjs');
 const { getPublishedPolicySnapshot } = require('./domainPolicyStore.cjs');
 const { buildInvestigationContext } = require('./context.cjs');
 const { createFactLedger } = require('./factLedger.cjs');
@@ -124,7 +124,8 @@ async function runAiAssistant(input = {}, dependencies = {}) {
 }
 
 async function confirmAiAssistantPartStockProposal(input = {}, dependencies = {}) {
-    return executeProtectedPartStockConfirmation(input, dependencies);
+    return executeProtectedWriteConfirmation(input, dependencies);
 }
 
-module.exports = { AiAssistantRuntimeError, confirmAiAssistantPartStockProposal, runAiAssistant, terminalGoalStatuses };
+const confirmAiAssistantProtectedWriteProposal = confirmAiAssistantPartStockProposal;
+module.exports = { AiAssistantRuntimeError, confirmAiAssistantPartStockProposal, confirmAiAssistantProtectedWriteProposal, runAiAssistant, terminalGoalStatuses };

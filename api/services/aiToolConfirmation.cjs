@@ -232,6 +232,19 @@ function consumeAiToolConfirmation({
     };
 }
 
+// Deliberately returns metadata only.  The Assistant confirmation endpoint
+// uses this before consumption to admit only tokens issued by its protected
+// write broker; it never exposes frozen arguments or execution context.
+function inspectAiToolConfirmation({ confirmationToken, subject, now = Date.now() }) {
+    const entry = getBoundEntry(confirmationToken, subject, now, { allowExpiredExecuting: true });
+    return Object.freeze({
+        toolName: entry.toolName,
+        capabilityId: entry.capabilityId,
+        status: entry.status,
+        expiresAt: new Date(entry.expiresAtMs).toISOString(),
+    });
+}
+
 function beginAiToolConfirmationRevision({
     confirmationToken,
     subject,
@@ -353,5 +366,6 @@ module.exports = {
     consumeAiToolConfirmation,
     failAiToolConfirmation,
     issueAiToolConfirmation,
+    inspectAiToolConfirmation,
     resetAiToolConfirmationsForTests,
 };

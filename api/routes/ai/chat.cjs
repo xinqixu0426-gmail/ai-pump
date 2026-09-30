@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { runAiAssistant, confirmAiAssistantPartStockProposal } = require('../../services/ai-assistant/runtime.cjs');
+const { runAiAssistant, confirmAiAssistantProtectedWriteProposal } = require('../../services/ai-assistant/runtime.cjs');
 const { writeAllowed } = require('../../services/ai-assistant/policy.cjs');
 const { ownerAuth } = require('./ownerAuth.cjs');
 
@@ -24,7 +24,12 @@ function plainMessages(messages) {
 function writeSse(res, type, payload = {}) { res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`); }
 function proposalEvent(result) {
     const proposal = result.proposal;
-    return { stage: 'AI_ASSISTANT_WRITE_PROPOSAL', proposal: { capabilityId: 'inventory.parts.batch_adjust_stock', item: { partId: proposal.part.id, model: proposal.part.model, currentStock: proposal.currentStock, delta: proposal.delta, nextStock: proposal.nextStock, clampedToZero: proposal.clampedToZero } }, confirmation: { confirmationToken: result.confirmation.confirmationToken, expiresAt: result.confirmation.expiresAt } };
+    return { stage: 'AI_ASSISTANT_WRITE_PROPOSAL', proposal: {
+        capabilityId: proposal.capabilityId, target: proposal.target, changes: proposal.changes,
+        currentState: proposal.currentState, proposedState: proposal.proposedState,
+        warnings: proposal.warnings, confirmationRequired: proposal.confirmationRequired,
+        ...(proposal.item ? { item: proposal.item } : {}),
+    }, confirmation: { confirmationToken: result.confirmation.confirmationToken, expiresAt: result.confirmation.expiresAt } };
 }
 function resolveWriteAllowed(options = {}) {
     if (typeof options.writeAllowed === 'function') return options.writeAllowed(options.env || process.env) === true;
@@ -49,8 +54,11 @@ async function handleWriteConfirm(req, res, options = {}) {
     if (!confirmationToken || Object.keys(req.body || {}).some(key => key !== 'confirmationToken')) return res.status(400).json({ success: false, code: 'AI_ASSISTANT_CONFIRMATION_TOKEN_REQUIRED', error: '确认请求只接受确认凭证。' });
     if (!resolveWriteAllowed(options)) return res.status(403).json({ success: false, code: 'AI_ASSISTANT_WRITE_DISABLED', error: 'AI 写入当前未开放，本次没有执行任何修改。' });
     try {
-        const data = await (options.confirmAiAssistantPartStockProposal || confirmAiAssistantPartStockProposal)({ confirmationToken, confirmationSubject: req.aiAssistantOwner.sub }, { writeAllowed: true, executeToolCall: options.executeToolCall, executeConfirmedAiTool: options.executeConfirmedAiTool });
-        const item = data.receipt.readback[0]; return res.json({ success: true, data: { outcome: { verified: true, partId: item.id, model: item.model, stock: item.stock } } });
+        const confirm = options.confirmAiAssistantProtectedWriteProposal
+            || options.confirmAiAssistantPartStockProposal
+            || confirmAiAssistantProtectedWriteProposal;
+        const data = await confirm({ confirmationToken, confirmationSubject: req.aiAssistantOwner.sub }, { writeAllowed: true, executeToolCall: options.executeToolCall, executeConfirmedAiTool: options.executeConfirmedAiTool, inspectAiToolConfirmation: options.inspectAiToolConfirmation });
+        return res.json({ success: true, data: { outcome: data.outcome } });
     } catch (error) { return res.status(error.statusCode || (error.code === 'UNKNOWN_EFFECT' ? 409 : 400)).json({ success: false, code: error.code || 'AI_ASSISTANT_CONFIRMATION_FAILED', error: error.message, manualReviewRequired: error.manualReviewRequired === true }); }
 }
 router.post('/api/ai/chat', ownerAuth, handleAiChat);

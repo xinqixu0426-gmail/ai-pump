@@ -25,13 +25,18 @@ function expectedGoalIndexes(judge = {}) {
     return questions.map((_, index) => index);
 }
 
-function validateAnswer(content, { ledger, judge = {}, mode = 'READ' } = {}) {
+function validateAnswer(content, { ledger, judge = {}, mode = 'READ', proposalOnly = false } = {}) {
     const parsed = parseEnvelope(content);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return validationFailure('ANSWER_ENVELOPE_INVALID');
     const answer = typeof parsed.answer === 'string' ? parsed.answer.trim() : '';
     const claims = Array.isArray(parsed.claims) ? parsed.claims : null;
     const goals = Array.isArray(parsed.goals) ? parsed.goals : null;
     if (!answer || !claims || !goals) return validationFailure('ANSWER_ENVELOPE_INVALID');
+    // A preflight is intentionally not a successful business write.  Keep
+    // this narrow semantic guard at the final-answer boundary so a model
+    // cannot turn a proposal into an execution claim.
+    if (proposalOnly && /(?:已经|已)(?:修改|保存|执行|完成)(?:成功)?/.test(answer)
+        && !/(?:等待|仍需|请).{0,12}确认/.test(answer)) return validationFailure('PROPOSAL_SUCCESS_CLAIM');
     const facts = Array.isArray(ledger?.facts) ? ledger.facts : [];
     const verified = new Map(facts.filter(fact => fact?.verified === true).map(fact => [fact.factId, fact]));
     for (const claim of claims) {

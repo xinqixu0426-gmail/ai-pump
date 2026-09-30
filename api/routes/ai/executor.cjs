@@ -7,7 +7,7 @@ const {
 } = require('./internalApiClient.cjs');
 const { executeCostTool } = require('./executors/costExecutors.cjs');
 const { executeQueryTool } = require('./executors/queryExecutors.cjs');
-const { executeOrderTool } = require('./executors/orderExecutors.cjs');
+const { executeOrderTool, prepareOrderStatusUpdate } = require('./executors/orderExecutors.cjs');
 const {
     executeRecipeTool,
     prepareRecipeDelete,
@@ -32,6 +32,7 @@ const {
     validateAiToolArgs,
 } = require('../../services/aiToolInputValidator.cjs');
 const { withToolSpan } = require('../../services/observability.cjs');
+const trustedConfirmationContexts = new WeakMap();
 
 const TOOL_EXECUTORS = Object.freeze({
     cost: executeCostTool,
@@ -49,6 +50,7 @@ const WRITE_PREFLIGHTS = Object.freeze({
     delete_part: preparePartDelete,
     delete_recipe: prepareRecipeDelete,
     update_recipe: prepareRecipeUpdate,
+    update_order_status: prepareOrderStatusUpdate,
 });
 
 function attachReadProvenance(capability, result) {
@@ -298,31 +300,29 @@ function buildWriteConfirmation(toolName, args, options = {}) {
         subject: options.confirmationSubject || 'internal:executor',
         executionContext: options.executionContext,
     });
+    const confirmation = {
+        capabilityId: capability?.capabilityId || null,
+        riskLevel: capability?.riskLevel || 'high',
+        confirmationToken: token.confirmationToken,
+        operationId: token.operationId,
+        argsHash: token.argsHash,
+        resourceVersion: token.resourceVersion,
+        expiresAt: token.expiresAt,
+        toolName,
+        args: args || {},
+        editableFields: buildConfirmationEditableFields(toolName, args || {}),
+        title,
+        rows,
+        summary: `AI 准备执行「${title}」，确认后才会执行受保护业务动作。`,
+        warning: '请核对内容无误后再确认。确认后可能写入业务数据或产生设备、文件等外部副作用。',
+        proposal: options.proposal || null,
+        idempotencyKey: options.executionContext?.idempotencyKey || null,
+    };
+    trustedConfirmationContexts.set(confirmation, options.executionContext || null);
     return {
         success: true,
         requiresConfirmation: true,
-        confirmation: {
-            capabilityId: capability?.capabilityId || null,
-            riskLevel: capability?.riskLevel || 'high',
-            confirmationToken: token.confirmationToken,
-            operationId: token.operationId,
-            argsHash: token.argsHash,
-            resourceVersion: token.resourceVersion,
-            expiresAt: token.expiresAt,
-            toolName,
-            args: args || {},
-            editableFields: buildConfirmationEditableFields(toolName, args || {}),
-            title,
-            rows,
-            summary: `AI 准备执行「${title}」，确认后才会执行受保护业务动作。`,
-            warning: '请核对内容无误后再确认。确认后可能写入业务数据或产生设备、文件等外部副作用。',
-            // 正式预览回执里的结构化提案事实（零件身份/当前库存/调整量/调整后库存），
-            // 由 executor 从未经修改的 prepared 结果原样带出，调用方不能改写它。
-            proposal: options.proposal || null,
-            // 正式预览签发的稳定幂等键（非凭据，仅用于去重与对账），
-            // 上层必须在执行前把它持久化，并在重试/对账时复用同一个值。
-            idempotencyKey: options.executionContext?.idempotencyKey || null,
-        },
+        confirmation,
     };
 }
 
@@ -464,4 +464,7 @@ async function executeToolCall(toolName, args, options = {}) {
     }, () => executeToolCallImplementation(toolName, args, options));
 }
 
-module.exports = { executeToolCall, buildWriteConfirmation };
+function getWriteConfirmationExecutionContext(confirmation) {
+    return trustedConfirmationContexts.get(confirmation) || null;
+}
+module.exports = { executeToolCall, buildWriteConfirmation, getWriteConfirmationExecutionContext };

@@ -1,5 +1,4 @@
 export type AiAssistantWriteProposalItem = {
-  partId: number;
   model: string;
   currentStock: number;
   delta: number;
@@ -12,7 +11,12 @@ export type AiAssistantWriteProposalEvent = {
   stage: 'AI_ASSISTANT_WRITE_PROPOSAL';
   proposal: {
     capabilityId: string;
-    item: AiAssistantWriteProposalItem;
+    target: { entityType?: string; displayName: string };
+    changes: Array<{ field: string; current?: unknown; proposed?: unknown; delta?: number }>;
+    currentState?: Record<string, unknown>;
+    proposedState?: Record<string, unknown>;
+    warnings?: string[];
+    item?: AiAssistantWriteProposalItem;
   };
   confirmation: {
     confirmationToken: string;
@@ -21,7 +25,7 @@ export type AiAssistantWriteProposalEvent = {
 };
 
 export type AiAssistantWriteOutcome =
-  | { verified: true; partId?: number; model?: string; stock: number; summary?: string }
+  | { verified: true; model?: string; stock?: number; target?: { displayName?: string }; state?: { stock?: number }; summary?: string }
   | { verified: false; code?: string | null; reconfirmRequired?: boolean; manualReviewRequired?: boolean; summary?: string };
 
 export type AiAssistantWriteCardStatus =
@@ -43,8 +47,8 @@ export type AiAssistantWriteSuccess = {
   title: string;
   partLabel: string;
   before: number | null;
-  after: number;
-  verifiedStock: number;
+  after: number | null;
+  verifiedStock: number | null;
   rows: Array<{ key: string; label: string; value: string }>;
 };
 

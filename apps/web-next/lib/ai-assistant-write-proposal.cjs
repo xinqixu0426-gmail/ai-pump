@@ -15,8 +15,8 @@
  * 逻辑写成 CommonJS，便于根测试栈（node --test）直接覆盖；组件只做渲染。
  */
 
-const WRITE_PROPOSAL_TOOL = 'adjust_part_stock';
-const WRITE_PROPOSAL_CAPABILITY = 'inventory.parts.batch_adjust_stock';
+const WRITE_PROPOSAL_TOOL = 'protected_write';
+const WRITE_PROPOSAL_CAPABILITY = null;
 const WRITE_PROPOSAL_STAGE = 'AI_ASSISTANT_WRITE_PROPOSAL';
 
 /** 卡片状态。执行中/核对中是活动态；其余为终态或不可执行态。 */
@@ -86,8 +86,10 @@ function isAiAssistantWriteProposalEvent(event) {
         && event.type === 'write_proposal'
         && event.stage === WRITE_PROPOSAL_STAGE
         && isPlainObject(event.proposal)
-        && event.proposal.capabilityId === WRITE_PROPOSAL_CAPABILITY
-        && isAiAssistantWriteProposalItem(event.proposal.item)
+        && typeof event.proposal.capabilityId === 'string' && event.proposal.capabilityId.length > 0
+        && isPlainObject(event.proposal.target) && typeof event.proposal.target.displayName === 'string'
+        && Array.isArray(event.proposal.changes)
+        && (event.proposal.item === undefined || isAiAssistantWriteProposalItem(event.proposal.item))
         && Boolean(event.confirmation?.confirmationToken)
         && (event.confirmation.expiresAt === undefined || typeof event.confirmation.expiresAt === 'string');
 }
@@ -95,7 +97,6 @@ function isAiAssistantWriteProposalEvent(event) {
 /** 提案实体校验：只接受服务端完整给出的展示事实。 */
 function isAiAssistantWriteProposalItem(item) {
     return isPlainObject(item)
-        && isFiniteInteger(item.partId) && item.partId > 0
         && typeof item.model === 'string' && item.model.trim().length > 0
         && isFiniteInteger(item.currentStock)
         && isFiniteInteger(item.delta) && item.delta !== 0
@@ -125,25 +126,30 @@ function directionLabel(direction) {
  */
 function toProposalCardModel(event) {
     if (!isAiAssistantWriteProposalEvent(event)) return null;
-    const item = event.proposal.item;
-    if (!isAiAssistantWriteProposalItem(item)) return null;
-    const direction = deltaDirection(item.delta);
+    const item = event.proposal.item || null;
+    const stockItem = item && isAiAssistantWriteProposalItem(item) ? item : null;
+    const first = Array.isArray(event.proposal.changes) ? event.proposal.changes[0] : null;
+    const delta = stockItem ? stockItem.delta : (isFiniteInteger(first?.delta) ? first.delta : 0);
+    const direction = deltaDirection(delta);
+    const rows = stockItem
+        ? [
+            Object.freeze({ key: 'current', label: '当前库存', value: String(stockItem.currentStock) }),
+            Object.freeze({ key: 'delta', label: '本次调整', value: formatDelta(stockItem.delta) }),
+            Object.freeze({ key: 'next', label: '调整后库存', value: String(stockItem.nextStock) }),
+        ]
+        : (event.proposal.changes || []).slice(0, 8).map((change, index) => Object.freeze({ key: `change-${index}`, label: String(change?.field || '修改项'), value: `${change?.current ?? '当前值'} → ${change?.proposed ?? '修改后值'}` }));
     return Object.freeze({
-        title: '库存调整确认',
-        partLabel: item.model,
-        partId: item.partId,
-        rows: Object.freeze([
-            Object.freeze({ key: 'current', label: '当前库存', value: String(item.currentStock) }),
-            Object.freeze({ key: 'delta', label: '本次调整', value: formatDelta(item.delta) }),
-            Object.freeze({ key: 'next', label: '调整后库存', value: String(item.nextStock) }),
-        ]),
+        title: stockItem ? '库存调整确认' : '正式修改确认',
+        partLabel: event.proposal.target.displayName,
+        partId: null,
+        rows: Object.freeze(rows),
         direction,
         directionLabel: directionLabel(direction),
-        currentStock: item.currentStock,
-        delta: item.delta,
-        nextStock: item.nextStock,
+        currentStock: stockItem?.currentStock ?? null,
+        delta,
+        nextStock: stockItem?.nextStock ?? null,
         // §6：只使用服务端给出的确定性事实，不在前端判断是否发生截断。
-        notice: item.clampedToZero === true ? CLAMPED_NOTICE : '',
+        notice: stockItem?.clampedToZero === true ? CLAMPED_NOTICE : '',
         confirmLabel: '确认执行',
         cancelLabel: '取消',
     });
@@ -192,25 +198,26 @@ function failureFromOutcome(outcome) {
  * 绝不用提案的 nextStock 冒充。
  */
 function successModelFromOutcome(outcome, proposal) {
-    if (!isPlainObject(outcome) || outcome.verified !== true || !isFiniteInteger(outcome.stock)) return null;
+    if (!isPlainObject(outcome) || outcome.verified !== true) return null;
     const item = isPlainObject(proposal) ? proposal.item : null;
-    const partLabel = typeof outcome.model === 'string' && outcome.model.trim()
-        ? outcome.model.trim()
-        : (item?.model || '');
+    const stock = Number(outcome?.state?.stock ?? outcome.stock);
+    const partLabel = String(outcome?.target?.displayName || outcome.model || item?.model || '').trim();
+    if (!partLabel) return null;
+    const hasStock = Number.isSafeInteger(stock);
     return Object.freeze({
-        title: '库存调整完成',
+        title: item ? '库存调整完成' : '正式修改完成',
         partLabel,
         before: item && isFiniteInteger(item.currentStock) ? item.currentStock : null,
-        after: outcome.stock,
-        verifiedStock: outcome.stock,
+        after: hasStock ? stock : null,
+        verifiedStock: hasStock ? stock : null,
         rows: Object.freeze([
             Object.freeze({ key: 'part', label: '零件', value: partLabel }),
             Object.freeze({
                 key: 'change',
                 label: '库存',
-                value: item && isFiniteInteger(item.currentStock) ? `${item.currentStock} → ${outcome.stock}` : `已核实 ${outcome.stock}`,
+                value: hasStock && item && isFiniteInteger(item.currentStock) ? `${item.currentStock} → ${stock}` : '已通过正式回读核实',
             }),
-            Object.freeze({ key: 'verified', label: '已核实当前库存', value: String(outcome.stock) }),
+            Object.freeze({ key: 'verified', label: hasStock ? '已核实当前库存' : '正式回读', value: hasStock ? String(stock) : '已核实' }),
         ]),
     });
 }

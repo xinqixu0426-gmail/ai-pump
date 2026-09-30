@@ -138,6 +138,47 @@ async function resolveOrderTarget(internalFetch, args = {}) {
     return { orderId: Number(partial[0].id) };
 }
 
+// This is a formal-command adapter, not a second order workflow.  It freezes
+// the existing status-draft response so the later confirmation cannot ask the
+// model to recreate or reinterpret a status transition.
+async function prepareOrderStatusUpdate(args = {}, dependencies = {}) {
+    const { internalFetch, postJson: writeJson = postJson } = dependencies;
+    const orderId = Number.parseInt(args.orderId, 10);
+    const status = String(args.status || '').trim();
+    const validStatuses = ['待采购', '已关闭', '已取消'];
+    if (!Number.isSafeInteger(orderId) || orderId <= 0 || !validStatuses.includes(status)) {
+        const error = new Error('订单状态或正式订单身份无效'); error.code = 'order_status_input_invalid'; throw error;
+    }
+    const order = await loadOrder(internalFetch, orderId);
+    if (!order) { const error = new Error('找不到正式订单'); error.code = 'order_status_not_found'; throw error; }
+    const draft = await writeJson(internalFetch, `/api/orders/${orderId}/status-draft`, {
+        status,
+        reason: args.reason,
+        inventoryDisposition: args.inventoryDisposition,
+        inventoryDispositionNote: args.inventoryDispositionNote,
+    }, '订单状态预览生成失败');
+    if (!draft?.expectedUpdatedAt || !draft?.previewHash) {
+        const error = new Error('正式订单状态预览缺少版本保护'); error.code = 'order_status_preview_incomplete'; throw error;
+    }
+    return {
+        args: { orderId, status, ...(args.reason ? { reason: String(args.reason) } : {}),
+            ...(args.inventoryDisposition ? { inventoryDisposition: args.inventoryDisposition } : {}),
+            ...(args.inventoryDispositionNote ? { inventoryDispositionNote: String(args.inventoryDispositionNote) } : {}) },
+        confirmationRows: [
+            { label: '订单', value: String(order.contractNo || order.customerName || '正式订单') },
+            { label: '当前状态', value: String(order.status || '待确认') },
+            { label: '修改为', value: status },
+        ],
+        executionContext: {
+            kind: 'order_status_preview', orderId, orderName: String(order.contractNo || order.customerName || '正式订单'),
+            oldStatus: String(order.status || '待确认'), status, expectedUpdatedAt: draft.expectedUpdatedAt,
+            previewHash: draft.previewHash,
+            reason: args.reason || null, inventoryDisposition: args.inventoryDisposition || null,
+            inventoryDispositionNote: args.inventoryDispositionNote || null, warnings: Array.isArray(draft.warnings) ? draft.warnings : [],
+        },
+    };
+}
+
 async function saveExistingOrder(internalFetch, order, items, options = {}) {
     const payload = await buildOrderSavePayload(internalFetch, {
         orderId: order.id ?? order.Id,
@@ -156,7 +197,7 @@ async function saveExistingOrder(internalFetch, order, items, options = {}) {
     }, '订单保存失败');
 }
 
-async function executeOrderTool(toolName, args, internalFetch) {
+async function executeOrderTool(toolName, args, internalFetch, options = {}) {
     switch (toolName) {
         case 'get_purchase_overview': {
             const query = new URLSearchParams();
@@ -270,7 +311,7 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     }
                 };
             } catch (error) {
-                return { success: false, error: error.message };
+                return { success: false, code: error.code || 'order_status_update_failed', statusCode: error.statusCode || null, error: error.message };
             }
         }
 
@@ -456,18 +497,12 @@ async function executeOrderTool(toolName, args, internalFetch) {
             if (!row) return { success: false, error: '找不到订单ID: ' + orderId };
             const oldStatus = row.status || '待确认';
             try {
-                const draft = await postJson(
-                    internalFetch,
-                    `/api/orders/${row.id ?? row.Id}/status-draft`,
-                    {
-                        status,
-                        reason,
-                        inventoryDisposition,
-                        inventoryDispositionNote,
-                    },
-                    '订单状态预览生成失败'
-                );
-                await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, {
+                const draft = options.confirmationContext?.kind === 'order_status_preview'
+                    ? { expectedUpdatedAt: options.confirmationContext.expectedUpdatedAt, previewHash: options.confirmationContext.previewHash }
+                    : await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status-draft`, {
+                        status, reason, inventoryDisposition, inventoryDispositionNote,
+                    }, '订单状态预览生成失败');
+                const saved = await postJson(internalFetch, `/api/orders/${row.id ?? row.Id}/status`, {
                     status,
                     reason,
                     inventoryDisposition,
@@ -475,7 +510,13 @@ async function executeOrderTool(toolName, args, internalFetch) {
                     expectedUpdatedAt: draft.expectedUpdatedAt,
                     previewHash: draft.previewHash,
                 }, '订单状态更新失败');
-                return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status, customerName: row.customerName };
+                const readback = await loadOrder(internalFetch, orderId);
+                if (!readback || String(readback.status || '') !== status) {
+                    const error = new Error('订单状态修改后回读不一致'); error.code = 'order_status_readback_mismatch'; throw error;
+                }
+                return { success: true, message: `订单${orderId}状态已更新`, orderId, oldStatus, newStatus: status,
+                    customerName: row.customerName, readback, operationId: saved.operationId, auditId: saved.auditId || null,
+                    auditIds: saved.auditIds || [], status: saved.status || 'completed', changes: saved.changes || [], warnings: saved.warnings || [] };
             } catch (error) {
                 return { success: false, error: error.message };
             }
@@ -606,4 +647,4 @@ async function executeOrderTool(toolName, args, internalFetch) {
     }
 }
 
-module.exports = { executeOrderTool };
+module.exports = { executeOrderTool, prepareOrderStatusUpdate };

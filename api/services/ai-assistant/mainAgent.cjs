@@ -3,7 +3,7 @@
 const { fetchAiProvider, decodeAiProviderResponse } = require('../aiProvider.cjs');
 const { resolveProviderConfig } = require('../aiProviderRegistry.cjs');
 const { withAgentSpan, withModelSpan } = require('../observability.cjs');
-const { PROTECTED_PROPOSAL_TOOLS, executeAgentTool } = require('./agentTools.cjs');
+const { protectedProposalTools, executeAgentTool } = require('./agentTools.cjs');
 const { renderInvestigationContext } = require('./context.cjs');
 const { selectCapabilities } = require('./capabilityBroker.cjs');
 const { createFactLedger, modelProjection } = require('./factLedger.cjs');
@@ -38,7 +38,7 @@ function mainAgentSystemPrompt(domainPolicy, mode = 'READ_ONLY', policyVersion =
         '会话中的历史提及只是语言上下文；新一轮使用具体 ID 前，先用本轮正式身份工具重新查询和绑定。',
         '每个工具结果会附带 factRefs，它们是本轮唯一可引用的正式事实编号。最终回答必须只输出 JSON：{"answer":"给 Owner 的自然中文回答","claims":[{"text":"answer 中逐字出现的业务断言","factIds":["F-001"]}],"goals":[{"questionIndex":0,"status":"COMPLETED|PARTIAL|UNAVAILABLE|CLARIFICATION","factIds":["F-001"]}]}。每个 Judge 问题都必须有一项 goals；业务结论、金额、库存、数量、状态、身份、不存在和多方案结论必须由 factIds 支持。不要在 answer 中写 factRefs、内部 ID、令牌或 JSON 细节。若正式工具失败或事实不足，使用 PARTIAL/UNAVAILABLE/CLARIFICATION，且不要补算或猜测金额。',
         protectedProposal
-            ? '本轮只能准备一项库存调整的受保护提案。必须先用 resolve_entity 唯一确认 part 身份，再调用 prepare_part_stock_adjustment。后者只预览；不得执行写入、不得展示确认令牌。canonicalId 仅是工具参数，绝不能在自然语言答复中提及。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
+            ? '本轮只能准备一项已暴露正式能力的受保护修改提案。先用 resolve_entity 唯一确认对应实体，再调用匹配的 prepare_* 工具。后者只预览；不得执行写入、不得展示确认令牌或内部 ID。得到提案后立刻停止工具调用，并自然说明 Owner 仍需在模型之外确认。'
             : '本轮没有写工具。先用 resolve_entity 获得唯一正式身份；当前页面指代可用 resolve_page_context_entity 作正式验证。再把工具结果中的 canonicalId 用于要求实体身份的能力。不得猜测 ID；AMBIGUOUS、NOT_FOUND 或 INCOMPLETE 都不能自行选择。不要保存、创建提案或确认卡。不要输出内部术语、工具 JSON、HTTP/API 细节或计算过程。',
         '',
         `本轮固定的已发布工厂规则版本：${policyVersion}。`,
@@ -115,7 +115,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
     const runTool = dependencies.executeAgentTool || executeAgentTool;
     const proposalMode = input.mode === 'PROTECTED_PROPOSAL';
     const broker = proposalMode ? null : (dependencies.selectCapabilities || selectCapabilities)({ judge, resolvedEntities: input.resolvedEntities });
-    const exposedTools = proposalMode ? PROTECTED_PROPOSAL_TOOLS : broker.tools;
+    const exposedTools = proposalMode ? protectedProposalTools(judge) : broker.tools;
     const startedAt = Date.now();
     const timeoutMs = runtimeLimit(input);
     const messages = [
@@ -169,7 +169,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
                     throw new MainAgentError('MAIN_AGENT_FORMAL_TOOL_REQUIRED', 'Main Agent 未取得正式工具结果');
                 }
                 if (proposalMode && !protectedProposal) throw new MainAgentError('MAIN_AGENT_PROPOSAL_REQUIRED', '受保护写请求必须先形成正式提案。');
-                const answerValidation = (dependencies.validateAnswer || validateAnswer)(rawAnswer, { ledger: ledgerSnapshot, judge, mode: judge.mode });
+                const answerValidation = (dependencies.validateAnswer || validateAnswer)(rawAnswer, { ledger: ledgerSnapshot, judge, mode: judge.mode, proposalOnly: proposalMode });
                 return { answer: answerValidation.answer, toolResults, factLedger: ledgerSnapshot, answerValidation, goalStatuses: answerValidation.goals || validationFailureGoals(judge), protectedProposal, modelCalls: modelCalls + 1, durationMs: Date.now() - startedAt, broker };
             }
             if (toolResults.length + calls.length > MAX_TOOL_CALLS) {

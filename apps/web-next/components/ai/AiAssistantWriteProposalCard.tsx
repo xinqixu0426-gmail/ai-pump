@@ -90,9 +90,9 @@ export function AiAssistantWriteProposalCard({
           <div className={`mt-0.5 text-sm ${inactive ? 'text-muted' : 'text-ink'}`}>{model.partLabel}</div>
 
           <div className="mt-2">
-            <Row label="当前库存" value={model.rows[0].value} />
-            <Row label="本次调整" value={`${model.rows[1].value}（${model.directionLabel}）`} emphasis />
-            <Row label="调整后库存" value={model.rows[2].value} />
+            {model.rows.map((row: { key: string; label: string; value: string }, index: number) => (
+              <Row key={row.key} label={row.label} value={index === 1 && model.direction !== 'none' ? `${row.value}（${model.directionLabel}）` : row.value} emphasis={index === 1 && model.direction !== 'none'} />
+            ))}
           </div>
 
           {/* 关键安全提示：文字表达，不依赖颜色。 */}

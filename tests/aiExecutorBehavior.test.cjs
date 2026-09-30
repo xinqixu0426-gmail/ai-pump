@@ -2183,13 +2183,15 @@ test('AI executor 行为：线圈库存未确认时先正式预览再显示标�
 });
 
 test('AI executor 行为：确认后按俗称片数匹配正式方案并原子批量调整', async () => {
+    let coilReads = 0;
     const calls = installFetchStub((call) => {
         if (call.url.endsWith('/api/coils') && call.method === 'GET') {
+            coilReads += 1;
             return jsonResponse({
                 success: true,
                 data: [
-                    { id: 21, commonName: '12', spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 3 },
-                    { id: 22, commonName: '12', spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: 7 },
+                    { id: 21, commonName: '12', spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: coilReads === 1 ? 3 : 53 },
+                    { id: 22, commonName: '12', spec: '12', sheets: 140, material: '钢带', slotType: '小眼', schemeStatus: 'official', stock: coilReads === 1 ? 7 : 57 },
                     { id: 23, commonName: '12', spec: '12', sheets: 120, material: '冷轧', slotType: '国标眼', schemeStatus: 'testing', stock: 0 },
                 ],
             });
@@ -2242,6 +2244,7 @@ test('AI executor 行为：确认后按俗称片数匹配正式方案并原子�
         'GET /api/coils',
         'POST /api/coils/stock-adjustments-preview',
         'POST /api/coils/stock-adjustments',
+        'GET /api/coils',
     ]);
     assert.equal(calls.some(call => call.url.includes('/api/parts')), false);
 });

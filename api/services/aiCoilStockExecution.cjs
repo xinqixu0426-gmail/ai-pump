@@ -124,6 +124,20 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
         item.coil?.id ?? item.coil?.Id,
         item,
     ]));
+    // A command receipt alone is not sufficient for an assistant success
+    // claim.  Re-read through the formal coil API and require its balances to
+    // match the command result before exposing a completed protected write.
+    const currentCoils = await getJson(internalFetch, '/api/coils', '线圈库存调整后回读失败');
+    const currentById = new Map((currentCoils || []).map(item => [Number(item.id ?? item.Id), item]));
+    const readback = resolved.map(item => {
+        const coil = currentById.get(Number(item.coilId));
+        const saved = savedById.get(item.coilId);
+        const expected = Number(saved?.adjustment?.balanceAfter ?? item.previousStock + item.changeQty);
+        if (!coil || Number(coil.stock) !== expected) {
+            const error = new Error('线圈库存调整后回读不一致'); error.code = 'coil_stock_readback_mismatch'; throw error;
+        }
+        return { model: item.model, schemeCode: item.schemeCode || null, stock: Number(coil.stock) };
+    });
     return {
         success: true,
         intent: 'coil_stock_adjustment',
@@ -141,6 +155,7 @@ async function executeCoilStockAdjustment(args = {}, dependencies = {}) {
                 newStock: saved?.adjustment?.balanceAfter ?? item.previousStock + item.changeQty,
             };
         }),
+        readback,
     };
 }
 
