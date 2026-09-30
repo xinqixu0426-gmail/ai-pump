@@ -41,6 +41,18 @@ Recipe 是可保存、可复用的 OEM 水泵生产配置基础，不是绝对�
 
 Recipe 是报价、客户配置和生产配置的基础。同一个 Recipe 基础仍然可以按客户要求调整。它承载的是一套可以保存和复用的配置起点，而不是承诺该名称所代表的所有订单、客户和包装永远相同。
 
+### Recipe Configurable Cost Drivers
+
+Recipe 有一组会因客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的配置维度。它们是 Recipe 可配置成本项，不应一概视为普通 Part：
+
+- **Coil configuration**：Coil Scheme、线圈片数及相关线圈配置；
+- **Barrel configuration**：机筒长度；长度变化可能影响不锈钢机筒用量、长螺丝长度和相关结构成本；
+- **Cable configuration**：是否带电缆、电缆长度、规格和配件形式；
+- **Float configuration**：是否带浮球，以及浮球规格或配套形式；
+- **Packing configuration**：纸箱、木箱、珍珠棉、泡沫及其它包装物料；
+- **Surface treatment**：无表面处理、喷漆、电泳、喷粉及其它允许工艺；它属于可配置工艺成本项，不一定表现为普通 BOM Part；
+- **Rotor process**：例如不锈钢接轴。默认转子可使用 45# 钢材方案；客户指定不锈钢接轴时，改变的是制造工艺／成本项，会影响制造方式、成本和报价，而不是普通库存 Part replacement。
+
 ### BOM
 
 Template、Recipe 与 BOM 是三个不同概念：
@@ -49,7 +61,7 @@ Template、Recipe 与 BOM 是三个不同概念：
 - Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；
 - BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成。
 
-因此 Template 只是 BOM 的一个输入来源，Recipe 是配置基础，BOM 才是最终展开结果。讨论“某配方用了什么”是在讨论该 Recipe 当前配置展开后的 BOM；讨论“模板固定了什么”则是在讨论固定结构蓝图，两者不能互换。
+因此 Template 只是 BOM 的一个输入来源，Recipe 是配置基础，BOM 才是最终展开结果。最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项；工艺成本不等于普通目录 Part。讨论“某配方用了什么”是在讨论该 Recipe 当前配置展开后的 BOM；讨论“模板固定了什么”则是在讨论固定结构蓝图，两者不能互换。
 
 ## 3. V 系列与 OEM 配置
 
@@ -59,11 +71,11 @@ V550、V750、V110 属于工厂内部 Recipe／产品规格代号体系。以 V7
 
 工厂主要从事外贸 OEM。同一基础 Recipe 可以依客户要求调整线圈片数、电缆、包装、机筒长度、转子工艺和其它配置；本 V1 不建立固定 Finished Pump 主数据概念，也不把 V750 当作固定成品 SKU。包装从纸箱变木箱通常描述的是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。
 
-## 4. Part 与 Process Option
+## 4. Part 与可配置工艺项
 
 Part 是正式零件目录中的物理零件对象，例如轴承、油封、螺丝、泵壳零件、电缆相关零件与包装物料。零件型号本身不天然等于唯一数据库身份。Coil Scheme 与 Process Option 都不是普通 Part。Part 描述的是可目录化、可作为物理物料管理的对象；某项变化会影响成本，并不自动说明它就是一个需要按普通零件库存处理的 Part。
 
-当前明确的 Process Option 实例是“不锈钢接轴”。默认转子使用 45# 钢材；客户要求不锈钢接轴时，这是客户定制的制造工艺选项，会影响成本和报价，但不应理解为“换了一个普通库存 Part”。
+Process Option 不是与 Recipe、BOM、Part 并列的独立核心实体，而是 Recipe Configurable Cost Driver 的一种类型。当前明确实例是“不锈钢接轴”：默认转子使用 45# 钢材；客户要求不锈钢接轴时，这是客户定制的 Rotor process configuration，会影响成本和报价，但不应理解为“换了一个普通库存 Part”。表面处理也是同一类 Recipe 可配置工艺成本项。
 
 ## 5. Examples and Counterexamples
 
