@@ -2,13 +2,13 @@
 
 const { runBusinessAgent } = require('./businessAgent.cjs');
 const { runPolicyAgent } = require('./policyAgent.cjs');
-const { runIntentAgent } = require('./intentAgent.cjs');
+const { runIntentClerk } = require('./intentAgent.cjs');
 
 function elapsed(start) { return Number(process.hrtime.bigint() - start) / 1_000_000; }
 async function runPipeline(input, dependencies = {}) {
     const businessRunner = dependencies.runBusinessAgent || runBusinessAgent;
     const policyRunner = dependencies.runPolicyAgent || runPolicyAgent;
-    const intentRunner = dependencies.runIntentAgent || runIntentAgent;
+    const intentRunner = dependencies.runIntentClerk || dependencies.runIntentAgent || runIntentClerk;
     const contextStart = process.hrtime.bigint();
     const timed = async runner => {
         const start = process.hrtime.bigint();
