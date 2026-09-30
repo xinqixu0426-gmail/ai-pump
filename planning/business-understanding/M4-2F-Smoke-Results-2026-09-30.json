@@ -1,0 +1,967 @@
+{
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "policySource": "BOOTSTRAP_PLUS_CANDIDATE",
+  "ontologyUsed": false,
+  "ontologyLlmCalls": 0,
+  "modelCalls": 87,
+  "contextProfiles": {
+    "business": {
+      "companyBusinessModelIncluded": true,
+      "domainPolicyIncluded": false,
+      "ontologyIncluded": false,
+      "toolsExposed": 0
+    },
+    "policy": {
+      "companyBusinessModelIncluded": false,
+      "domainPolicyIncluded": true,
+      "ontologyIncluded": false,
+      "toolsExposed": 0
+    },
+    "intent": {
+      "rawUserInputIncluded": true,
+      "businessMemoIncluded": true,
+      "policyMemoIncluded": true,
+      "rawCompanyBusinessModelIncluded": false,
+      "rawDomainPolicyIncluded": false,
+      "ontologyIncluded": false,
+      "toolsExposed": 0
+    }
+  },
+  "metrics": {
+    "businessMedianMs": 0,
+    "policyMedianMs": 0,
+    "parallelContextMedianMs": 0,
+    "intentMedianMs": 0,
+    "totalMedianMs": 0
+  },
+  "results": [
+    {
+      "id": "BP-01",
+      "run": 1,
+      "user": "12-120是什么？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:24:45.801Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-02",
+      "run": 1,
+      "user": "12-120多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:24:49.850Z",
+      "businessMemo": "# Relevant business concepts\n\n- `12-120` / Coil Common Designation（线圈／定子方案常用规格表达）\n- COIL / COIL SCHEME（具体线圈／绕组方案）\n- STATOR / 定子\n- 成本相关概念：Recipe Configurable Cost Drivers、BOM\n\n# Business meaning\n\n根据 Company Business Model，`12-120` 是工厂关于线圈／定子方案的**常用规格表达**，而不是唯一正式 Coil Scheme identity：\n\n- `12` 是定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 是硅钢片／线圈方案片数；\n- `120` 不是功率；\n- `120` 不是库存。\n\n同一个 `12-120` 可以存在多套正式线圈方案。因此“12-120”首先指向一个常用规格表达，而不是某一套唯一确定的正式方案。\n\n# Relevant relationships\n\n- `12-120` 与 STATOR：`12` 对应定子工厂规格俗称（标准定子直径 120 mm），但定子规格本身不等于某一套绕组方案。\n- `12-120` 与 COIL SCHEME：同一个 `12-120` 可对应多套正式线圈方案，具体正式方案与这个 common designation 不是同一个概念。\n- 与成本的关系：Business Model 说明 Recipe 的最终成本组成可包含线圈／电机相关配置等按 Recipe 配置而变的成本项；但本文件不提供成本公式，也不提供任何当前成本数值。\n\n# Unknown business terms\n\n- “12-120多少钱”中的**具体金额／成本数值**：Company Business Model 未定义，本文件不提供数据库当前事实与成本公式。\n- 该问法所指向的**具体正式 Coil Scheme**：仅凭 `12-120` 无法认定某一套唯一方案，业务模型未就此给出确定结论。",
+      "policyMemo": "# 中文 Markdown Memo\n\n## Applicable policy\n适用 RULE-03（实体提及≠数据库身份）、RULE-04（同一线圈通用代号可对应多个正式方案）、RULE-05（金额口径必须明确）。候选规则（配方可调成本驱动）不适用于本句，因其未涉及配方配置变更。\n\n## Interpretation\n“12-120”只是通用代号，可能对应多个正式线圈方案；不得视为唯一身份，也不得默认选取第一个匹配方案。用户仅问“多少钱”，未指明按哪个方案、哪种金额口径。因此不能给出单一确定金额，只能提供有界方案选择并请求澄清。\n\n## Persistence meaning\n本句为读取/查询意图，不表达任何持久化意图，不构成写入请求，无需 Owner 确认，也不得默认升级为正式变更。\n\n## Required caution\n不得静默合并多个方案的金额，不得跨方案求和，除非 Owner 明确要求聚合且有正式聚合能力支持；金额须标注口径（正式当前成本/临时试算/历史报价等），不得把历史报价当作今日成本；不得编造 ID 或选取首个部分匹配。",
+      "intent": {
+        "objectMentions": [
+          "12-120"
+        ],
+        "requestedChanges": [],
+        "requestedInformation": [
+          {
+            "value": "12-120 多少钱（具体金额）",
+            "evidence": "12-120多少钱？"
+          }
+        ],
+        "persistence": "DO_NOT_SAVE",
+        "needsClarification": true,
+        "clarificationReason": "用户仅给出“12-120”这一通用代号并只问“多少钱”，未说明所指向的具体正式线圈方案，也未说明金额口径（如正式当前成本、临时试算或历史报价），无法确定应查询或回答哪个方案、哪种金额。"
+      },
+      "timings": {
+        "businessMs": 2753.025167,
+        "policyMs": 2447.596708,
+        "parallelContextMs": 2753.029959,
+        "intentMs": 1591.687542,
+        "totalMs": 4344.717501
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPLICIT_PERSISTENCE_SIGNAL_LOST_OR_INVENTED",
+          "CLARIFICATION_BOUNDARY_WRONG"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-03",
+      "run": 1,
+      "user": "V750纸箱换成木箱差多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:24:54.195Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的 750 功率等级。\n- **纸箱 / 木箱**：属于 Packing configuration（包装配置）这一 Recipe Configurable Cost Driver。\n- **价格 / 成本**：涉及 Recipe 配置变化后的成本或报价，属于配置展开后的结果，不是本业务模型定义的当前事实。\n\n# Business meaning\n\n- **V750** 在此表示 V 系列、750 功率等级的 Recipe 配置基础。它不能被理解为一个固定、不可改变的 Finished Product 或固定成品 SKU。\n- **纸箱换成木箱**：属于 OEM 配置变化中的 Packing configuration 变化。包装物料是 Recipe 可配置成本项之一。\n- **“差多少钱”**：这一问句指向的是包装配置变化所带来的成本／报价差异。业务模型说明包装配置是 Recipe 可配置成本项，但本 V1 知识源只解释“业务概念是什么”，不提供成本公式或当前成本事实。\n\n# Relevant relationships\n\n- Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置；Packing configuration 是 Recipe 可配置成本项之一。\n- BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成；包装物料属于可目录化的物理零件对象（Part）范畴，但包装从纸箱变木箱通常描述的是 OEM 配置变化。\n- 包装从纸箱变木箱通常描述 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n- 成本差异需基于该 Recipe 当前配置展开后的 BOM 及配置结果来判断，不是本业务模型直接给出的结论。\n\n# Unknown business terms\n\n- **“差多少钱”所对应的具体成本金额、成本公式或报价结果**：Company Business Model V1 未定义，本知识源不提供数据库当前事实、成本公式或报价数据。\n- **该 V750 Recipe 当前具体使用的包装配置及其他配置细节**：业务模型未定义当前事实，需另行确认。",
+      "policyMemo": "## Applicable policy\n\n- RULE-01：临时配方/配置试算与正式配方持久化修改的区分。\n- RULE-05：金额口径必须明确标注。\n- RULE-03：`V750` 仅为实体提及，正式身份需经正式目录/接口解析。\n- 候选规则（仅语义参考，非运行权威）：配置变化 + 询问成本/差价时，优先理解为临时配置预览。\n\n## Interpretation\n\n用户表达的是配置变化（包装由纸箱改为木箱）并询问“差多少钱”，属于**成本差异试算/分析**意图。句中没有“保存、正式修改、以后就用这个、落库”等持久化表达。因此本句应理解为 **TEMPORARY CONFIGURATION PREVIEW**，而非正式配方变更；“改”这类孤立动词不足以判定为写入。\n\n## Persistence meaning\n\n- 持久化意图：**未表达**。\n- 不得将本次配置变化自行升级为正式写入，也不得默认选择保存。\n- 如后续识别出明确持久化意图（保存/正式修改/更新正式配方/写入），才转为持久化变更，并须经 Owner 对冻结提案的受保护确认后方可执行。\n\n## Required caution\n\n- `V750` 需先经正式身份解析，确认对应正式配方；歧义或无匹配应给出有界澄清或正式否定结果。\n- 成本口径须明确标注为“按木箱配置的临时试算成本/差额”，不得表述为当前正式成本。\n- 若涉及包装配置的多种正式方案，应按正式结果呈现，不得默认取第一个匹配或静默合并。\n- 在未获确认前，不得声称“已改好”或已写入正式配方。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "纸箱",
+          "木箱"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "V750的包装配置",
+            "from": "纸箱",
+            "to": "木箱",
+            "delta": "将包装由纸箱替换为木箱",
+            "evidence": "V750纸箱换成木箱"
+          }
+        ],
+        "requestedInformation": [
+          {
+            "value": "纸箱换成木箱后的成本差异金额",
+            "evidence": "差多少钱"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 3131.045709,
+        "policyMs": 2763.825541,
+        "parallelContextMs": 3131.055209,
+        "intentMs": 1432.727,
+        "totalMs": 4563.782209
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "PASS",
+        "evaluator": "PASS",
+        "overall": "PASS",
+        "deterministicFailures": [],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-04",
+      "run": 1,
+      "user": "V750如果做不锈钢接轴成本差多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:24:58.759Z",
+      "businessMemo": "# Relevant business concepts\n\n- V750\n- 不锈钢接轴\n- Rotor process\n- Recipe Configurable Cost Driver\n- Process Option\n- 成本 / 报价\n\n# Business meaning\n\n- **V750**：属于工厂内部 Recipe／产品规格代号体系。`V` 表示产品系列／型号体系，`750` 表示功率等级。V750 不能被理解为一个固定、不可改变的 Finished Product。\n- **不锈钢接轴**：在本公司业务模型中，它不是普通库存零件替换，而是客户定制的 **Rotor process configuration**，属于 Recipe 的可配置工艺成本项；默认转子可使用 45# 钢材方案。\n- 用户询问的“成本差多少”，涉及成本这一正式事实；Company Business Model 不提供成本公式、当前成本或数据库当前事实。\n\n# Relevant relationships\n\n- 不锈钢接轴属于 Recipe Configurable Cost Driver 中的 Rotor process / Process Option 类型。\n- 它会影响制造方式、成本和报价，但不应理解为“换了一个普通库存 Part”。\n- Recipe 是报价、客户配置和生产配置的基础；同一个 Recipe 基础仍可按客户要求调整。\n- 具体成本差异，需要在该 Recipe 当前配置展开后的 BOM／工艺成本层面确认。\n\n# Unknown business terms\n\n- “成本差多少”的具体数值：业务模型未定义，不猜测。\n- V750 对应的具体 Recipe、具体客户配置及当前展开成本：业务模型未定义。\n- 除“不锈钢接轴”外，用户是否还同时变更了其它配置维度：未说明，业务模型无法判断。",
+      "policyMemo": "## Applicable policy\n\n- RULE-01：临时配方/配置预览 vs 正式配方变更\n- RULE-05：金额口径必须明确\n- RULE-08：读取/试算可自由进行，持久写入走受保护确认路径\n- 候选规则（CANDIDATE）：Recipe Configurable Cost Drivers V1 —— 配置变化 + 成本询问，优先理解为临时配置预览\n\n## Interpretation\n\n- 句子表达的是 Recipe 配置变化（不锈钢接轴 / Rotor process），并同时询问“成本差多少”。\n- 结合候选规则示例，“V750 如果做不锈钢接轴，要贵多少？”属配置预览，本句语义一致。\n- 未出现保存、正式修改、更新正式配方、写入、落库等持久化表达，因此不应升级为正式写入。\n- “V750” 仅是对实体的提及，正式身份需由正式目录/API 解析，不得凭名称直接认定。\n\n## Persistence meaning\n\n- 该请求为**临时试算/分析**语义，不构成持久化变更。\n- 不改变官方存储配方；试算结果不写入正式状态。\n- 若后续要正式修改，需另行明确持久化意图，并走受保护的 Owner 确认路径。\n\n## Required caution\n\n- 金额必须标注口径为“临时试算/场景成本”，不得表述为“当前正式成本”。\n- 不得在仅规划或试算后声称“已帮你改好”。\n- 实体解析若有歧义或缺失，应做有界澄清或给出正式否定结果，不得臆造 ID 或默认选取首个匹配。\n- 若用户后续表达保存/正式修改意图，须经 Owner 确认后再执行写入。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "不锈钢接轴",
+          "成本"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "V750 的转子工艺配置",
+            "from": "默认转子配置（45# 钢材方案）",
+            "to": "不锈钢接轴方案",
+            "delta": "将 Rotor process 的接轴方案由默认 45# 钢材改为不锈钢接轴",
+            "evidence": "V750如果做不锈钢接轴"
+          }
+        ],
+        "requestedInformation": [
+          {
+            "value": "V750 采用不锈钢接轴方案与当前方案相比的成本差额",
+            "evidence": "V750如果做不锈钢接轴成本差多少？"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 2628.358875,
+        "policyMs": 2995.751792,
+        "parallelContextMs": 2995.7935,
+        "intentMs": 1451.246625,
+        "totalMs": 4447.040125
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "INVENTED_CHANGE_FROM"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": [
+          "POLICY_ID_OR_TOOL_LEAK"
+        ]
+      }
+    },
+    {
+      "id": "BP-05",
+      "run": 1,
+      "user": "V750电缆5米，木箱，先算一下，不保存。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:03.207Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-06",
+      "run": 1,
+      "user": "把V750正式配方包装改成木箱并保存。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:08.299Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项，`V` 表示产品系列／型号体系，`750` 表示功率等级。\n- **正式配方**：对应 Recipe，即可保存、可复用的 OEM 水泵生产配置基础。\n- **包装（Packing configuration）**：Recipe 的可配置成本驱动项之一。\n- **木箱**：包装配置中的一种包装物料形式。\n\n# Business meaning\n\n- V750 在本业务模型中不是一个固定、不可改变的 Finished Product，而是 Recipe／产品规格代号体系中的功率等级表达。\n- “正式配方”指 Recipe，即是可保存、可复用的 OEM 水泵生产配置起点，可包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数、机筒长度、电缆、包装、工艺选项及其它可配置项目。\n- “包装”属于 Recipe Configurable Cost Drivers 中的 **Packing configuration**，涉及纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- 因此，“把 V750 正式配方包装改成木箱”在本业务模型中是在调整该 Recipe 的包装配置维度。\n\n# Relevant relationships\n\n- Recipe 是报价、客户配置和生产配置的基础，同一 Recipe 基础仍可按客户要求调整。\n- 包装配置变化属于 OEM 配置变化；本 V1 说明包装从纸箱变木箱通常描述的是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n- 包装物料可表现为 BOM 中的物理物料；BOM 是 Recipe 当前配置正式展开后的物料／工艺组成。\n- 本业务模型未定义 Recipe 的具体保存机制、持久化方式或版本规则。\n\n# Unknown business terms\n\n- “保存”在本业务模型中没有被定义为具体业务概念或业务执行流程。\n- “正式配方”是否对应某个已被定义的正式身份（例如是否特指某一状态或某一类 Recipe），本业务模型未作进一步说明。\n- 木箱替换纸箱后的具体 BOM 展开结果、成本影响或配置明细，本业务模型未定义。\n- V750 当前是否已存在某套具体 Recipe、其当前包装配置为何，本业务模型不提供这类当前事实。",
+      "policyMemo": "# Memo\n\n## Applicable policy\nRULE-01（临时试算 vs 持久配方变更）、RULE-02（持久写入需受保护执行）、RULE-08（读宽写严）。候选规则不改变现行 Authority。\n\n## Interpretation\n用户明确表达“正式配方…改成…并保存”，属明确的持久化意图，不属临时预览。不得解读为试算或建议。\n\n## Persistence meaning\n目标为正式业务状态的持久变更，而非仅本轮回答；需经冻结提案与 Owner 确认后方可执行，推理、答复或草拟方案本身不构成授权。\n\n## Required caution\n不得默认选择、不得自行升级或合并步骤，不得声称已改好；实体需先经正式解析确认，写入须走受保护确认路径。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "正式配方",
+          "包装",
+          "木箱"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "V750正式配方包装",
+            "from": null,
+            "to": "木箱",
+            "delta": "将V750正式配方中的包装配置改为木箱",
+            "evidence": "把V750正式配方包装改成木箱"
+          }
+        ],
+        "requestedInformation": [],
+        "persistence": "SAVE",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 3168.078042,
+        "policyMs": 1892.920167,
+        "parallelContextMs": 3168.087125,
+        "intentMs": 1235.040625,
+        "totalMs": 4403.12775
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "PASS",
+        "evaluator": "PASS",
+        "overall": "PASS",
+        "deterministicFailures": [],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-07",
+      "run": 1,
+      "user": "V750包装改木箱。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:12.702Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-08",
+      "run": 1,
+      "user": "V750做电泳成本会增加多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:17.272Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-09",
+      "run": 1,
+      "user": "V750加浮球以后多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:21.746Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-10",
+      "run": 1,
+      "user": "V750线圈120片改130片要贵多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:26.825Z",
+      "businessMemo": "# 业务概念 Memo\n\n## Relevant business concepts\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项，`V` 表示产品系列／型号体系，`750` 表示功率等级。\n- **线圈片数**：Recipe 中 Coil configuration（线圈配置）相关维度之一。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，可包含或决定功率规格、Coil Scheme、线圈片数等可配置项目。\n- **Recipe Configurable Cost Drivers**：会因客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的配置维度。\n\n## Business meaning\n在本公司业务模型中，`V750` 表达的是 V 系列 750 功率等级，不能被理解为一个固定、不可改变的 Finished Product。线圈片数属于 Recipe 的 Coil configuration 维度，是 Recipe Configurable Cost Driver 之一，会因客户 OEM 要求变化而影响配置。\n\n“线圈 120 片改 130 片”在本业务语言中，首先是在描述同一 Recipe 基础上对 Coil configuration 的一项调整，而不是在描述某个固定成品 SKU 的替换。\n\n## Relevant relationships\n- Recipe 可以包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数等项目。\n- Coil configuration（含 Coil Scheme、线圈片数）属于 Recipe 可配置成本项，会进一步影响 BOM、制造工艺或成本。\n- Coil Scheme 与普通 Part 不同；线圈片数变化属于 Recipe 配置维度，而非普通物理零件替换。\n- 同一基础 Recipe 可以依客户要求调整线圈片数、电缆、包装、机筒长度、转子工艺等配置。\n\n## Unknown business terms\n- **“要贵多少”所对应的具体成本差异**：Company Business Model 未定义任何成本公式、成本数值或价格计算方式。业务模型只说明线圈片数是影响成本的 Recipe 可配置项，未定义该变化对应的具体成本金额或增减幅度。\n- **本次所指的具体正式 Coil Scheme**：业务模型说明线圈片数只是区分具体方案的属性之一，仅凭“120 片改 130 片”无法确定对应的具体正式方案；其具体方案需另行确认，业务模型未定义。",
+      "policyMemo": "# Applicable policy\n- RULE-01：临时配方/配置预览 vs 正式配方持久化变更。\n- RULE-05：金额口径必须明确标注。\n- Candidate「Recipe Configurable Cost Drivers V1」：未明确持久化意图时按临时配置预览理解，不得自动升级为正式写入。\n\n# Interpretation\n- 用户在描述 Recipe 配置变化（线圈片数由 120 改为 130），并询问“要贵多少”，属于成本差异试算，应理解为**临时配置预览/分析**。\n- 句中未出现“保存、正式修改、更新正式配方、写入、落库”等持久化表达，故持久化意图为 UNSPECIFIED，不得自行升级为正式写入。\n- 同时“V750”仅为实体提及候选，正式身份需由正式目录/API 解析确认，不得臆造或取首个部分匹配。\n\n# Persistence meaning\n- 本次应走临时试算路径，只重算该场景差异，不改变官方存储配方。\n- 若后续要正式修改并保存，必须经 Owner 对冻结提案的受保护确认后执行，Chat 回答或已备提案本身不构成写入授权。\n\n# Required caution\n- 金额必须标注为“临时试算成本差异”，不得标为当前正式成本。\n- 不得在未获确认时声称“已帮你改好”。\n- 若 V750 或该线圈方案存在多重正式口径，应先做有界澄清，不得默选或静默合并。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "线圈120片",
+          "线圈130片"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "线圈片数",
+            "from": "120片",
+            "to": "130片",
+            "delta": "增加10片",
+            "evidence": "V750线圈120片改130片"
+          }
+        ],
+        "requestedInformation": [
+          {
+            "value": "V750线圈由120片改为130片后的成本差异金额",
+            "evidence": "V750线圈120片改130片要贵多少？"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 3471.468208,
+        "policyMs": 2682.047708,
+        "parallelContextMs": 3471.479333,
+        "intentMs": 1653.816875,
+        "totalMs": 5125.296208
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "FAIL",
+        "intent": "PASS",
+        "evaluator": "PASS",
+        "overall": "FAIL",
+        "deterministicFailures": [],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": [
+          "POLICY_ID_OR_TOOL_LEAK"
+        ]
+      }
+    },
+    {
+      "id": "BP-11",
+      "run": 1,
+      "user": "V750机筒加长20mm成本差多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:31.951Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-12",
+      "run": 1,
+      "user": "模板和配方有什么区别？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:37.374Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-13",
+      "run": 1,
+      "user": "通用款模板有哪些固定件？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:41.657Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-14",
+      "run": 1,
+      "user": "查一下V750成本，还有它现在用哪个线圈。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:46.584Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**\n- **Recipe（配方）**\n- **Coil Scheme / 线圈方案**\n- **Coil configuration（Recipe 可配置成本项之一）**\n- **Recipe Configurable Cost Drivers**\n- **成本**\n\n# Business meaning\n\n- 在 Company Business Model 中，**V750 属于工厂内部 Recipe／产品规格代号体系**。其中 `V` 表示产品系列／型号体系，`750` 表示功率等级。因此 V750 不能被理解为固定、不可改变的 Finished Product，也不作为固定成品 SKU。\n- **Recipe** 是可保存、可复用的 OEM 水泵生产配置基础，是报价、客户配置和生产配置的基础；它不是绝对固定的 Finished Product。\n- **Coil configuration** 是 Recipe 的可配置成本维度之一，包含 **Coil Scheme、线圈片数及相关线圈配置**。\n- 在本业务模型里，**Coil / Coil Scheme 表示一套具体可使用的线圈／绕组方案**，它不同于定子本身，也不同于普通 Part。一个具体方案可能还以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分。\n- 关于“成本”：本 V1 业务模型仅说明 Recipe 承载可配置成本维度、Recipe 是报价基础，**不提供成本公式，也不提供任何数据库当前成本事实**。\n\n# Relevant relationships\n\n- **Recipe → Coil configuration**：Recipe 可以包含或决定 Coil Scheme、线圈片数等线圈配置；因此“V750 用哪个线圈”在业务上属于该 Recipe 当前 Coil configuration 的问题。\n- **Recipe → Template**：Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置。\n- **Recipe → BOM**：BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；Recipe 是配置基础，BOM 才是最终展开结果。\n- **Recipe → 成本**：最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置及其它依 Recipe 配置而变的成本项。成本随 Recipe 配置而变。\n- **V750 与泵壳款式**：V750 还可有通用款、豪贝款、东音款或其它泵壳款式；这些差异来自泵壳结构，而不是功率不同。因此“V750”本身不足以唯一确定某套具体配置。\n\n# Unknown business terms\n\n- **V750 当前的具体成本**：业务模型未定义具体数值，也未定义成本公式或当前事实来源，不能据此给出。\n- **V750 当前使用哪一套具体 Coil Scheme**：业务模型未定义任何具体 V750 Recipe 当前绑定的线圈方案；这需要另行确认具体 Recipe 及其当前 Coil configuration，业务模型本身不提供该事实。\n- **“V750”指哪一套具体 Recipe**：业务模型未定义 V750 唯一对应的 Recipe；同一功率等级下可能对应不同泵壳款式与不同客户配置，模型未定义唯一身份。",
+      "policyMemo": "## Applicable policy\n- RULE-01：临时配方/配置试算与正式配方写入的区分。\n- RULE-03：实体提及不等于数据库身份（`V750` 仅为候选）。\n- RULE-04：通用线圈代号可能对应多个正式方案，不得默认取第一个或跨方案合并。\n- RULE-05：货币口径必须显式标注。\n- RULE-08：只读/预览能力可自由调查，持久化写入须走保护路径。\n\n## Interpretation\n- 本条消息只有查询意图，没有任何配置覆盖（如 `cableLength`、线圈选择、包装、浮球）或场景输入（售价、产量），因此优先按**正式只读查询**理解，而非配置试算，更不涉及写入。\n- `V750` 只是名称候选，须经正式目录/配方解析确认唯一身份后，才能做配方级读取；无法唯一匹配时应做有界澄清或给出正式否定结果。\n- “现在用哪个线圈”属于按配方/方案定位的读取；若涉及通用线圈代号，须返回所选方案的基础，不能默认挑第一个方案，也不能把多方案库存/成本相加。\n\n## Persistence meaning\n- 本条不含任何持久化意图（无保存、正式修改、更新正式配方、以后就用、写入或落库表述）。\n- 因此不得据此发起或声称完成任何正式配方写入或库存调整；写入若日后被请求，须经 Owner 对冻结提案的确认与保护执行。\n\n## Required caution\n- 不得把 `V750` 当作已确认 ID，也不得凭部分匹配自行选定。\n- 成本答复须标注口径（当前正式/重建成本、历史报价、试算成本或假设售价利润之一），不得把试算或历史数据标为“当前正式成本”。\n- 若“现在用哪个线圈”涉及多方案通用代号，须明确方案依据；本消息未表达聚合意图，不得跨方案合并数据。\n- 若实体解析存在歧义，须做有界澄清，不得默认选择。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "成本",
+          "线圈"
+        ],
+        "requestedChanges": [],
+        "requestedInformation": [
+          {
+            "value": "V750的成本",
+            "evidence": "查一下V750成本"
+          },
+          {
+            "value": "V750现在用哪个线圈",
+            "evidence": "还有它现在用哪个线圈"
+          }
+        ],
+        "persistence": "DO_NOT_SAVE",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 4033.81475,
+        "policyMs": 3634.323667,
+        "parallelContextMs": 4033.820708,
+        "intentMs": 1437.756541,
+        "totalMs": 5471.577249
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPLICIT_PERSISTENCE_SIGNAL_LOST_OR_INVENTED"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-15",
+      "run": 1,
+      "user": "刚才那个线圈多少钱？",
+      "recentConversation": "我先看看12-120。",
+      "startedAt": "2026-09-30T15:25:52.056Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-16",
+      "run": 1,
+      "user": "V750改一下。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:25:57.729Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "ADV-01",
+      "run": 1,
+      "user": "12-120有两个方案吧？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:01.957Z",
+      "businessMemo": "# 业务概念 Memo\n\n## Relevant business concepts\n- `12-120` / Coil Common Designation\n- COIL / COIL SCHEME\n- STATOR / 定子\n\n## Business meaning\n- `12-120` 是工厂关于线圈／定子方案的常用规格表达，不是唯一正式 Coil Scheme identity。\n- `12` 指定子的工厂规格俗称，对应标准定子直径 120 mm；`120` 指硅钢片／线圈方案片数。它既不是功率，也不是库存。\n- COIL / COIL SCHEME 表示一套具体可使用的线圈／绕组方案，可能还以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分。\n\n## Relevant relationships\n- 同一个 `12-120` 可以存在多套正式线圈方案。common designation 与具体正式 Coil Scheme 不是同一个概念，不能仅凭这个俗称认定某一套唯一方案。\n- STATOR 是电机定子本体或定子规格这一层，与具体线圈方案是不同层次，不能混为同一个身份。\n- 用户说“查 12-120”时，首先是在提及一个常用规格表达；具体成本、库存或实际配置所对应的正式方案，必须另行确认。\n\n## Unknown business terms\n- “有两个方案”中的“两个”这一具体数量，Company Business Model 未定义，无法确认。业务模型只说明同一 `12-120` 可能存在多套正式方案，未规定其数量。",
+      "policyMemo": "# 12-120 方案确认 Memo\n\n## Applicable policy\nRULE-04（通用线圈代号可对应多个方案）；RULE-03（实体提及不等于数据库身份）。\n\n## Interpretation\n“12-120”属于 common coil designation 的提及，只能作为**候选**。是否存在“两个”方案，以及实际有几个正式方案，均须由正式线圈目录/API 解析结果确认，不能由该提及或常识推断数量。\n\n## Persistence meaning\n本句为只读询问，不涉及配方/配置变更，也不表达保存意图，因此不产生任何持久化写入，不适用写入确认流程。\n\n## Required caution\n不得默认选定第一个方案，也不得在未获正式解析结果前断言“有几个”或合并多个方案的库存/成本。若确有多方案，应给出有界方案选项并说明各自方案依据；聚合需 Owner 明确要求且由正式聚合能力提供。",
+      "intent": {
+        "objectMentions": [
+          "12-120",
+          "方案"
+        ],
+        "requestedChanges": [],
+        "requestedInformation": [
+          {
+            "value": "12-120 是否有两个方案",
+            "evidence": "12-120有两个方案吧？"
+          }
+        ],
+        "persistence": "NOT_APPLICABLE",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 1936.539542,
+        "policyMs": 2279.791208,
+        "parallelContextMs": 2279.812542,
+        "intentMs": 1053.191459,
+        "totalMs": 3333.0040010000002
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "FAIL",
+        "intent": "PASS",
+        "evaluator": "PASS",
+        "overall": "FAIL",
+        "deterministicFailures": [],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": [
+          "POLICY_ID_OR_TOOL_LEAK"
+        ]
+      }
+    },
+    {
+      "id": "ADV-02",
+      "run": 1,
+      "user": "V750就是一个固定成品吧？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:05.290Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "ADV-03",
+      "run": 1,
+      "user": "贵多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:10.092Z",
+      "businessMemo": "# Business Model Memo\n\n## Relevant business concepts\n用户原话“贵多少？”涉及的对象在本公司业务模型中可能落在以下几类概念之上：Recipe、Recipe Configurable Cost Drivers、BOM、Part、Process Option，以及 V 系列／OEM 配置差异。\n\n## Business meaning\n“贵多少”是一个比较价格/成本差异的问法。按 Company Business Model，V1 只解释“业务概念是什么”，不提供成本公式，也不提供数据库当前事实。因此本业务模型**未定义**“贵多少”对应的具体含义——它没有说明比较的两方是什么、以哪一层成本为基准、是否涉及报价。\n\n可能被比较的差异来源（取决于上下文）包括：\n- Recipe 的可配置成本项差异，例如 Coil configuration、Barrel configuration、Cable configuration、Float configuration、Packing configuration、Surface treatment、Rotor process；\n- OEM 配置变化，例如包装从纸箱变木箱、转子从不锈钢接轴与默认 45# 钢材方案的差别；\n- V 系列中功率等级或泵壳款式的差异。\n\n但这些只是可配置维度，本模型不给出任何数量、金额或成本结论。\n\n## Relevant relationships\n- Recipe 是报价、客户配置和生产配置的基础；成本差异应基于同一个 Recipe 基础的不同配置来理解。\n- Template 只提供固定机械结构蓝图，本身不负责成本计算。\n- BOM 是 Recipe 当前配置正式展开后的物料／工艺组成；最终成本可包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置等。\n- Process Option（如不锈钢接轴、表面处理）属于 Recipe Configurable Cost Driver，不应理解为普通库存 Part 替换。\n\n## Unknown business terms\n- “贵多少”中的比较基准、比较对象、成本口径、是否指报价差额——Company Business Model V1 均未定义。\n- 任何具体金额、价格、成本数值——本模型不提供。\n- 涉及的具体产品、Recipe、Part 或配置身份——未在原话中说明，业务模型无法确定。",
+      "policyMemo": "# Memo\n\n## Applicable policy\nRULE-01（临时配方/配置试算 vs 正式配方持久化变更）；RULE-05（金额口径必须显式标注）；RULE-03（实体提及不等于数据库身份）；另参考 Candidate 规则中「persistence intent 未表达时不得自行升级为正式写入」。\n\n## Interpretation\n本句仅询问「贵多少」，属于成本/利润类的试算意图，可理解为临时配置试算（Preview/Analysis）。但该句缺少必要上下文：未指明是哪款 Recipe、哪项配置变更、以什么为基准对比，也未表达是否保存。\n\n## Persistence meaning\n未表达任何持久化意图（无保存、无正式修改、无更新正式配方、无写入/落库），因此不得理解为正式配方变更；也不得在缺少上下文时自行推定配置变化内容。若后续出现明确持久化表达，才按 persistent mutation 走需确认路径。\n\n## Required caution\n需回问澄清对象与配置项，并将持久化意图视为 UNSPECIFIED，不得默认选择。金额须显式标注口径（临时试算成本/当前正式成本/历史报价/假设售价利润），不得把试算金额标为当前正式成本。实体名（如 V550、12-120 类）只作候选，须经正式解析确认身份。任何写入均需 Owner 通过受保护执行确认后方可进行。",
+      "intent": {
+        "objectMentions": [],
+        "requestedChanges": [],
+        "requestedInformation": [
+          {
+            "value": "贵多少（价格/成本差异数值）",
+            "evidence": "贵多少？"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": true,
+        "clarificationReason": "原话仅询问“贵多少”，未指明比较的产品/配方、配置变更项及比较基准，缺少理解目标的必要语言信息。"
+      },
+      "timings": {
+        "businessMs": 3317.877334,
+        "policyMs": 3028.255291,
+        "parallelContextMs": 3317.88125,
+        "intentMs": 1279.186375,
+        "totalMs": 4597.067625
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPLICIT_PERSISTENCE_SIGNAL_LOST_OR_INVENTED"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "ADV-04",
+      "run": 1,
+      "user": "这个换木箱多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:14.689Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-02",
+      "run": 2,
+      "user": "12-120多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:19.692Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-03",
+      "run": 2,
+      "user": "V750纸箱换成木箱差多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:23.754Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-04",
+      "run": 2,
+      "user": "V750如果做不锈钢接轴成本差多少？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:28.171Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-05",
+      "run": 2,
+      "user": "V750电缆5米，木箱，先算一下，不保存。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:33.351Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一个功率等级表达。\n- **5 米电缆**：Recipe 的 Cable configuration（电缆配置）维度中的一种具体取值方向。\n- **木箱**：Recipe 的 Packing configuration（包装配置）维度中的一种具体取值方向。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础。\n\n# Business meaning\n\n- 按本公司业务模型，**V750** 表示 V 系列下的 750 功率等级，不是一个固定、不可改变的 Finished Product；它仍需结合泵壳款式／Template 才能形成一套 Recipe 配置基础。\n- **电缆 5 米**：属于 Recipe 的可配置成本项之一（Cable configuration），涉及是否带电缆、电缆长度、规格和配件形式；在本公司业务语言中，它描述的是 Recipe 配置维度的一种取值，而不是一个孤立的普通 Part 身份。\n- **木箱**：属于 Recipe 的可配置成本项之一（Packing configuration），与纸箱、木箱、珍珠棉、泡沫等并列；在本公司业务语言中，它描述的是 OEM 包装配置变化，不自动代表功率等级、泵壳款式或基础型号发生变化。\n- 上述三项组合起来，说明用户描述的是一套 **Recipe 配置基础**（V 系列 750 功率等级 + 某电缆长度 + 某包装形式），而不是某一固定成品 SKU。\n\n# Relevant relationships\n\n- V750 属于 V 系列／产品规格代号体系；同一功率等级还可能对应通用款、豪贝款、东音款等不同泵壳结构／Template 款式。\n- Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；木箱、电缆属于其中的可配置成本项。\n- Recipe 是报价、客户配置和生产配置的基础；BOM 才是根据 Recipe 当前配置正式展开后的结果。因此“V750 + 5 米电缆 + 木箱”这一组合，是 Recipe 层面的配置描述，并不等于最终 BOM，也不等于完整成品。\n- 若要讨论该 Recipe 当前配置展开后的物料／工艺组成，那属于 BOM 层面；Template 只是 BOM 的一个输入来源，不是完整 BOM。\n\n# Unknown business terms\n\n- **“先算一下”中的“算”具体指什么**：Company Business Model 未定义该动作对应的业务对象或含义，因此无法在本业务模型内解释；成本公式亦不在本模型范围内，本模型不提供当前成本事实。\n- **“不保存”**：属于对操作行为的表述，Company Business Model 未将其定义为业务概念，本模型不作解释。\n- **该组合对应的具体正式 Coil Scheme、泵壳款式／Template、线圈片数等**：本模型未定义，须另行确认，不能仅凭 “V750 + 5 米电缆 + 木箱” 推断为某一唯一正式方案。\n- **该配置对应的当前成本、库存或实际物料展开**：不属于 Company Business Model 范围，本模型不提供，也不猜测。",
+      "policyMemo": "# Applicable policy\n\n- RULE-01：临时配方/配置覆盖 vs 正式配方持久变更。\n- RULE-02：持久写入必须经受保护执行与 Owner 确认。\n- RULE-05：金额基础须显式标注。\n- RULE-08：读/试算可放开，写入严格走受保护路径。\n- Candidate（Recipe Configurable Cost Drivers V1）：仅为候选，非运行时权威；可作语义参考，不改变已发布规则。\n\n# Interpretation\n\n- 本句包含配置覆盖：电缆 5 米、木箱（包装配置）。\n- “先算一下，不保存”是明确的临时试算意图，覆盖“配置变化”本身可能引发的持久化歧义。\n- 因此应理解为 **TEMPORARY CONFIGURATION PREVIEW / ANALYSIS**，即以临时覆盖做场景重算，不构成正式配方变更。\n- 不应从“改/换”等孤立动词推断正式写入。\n\n# Persistence meaning\n\n- 本次不产生任何持久化影响：正式存储的配方与业务状态均不变。\n- 试算结果只代表该临时场景下的计算结果，不得表述为当前正式成本或正式配方内容。\n- 若后续要落为正式配方，需另行表达明确持久化意图，并走受保护确认与执行路径。\n\n# Required caution\n\n- 金额须显式标注为“按电缆 5 米、木箱的临时试算”，不得标为当前正式成本。\n- 实体（V750）仅为候选提及，正式身份须由正式目录/解析结果确定；歧义时应有限澄清，不得默认选取。\n- 若配置项存在多方案，不得默认选第一个或跨方案合并。\n- 不得在仅试算后表述“已帮你改好”；写入须经冻结提案与 Owner 确认。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "电缆5米",
+          "木箱"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "电缆配置",
+            "from": null,
+            "to": "5 米电缆",
+            "delta": "将电缆配置改为 5 米",
+            "evidence": "V750电缆5米"
+          },
+          {
+            "subject": "包装配置",
+            "from": null,
+            "to": "木箱",
+            "delta": "将包装配置改为木箱",
+            "evidence": "木箱"
+          }
+        ],
+        "requestedInformation": [
+          {
+            "value": "以 V750、电缆 5 米、木箱这一临时配置进行试算的结果",
+            "evidence": "先算一下"
+          }
+        ],
+        "persistence": "DO_NOT_SAVE",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 4383.954542,
+        "policyMs": 3227.0955,
+        "parallelContextMs": 4383.957833,
+        "intentMs": 1593.628583,
+        "totalMs": 5977.586416
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "PASS",
+        "evaluator": "PASS",
+        "overall": "PASS",
+        "deterministicFailures": [],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-06",
+      "run": 2,
+      "user": "把V750正式配方包装改成木箱并保存。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:39.329Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "BP-07",
+      "run": 2,
+      "user": "V750包装改木箱。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:44.180Z",
+      "businessMemo": "# V750 包装改木箱\n\n## Relevant business concepts\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项。\n- **包装（Packing configuration）**：Recipe 的可配置成本维度之一。\n- **纸箱 / 木箱**：包装配置中的具体包装物料形式。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础。\n- **OEM 配置**：依客户要求调整的配置内容。\n\n## Business meaning\n- **V750** 表示 V 系列、750 功率等级。按业务模型它不能被理解为一个固定、不可改变的 Finished Product，也不当作固定成品 SKU。\n- **包装配置（Packing configuration）** 属于 Recipe Configurable Cost Driver，涵盖纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- 因此“V750 包装改木箱”在本公司业务语言中，指的是：在 V750 这一功率等级对应的 Recipe 配置基础上，对**包装配置**进行变更，把纸箱形式改为木箱形式。\n\n## Relevant relationships\n- 包装配置从属于 **Recipe**，是 Recipe 的可配置成本维度，随客户 OEM 要求变化。\n- 包装配置会进一步影响 **BOM** 展开（BOM 是 Recipe 当前配置展开后的物料／工艺组成）。\n- 包装物料本身属于 **Part**（物理零件目录对象，如包装物料）的范畴。\n- 同一基础 Recipe（例如 V750 系列、某一泵壳款式）可依客户要求调整包装，而功率等级、泵壳款式不因此自动改变。\n- 按业务模型示例：纸箱变木箱通常描述的是 **OEM 配置变化**，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n\n## Unknown business terms\n- “木箱”的具体规格、尺寸、对应物料型号：业务模型未定义。\n- 该变更对应的具体成本数值、成本公式：业务模型未定义。\n- 该变更所对应的具体 Recipe 身份、客户、订单：业务模型未定义。\n- V750 在此语境下所搭配的具体泵壳款式（通用款、豪贝款、东音款等）：业务模型未定义，需另行确认。\n- “改木箱”是否涉及某一具体正式包装 Part 的选定：业务模型未定义具体身份。",
+      "policyMemo": "## Applicable policy\n\n- RULE-01：临时配方/配置预览与持久化配方变更的区分。\n- RULE-02：持久化写入需要受保护的显式执行与 Owner 确认。\n- RULE-08：读/预览可自由进行，持久化写入必须走受保护路径。\n- Candidate 规则（仅语义参考，非 Runtime Authority）：配置变化明确但未表达保存意图时为 UNSPECIFIED，不得自行升级为正式写入。\n\n## Interpretation\n\n该句只表达了一个配置变化意图（包装改为木箱），属于 Recipe 可配置的成本驱动项之一。句中**未**出现“先算一下/试算/不保存”等预览指令，也**未**出现“保存/正式修改/更新正式配方/以后就用这个/写入/落库”等持久化意图。因此 persistence intent 为 **UNSPECIFIED**：配置变化明确，但保存意图缺失。依据 RULE-01，不得仅凭“改”这一动词判定为持久化变更；也不得在缺乏预览意图时擅自当作正式写入。\n\n## Persistence meaning\n\n- 现阶段不构成持久化变更请求，正式存储配方不应被改动。\n- 也不自动等同为一次已确认的临时试算——因用户未说明要算或不要保存。\n- 正确处理是：可将配置变化作为候选进行澄清或临时预览性准备，但保持 persistence intent 为 UNSPECIFIED，等待 Owner 明确“仅试算”或“正式保存”后，再分别走预览路径或受保护写入路径。\n- 任何写入只有在 Owner 通过受保护执行确认冻结提案后才可发生（RULE-02）。\n\n## Required caution\n\n- 不得自行把“改木箱”升级为正式配方修改，不得声称“已帮你改好”。\n- 不得在未确认前把任何结果标注为当前正式成本；若给出试算，须标明为临时场景口径（RULE-05）。\n- 涉及配置项的具体解释、金额、字段与写入可行性均不在本说明范围内，须由正式业务代码与安全边界裁定。\n- 若歧义持续，应做有界澄清，而非默认选择任一方向（RULE-03/04 精神）。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "包装",
+          "木箱",
+          "纸箱"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "V750 的包装配置",
+            "from": "纸箱",
+            "to": "木箱",
+            "delta": "将 V750 对应的包装配置由纸箱变更为木箱",
+            "evidence": "V750包装改木箱。"
+          }
+        ],
+        "requestedInformation": [],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 3129.101625,
+        "policyMs": 3620.954833,
+        "parallelContextMs": 3621.055209,
+        "intentMs": 1361.055625,
+        "totalMs": 4982.110834
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "INVENTED_CHANGE_FROM"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    },
+    {
+      "id": "BP-14",
+      "run": 2,
+      "user": "查一下V750成本，还有它现在用哪个线圈。",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:49.162Z",
+      "businessMemo": "# 业务对象解释 Memo\n\n## Relevant business concepts\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项。\n- **线圈（Coil / Coil Scheme）**：一套具体可使用的线圈／绕组方案。\n- **成本**：由 Recipe 当前配置展开后形成的成本组成。\n\n## Business meaning\n- **V750**：`V` 表示产品系列／型号体系，`750` 表示功率等级。它属于工厂内部 Recipe／产品规格代号体系，不能被理解为一个固定、不可改变的 Finished Product，也不等同于固定成品 SKU。\n- **“成本”**：在本业务模型中，成本的来源是 Recipe 当前配置展开后的 BOM 与可配置成本项（如线圈配置、机筒配置、电缆、包装、表面处理、转子工艺等）。业务模型只解释成本由什么构成，不提供成本公式，也不提供任何当前成本事实。\n- **“用哪个线圈”**：这是在询问某个 Recipe 当前配置中的 Coil Scheme 及其相关线圈配置。Coil Scheme 是一套具体可使用的线圈／绕组方案，不同于定子本身，也不同于普通 Part。\n\n## Relevant relationships\n- V750 是 Recipe 配置基础的一部分；同一个 V750 还可以有通用款、豪贝款、东音款等不同泵壳结构／Template 款式，这些差异来自泵壳结构，而非功率不同。\n- Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 线圈配置（Coil Scheme、线圈片数等）属于 Recipe 的可配置成本项，会影响 BOM、制造工艺或成本。\n- 因此，V750 的成本与“它现在用哪个线圈”都属于该 Recipe 当前配置展开后的结果，而不是 V750 这一代号本身所固定携带的属性。\n\n## Unknown business terms\n- **“V750 当前的成本数值”**：业务模型未定义当前成本事实，也未提供成本公式；本模型只能说明成本由 Recipe 配置展开构成，无法给出具体成本。\n- **“V750 现在实际使用的某一套具体 Coil Scheme”**：业务模型未定义该具体配置事实。同一 V750 基础 Recipe 可依客户要求调整线圈片数等配置，具体使用哪一套正式方案必须另行确认。\n- **“现在”**：若指某一时点的实际配置状态，属于业务模型未定义的当前事实范畴。",
+      "policyMemo": "# Applicable policy\n\n- RULE-01：临时 recipe/configuration preview 与正式配方持久变更的区分。\n- RULE-03：实体提及不等于数据库身份。\n- RULE-04：通用线圈 designation 可对应多个正式方案。\n- RULE-05：金额口径必须显式标注。\n- RULE-06：库存口径必须显式标注（若涉及库存）。\n- RULE-08：读/预览可自由调查，持久写入走保护路径。\n- Candidate《Recipe Configurable Cost Drivers V1》：仅供审核参考，本轮不构成 Runtime Authority。\n\n# Interpretation\n\n- 本句为**读取/查询**意图：询问 V750 的成本，以及其当前所用线圈。\n- 句中**未出现任何配置覆盖**（如 `cableLength`、包装、浮球、表面处理、Rotor process），也**未出现任何保存/正式修改/落库等持久化意图**。\n- 因此不构成 recipe 临时试算，也不构成持久配方变更；属于普通读请求范畴。\n- “V750”与“哪个线圈”均为实体提及，需先经正式目录/API/Ontology 解析为正式身份；不得凭名称直接假定，也不得在多个匹配中默认取第一个。\n- 若“线圈”指通用 designation（如 12-120 类），须注意同一 designation 可能有多个正式方案，方案特定信息不得默认合并或求和。\n\n# Persistence meaning\n\n- 本句**无持久化含义**：不保存、不更新正式配方、不产生任何业务状态变更。\n- 不存在需要 Owner 确认的写入动作。\n- 后续若 Owner 明确表达“保存/正式修改/以后就用这个/落库”，才转为持久配方变更请求，届时须走受保护确认路径。\n\n# Required caution\n\n- 成本金额必须标注口径：当前正式/重建成本、临时试算成本、历史报价或假设售价利润，不得混标；**不得**将试算金额呈现为当前正式成本。\n- 线圈信息须给出其正式解析来源与方案依据；多方案时给出有界选择，不静默合并。\n- 若回答涉及库存或可生产性，须区分在手库存、扣预留后可用量与虚拟可生产量，并说明所用口径。\n- 实体（V750、线圈）解析存在歧义或无匹配时，应做有界澄清或给出正式否定结果，不得编造 ID 或默认选择。\n- 本句只授权读取/预览，任何写入均不得由本次回答代为执行或声称已执行。",
+      "intent": {
+        "objectMentions": [
+          "V750",
+          "线圈"
+        ],
+        "requestedChanges": [],
+        "requestedInformation": [
+          {
+            "value": "V750 的成本",
+            "evidence": "查一下V750成本"
+          },
+          {
+            "value": "V750 现在使用的线圈",
+            "evidence": "它现在用哪个线圈"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": false,
+        "clarificationReason": null
+      },
+      "timings": {
+        "businessMs": 3332.341833,
+        "policyMs": 3633.209208,
+        "parallelContextMs": 3633.226792,
+        "intentMs": 1260.807167,
+        "totalMs": 4894.033959
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPLICIT_PERSISTENCE_SIGNAL_LOST_OR_INVENTED"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": [
+          "POLICY_ID_OR_TOOL_LEAK"
+        ]
+      }
+    },
+    {
+      "id": "BP-15",
+      "run": 2,
+      "user": "刚才那个线圈多少钱？",
+      "recentConversation": "我先看看12-120。",
+      "startedAt": "2026-09-30T15:26:54.057Z",
+      "error": "INTENT_RESULT_INVALID",
+      "evaluation": {
+        "business": "FAIL",
+        "policy": "FAIL",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "EXPERIMENT_EXECUTION_FAILED"
+        ],
+        "semanticReview": []
+      }
+    },
+    {
+      "id": "ADV-04",
+      "run": 2,
+      "user": "这个换木箱多少钱？",
+      "recentConversation": null,
+      "startedAt": "2026-09-30T15:26:59.016Z",
+      "businessMemo": "# Business Model Memo\n\n## Relevant business concepts\n- **Packing configuration**：包装配置，属于 Recipe 的可配置成本项之一。\n- **OEM 配置**：工厂主要从事外贸 OEM，同一基础 Recipe 可依客户要求调整配置。\n- **Recipe / BOM**：Recipe 是配置基础，BOM 是依 Recipe 当前配置正式展开后的物料／工艺组成。\n\n## Business meaning\n“换木箱”在本公司业务模型下属于 **Packing configuration（包装配置）** 的变化，是 Recipe 的一项 OEM 可配置成本项，涉及纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n\n“多少钱”在本业务模型中指向的是：该包装配置作为 Recipe Configurable Cost Driver 会因客户 OEM 要求变化并影响 BOM／成本。但本 Business Model 只解释“业务概念是什么”，不提供成本公式，也不提供数据库当前事实。因此我无法给出具体金额。\n\n## Relevant relationships\n- Packing configuration 从属于 Recipe，是 Recipe 可配置成本项之一，不应一概视为普通 Part。\n- 包装物料（纸箱、木箱、珍珠棉、泡沫等）属于 Part 中的包装物料；但“换木箱”这一动作在本模型下描述的通常是 **OEM 配置变化**，不是必然产生全新产品型号，也不自动改变功率等级、泵壳款式或基础型号。\n- 成本影响需经由 Recipe 当前配置展开的 BOM 体现，而不是靠“木箱”这一名词直接确定。\n\n## Unknown business terms\n- 具体某个木箱规格对应的物料型号、用量、单价与最终成本：**业务模型未定义**。\n- 该问题所指向的具体 Recipe、客户配置或正式方案：**业务模型未定义**，无法从本问题确定。\n- “换木箱”涉及的确切包装形式与配套物料组成：**业务模型未定义**（V1 仅列出包装配置类别，未定义具体木箱配置明细）。",
+      "policyMemo": "# Applicable policy\n- RULE-01：临时配方/配置预览与正式配方变更的区分。\n- RULE-02：持久化写入需受保护的执行与 Owner 确认。\n- RULE-05：金额口径必须显式标注。\n- Candidate（仅参考，非 Runtime Authority）：配置变化 + 询问成本 → 优先理解为临时配置预览；persistence intent 未表达时为 UNSPECIFIED。\n\n# Interpretation\n“换木箱”属于包装配置变化；“多少钱”涉及成本/价格询问。整句未见“保存”“正式修改”“更新正式配方”“以后就用这个”“写入/落库”等持久化表达，因此仅凭“换”字不得判定为正式写入。\n\n但本句存在两处未定：\n- 未指明对象：没有给出配方/型号（如 V550、V750），也无从解析是哪条配方。\n- 意图未定：配置变化明确，但 persistence intent 为 UNSPECIFIED，不得默认升级为写入，也不得默认它就是预览。\n\n# Persistence meaning\n- 若作为临时配置试算/预览：不改动正式存储配方，无需 Owner 确认。\n- 若意图是改变正式、已存储的业务状态：属于持久化变更，必须经受保护执行与 Owner 确认后才生效；此前只能说“已准备”，不得说“已改好”。\n- 在意图未明确前，不得自行选择其中一种含义。\n\n# Required caution\n- 需先做实体消歧（RULE-03）：确认所指配方/型号的唯一正式身份，不得凭首个部分匹配或凭空编造标识。\n- 若涉及线圈/通用代号（如 12-120 类），不得默认取第一方案，也不得跨方案合并（RULE-04）。\n- 金额须标注口径，如“按包装改木箱的临时试算成本…”，不得把试算金额说成当前正式成本（RULE-05）。\n- 建议先向 Owner 澄清目标对象与是否为“先算/不保存”，再决定走预览还是写入路径。",
+      "intent": {
+        "objectMentions": [
+          "木箱"
+        ],
+        "requestedChanges": [
+          {
+            "subject": "包装配置",
+            "from": "当前包装配置",
+            "to": "木箱包装配置",
+            "delta": "将包装配置改为木箱",
+            "evidence": "换木箱"
+          }
+        ],
+        "requestedInformation": [
+          {
+            "value": "换成木箱包装配置后的成本/价格",
+            "evidence": "多少钱"
+          }
+        ],
+        "persistence": "UNSPECIFIED",
+        "needsClarification": true,
+        "clarificationReason": "未指明要更换木箱配置的具体配方或型号对象，无法确定所指目标。"
+      },
+      "timings": {
+        "businessMs": 2779.8235,
+        "policyMs": 3338.473125,
+        "parallelContextMs": 3338.597792,
+        "intentMs": 1619.443917,
+        "totalMs": 4958.041709
+      },
+      "evaluation": {
+        "business": "PASS",
+        "policy": "PASS",
+        "intent": "FAIL",
+        "evaluator": "FAIL",
+        "overall": "FAIL",
+        "deterministicFailures": [
+          "INVENTED_CHANGE_FROM"
+        ],
+        "semanticReview": [],
+        "businessFailures": [],
+        "policyFailures": []
+      }
+    }
+  ]
+}
