@@ -1,6 +1,6 @@
 'use strict';
 
-const { createBusinessUnderstandingFixtureV2 } = require('./businessUnderstandingFixtureV2.cjs');
+const { createSyntheticBusinessAcceptanceBaseFixture } = require('./syntheticBusinessAcceptanceBaseFixture.cjs');
 const { calculateStoredCoilCost } = require('../../api/services/coilCost.cjs');
 
 const NOW = '2026-09-20T00:00:00.000Z';
@@ -10,7 +10,7 @@ function insertId(db, sql, params) {
 }
 
 function createSyntheticBusinessAcceptanceFixture(options = {}) {
-    const fixture = createBusinessUnderstandingFixtureV2({ scale: Boolean(options.scale) });
+    const fixture = createSyntheticBusinessAcceptanceBaseFixture({ scale: Boolean(options.scale) });
     const { db, ids } = fixture;
     const addPart = (ref, model, category, price, stock, supplier = '验收供应商') => {
         ids[ref] = insertId(db, `INSERT INTO parts(model,category,price,stock,supplier,created_at,updated_at)

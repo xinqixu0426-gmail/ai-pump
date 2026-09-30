@@ -395,53 +395,10 @@ Web新增和复制由规格表单生成名称；模板编辑按绑定ID显示真
 | 转子关联文本、文件关联标签 | 转子档案/文件归档命令 | 出图历史、文件归档目标查询 | `linked_pump_model` 文本、文件类型化目标 ID | 文本保留原文，关联标签用现名；非结构化文本不猜绑定 |
 | 搜索、AI/MCP、知识、导出 | 正式 API client 与各导出入口 | `entityLookupService`、AI executors、MCP | 目录查词、ID 回执、历史知识候选 | 正式查询使用现名或固定 ID；知识与历史消息不提供写身份；原文件不回写 |
 
-## 8. AI Native V1（N0–N7.3）当前债务状态
+## 8. AI Assistant 当前边界
 
-本节记录 AI Native V1 阶段收口时的**真实**债务状态。交接与运行细节见 [AI Native V1 交接文档](ai-native-v1-handoff.md)；发布证据见 `planning/ai-native-v1/release/ReleaseEvidenceV1.json`。
+当前生产 AI 是 **M3 Native Assistant**。其运行时边界、能力覆盖和冻结基线以 [AI 助理说明](ai-assistant.md) 与 [M3-0 Baseline Freeze](../planning/ai-assistant-mvp-v1/M3-0/Baseline-Freeze-2026-09-30.md) 为准；正式业务算法仍由 Business API 与 `costEngine` 权威执行。
 
-### 8.1 已解决（不要再当作当前阻塞项）
+已退役的 Dispatcher、Task、Shadow、Canary 和旧语义框架不再是运行时、发布门禁或后续开发依据。它们的历史记录保留在 Git 历史中，不应恢复为产品路径或拿来推断当前行为。
 
-| 事项 | 结论 |
-|---|---|
-| `N4-AUDIT-FINDING-001`（`SURFACE_POLICY_EXPLICIT_PRICE_BYPASS`） | 已修复，不得重新引入 |
-| `NATIVE-BLOCKER-FALSE-COMPLETE-001` | CLOSED |
-| N4 能力/路由/实体边界、surface policy、身份与证据保障、GitHub 独立审计 | PASS |
-| N5.1A durable Task Store（migration 88） | PASS |
-| N5.1B leased 单槽 Worker、DETACHED 执行、租约 fencing、心跳、陈旧结果丢弃、有界 QUERY/PREVIEW 重试（上限 2）、写入台账预留、`activeMs`、检查点幂等、`TaskSpec`/`sourceMessages` 恢复、Fact/Receipt 恢复、成功步骤复用、`argsHash`/`planRevision` 守卫、取消未知效果 → `RECONCILING`、崩溃重启恢复 | PASS |
-| N5.2 受保护任务 API、公共投影、resume/cancel、工作台、持久澄清来源、所有权/会话绑定 | PASS |
-| N6.1 预览/确认桥、正式 preflight 复用、服务端任务上下文、陈旧/所有者/参数/目标/过期拒绝、重启校验 | PASS |
-| N6.2 受保护正式命令执行（`adjust_part_stock`、`batch_update_prices`）、服务端 operationId、持久幂等、重复效果 0、`UNKNOWN_EFFECT` → `RECONCILING`、正式读回、重启不新建键、不盲目重放 | PASS |
-| N7.1 rollout control plane（`off`/`shadow`/`owner`，默认 `off`，非法值 fail closed，写开关默认 `false`）、质量门禁、新鲜度绑定、Owner 认证隔离、回退演练 | PASS |
-| N7.2 冗余职责退出：同一任务内正式基线情景成本重复执行（2 → 1）、Native 适配层不可达投影键删除、责任收敛（DUPLICATE_EXECUTION 0 / DEAD 0 / AMBIGUOUS_DUAL_AUTHORITY 0） | PASS |
-| N7.2 canonical 确定性 deep-api 门禁（源由仓库迁移构建，不再依赖本机 `./pump.db`） | PASS |
-| 历史 deep-api 计数歧义（489 / 490 / 493） | 已解释为源库数据形状差异，非代码回归；canonical 与 extended 已分类 |
-
-### 8.2 生产发布待办（PRODUCTION ROLLOUT PENDING，不是代码缺陷）
-
-| 事项 | 状态 | 说明 |
-|---|---|---|
-| 生产 Owner 试点 | **未启动** | `READY_FOR_OWNER_TRIAL = YES`，`OWNER_TRIAL_ACTUALLY_STARTED = NO` |
-| Native 生产写入 | **未启用** | `AI_NATIVE_WRITE_ENABLED` 默认 `false` |
-| fresh live 质量证据 | **REQUIRES_FRESH_PRE_OWNER_TRIAL_RUN** | `npm run verify:ai-native-release` 需真实 `DEEPSEEK_API_KEY` + Owner 凭据；新鲜度绑定 revision，旧证据会 `stale = FAIL` |
-
-### 8.3 接受的设计限制（ACCEPTED LIMITATION，不是债务）
-
-| 事项 | 为什么保留 |
-|---|---|
-| 剩余 Legacy 回答保护层（Money Guard、跨目录候选、线圈变体披露、业务规则披露、线圈→配方关系修复） | `AI_NATIVE_MODE` 默认 `off`，Legacy 仍是生产权威；BUS-P6 判定无组件可全局删除。**不是债务，是明确的 FALLBACK/WITNESS 职责。** |
-| `preview_recipe_cost`、`full_calculate`、`build_recipe_bom_draft` 等 Legacy 专有工具 | Legacy 工具面与 MCP 读取目录仍真实需要；两者各自直连不同正式端点，不是重复执行 |
-| MCP 读取能力 | 独立受支持的对外契约，不因 Native 未使用而失效；MCP 不是 Native 架构的必要条件 |
-| Native 规划器只暴露 3 个工具 | 刻意约束：Native 工具面不追加进 Legacy `AI_TOOLS`，以保证迁移期 Legacy 工具目录冻结 |
-
-### 8.4 真实技术债（REAL TECHNICAL DEBT）
-
-| 事项 | 影响 | 状态 |
-|---|---|---|
-| N7.3 之后 canonical 计划未定义后续阶段；生产 Owner 试点授权属运维决策 | 无代码影响 | 待决策 |
-| 跨机器 canonical 门禁的实际第二机器执行 | 未验证 | `CROSS_MACHINE_EXECUTION = NOT_RUN`（本机无 macOS runner，未伪造）。源已仓库化，结构性可移植性已由测试断言保证 |
-| **包装零件「数量为零即移除对应角色」的指令尚未实现（DESIRED / DEFERRED，不是当前能力）** | `POST /api/recipes/bom-draft` 的 `packingParts` 曾把该行为写成当前能力，实际不存在：`recipeBomEngine`、`dynamicCostPreview.buildPackingSnapshotParts` 与 `calculatePackingPartsCost` 一律使用 `Number(part.qty \|\| 1)`，因此数量为零不会移除角色，反而会变成 1。生产整合候选已按现状收紧为「数量必须为正数」，并同步修正 `docs/api-reference.md` 的当前时态描述。`configurationPolicyJson.packingRemovalPolicy` 的 `CLEAR_ALL` 分支（`packingParts=[]` + `allowClearAll`）**已实现且生效**；其按角色删除的分支只有在实现真正的移除语义之后才有意义 | **未实现 / 待排期**。若要做：需在 `recipeBomEngine` 与 `dynamicCostPreview` 中真正丢弃或归零该角色并补端到端验收；在此之前不得放开数量为零的写法 |
-| 正式目录价格状态（零价 vs 未定价）的跨层表示 | `api/services/partsDataCache.cjs` 曾用 `record.price \|\| 0` 把正式目录的 NULL 价格压成 0，导致 costEngine 无法区分「未定价」与「合法零成本」，未定价零件被算进完整成本。现已改为 `partsByModel` 保留 NULL、`partsCache` 保持既有 0 语义；判定统一收敛到 `costEngine.hasUsableCatalogPrice`，契约由 `tests/catalogPriceStateContract.test.cjs` 锁定 | 已修复。后续若新增读取正式目录价格的中间层，必须保持 NULL 不被数值默认值吞掉 |
-
-### 8.5 不要做（未来会话）
-
-见 [AI Native V1 交接文档](ai-native-v1-handoff.md) §14。要点：不要把 `AI_NATIVE_MODE` 生产设为 `owner`、不要打开 `AI_NATIVE_WRITE_ENABLED`、不要删除仍有唯一职责的 Legacy、不要用旧质量证据证明发布就绪、不要把 `493` 当作 deep-api 固定期望值。
+仍待处理的业务与工程风险继续在本文其他章节按当前事实维护；不要用历史 AI 阶段编号、旧发布证据或旧测试计数覆盖当前结论。

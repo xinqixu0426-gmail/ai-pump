@@ -106,12 +106,10 @@ AI 工具 `batch_create_parts`、`adjust_part_stock`、`update_part` 和 `batch_
 
 `POST /api/ai/chat` 保留最近 10 条有效 user/assistant 消息作为普通语言上下文；实时事实重新调用正式 API。本地模式的业务工具轮只发送当前用户请求、可信服务端候选和正式工具回执，不把旧助手自然语言结论重新作为业务上下文。只要本地工具短名单非空，本轮必须取得正式工具回执；首次跳过会重试一次，连续跳过则返回无可验证结论。线圈/绕组与配方/产品的关系查询同时开放 `search_coils` 和 `get_all_recipes`；问题包含明确 `规格-片数` 时，运行器会确定性补发模型遗漏的一侧只读查询，并以完整配方列表的 `coilId/coilSpec/coilSheets` 字段核对关联。服务端会话引用绑定现有登录主体和 conversationId，内存引用 15 分钟过期；`chat-<ID>` 可从同一所有者的持久会话消息恢复最近带正式执行证据的候选，不信任客户端传入的 turnState、resolutionContext 或候选数据。全部已登记只读能力每轮可组合调用，不按业务域或对象范围限制；明确肯定式业务写命令由服务端切入受保护命令通道，首轮只生成确认卡，不直接写入。Web/PWA 保留流式请求互斥锁。正式缺失目标与完整空查询保留在模型反馈和预算结束回答中，空查询结论仅限回执筛选范围。本轮业务取证要求覆盖本地、DeepSeek和Kimi，不随短名单开关关闭；当前查询首次无正式结果时要求工具调用。未调用工具的历史答案草稿不展示，至多补查一次，仍未查询则返回无法验证；普通对话和未执行写请求中复述用户拟定价格不强制查库。金额汇总只取有执行证据的正式字段；成本预览总价不能被原材料单价替代，内部 DSML/XML 协议不能展示或当作执行。经营概览的正式看板回执先投影为订单、财务、库存和待处理摘要，不向回答模型发送缺货/采购大明细及嵌套重复财务对象；单一 `get_dashboard_summary` 的概览查询由 Presenter 直接生成去重摘要，`采购完成` 与已完成订单口径分开，不再进入额外模型修复轮。工具提议超出剩余次数时整组不执行，转入最终回答；不必要的重复询问进行至多一次完成性复核，真实候选歧义仍保留选择。本地最终正文会去除完全重复段落，用户未要求完整明细时对异常长输出执行兜底截断。SSE 只读 `metrics` 终态事件中，有供应商原生 `timings` 时返回精确生成速度；无原生计时时仅在输出足够长且有多个 SSE 内容分片时返回 `stream_observed` 估算。短回复、单分片或无可靠生成区间时速度为 `null`，不使用包含 TTFT 的整次请求耗时伪造 tok/s。处理细节见 [私人 AI 助理](ai-assistant.md)。
 
-AI-Native Task V2 的非流式供应商边界会把 WHATWG `Response` 一次性解码为 OpenAI 兼容 JSON；正常提取与 `FORMAT_REPAIR_ONLY` 共用这一边界，HTTP/正文/JSON 失败以 `SEMANTIC_TECHNICAL_FAILURE` 安全停止，不会伪装成普通意图。服务端从用户原文已可靠提取的每个只读目标、主体、数量、价格和情景覆盖构成不可缩减的 read floor：模型可以补充兼容的只读调查，但不能删改这些已绑定内容；这条规则不授予写能力。精确完整输入 `12-120` 或 `12 - 120` 无需模型，固定走 `search_coils`；零结果是受本次正式目录范围约束的未找到，多结果不自动选取。`列一下配方`、`配方列表`、`有哪些配方`、`所有配方`和`查看配方目录`固定走现有 `get_all_recipes`，按正式回执显示 ID、名称、可用规格和集合完整性；完整空目录是正常正式结果，截断/失败不会声称“全部”。这些都是只读能力，不增加 AI/MCP 写权限。受限的同会话 continuation 只保存已验证的 canonical 身份与上一轮单一目标类别，绝不保存成本、库存、事实或回执：成本后接“那 V750 呢？”会重新解析 V750 并新读 CURRENT_COST；仅恰有两条 Recipe canonical 身份时“这两个差多少？”才重新核验两者并调用 `compare_recipes`。线圈“有其他同规格方案吗？”先重新核验当前方案，再用该正式记录的 `spec`/common designation 新读 `search_coils`，明确排除当前 scheme；缺少身份、规格或存在多于两条 Recipe 焦点时只追问，绝不猜测或按显示名解析。
+当前 AI Assistant 不使用 Task V2、Dispatcher 或 provider fallback。请求由 Owner 边界后的 DeepSeek Judge / Main Agent 处理；实体身份必须经正式 Ontology resolver 验证，Capability Broker 只开放本轮相关的已登记读取或预览能力。正式事实由工具回执进入 Fact Ledger，并在最终 Answer Validator 校验后才对外返回。
 
-AI 内部关系观察由独立环境开关 `AI_ONTOLOGY_RELATION_SHADOW_ENABLED=false` 控制，默认关闭；开启时仅在正式回答完成后异步比较一条已执行的 canonical 1-hop 关系。观察结果不进入模型上下文、工具响应、回答或证据。独立子开关 `AI_ONTOLOGY_RELATION_BINDING_SHADOW_ENABLED=false` 与 `AI_ONTOLOGY_2HOP_SHADOW_ENABLED=false` 仍只增加观察，不改变正式执行链。只读 worker、绑定及遍历契约分别见 [Ontology Runtime Shadow V1](ontology-runtime-shadow-v1.md)、[Ontology Relation Binding V1](ontology-relation-binding-v1.md) 和 [Bounded 2-Hop Traversal Shadow V1](ontology-traversal-shadow-v1.md)。
-
-（**已退役，NATIVE-HC2**：Ontology 受控路由 canary、其开关 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED` 及 `relationRoutingCanary`/proxy 模块均已从仓库物理删除；以下段落为历史说明。当前 Native-only 行为以 `POST /api/ai/chat` 条目为准。）
-独立私有环境开关 `AI_ONTOLOGY_RELATION_ROUTING_CANARY_ENABLED=false` 默认关闭，按项目统一规则仅 `true` 启用。开关本身不授权：`POST /api/ai/chat` 只在本次请求同时通过现有正式 Owner JWT 校验，或通过现有精确 `x-internal-secret` 内部身份时，才向运行时传递 Canary 资格；Impact Enforcement Canary 复用同一服务端身份边界，并额外要求自身独立开关和影响资格同时成立。共享 admin、伪造 `req.user`、自报 header/query 及配置缺失均 fail closed 并保持 Legacy 权威路径。当前受控正式关系路由覆盖 `recipe↔coil` 与 `recipe↔part` 两个已登记家族，provider 资格为 `local`/`local-first`/`deepseek`；`local`/`local-first` 仍要求本地 shortlist 启用。canonical root 必须来自正式、唯一、精确身份读取；歧义、缺失、跨实体类型冲突或读取失败均 fail closed。命中后由软件确定性执行有界只读关系能力，再由模型合成，零新增语义模型轮次；配方→线圈回答若遗漏正式线圈或混入其他数字线圈身份，服务端以相互一致的配方明细与线圈目录回执确定性收口。未命中、开关关闭或身份不合格时保持原 Legacy 路径。`recipe↔part` 仅增加私有 AI 的 `get_recipe_parts/get_recipes_by_part`，不扩展 MCP 目录，不新增 Ontology 关系或写权限。HTTP 内部关系边界现已挂载为 `/api/relations/read` 与 `/api/relations/resolve`，均位于认证后的 `/api` 段。迁移边界及验收见 [First Relation Routing Migration V1](ontology-first-routing-migration-v1.md)。
+当前 AI 助理在每轮通过正式 Ontology resolver 验证实体候选，并由 Capability Broker 选择已登记的只读/预览能力。历史 Shadow、Canary 和关系观察开关已退役；它们不属于当前 HTTP、AI runtime 或正式 API 契约。
+Ontology 关系查询遵循同一正式身份和能力边界：页面与会话上下文只能提供候选，歧义或缺失不允许静默绑定；关系数据必须通过当前登记能力读取。旧 Shadow、Canary、Local/provider 路由以及关系观察开关均已退役，不再构成 HTTP 或 AI runtime 契约。
 
 包装零件的一级分类统一为 `包装`。二级分类只表达用途：牛皮纸箱、彩印箱和木箱归入 `外包装`；泡沫和珍珠棉归入 `内衬`；说明书、贴纸等归入 `固定包材`。具体材质和规格继续由型号及 `packagingMaterial` 表达。
 
@@ -493,11 +491,11 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 ## 16. AI
 
-### 私人助理与长期记忆（V1）
+### 历史个人助理接口
 
 聊天循环保留完整正式工具回执及页面明细；送给模型的订单、报价、配方列表使用标注 `modelView.kind=list_summary` 的基本信息视图，逐行 `omittedFields` 标明嵌套字段未展示，`modelView.detailTool` 指向既有详情工具。该视图不改变 HTTP/AI 工具的正式输入、响应或能力登记。详情中的 JSON 字符串在模型视图中无损解码。历史引用摘要最多估算 4096 token，超出则要求重新查询；工具说明占用过大时精简说明，保留所有工具及 schema 校验结构。大明细已取得但目录无法同时容纳时，结束工具循环并回答已有证据，缺失部分明确说明，不直接丢弃整轮答案。
 
-聊天入口仍为 `POST /api/ai/chat`，接受可选 `conversationId`（1–100 位字母、数字、冒号、下划线或短横线）和 `providerPreference`（`default | local | deepseek | kimi`）。`conversationId` 用于现有登录主体下的服务端会话引用；不传时不跨请求保存引用。`providerPreference=default` 沿用当前全局路由；其他值仅严格选择本轮已配置 Provider，不修改全局设置，也不跨模型降级。非法值返回 `400 AI_PROVIDER_SELECTION_INVALID`，未配置 Provider 返回 `422 AI_PROVIDER_NOT_CONFIGURED`。所有登记 Query/Preview 均可跨类型、跨域组合；明确肯定式的受支持业务命令进入确认式写通道，询问、否定和说明类文本仍按只读对话处理。
+`POST /api/ai/chat` 的当前 Assistant 合同见下方“AI 入口”：请求只接收正常对话、受限页面/附件上下文和服务器拥有的配置，不接受 provider 请求覆盖，也不通过历史个人助理接口决定业务能力或写入。
 
 | Method | Path | 说明 |
 |---|---|---|

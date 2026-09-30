@@ -70,7 +70,7 @@ test('SyntheticBusinessAcceptanceV1 三项资产哈希已冻结', () => {
         path.join(root, 'tests/helpers/syntheticBusinessAcceptanceOracle.cjs'));
     assert.deepEqual(hashes, {
         caseHash: 'e93875d12b5555162057e498b97e594289484d6af554853ed1e116c9aba255e4',
-        fixtureHash: 'cd31af8cf40a436ae85c675ebc1aa070bab4730e9ba0a534d13689202847bb36',
-        oracleHash: '302c6ef1bf89e7d503e9211a1913d0e440f276b59e7269c81f515c8acd03df56'
+        fixtureHash: '1a312439883a1f401edd96d08f539be7005c3e0c4013f7196c0e6b05914c00cd',
+        oracleHash: 'e05ede6d022ba1a24656c34ce965a68cf6a65b6a4e290b3f4f307a9ade5c13b2'
     });
 });

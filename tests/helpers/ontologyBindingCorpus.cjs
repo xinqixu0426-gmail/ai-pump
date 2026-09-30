@@ -1,5 +1,5 @@
 'use strict';
-const { formal } = require('./ontologyShadowFixture.cjs');
+const { formal } = require('./ontologyFormalFixture.cjs');
 const rows = {
     recipe: { id: 301, name: 'Shadow配方甲', templateId: 401, coilId: 501, partsJson: '[{"partId":601,"model":"Shadow零件甲"}]' },
     template: { id: 401, shellModel: 'Shadow模板甲' }, coil: { id: 501, schemeName: 'Shadow线圈甲', schemeCode: 'SHADOW-501', spec: '12', sheets: 120 },

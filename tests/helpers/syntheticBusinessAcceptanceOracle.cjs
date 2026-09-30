@@ -3,8 +3,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { calculateCoilCost, calculateStoredCoilCost } = require('../../api/services/coilCost.cjs');
-const { buildBusinessUnderstandingOracleV2 } = require('./businessUnderstandingOracleV2.cjs');
-const v2Definition = require('../fixtures/business-understanding-benchmark-v2.json');
+const { calculateRecipeCost } = require('../../api/services/costEngine.cjs');
 const { createRelationReadService } = require('../../api/services/relationReadService.cjs');
 
 function sha256(value) {
@@ -27,9 +26,16 @@ function relationIds(service, relation, rootId) {
     return service.read({ version: 1, relation, rootId, pageSize: 50 }).items.map(item => Number(item.canonicalId));
 }
 
+function currentRecipeCost(db, recipe) {
+    const parts = JSON.parse(recipe.parts_json);
+    const catalog = Object.fromEntries(db.prepare('SELECT * FROM parts').all().map(row => [row.model, [row]]));
+    const partsCost = Number(calculateRecipeCost(parts, {}, catalog).totalCost || 0);
+    return Number((partsCost + Number(recipe.assembly_wage || 0) + Number(recipe.packing_wage || 0)
+        + Number(recipe.surface_treatment_cost || 0) + Number(recipe.management_fee || 0)).toFixed(2));
+}
+
 function buildSyntheticBusinessAcceptanceOracle(fixture, definition) {
     const { db, ids } = fixture;
-    const v2 = buildBusinessUnderstandingOracleV2(fixture, v2Definition);
     const coils = db.prepare('SELECT * FROM coils ORDER BY id').all().map(row => ({
         id: row.id, spec: row.spec, sheets: row.sheets, material: row.material, slotType: row.slot_type,
         schemeName: row.scheme_name, schemeStatus: row.scheme_status, pricingMode: row.pricing_mode,
@@ -42,8 +48,9 @@ function buildSyntheticBusinessAcceptanceOracle(fixture, definition) {
     const kit = calculateCoilCost(coils, { coilId: ids['officialCoil.12-160-kit'], spec: '12', sheets: 160,
         material: '钢带', slotType: '小眼', wireWeight: 0.8 });
     if (!calculated.success || !kit.success) throw new Error('SYNTHETIC_ORACLE_COIL_CAPABILITY_UNAVAILABLE');
+    const v550 = db.prepare('SELECT * FROM recipes WHERE id=?').get(ids['activeRecipe.v550']);
     const amountValues = {
-        'recipe.v550.currentCost': v2.perCase['BU-01'].formalFacts.currentRecipeCost,
+        'recipe.v550.currentCost': currentRecipeCost(db, v550),
         'part.bearing.unitCost': db.prepare('SELECT price FROM parts WHERE id=?').get(ids['part.bearing']).price,
         'coil.12-140.override0.8': calculated.data.totalCost,
         'coil.12-160.fixedKitCost': kit.data.totalCost,

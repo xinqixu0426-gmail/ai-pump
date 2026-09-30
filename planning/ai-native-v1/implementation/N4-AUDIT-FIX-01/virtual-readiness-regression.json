@@ -1,6 +1,0 @@
-{
-  "suite": "tests/virtualReadinessPreview.test.cjs + tests/aiTaskControllerV2.test.cjs",
-  "policyCompliantScenario": "PASS; READY result uses approved candidate configuration",
-  "policyViolatingScenario": "PASS; INCOMPLETE/PARTIAL and no complete readiness conclusion",
-  "plannerChanged": false
-}

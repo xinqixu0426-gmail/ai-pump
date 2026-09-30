@@ -89,9 +89,7 @@ Web（提交 messages）
 
 ## 5. 与前一 Owner 验收冻结的差异
 
-`planning/ai-native-v1/release/S2-owner-baseline-2026-09-28.md` 记载的是较早产品基线 `d56de80` 的 Owner 生产验收，不是本次源码 commit。其能力含 canonical technical profile、订单/经营、客户历史、同会话连续查询等更宽覆盖。本次 `d330888` 的 Main Agent 工具面只有 §3.1 的 12 项；这些前序能力在当前 Assistant 主链中未开放，构成**能力面缩减**，即使对应正式服务/API仍存在。
-
-旧 M0 审计（`planning/ai-assistant-mvp-v1/M0-audit/`）的代码基线是 `bc9f7ed`，记录了 Task V2；这条架构路径已在当前分支硬切，不能把其描述当作现在的 runtime。旧报告中提到的生产状态限制也不代表本次已验证的生产状态。
+本基线仅以本文冻结的源码与测试证据为准。更早的 Native/Task 阶段报告已退役，不得用其工具覆盖、生产状态或架构说明推断当前 Assistant 行为；正式 Business API 仍可独立存在，但是否对 AI 开放由当前 Capability Broker 决定。
 
 ## 6. 真实回答与性能基线
 

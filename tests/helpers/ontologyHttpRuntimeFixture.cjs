@@ -70,7 +70,7 @@ async function startAiHttpRuntime(options = {}) {
     const ownerPassword = process.env.PUMP_OWNER_ACCESS_PASSWORD || 'p7-http-runtime-owner-password-0123456789abcdef';
     const ownerSubject = process.env.PUMP_OWNER_SUBJECT || 'p7-http-runtime-owner';
     try {
-        require('./ontologyShadowFixture.cjs').fixture(filename).close();
+        require('./ontologyFormalFixture.cjs').fixture(filename).close();
         Object.assign(process.env, { NODE_ENV: 'test', NODE_TEST_CONTEXT: 'p7-http-runtime',
             PUMP_TEST_DATABASE_PATH: filename, INTERNAL_SECRET: internalSecret,
             ACCESS_PASSWORD: process.env.ACCESS_PASSWORD || 'p7-http-runtime-access-password',
