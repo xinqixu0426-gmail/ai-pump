@@ -21,9 +21,9 @@ async function runPipeline(input, dependencies = {}) {
     ]);
     const parallelContextMs = elapsed(contextStart);
     const intentStart = process.hrtime.bigint();
-    const intent = await intentRunner({ userInput: input.userInput, recentConversation: input.recentConversation, businessMemo: business.value, policyMemo: policy.value }, dependencies);
+    const intentMemo = await intentRunner({ userInput: input.userInput, recentConversation: input.recentConversation, businessMemo: business.value, policyMemo: policy.value }, dependencies);
     const intentMs = elapsed(intentStart);
-    return Object.freeze({ businessMemo: business.value, policyMemo: policy.value, intent, timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, parallelContextMs, intentMs, totalMs: parallelContextMs + intentMs }) });
+    return Object.freeze({ businessMemo: business.value, policyMemo: policy.value, intentMemo, timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, parallelContextMs, intentMs, totalMs: parallelContextMs + intentMs }) });
 }
 
 module.exports = { runPipeline };
