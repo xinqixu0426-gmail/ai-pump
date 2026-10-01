@@ -1,0 +1,740 @@
+{
+  "phase": "M4-3A-R3",
+  "scope": "targeted",
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "policySource": "BOOTSTRAP_PLUS_CANDIDATE",
+  "ontologyUsed": true,
+  "intentAgentCalls": 0,
+  "utteranceExtractorCalls": 0,
+  "modelCalls": 26,
+  "resolverCalls": 1,
+  "fixtureSource": "isolated_formal_entity_lookup_fixture",
+  "metrics": {
+    "businessMedianMs": 2887.604833,
+    "policyMedianMs": 1839.215917,
+    "referenceMedianMs": 0,
+    "roleClassifierMedianMs": 924.303541,
+    "resolverMedianMs": 0,
+    "totalMedianMs": 3740.491333
+  },
+  "results": [
+    {
+      "id": "T-01",
+      "run": 1,
+      "user": "这个换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:11:57.846Z",
+      "businessMemo": "# Relevant business concepts\n\n- **Packing configuration（包装配置）**：Business Model 中列为 Recipe Configurable Cost Driver 之一，指纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- **Recipe / 配方**：可保存、可复用的 OEM 水泵生产配置基础，包装是其可配置成本维度之一。\n- **BOM**：根据 Recipe 当前配置正式展开后的物料／工艺组成，包装配置属于其中依配置而变的成本项。\n- **Template**：Recipe 所基于的固定机械结构蓝图，与包装配置不是同一层次。\n\n# Business meaning\n\n- 在本公司业务模型中，“换木箱”属于 **Packing configuration / OEM 包装配置变化**：从纸箱变更为木箱。\n- Business Model 说明：包装从纸箱变木箱通常描述的是 **OEM 配置变化**，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n- 木箱／纸箱属于包装物料，被归入包装配置这一 Recipe 可配置成本项。\n\n# Relevant relationships\n\n- 包装配置挂在 **Recipe** 上，是 Recipe 的可配置成本维度之一。\n- 包装配置会进一步影响 **BOM**（作为依配置而变的物料／成本项）。\n- 本次“换木箱”属于 **OEM 配置变化**；Business Model 明确它不改变功率等级、泵壳款式或基础型号。\n- Template 只记录固定机械结构搭配的零件型号，包装配置不属于 Template 固定结构蓝图的范畴。\n\n# Unknown business terms\n\n- **“这个”指哪一套 Recipe / 哪一具体配置**：Business Model 未定义，无法据此确定。\n- **木箱的具体规格、物料型号与计价方式**：Business Model 未提供木箱的成本构成或成本公式，无法给出任何金额。\n- **该包装变更对应的具体正式方案**：Business Model 未定义，需另行确认。\n\n> 说明：关于“多少钱”，本 V1 业务模型不提供成本公式或当前成本事实，故无法回答金额；以上仅为“换木箱”这一表述在本公司业务模型中的含义解释。",
+      "policyMemo": "**Memo：换木箱的成本询问应如何处理**\n\n- 该请求属于配置变化伴随成本询问，应优先理解为**临时配置试算/分析**，而非正式配方变更。\n- “换木箱”只表达了配置变化意图，未表达保存或正式修改意图，因此持久化意图为**未指定**，不得自行升级为正式写入。\n- 可先按临时试算处理成本问题，并在结果中明确标注为**临时试算成本**，不得表述为当前正式成本或正式报价。\n- 若要正式修改配方，须由 Owner 明确表达保存/正式更新意图，并经确认后方可执行。\n- 如对象指代不唯一，应先做有限澄清，不得默认选择某个候选或方案。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "referenceMemo": "REFERENCE_STATUS: UNRESOLVED\nREFERENCE_SURFACE: 这个\nRESOLVED_LANGUAGE_REFERENCE: NONE",
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "这个",
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: 这个 | REFERENCE | NONE\nROLE: 换木箱 | CONFIG_VALUE | NONE\nROLE: 多少钱 | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "这个",
+          "role": "REFERENCE",
+          "entityType": null
+        },
+        {
+          "expression": "换木箱",
+          "role": "CONFIG_VALUE",
+          "entityType": null
+        },
+        {
+          "expression": "多少钱",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "STOP_UNRESOLVED_REFERENCE",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 1,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3339.034291,
+        "policyMs": 1943.956584,
+        "referenceMs": 1319.130125,
+        "roleClassifierMs": 885.60425,
+        "resolverMs": 0,
+        "totalMs": 4225.985875
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "STOP_UNRESOLVED_REFERENCE",
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "这个",
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "这个",
+            "role": "REFERENCE",
+            "entityType": null
+          },
+          {
+            "expression": "换木箱",
+            "role": "CONFIG_VALUE",
+            "entityType": null
+          },
+          {
+            "expression": "多少钱",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:木箱"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-02",
+      "run": 1,
+      "user": "这个多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:02.075Z",
+      "businessMemo": "# Relevant business concepts\n\n- “这个”在当前这句话里没有明确对应的业务对象。\n- 可能相关的高层概念包括：STATOR、COIL / COIL SCHEME、COIL COMMON DESIGNATION（如 `12-120`）、TEMPLATE、RECIPE、BOM、PART、PROCESS OPTION、V550 / V750 / V110、OEM CONFIGURATION。\n- “多少钱”涉及的是成本或报价层面的问题。\n\n# Business meaning\n\n- Company Business Model 只解释以上业务概念“是什么”，不提供任何当前成本、价格、库存或正式事实。\n- 本模型未定义“这个”指哪一个业务对象，因此无法确定“这个多少钱”中的“这个”属于哪一类业务含义。\n- 即使用户指的是某个具体概念（例如 `12-120` 或 `V750-通用款`），本模型也不提供其金额或成本数值。\n\n# Relevant relationships\n\n- Recipe 是报价、客户配置和生产配置的基础；其中包含可因 OEM 要求变化而影响 BOM、制造工艺或成本的配置维度（Coil、Barrel、Cable、Float、Packing、Surface treatment、Rotor process 等）。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；最终成本组成可包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置等。\n- Template 本身按 Owner 业务定义不负责成本计算。\n- 这些关系只说明“成本可能由哪些业务层构成”，不代表任何具体金额，也不代表本模型给出报价。\n\n# Unknown business terms\n\n- “这个”：业务模型未定义其所指的具体业务对象。\n- “多少钱”：业务模型未定义任何当前成本或价格事实。\n- 若“这个”是某个正式 Coil Scheme、Recipe 或 BOM 配置，业务模型也未定义“如何据此得到具体金额”。\n\n说明：Company Business Model 未定义与“这个多少钱”相对应的具体业务对象和任何成本数值，因此不能在该模型范围内给出金额或事实判断。",
+      "policyMemo": "# Memo：关于“这个多少钱？”\n\n- 该请求涉及金额信息，回答时须保持**金额口径明确**：需说明是当前正式成本、临时试算成本、历史报价，还是假设售价下的利润，不得混用或错标。\n- 当前消息未说明“这个”具体指哪个对象或哪种配置变化，也未给出任何试算输入，**信息不足以直接给出金额**。\n- 若涉及配置变化（如电缆、包装等）并询问价格，应优先理解为**临时配置试算／分析**；但用户此处未明确表达配置变化，也未表达保存意图。\n- 在对象不明确的情况下，不得自行默认选择某个配方、方案或口径；应先做有边界的澄清。\n- 若用户随后表达正式修改或保存意图，则属于持久化变更，需经确认后方可执行；无保存意图时仅作试算，不改动正式配方。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "referenceMemo": "REFERENCE_STATUS: UNRESOLVED\nREFERENCE_SURFACE: 这个\nRESOLVED_LANGUAGE_REFERENCE: NONE",
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "这个",
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: CONCEPT_ONLY\nROLE: 这个 | REFERENCE | NONE\nROLE: 多少钱 | QUERY_ONLY | NONE",
+      "requestClass": "CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "这个",
+          "role": "REFERENCE",
+          "entityType": null
+        },
+        {
+          "expression": "多少钱",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "NOT_REQUIRED",
+      "gate": "STOP_NOT_REQUIRED",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 1,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2923.7625,
+        "policyMs": 1864.063166,
+        "referenceMs": 877.645833,
+        "roleClassifierMs": 816.387333,
+        "resolverMs": 0,
+        "totalMs": 3740.491333
+      },
+      "evaluation": {
+        "requestClass": "CONCEPT_ONLY",
+        "groundingNeed": "NOT_REQUIRED",
+        "gate": "STOP_NOT_REQUIRED",
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "这个",
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "这个",
+            "role": "REFERENCE",
+            "entityType": null
+          },
+          {
+            "expression": "多少钱",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "REQUEST_CLASS_INCORRECT",
+          "GATE_INCORRECT",
+          "GROUNDING_NEED_INCORRECT"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-03",
+      "run": 1,
+      "user": "V750换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:05.815Z",
+      "businessMemo": "# Relevant business concepts\n\n- V750：工厂内部 Recipe／产品规格代号体系中的一项，代表 V 系列 750 功率等级。\n- 包装（Packing configuration）：Recipe 的可配置成本项之一，涉及纸箱、木箱、珍珠棉、泡沫等包装物料。\n- 木箱 / 纸箱：包装配置中的具体包装物料形式。\n- Recipe：可保存、可复用的 OEM 水泵生产配置基础，是报价、客户配置和生产配置的基础。\n- BOM：根据 Recipe 当前配置正式展开后的物料／工艺组成。\n\n# Business meaning\n\n- “V750”在本公司业务语言中表示 V 系列 750 功率等级，不能被理解为固定、不可改变的 Finished Product。\n- “换木箱”属于 OEM 包装配置变化：按本公司业务模型，包装从纸箱变木箱通常描述的是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n- “多少钱”指向成本／报价层面的问题，但本业务模型只解释“业务概念是什么”，不提供成本公式，也不提供任何当前成本或价格事实。\n\n# Relevant relationships\n\n- V750 是 Recipe 的规格代号基础；同一基础 Recipe 可以依客户要求调整线圈片数、电缆、包装、机筒长度、转子工艺等配置。\n- 包装是 Recipe Configurable Cost Driver 之一；木箱属于包装配置中的一种包装物料，并可能作为 BOM 中的物理包装物料出现。\n- 包装配置变化会影响 Recipe 的配置展开，进而可能影响最终成本组成，但本模型不给出成本数值或计算方式。\n\n# Unknown business terms\n\n- “换木箱”所对应的具体包装物料型号、规格或配套形式：本业务模型未定义。\n- 该 V750 配置当前采用的具体 Recipe、泵壳款式（如通用款、豪贝款、东音款）：本业务模型未定义。\n- “多少钱”所指的具体价格／成本口径及其数值：本业务模型未定义，不提供成本公式与当前成本事实。",
+      "policyMemo": "# Memo：V750 换木箱询价\n\n- **适用规则**：临时配置试算 vs 正式配方变更；金额口径须明确；库存/成本口径须明确。\n- **语义判断**：询问“换木箱多少钱”属于**临时配置试算 / 成本分析**意图，关注包装配置变化对成本或价格的影响，未表达保存意图。\n- **处理含义**：应以临时试算口径回答，并明确标注为“临时场景试算成本”，不得表述为当前正式成本或正式报价。\n- **保存含义**：本例不涉及持久化写入；若后续要“正式修改配方并保存”，才转入需 Owner 确认的持久化变更路径。\n- **注意事项**：V750 仅为候选名称，正式身份需经正式目录解析确认；包装配置变化属预演性质，不改变官方存储配方。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: V750 | FORMAL_ENTITY_CANDIDATE | RECIPE/COIL/TEMPLATE/PART\nROLE: 木箱 | CONFIG_VALUE | NONE\nROLE: 多少钱 | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "木箱",
+          "role": "CONFIG_VALUE",
+          "entityType": null
+        },
+        {
+          "expression": "多少钱",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "STOP_NO_FORMAL_TARGET",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2615.026875,
+        "policyMs": 1984.501875,
+        "referenceMs": 0,
+        "roleClassifierMs": 1040.041833,
+        "resolverMs": 0,
+        "totalMs": 3655.181542
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "STOP_NO_FORMAL_TARGET",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "木箱",
+            "role": "CONFIG_VALUE",
+            "entityType": null
+          },
+          {
+            "expression": "多少钱",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:V750",
+          "FORMAL_TARGET_NOT_RESOLVED",
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-04",
+      "run": 1,
+      "user": "V750加浮球多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:09.471Z",
+      "businessMemo": "# V750加浮球多少钱？\n\n## Relevant business concepts\n- V750\n- Recipe\n- Float configuration\n- Recipe Configurable Cost Driver\n- 成本 / 报价（作为业务概念被提及）\n\n## Business meaning\n- **V750**：属于工厂内部 Recipe／产品规格代号体系。`V` 表示产品系列／型号体系，`750` 表示功率等级。它不是固定、不可改变的 Finished Product，也不等于固定成品 SKU。\n- **加浮球**：在业务模型中对应 **Float configuration**，属于 Recipe Configurable Cost Driver 之一。它描述的是“是否带浮球，以及浮球规格或配套形式”这一配置维度，会因客户 OEM 要求变化并可能进一步影响 BOM、制造工艺或成本。\n- 因此“V750 加浮球”在本业务模型中，是指在 V 系列 750 功率等级的 Recipe 配置基础上，选择带浮球的配置形式；它属于 Recipe 可配置成本项的变化，而不是把浮球简单视为一个普通库存零件替换。\n\n## Relevant relationships\n- V750 是 Recipe 规格代号；同一 Recipe 基础可依客户要求调整配置。\n- Float configuration 是 Recipe 的可配置成本驱动项之一，与 Coil configuration、Barrel configuration、Cable configuration、Packing configuration、Surface treatment、Rotor process 并列。\n- Recipe 是报价、客户配置和生产配置的基础；BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 浮球配置可能影响 BOM 与成本，但本业务模型不提供具体成本数值或报价。\n\n## Unknown business terms\n- **“多少钱”**：本业务模型只解释“业务概念是什么”，不提供数据库当前事实、成本公式、报价或任何正式金额。因此 V750 加浮球的具体价格在本业务模型中未定义，无法据此给出金额。\n- **具体采用哪一套 V750 Recipe、哪一套浮球规格或配套形式**：本业务模型未定义，需另行确认；不同配置对应关系不能由本模型推定。",
+      "policyMemo": "**Memo**\n\n- 该请求属于“配置变化 + 询问成本/价格”组合，应优先理解为一次临时配置试算/分析，而非对正式配方的持久化修改。\n- “加浮球”在语义上明确表示配置变化，但未表达“保存”“正式修改”“以后就用这个”等持久化意图；因此本轮只做成本影响的试算说明，不得直接当作正式配方变更。\n- 若后续要形成正式变更，需另行明确保存/正式修改意图，并由 Owner 确认后走受保护执行路径；在此之前不得声称已改好或已保存。\n- 输出金额时须标明是临时配置试算成本，不得表述为当前正式成本或正式报价。\n- 涉及 V750 的具体身份/口径需经正式解析确认；若存在歧义，应先做有界澄清，不得默认选择。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: V750 | FORMAL_ENTITY_CANDIDATE | RECIPE\nROLE: 浮球 | CONFIG_VALUE | NONE\nROLE: 多少钱 | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "entityType": "recipe"
+        },
+        {
+          "expression": "浮球",
+          "role": "CONFIG_VALUE",
+          "entityType": null
+        },
+        {
+          "expression": "多少钱",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "RUN",
+      "formalTargets": [
+        {
+          "mention": "V750",
+          "entityType": "recipe"
+        }
+      ],
+      "resolutions": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "result": {
+            "entityType": "recipe",
+            "mention": "V750",
+            "status": "AMBIGUOUS",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "formal",
+            "verified": false
+          },
+          "resolverMs": 0.522833
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2976.393416,
+        "policyMs": 1768.863208,
+        "referenceMs": 0,
+        "roleClassifierMs": 1090.292791,
+        "resolverMs": 0.522833,
+        "totalMs": 4067.373417
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "RUN",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "entityType": "recipe"
+          },
+          {
+            "expression": "浮球",
+            "role": "CONFIG_VALUE",
+            "entityType": null
+          },
+          {
+            "expression": "多少钱",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "result": {
+              "entityType": "recipe",
+              "mention": "V750",
+              "status": "AMBIGUOUS",
+              "canonicalId": null,
+              "canonicalName": null,
+              "candidates": [
+                {
+                  "entityType": "recipe",
+                  "canonicalId": "11",
+                  "canonicalName": "V750-通用款",
+                  "matchKind": "EXACT"
+                },
+                {
+                  "entityType": "recipe",
+                  "canonicalId": "12",
+                  "canonicalName": "V750-豪贝款",
+                  "matchKind": "EXACT"
+                }
+              ],
+              "source": "formal",
+              "verified": false
+            }
+          }
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-05",
+      "run": 1,
+      "user": "V750做电泳成本差多少？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:13.538Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项，`V` 表示产品系列／型号体系，`750` 表示功率等级。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，报价、客户配置和生产配置的基础。\n- **Surface treatment（表面处理）**：Recipe Configurable Cost Driver 之一，属于可配置工艺成本项。\n- **电泳**：业务模型中列举的表面处理允许工艺之一。\n\n# Business meaning\n\n- 用户所说的“V750”，按业务模型应理解为 V 系列、750 功率等级的规格代号，而不是一个固定不可改变的成品。\n- “电泳”在本公司业务语言中属于 **Surface treatment**，即表面处理这一类 Recipe 可配置工艺成本项；业务模型中明确它属于可配置工艺成本项，不一定表现为普通 BOM Part。\n- 因此“V750 做电泳”在业务上指向的是：在某个基于 V 系列 750 功率等级的 Recipe 配置上，选择了电泳这一表面处理配置。\n\n# Relevant relationships\n\n- Surface treatment 是 **Recipe Configurable Cost Driver** 的一种类型，会因客户 OEM 要求变化并进一步影响 BOM、制造工艺或成本。\n- 业务模型将表面处理与“无表面处理、喷漆、电泳、喷粉及其它允许工艺”并列，说明它是配置选项层面的差异，而非零件替换。\n- 它属于会影响成本的工艺项，业务模型明确工艺成本不等于普通目录 Part。\n\n# Unknown business terms\n\n- **“成本差多少”**：业务模型没有定义任何成本数值、成本公式、成本差额或成本计算方式，因此无法据此说明 V750 电泳与其他表面处理之间的成本差异。\n- **具体是哪种配置与之对比**：用户未说明对比对象（例如与无表面处理、喷漆或喷粉相比），业务模型也未定义此类差值的业务含义。\n- **具体对应的正式 Recipe 身份**：业务模型说明 V750 不是固定成品，具体配置需另行确认；用户仅说“V750”，并未指明是哪一套 Recipe 配置基础。\n\n本 Memo 仅依据 Company Business Model V1 解释业务概念，不提供任何当前成本事实或数值。",
+      "policyMemo": "**Memo**\n\n- 本句描述 Recipe 配置变化（电泳/表面处理），并询问成本差异，属于临时配置试算/分析意图。\n- 应优先理解为临时试算：仅用于场景重算，不改变正式配方或正式业务状态。\n- 未表达保存或正式修改意图，因此不得视为持久化变更，也不需要写入确认。\n- 回答成本时应明确标注为“临时试算成本/差异”，不得表述为当前正式配方成本或正式金额。\n- 配置变化明确、保存意图未指明；不得自行升级为正式写入。若用户后续明确要求保存或更新正式配方，才进入需确认的持久化处理。\n- 实体（V750）仅为候选提及，正式身份应由正式解析结果确定；若存在歧义需澄清。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: V750 | FORMAL_ENTITY_CANDIDATE | RECIPE/COIL/TEMPLATE/PART\nROLE: 做电泳 | CONFIG_VALUE | NONE\nROLE: 成本差多少 | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "做电泳",
+          "role": "CONFIG_VALUE",
+          "entityType": null
+        },
+        {
+          "expression": "成本差多少",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "STOP_NO_FORMAL_TARGET",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2887.604833,
+        "policyMs": 1839.215917,
+        "referenceMs": 0,
+        "roleClassifierMs": 1355.028791,
+        "resolverMs": 0,
+        "totalMs": 4242.693625
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "STOP_NO_FORMAL_TARGET",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "做电泳",
+            "role": "CONFIG_VALUE",
+            "entityType": null
+          },
+          {
+            "expression": "成本差多少",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:V750",
+          "ROLE_NOT_PRESERVED:电泳",
+          "FORMAL_TARGET_NOT_RESOLVED",
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-06",
+      "run": 1,
+      "user": "12-120多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:17.781Z",
+      "businessMemo": "# Relevant business concepts\n\n- `12-120`\n- Coil Common Designation\n- COIL / COIL SCHEME\n- STATOR / 定子\n- 成本\n\n# Business meaning\n\n`12-120` 是工厂关于线圈／定子方案的常用规格表达，不是唯一正式 Coil Scheme identity。\n\n- `12` 是定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 是硅钢片／线圈方案片数；\n- `120` 不是功率；\n- `120` 不是库存。\n\n同一个 `12-120` 可以存在多套正式线圈方案。具体正式方案与这个 common designation 不是同一个概念；不能仅凭这个俗称认定某一套唯一方案。\n\n# Relevant relationships\n\n`12-120` 与正式 COIL SCHEME 不是同一个身份；它也与 STATOR 本身、普通 Part 不是同一层概念。\n\n在本业务模型中，并未定义 `12-120` 本身对应某一个唯一成本对象。Business Model 只说明：用户说“12-120”首先是在提及一个常用规格表达；至于成本所对应的具体正式方案，必须另行确认。\n\n# Unknown business terms\n\n- `12-120多少钱` 中的“多少钱”：Company Business Model V1 未定义 `12-120` 对应的具体成本、报价或正式方案身份，因此无法据此确定业务含义。",
+      "policyMemo": "# Memo：线圈价格询问的处理\n\n用户询问“12-120多少钱？”，属于对线圈规格的货币信息查询，应先按只读查询理解。\n\n**适用规则：**\n- 常见线圈代号可能对应多个正式方案，不能默认选取第一个，也不能在未明确要求汇总时把不同方案的库存或成本相加。\n- 货币信息必须标明计算口径（当前正式成本、临时试算成本、历史报价或假设售价利润等），不得把试算金额当作当前正式成本。\n\n**处理含义：**\n先对“12-120”做正式身份/方案解析。若对应多个方案，应给出有界的方案选项，并请用户指明；在未确认前不输出单一价格。\n\n**保存含义与注意事项：**\n本句未表达任何保存或正式修改意图，因此不应触发写入或变更正式配方。若后续需要按某方案试算，应明确标注为临时试算口径；若用户要求正式保存，则需另行确认。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: 12-120 | FORMAL_ENTITY_CANDIDATE | RECIPE/COIL/TEMPLATE/PART\nROLE: 多少钱 | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "多少钱",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "STOP_NO_FORMAL_TARGET",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 1935.524625,
+        "policyMs": 1722.333375,
+        "referenceMs": 0,
+        "roleClassifierMs": 901.75775,
+        "resolverMs": 0,
+        "totalMs": 2837.349334
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "STOP_NO_FORMAL_TARGET",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "多少钱",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:12-120",
+          "FORMAL_TARGET_NOT_RESOLVED",
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-07",
+      "run": 1,
+      "user": "模板和配方有什么区别？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:20.619Z",
+      "businessMemo": "# 模板和配方有什么区别？\n\n## Relevant business concepts\n- TEMPLATE / 模板\n- RECIPE / 配方\n- BOM\n- Template 固定结构蓝图\n- Recipe 配置基础\n\n## Business meaning\n- **Template（模板）**：是专门为 Recipe 准备的可复用 BOM 蓝图，基于某一种泵壳结构，记录用这套泵壳组合成水泵时必须固定搭配的零件型号，例如轴承、油封、螺丝及其它固定结构零件。它的目的是让同一套结构能快速建立多个 Recipe，避免每次重建都重新配置固定 BOM。按业务模型定义，Template 本身不负责成本计算。\n- **Recipe（配方）**：是可保存、可复用的 OEM 水泵生产配置基础，不是绝对固定的 Finished Product。它可以包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数、机筒长度、电缆、包装、工艺选项及其它可配置项目，是报价、客户配置和生产配置的基础。\n\n## Relevant relationships\n- 新建 Recipe 必须基于 Template。\n- Template 提供固定机械结构蓝图；Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置。\n- Template 只是 BOM 的一个输入来源；Recipe 是配置基础；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 讨论“模板固定了什么”是在讨论固定结构蓝图；讨论“某配方用了什么”是在讨论该 Recipe 当前配置展开后的 BOM，两者不能互换。\n- Template 不代表完整成品、不代表客户最终配置、不等于最终 BOM。\n\n## Unknown business terms\n- 本业务模型未定义 Template 与 Recipe 在数据库中的身份、数量或当前事实。\n- 未定义某个具体 Template 或 Recipe 的当前配置内容。",
+      "policyMemo": "# 处理 Memo\n\n- 用户询问“模板和配方有什么区别”，属于概念性/信息性提问，未包含任何配置覆盖、场景输入或持久化意图。\n- 该问题不触发临时试算、明确保存或正式修改的处理路径，不涉及任何写入确认。\n- 可基于已确立的正式口径解释二者区别，但不得以相似命名或遗留字段相互推断、替代。\n- 若问题牵出具体配方或模板标识，仅作为候选提及，需经正式身份解析确认，歧义时须澄清，不得默认选取。\n- 不涉及保存含义；无写入风险。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: CONCEPT_ONLY\nROLE: 模板 | CONCEPT_ONLY | NONE\nROLE: 配方 | CONCEPT_ONLY | NONE",
+      "requestClass": "CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "模板",
+          "role": "CONCEPT_ONLY",
+          "entityType": null
+        },
+        {
+          "expression": "配方",
+          "role": "CONCEPT_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "NOT_REQUIRED",
+      "gate": "STOP_NOT_REQUIRED",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2123.555291,
+        "policyMs": 1638.132333,
+        "referenceMs": 0,
+        "roleClassifierMs": 924.303541,
+        "resolverMs": 0,
+        "totalMs": 3047.931666
+      },
+      "evaluation": {
+        "requestClass": "CONCEPT_ONLY",
+        "groundingNeed": "NOT_REQUIRED",
+        "gate": "STOP_NOT_REQUIRED",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "模板",
+            "role": "CONCEPT_ONLY",
+            "entityType": null
+          },
+          {
+            "expression": "配方",
+            "role": "CONCEPT_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:区别"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-08",
+      "run": 1,
+      "user": "12-120有两个方案吧？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T18:12:23.667Z",
+      "businessMemo": "# Relevant business concepts\n\n- `12-120` / Coil Common Designation\n- COIL / COIL SCHEME\n- STATOR / 定子\n- 正式方案 identity\n\n# Business meaning\n\n`12-120` 在本公司业务模型中是一个**线圈／定子方案的常用规格表达**，不是唯一正式 Coil Scheme identity。\n\n按 Business Model V1 的说明：\n\n- `12` 是定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 是硅钢片／线圈方案片数；\n- `120` 不是功率；\n- `120` 不是库存。\n\n同时，Business Model 明确说明：**同一个 `12-120` 可以存在多套正式线圈方案**。具体正式方案与这个 common designation 不是同一个概念。\n\n# Relevant relationships\n\n- `12-120` 属于常用规格表达层，不等于某一套唯一正式 COIL SCHEME；\n- 具体正式方案可能还以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分；\n- 只有在这些正式区分条件明确后，才谈得上具体使用的是哪一套方案；\n- 用户说“查 12-120”时，首先是在提及一个常用规格表达；至于成本、库存或实际配置所对应的具体正式方案，必须另行确认。\n\n# Unknown business terms\n\n关于“**12-120 有两个方案吧？**”中的“有两个方案”：\n\n- Business Model 只说明“同一个 `12-120` 可以存在多套正式线圈方案”；\n- Business Model **没有定义** `12-120` 对应的具体方案数量；\n- Business Model **没有定义**“两个方案”具体指哪两套正式 Coil Scheme；\n- 因此，“12-120 是否恰好有两个方案”属于业务模型未定义的内容，不能据此认定具体方案数量或具体方案身份。",
+      "policyMemo": "# Memo：12-120 方案查询\n\n- 12-120 属于通用线圈规格，可能对应多个正式线圈方案，不能默认取第一个方案，也不能把不同方案的信息合并。\n- 当前用户仅是在询问是否存在多个方案，属于只读意图，不涉及任何保存或变更。\n- 处理含义：应给出有界的方案选项，让用户确认具体指向哪个方案；如需后续查看某方案的库存或成本，需说明该结果对应的方案基础。\n- 保存含义：无。未表达保存意图，不得据此写入或修改任何正式内容。\n- 注意事项：如实际只存在一个方案或无法匹配，应给出明确结果，不得臆造标识或强行选择。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "REQUEST_CLASS: FORMAL_FACT_OR_ACTION\nROLE: 12-120 | FORMAL_ENTITY_CANDIDATE | RECIPE/COIL/TEMPLATE/PART\nROLE: 有两个方案吧？ | QUERY_ONLY | NONE",
+      "requestClass": "FORMAL_FACT_OR_ACTION",
+      "roles": [
+        {
+          "expression": "有两个方案吧？",
+          "role": "QUERY_ONLY",
+          "entityType": null
+        }
+      ],
+      "groundingNeed": "REQUIRED",
+      "gate": "STOP_NO_FORMAL_TARGET",
+      "formalTargets": [],
+      "resolutions": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2274.898084,
+        "policyMs": 1776.216,
+        "referenceMs": 0,
+        "roleClassifierMs": 904.462,
+        "resolverMs": 0,
+        "totalMs": 3179.419417
+      },
+      "evaluation": {
+        "requestClass": "FORMAL_FACT_OR_ACTION",
+        "groundingNeed": "REQUIRED",
+        "gate": "STOP_NO_FORMAL_TARGET",
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "roles": [
+          {
+            "expression": "有两个方案吧？",
+            "role": "QUERY_ONLY",
+            "entityType": null
+          }
+        ],
+        "actual": [],
+        "failures": [
+          "ROLE_NOT_PRESERVED:12-120",
+          "ROLE_NOT_PRESERVED:两个方案",
+          "FORMAL_TARGET_NOT_RESOLVED",
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH"
+        ],
+        "overall": "FAIL"
+      }
+    }
+  ]
+}
