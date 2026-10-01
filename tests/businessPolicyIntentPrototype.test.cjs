@@ -91,11 +91,12 @@ test('R9 uses only current-message evidence and has no reference-recovery requir
     assert.doesNotMatch(runner, /clarificationExpectation|clarificationReason|needsClarification|requiredChanges/);
 });
 
-test('prototype has no Ontology imports or production-runtime imports', () => {
+test('legacy M4-2M pipeline stays separate from Ontology while production runtime imports no experiment', () => {
     const root = path.resolve(__dirname, '..');
     for (const relativePath of ['api/services/ai-assistant/runtime.cjs', 'api/services/ai-assistant/judge.cjs', 'api/services/ai-assistant/mainAgent.cjs', 'api/services/ai-assistant/capabilityBroker.cjs']) {
         assert.doesNotMatch(fs.readFileSync(path.join(root, relativePath), 'utf8'), /business-policy-intent/);
     }
-    const prototype = path.join(root, 'scripts/ai-experiments/business-policy-intent');
-    for (const file of fs.readdirSync(prototype)) assert.doesNotMatch(fs.readFileSync(path.join(prototype, file), 'utf8'), /require\([^)]*ontology|api\/ontology/i);
+    for (const file of ['businessAgent.cjs', 'policyAgent.cjs', 'intentAgent.cjs', 'pipeline.cjs', 'run-smoke.cjs']) {
+        assert.doesNotMatch(fs.readFileSync(path.join(root, 'scripts/ai-experiments/business-policy-intent', file), 'utf8'), /require\([^)]*ontology|api\/ontology/i);
+    }
 });
