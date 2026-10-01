@@ -92,3 +92,9 @@ The intended case set remains frozen in `scripts/ai-experiments/business-policy-
 | Writes / Ontology mutations | 0 | Verified by focused tests |
 
 Do not integrate this prototype into production or add a Planner. Restore DeepSeek DNS/provider connectivity, then rerun the same frozen command and evaluate its raw model outputs against the existing Grounding Evaluator V1. No Prompt, case, fixture, or upstream Business/Policy source should be changed before that rerun.
+
+## R2 provider recovery update
+
+The original environment failure was diagnosed as a sandbox DNS restriction, not a DeepSeek endpoint or project configuration error. Under permitted network execution, the same DeepSeek client returned `OK`. The frozen three-case recovery smoke then passed G-01 and G-03 but failed G-12: the Grounding model treated the unresolved reference `这个` as `NOT_REQUIRED`, created an unsupported `木箱 | recipe` target, and did not retain `REFERENCE_STATUS: UNRESOLVED`.
+
+The full frozen smoke was therefore not rerun. This is a confirmed Grounding semantic REWORK, with raw evidence in [M4-3A-R2-Three-Case-Recovery-2026-10-01.json](M4-3A-R2-Three-Case-Recovery-2026-10-01.json). Provider diagnostic evidence is in [M4-3A-R2-Provider-Diagnostics.md](M4-3A-R2-Provider-Diagnostics.md).

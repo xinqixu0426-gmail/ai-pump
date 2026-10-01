@@ -6,7 +6,13 @@ const { resolveProviderConfig } = require('../../../api/services/aiProviderRegis
 async function callDeepSeek(messages, options = {}) {
     const config = resolveProviderConfig('deepseek', options.env || process.env);
     if (!config.apiKey) throw new Error('EXPERIMENT_DEEPSEEK_NOT_CONFIGURED');
-    const response = await fetchAiProvider(messages, { config, tools: [], stream: false, timeoutMs: options.timeoutMs || 120_000 });
+    const response = await fetchAiProvider(messages, {
+        config,
+        tools: [],
+        stream: false,
+        timeoutMs: options.timeoutMs || 120_000,
+        onProvider: options.onProvider,
+    });
     const payload = await decodeAiProviderResponse(response);
     const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('EXPERIMENT_MODEL_RESPONSE_INVALID');

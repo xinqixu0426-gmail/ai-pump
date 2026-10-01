@@ -1,0 +1,190 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "baseUrl": "https://api.deepseek.com",
+  "hostname": "api.deepseek.com",
+  "apiKeyPresent": true,
+  "configSources": {
+    "AI_PROVIDER": "DEFAULT",
+    "DEEPSEEK_BASE_URL": "DEFAULT",
+    "DEEPSEEK_MODEL": "EXPERIMENT_FORCED",
+    "DEEPSEEK_API_KEY": "DOTENV"
+  },
+  "processEnvPresent": {
+    "AI_PROVIDER": false,
+    "DEEPSEEK_BASE_URL": false,
+    "DEEPSEEK_MODEL": false,
+    "DEEPSEEK_API_KEY": false
+  },
+  "dotenvPresent": {
+    "AI_PROVIDER": false,
+    "DEEPSEEK_BASE_URL": false,
+    "DEEPSEEK_MODEL": true,
+    "DEEPSEEK_API_KEY": true
+  },
+  "proxy": {
+    "present": false,
+    "values": {},
+    "fetch": "Node global fetch; no custom dispatcher or proxy agent in experiment/modelClient"
+  },
+  "dns": {
+    "lookup": {
+      "status": "FAIL",
+      "value": null,
+      "error": {
+        "name": "Error",
+        "code": "ENOTFOUND",
+        "message": "getaddrinfo ENOTFOUND api.deepseek.com",
+        "statusCode": null,
+        "retryable": false,
+        "fallbackEligible": false,
+        "details": null,
+        "errno": -3008,
+        "syscall": "getaddrinfo",
+        "hostname": "api.deepseek.com",
+        "cause": null
+      }
+    },
+    "resolve4": {
+      "status": "FAIL",
+      "value": null,
+      "error": {
+        "name": "Error",
+        "code": "ECONNREFUSED",
+        "message": "queryA ECONNREFUSED api.deepseek.com",
+        "statusCode": null,
+        "retryable": false,
+        "fallbackEligible": false,
+        "details": null,
+        "errno": null,
+        "syscall": "queryA",
+        "hostname": "api.deepseek.com",
+        "cause": null
+      }
+    },
+    "resolve6": {
+      "status": "FAIL",
+      "value": null,
+      "error": {
+        "name": "Error",
+        "code": "ECONNREFUSED",
+        "message": "queryAaaa ECONNREFUSED api.deepseek.com",
+        "statusCode": null,
+        "retryable": false,
+        "fallbackEligible": false,
+        "details": null,
+        "errno": null,
+        "syscall": "queryAaaa",
+        "hostname": "api.deepseek.com",
+        "cause": null
+      }
+    }
+  },
+  "systemDns": {
+    "status": "FAIL",
+    "summary": "",
+    "error": {
+      "name": "Error",
+      "code": 10,
+      "message": "Command failed: nslookup api.deepseek.com\n/AppleInternal/Library/BuildRoots/f8e7441f-6663-11f0-bcd2-4e2c4cd69b18/Library/Caches/com.apple.xbs/Sources/bind9/bind9/lib/isc/unix/socket.c:5580: bind: Operation not permitted\nnslookup: isc_socket_bind: unexpected error\n",
+      "statusCode": null,
+      "retryable": false,
+      "fallbackEligible": false,
+      "details": null,
+      "errno": null,
+      "syscall": null,
+      "hostname": null,
+      "cause": null
+    }
+  },
+  "https": {
+    "status": "FAIL",
+    "httpStatus": null,
+    "responseReceived": false,
+    "error": {
+      "name": "TypeError",
+      "code": null,
+      "message": "fetch failed",
+      "statusCode": null,
+      "retryable": false,
+      "fallbackEligible": false,
+      "details": null,
+      "errno": null,
+      "syscall": null,
+      "hostname": null,
+      "cause": {
+        "name": "Error",
+        "code": "ENOTFOUND",
+        "message": "getaddrinfo ENOTFOUND api.deepseek.com",
+        "statusCode": null,
+        "retryable": false,
+        "fallbackEligible": false,
+        "details": null,
+        "errno": -3008,
+        "syscall": "getaddrinfo",
+        "hostname": "api.deepseek.com",
+        "cause": null
+      }
+    }
+  },
+  "minimalCall": {
+    "status": "FAIL",
+    "response": null,
+    "error": {
+      "name": "AiProviderNetworkError",
+      "code": "AI_PROVIDER_NETWORK_ERROR",
+      "message": "DeepSeek对话网络请求失败（ENOTFOUND），已重试仍未恢复",
+      "statusCode": null,
+      "retryable": true,
+      "fallbackEligible": true,
+      "details": {
+        "provider": "deepseek",
+        "action": "对话",
+        "causeCode": "ENOTFOUND"
+      },
+      "errno": null,
+      "syscall": null,
+      "hostname": null,
+      "cause": {
+        "name": "TypeError",
+        "code": null,
+        "message": "fetch failed",
+        "statusCode": null,
+        "retryable": false,
+        "fallbackEligible": false,
+        "details": null,
+        "errno": null,
+        "syscall": null,
+        "hostname": null,
+        "cause": {
+          "name": "Error",
+          "code": "ENOTFOUND",
+          "message": "getaddrinfo ENOTFOUND api.deepseek.com",
+          "statusCode": null,
+          "retryable": false,
+          "fallbackEligible": false,
+          "details": null,
+          "errno": -3008,
+          "syscall": "getaddrinfo",
+          "hostname": "api.deepseek.com",
+          "cause": null
+        }
+      }
+    }
+  },
+  "retryAttempts": [
+    {
+      "attempt": 1,
+      "causeCode": "ENOTFOUND",
+      "status": null,
+      "timestamp": "2026-10-01T08:26:04.177Z"
+    },
+    {
+      "attempt": 2,
+      "causeCode": "ENOTFOUND",
+      "status": null,
+      "timestamp": "2026-10-01T08:26:04.381Z"
+    }
+  ],
+  "rootCause": "DNS_RESOLUTION_FAILURE"
+}

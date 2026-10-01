@@ -1,0 +1,245 @@
+{
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "policySource": "BOOTSTRAP_PLUS_CANDIDATE",
+  "ontologyUsed": true,
+  "ontologyLlmCalls": 0,
+  "ontologyResolverCalls": 2,
+  "intentAgentCalls": 0,
+  "utteranceExtractorCalls": 0,
+  "modelCalls": 9,
+  "fixtureSource": "isolated_formal_entity_lookup_fixture",
+  "metrics": {
+    "businessMedianMs": 2616.00475,
+    "policyMedianMs": 1944.41375,
+    "groundingModelMedianMs": 894.495209,
+    "groundingResolverMedianMs": 0.575792,
+    "totalMedianMs": 3511.798417
+  },
+  "results": [
+    {
+      "id": "G-01",
+      "run": 1,
+      "user": "模板和配方有什么区别？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T08:25:32.727Z",
+      "businessMemo": "# 模板和配方有什么区别？\n\n## Relevant business concepts\n- TEMPLATE / 模板\n- RECIPE / 配方\n- BOM\n- Recipe Configurable Cost Drivers\n\n## Business meaning\n- **Template / 模板**：是专门为 Recipe 准备的可复用 BOM 蓝图，基于某一种泵壳结构，记录用这套泵壳组合成水泵时必须固定搭配的零件型号（如轴承、油封、螺丝及其它固定结构零件）。它的目的是让同一套结构能快速建立多个 Recipe，本身不代表完整成品、不代表客户最终配置、不等于最终 BOM，且按业务定义本身不负责成本计算。\n- **Recipe / 配方**：是可保存、可复用的 OEM 水泵生产配置基础，不是绝对固定的 Finished Product。它可以包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数、机筒长度、电缆、包装、工艺选项及其它可配置项目，是报价、客户配置和生产配置的基础。\n\n## Relevant relationships\n- 新建 Recipe 必须基于 Template；Template 是 Recipe 的蓝图，是 BOM 的一个输入来源。\n- Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成，是最终展开结果。\n- 三者关系：Template 提供固定机械结构蓝图 → Recipe 是配置基础 → BOM 是最终展开结果。\n- Recipe 承载的是可保存、可复用的配置起点，不是承诺该名称代表的订单、客户和包装永远相同；同一 Recipe 基础仍可按客户要求调整。\n\n## Unknown business terms\n- 无。本问题所涉术语均在公司业务模型中有定义。",
+      "policyMemo": "# 处理 Memo\n\n- 该问题属于业务概念询问，未涉及具体配方配置变更、场景输入或任何保存/修改意图。\n- 无需触发临时试算，也无需进入正式保存或写入确认流程。\n- 不涉及实体身份消解、候选方案选择或金额/库存口径标注。\n- 当前政策未定义“模板”与“配方”的区别，无法据此给出业务解释；如需回答，应依据正式业务定义来源，不可自行推断。\n- 注意：本问题不构成任何配置变更或持久化请求，不应据此产生写入动作。",
+      "groundingMemo": "Grounding Need: NOT_REQUIRED\nReference: NONE\n\n（无需要正式业务身份绑定的表达；本问题为模板与配方的概念区别询问。）",
+      "resolutions": [],
+      "timings": {
+        "businessMs": 2616.00475,
+        "policyMs": 2034.25025,
+        "groundingModelMs": 894.495209,
+        "resolverMs": 0,
+        "totalMs": 3511.798417
+      },
+      "resolverCalls": 0,
+      "evaluation": {
+        "need": "NOT_REQUIRED",
+        "targets": [],
+        "actual": [],
+        "referenceStatus": "NONE",
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-03",
+      "run": 1,
+      "user": "12-120多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T08:25:36.240Z",
+      "businessMemo": "# Relevant business concepts\n\n- `12-120`（Coil Common Designation / 线圈常用规格表达）\n- COIL / COIL SCHEME（线圈方案）\n- STATOR / 定子\n- 成本（在业务模型中属于依正式方案与 Recipe 配置而讨论的内容）\n\n# Business meaning\n\n根据 Company Business Model，`12-120` 是工厂关于线圈／定子方案的**常用规格表达**，而不是唯一正式 Coil Scheme identity，也不是功率、不是库存。\n\n- `12`：定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120`：硅钢片／线圈方案片数，不是功率。\n\n因此，用户问“12-120多少钱”，首先是在提及一个常用规格表达。业务模型明确指出：同一个 `12-120` 可以存在多套正式线圈方案，不能仅凭这个俗称认定某一套唯一方案。\n\n# Relevant relationships\n\n- `12-120` 与具体正式 Coil Scheme 不是同一个概念；具体正式方案还可能以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分。\n- Coil Scheme 又可能作为 Recipe 的 Coil configuration 影响 Recipe 的可配置成本项。\n- 业务模型说明：成本、库存或实际配置所对应的具体正式方案，必须另行确认；本模型不提供数据库当前事实、成本公式或报价事实。\n\n# Unknown business terms\n\n- “12-120多少钱”中的“多少钱”在本业务模型中没有定义对应的成本口径、报价口径或具体正式方案。\n- 该价格对应的是哪一套正式 Coil Scheme、哪一种材质／电压／频率／市场／绕组参数，业务模型未定义，需另行确认。\n- 是否为某个 Recipe 配置下的成本，业务模型未从这句话中定义。",
+      "policyMemo": "**Memo：12-120 询价处理**\n\n- 用户只提到“12-120”这一常见线圈/型号称呼，并未说明具体使用场景、购买数量或对比目标。\n- 该称呼可能对应多个正式方案，不能默认选择第一个方案，也不能把不同方案的库存或成本直接合并。\n- 在用户未明确选用哪一个方案前，应先做受限澄清，向用户呈现可选方案范围，再按其选择给出对应方案的成本/报价说明。\n- 若后续返回金额，必须明确标注其口径（如当前正式成本、临时试算或历史报价），不得混淆。\n- 本条为读取/查询意图，不涉及正式写入，无需保存确认；但若用户后续要求修改正式配方等持久化操作，则须另行走受保护的确认流程。\n- 注意：以上仅为语义处理说明，具体可用方案与数值以正式业务结果为准。",
+      "groundingMemo": "Grounding Need: REQUIRED\nReference: NONE\nLanguage Target: 12-120 | coil",
+      "resolutions": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "result": {
+            "entityType": "coil",
+            "mention": "12-120",
+            "status": "AMBIGUOUS",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "coil",
+                "canonicalId": "1",
+                "canonicalName": "12-120 普通小眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-A",
+                  "material": "steel",
+                  "slotType": "small",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": true,
+                  "schemeFamilyCode": "F-12-120-A"
+                }
+              },
+              {
+                "entityType": "coil",
+                "canonicalId": "2",
+                "canonicalName": "12-120 加强大眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-B",
+                  "material": "copper",
+                  "slotType": "large",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": false,
+                  "schemeFamilyCode": "F-12-120-B"
+                }
+              }
+            ],
+            "source": "formal",
+            "verified": false
+          },
+          "resolverMs": 0.575792
+        }
+      ],
+      "timings": {
+        "businessMs": 2439.388833,
+        "policyMs": 1828.576667,
+        "groundingModelMs": 878.076083,
+        "resolverMs": 0.575792,
+        "totalMs": 3318.139916
+      },
+      "resolverCalls": 1,
+      "evaluation": {
+        "need": "REQUIRED",
+        "targets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil"
+          }
+        ],
+        "actual": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "result": {
+              "entityType": "coil",
+              "mention": "12-120",
+              "status": "AMBIGUOUS",
+              "canonicalId": null,
+              "canonicalName": null,
+              "candidates": [
+                {
+                  "entityType": "coil",
+                  "canonicalId": "1",
+                  "canonicalName": "12-120 普通小眼",
+                  "matchKind": "EXACT",
+                  "identityAttributes": {
+                    "spec": "12",
+                    "sheets": 120,
+                    "schemeCode": "12-120-A",
+                    "material": "steel",
+                    "slotType": "small",
+                    "schemeStatus": "ACTIVE",
+                    "isDefault": true,
+                    "schemeFamilyCode": "F-12-120-A"
+                  }
+                },
+                {
+                  "entityType": "coil",
+                  "canonicalId": "2",
+                  "canonicalName": "12-120 加强大眼",
+                  "matchKind": "EXACT",
+                  "identityAttributes": {
+                    "spec": "12",
+                    "sheets": 120,
+                    "schemeCode": "12-120-B",
+                    "material": "copper",
+                    "slotType": "large",
+                    "schemeStatus": "ACTIVE",
+                    "isDefault": false,
+                    "schemeFamilyCode": "F-12-120-B"
+                  }
+                }
+              ],
+              "source": "formal",
+              "verified": false
+            }
+          }
+        ],
+        "referenceStatus": "NONE",
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-12",
+      "run": 1,
+      "user": "这个换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-01T08:25:39.558Z",
+      "businessMemo": "# Relevant business concepts\n\n- **Packing configuration**：包装配置，属于 Recipe Configurable Cost Driver 之一，涵盖纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，包装是其中可配置项之一。\n- **BOM**：根据 Recipe 当前配置正式展开后的物料／工艺组成，包装物料可以出现在其中。\n- **OEM 配置**：同一基础 Recipe 可依客户要求调整包装等配置。\n\n# Business meaning\n\n“换木箱”在本公司业务模型中描述的是**包装配置（Packing configuration）的一种变化**：由纸箱改为木箱。按 Company Business Model，这属于 Recipe 可配置成本项，也是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n\n# Relevant relationships\n\n- 包装配置是 Recipe 的可配置维度之一，与 Coil、Barrel、Cable、Float、Surface treatment、Rotor process 等并列。\n- 包装物料（如木箱）属于可作为物理物料管理的对象范畴，可进入 BOM。\n- 木箱替换纸箱属于 OEM 配置变化，会随 Recipe 配置不同而不同。\n\n# Unknown business terms\n\n- 你问的“换木箱多少钱”中的**具体金额或成本**：Company Business Model 只解释“包装配置是什么”这一业务概念，**不提供成本公式、当前成本事实或报价数据**，因此本模型未定义该金额。\n- 你所说的**具体是哪一套 Recipe / 哪个客户配置下的换木箱**：业务模型未在此明确，属未定义，不能推测。\n- 木箱的**具体规格、型号或对应 Part 身份**：业务模型未定义，不猜测。",
+      "policyMemo": "**Memo：**\n\n- 该请求提及“换木箱”，并询问“多少钱”，应优先理解为**临时配置试算/分析**：即按木箱包装这一配置变化测算成本或价格影响。\n- 由于未出现“保存”“正式修改”“更新正式配方”等明确持久化意图，本次不构成正式配方变更；不得据此改写正式存储配置，也不得默认代为保存。\n- 若后续用户明确表达“保存/正式修改”等意图，才升级为正式变更请求；正式变更须经 Owner 确认后方可执行。\n- 金额回答需注明计算口径（临时试算），不得表述为当前正式成本或正式报价。\n- 若“换木箱”所指向的具体对象或方案不明确，应先做有界澄清，不得自行选取默认方案。",
+      "groundingMemo": "Grounding Need: NOT_REQUIRED\n\nReference: NONE\n\nLanguage Target: 木箱 | recipe",
+      "resolutions": [
+        {
+          "mention": "木箱",
+          "entityType": "recipe",
+          "result": {
+            "entityType": "recipe",
+            "mention": "木箱",
+            "status": "NOT_FOUND",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [],
+            "source": "formal",
+            "verified": false
+          },
+          "resolverMs": 1.419917
+        }
+      ],
+      "timings": {
+        "businessMs": 2821.579625,
+        "policyMs": 1944.41375,
+        "groundingModelMs": 963.411291,
+        "resolverMs": 1.419917,
+        "totalMs": 3786.445458
+      },
+      "resolverCalls": 1,
+      "evaluation": {
+        "need": "NOT_REQUIRED",
+        "targets": [
+          {
+            "mention": "木箱",
+            "entityType": "recipe"
+          }
+        ],
+        "actual": [
+          {
+            "mention": "木箱",
+            "entityType": "recipe",
+            "status": "UNRESOLVED",
+            "result": {
+              "entityType": "recipe",
+              "mention": "木箱",
+              "status": "NOT_FOUND",
+              "canonicalId": null,
+              "canonicalName": null,
+              "candidates": [],
+              "source": "formal",
+              "verified": false
+            }
+          }
+        ],
+        "referenceStatus": "NONE",
+        "failures": [
+          "GROUNDING_NEED_INCORRECT",
+          "UNRESOLVED_REFERENCE_NOT_PRESERVED"
+        ],
+        "overall": "FAIL"
+      }
+    }
+  ]
+}

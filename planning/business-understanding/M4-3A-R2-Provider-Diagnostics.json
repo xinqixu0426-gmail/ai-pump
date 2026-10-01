@@ -1,0 +1,78 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "baseUrl": "https://api.deepseek.com",
+  "hostname": "api.deepseek.com",
+  "apiKeyPresent": true,
+  "configSources": {
+    "AI_PROVIDER": "DEFAULT",
+    "DEEPSEEK_BASE_URL": "DEFAULT",
+    "DEEPSEEK_MODEL": "EXPERIMENT_FORCED",
+    "DEEPSEEK_API_KEY": "DOTENV"
+  },
+  "processEnvPresent": {
+    "AI_PROVIDER": false,
+    "DEEPSEEK_BASE_URL": false,
+    "DEEPSEEK_MODEL": false,
+    "DEEPSEEK_API_KEY": false
+  },
+  "dotenvPresent": {
+    "AI_PROVIDER": false,
+    "DEEPSEEK_BASE_URL": false,
+    "DEEPSEEK_MODEL": true,
+    "DEEPSEEK_API_KEY": true
+  },
+  "proxy": {
+    "present": false,
+    "values": {},
+    "fetch": "Node global fetch; no custom dispatcher or proxy agent in experiment/modelClient"
+  },
+  "dns": {
+    "lookup": {
+      "status": "PASS",
+      "value": [
+        {
+          "address": "198.18.0.23",
+          "family": 4
+        },
+        {
+          "address": "fdfe:dcba:9876::17",
+          "family": 6
+        }
+      ],
+      "error": null
+    },
+    "resolve4": {
+      "status": "PASS",
+      "value": [
+        "198.18.0.23"
+      ],
+      "error": null
+    },
+    "resolve6": {
+      "status": "PASS",
+      "value": [
+        "fdfe:dcba:9876::17"
+      ],
+      "error": null
+    }
+  },
+  "systemDns": {
+    "status": "PASS",
+    "summary": "Server:\t\t114.114.114.114\nAddress:\t114.114.114.114#53\n\nName:\tapi.deepseek.com\nAddress: 198.18.0.23\n\n",
+    "error": null
+  },
+  "https": {
+    "status": "PASS",
+    "httpStatus": 401,
+    "responseReceived": true,
+    "error": null
+  },
+  "minimalCall": {
+    "status": "PASS",
+    "response": "OK",
+    "error": null
+  },
+  "retryAttempts": [],
+  "rootCause": "NONE"
+}
