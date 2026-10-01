@@ -93,7 +93,7 @@ inferences, formal-fact hallucinations, or implementation/API/Tool leaks.
 | CASE-08 | PASS | FAIL | PASS | FAIL | Intent treated a complete surface-treatment question as requiring clarification. |
 | CASE-09 | PASS | FAIL | PASS | FAIL | Intent requested float/price detail not missing from the language goal. |
 | CASE-10 | PASS | PASS | PASS | PASS | Coil-sheet change and cost request retained. |
-| CASE-11 | PASS | PASS | PASS | PASS | Barrel-length delta retained. |
+| CASE-11 | PASS | FAIL | PASS | FAIL | Intent introduced a configuration-identity clarification. |
 | CASE-12 | PASS | FAIL | PASS | FAIL | Intent introduced avoidable clarification for a concept comparison. |
 | CASE-13 | PASS | FAIL | PASS | FAIL | Intent over-escalated a named template request. |
 | CASE-14 | PASS | PASS | PASS | PASS | Both cost and configured-coil goals retained. |
@@ -101,7 +101,7 @@ inferences, formal-fact hallucinations, or implementation/API/Tool leaks.
 | CASE-16 | PASS | PASS | PASS | PASS | Correctly requested missing change details. |
 | CASE-17 | PASS | FAIL | PASS | FAIL | Intent treated the question about two schemes as semantically incomplete. |
 | CASE-18 | PASS | PASS | PASS | PASS | OEM/non-fixed-product question retained. |
-| CASE-19 | PASS | FAIL | PASS | FAIL | Intent failed to ask for the missing referent. |
+| CASE-19 | PASS | PASS | PASS | PASS | Missing referent was retained as a language clarification. |
 | CASE-20 | PASS | PASS | PASS | PASS | Unknown “this” was preserved without guessing an object. |
 
 ### Stability of repeated cases

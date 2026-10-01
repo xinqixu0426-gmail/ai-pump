@@ -39,6 +39,11 @@ function clarificationSignal(value) {
     // ("whether clarification is needed was not expressed"). That is neither
     // an affirmative nor a negative answer and should be reviewed, not failed.
     if (/是否需要.{0,24}澄清[，,].{0,24}(?:用户)?(?:没有|未)表达/.test(subject)) return null;
+    // An unknown referent is decisive even if the same memo also says that a
+    // different element (for example the target "wood box") needs no further
+    // clarification.
+    if (/对象未知|指代对象未知|没有可恢复.{0,12}(?:指代|对象)/.test(subject)) return true;
+    if (/是否需要澄清.{0,12}(?:需要|是)/.test(subject)) return true;
     const explicitlyNo = /(?:需要澄清|澄清|语言信息是否缺失|是否缺少语言信息).{0,20}(?:不缺少|不需要|无需|无|否|没有(?:缺少|语言|需要|发现)|未出现|未发现)|(?:不需要|无需|不必|不缺少).{0,18}(?:澄清|说明|语言信息)|没有明显缺少(?:的)?语言信息|未识别到.{0,12}(?:语言|缺对象|缺少)|(?:语言上|语言层面).{0,8}(?:无|没有).{0,8}(?:缺失|澄清)|无(?:明显)?(?:语言)?(?:信息)?缺失|已足够表达/.test(subject);
     if (explicitlyNo) return false;
     const explicitlyYes = /(?:需要|应当|仍需).{0,8}(?:澄清|说明)|对象未知|指代对象未知|没有可恢复.{0,12}(?:指代|对象)|(?:语言上|语言层面).{0,12}(?:缺少|缺失|不明确)|缺少.{0,16}(?:对象|配置|改成|变更|信息)/.test(subject);
