@@ -9,49 +9,50 @@ const { messagesForBusiness } = require('../scripts/ai-experiments/business-poli
 const { messagesForPolicy } = require('../scripts/ai-experiments/business-policy-intent/policyAgent.cjs');
 const { messagesForIntent } = require('../scripts/ai-experiments/business-policy-intent/intentAgent.cjs');
 const { runPipeline } = require('../scripts/ai-experiments/business-policy-intent/pipeline.cjs');
-const { evaluateMemo, invalidMarkedEvidence } = require('../scripts/ai-experiments/business-policy-intent/evaluatorR5.cjs');
+const { evaluateMemo, invalidMarkedEvidence } = require('../scripts/ai-experiments/business-policy-intent/evaluatorR6.cjs');
 const { CASES } = require('../scripts/ai-experiments/business-policy-intent/run-smoke.cjs');
 
 function caseById(id) { return CASES.find(item => item.id === id); }
 function output(intentMemo, overrides = {}) { return { businessMemo: '业务对象说明。', policyMemo: '业务规则说明。', intentMemo, ...overrides }; }
 
-test('Business, Policy and Intent prompts have the required independent source boundaries', () => {
+test('Business, Intent and Policy prompts have fully isolated source boundaries', () => {
     const business = messagesForBusiness({ userInput: 'V750成本多少？', businessModel: 'BUSINESS_MODEL_ONLY' });
     const policy = messagesForPolicy({ userInput: 'V750成本多少？', domainPolicy: 'DOMAIN_POLICY_ONLY' });
-    const intent = messagesForIntent({ userInput: 'V750成本多少？', businessMemo: 'BUSINESS_MEMO_ONLY', policyMemo: 'POLICY_MEMO_MUST_NOT_APPEAR' });
+    const intent = messagesForIntent({ userInput: 'V750成本多少？', recentConversation: 'RECENT_USER_WORDING_ONLY', businessMemo: 'BUSINESS_MEMO_MUST_NOT_APPEAR', policyMemo: 'POLICY_MEMO_MUST_NOT_APPEAR', businessModel: 'BUSINESS_MODEL_MUST_NOT_APPEAR', domainPolicy: 'DOMAIN_POLICY_MUST_NOT_APPEAR' });
     assert.match(business[0].content, /BUSINESS_MODEL_ONLY/);
     assert.doesNotMatch(business[0].content, /DOMAIN_POLICY_ONLY/);
     assert.match(policy[0].content, /DOMAIN_POLICY_ONLY/);
     assert.doesNotMatch(policy[0].content, /BUSINESS_MODEL_ONLY/);
-    assert.match(intent[0].content, /BUSINESS_MEMO_ONLY/);
-    assert.doesNotMatch(intent[0].content, /POLICY_MEMO_MUST_NOT_APPEAR|DOMAIN_POLICY_ONLY|BUSINESS_MODEL_ONLY/);
-    assert.deepEqual(contextProfiles().intent, { rawUserInputIncluded: true, businessMemoIncluded: true, policyMemoIncluded: false, rawCompanyBusinessModelIncluded: false, rawDomainPolicyIncluded: false, ontologyIncluded: false, toolsExposed: 0 });
+    assert.match(intent[0].content, /RECENT_USER_WORDING_ONLY/);
+    assert.doesNotMatch(intent[0].content, /BUSINESS_MEMO_MUST_NOT_APPEAR|POLICY_MEMO_MUST_NOT_APPEAR|BUSINESS_MODEL_MUST_NOT_APPEAR|DOMAIN_POLICY_MUST_NOT_APPEAR|DOMAIN_POLICY_ONLY|BUSINESS_MODEL_ONLY/);
+    assert.deepEqual(contextProfiles().intent, { rawUserInputIncluded: true, recentUserWordingIncluded: true, businessMemoIncluded: false, policyMemoIncluded: false, rawCompanyBusinessModelIncluded: false, rawDomainPolicyIncluded: false, ontologyIncluded: false, toolsExposed: 0 });
 });
-test('pipeline starts Business and Policy in parallel while Intent waits only for Business', async () => {
+test('pipeline starts all three agents in parallel and passes no memo to Intent', async () => {
     let releaseBusiness;
     let releasePolicy;
     const businessBarrier = new Promise(resolve => { releaseBusiness = resolve; });
     const policyBarrier = new Promise(resolve => { releasePolicy = resolve; });
+    let releaseIntent;
+    const intentBarrier = new Promise(resolve => { releaseIntent = resolve; });
     const started = [];
     const pipeline = runPipeline({ userInput: '测试', businessModel: 'MODEL', domainPolicy: 'POLICY' }, {
         runBusinessAgent: async () => { started.push('business'); await businessBarrier; return 'Business memo'; },
         runPolicyAgent: async () => { started.push('policy'); await policyBarrier; return 'Policy memo'; },
-        runIntentClerk: async input => { started.push('intent'); assert.equal(input.businessMemo, 'Business memo'); assert.equal(Object.hasOwn(input, 'policyMemo'), false); return '对象：测试（证据：“测试”）。保存意图：不涉及保存。需要澄清：否。'; },
+        runIntentClerk: async input => { started.push('intent'); assert.deepEqual(input, { userInput: '测试', recentConversation: undefined }); await intentBarrier; return '对象：测试（证据：“测试”）。保存意图：不涉及保存。需要澄清：否。'; },
     });
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(started.sort(), ['business', 'policy']);
+    assert.deepEqual(started.sort(), ['business', 'intent', 'policy']);
     releaseBusiness();
-    await new Promise(resolve => setImmediate(resolve));
-    assert.ok(started.includes('intent'));
     releasePolicy();
+    releaseIntent();
     const result = await pipeline;
     assert.equal(result.policyMemo, 'Policy memo');
 });
-test('Intent Clerk is natural language only and has no JSON, policy, or raw-source input', () => {
+test('Intent Clerk is natural language only and has no memo or raw-source input', () => {
     const source = fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'scripts/ai-experiments/business-policy-intent/intentAgent.cjs'), 'utf8');
-    assert.doesNotMatch(source, /JSON\.parse|validateIntent|enum|Policy Memo：/i);
+    assert.doesNotMatch(source, /JSON\.parse|validateIntent|enum|Policy Memo：|Business Memo：/i);
     assert.match(source, /Evidence-First Intent Clerk/);
-    assert.match(source, /看不到、也不得推测或讨论 Domain Policy/);
+    assert.match(source, /没有任何公司业务知识、规则、实体资料或背景 Memo/);
 });
 test('R5 preserves user-evidenced multi-change, multi-goal, save, do-not-save and unspecified persistence', () => {
     const noSave = evaluateMemo(caseById('CASE-06'), output('对象：V750（证据：“V750”）。变化：电缆5米（证据：“电缆5米”）、木箱（证据：“木箱”）。想知道：试算（证据：“先算一下”）。保存意图：明确不保存（证据：“不保存”）。需要澄清：否。'));
@@ -101,6 +102,12 @@ test('R5 permits a scope exclusion while rejecting an actual database-access rec
     const accessLeak = evaluateMemo(caseById('CASE-01'), output('对象：12-120（证据：“12-120”）。想知道：含义（证据：“是什么”）。保存意图：纯解释，不涉及保存。需要澄清：否。', { businessMemo: '应查询数据库确认。' }));
     assert.equal(scopeOnly.business, 'PASS');
     assert.equal(accessLeak.business, 'FAIL');
+});
+test('R6 accepts literal-only Intent records for complete language and rejects only actual leakage', () => {
+    const price = evaluateMemo(caseById('CASE-02'), output('提到：12-120（证据：“12-120”）。想知道：多少钱（证据：“多少钱”）。明确变化：无。保存表达：用户没有表达。语言缺失：无。'));
+    const template = evaluateMemo(caseById('CASE-13'), output('提到：通用款模板（证据：“通用款模板”）。想知道：有哪些固定件（证据：“有哪些固定件”）。明确变化：无。保存表达：用户没有表达。语言缺失：无。'));
+    const reference = evaluateMemo(caseById('CASE-15'), output('提到：“刚才那个线圈”语言上指向上一轮的12-120（证据：“刚才那个线圈”；上一轮：“12-120”）。想知道：多少钱（证据：“多少钱”）。保存表达：用户没有表达。语言缺失：无。'));
+    for (const result of [price, template, reference]) assert.equal(result.intent, 'PASS');
 });
 test('prototype has no Ontology imports or production-runtime imports', () => {
     const root = path.resolve(__dirname, '..');

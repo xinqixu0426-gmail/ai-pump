@@ -5,7 +5,7 @@ const path = require('node:path');
 const dotenv = require('dotenv');
 const { runPipeline } = require('./pipeline.cjs');
 const { contextProfiles } = require('./contracts.cjs');
-const { evaluateMemo } = require('./evaluatorR5.cjs');
+const { evaluateMemo } = require('./evaluatorR6.cjs');
 
 const root = path.resolve(__dirname, '../../..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
