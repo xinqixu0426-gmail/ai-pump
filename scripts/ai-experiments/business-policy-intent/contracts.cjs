@@ -11,7 +11,7 @@ function contextProfiles() {
     return Object.freeze({
         business: Object.freeze({ companyBusinessModelIncluded: true, domainPolicyIncluded: false, ontologyIncluded: false, toolsExposed: 0 }),
         policy: Object.freeze({ companyBusinessModelIncluded: false, domainPolicyIncluded: true, ontologyIncluded: false, toolsExposed: 0 }),
-        intent: Object.freeze({ rawUserInputIncluded: true, recentUserWordingIncluded: true, businessMemoIncluded: false, policyMemoIncluded: false, rawCompanyBusinessModelIncluded: false, rawDomainPolicyIncluded: false, ontologyIncluded: false, toolsExposed: 0 }),
+        intent: Object.freeze({ rawUserInputIncluded: true, recentUserWordingIncluded: false, businessMemoIncluded: false, policyMemoIncluded: false, rawCompanyBusinessModelIncluded: false, rawDomainPolicyIncluded: false, ontologyIncluded: false, toolsExposed: 0 }),
     });
 }
 

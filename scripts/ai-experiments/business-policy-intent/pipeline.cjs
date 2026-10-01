@@ -17,7 +17,7 @@ async function runPipeline(input, dependencies = {}) {
     };
     const [business, intent, policy] = await Promise.all([
         timed(() => businessRunner({ userInput: input.userInput, recentConversation: input.recentConversation, businessModel: input.businessModel }, dependencies)),
-        timed(() => intentRunner({ userInput: input.userInput, recentConversation: input.recentConversation }, dependencies)),
+        timed(() => intentRunner({ userInput: input.userInput }, dependencies)),
         timed(() => policyRunner({ userInput: input.userInput, recentConversation: input.recentConversation, domainPolicy: input.domainPolicy }, dependencies)),
     ]);
     const totalMs = elapsed(contextStart);

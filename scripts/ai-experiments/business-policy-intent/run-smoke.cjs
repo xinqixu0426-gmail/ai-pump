@@ -5,7 +5,7 @@ const path = require('node:path');
 const dotenv = require('dotenv');
 const { runPipeline } = require('./pipeline.cjs');
 const { contextProfiles } = require('./contracts.cjs');
-const { evaluateMemo } = require('./evaluatorR7.cjs');
+const { evaluateMemo } = require('./evaluatorR8.cjs');
 
 const root = path.resolve(__dirname, '../../..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -15,39 +15,37 @@ const args = new Map(process.argv.slice(2).map(value => { const [key, ...rest] =
 const selected = new Set(String(args.get('cases') || '').split(',').filter(Boolean));
 const repeat = new Set(String(args.get('repeat') || '').split(',').filter(Boolean));
 const outputPath = args.get('output') ? path.resolve(root, String(args.get('output'))) : null;
-function expected(persistence, clarificationExpectation, clarificationReason, options = {}) {
-    return Object.freeze({ persistence, clarificationExpectation, clarificationReason, needsClarification: clarificationExpectation === 'CLARIFICATION_REQUIRED', ...options });
-}
+function expected(persistence, options = {}) { return Object.freeze({ persistence, ...options }); }
 const CASES = Object.freeze([
-    { id: 'CASE-01', user: '12-120是什么？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['12-120']], requiredInformation: [['含义', '是什么']] }) },
-    { id: 'CASE-02', user: '12-120多少钱？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['12-120']], requiredInformation: [['成本', '多少钱', '价格']] }) },
-    { id: 'CASE-03', user: 'V750纸箱换成木箱差多少钱？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['纸箱', '木箱', '包装']], requiredInformation: [['成本', '差多少', '价格']] }) },
-    { id: 'CASE-04', user: 'V750包装改木箱。', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['木箱', '包装']], forbiddenInferences: ['纸箱', '当前包装'] }) },
-    { id: 'CASE-05', user: 'V750如果做不锈钢接轴成本差多少？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['不锈钢接轴', '转子工艺']], requiredInformation: [['成本', '差多少', '价格']], forbiddenInferences: ['45#', '默认转子'] }) },
-    { id: 'CASE-06', user: 'V750电缆5米，木箱，先算一下，不保存。', expected: expected('DO_NOT_SAVE', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['电缆', '5米'], ['木箱', '包装']], requiredInformation: [['算', '成本', '试算']] }) },
-    { id: 'CASE-07', user: '把V750正式配方包装改成木箱并保存。', expected: expected('SAVE', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['木箱', '包装']] }) },
-    { id: 'CASE-08', user: 'V750做电泳成本会增加多少？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['电泳', '表面处理']], requiredInformation: [['成本', '增加', '差额']] }) },
-    { id: 'CASE-09', user: 'V750加浮球以后多少钱？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['浮球']], requiredInformation: [['成本', '多少钱', '价格']] }) },
-    { id: 'CASE-10', user: 'V750线圈120片改130片要贵多少？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['线圈', '130片']], requiredInformation: [['成本', '贵多少', '差额']] }) },
-    { id: 'CASE-11', user: 'V750机筒加长20mm成本差多少？', expected: expected('UNSPECIFIED', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredChanges: [['机筒', '20mm']], requiredInformation: [['成本', '差多少', '差额']] }) },
-    { id: 'CASE-12', user: '模板和配方有什么区别？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['模板'], ['配方']], requiredInformation: [['区别', '不同']] }) },
-    { id: 'CASE-13', user: '通用款模板有哪些固定件？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['通用款', '模板']], requiredInformation: [['固定件', '固定零件']] }) },
-    { id: 'CASE-14', user: '查一下V750成本，还有它现在用哪个线圈。', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredInformation: [['成本'], ['线圈']] }) },
-    { id: 'CASE-15', recentConversation: '我先看看12-120。', user: '刚才那个线圈多少钱？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['刚才', '线圈', '12-120']], requiredInformation: [['成本', '多少钱', '价格']] }) },
-    { id: 'CASE-16', user: 'V750改一下。', expected: expected('UNSPECIFIED', 'CLARIFICATION_REQUIRED', 'CHANGE_DETAILS_MISSING', { objectGroups: [['v750']] }) },
-    { id: 'CASE-17', user: '12-120有两个方案吧？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['12-120']], requiredInformation: [['两个', '方案']] }) },
-    { id: 'CASE-18', user: 'V750就是一个固定成品吧？', expected: expected('NOT_APPLICABLE', 'NO_CLARIFICATION', null, { objectGroups: [['v750']], requiredInformation: [['固定成品', '是不是']] }) },
-    { id: 'CASE-19', user: '贵多少？', expected: expected('NOT_APPLICABLE', 'CLARIFICATION_REQUIRED', 'TARGET_REFERENT_MISSING', { requiredInformation: [['贵多少', '成本', '价格']] }) },
-    { id: 'CASE-20', user: '这个换木箱多少钱？', expected: expected('UNSPECIFIED', 'CLARIFICATION_REQUIRED', 'DEICTIC_REFERENT_MISSING', { requiredChanges: [['木箱', '包装']], requiredInformation: [['成本', '多少钱', '价格']], noObjectInference: ['v750', 'recipe', '配方', '纸箱', '当前包装'] }) },
+    { id: 'CASE-01', user: '12-120是什么？', expected: expected('NOT_APPLICABLE', { objectGroups: [['12-120']], requiredInformation: [['含义', '是什么']] }) },
+    { id: 'CASE-02', user: '12-120多少钱？', expected: expected('NOT_APPLICABLE', { objectGroups: [['12-120']], requiredInformation: [['成本', '多少钱', '价格']] }) },
+    { id: 'CASE-03', user: 'V750纸箱换成木箱差多少钱？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['纸箱', '木箱', '包装']], requiredInformation: [['成本', '差多少', '价格']] }) },
+    { id: 'CASE-04', user: 'V750包装改木箱。', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['木箱', '包装']], forbiddenInferences: ['纸箱', '当前包装'] }) },
+    { id: 'CASE-05', user: 'V750如果做不锈钢接轴成本差多少？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['不锈钢接轴']], requiredInformation: [['成本', '差多少', '价格']], forbiddenInferences: ['45#', '默认转子'] }) },
+    { id: 'CASE-06', user: 'V750电缆5米，木箱，先算一下，不保存。', expected: expected('DO_NOT_SAVE', { objectGroups: [['v750']], requiredChanges: [['电缆', '5米'], ['木箱']], requiredInformation: [['算', '成本', '试算']] }) },
+    { id: 'CASE-07', user: '把V750正式配方包装改成木箱并保存。', expected: expected('SAVE', { objectGroups: [['v750']], requiredChanges: [['木箱', '包装']] }) },
+    { id: 'CASE-08', user: 'V750做电泳成本会增加多少？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['电泳']], requiredInformation: [['成本', '增加', '差额']] }) },
+    { id: 'CASE-09', user: 'V750加浮球以后多少钱？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['浮球']], requiredInformation: [['成本', '多少钱', '价格']] }) },
+    { id: 'CASE-10', user: 'V750线圈120片改130片要贵多少？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['线圈', '130片']], requiredInformation: [['成本', '贵多少', '差额']] }) },
+    { id: 'CASE-11', user: 'V750机筒加长20mm成本差多少？', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['机筒', '20mm']], requiredInformation: [['成本', '差多少', '差额']] }) },
+    { id: 'CASE-12', user: '模板和配方有什么区别？', expected: expected('NOT_APPLICABLE', { objectGroups: [['模板'], ['配方']], requiredInformation: [['区别', '不同']] }) },
+    { id: 'CASE-13', user: '通用款模板有哪些固定件？', expected: expected('NOT_APPLICABLE', { objectGroups: [['通用款', '模板']], requiredInformation: [['固定件', '固定零件']] }) },
+    { id: 'CASE-14', user: '查一下V750成本，还有它现在用哪个线圈。', expected: expected('NOT_APPLICABLE', { objectGroups: [['v750']], requiredInformation: [['成本'], ['线圈']] }) },
+    { id: 'CASE-15', recentConversation: '我先看看12-120。', user: '刚才那个线圈多少钱？', expected: expected('NOT_APPLICABLE', { objectGroups: [['刚才', '线圈']], requiredInformation: [['成本', '多少钱', '价格']], forbiddenInferences: ['12-120', '上一轮', '最近用户原话'] }) },
+    { id: 'CASE-16', user: 'V750改一下。', expected: expected('UNSPECIFIED', { objectGroups: [['v750']], requiredChanges: [['改一下']] }) },
+    { id: 'CASE-17', user: '12-120有两个方案吧？', expected: expected('NOT_APPLICABLE', { objectGroups: [['12-120']], requiredInformation: [['两个', '方案']] }) },
+    { id: 'CASE-18', user: 'V750就是一个固定成品吧？', expected: expected('NOT_APPLICABLE', { objectGroups: [['v750']], requiredInformation: [['固定成品', '是不是']] }) },
+    { id: 'CASE-19', user: '贵多少？', expected: expected('NOT_APPLICABLE', { requiredMentions: [['没有明确对象', '无明确对象', '对象未明确', '对象未表达', '对象无']], requiredInformation: [['贵多少', '成本', '价格']] }) },
+    { id: 'CASE-20', user: '这个换木箱多少钱？', expected: expected('UNSPECIFIED', { objectGroups: [['这个'], ['木箱']], requiredChanges: [['木箱']], requiredInformation: [['成本', '多少钱', '价格']], noObjectInference: ['v750', 'recipe', '配方', '纸箱', '当前包装'] }) },
 ]);
 function median(items) { const sorted = [...items].sort((left, right) => left - right); return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0; }
 async function execute(testCase, env, run) {
     const startedAt = new Date().toISOString();
     try {
         const output = await runPipeline({ userInput: testCase.user, recentConversation: testCase.recentConversation || '', businessModel, domainPolicy }, { env });
-        return Object.freeze({ id: testCase.id, run, user: testCase.user, recentConversation: testCase.recentConversation || null, clarificationExpectation: testCase.expected.clarificationExpectation, clarificationReason: testCase.expected.clarificationReason, startedAt, ...output, evaluation: evaluateMemo(testCase, output) });
+        return Object.freeze({ id: testCase.id, run, user: testCase.user, recentConversation: testCase.recentConversation || null, startedAt, ...output, evaluation: evaluateMemo(testCase, output) });
     } catch (error) {
-        return Object.freeze({ id: testCase.id, run, user: testCase.user, recentConversation: testCase.recentConversation || null, clarificationExpectation: testCase.expected.clarificationExpectation, clarificationReason: testCase.expected.clarificationReason, startedAt, error: error.message, evaluation: { business: 'FAIL', policy: 'FAIL', intent: 'FAIL', evaluator: 'FAIL', overall: 'FAIL', deterministicFailures: ['EXPERIMENT_EXECUTION_FAILED'], reviewRequired: [] } });
+        return Object.freeze({ id: testCase.id, run, user: testCase.user, recentConversation: testCase.recentConversation || null, startedAt, error: error.message, evaluation: { business: 'FAIL', policy: 'FAIL', intent: 'FAIL', evaluator: 'FAIL', overall: 'FAIL', deterministicFailures: ['EXPERIMENT_EXECUTION_FAILED'], reviewRequired: [] } });
     }
 }
 async function main() {
