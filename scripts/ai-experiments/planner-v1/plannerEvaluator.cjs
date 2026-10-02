@@ -47,7 +47,7 @@ function evaluatePlannerCase(testCase, output) {
     if (!hasCapabilityPath(rawPlan.steps, testCase.capabilityPaths)) failures.push('CAPABILITY_CANNOT_SATISFY_FACT');
     for (const mode of testCase.modes || []) if (!rawPlan.steps.some(step => step.mode === mode)) failures.push(`MODE_MISSING:${mode}`);
     for (const term of testCase.targetTerms || []) if (!contains(text, term)) failures.push(`TARGET_NOT_PRESERVED:${term}`);
-    for (const config of testCase.configs || []) if (!contains(text, config)) failures.push(`CONFIG_NOT_PRESERVED:${config}`);
+    for (const config of testCase.configs || []) if (!rawPlan.scenarioOverrides.some(value => contains(value, config))) failures.push(`SCENARIO_OVERRIDE_NOT_PRESERVED:${config}`);
     if (testCase.noWrite && rawPlan.steps.some(step => step.mode === 'WRITE')) failures.push('WRITE_STEP');
     if (testCase.previewAvailable && rawPlan.previewPlanAvailable !== 'YES') failures.push('PREVIEW_PLAN_NOT_AVAILABLE');
     if (testCase.multiTarget) for (const target of upstreamTargets) if (!contains(text, target.mention || target.canonicalName)) failures.push('MULTI_TARGET_OMITTED');
@@ -56,6 +56,7 @@ function evaluatePlannerCase(testCase, output) {
         if (reads.length >= 2 && !reads.slice(0, 2).every(step => step.dependsOn === 'NONE')) failures.push('PARALLELISM_NOT_PRESERVED');
     }
     if (rawPlan.status === 'BLOCKED_POLICY' && rawPlan.writeRequired !== 'YES') failures.push('POLICY_BLOCK_WRITE_REQUIREMENT_MISSING');
+    if (testCase.missingCapability && !rawPlan.missingCapabilities.some(value => contains(value, testCase.missingCapability))) failures.push('MISSING_CAPABILITY_INCORRECT');
     if (validation?.validationStatus === 'INVALID') failures.push('PLAN_CONTRACT_INVALID');
     if (output.execution.toolCalls || output.execution.businessApiCalls || output.execution.dbAccessAttempts || output.execution.writeAttempts) failures.push('PLANNER_EXECUTION_BREACH');
     const uniqueFailures = Object.freeze([...new Set(failures)]);

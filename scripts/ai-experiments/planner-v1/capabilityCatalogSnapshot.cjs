@@ -2,35 +2,40 @@
 
 const { listBusinessCapabilities } = require('../../../api/capabilities/registry.cjs');
 
-const PLANNER_VISIBLE_IDS = Object.freeze([
-    'templates.detail',
-    'recipes.current_costs',
-    'relations.read',
-    'cost.recipe_difference',
-    'coils.list',
-    'recipes.scenario_compare_preview',
-]);
+const PLANNER_VISIBLE_IDS = Object.freeze(['templates.detail', 'recipes.current_costs', 'relations.read', 'cost.recipe_difference', 'coils.list', 'recipes.scenario_compare_preview']);
+const FACT_CLASSES = Object.freeze(['FORMAL_DETAIL', 'CURRENT_COST', 'RELATION', 'CANDIDATE_SET', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'COST_DIFFERENCE', 'DERIVED_COMPUTE', 'OTHER']);
 
-const PLANNER_DESCRIPTIONS = Object.freeze({
-    'templates.detail': '读取一个已正式定位模板的当前详情与固定件关系。',
-    'recipes.current_costs': '读取已正式定位配方的当前权威成本基准。',
-    'relations.read': '读取已正式定位实体的当前正式关系，例如配方当前线圈。',
-    'cost.recipe_difference': '读取两个已正式定位配方的当前权威成本差异。',
-    'coils.list': '读取已正式定位线圈方案的当前权威规格与成本相关正式记录。',
-    'recipes.scenario_compare_preview': '在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。',
+// Planner-facing projection of the authoritative registry plus cited read-only
+// implementation contracts. It is not a second registry and exposes no API
+// route, executor, schema, or database implementation to the Planner.
+const SEMANTICS = Object.freeze({
+    'templates.detail': Object.freeze({ targetTypes: ['template'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_template'], produces: ['FORMAL_DETAIL', 'RELATION'], directGoalClasses: ['template_detail', 'fixed_part_list'], notFor: ['recipe_cost', 'coil_cost'], provenance: ['api/capabilities/registry.cjs:templates.detail', 'api/routes/templates.cjs:template detail query'] }),
+    'recipes.current_costs': Object.freeze({ targetTypes: ['recipe'], targetCardinality: 'ONE_OR_SET', accepts: ['one_or_more_formally_grounded_recipes'], produces: ['CURRENT_COST'], directGoalClasses: ['recipe_current_cost'], notFor: ['coil_cost', 'scenario_override'], provenance: ['api/capabilities/registry.cjs:recipes.current_costs', 'api/services/currentRecipeCost.cjs'] }),
+    'relations.read': Object.freeze({ targetTypes: ['recipe', 'template', 'coil', 'part'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_relation_root'], produces: ['RELATION'], directGoalClasses: ['current_relation'], notFor: ['cost_calculation', 'scenario_override'], provenance: ['api/capabilities/registry.cjs:relations.read', 'api/routes/ai/executors/queryExecutors.cjs'] }),
+    'cost.recipe_difference': Object.freeze({ targetTypes: ['recipe_pair'], targetCardinality: 'TWO', accepts: ['two_formally_grounded_recipes'], produces: ['COST_DIFFERENCE', 'CURRENT_COST'], directGoalClasses: ['recipe_cost_difference'], notFor: ['single_recipe_cost', 'coil_cost', 'scenario_override'], provenance: ['api/capabilities/registry.cjs:cost.recipe_difference', 'api/services/costQueries.cjs:getRecipeDifference'] }),
+    'coils.list': Object.freeze({ targetTypes: ['coil'], targetCardinality: 'ONE_OR_SET', accepts: ['one_or_more_formally_grounded_coil_schemes'], produces: ['FORMAL_DETAIL', 'CURRENT_COST', 'CANDIDATE_SET'], directGoalClasses: ['coil_current_cost', 'coil_detail', 'coil_candidate_set'], notFor: ['recipe_current_cost', 'recipe_scenario_override'], provenance: ['api/capabilities/registry.cjs:coils.list', 'api/routes/coils.cjs:GET list', 'api/db.cjs:coilRow'] }),
+    'recipes.scenario_compare_preview': Object.freeze({ targetTypes: ['recipe'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_recipe', 'explicit_owner_scenario_overrides', 'formal_packaging_part_selection_when_packaging_changes'], produces: ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'FORMAL_DETAIL'], directGoalClasses: ['recipe_scenario_cost', 'recipe_scenario_comparison'], notFor: ['stainless_shaft_joint_override', 'unbound_packaging_material_name'], provenance: ['api/capabilities/registry.cjs:recipes.scenario_compare_preview', 'api/services/recipeScenarioComparison.cjs:ALLOWED_OVERRIDES,compare'] }),
 });
 
-const PLANNER_CONTRACTS = Object.freeze({
-    'templates.detail': Object.freeze({ inputSemantics: '一个已正式定位的 Template。', outputSemantics: '该 Template 当前详情及其正式固定件关系。', factKinds: Object.freeze(['template_fixed_parts']) }),
-    'recipes.current_costs': Object.freeze({ inputSemantics: '一个已正式定位的 Recipe。', outputSemantics: '该 Recipe 当前权威成本基准。', factKinds: Object.freeze(['recipe_current_cost']) }),
-    'relations.read': Object.freeze({ inputSemantics: '一个已正式定位的业务对象及其所需关系。', outputSemantics: '该对象当前正式关系，例如当前线圈。', factKinds: Object.freeze(['current_relation']) }),
-    'cost.recipe_difference': Object.freeze({ inputSemantics: '两个已正式定位的 Recipe。', outputSemantics: '两个 Recipe 的当前权威成本差异及当前成本明细。', factKinds: Object.freeze(['recipe_cost_difference']) }),
-    'coils.list': Object.freeze({ inputSemantics: '一个或多个已正式定位的 Coil Scheme。', outputSemantics: '当前权威线圈方案规格与成本相关正式记录。', factKinds: Object.freeze(['coil_current_cost']) }),
-    'recipes.scenario_compare_preview': Object.freeze({ inputSemantics: '一个已正式定位的 Recipe 与 Owner 明确的场景配置变化。', outputSemantics: '不保存的当前重建成本、场景成本与已应用配置变化。', factKinds: Object.freeze(['scenario_cost_comparison']) }),
-});
-
-function plannerModeFor(capability) {
-    return capability.operation === 'preview' ? 'PREVIEW' : 'READ';
+function plannerModeFor(capability) { return capability.operation === 'preview' ? 'PREVIEW' : 'READ'; }
+function normalized(value) { return String(value || '').normalize('NFKC').replace(/[\s\-－–—]/gu, '').toLowerCase(); }
+function targetTypesForFact(fact, targets = []) {
+    const source = normalized(fact?.target);
+    const matching = targets.filter(target => [target.mention, target.canonicalName].some(value => value && source.includes(normalized(value))));
+    const types = [...new Set(matching.map(target => target.entityType).filter(Boolean))];
+    if (types.length === 1 && matching.length >= 2 && types[0] === 'recipe') return ['recipe_pair'];
+    return types;
+}
+function cardinalityCompatible(expected, actual) { return expected === 'ONE_OR_SET' || (expected === 'ONE' && actual === 1) || (expected === 'TWO' && actual === 2) || (expected === 'SET' && actual >= 1); }
+function canCapabilitySatisfyFact({ capability, fact, targets = [] }) {
+    if (!capability || !fact) return 'UNKNOWN';
+    if (fact.factClass === 'OTHER') return 'UNKNOWN';
+    if (!capability.produces?.includes(fact.factClass)) return 'NO';
+    const targetTypes = targetTypesForFact(fact, targets);
+    if (!targetTypes.length) return 'UNKNOWN';
+    const targetCount = targets.filter(target => targetTypes.includes(target.entityType) || (targetTypes.includes('recipe_pair') && target.entityType === 'recipe')).length;
+    if (!targetTypes.every(type => capability.targetTypes.includes(type))) return 'NO';
+    return cardinalityCompatible(capability.targetCardinality, targetCount) ? 'YES' : 'NO';
 }
 
 function createPlannerCapabilityCatalogSnapshot() {
@@ -39,38 +44,14 @@ function createPlannerCapabilityCatalogSnapshot() {
     const visible = PLANNER_VISIBLE_IDS.map(capabilityId => {
         const capability = byId.get(capabilityId);
         if (!capability) throw new Error(`PLANNER_CAPABILITY_NOT_REGISTERED:${capabilityId}`);
-        if (!['query', 'preview'].includes(capability.operation)) {
-            throw new Error(`PLANNER_CAPABILITY_NOT_READ_ONLY:${capabilityId}`);
-        }
-        return Object.freeze({
-            capabilityId,
-            mode: plannerModeFor(capability),
-            domain: capability.domain,
-            description: PLANNER_DESCRIPTIONS[capabilityId],
-            sourceRequirement: 'AUTHORITATIVE_BUSINESS_SOURCE',
-            inputSemantics: PLANNER_CONTRACTS[capabilityId].inputSemantics,
-            outputSemantics: PLANNER_CONTRACTS[capabilityId].outputSemantics,
-            factKinds: PLANNER_CONTRACTS[capabilityId].factKinds,
-        });
+        if (!['query', 'preview'].includes(capability.operation)) throw new Error(`PLANNER_CAPABILITY_NOT_READ_ONLY:${capabilityId}`);
+        const semantic = SEMANTICS[capabilityId];
+        if (!semantic) throw new Error(`SEMANTIC_METADATA_UNRESOLVED:${capabilityId}`);
+        return Object.freeze({ capabilityId, mode: plannerModeFor(capability), domain: capability.domain, description: `${semantic.directGoalClasses.join('、')} 的正式只读能力。`, sourceRequirement: 'AUTHORITATIVE_BUSINESS_SOURCE', ...semantic });
     });
-    const operationCounts = all.reduce((counts, capability) => {
-        counts[capability.operation] = (counts[capability.operation] || 0) + 1;
-        return counts;
-    }, {});
+    const operationCounts = all.reduce((counts, capability) => ({ ...counts, [capability.operation]: (counts[capability.operation] || 0) + 1 }), {});
     const hiddenWrite = all.filter(capability => ['command', 'maintenance'].includes(capability.operation));
-    return Object.freeze({
-        source: 'api/capabilities/registry.cjs:listBusinessCapabilities',
-        registryPath: 'api/capabilities/registry.cjs',
-        totalCapabilities: all.length,
-        operationCounts: Object.freeze(operationCounts),
-        visibleCapabilities: Object.freeze(visible),
-        visibleReadCapabilities: visible.filter(capability => capability.mode === 'READ').length,
-        visibleAnalysisCapabilities: 0,
-        visiblePreviewCapabilities: visible.filter(capability => capability.mode === 'PREVIEW').length,
-        hiddenWriteCapabilities: hiddenWrite.length,
-        plannerVisibleCapabilityCount: visible.length,
-        plannerWriteCapabilitiesVisible: 0,
-    });
+    return Object.freeze({ source: 'api/capabilities/registry.cjs:listBusinessCapabilities', registryPath: 'api/capabilities/registry.cjs', totalCapabilities: all.length, operationCounts: Object.freeze(operationCounts), factClasses: FACT_CLASSES, visibleCapabilities: Object.freeze(visible), visibleReadCapabilities: visible.filter(capability => capability.mode === 'READ').length, visibleAnalysisCapabilities: 0, visiblePreviewCapabilities: visible.filter(capability => capability.mode === 'PREVIEW').length, hiddenWriteCapabilities: hiddenWrite.length, plannerVisibleCapabilityCount: visible.length, plannerWriteCapabilitiesVisible: 0 });
 }
 
-module.exports = { PLANNER_VISIBLE_IDS, PLANNER_CONTRACTS, createPlannerCapabilityCatalogSnapshot };
+module.exports = { PLANNER_VISIBLE_IDS, FACT_CLASSES, SEMANTICS, canCapabilitySatisfyFact, targetTypesForFact, createPlannerCapabilityCatalogSnapshot };

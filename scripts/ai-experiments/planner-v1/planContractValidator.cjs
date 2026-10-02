@@ -1,6 +1,8 @@
 'use strict';
 
 const { PLAN_STATUSES, STEP_MODES, AMBIGUITY_USAGES } = require('./plannerMemo.cjs');
+const { canCapabilitySatisfyFact } = require('./capabilityCatalogSnapshot.cjs');
+const { validatePlannerAdmission } = require('./plannerAdmissionGuard.cjs');
 
 const WRITE_ENABLED = false;
 const ZERO_STEP_STATUSES = new Set(['NO_TOOL_REQUIRED', 'BLOCKED_GROUNDING', 'BLOCKED_AMBIGUITY', 'BLOCKED_CAPABILITY']);
@@ -32,6 +34,7 @@ function validatePlanContract({ plan, context }) {
     if (!PLAN_STATUSES.has(status)) addViolation(violations, 'PLAN_STATUS_INVALID', status || 'NONE');
     if (!AMBIGUITY_USAGES.has(plan?.ambiguityUsage || 'NONE')) addViolation(violations, 'AMBIGUITY_USAGE_INVALID', plan?.ambiguityUsage);
     if (ZERO_STEP_STATUSES.has(status) && steps.length) addViolation(violations, 'BLOCKED_PLAN_STEP_VIOLATION', status);
+    if (ZERO_STEP_STATUSES.has(status) && facts.length) addViolation(violations, 'BLOCKED_REQUIRED_FACT_VIOLATION', status);
     if (status === 'BLOCKED_CAPABILITY' && !(plan?.missingCapabilities || []).length) addViolation(violations, 'MISSING_CAPABILITY_REQUIRED');
     if (status === 'BLOCKED_POLICY' && steps.length && plan?.previewPlanAvailable !== 'YES') addViolation(violations, 'BLOCKED_POLICY_SUBPLAN_UNAVAILABLE');
     if (!WRITE_ENABLED && plan?.writeRequired === 'YES' && status === 'READY') {
@@ -51,6 +54,11 @@ function validatePlanContract({ plan, context }) {
             const capability = catalog.get(step.capability);
             if (!capability) addViolation(violations, 'PLANNER_INVENTED_CAPABILITY', step.capability);
             else if (capability.mode !== step.mode) addViolation(violations, 'CAPABILITY_MODE_NOT_ALLOWED', step.capability);
+            else for (const factId of splitIds(step.produces)) {
+                const fact = facts.find(item => item.factId === factId);
+                const satisfaction = canCapabilitySatisfyFact({ capability, fact, targets: context?.finalGroundedTargets || [] });
+                if (satisfaction === 'NO') addViolation(violations, 'CAPABILITY_OUTPUT_MISMATCH', `${step.capability}:${factId}`);
+            }
         }
         const produced = splitIds(step.produces);
         if (!produced.length) addViolation(violations, 'STEP_PRODUCES_REQUIRED', step.stepId);
@@ -100,6 +108,8 @@ function validatePlanContract({ plan, context }) {
         if (fact.sourceRequirement === 'FROZEN_UPSTREAM_EVIDENCE') continue;
         if (!producers.has(fact.factId)) addViolation(violations, 'REQUIRED_FACT_UNSATISFIED', fact.factId);
     }
+
+    for (const code of validatePlannerAdmission({ plan, admission: context?.admission || {} })) addViolation(violations, code);
 
     const uniqueViolations = Object.freeze(violations.filter((value, index, values) => values.findIndex(other => other.code === value.code && other.detail === value.detail) === index));
     const hasNonStageViolation = uniqueViolations.some(violation => violation.code !== 'WRITE_STAGE_POLICY_VIOLATION');

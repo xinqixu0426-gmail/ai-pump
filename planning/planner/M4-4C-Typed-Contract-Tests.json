@@ -1,0 +1,35 @@
+{
+  "phase": "M4-4C",
+  "typedDescriptors": 6,
+  "deterministicTypedTests": {
+    "passed": 22,
+    "failed": 0
+  },
+  "scenarios": [
+    {
+      "id": "TS-01",
+      "pass": true
+    },
+    {
+      "id": "TS-02",
+      "pass": true
+    },
+    {
+      "id": "TS-03",
+      "pass": true
+    },
+    {
+      "id": "AG-01",
+      "pass": true
+    },
+    {
+      "id": "BC-01",
+      "pass": true
+    }
+  ],
+  "scenarioAuditSources": [
+    "api/capabilities/registry.cjs:recipes.scenario_compare_preview",
+    "api/services/recipeScenarioComparison.cjs:ALLOWED_OVERRIDES,compare",
+    "api/db.cjs:coilRow"
+  ]
+}

@@ -1,0 +1,216 @@
+{
+  "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+  "registryPath": "api/capabilities/registry.cjs",
+  "totalCapabilities": 147,
+  "operationCounts": {
+    "query": 41,
+    "preview": 5,
+    "command": 78,
+    "maintenance": 23
+  },
+  "factClasses": [
+    "FORMAL_DETAIL",
+    "CURRENT_COST",
+    "RELATION",
+    "CANDIDATE_SET",
+    "SCENARIO_COST",
+    "SCENARIO_COMPARISON",
+    "COST_DIFFERENCE",
+    "DERIVED_COMPUTE",
+    "OTHER"
+  ],
+  "visibleCapabilities": [
+    {
+      "capabilityId": "templates.detail",
+      "mode": "READ",
+      "domain": "template",
+      "description": "template_detail、fixed_part_list 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "template"
+      ],
+      "targetCardinality": "ONE",
+      "accepts": [
+        "one_formally_grounded_template"
+      ],
+      "produces": [
+        "FORMAL_DETAIL",
+        "RELATION"
+      ],
+      "directGoalClasses": [
+        "template_detail",
+        "fixed_part_list"
+      ],
+      "notFor": [
+        "recipe_cost",
+        "coil_cost"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:templates.detail",
+        "api/routes/templates.cjs:template detail query"
+      ]
+    },
+    {
+      "capabilityId": "recipes.current_costs",
+      "mode": "READ",
+      "domain": "recipes",
+      "description": "recipe_current_cost 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "recipe"
+      ],
+      "targetCardinality": "ONE_OR_SET",
+      "accepts": [
+        "one_or_more_formally_grounded_recipes"
+      ],
+      "produces": [
+        "CURRENT_COST"
+      ],
+      "directGoalClasses": [
+        "recipe_current_cost"
+      ],
+      "notFor": [
+        "coil_cost",
+        "scenario_override"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:recipes.current_costs",
+        "api/services/currentRecipeCost.cjs"
+      ]
+    },
+    {
+      "capabilityId": "relations.read",
+      "mode": "READ",
+      "domain": "catalog",
+      "description": "current_relation 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "recipe",
+        "template",
+        "coil",
+        "part"
+      ],
+      "targetCardinality": "ONE",
+      "accepts": [
+        "one_formally_grounded_relation_root"
+      ],
+      "produces": [
+        "RELATION"
+      ],
+      "directGoalClasses": [
+        "current_relation"
+      ],
+      "notFor": [
+        "cost_calculation",
+        "scenario_override"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:relations.read",
+        "api/routes/ai/executors/queryExecutors.cjs"
+      ]
+    },
+    {
+      "capabilityId": "cost.recipe_difference",
+      "mode": "READ",
+      "domain": "cost",
+      "description": "recipe_cost_difference 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "recipe_pair"
+      ],
+      "targetCardinality": "TWO",
+      "accepts": [
+        "two_formally_grounded_recipes"
+      ],
+      "produces": [
+        "COST_DIFFERENCE",
+        "CURRENT_COST"
+      ],
+      "directGoalClasses": [
+        "recipe_cost_difference"
+      ],
+      "notFor": [
+        "single_recipe_cost",
+        "coil_cost",
+        "scenario_override"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:cost.recipe_difference",
+        "api/services/costQueries.cjs:getRecipeDifference"
+      ]
+    },
+    {
+      "capabilityId": "coils.list",
+      "mode": "READ",
+      "domain": "coil",
+      "description": "coil_current_cost、coil_detail、coil_candidate_set 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "coil"
+      ],
+      "targetCardinality": "ONE_OR_SET",
+      "accepts": [
+        "one_or_more_formally_grounded_coil_schemes"
+      ],
+      "produces": [
+        "FORMAL_DETAIL",
+        "CURRENT_COST",
+        "CANDIDATE_SET"
+      ],
+      "directGoalClasses": [
+        "coil_current_cost",
+        "coil_detail",
+        "coil_candidate_set"
+      ],
+      "notFor": [
+        "recipe_current_cost",
+        "recipe_scenario_override"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:coils.list",
+        "api/routes/coils.cjs:GET list",
+        "api/db.cjs:coilRow"
+      ]
+    },
+    {
+      "capabilityId": "recipes.scenario_compare_preview",
+      "mode": "PREVIEW",
+      "domain": "recipes",
+      "description": "recipe_scenario_cost、recipe_scenario_comparison 的正式只读能力。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+      "targetTypes": [
+        "recipe"
+      ],
+      "targetCardinality": "ONE",
+      "accepts": [
+        "one_formally_grounded_recipe",
+        "explicit_owner_scenario_overrides",
+        "formal_packaging_part_selection_when_packaging_changes"
+      ],
+      "produces": [
+        "CURRENT_COST",
+        "SCENARIO_COST",
+        "SCENARIO_COMPARISON",
+        "FORMAL_DETAIL"
+      ],
+      "directGoalClasses": [
+        "recipe_scenario_cost",
+        "recipe_scenario_comparison"
+      ],
+      "notFor": [
+        "stainless_shaft_joint_override",
+        "unbound_packaging_material_name"
+      ],
+      "provenance": [
+        "api/capabilities/registry.cjs:recipes.scenario_compare_preview",
+        "api/services/recipeScenarioComparison.cjs:ALLOWED_OVERRIDES,compare"
+      ]
+    }
+  ],
+  "visibleReadCapabilities": 5,
+  "visibleAnalysisCapabilities": 0,
+  "visiblePreviewCapabilities": 1,
+  "hiddenWriteCapabilities": 101,
+  "plannerVisibleCapabilityCount": 6,
+  "plannerWriteCapabilitiesVisible": 0
+}
