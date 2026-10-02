@@ -1,0 +1,1049 @@
+{
+  "phase": "M4-3A-R9",
+  "kind": "DETERMINISTIC_PROPOSAL_QUALIFIER_TESTS",
+  "total": 13,
+  "pass": 13,
+  "fail": 0,
+  "results": [
+    {
+      "id": "PV-01",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "V750成本",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "V750成本",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "V750成本",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "V750成本",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "V750成本"
+            ],
+            "refinedTargets": [],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [
+              "V750成本"
+            ],
+            "applied": false
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "PV-02",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "线圈",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "线圈",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "线圈",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "线圈",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "线圈"
+            ],
+            "refinedTargets": [],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [
+              "线圈"
+            ],
+            "applied": false
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "PV-03",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": "31",
+            "canonicalName": "通用款模板",
+            "candidates": [
+              {
+                "canonicalId": "31",
+                "canonicalName": "通用款模板"
+              }
+            ],
+            "proposal": {
+              "expression": "通用款模板",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "固定件",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "固定件",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "固定件",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "固定件",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [],
+        "finalGroundedTargets": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": "31",
+            "canonicalName": "通用款模板",
+            "candidates": [
+              {
+                "canonicalId": "31",
+                "canonicalName": "通用款模板"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "通用款模板",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "PV-04",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [],
+        "unresolvedProbeResults": [
+          {
+            "mention": "不存在型号",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "不存在型号",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "不存在型号",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "不存在型号",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [],
+        "finalGroundedTargets": []
+      }
+    },
+    {
+      "id": "QR-01",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "通用款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "通用款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "通用款"
+            ],
+            "refinedTargets": [
+              {
+                "mention": "V750-通用款",
+                "entityType": "recipe",
+                "status": "EXACT",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "candidates": [
+                  {
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款"
+                  }
+                ],
+                "source": "QUALIFIER_REFINEMENT",
+                "qualifier": {
+                  "qualifierExpression": "通用款",
+                  "baseMention": "V750",
+                  "candidateCanonicalId": "11",
+                  "candidateCanonicalName": "V750-通用款",
+                  "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                  "source": "OWNER_EXPLICIT_QUALIFIER"
+                }
+              }
+            ],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [],
+            "applied": true
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750-通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "通用款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "11",
+              "candidateCanonicalName": "V750-通用款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "QR-02",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "豪贝款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "豪贝款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "豪贝款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "豪贝款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "豪贝款"
+            ],
+            "refinedTargets": [
+              {
+                "mention": "V750-豪贝款",
+                "entityType": "recipe",
+                "status": "EXACT",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "candidates": [
+                  {
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款"
+                  }
+                ],
+                "source": "QUALIFIER_REFINEMENT",
+                "qualifier": {
+                  "qualifierExpression": "豪贝款",
+                  "baseMention": "V750",
+                  "candidateCanonicalId": "12",
+                  "candidateCanonicalName": "V750-豪贝款",
+                  "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                  "source": "OWNER_EXPLICIT_QUALIFIER"
+                }
+              }
+            ],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [],
+            "applied": true
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750-豪贝款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "12",
+            "canonicalName": "V750-豪贝款",
+            "candidates": [
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "豪贝款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "12",
+              "candidateCanonicalName": "V750-豪贝款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "QR-03",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "通用款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          },
+          {
+            "mention": "豪贝款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "豪贝款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "通用款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          },
+          {
+            "expression": "豪贝款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "豪贝款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "通用款",
+              "豪贝款"
+            ],
+            "refinedTargets": [
+              {
+                "mention": "V750-通用款",
+                "entityType": "recipe",
+                "status": "EXACT",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "candidates": [
+                  {
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款"
+                  }
+                ],
+                "source": "QUALIFIER_REFINEMENT",
+                "qualifier": {
+                  "qualifierExpression": "通用款",
+                  "baseMention": "V750",
+                  "candidateCanonicalId": "11",
+                  "candidateCanonicalName": "V750-通用款",
+                  "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                  "source": "OWNER_EXPLICIT_QUALIFIER"
+                }
+              },
+              {
+                "mention": "V750-豪贝款",
+                "entityType": "recipe",
+                "status": "EXACT",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "candidates": [
+                  {
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款"
+                  }
+                ],
+                "source": "QUALIFIER_REFINEMENT",
+                "qualifier": {
+                  "qualifierExpression": "豪贝款",
+                  "baseMention": "V750",
+                  "candidateCanonicalId": "12",
+                  "candidateCanonicalName": "V750-豪贝款",
+                  "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                  "source": "OWNER_EXPLICIT_QUALIFIER"
+                }
+              }
+            ],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [],
+            "applied": true
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750-通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "通用款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "11",
+              "candidateCanonicalName": "V750-通用款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          },
+          {
+            "mention": "V750-豪贝款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "12",
+            "canonicalName": "V750-豪贝款",
+            "candidates": [
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "豪贝款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "12",
+              "candidateCanonicalName": "V750-豪贝款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "QR-04",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "出口款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "出口款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "出口款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "出口款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "出口款"
+            ],
+            "refinedTargets": [],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [
+              "出口款"
+            ],
+            "applied": false
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "QR-05",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款-A"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-通用款-B"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [
+          {
+            "mention": "通用款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProposalWarnings": [
+          {
+            "expression": "通用款",
+            "reason": "UNRESOLVED_PROPOSAL_WARNING",
+            "proposal": {
+              "expression": "通用款",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [
+              "通用款"
+            ],
+            "refinedTargets": [],
+            "ambiguousQualifiers": [
+              "通用款"
+            ],
+            "noMatchQualifiers": [],
+            "applied": false
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款-A"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-通用款-B"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "QR-06",
+      "status": "PASS",
+      "actual": {
+        "supportedProbeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ],
+        "unresolvedProbeResults": [],
+        "unresolvedProposalWarnings": [],
+        "qualifierCandidates": [],
+        "qualifierRefinements": [
+          {
+            "baseMention": "V750",
+            "baseStatus": "MULTIPLE",
+            "qualifiers": [],
+            "refinedTargets": [],
+            "ambiguousQualifiers": [],
+            "noMatchQualifiers": [],
+            "applied": false
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "source": "ROLE_CLASSIFIER"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CF-PLURAL-01",
+      "status": "PASS",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "木箱和纸箱在我们系统里分别算什么？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "BUSINESS_CLASSIFICATION",
+        "matchedSurface": "木箱和纸箱在我们系统里分别算什么",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      }
+    },
+    {
+      "id": "CF-PLURAL-02",
+      "status": "PASS",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "木箱和纸箱分别多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      }
+    },
+    {
+      "id": "CF-PLURAL-03",
+      "status": "PASS",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750和V110分别成本多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "成本"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      }
+    }
+  ]
+}

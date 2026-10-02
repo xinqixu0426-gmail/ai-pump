@@ -1,0 +1,5669 @@
+{
+  "phase": "M4-3A-R9",
+  "scope": "closure",
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "policySource": "BOOTSTRAP_PLUS_CANDIDATE",
+  "ontologyUsed": true,
+  "intentAgentCalls": 0,
+  "utteranceExtractorCalls": 0,
+  "modelCalls": 28,
+  "resolverCalls": 40,
+  "fixtureSource": "isolated_formal_entity_lookup_fixture",
+  "metrics": {
+    "businessMedianMs": 3346.048583,
+    "policyMedianMs": 1859.503958,
+    "referenceHintMedianMs": 0,
+    "referenceFastPathMedianMs": 0,
+    "referenceMedianMs": 0,
+    "referenceRewriteMedianMs": 0.0095,
+    "conceptFastPathMedianMs": 0.03525,
+    "roleMedianMs": 912.979958,
+    "spanAlignmentMedianMs": 0.057875,
+    "resolverProbeMedianMs": 0.548292,
+    "qualifierRefinementMedianMs": 0.025542,
+    "totalMedianMs": 4363.945791
+  },
+  "referenceFastPathResolved": 2,
+  "referenceFastPathUnresolved": 1,
+  "referenceLlmCallsAvoided": 3,
+  "referenceLlmCalls": 0,
+  "conceptFastPathHits": 1,
+  "roleLlmCallsAvoidedByConceptFastPath": 1,
+  "resolverCallsAvoidedByConceptFastPath": 1,
+  "spanAlignmentAttempts": 13,
+  "spanAlignmentSuccess": 10,
+  "spanAlignmentNoMatch": 3,
+  "spanAlignmentAmbiguous": 0,
+  "roleOutOfWorkingUtteranceWarnings": 3,
+  "filteredRoleExpressions": [
+    "V750-通用款",
+    "它",
+    "刚才那个线圈"
+  ],
+  "candidateProposalsTotal": 10,
+  "supportedProposals": 8,
+  "unresolvedProposals": 2,
+  "unresolvedProposalWarnings": 2,
+  "unresolvedProposalsAcceptedAsTarget": 0,
+  "qualifierRefinementAttempts": 6,
+  "qualifierRefinementSuccess": 1,
+  "qualifierRefinementAmbiguous": 0,
+  "qualifierRefinementNoMatch": 2,
+  "qualifiedSetCount": 1,
+  "finalGroundedTargetCount": 9,
+  "results": [
+    {
+      "id": "G-05",
+      "run": 1,
+      "user": "查一下V750成本。",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:04.456Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一个规格表达。\n- **V 系列**：产品系列／型号体系。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，是报价、客户配置和生产配置的基础。\n- **Recipe Configurable Cost Drivers**：会因客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的配置维度。\n- **BOM**：根据 Recipe 当前配置正式展开后的物料／工艺组成。\n\n# Business meaning\n\n- `V750` 中，`V` 表示产品系列／型号体系，`750` 表示功率等级。\n- 因此 V750 不能被理解为一个固定、不可改变的 Finished Product，也不应被当作固定成品 SKU。\n- V750 属于工厂内部 Recipe／产品规格代号体系，而不是某一套唯一确定的正式线圈方案身份。\n- 以 `V750-通用款` 为例，它表达的是 V 系列 750 功率等级，加上“通用款”泵壳结构／Template 款式，形成一套 Recipe 配置基础。\n- V750 还可以有豪贝款、东音款或其它泵壳款式；这些差异来自泵壳结构，而不是功率不同。\n- 成本相关组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项。\n\n# Relevant relationships\n\n- **Template → Recipe → BOM**：Template 提供固定机械结构蓝图；Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- **Recipe → 成本**：Recipe 是报价、客户配置和生产配置的基础；其可配置成本项包括 Coil configuration、Barrel configuration、Cable configuration、Float configuration、Packing configuration、Surface treatment、Rotor process。\n- **V750 → Recipe 配置基础**：V750 不是固定成品，而是在 Recipe 体系中表达某一功率等级，并可结合不同泵壳结构／Template 款式形成不同配置基础。\n- **OEM 配置变化 → 成本变化**：同一基础 Recipe 可依客户要求调整线圈片数、电缆、包装、机筒长度、转子工艺和其它配置，这些属于 OEM 配置变化，并会影响成本。\n\n# Unknown business terms\n\n- **V750 成本**：Company Business Model 未定义“V750 成本”作为某一确定正式对象的成本。V750 是 Recipe／产品规格代号体系中的功率等级表达，未说明是哪一个具体 Recipe、哪一种泵壳款式、哪一套正式 Coil Scheme、哪些 OEM 配置或哪一版 BOM。\n- **具体正式方案**：未提供 V750 所对应的具体正式 Recipe 或正式 Coil Scheme identity。\n- **成本口径**：Company Business Model 未定义成本公式、数据库当前事实、库存、报价或任何正式成本数值。",
+      "policyMemo": "Memo：\n\n- 该请求仅询问 V750 成本，未表达任何配置变更或保存意图，应按读取/试算类处理。\n- 若为当前正式成本，应明确标注为当前正式口径；若含临时配置假设，则标注为临时试算口径。\n- V750 仅为名称提及，正式身份需以正式目录/配方解析结果为准；不能凭名称自行认定。\n- 未出现明确保存或正式修改意图，不得视为持久变更，也不得默认升级为写入。\n- 如后续要求更改正式配方并保存，需经 Owner 确认后方可执行。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "查一下V750成本。",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "查一下V750成本。",
+        "workingUtterance": "查一下V750成本。",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "查一下V750成本。",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "成本"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 成本 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "成本",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "V750",
+          "alignedWorkingSpan": "V750",
+          "workingUtterance": "查一下V750成本。"
+        }
+      ],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "V750",
+          "alignedExpression": "V750",
+          "matchCount": 1
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.635458
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.137958
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.06
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.419583
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750成本。"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.635458
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.137958
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.06
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.419583
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750成本。"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [
+        {
+          "baseMention": "V750",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [],
+          "refinedTargets": [],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [],
+          "applied": false
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750成本。"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 4207.405958,
+        "policyMs": 2023.24975,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.057542,
+        "conceptFastPathMs": 0.179,
+        "roleMs": 819.2385,
+        "spanAlignmentMs": 0.440125,
+        "resolverProbeMs": 1.252999,
+        "qualifierRefinementMs": 0.324958,
+        "totalMs": 5029.815125
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "查一下V750成本。",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "成本"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "成本",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750成本。"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.635458
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.137958
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.06
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.419583
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "查一下V750成本。"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "查一下V750成本。"
+            }
+          }
+        ],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-06",
+      "run": 1,
+      "user": "查一下V750现在用哪个线圈。",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:09.488Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的功率等级表达。\n- **V750-通用款**（若语境涉及）：V 系列 750 功率等级加通用款泵壳结构所形成的 Recipe 配置基础。\n- **COIL / COIL SCHEME**：一套具体可使用的线圈／绕组方案。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，可就线圈片数、Coil Scheme 等进行配置。\n- **Coil configuration**：Recipe 的可配置成本维度之一，包含 Coil Scheme 与线圈片数等。\n\n# Business meaning\n\n用户原话中的“V750”在本公司业务模型中指工厂内部 V 系列、750 功率等级这一层 Recipe／产品规格代号；“通用款”若被一同提及，表示对应的泵壳结构／Template 款式，而不是功率差异。\n\n“线圈”对应 COIL / COIL SCHEME，即一套具体可使用的线圈／绕组方案。一个具体方案还可能以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分。\n\n因此，“V750 用哪个线圈”在业务上是在问：某个 V750 基础 Recipe 当前配置中所采用的 Coil Scheme 及线圈片数等线圈配置。V750 是 Recipe 配置基础，不是固定成品 SKU；同一基础 Recipe 可依客户 OEM 要求调整线圈配置。\n\n# Relevant relationships\n\n- V750 属于 V 系列／产品规格代号体系，与泵壳款式（通用款、豪贝款、东音款等）是不同维度。\n- Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；Coil Scheme 属于 Recipe 的 Coil configuration 维度。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成，因此“V750 的线圈”最终会体现在该 Recipe 当前配置展开的 BOM 中。\n- 同一 V750 基础 Recipe 可因客户要求不同而对应不同的线圈片数与 Coil Scheme，不能仅凭 V750 名称推定唯一线圈方案。\n\n# Unknown business terms\n\n- V750 当前实际对应哪一套 Coil Scheme、哪个线圈片数：业务模型未定义具体事实，本模型只说明概念含义，不提供当前配置。\n- 若用户所说的“V750”实际指向某一具体客户 Recipe、某一泵壳款式或某一正式 Coil Scheme identity：业务模型未定义，需另行确认。\n- 若“线圈”指某个具体正式方案身份及其属性（材质、槽眼、电压、频率、市场等）：业务模型未定义当前取值。",
+      "policyMemo": "**Memo：仅查询，不涉及写入**\n\n- 用户诉求是查询 V750 当前所用的线圈配置，属于读取类请求，按“读宽松、写严格”的原则可直接处理，无需确认。\n- “V750”只是名称线索，不等于正式身份；需先解析为唯一有效的正式配方，再据此查询其线圈配置。若匹配不唯一或不存在，应作有限的澄清或给出正式的无匹配结果，不得臆造或随意取第一个近似项。\n- 若“线圈”指向的是通用线圈代号（可能对应多个正式方案），不得默认选取第一个方案；应给出有界的方案选项，并说明所依据的方案基准。\n- 本次不涉及配置试算或正式配方变更；用户也未表达任何保存意图，因此不做任何持久化处理。\n- 回答中如需涉及库存或金额，须明确其口径基础（如所选方案的在手库存、当前正式成本等），不得混用不同口径。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "查一下V750现在用哪个线圈。",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "查一下V750现在用哪个线圈。",
+        "workingUtterance": "查一下V750现在用哪个线圈。",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "查一下V750现在用哪个线圈。",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "哪个",
+          "现在",
+          "用哪个"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 线圈 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "线圈",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "V750",
+          "alignedWorkingSpan": "V750",
+          "workingUtterance": "查一下V750现在用哪个线圈。"
+        }
+      ],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "V750",
+          "alignedExpression": "V750",
+          "matchCount": 1
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.121375
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.069875
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.045458
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.058958
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750现在用哪个线圈。"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.121375
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.069875
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.045458
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.058958
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750现在用哪个线圈。"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [
+        {
+          "baseMention": "V750",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [],
+          "refinedTargets": [],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [],
+          "applied": false
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750现在用哪个线圈。"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3346.048583,
+        "policyMs": 1983.050375,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.005375,
+        "conceptFastPathMs": 0.089417,
+        "roleMs": 1140.350916,
+        "spanAlignmentMs": 0.04875,
+        "resolverProbeMs": 0.295666,
+        "qualifierRefinementMs": 0.017,
+        "totalMs": 4487.018417
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "查一下V750现在用哪个线圈。",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "哪个",
+            "现在",
+            "用哪个"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "线圈",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "查一下V750现在用哪个线圈。"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.121375
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.069875
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.045458
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.058958
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "查一下V750现在用哪个线圈。"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "查一下V750现在用哪个线圈。"
+            }
+          }
+        ],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-07",
+      "run": 1,
+      "user": "通用款模板有哪些固定件？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:13.975Z",
+      "businessMemo": "# Relevant business concepts\n\n- TEMPLATE / 模板\n- Recipe\n- BOM\n- PART / 零件\n- 泵壳结构\n\n# Business meaning\n\n按本公司业务模型，Template 是专门为 Recipe 准备的可复用 BOM 蓝图，基于某一种泵壳结构，记录用这套泵壳组合成水泵时必须固定搭配的零件型号，例如轴承、油封、螺丝及其它固定结构零件。\n\n“通用款”在本公司业务语言中对应的是一种泵壳结构／Template 款式（例如 `V750-通用款` 表达的是 V 系列 750 功率等级加通用款泵壳结构形成的 Recipe 配置基础）。“通用款模板”因此应理解为：以通用款泵壳结构为基础的那一套固定结构蓝图。\n\n# Relevant relationships\n\n- Template 是 Recipe 的蓝图；新建 Recipe 必须基于 Template。\n- Template 记录固定搭配的零件型号，但这些固定件是蓝图内容，不等于完整 BOM。\n- Recipe 在 Template 基础上再加入动力、线圈及其它 OEM 配置；BOM 才是 Recipe 当前配置正式展开后的物料／工艺组成。\n- Template 按 Owner 业务定义本身不负责成本计算，也不代表完整成品或客户最终配置。\n\n# Unknown business terms\n\nCompany Business Model 只说明 Template 会记录“轴承、油封、螺丝及其它固定结构零件”这类固定搭配零件型号，并未在本知识源中列出“通用款模板”具体包含哪些固定件的清单或型号。\n\n因此，“通用款模板有哪些固定件”的**具体固定件清单与型号**在本业务模型中未定义，不能据本知识源猜测或列举。",
+      "policyMemo": "可先作为只读查询处理：查找并列举通用款模板的固定件配置。  \n此类请求不涉及保存或正式修改；若“通用款模板”指向不唯一，应先做有限澄清，不能默认选择某一项。  \n返回结果需标明依据的正式模板/配置来源，未确认匹配前不得据此进行任何写入。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "通用款模板有哪些固定件？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "通用款模板有哪些固定件？",
+        "workingUtterance": "通用款模板有哪些固定件？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "通用款模板有哪些固定件？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: 通用款模板 | FORMAL_ENTITY_CANDIDATE\nROLE: 固定件 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "通用款模板",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "固定件",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "通用款模板",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "通用款模板",
+          "alignedWorkingSpan": "通用款模板",
+          "workingUtterance": "通用款模板有哪些固定件？"
+        }
+      ],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "通用款模板",
+          "alignedExpression": "通用款模板",
+          "matchCount": 1
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "通用款模板",
+          "entityType": "template",
+          "status": "EXACT",
+          "canonicalId": "21",
+          "canonicalName": "通用款模板",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.86825
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.1215
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "通用款模板",
+                "status": "RESOLVED",
+                "canonicalId": "21",
+                "canonicalName": "通用款模板",
+                "candidates": [],
+                "source": "formal",
+                "verified": true,
+                "matchKind": "EXACT"
+              },
+              "resolverMs": 0.073417
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.135792
+            }
+          ],
+          "proposal": {
+            "expression": "通用款模板",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款模板",
+            "alignedWorkingSpan": "通用款模板",
+            "workingUtterance": "通用款模板有哪些固定件？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "通用款模板",
+          "entityType": "template",
+          "status": "EXACT",
+          "canonicalId": "21",
+          "canonicalName": "通用款模板",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.86825
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.1215
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "通用款模板",
+                "status": "RESOLVED",
+                "canonicalId": "21",
+                "canonicalName": "通用款模板",
+                "candidates": [],
+                "source": "formal",
+                "verified": true,
+                "matchKind": "EXACT"
+              },
+              "resolverMs": 0.073417
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "通用款模板",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.135792
+            }
+          ],
+          "proposal": {
+            "expression": "通用款模板",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款模板",
+            "alignedWorkingSpan": "通用款模板",
+            "workingUtterance": "通用款模板有哪些固定件？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [],
+      "finalGroundedTargets": [
+        {
+          "mention": "通用款模板",
+          "entityType": "template",
+          "status": "EXACT",
+          "canonicalId": "21",
+          "canonicalName": "通用款模板",
+          "candidates": [],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "通用款模板",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款模板",
+            "alignedWorkingSpan": "通用款模板",
+            "workingUtterance": "通用款模板有哪些固定件？"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2842.408625,
+        "policyMs": 1233.466292,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.00625,
+        "conceptFastPathMs": 0.025,
+        "roleMs": 1062.978417,
+        "spanAlignmentMs": 0.077333,
+        "resolverProbeMs": 1.1989589999999999,
+        "qualifierRefinementMs": 0.024375,
+        "totalMs": 3906.826583
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "通用款模板有哪些固定件？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "哪些",
+            "有哪些固定件"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "通用款模板",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "固定件",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "通用款模板",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款模板",
+            "alignedWorkingSpan": "通用款模板",
+            "workingUtterance": "通用款模板有哪些固定件？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": "21",
+            "canonicalName": "通用款模板",
+            "candidates": [],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "通用款模板",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.86825
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "通用款模板",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.1215
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "通用款模板",
+                  "status": "RESOLVED",
+                  "canonicalId": "21",
+                  "canonicalName": "通用款模板",
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": true,
+                  "matchKind": "EXACT"
+                },
+                "resolverMs": 0.073417
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "通用款模板",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.135792
+              }
+            ],
+            "proposal": {
+              "expression": "通用款模板",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "通用款模板",
+              "alignedWorkingSpan": "通用款模板",
+              "workingUtterance": "通用款模板有哪些固定件？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": "21",
+            "canonicalName": "通用款模板",
+            "candidates": [],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "通用款模板",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "通用款模板",
+              "alignedWorkingSpan": "通用款模板",
+              "workingUtterance": "通用款模板有哪些固定件？"
+            }
+          }
+        ],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "N-05",
+      "run": 1,
+      "user": "通用款和豪贝款的V750成本分别多少？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:17.882Z",
+      "businessMemo": "# Relevant business concepts\n\n- V750\n- V750-通用款\n- 豪贝款（泵壳结构／Template 款式）\n- Recipe\n- Recipe Configurable Cost Driver\n- BOM\n\n# Business meaning\n\n- **V750**：属于工厂内部 Recipe／产品规格代号体系。`V` 表示产品系列／型号体系，`750` 表示功率等级。V750 不能被理解为一个固定、不可改变的 Finished Product。\n- **通用款、豪贝款**：在本公司业务模型中，它们是泵壳结构／Template 款式层面的差异表述。以 `V750-通用款` 为例，它表达的是 V 系列 750 功率等级，加上“通用款”泵壳结构／Template 款式，形成一套 Recipe 配置基础。V750 还可以有豪贝款、东音款或其它泵壳款式；这些差异来自泵壳结构，而不是功率不同。\n- **成本**：最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项；工艺成本不等于普通目录 Part。成本是与 Recipe 当前配置展开后的 BOM 相关的结果。\n\n因此，“通用款和豪贝款的 V750 成本分别多少”在本业务模型中是在询问：两个不同泵壳结构／Template 款式下的 V750 Recipe 配置基础，其成本分别是多少。\n\n# Relevant relationships\n\n- V750 是功率等级层面的 Recipe 基础，不是固定成品 SKU。\n- 通用款、豪贝款是同一 V750 功率等级下不同的泵壳结构／Template 款式。\n- Template 是 Recipe 的可复用 BOM 蓝图，记录基于某一种泵壳结构必须固定搭配的零件型号。\n- Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 成本可以随 Recipe 配置变化而变化；包装、线圈片数、电缆、机筒长度、转子工艺等 OEM 配置变化都会影响成本。\n\n# Unknown business terms\n\n- “通用款”和“豪贝款”的**具体成本金额**：Company Business Model 未定义，本文不提供成本公式，也不提供任何当前事实或数值。\n- 通用款和豪贝款分别对应的**具体 Template 身份、具体 BOM 展开内容**：业务模型未定义具体对象的当前配置。\n- 是否存在与“豪贝款”完全对应的正式业务术语：Company Business Model 仅将其作为泵壳款式举例，未给出该款式的详细定义。",
+      "policyMemo": "## Memo：V750 成本查询（通用款 / 豪贝款）\n\n- **意图判断**：这是单纯的成本读取/试算请求，未包含配置变更，也未表达任何保存或正式修改意图。\n- **处理含义**：可按正式只读/试算能力查询并给出结果，无需 Owner 确认。\n- **身份与歧义**：`V750` 仅为候选称呼，须先经正式解析确定唯一有效配方；“通用款”“豪贝款”若对应多个方案，应分别明确其方案依据，不得默认选取首个匹配，也不得在未说明依据的情况下合并口径。\n- **金额口径**：须标明所返回金额的依据类别（如当前正式/重建成本、临时试算成本），不得将试算金额标注为当前正式成本。\n- **保存含义**：本次无保存动作，不改动任何正式配方或业务状态。\n- **注意事项**：若名称无法解析为唯一方案或存在多方案歧义，应先做有限澄清或给出正式否定结果，不臆造身份。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "通用款和豪贝款的V750成本分别多少？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "通用款和豪贝款的V750成本分别多少？",
+        "workingUtterance": "通用款和豪贝款的V750成本分别多少？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "通用款和豪贝款的V750成本分别多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "成本"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 通用款 | FORMAL_ENTITY_CANDIDATE\nROLE: 豪贝款 | FORMAL_ENTITY_CANDIDATE\nROLE: V750-通用款 | FORMAL_ENTITY_CANDIDATE\nROLE: 成本 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "通用款",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "豪贝款",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "V750-通用款",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "成本",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "V750",
+          "alignedWorkingSpan": "V750",
+          "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+        },
+        {
+          "expression": "通用款",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "通用款",
+          "alignedWorkingSpan": "通用款",
+          "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+        },
+        {
+          "expression": "豪贝款",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "豪贝款",
+          "alignedWorkingSpan": "豪贝款",
+          "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+        }
+      ],
+      "rejectedCandidateProposals": [
+        {
+          "expression": "V750-通用款",
+          "reason": "NO_MATCH"
+        }
+      ],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "V750",
+          "alignedExpression": "V750",
+          "matchCount": 1
+        },
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "通用款",
+          "alignedExpression": "通用款",
+          "matchCount": 1
+        },
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "豪贝款",
+          "alignedExpression": "豪贝款",
+          "matchCount": 1
+        },
+        {
+          "status": "NO_MATCH",
+          "expression": "V750-通用款",
+          "alignedExpression": null,
+          "matchCount": 0
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.130042
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.063542
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.026667
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.078541
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        },
+        {
+          "mention": "通用款",
+          "entityType": null,
+          "status": "UNRESOLVED",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.166958
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.051792
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.020917
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.039292
+            }
+          ],
+          "proposal": {
+            "expression": "通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款",
+            "alignedWorkingSpan": "通用款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        },
+        {
+          "mention": "豪贝款",
+          "entityType": null,
+          "status": "UNRESOLVED",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.112666
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.04025
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.018084
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.034958
+            }
+          ],
+          "proposal": {
+            "expression": "豪贝款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "豪贝款",
+            "alignedWorkingSpan": "豪贝款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.130042
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.063542
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.026667
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.078541
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [
+        {
+          "mention": "通用款",
+          "entityType": null,
+          "status": "UNRESOLVED",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.166958
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.051792
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.020917
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.039292
+            }
+          ],
+          "proposal": {
+            "expression": "通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款",
+            "alignedWorkingSpan": "通用款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        },
+        {
+          "mention": "豪贝款",
+          "entityType": null,
+          "status": "UNRESOLVED",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.112666
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.04025
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.018084
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "豪贝款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.034958
+            }
+          ],
+          "proposal": {
+            "expression": "豪贝款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "豪贝款",
+            "alignedWorkingSpan": "豪贝款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        }
+      ],
+      "unresolvedProposalWarnings": [
+        {
+          "expression": "通用款",
+          "reason": "UNRESOLVED_PROPOSAL_WARNING",
+          "proposal": {
+            "expression": "通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款",
+            "alignedWorkingSpan": "通用款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        },
+        {
+          "expression": "豪贝款",
+          "reason": "UNRESOLVED_PROPOSAL_WARNING",
+          "proposal": {
+            "expression": "豪贝款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "豪贝款",
+            "alignedWorkingSpan": "豪贝款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        }
+      ],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [
+        {
+          "baseMention": "V750",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [
+            "通用款",
+            "豪贝款"
+          ],
+          "refinedTargets": [
+            {
+              "mention": "V750-通用款",
+              "entityType": "recipe",
+              "status": "EXACT",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "candidates": [
+                {
+                  "entityType": "recipe",
+                  "canonicalId": "11",
+                  "canonicalName": "V750-通用款",
+                  "matchKind": "EXACT"
+                }
+              ],
+              "source": "QUALIFIER_REFINEMENT",
+              "qualifier": {
+                "qualifierExpression": "通用款",
+                "baseMention": "V750",
+                "candidateCanonicalId": "11",
+                "candidateCanonicalName": "V750-通用款",
+                "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                "source": "OWNER_EXPLICIT_QUALIFIER"
+              }
+            },
+            {
+              "mention": "V750-豪贝款",
+              "entityType": "recipe",
+              "status": "EXACT",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "candidates": [
+                {
+                  "entityType": "recipe",
+                  "canonicalId": "12",
+                  "canonicalName": "V750-豪贝款",
+                  "matchKind": "EXACT"
+                }
+              ],
+              "source": "QUALIFIER_REFINEMENT",
+              "qualifier": {
+                "qualifierExpression": "豪贝款",
+                "baseMention": "V750",
+                "candidateCanonicalId": "12",
+                "candidateCanonicalName": "V750-豪贝款",
+                "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+                "source": "OWNER_EXPLICIT_QUALIFIER"
+              }
+            }
+          ],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [],
+          "applied": true
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "V750-通用款",
+          "entityType": "recipe",
+          "status": "EXACT",
+          "canonicalId": "11",
+          "canonicalName": "V750-通用款",
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "source": "QUALIFIER_REFINEMENT",
+          "qualifier": {
+            "qualifierExpression": "通用款",
+            "baseMention": "V750",
+            "candidateCanonicalId": "11",
+            "candidateCanonicalName": "V750-通用款",
+            "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+            "source": "OWNER_EXPLICIT_QUALIFIER"
+          }
+        },
+        {
+          "mention": "V750-豪贝款",
+          "entityType": "recipe",
+          "status": "EXACT",
+          "canonicalId": "12",
+          "canonicalName": "V750-豪贝款",
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "source": "QUALIFIER_REFINEMENT",
+          "qualifier": {
+            "qualifierExpression": "豪贝款",
+            "baseMention": "V750",
+            "candidateCanonicalId": "12",
+            "candidateCanonicalName": "V750-豪贝款",
+            "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+            "source": "OWNER_EXPLICIT_QUALIFIER"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3477.664834,
+        "policyMs": 2053.372958,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.012042,
+        "conceptFastPathMs": 0.016333,
+        "roleMs": 933.593458,
+        "spanAlignmentMs": 0.104375,
+        "resolverProbeMs": 0.7837089999999999,
+        "qualifierRefinementMs": 0.264916,
+        "totalMs": 4412.558083
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "通用款和豪贝款的V750成本分别多少？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "成本"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "豪贝款",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "V750-通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "成本",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          },
+          {
+            "expression": "通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "通用款",
+            "alignedWorkingSpan": "通用款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          },
+          {
+            "expression": "豪贝款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "豪贝款",
+            "alignedWorkingSpan": "豪贝款",
+            "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.130042
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.063542
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.026667
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.078541
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+            }
+          },
+          {
+            "mention": "通用款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.166958
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.051792
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.020917
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.039292
+              }
+            ],
+            "proposal": {
+              "expression": "通用款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "通用款",
+              "alignedWorkingSpan": "通用款",
+              "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+            }
+          },
+          {
+            "mention": "豪贝款",
+            "entityType": null,
+            "status": "UNRESOLVED",
+            "candidates": [],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "豪贝款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.112666
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "豪贝款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.04025
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "豪贝款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.018084
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "豪贝款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.034958
+              }
+            ],
+            "proposal": {
+              "expression": "豪贝款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "豪贝款",
+              "alignedWorkingSpan": "豪贝款",
+              "workingUtterance": "通用款和豪贝款的V750成本分别多少？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750-通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "通用款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "11",
+              "candidateCanonicalName": "V750-通用款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          },
+          {
+            "mention": "V750-豪贝款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "12",
+            "canonicalName": "V750-豪贝款",
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "QUALIFIER_REFINEMENT",
+            "qualifier": {
+              "qualifierExpression": "豪贝款",
+              "baseMention": "V750",
+              "candidateCanonicalId": "12",
+              "candidateCanonicalName": "V750-豪贝款",
+              "matchMode": "CONSERVATIVE_NORMALIZED_TEXT",
+              "source": "OWNER_EXPLICIT_QUALIFIER"
+            }
+          }
+        ],
+        "warnings": [
+          "ROLE_OUT_OF_WORKING_UTTERANCE_WARNING:V750-通用款"
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-16",
+      "run": 1,
+      "user": "木箱和纸箱在我们系统里分别算什么？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:22.295Z",
+      "businessMemo": "# Business Model Memo\n\n## Relevant business concepts\n- Packing configuration（包装配置）\n- Recipe Configurable Cost Driver（配方可配置成本项）\n- Part（正式零件目录中的物理零件）\n\n## Business meaning\n按本公司业务模型，纸箱、木箱属于 Recipe 的 **Packing configuration**：即包装配置维度，是 Recipe 的可配置成本项之一。业务模型把包装物料（纸箱、木箱、珍珠棉、泡沫等）列入这一类，并指出包装配置会依 Recipe 配置而变、属于最终成本组成的一部分。\n\n同时，业务模型在 Part 一节中将“包装物料”列为 Part 的示例之一。因此在本模型中，包装物料既被描述为 Recipe 的包装配置维度，也被描述为可作为物理物料管理的 Part 类别。业务模型并未给出“纸箱”“木箱”作为具体条目在目录中的身份，也未说明二者在系统中的具体归属记录方式。\n\n## Relevant relationships\n- Packing configuration 是 Recipe 的一组 Configurable Cost Driver 之一；包装变化属于 OEM 配置变化。\n- 业务模型明确：包装从纸箱变木箱通常描述的是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已改变。\n- 最终成本组成可以包含包装配置等依 Recipe 配置而变的成本项。\n- BOM 才是按 Recipe 当前配置正式展开后的物料／工艺组成；讨论包装用了什么，属于该 Recipe 当前配置展开后的 BOM 范畴，而不是 Template 固定结构蓝图。\n\n## Unknown business terms\n- “纸箱”“木箱”作为具体物料条目的正式身份、编码或目录归属：业务模型未定义。\n- 二者是否一定作为普通 Part 按库存管理：业务模型未定义，未作此判定。",
+      "policyMemo": "# Memo：关于“木箱/纸箱在系统中算什么”的处理\n\n- 用户这句话是在询问业务概念本身，不是在发起配置试算、成本分析或正式修改请求。\n- 依现有规则，我不应替系统定义木箱、纸箱属于什么业务类别，也不能推测其对应的正式身份或含义。\n- 此类概念性身份问题，只能以正式目录/正式解析结果所给出的定义为准；若没有正式结果，应给出有边界的澄清，而不是自行解释。\n- 该问句未表达任何保存或正式变更意图，因此不涉及持久化处理，也不需要写入确认。\n- 若用户实际上想基于木箱或纸箱做配置变更，需要先明确是临时试算还是正式修改，二者处理路径不同。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "木箱和纸箱在我们系统里分别算什么？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "木箱和纸箱在我们系统里分别算什么？",
+        "workingUtterance": "木箱和纸箱在我们系统里分别算什么？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "木箱和纸箱在我们系统里分别算什么？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "BUSINESS_CLASSIFICATION",
+        "matchedSurface": "木箱和纸箱在我们系统里分别算什么",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "roleMemo": null,
+      "roles": [],
+      "gate": "STOP_CONCEPT_ONLY",
+      "candidateProposals": [],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [],
+      "probeResults": [],
+      "supportedProbeResults": [],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierRefinements": [],
+      "finalGroundedTargets": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 0,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2462.903084,
+        "policyMs": 1789.241291,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.00525,
+        "conceptFastPathMs": 0.248209,
+        "roleMs": 0,
+        "spanAlignmentMs": 0,
+        "resolverProbeMs": 0,
+        "qualifierRefinementMs": 0,
+        "totalMs": 2463.212208
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "木箱和纸箱在我们系统里分别算什么？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [],
+          "status": "MATCHED_CONCEPT_ONLY",
+          "patternFamily": "BUSINESS_CLASSIFICATION",
+          "matchedSurface": "木箱和纸箱在我们系统里分别算什么",
+          "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+        },
+        "gate": "STOP_CONCEPT_ONLY",
+        "roles": [],
+        "candidateProposals": [],
+        "probeResults": [],
+        "finalGroundedTargets": [],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-13",
+      "run": 1,
+      "user": "它现在成本多少？",
+      "recentOwnerWording": "刚才看的是V750通用款。",
+      "startedAt": "2026-10-02T05:35:24.758Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750-通用款**：V 系列 750 功率等级 + “通用款”泵壳结构／Template 款式形成的 Recipe 配置基础。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础。\n- **BOM**：根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- **Recipe Configurable Cost Drivers**：会因客户 OEM 要求变化并进一步影响 BOM、制造工艺或成本的配置维度。\n\n# Business meaning\n\n用户原话“它现在成本多少？”中的“它”，在已给出的业务模型语言下，只能理解为前述 **V750-通用款** 这一 Recipe 配置基础。\n\n需要区分三层业务含义：\n\n- **V750-通用款** 不是固定、不可改变的 Finished Product，也不是固定成品 SKU；它是 V 系列 750 功率等级加上通用款泵壳结构所形成的 Recipe 配置基础。\n- **Recipe** 可以包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数、机筒长度、电缆、包装、工艺选项及其它可配置项目；同一 Recipe 基础仍可按客户要求调整。\n- **成本**在本业务模型中与 **BOM 展开结果**及 **Recipe Configurable Cost Drivers** 相关。最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项。\n\n因此，“它现在成本多少”在业务上指向的是：**V750-通用款这一 Recipe 配置基础当前配置展开后所涉及的成本组成**，而不是某个固定成品的既定价格。\n\n# Relevant relationships\n\n- Template 提供固定机械结构蓝图；Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 同一个 Recipe 基础仍可按客户要求调整线圈片数、电缆、包装、机筒长度、转子工艺和其它配置。\n- 这些调整属于 Recipe Configurable Cost Drivers，可能进一步影响 BOM、制造工艺或成本。\n- 例如包装从纸箱变木箱，通常描述的是 OEM 配置变化；不锈钢接轴属于客户定制的 Rotor process configuration；表面处理属于可配置工艺成本项。这些都会影响成本和报价，但不自动改变功率等级、泵壳款式或基础型号。\n\n# Unknown business terms\n\n- **“现在成本”的具体数值**：Company Business Model 未定义。本业务模型不提供数据库当前事实、成本公式、库存、报价或任何正式事实。\n- **V750-通用款当前对应的具体 BOM 展开结果**：业务模型未定义。需要另行确认该 Recipe 当前配置。\n- **V750-通用款当前采用的 Coil Scheme、线圈片数、机筒长度、电缆、包装、表面处理、转子工艺等具体配置**：业务模型未定义。\n- **具体成本组成中各 BOM Parts、工艺成本、包装配置的金额或计算方式**：业务模型未定义。",
+      "policyMemo": "## 语义处理 Memo\n\n用户当前仅询问“它现在成本多少”，属于成本查询请求，不包含任何配置变更意图，也不表达保存或正式修改意图。\n\n**适用规则：**\n- 已明确指向 V750 通用款，但该名称仅为候选，正式身份需经正式目录/配方解析确认后才能读取对应数据。\n- 回答金额信息时，必须明确金额口径（当前正式成本或临时试算成本等），不得混用。\n- 当前消息未提出任何持久化改动，不触发正式写入路径。\n\n**处理含义：** 先确认 V750 通用款的正式身份，再按其正式口径返回当前成本，并标注该金额口径。\n\n**保存含义：** 本轮无保存动作；不涉及正式配方变更。\n\n**注意事项：** 若该名称对应多个正式方案，不得默认选取第一个，应给出有界澄清；不得将临时试算口径标为当前正式成本。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "它"
+      },
+      "businessReferenceHint": {
+        "source": "BUSINESS_MEMO_CONTROLLED_CATEGORY_COMPRESSION",
+        "entries": [
+          {
+            "expression": "V750通用款",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "text": "V750通用款：配方/产品配置相关业务表达"
+      },
+      "referenceFastPath": {
+        "mode": "SAFE_RESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "它",
+        "recentCandidates": [
+          {
+            "expression": "V750通用款",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "V750通用款",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": "V750通用款",
+        "reason": "UNIQUE_GENERIC_CANDIDATE"
+      },
+      "referenceSource": "FAST_PATH",
+      "referenceMemo": null,
+      "reference": {
+        "status": "RESOLVED",
+        "surface": "它",
+        "resolvedLanguageReference": "V750通用款"
+      },
+      "workingUtterance": "V750通用款现在成本多少？",
+      "referenceRewrite": {
+        "applied": true,
+        "sourceSurface": "它",
+        "replacement": "V750通用款",
+        "rawOwnerInput": "它现在成本多少？",
+        "workingUtterance": "V750通用款现在成本多少？",
+        "source": "RESOLVED_OWNER_LANGUAGE_REFERENCE",
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750通用款现在成本多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "成本",
+          "现在"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: V750通用款 | FORMAL_ENTITY_CANDIDATE\nROLE: 成本 | CONCEPT_ONLY\nROLE: 它 | FORMAL_ENTITY_CANDIDATE",
+      "roles": [
+        {
+          "expression": "V750通用款",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "成本",
+          "role": "CONCEPT_ONLY"
+        },
+        {
+          "expression": "它",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "V750通用款",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "V750通用款",
+          "alignedWorkingSpan": "V750通用款",
+          "workingUtterance": "V750通用款现在成本多少？"
+        }
+      ],
+      "rejectedCandidateProposals": [
+        {
+          "expression": "它",
+          "reason": "NO_MATCH"
+        }
+      ],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "V750通用款",
+          "alignedExpression": "V750通用款",
+          "matchCount": 1
+        },
+        {
+          "status": "NO_MATCH",
+          "expression": "它",
+          "alignedExpression": null,
+          "matchCount": 0
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "V750通用款",
+          "entityType": "recipe",
+          "status": "EXACT",
+          "canonicalId": "11",
+          "canonicalName": "V750-通用款",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750通用款",
+                "status": "RESOLVED",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "candidates": [],
+                "source": "formal",
+                "verified": true,
+                "matchKind": "APPROVED_ALIAS"
+              },
+              "resolverMs": 0.391292
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.056625
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.022625
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.07775
+            }
+          ],
+          "proposal": {
+            "expression": "V750通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750通用款",
+            "alignedWorkingSpan": "V750通用款",
+            "workingUtterance": "V750通用款现在成本多少？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "V750通用款",
+          "entityType": "recipe",
+          "status": "EXACT",
+          "canonicalId": "11",
+          "canonicalName": "V750-通用款",
+          "candidates": [],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750通用款",
+                "status": "RESOLVED",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "candidates": [],
+                "source": "formal",
+                "verified": true,
+                "matchKind": "APPROVED_ALIAS"
+              },
+              "resolverMs": 0.391292
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.056625
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.022625
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750通用款",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.07775
+            }
+          ],
+          "proposal": {
+            "expression": "V750通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750通用款",
+            "alignedWorkingSpan": "V750通用款",
+            "workingUtterance": "V750通用款现在成本多少？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [],
+      "finalGroundedTargets": [
+        {
+          "mention": "V750通用款",
+          "entityType": "recipe",
+          "status": "EXACT",
+          "canonicalId": "11",
+          "canonicalName": "V750-通用款",
+          "candidates": [],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "V750通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750通用款",
+            "alignedWorkingSpan": "V750通用款",
+            "workingUtterance": "V750通用款现在成本多少？"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3944.475042,
+        "policyMs": 1859.503958,
+        "referenceHintMs": 0.611791,
+        "referenceFastPathMs": 0.149209,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.0305,
+        "conceptFastPathMs": 0.03525,
+        "roleMs": 871.779,
+        "spanAlignmentMs": 0.057875,
+        "resolverProbeMs": 0.548292,
+        "qualifierRefinementMs": 0.021666,
+        "totalMs": 4818.023
+      },
+      "evaluation": {
+        "reference": {
+          "status": "RESOLVED",
+          "surface": "它",
+          "resolvedLanguageReference": "V750通用款"
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "V750通用款现在成本多少？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "成本",
+            "现在"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "成本",
+            "role": "CONCEPT_ONLY"
+          },
+          {
+            "expression": "它",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "V750通用款",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750通用款",
+            "alignedWorkingSpan": "V750通用款",
+            "workingUtterance": "V750通用款现在成本多少？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750通用款",
+                  "status": "RESOLVED",
+                  "canonicalId": "11",
+                  "canonicalName": "V750-通用款",
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": true,
+                  "matchKind": "APPROVED_ALIAS"
+                },
+                "resolverMs": 0.391292
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.056625
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.022625
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750通用款",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.07775
+              }
+            ],
+            "proposal": {
+              "expression": "V750通用款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750通用款",
+              "alignedWorkingSpan": "V750通用款",
+              "workingUtterance": "V750通用款现在成本多少？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750通用款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750通用款",
+              "alignedWorkingSpan": "V750通用款",
+              "workingUtterance": "V750通用款现在成本多少？"
+            }
+          }
+        ],
+        "warnings": [
+          "ROLE_OUT_OF_WORKING_UTTERANCE_WARNING:它"
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-03",
+      "run": 1,
+      "user": "12-120多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:29.577Z",
+      "businessMemo": "# Business Model Memo：`12-120` 与“多少钱”\n\n## Relevant business concepts\n- `12-120` / Coil Common Designation（线圈常用规格表达）\n- STATOR / 定子\n- COIL / COIL SCHEME（具体线圈／绕组方案）\n- 成本相关：Recipe、Recipe Configurable Cost Drivers、BOM\n\n## Business meaning\n在本公司业务模型中，`12-120` 是工厂关于线圈／定子方案的常用规格表达，而不是唯一正式 Coil Scheme identity：\n\n- `12` 是定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 是硅钢片／线圈方案片数；\n- `120` 不是功率，也不是库存。\n\n因此用户原话中的“12-120”首先是在提及一个常用规格表达。同一个 `12-120` 可以存在多套正式线圈方案，具体正式方案与这个 common designation 不是同一个概念。\n\n至于“多少钱”，在业务模型层面，成本与报价是围绕 Recipe（配置基础）及其可配置成本项、以及按 Recipe 当前配置正式展开后的 BOM 来讨论的，而 Coil Scheme 是其中一项线圈配置维度。`12-120` 本身作为常用规格俗称，并不构成本模型所定义的唯一、可直接对应到某一套正式方案或某一笔成本的身份。\n\n## Relevant relationships\n- `12-120`（常用规格表达）↔ 可对应多套正式 COIL SCHEME，二者不是同一身份。\n- STATOR / 定子 ↔ 定子规格基础，本身不等于某一套绕组方案。\n- COIL SCHEME ↔ 可依材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分；只有正式区分条件明确后，才谈得上具体使用的是哪一套方案。\n- Recipe ↔ 报价、客户配置和生产配置的基础；Coil configuration 是 Recipe 的可配置成本项之一。\n- Recipe → BOM：BOM 是 Recipe 当前配置正式展开后的物料／工艺组成。\n\n## Unknown business terms\n- 用户所说的 `12-120` 具体指向哪一套正式 COIL SCHEME：业务模型未定义。\n- 用户所说的“多少钱”对应哪一层（哪套正式方案、哪个 Recipe、哪份展开 BOM 或哪种成本项）：业务模型未定义。\n- `12-120` 的成本或报价数值：业务模型未定义。\n- `12-120` 的库存：业务模型未定义；且 `120` 本身不是库存。",
+      "policyMemo": "# Memo：`12-120` 询价请求\n\n**适用规则：** 线圈通用代号的多方案语义；金额口径须显式标注。\n\n**处理含义：**\n- `12-120` 是常见代号，可能对应多个正式线圈方案；不得默认选取第一个，也不得把各方案合并成一个数字回答。\n- 先做正式身份解析，若有多个方案，应给出有界的方案选项，请 Owner 明确选择其一。\n- 明确选择后，仅按该单一方案给出金额，并显式标注口径（例如当前正式成本／临时试算成本／历史报价），不得把试算金额说成当前正式成本。\n\n**保存含义：** 本句仅为读取／询价，不涉及任何持久化写入；无需确认。\n\n**注意事项：** 未指明费用口径与方案前，不得臆造单价或合并报价；身份不明确时应澄清而非默认选择。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "12-120多少钱？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "12-120多少钱？",
+        "workingUtterance": "12-120多少钱？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE",
+      "roles": [
+        {
+          "expression": "12-120",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "12-120",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "12-120",
+          "alignedWorkingSpan": "12-120",
+          "workingUtterance": "12-120多少钱？"
+        }
+      ],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "12-120",
+          "alignedExpression": "12-120",
+          "matchCount": 1
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.311458
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "12-120",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "1",
+                    "canonicalName": "12-120 普通小眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-A",
+                      "material": "steel",
+                      "slotType": "small",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": true,
+                      "schemeFamilyCode": "F-12-120-A"
+                    }
+                  },
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "2",
+                    "canonicalName": "12-120 加强大眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-B",
+                      "material": "copper",
+                      "slotType": "large",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": false,
+                      "schemeFamilyCode": "F-12-120-B"
+                    }
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.13875
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.027834
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.086084
+            }
+          ],
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.311458
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "12-120",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "1",
+                    "canonicalName": "12-120 普通小眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-A",
+                      "material": "steel",
+                      "slotType": "small",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": true,
+                      "schemeFamilyCode": "F-12-120-A"
+                    }
+                  },
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "2",
+                    "canonicalName": "12-120 加强大眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-B",
+                      "material": "copper",
+                      "slotType": "large",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": false,
+                      "schemeFamilyCode": "F-12-120-B"
+                    }
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.13875
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.027834
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.086084
+            }
+          ],
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [
+        {
+          "baseMention": "12-120",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [],
+          "refinedTargets": [],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [],
+          "applied": false
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3252.208875,
+        "policyMs": 1723.585417,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.005,
+        "conceptFastPathMs": 0.072875,
+        "roleMs": 902.718625,
+        "spanAlignmentMs": 0.062916,
+        "resolverProbeMs": 0.5641260000000001,
+        "qualifierRefinementMs": 0.025542,
+        "totalMs": 4155.911667
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "12-120多少钱？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "多少钱"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "coil",
+                "canonicalId": "1",
+                "canonicalName": "12-120 普通小眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-A",
+                  "material": "steel",
+                  "slotType": "small",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": true,
+                  "schemeFamilyCode": "F-12-120-A"
+                }
+              },
+              {
+                "entityType": "coil",
+                "canonicalId": "2",
+                "canonicalName": "12-120 加强大眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-B",
+                  "material": "copper",
+                  "slotType": "large",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": false,
+                  "schemeFamilyCode": "F-12-120-B"
+                }
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.311458
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "12-120",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "coil",
+                      "canonicalId": "1",
+                      "canonicalName": "12-120 普通小眼",
+                      "matchKind": "EXACT",
+                      "identityAttributes": {
+                        "spec": "12",
+                        "sheets": 120,
+                        "schemeCode": "12-120-A",
+                        "material": "steel",
+                        "slotType": "small",
+                        "schemeStatus": "ACTIVE",
+                        "isDefault": true,
+                        "schemeFamilyCode": "F-12-120-A"
+                      }
+                    },
+                    {
+                      "entityType": "coil",
+                      "canonicalId": "2",
+                      "canonicalName": "12-120 加强大眼",
+                      "matchKind": "EXACT",
+                      "identityAttributes": {
+                        "spec": "12",
+                        "sheets": 120,
+                        "schemeCode": "12-120-B",
+                        "material": "copper",
+                        "slotType": "large",
+                        "schemeStatus": "ACTIVE",
+                        "isDefault": false,
+                        "schemeFamilyCode": "F-12-120-B"
+                      }
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.13875
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.027834
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.086084
+              }
+            ],
+            "proposal": {
+              "expression": "12-120",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "12-120",
+              "alignedWorkingSpan": "12-120",
+              "workingUtterance": "12-120多少钱？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "coil",
+                "canonicalId": "1",
+                "canonicalName": "12-120 普通小眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-A",
+                  "material": "steel",
+                  "slotType": "small",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": true,
+                  "schemeFamilyCode": "F-12-120-A"
+                }
+              },
+              {
+                "entityType": "coil",
+                "canonicalId": "2",
+                "canonicalName": "12-120 加强大眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-B",
+                  "material": "copper",
+                  "slotType": "large",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": false,
+                  "schemeFamilyCode": "F-12-120-B"
+                }
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "12-120",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "12-120",
+              "alignedWorkingSpan": "12-120",
+              "workingUtterance": "12-120多少钱？"
+            }
+          }
+        ],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-12",
+      "run": 1,
+      "user": "这个换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:33.733Z",
+      "businessMemo": "# Relevant business concepts\n\n- 包装配置（Packing configuration）\n- Recipe（配方）\n- Recipe Configurable Cost Driver（可配置成本项）\n- OEM 配置\n- BOM\n\n# Business meaning\n\n“换木箱”在本公司业务模型中属于 **Packing configuration**，也就是 Recipe 的一组可配置成本项之一。它指的是纸箱、木箱、珍珠棉、泡沫及其它包装物料这类随客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的配置维度。\n\n按照业务模型，包装从纸箱变木箱通常描述的是 **OEM 配置变化**，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n\n# Relevant relationships\n\n- 包装配置是 Recipe 的可配置成本项，可能影响 BOM、制造工艺或成本。\n- 它依附于某个 Recipe / OEM 配置；同一基础 Recipe 可以依客户要求调整包装配置。\n- 包装物料（纸箱、木箱等）属于 Part 范畴中的包装物料；但“换木箱”这一动作本身描述的是配置变化。\n- 最终成本组成可以包含包装配置等依 Recipe 配置而变的成本项。\n\n# Unknown business terms\n\n- **“多少钱”所对应的具体金额、成本数值或计价口径**：业务模型未定义，本模型只解释业务概念，不提供成本公式、当前事实或数据库身份。\n- **具体是哪一套 Recipe / 哪个客户 / 哪种包装规格**：业务模型未定义，需另行确认。\n- **木箱的具体规格、材质、数量**：业务模型未定义，本模型未定义其身份或成本。",
+      "policyMemo": "选中的内容仅提到“换木箱”和询问金额，未说明是临时试算还是正式修改配方，persistence intent 不明确。按规则，配置变化可理解为成本试算/分析请求；若涉及配方或包装配置变化，仅可做临时试算或分析，不得默认升级为正式保存或正式写入。若要保存正式配方，需要用户明确表达持久化意图，并在受保护路径中确认后执行。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "businessReferenceHint": {
+        "source": "BUSINESS_MEMO_CONTROLLED_CATEGORY_COMPRESSION",
+        "entries": [],
+        "text": "NONE"
+      },
+      "referenceFastPath": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "这个",
+        "recentCandidates": [],
+        "compatibleCandidates": [],
+        "resolvedLanguageReference": null,
+        "reason": "NO_RECENT_OWNER_CANDIDATE"
+      },
+      "referenceSource": "FAST_PATH",
+      "referenceMemo": null,
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "这个",
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "这个换木箱多少钱？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": "这个",
+        "replacement": null,
+        "rawOwnerInput": "这个换木箱多少钱？",
+        "workingUtterance": "这个换木箱多少钱？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": null,
+      "roleMemo": null,
+      "roles": [],
+      "gate": "STOP_UNRESOLVED_REFERENCE",
+      "candidateProposals": [],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [],
+      "probeResults": [],
+      "supportedProbeResults": [],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierRefinements": [],
+      "finalGroundedTargets": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 0,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2274.989209,
+        "policyMs": 1715.870417,
+        "referenceHintMs": 0.142042,
+        "referenceFastPathMs": 0.024375,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.004,
+        "conceptFastPathMs": 0,
+        "roleMs": 0,
+        "spanAlignmentMs": 0,
+        "resolverProbeMs": 0,
+        "qualifierRefinementMs": 0,
+        "totalMs": 2275.226792
+      },
+      "evaluation": {
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "这个",
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": null,
+        "gate": "STOP_UNRESOLVED_REFERENCE",
+        "roles": [],
+        "candidateProposals": [],
+        "probeResults": [],
+        "finalGroundedTargets": [],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-11",
+      "run": 1,
+      "user": "刚才那个线圈多少钱？",
+      "recentOwnerWording": "我先看看12-120。",
+      "startedAt": "2026-10-02T05:35:36.008Z",
+      "businessMemo": "# Relevant business concepts\n\n- **COIL / COIL SCHEME（线圈／绕组方案）**\n- **`12-120` / Coil Common Designation（线圈常用规格表达）**\n- **Recipe / Coil configuration（配方中的线圈配置项）**\n- **BOM（按 Recipe 当前配置展开后的物料／工艺组成）**\n- **成本（仅为业务概念层面的“与方案相关”，非数据库事实）**\n\n# Business meaning\n\n用户原话“刚才那个线圈多少钱？”中的“线圈”，在本公司业务语言里应理解为 **COIL / COIL SCHEME**，即一套具体可使用的**线圈／绕组方案**，而不是一个普通 Part，也不是定子本体。\n\n结合“刚才那个”这一指代，最可能指向上一句出现的 **`12-120`**。根据业务模型：\n\n- `12-120` 是工厂关于线圈／定子方案的**常用规格表达**，不是唯一正式 Coil Scheme identity；\n- `12` 指定子工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 指硅钢片／线圈方案片数；\n- `120` **不是功率**，也**不是库存**。\n\n因此“这个线圈多少钱”在业务含义上，是在问**某一套线圈方案相关的成本**，而该成本属于按 Recipe 当前配置展开后的成本组成范畴。\n\n# Relevant relationships\n\n- `12-120` 是 common designation，**同一个 `12-120` 可以存在多套正式线圈方案**；\n- 具体正式方案还可能以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分；\n- 线圈方案是 **Recipe Configurable Cost Driver** 中的 Coil configuration 一部分；\n- 成本来自 Recipe 当前配置展开后的 BOM／工艺组成，工艺成本不等于普通目录 Part；\n- 因此“`12-120` 这个俗称”与“某一套正式线圈方案”不是同一个身份，不能仅凭俗称认定唯一方案。\n\n# Unknown business terms\n\n- **“刚才那个”具体指向哪一套正式线圈方案**：业务模型未定义，无法仅凭 `12-120` 俗称确定唯一方案。\n- **该线圈方案的具体金额**：业务模型不提供数据库当前事实，本 Memo 不给出任何成本数值。\n- **是否已有确定的 Recipe 配置或正式 BOM 展开**：业务模型未定义，不能推断。\n- **该方案对应的材质、槽眼、电压、频率、绕组参数、线重等正式区分条件**：业务模型未定义。",
+      "policyMemo": "仅凭“刚才那个线圈”不能确定具体对象：这句话没有指名道姓，也没有可唯一确定的上下文，无法判断它指的是哪一线圈。\n\n处理原则：\n- 不应默认选择第一个匹配，也不应把模糊指代替换成一个具体型号。\n- 需要一次最小限度的澄清，确认所指线圈；若确实无法确定，则给出明确的否定结果。\n- 即使确认了对象，若该名称对应多种正式方案，也应先请你在这些方案中指定，不能擅自选一个，也不能把多个方案的库存或成本直接合并。\n\n请补充具体线圈名称或型号，我再继续。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "刚才那个线圈"
+      },
+      "businessReferenceHint": {
+        "source": "BUSINESS_MEMO_CONTROLLED_CATEGORY_COMPRESSION",
+        "entries": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "text": "12-120：线圈/线圈方案相关业务表达"
+      },
+      "referenceFastPath": {
+        "mode": "SAFE_RESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "刚才那个线圈",
+        "recentCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": "12-120",
+        "reason": "UNIQUE_TYPED_COMPATIBLE_CANDIDATE"
+      },
+      "referenceSource": "FAST_PATH",
+      "referenceMemo": null,
+      "reference": {
+        "status": "RESOLVED",
+        "surface": "刚才那个线圈",
+        "resolvedLanguageReference": "12-120"
+      },
+      "workingUtterance": "12-120多少钱？",
+      "referenceRewrite": {
+        "applied": true,
+        "sourceSurface": "刚才那个线圈",
+        "replacement": "12-120",
+        "rawOwnerInput": "刚才那个线圈多少钱？",
+        "workingUtterance": "12-120多少钱？",
+        "source": "RESOLVED_OWNER_LANGUAGE_REFERENCE",
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE\nROLE: 刚才那个线圈 | FORMAL_ENTITY_CANDIDATE",
+      "roles": [
+        {
+          "expression": "12-120",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "刚才那个线圈",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "12-120",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "12-120",
+          "alignedWorkingSpan": "12-120",
+          "workingUtterance": "12-120多少钱？"
+        }
+      ],
+      "rejectedCandidateProposals": [
+        {
+          "expression": "刚才那个线圈",
+          "reason": "NO_MATCH"
+        }
+      ],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "12-120",
+          "alignedExpression": "12-120",
+          "matchCount": 1
+        },
+        {
+          "status": "NO_MATCH",
+          "expression": "刚才那个线圈",
+          "alignedExpression": null,
+          "matchCount": 0
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.252417
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "12-120",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "1",
+                    "canonicalName": "12-120 普通小眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-A",
+                      "material": "steel",
+                      "slotType": "small",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": true,
+                      "schemeFamilyCode": "F-12-120-A"
+                    }
+                  },
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "2",
+                    "canonicalName": "12-120 加强大眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-B",
+                      "material": "copper",
+                      "slotType": "large",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": false,
+                      "schemeFamilyCode": "F-12-120-B"
+                    }
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.093958
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.028625
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.04575
+            }
+          ],
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.252417
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "12-120",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "1",
+                    "canonicalName": "12-120 普通小眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-A",
+                      "material": "steel",
+                      "slotType": "small",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": true,
+                      "schemeFamilyCode": "F-12-120-A"
+                    }
+                  },
+                  {
+                    "entityType": "coil",
+                    "canonicalId": "2",
+                    "canonicalName": "12-120 加强大眼",
+                    "matchKind": "EXACT",
+                    "identityAttributes": {
+                      "spec": "12",
+                      "sheets": 120,
+                      "schemeCode": "12-120-B",
+                      "material": "copper",
+                      "slotType": "large",
+                      "schemeStatus": "ACTIVE",
+                      "isDefault": false,
+                      "schemeFamilyCode": "F-12-120-B"
+                    }
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.093958
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.028625
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "12-120",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.04575
+            }
+          ],
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [],
+      "qualifierRefinements": [
+        {
+          "baseMention": "12-120",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [],
+          "refinedTargets": [],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [],
+          "applied": false
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "12-120",
+          "entityType": "coil",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "coil",
+              "canonicalId": "1",
+              "canonicalName": "12-120 普通小眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-A",
+                "material": "steel",
+                "slotType": "small",
+                "schemeStatus": "ACTIVE",
+                "isDefault": true,
+                "schemeFamilyCode": "F-12-120-A"
+              }
+            },
+            {
+              "entityType": "coil",
+              "canonicalId": "2",
+              "canonicalName": "12-120 加强大眼",
+              "matchKind": "EXACT",
+              "identityAttributes": {
+                "spec": "12",
+                "sheets": 120,
+                "schemeCode": "12-120-B",
+                "material": "copper",
+                "slotType": "large",
+                "schemeStatus": "ACTIVE",
+                "isDefault": false,
+                "schemeFamilyCode": "F-12-120-B"
+              }
+            }
+          ],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3450.080459,
+        "policyMs": 1741.543417,
+        "referenceHintMs": 0.180583,
+        "referenceFastPathMs": 0.121542,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.0095,
+        "conceptFastPathMs": 0.012375,
+        "roleMs": 912.979958,
+        "spanAlignmentMs": 0.057,
+        "resolverProbeMs": 0.42075,
+        "qualifierRefinementMs": 0.027625,
+        "totalMs": 4363.945791
+      },
+      "evaluation": {
+        "reference": {
+          "status": "RESOLVED",
+          "surface": "刚才那个线圈",
+          "resolvedLanguageReference": "12-120"
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "12-120多少钱？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "多少钱"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "刚才那个线圈",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "12-120",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "12-120",
+            "alignedWorkingSpan": "12-120",
+            "workingUtterance": "12-120多少钱？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "coil",
+                "canonicalId": "1",
+                "canonicalName": "12-120 普通小眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-A",
+                  "material": "steel",
+                  "slotType": "small",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": true,
+                  "schemeFamilyCode": "F-12-120-A"
+                }
+              },
+              {
+                "entityType": "coil",
+                "canonicalId": "2",
+                "canonicalName": "12-120 加强大眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-B",
+                  "material": "copper",
+                  "slotType": "large",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": false,
+                  "schemeFamilyCode": "F-12-120-B"
+                }
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.252417
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "12-120",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "coil",
+                      "canonicalId": "1",
+                      "canonicalName": "12-120 普通小眼",
+                      "matchKind": "EXACT",
+                      "identityAttributes": {
+                        "spec": "12",
+                        "sheets": 120,
+                        "schemeCode": "12-120-A",
+                        "material": "steel",
+                        "slotType": "small",
+                        "schemeStatus": "ACTIVE",
+                        "isDefault": true,
+                        "schemeFamilyCode": "F-12-120-A"
+                      }
+                    },
+                    {
+                      "entityType": "coil",
+                      "canonicalId": "2",
+                      "canonicalName": "12-120 加强大眼",
+                      "matchKind": "EXACT",
+                      "identityAttributes": {
+                        "spec": "12",
+                        "sheets": 120,
+                        "schemeCode": "12-120-B",
+                        "material": "copper",
+                        "slotType": "large",
+                        "schemeStatus": "ACTIVE",
+                        "isDefault": false,
+                        "schemeFamilyCode": "F-12-120-B"
+                      }
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.093958
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.028625
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "12-120",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.04575
+              }
+            ],
+            "proposal": {
+              "expression": "12-120",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "12-120",
+              "alignedWorkingSpan": "12-120",
+              "workingUtterance": "12-120多少钱？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "coil",
+                "canonicalId": "1",
+                "canonicalName": "12-120 普通小眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-A",
+                  "material": "steel",
+                  "slotType": "small",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": true,
+                  "schemeFamilyCode": "F-12-120-A"
+                }
+              },
+              {
+                "entityType": "coil",
+                "canonicalId": "2",
+                "canonicalName": "12-120 加强大眼",
+                "matchKind": "EXACT",
+                "identityAttributes": {
+                  "spec": "12",
+                  "sheets": 120,
+                  "schemeCode": "12-120-B",
+                  "material": "copper",
+                  "slotType": "large",
+                  "schemeStatus": "ACTIVE",
+                  "isDefault": false,
+                  "schemeFamilyCode": "F-12-120-B"
+                }
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "12-120",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "12-120",
+              "alignedWorkingSpan": "12-120",
+              "workingUtterance": "12-120多少钱？"
+            }
+          }
+        ],
+        "warnings": [
+          "ROLE_OUT_OF_WORKING_UTTERANCE_WARNING:刚才那个线圈"
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "G-10",
+      "run": 1,
+      "user": "V750纸箱换木箱差多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T05:35:40.372Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的“750 功率等级”。\n- **包装配置（Packing configuration）**：Recipe 的可配置成本项之一，包括纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础，报价、客户配置和生产配置的基础。\n\n# Business meaning\n\n- V750 表示 V 系列 750 功率等级，不能被理解为一个固定、不可改变的 Finished Product。\n- “纸箱换木箱”在本业务模型中属于 **Packing configuration** 的配置变化，是 Recipe 可配置成本项之一，通常描述的是 OEM 配置变化。\n- 本业务模型只说明“包装配置”是一个可配置成本项、其变化属于哪个业务概念，**不定义包装配置的成本公式、单价、差价或任何金额**。\n\n# Relevant relationships\n\n- Recipe 可以包含或决定包装及其它可配置项目；Packing configuration 是 Recipe Configurable Cost Drivers 的一种。\n- 包装从纸箱变木箱通常描述的是 OEM 配置变化，本模型不把它解释为功率等级、泵壳款式或基础型号已经改变。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；包装物料属于其中可能出现的物理 BOM Parts 范畴。\n- 讨论“换木箱差多少钱”属于讨论该 Recipe 当前配置下的成本，但本业务模型不提供成本数值。\n\n# Unknown business terms\n\n- **“差多少钱”所对应的具体金额、差价或计算方式**：业务模型未定义，无法给出。\n- **该 V750 具体属于哪一套 Recipe／泵壳款式**：业务模型未定义，无法确定。\n- **该包装变化对应的具体纸箱／木箱规格**：业务模型未定义，无法确定。",
+      "policyMemo": "## Memo：V750 纸箱换木箱的成本差异询问\n\n**适用规则（判定）：** 属于 Recipe 配置变化的临时试算／分析请求。用户明确描述了配置变化（包装由纸箱改为木箱），并同时询问成本差异（“差多少钱”），未表达任何持久化意图。因此应理解为临时配置预览，而非正式配方写入。\n\n**处理含义：** 按临时试算处理该包装配置变化下的成本差异，无需 Owner 确认。不改变正式存储的配方。\n\n**保存含义：** 用户未表达保存、正式修改或更新正式配方的意图，因此不构成持久化请求，不得升级为正式写入；也不得在仅做试算后声称“已帮你改好”。\n\n**注意事项：**\n- 涉及金额时须标明口径为“临时试算成本”，不得表述为当前正式成本。\n- 其中的 `V750` 仅为候选标识，正式身份须经正式目录解析确认；不得自行臆造或取首个部分匹配。\n- 若用户后续明确表达保存／正式修改意图，则转为持久化请求，需经 Owner 确认后方可执行。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "businessReferenceHint": null,
+      "referenceFastPath": null,
+      "referenceSource": "NONE",
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "workingUtterance": "V750纸箱换木箱差多少钱？",
+      "referenceRewrite": {
+        "applied": false,
+        "sourceSurface": null,
+        "replacement": null,
+        "rawOwnerInput": "V750纸箱换木箱差多少钱？",
+        "workingUtterance": "V750纸箱换木箱差多少钱？",
+        "source": null,
+        "failure": null
+      },
+      "conceptFastPath": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750纸箱换木箱差多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 纸箱 | CONFIG_VALUE\nROLE: 木箱 | CONFIG_VALUE\nROLE: 差多少钱 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "纸箱",
+          "role": "CONFIG_VALUE"
+        },
+        {
+          "expression": "木箱",
+          "role": "CONFIG_VALUE"
+        },
+        {
+          "expression": "差多少钱",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "candidateProposals": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE",
+          "source": "ROLE_CLASSIFIER",
+          "sourceExpression": "V750",
+          "alignedWorkingSpan": "V750",
+          "workingUtterance": "V750纸箱换木箱差多少钱？"
+        }
+      ],
+      "rejectedCandidateProposals": [],
+      "spanAlignments": [
+        {
+          "status": "UNIQUE_MATCH",
+          "expression": "V750",
+          "alignedExpression": "V750",
+          "matchCount": 1
+        }
+      ],
+      "probeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.120958
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.0565
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.024875
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.047708
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "V750纸箱换木箱差多少钱？"
+          }
+        }
+      ],
+      "supportedProbeResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.120958
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.0565
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.024875
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.047708
+            }
+          ],
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "V750纸箱换木箱差多少钱？"
+          }
+        }
+      ],
+      "unresolvedProbeResults": [],
+      "unresolvedProposalWarnings": [],
+      "qualifierCandidates": [
+        {
+          "mention": "纸箱",
+          "source": "OWNER_EXPLICIT_CONFIG_VALUE",
+          "proposal": null
+        },
+        {
+          "mention": "木箱",
+          "source": "OWNER_EXPLICIT_CONFIG_VALUE",
+          "proposal": null
+        }
+      ],
+      "qualifierRefinements": [
+        {
+          "baseMention": "V750",
+          "baseStatus": "MULTIPLE",
+          "qualifiers": [
+            "纸箱",
+            "木箱"
+          ],
+          "refinedTargets": [],
+          "ambiguousQualifiers": [],
+          "noMatchQualifiers": [
+            "纸箱",
+            "木箱"
+          ],
+          "applied": false
+        }
+      ],
+      "finalGroundedTargets": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "source": "RESOLVER_PROBE",
+          "proposal": {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "V750纸箱换木箱差多少钱？"
+          }
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2908.346125,
+        "policyMs": 2372.467041,
+        "referenceHintMs": 0,
+        "referenceFastPathMs": 0,
+        "referenceMs": 0,
+        "referenceRewriteMs": 0.0095,
+        "conceptFastPathMs": 0.027375,
+        "roleMs": 1163.154584,
+        "spanAlignmentMs": 0.050458,
+        "resolverProbeMs": 0.250041,
+        "qualifierRefinementMs": 0.16875,
+        "totalMs": 4072.099667
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "conceptFastPath": {
+          "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+          "workingUtterance": "V750纸箱换木箱差多少钱？",
+          "negativeFormalFactSignalsChecked": [
+            "多少钱",
+            "价格",
+            "成本",
+            "库存",
+            "现货",
+            "几个方案",
+            "多少方案",
+            "哪个",
+            "哪些",
+            "现在",
+            "当前",
+            "用了什么",
+            "用哪个",
+            "有哪些固定件",
+            "固定件列表",
+            "数量",
+            "报价",
+            "配方内容",
+            "BOM内容",
+            "正式记录"
+          ],
+          "detectedFormalFactSignals": [
+            "多少钱"
+          ],
+          "status": "NOT_MATCHED",
+          "patternFamily": null,
+          "matchedSurface": null,
+          "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "纸箱",
+            "role": "CONFIG_VALUE"
+          },
+          {
+            "expression": "木箱",
+            "role": "CONFIG_VALUE"
+          },
+          {
+            "expression": "差多少钱",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "candidateProposals": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE",
+            "source": "ROLE_CLASSIFIER",
+            "sourceExpression": "V750",
+            "alignedWorkingSpan": "V750",
+            "workingUtterance": "V750纸箱换木箱差多少钱？"
+          }
+        ],
+        "probeResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.120958
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.0565
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.024875
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.047708
+              }
+            ],
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "V750纸箱换木箱差多少钱？"
+            }
+          }
+        ],
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750",
+              "alignedWorkingSpan": "V750",
+              "workingUtterance": "V750纸箱换木箱差多少钱？"
+            }
+          }
+        ],
+        "warnings": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    }
+  ]
+}

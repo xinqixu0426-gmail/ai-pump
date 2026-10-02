@@ -82,8 +82,11 @@ const FULL_CASES = Object.freeze([
     { id: 'N-02', user: '这个多少钱？', referenceStatus: 'UNRESOLVED', referenceSurface: '这个', gate: 'STOP_UNRESOLVED_REFERENCE', roleCalls: 0, resolverCalls: 0 },
     { id: 'N-03', user: 'V750、V110现在分别多少钱？', referenceStatus: 'NONE', roles: [formal('V750'), formal('V110')], gate: 'RUN', roleCalls: 1, resolverCalls: 8, targets: [target('V750', 'recipe', 'MULTIPLE'), target('V110', 'recipe', 'EXACT')] },
     { id: 'N-04', user: '12-120和12-130分别多少钱？', referenceStatus: 'NONE', roles: [formal('12-120'), formal('12-130')], gate: 'RUN', roleCalls: 1, resolverCalls: 8, targets: [target('12-120', 'coil', 'MULTIPLE'), target('12-130', 'coil', 'EXACT')] },
-    { id: 'N-05', user: '通用款和豪贝款的V750成本分别多少？', referenceStatus: 'NONE', roles: [formal(['V750', '通用款']), formal(['V750', '豪贝款'])], gate: 'RUN', roleCalls: 1, resolverCalls: 8, targets: [target(['V750', '通用款'], 'recipe', 'EXACT'), target(['V750', '豪贝款'], 'recipe', 'EXACT')] },
+    { id: 'N-05', user: '通用款和豪贝款的V750成本分别多少？', referenceStatus: 'NONE', roles: [formal('V750')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target(['V750', '通用款'], 'recipe', 'EXACT'), target(['V750', '豪贝款'], 'recipe', 'EXACT')] },
 ]);
+
+const CLOSURE_CASE_IDS = Object.freeze(['G-05', 'G-06', 'G-07', 'N-05', 'G-16', 'G-13', 'G-03', 'G-12', 'G-11', 'G-10']);
+const CLOSURE_CASES = Object.freeze(CLOSURE_CASE_IDS.map(id => FULL_CASES.find(item => item.id === id)));
 
 const FULL_REPEATS = Object.freeze(['G-03', 'G-05', 'G-06', 'G-07', 'G-08', 'G-11', 'G-12', 'G-13', 'N-03', 'N-05']);
 function median(items) { const sorted = [...items].sort((left, right) => left - right); return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0; }
@@ -105,28 +108,31 @@ async function execute(testCase, env, run, fixture) {
 async function main() {
     const env = { ...process.env, ...(fs.existsSync(path.join(root, '.env')) ? dotenv.parse(fs.readFileSync(path.join(root, '.env'))) : {}) };
     env.DEEPSEEK_MODEL = 'deepseek-chat';
-    const base = scope === 'full' ? FULL_CASES : FOCUSED_CASES;
+    const base = scope === 'full' ? FULL_CASES : scope === 'closure' ? CLOSURE_CASES : FOCUSED_CASES;
     const repeats = scope === 'full' ? FULL_CASES.filter(item => FULL_REPEATS.includes(item.id)) : [];
     const fixture = createGroundingFixture();
     try {
-        console.error(`M4-3A-R8 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
+        console.error(`M4-3A-R9 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
         const executions = [];
         for (const testCase of base) executions.push(await execute(testCase, env, 1, fixture));
         for (const testCase of repeats) executions.push(await execute(testCase, env, 2, fixture));
         const timed = executions.filter(item => item.timings);
         const modelCalls = executions.reduce((sum, item) => sum + (item.modelCalls ? Object.values(item.modelCalls).reduce((subtotal, value) => subtotal + value, 0) : 0), 0);
-        const resolverCalls = executions.reduce((sum, item) => sum + (item.formalResults?.reduce((subtotal, result) => subtotal + result.typeResults.length, 0) || 0), 0);
+        const resolverCalls = executions.reduce((sum, item) => sum + (item.probeResults?.reduce((subtotal, result) => subtotal + result.typeResults.length, 0) || 0), 0);
         const referenceFastPathResolved = executions.filter(item => item.referenceFastPath?.mode === 'SAFE_RESOLVED').length;
         const referenceFastPathUnresolved = executions.filter(item => item.referenceFastPath?.mode === 'SAFE_UNRESOLVED').length;
         const referenceLlmCalls = executions.reduce((sum, item) => sum + (item.modelCalls?.reference || 0), 0);
         const spanAlignments = executions.flatMap(item => item.spanAlignments || []);
         const warnings = executions.flatMap(item => item.evaluation?.warnings || []);
-        const filteredExpressions = executions.flatMap(item => item.rejectedFormalTargets || []).map(item => item.expression);
+        const filteredExpressions = executions.flatMap(item => item.rejectedCandidateProposals || []).map(item => item.expression);
         const conceptFastPathHits = executions.filter(item => item.conceptFastPath?.status === 'MATCHED_CONCEPT_ONLY').length;
-        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceFastPathMedianMs: median(timed.map(item => item.timings.referenceFastPathMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), conceptFastPathMedianMs: median(timed.map(item => item.timings.conceptFastPathMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), spanAlignmentMedianMs: median(timed.map(item => item.timings.spanAlignmentMs || 0)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
-        const result = { phase: 'M4-3A-R8', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, referenceFastPathResolved, referenceFastPathUnresolved, referenceLlmCallsAvoided: referenceFastPathResolved + referenceFastPathUnresolved, referenceLlmCalls, conceptFastPathHits, roleLlmCallsAvoidedByConceptFastPath: conceptFastPathHits, resolverCallsAvoidedByConceptFastPath: conceptFastPathHits, spanAlignmentAttempts: spanAlignments.length, spanAlignmentSuccess: spanAlignments.filter(item => item.status === 'UNIQUE_MATCH').length, spanAlignmentNoMatch: spanAlignments.filter(item => item.status === 'NO_MATCH').length, spanAlignmentAmbiguous: spanAlignments.filter(item => item.status === 'AMBIGUOUS').length, roleOutOfWorkingUtteranceWarnings: warnings.length, filteredRoleExpressions: filteredExpressions, results: executions };
+        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceFastPathMedianMs: median(timed.map(item => item.timings.referenceFastPathMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), conceptFastPathMedianMs: median(timed.map(item => item.timings.conceptFastPathMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), spanAlignmentMedianMs: median(timed.map(item => item.timings.spanAlignmentMs || 0)), resolverProbeMedianMs: median(timed.map(item => item.timings.resolverProbeMs || 0)), qualifierRefinementMedianMs: median(timed.map(item => item.timings.qualifierRefinementMs || 0)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
+        const probeResults = executions.flatMap(item => item.probeResults || []);
+        const unresolvedProposalWarnings = executions.flatMap(item => item.unresolvedProposalWarnings || []);
+        const qualifierRefinements = executions.flatMap(item => item.qualifierRefinements || []);
+        const result = { phase: 'M4-3A-R9', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, referenceFastPathResolved, referenceFastPathUnresolved, referenceLlmCallsAvoided: referenceFastPathResolved + referenceFastPathUnresolved, referenceLlmCalls, conceptFastPathHits, roleLlmCallsAvoidedByConceptFastPath: conceptFastPathHits, resolverCallsAvoidedByConceptFastPath: conceptFastPathHits, spanAlignmentAttempts: spanAlignments.length, spanAlignmentSuccess: spanAlignments.filter(item => item.status === 'UNIQUE_MATCH').length, spanAlignmentNoMatch: spanAlignments.filter(item => item.status === 'NO_MATCH').length, spanAlignmentAmbiguous: spanAlignments.filter(item => item.status === 'AMBIGUOUS').length, roleOutOfWorkingUtteranceWarnings: warnings.length, filteredRoleExpressions: filteredExpressions, candidateProposalsTotal: executions.reduce((sum, item) => sum + (item.candidateProposals?.length || 0), 0), supportedProposals: probeResults.filter(item => item.status !== 'UNRESOLVED').length, unresolvedProposals: probeResults.filter(item => item.status === 'UNRESOLVED').length, unresolvedProposalWarnings: unresolvedProposalWarnings.length, unresolvedProposalsAcceptedAsTarget: executions.flatMap(item => item.finalGroundedTargets || []).filter(item => item.status === 'UNRESOLVED').length, qualifierRefinementAttempts: qualifierRefinements.length, qualifierRefinementSuccess: qualifierRefinements.filter(item => item.applied).length, qualifierRefinementAmbiguous: qualifierRefinements.reduce((sum, item) => sum + item.ambiguousQualifiers.length, 0), qualifierRefinementNoMatch: qualifierRefinements.reduce((sum, item) => sum + item.noMatchQualifiers.length, 0), qualifiedSetCount: qualifierRefinements.filter(item => item.applied && item.refinedTargets.length > 1).length, finalGroundedTargetCount: executions.reduce((sum, item) => sum + (item.finalGroundedTargets?.length || 0), 0), results: executions };
         if (outputPath) fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-        console.log(JSON.stringify({ ...result, results: executions.map(item => ({ id: item.id, run: item.run, evaluation: item.evaluation, reference: item.reference, roles: item.roles, gate: item.gate, formalResults: item.formalResults?.map(value => ({ mention: value.mention, entityType: value.entityType, status: value.status, typeResults: value.typeResults.map(type => ({ entityType: type.entityType, status: type.result.status })) })), timings: item.timings, error: item.error || null })) }, null, 2));
+        console.log(JSON.stringify({ ...result, results: executions.map(item => ({ id: item.id, run: item.run, evaluation: item.evaluation, reference: item.reference, roles: item.roles, gate: item.gate, candidateProposals: item.candidateProposals, probeResults: item.probeResults?.map(value => ({ mention: value.mention, entityType: value.entityType, status: value.status, typeResults: value.typeResults.map(type => ({ entityType: type.entityType, status: type.result.status })) })), finalGroundedTargets: item.finalGroundedTargets, unresolvedProposalWarnings: item.unresolvedProposalWarnings, qualifierRefinements: item.qualifierRefinements, timings: item.timings, error: item.error || null })) }, null, 2));
     } finally { fixture.close(); }
 }
 
@@ -135,4 +141,4 @@ if (process.argv[1] && path.basename(process.argv[1]) === 'run-grounding-smoke.c
     main().catch(error => { console.error(error.stack || error); process.exitCode = 1; }).finally(() => clearInterval(keepAlive));
 }
 
-module.exports = { TARGETED_CASES, REFERENCE_FOCUSED_CASES, ROLE_FOCUSED_CASES, WORKING_UTTERANCE_FOCUSED_CASES, FOCUSED_CASES, FULL_CASES, FULL_REPEATS, execute, resolverCallsFor };
+module.exports = { TARGETED_CASES, REFERENCE_FOCUSED_CASES, ROLE_FOCUSED_CASES, WORKING_UTTERANCE_FOCUSED_CASES, FOCUSED_CASES, FULL_CASES, CLOSURE_CASES, FULL_REPEATS, execute, resolverCallsFor };

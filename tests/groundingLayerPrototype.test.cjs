@@ -13,7 +13,8 @@ const { buildGroundingWorkingUtterance } = require('../scripts/ai-experiments/bu
 const { resolveReferenceFastPath } = require('../scripts/ai-experiments/business-policy-intent/referenceFastPath.cjs');
 const { alignRoleExpressionToWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/spanAlignment.cjs');
 const { detectConceptQuestionFastPath } = require('../scripts/ai-experiments/business-policy-intent/conceptQuestionFastPath.cjs');
-const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
+const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult, validateCandidateProposals } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
+const { refineQualifiedTargets } = require('../scripts/ai-experiments/business-policy-intent/qualifierRefinement.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
 const { evaluateGrounding } = require('../scripts/ai-experiments/business-policy-intent/groundingEvaluator.cjs');
 
@@ -51,7 +52,7 @@ test('Unresolved reference is an early stop before Role and resolver calls', asy
     });
     assert.equal(result.gate, 'STOP_UNRESOLVED_REFERENCE');
     assert.equal(result.modelCalls.role, 0);
-    assert.equal(result.formalResults.length, 0);
+    assert.equal(result.probeResults.length, 0);
     assert.equal(roleCalls, 0);
     assert.equal(resolverCalls, 0);
 });
@@ -147,8 +148,8 @@ test('Resolved-reference Role input is rewritten and old reference target is fil
         resolver: async input => { resolverCalls.push(input); return notFound(input.entityType, input.mention); },
     }, '我先看看12-120。');
     assert.equal(result.workingUtterance, '12-120多少钱？');
-    assert.deepEqual(result.formalTargets.map(target => target.mention), ['12-120']);
-    assert.deepEqual(result.rejectedFormalTargets, [{ expression: '刚才那个线圈', reason: 'NO_MATCH' }]);
+    assert.deepEqual(result.candidateProposals.map(target => target.expression), ['12-120']);
+    assert.deepEqual(result.rejectedCandidateProposals, [{ expression: '刚才那个线圈', reason: 'NO_MATCH' }]);
     assert.equal(resolverCalls.length, 4);
     assert.ok(resolverCalls.every(call => call.mention === '12-120'));
 });
@@ -162,7 +163,7 @@ test('No reference surface has zero Reference calls and Role output drives a for
     assert.equal(result.modelCalls.reference, 0);
     assert.equal(result.gate, 'RUN');
     assert.deepEqual(calls, FANOUT_ENTITY_TYPES.map(entityType => ({ entityType, mention: 'V750' })));
-    assert.deepEqual(result.formalTargets, [{ mention: 'V750', source: 'ROLE_CLASSIFIER', sourceExpression: 'V750', alignedWorkingSpan: 'V750', workingUtterance: 'V750换木箱多少钱？' }]);
+    assert.deepEqual(result.candidateProposals, [{ expression: 'V750', role: 'FORMAL_ENTITY_CANDIDATE', source: 'ROLE_CLASSIFIER', sourceExpression: 'V750', alignedWorkingSpan: 'V750', workingUtterance: 'V750换木箱多少钱？' }]);
 });
 
 test('Concept-only roles stop without a resolver and no QUERY_ONLY line is required', async () => {
@@ -172,7 +173,7 @@ test('Concept-only roles stop without a resolver and no QUERY_ONLY line is requi
         resolver: async () => { resolverCalls += 1; throw new Error('must not resolve'); },
     });
     assert.equal(result.gate, 'STOP_CONCEPT_ONLY');
-    assert.equal(result.formalResults.length, 0);
+    assert.equal(result.probeResults.length, 0);
     assert.equal(resolverCalls, 0);
 });
 
@@ -189,11 +190,12 @@ test('Resolver evidence, not the model, derives a MULTIPLE coil entity type with
             role: roleMemo(['ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE']),
             resolver: async request => require('../api/ontology/agentResolver.cjs').resolveAgentEntity(request, { lookupEntities: async (_fetch, lookupRequest) => fixture.lookupEntities(lookupRequest), internalFetch: () => { throw new Error('no fetch'); } }),
         });
-        assert.equal(result.formalResults.length, 1);
-        assert.equal(result.formalResults[0].entityType, 'coil');
-        assert.equal(result.formalResults[0].status, 'MULTIPLE');
-        assert.equal(result.formalResults[0].canonicalId, null);
-        assert.equal(result.formalResults[0].candidates.length, 2);
+        assert.equal(result.probeResults.length, 1);
+        assert.equal(result.probeResults[0].entityType, 'coil');
+        assert.equal(result.probeResults[0].status, 'MULTIPLE');
+        assert.equal(result.probeResults[0].canonicalId, null);
+        assert.equal(result.probeResults[0].candidates.length, 2);
+        assert.equal(result.finalGroundedTargets.length, 1);
         assert.equal(fixture.db.totalChanges, before);
     } finally { fixture.close(); }
 });
@@ -219,7 +221,7 @@ test('Multi-target exact owner-language Role output fans out independently', asy
 });
 
 test('Evaluator accepts a supported semantic span and records safely filtered output as a warning', () => {
-    const base = { reference: { status: 'NONE', surface: null, resolvedLanguageReference: null }, workingUtterance: 'V750换木箱多少钱？', gate: 'STOP_NO_FORMAL_TARGET', formalTargets: [], formalResults: [], modelCalls: { role: 1 }, roleMemo: 'ROLE: 换木箱 | CONFIG_VALUE', roles: [{ expression: '换木箱', role: 'CONFIG_VALUE' }] };
+    const base = { reference: { status: 'NONE', surface: null, resolvedLanguageReference: null }, workingUtterance: 'V750换木箱多少钱？', gate: 'STOP_NO_FORMAL_TARGET', candidateProposals: [], probeResults: [], finalGroundedTargets: [], modelCalls: { role: 1 }, roleMemo: 'ROLE: 换木箱 | CONFIG_VALUE', roles: [{ expression: '换木箱', role: 'CONFIG_VALUE' }] };
     const pass = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, base);
     assert.equal(pass.overall, 'PASS');
     const warning = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, { ...base, roles: [{ expression: '纸箱换木箱', role: 'CONFIG_VALUE' }] });
@@ -250,12 +252,28 @@ test('Conservative span alignment only normalizes whitespace and joiners, then r
 });
 
 test('High-precision Concept Fast Path detects only explicit definition, comparison, and classification grammar', () => {
-    for (const utterance of ['V750是什么？', '12-120是什么意思？', '模板和配方有什么区别？', '不锈钢接轴在我们业务里算什么？', '浮球在我们这里是配置还是固定件？']) {
+    for (const utterance of ['V750是什么？', '12-120是什么意思？', '模板和配方有什么区别？', '不锈钢接轴在我们业务里算什么？', '浮球在我们这里是配置还是固定件？', '木箱和纸箱在我们系统里分别算什么？']) {
         assert.equal(detectConceptQuestionFastPath(utterance).status, 'MATCHED_CONCEPT_ONLY', utterance);
     }
-    for (const utterance of ['V750多少钱？', 'V750现在成本多少？', '12-120有几个方案？', '通用款模板有哪些固定件？', 'V750现在用哪个线圈？']) {
+    for (const utterance of ['V750多少钱？', 'V750现在成本多少？', '12-120有几个方案？', '通用款模板有哪些固定件？', 'V750现在用哪个线圈？', '木箱和纸箱分别多少钱？', 'V750和V110分别成本多少？']) {
         assert.equal(detectConceptQuestionFastPath(utterance).status, 'NOT_MATCHED', utterance);
     }
+});
+
+test('Resolver probes validate candidate proposals and exclude unsupported proposal noise from final targets', () => {
+    const supported = { mention: 'V750', entityType: 'recipe', status: 'MULTIPLE', canonicalId: null, canonicalName: null, candidates: [{ canonicalId: '11', canonicalName: 'V750-通用款' }, { canonicalId: '12', canonicalName: 'V750-豪贝款' }], proposal: { expression: 'V750' } };
+    const unresolved = { mention: 'V750成本', entityType: null, status: 'UNRESOLVED', candidates: [], proposal: { expression: 'V750成本' } };
+    const result = validateCandidateProposals({ probeResults: [supported, unresolved], workingUtterance: '查一下V750成本。' });
+    assert.deepEqual(result.finalGroundedTargets.map(item => item.mention), ['V750']);
+    assert.deepEqual(result.unresolvedProposalWarnings.map(item => item.expression), ['V750成本']);
+    assert.equal(result.finalGroundedTargets.some(item => item.status === 'UNRESOLVED'), false);
+});
+
+test('Qualifier refinement derives a complete exact set from supported multiple resolver evidence', () => {
+    const base = { mention: 'V750', entityType: 'recipe', status: 'MULTIPLE', candidates: [{ canonicalId: '11', canonicalName: 'V750-通用款' }, { canonicalId: '12', canonicalName: 'V750-豪贝款' }] };
+    const refinement = refineQualifiedTargets({ supportedProbeResults: [base], unresolvedProbeResults: [{ mention: '通用款' }, { mention: '豪贝款' }], workingUtterance: '通用款和豪贝款的V750成本分别多少？' });
+    assert.equal(refinement.replacements.get('V750').length, 2);
+    assert.deepEqual(refinement.replacements.get('V750').map(item => item.canonicalName), ['V750-通用款', 'V750-豪贝款']);
 });
 
 test('Concept Fast Path stops before Role and resolver, but unresolved reference retains priority', async () => {
