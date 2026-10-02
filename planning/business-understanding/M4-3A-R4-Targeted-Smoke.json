@@ -1,0 +1,1471 @@
+{
+  "phase": "M4-3A-R4",
+  "scope": "targeted",
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "policySource": "BOOTSTRAP_PLUS_CANDIDATE",
+  "ontologyUsed": true,
+  "intentAgentCalls": 0,
+  "utteranceExtractorCalls": 0,
+  "modelCalls": 30,
+  "resolverCalls": 16,
+  "fixtureSource": "isolated_formal_entity_lookup_fixture",
+  "metrics": {
+    "businessMedianMs": 2974.124208,
+    "policyMedianMs": 1818.589459,
+    "referenceMedianMs": 0,
+    "roleMedianMs": 954.57075,
+    "resolverFanoutMedianMs": 0,
+    "totalMedianMs": 3262.411542
+  },
+  "results": [
+    {
+      "id": "T-01",
+      "run": 1,
+      "user": "这个换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:10.545Z",
+      "businessMemo": "# Relevant business concepts\n\n- **木箱 / 纸箱（Packing configuration）**：属于包装配置，是 Recipe 的可配置成本驱动项之一。\n- **Recipe 可配置成本项（Recipe Configurable Cost Drivers）**：包装属于其中之一。\n- **BOM**：Recipe 当前配置正式展开后的物料／工艺组成。\n\n# Business meaning\n\n在业务模型中，包装（纸箱、木箱、珍珠棉、泡沫及其它包装物料）被定义为 **Packing configuration**，即 Recipe 的一个可配置成本驱动项。包装从纸箱变木箱，属于 OEM 配置变化一类，被理解为包装配置层面的改变。\n\n因此“换木箱”在本公司业务语言里指向的，是某套 Recipe 的包装配置发生变化。至于它对应多少钱，属于成本结果，需要以该 Recipe 当前配置展开后的实际组成为准。\n\n# Relevant relationships\n\n- 包装配置是 Recipe 的一个可配置维度，会进一步影响 BOM 与成本。\n- 包装从纸箱变木箱通常描述的是 OEM 配置变化；本 V1 不因此自动改变功率等级、泵壳款式或基础型号。\n- 最终成本组成可包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置及其它依 Recipe 配置而变的成本项。\n- 成本仍以 Recipe 当前配置展开后的 BOM 为基础，包装配置是其中一个输入来源。\n\n# Unknown business terms\n\n- 木箱相对于纸箱的具体价格差异，业务模型未定义。\n- 该木箱配置对应的具体成本金额及计算方式，业务模型未定义，本 V1 不提供成本公式。\n- 若“这个换木箱”中的“这个”指某一具体 Recipe 或具体方案，其对应关系需另行确认；业务模型未定义此处“这个”具体指哪一套 Recipe。",
+      "policyMemo": "**Memo｜“这个换木箱多少钱？”**\n\n- **适用规则**：属于包装配置变化并询问成本，应优先按“临时配置试算／分析”理解；但当前只说了“换木箱”，未表达是否保存为正式配方。\n- **处理含义**：可以按临时试算处理，回答时明确这是临时方案成本，而非正式配方成本或已变更结果。\n- **保存含义**：未表达保存、正式修改、更新正式配方等持久化意图，不得自行升级为正式写入；如涉及写入，须先形成方案并等待明确确认。\n- **注意事项**：“这个”指代不清，需先确认所指的是哪一个对象；如存在歧义，应先做有界澄清，不得默认选择。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "referenceMemo": "REFERENCE_STATUS: UNRESOLVED\nREFERENCE_SURFACE: 这个\nRESOLVED_LANGUAGE_REFERENCE: NONE",
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "这个",
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": null,
+      "roles": [],
+      "gate": "STOP_UNRESOLVED_REFERENCE",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 1,
+        "role": 0,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2974.124208,
+        "policyMs": 2518.904959,
+        "referenceMs": 1697.49075,
+        "roleMs": 0,
+        "resolverFanoutMs": 0,
+        "totalMs": 2974.591
+      },
+      "evaluation": {
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "这个",
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_UNRESOLVED_REFERENCE",
+        "roles": [],
+        "formalResults": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-02",
+      "run": 1,
+      "user": "这个多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:13.523Z",
+      "businessMemo": "# Relevant business concepts\n\n- 价格 / 成本（“多少钱”）\n- Recipe（配置基础）\n- BOM（配置展开后的物料／工艺组成）\n- Recipe Configurable Cost Drivers（可配置成本项）\n- Template（Recipe 的固定结构蓝图）\n- Coil Scheme、Process Option、Part（可能进入成本构成的业务对象）\n\n# Business meaning\n\n- 你的原话只有“这个多少钱？”，其中的“这个”指向的业务对象不明确。\n- 按本公司业务模型，能承载价格讨论的不是单一实体，而是：以某个 Recipe 为配置基础，按其当前配置正式展开后的 BOM 及相关可配置成本项。\n- 也就是说，“多少钱”在业务上通常对应“某一套具体 Recipe 配置”的成本／报价口径，而不是某一个俗称、某一个定子规格或某一个模板本身。\n- 业务模型中未定义独立的“价格对象”或“报价对象”。价格不是 STATOR、COIL SCHEME、TEMPLATE、PART 这些概念自身的属性。\n\n# Relevant relationships\n\n- Recipe 是报价、客户配置和生产配置的基础；同一 Recipe 基础仍可按客户要求调整。\n- Template 只是 Recipe 使用的固定机械结构蓝图，按业务模型本身不负责成本计算，因此 Template 不宜直接等同于“多少钱”的对象。\n- BOM 是 Recipe 当前配置正式展开后的物料／工艺组成，可能是成本的展开来源。\n- 影响成本的配置维度包括：Coil configuration、Barrel configuration、Cable configuration、Float configuration、Packing configuration、Surface treatment、Rotor process。\n- 举例：`12-120` 是线圈／定子方案的常用规格表达，不是唯一正式 Coil Scheme identity，本身不足以定位到唯一的成本对应方案。\n- 举例：`V750-通用款` 是 V 系列 750 功率等级加通用款泵壳结构的 Recipe 配置基础，不是固定成品 SKU。\n- 举例：木箱替换纸箱属于 OEM 配置变化；不锈钢接轴属于客户定制的工艺成本项，不是普通库存零件替换。\n\n# Unknown business terms\n\n- “这个”：业务模型未定义你所指的具体业务对象是哪一个 Recipe、哪一套 Coil Scheme、哪一个 Template、哪一个 Part 或哪一项可配置成本项。\n- 具体价格、报价、成本数值：业务模型未定义，不在此文档范围内。\n- 库存、当前成本事实、数据库身份、候选数量：业务模型未定义；本文也不提供当前事实。",
+      "policyMemo": "当前这句话信息不足，无法判断应执行何种处理：未说明具体对象、配置变化或计价口径，也未表达是否保存。\n\n处理含义：不得据此发起正式计算、报价或任何写入；应要求补充要询问的对象及口径（例如是否属于临时试算）。\n保存含义：未表达保存意图，也不得默认按正式修改处理。\n注意事项：若后续同时给出配置变化与成本/利润询问，通常先按临时试算理解；只有明确要求保存或正式修改时，才进入需确认的写入路径。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "referenceMemo": "REFERENCE_STATUS: UNRESOLVED\nREFERENCE_SURFACE: 这个\nRESOLVED_LANGUAGE_REFERENCE: NONE",
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "这个",
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": null,
+      "roles": [],
+      "gate": "STOP_UNRESOLVED_REFERENCE",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 1,
+        "role": 0,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3083.298208,
+        "policyMs": 1736.362167,
+        "referenceMs": 971.712708,
+        "roleMs": 0,
+        "resolverFanoutMs": 0,
+        "totalMs": 3083.607875
+      },
+      "evaluation": {
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "这个",
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_UNRESOLVED_REFERENCE",
+        "roles": [],
+        "formalResults": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-03",
+      "run": 1,
+      "user": "V750换木箱多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:16.607Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：V 系列 / 产品规格代号体系中的 750 功率等级。\n- **木箱**：包装配置（Packing configuration）的一种形式。\n- **纸箱 / 木箱**：OEM 包装物料选项。\n- **Recipe**：可保存、可复用的 OEM 水泵生产配置基础。\n- **Recipe Configurable Cost Driver**：会因客户 OEM 要求变化并影响 BOM、制造工艺或成本的配置维度。\n- **BOM**：根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- **Part**：正式零件目录中的物理零件对象，例如包装物料。\n\n# Business meaning\n\n用户原话“V750换木箱”在本公司业务模型中，指的是：在 V 系列 750 功率等级这一 Recipe 配置基础上，将包装配置从纸箱变为木箱。\n\n按照业务模型：\n\n- V750 不能被理解为一个固定、不可改变的 Finished Product，也不能当作固定成品 SKU；它表达的是 V 系列 750 功率等级。\n- 包装属于 Recipe 的可配置成本项（Packing configuration），纸箱、木箱、珍珠棉、泡沫等属于包装配置维度。\n- 木箱是包装物料，属于 Part 范畴中的包装物料对象。\n- 包装从纸箱变木箱通常描述的是 OEM 配置变化，不应自动解释为功率等级、泵壳款式或基础型号已经改变。\n\n因此，“V750换木箱”在业务语言中描述的是：某一 V750 基础 Recipe 上的包装配置变化，属于 Recipe Configurable Cost Driver 中的 Packing configuration 变化。\n\n# Relevant relationships\n\n- **Recipe → Packing configuration**：包装配置是 Recipe 的一个可配置成本项维度。\n- **Packing configuration → Part（包装物料）**：木箱属于包装物料，包装物料属于 Part 这一类物理零件对象。\n- **Recipe → BOM**：Recipe 是配置基础，BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；包装配置变化会影响该 Recipe 展开后的 BOM。\n- **V750 → Recipe**：V750 表达 V 系列 750 功率等级，是 Recipe／产品规格代号体系的一部分，不是固定成品 SKU。\n- **V750-通用款**：V 系列 750 功率等级加通用款泵壳结构／Template 款式，形成 Recipe 配置基础；包装变化不改变这一基础。\n\n# Unknown business terms\n\n- **“多少钱”**：Business Model 未定义成本公式、成本计算规则或报价规则，因此无法从业务模型角度解释“多少钱”对应的正式业务含义。成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项，但本 V1 不提供成本公式。\n- **具体某套 V750 正式方案**：业务模型未定义具体某一套 V750 的正式方案身份；V750 是功率等级代号，具体 Recipe 配置需另行确认。\n- **“换木箱”对应的具体木箱规格或配套形式**：业务模型未定义木箱的具体规格、尺寸或配套形式；包装配置维度包含纸箱、木箱、珍珠棉、泡沫及其它包装物料，但未定义具体某一木箱的业务身份。\n- **当前包装配置状态、库存、成本数值**：Business Model 不提供数据库当前事实、库存或成本数值；这些属于未定义内容。",
+      "policyMemo": "**Memo：V750 换木箱的成本询问应如何处理**\n\n- **适用规则：** 涉及 Recipe 配置变化（包装改为木箱）并询问成本的语义，优先理解为**临时配置试算 / 分析**，而非正式修改。\n- **处理含义：** 应按临时试算方式给出成本影响，不视为对正式存储配方的变更。\n- **保存含义：** 本句未表达保存意图，因此不产生任何持久化写入；不得默认或自行升级为正式配方修改。\n- **歧义处理：** 若仅表达配置变化而保存意图不明确，不得默认选择某一处理方向，也不得擅自写入。\n- **写入确认：** 任何正式修改都必须经 Owner 明确确认后，通过受保护的执行路径完成；未确认前不得声称已改好。\n- **金额表述：** 回答中需标明该金额为临时试算口径，不可表述为当前正式成本。\n- **身份注意：** “V750”仅为候选提及，正式身份需由正式解析结果确定；如存在歧义应做有限澄清。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 木箱 | CONFIG_VALUE",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "木箱",
+          "role": "CONFIG_VALUE"
+        }
+      ],
+      "gate": "RUN",
+      "formalTargets": [
+        {
+          "mention": "V750"
+        }
+      ],
+      "formalResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.654834
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.12325
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.06425
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.293209
+            }
+          ]
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 4396.276458,
+        "policyMs": 1899.438583,
+        "referenceMs": 0,
+        "roleMs": 954.57075,
+        "resolverFanoutMs": 1.135543,
+        "totalMs": 5352.741083
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "木箱",
+            "role": "CONFIG_VALUE"
+          }
+        ],
+        "formalResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.654834
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.12325
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.06425
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.293209
+              }
+            ]
+          }
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-04",
+      "run": 1,
+      "user": "V750加浮球多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:21.960Z",
+      "businessMemo": "# Relevant business concepts\n- V750\n- 浮球（Float configuration）\n- Recipe / Recipe Configurable Cost Drivers\n- 报价\n\n# Business meaning\n- **V750**：属于工厂内部 Recipe／产品规格代号体系。`V` 表示产品系列／型号体系，`750` 表示功率等级。它不能被理解为一个固定、不可改变的 Finished Product。\n- **加浮球**：对应 Recipe Configurable Cost Driver 中的 **Float configuration**，指是否带浮球，以及浮球规格或配套形式。它是 Recipe 的可配置项，会依客户 OEM 要求变化。\n- **多少钱**：属于成本／报价问题。\n\n# Relevant relationships\n- Recipe 是报价、客户配置和生产配置的基础；Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置。\n- Float configuration 属于 Recipe 可配置成本项，会影响 BOM 或成本；但不应当一概视为普通 Part。\n- 浮球配置的变化，属于 OEM 配置变化范畴；Company Business Model 未将其定义为功率等级、泵壳款式或基础型号的改变。\n\n# Unknown business terms\n- 本业务模型未定义“V750 加浮球”对应的具体报价，也未提供成本公式、当前成本或库存等正式事实。\n- 本业务模型未定义“浮球规格或配套形式”的具体取值，也未定义“加浮球”是否对应某一固定价格项。\n- 本业务模型未定义具体某套 Recipe 的正式配置组合，因此无法据此确定唯一对应的业务对象。",
+      "policyMemo": "**Memo：**\n\n- 该请求属于**临时配置试算／分析**：描述“加浮球”的配置变化并询问价格，未表达持久化意图，不构成正式配方修改。\n- 按规则，配置变化 + 成本／价格询问默认理解为试算，除非明确表达保存或正式修改。\n- 回答金额时须标注口径为**临时试算成本**，不得表述为当前正式成本。\n- 当前未表达保存意图，不得默认执行或宣称已写入正式配方；如需正式变更，须由 Owner 明确确认后走受保护路径。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 浮球 | CONFIG_VALUE\nROLE: 加浮球 | CONFIG_VALUE\nROLE: 多少钱 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "浮球",
+          "role": "CONFIG_VALUE"
+        },
+        {
+          "expression": "加浮球",
+          "role": "CONFIG_VALUE"
+        },
+        {
+          "expression": "多少钱",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "formalTargets": [
+        {
+          "mention": "V750"
+        }
+      ],
+      "formalResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.278
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.09
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.063791
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.1085
+            }
+          ]
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2295.0015,
+        "policyMs": 1482.020083,
+        "referenceMs": 0,
+        "roleMs": 966.691208,
+        "resolverFanoutMs": 0.540291,
+        "totalMs": 3262.411542
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "浮球",
+            "role": "CONFIG_VALUE"
+          },
+          {
+            "expression": "加浮球",
+            "role": "CONFIG_VALUE"
+          },
+          {
+            "expression": "多少钱",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "formalResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.278
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.09
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.063791
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.1085
+              }
+            ]
+          }
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-05",
+      "run": 1,
+      "user": "V750做电泳成本差多少？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:25.223Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一个功率等级表达。\n- **电泳**：属于 Recipe 的 Surface treatment（表面处理）配置维度。\n- **成本**：由 Recipe 当前配置展开后的结果承载，而非某个固定型号自带。\n\n# Business meaning\n\n- **V750** 在本公司业务模型中表示 V 系列、750 功率等级，是一套 Recipe 配置基础；它不是固定、不可改变的 Finished Product，也不等于固定成品 SKU。同一 V750 还可搭配通用款、豪贝款、东音款等不同泵壳款式，这些差异来自泵壳结构。\n- **电泳** 在本公司业务模型中属于 Recipe Configurable Cost Driver 中的 **Surface treatment**，与“无表面处理、喷漆、喷粉及其它允许工艺”并列。它是可配置的工艺成本项，不一定表现为普通 BOM Part。\n- 因此，“V750 做电泳”描述的是：在一套 V 系列 750 功率等级的 Recipe 基础上，把表面处理这一可配置工艺维度选为电泳。它不是对某一个固定成品的简单替换。\n\n# Relevant relationships\n\n- V750（Recipe 基础）→ 可配置维度之一：Surface treatment → 选为电泳。\n- Surface treatment 属于影响 BOM、制造工艺或成本的可配置成本项。\n- 表面处理与 **Rotor process（如不锈钢接轴）** 同属一类：是 Recipe 可配置工艺成本项，而不是普通库存 Part 替换。\n- Recipe 是配置基础；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。工艺成本不等于普通目录 Part。\n\n# Unknown business terms\n\n- **“成本差多少”中的“差”**：本业务模型未定义电泳与何种基准（如无表面处理、喷漆、喷粉）之间的成本差异。\n- **具体成本数值／差异金额**：本业务模型未定义。本文只解释“业务概念是什么”，不提供成本公式，也不提供数据库当前事实。\n- **该 V750 所对应的具体正式 Recipe 配置**（泵壳款式、Coil Scheme、机筒长度、电缆、包装等）：本业务模型未定义当前具体值，无法据此确认成本所对应的配置基础。",
+      "policyMemo": "# 处理 Memo\n\n- **规则适用**：用户描述 Recipe 配置变化（做电泳）并询问成本差多少，属于**临时配置试算／分析**意图。\n- **处理含义**：应按临时试算理解，用调整后的配置重新计算情景成本差异，不视为正式配方变更。\n- **保存含义**：用户未表达任何保存、正式修改或持久化意图，因此不得写入正式存储配方。\n- **注意事项**：涉及金额时须标明为临时情景试算成本，不得表述为当前正式成本；配置变化与试算可自由进行，持久化写入须另行明确并确认。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 电泳 | CONFIG_VALUE",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "电泳",
+          "role": "CONFIG_VALUE"
+        }
+      ],
+      "gate": "RUN",
+      "formalTargets": [
+        {
+          "mention": "V750"
+        }
+      ],
+      "formalResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.189792
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.093583
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.033291
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.050458
+            }
+          ]
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3044.860584,
+        "policyMs": 1698.318958,
+        "referenceMs": 0,
+        "roleMs": 964.948583,
+        "resolverFanoutMs": 0.367124,
+        "totalMs": 4010.262667
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "电泳",
+            "role": "CONFIG_VALUE"
+          }
+        ],
+        "formalResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.189792
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.093583
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.033291
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.050458
+              }
+            ]
+          }
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-06",
+      "run": 1,
+      "user": "V750如果做不锈钢接轴成本差多少？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:29.233Z",
+      "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的一项。\n- **不锈钢接轴**：Recipe 的 Rotor process 配置项，属于可配置工艺成本项。\n- **成本差**：涉及 Recipe 当前配置展开后的成本组成，而非目录 Part 价格。\n\n# Business meaning\n\n- **V750**：`V` 表示产品系列／型号体系，`750` 表示功率等级。V750 不能被理解为固定、不可改变的 Finished Product；它是一套 Recipe 配置基础，可依客户 OEM 要求调整（如线圈片数、电缆、包装、机筒长度、转子工艺等）。\n- **不锈钢接轴**：属于 **Rotor process** 这一类 Recipe Configurable Cost Driver。默认转子可使用 45# 钢材方案；客户指定不锈钢接轴时，改变的是制造工艺／成本项，会影响制造方式、成本和报价，而**不是**普通库存 Part replacement，也不应理解为“换了一个普通库存零件”。\n- **成本差**：V1 业务模型只说明“不锈钢接轴”会影响成本与报价，属于依 Recipe 配置而变的成本项；工艺成本不等于普通目录 Part。业务模型未定义具体差额。\n\n# Relevant relationships\n\n- Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 不锈钢接轴属于 Recipe 可配置工艺成本项，最终成本组成可包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置及其它依 Recipe 配置而变的成本项。\n- 因此“V750 做不锈钢接轴”描述的是同一 Recipe 基础下 Rotor process 的配置变化，不是 V750 这一功率等级或型号体系的改变。\n\n# Unknown business terms\n\n- **具体成本差额**：Company Business Model V1 未定义任何成本公式或数值，也未提供数据库当前事实或报价数据，故无法给出“差多少”。\n- **默认与不锈钢接轴方案之间的具体价差归属**：业务模型未定义该差额如何计算或由哪些成本项构成。",
+      "policyMemo": "## Memo\n\n- **适用规则：** 仅提及配置变化并询问成本差异，属临时配置试算/分析，而非正式配方修改。\n- **处理含义：** 应先基于该配置变化进行试算并回答成本差多少；试算结果只代表临时场景成本，不改变正式配方。\n- **保存含义：** 用户未表达保存、正式修改、更新正式配方等持久化意图，因此不得默认执行或表述为已保存、已正式更新。\n- **注意事项：** 回答中需明确金额/成本口径为临时试算成本，而非当前正式成本；如后续用户要求正式保存或更新配方，需另行确认后再走正式写入路径。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 不锈钢接轴 | CONFIG_VALUE\nROLE: 成本差 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "V750",
+          "role": "FORMAL_ENTITY_CANDIDATE"
+        },
+        {
+          "expression": "不锈钢接轴",
+          "role": "CONFIG_VALUE"
+        },
+        {
+          "expression": "成本差",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "RUN",
+      "formalTargets": [
+        {
+          "mention": "V750"
+        }
+      ],
+      "formalResults": [
+        {
+          "mention": "V750",
+          "entityType": "recipe",
+          "status": "MULTIPLE",
+          "canonicalId": null,
+          "canonicalName": null,
+          "candidates": [
+            {
+              "entityType": "recipe",
+              "canonicalId": "11",
+              "canonicalName": "V750-通用款",
+              "matchKind": "EXACT"
+            },
+            {
+              "entityType": "recipe",
+              "canonicalId": "12",
+              "canonicalName": "V750-豪贝款",
+              "matchKind": "EXACT"
+            }
+          ],
+          "typeResults": [
+            {
+              "entityType": "recipe",
+              "result": {
+                "entityType": "recipe",
+                "mention": "V750",
+                "status": "AMBIGUOUS",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "11",
+                    "canonicalName": "V750-通用款",
+                    "matchKind": "EXACT"
+                  },
+                  {
+                    "entityType": "recipe",
+                    "canonicalId": "12",
+                    "canonicalName": "V750-豪贝款",
+                    "matchKind": "EXACT"
+                  }
+                ],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.180208
+            },
+            {
+              "entityType": "coil",
+              "result": {
+                "entityType": "coil",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.072459
+            },
+            {
+              "entityType": "template",
+              "result": {
+                "entityType": "template",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.031417
+            },
+            {
+              "entityType": "part",
+              "result": {
+                "entityType": "part",
+                "mention": "V750",
+                "status": "NOT_FOUND",
+                "canonicalId": null,
+                "canonicalName": null,
+                "candidates": [],
+                "source": "formal",
+                "verified": false
+              },
+              "resolverMs": 0.126334
+            }
+          ]
+        }
+      ],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2675.390334,
+        "policyMs": 1590.889417,
+        "referenceMs": 0,
+        "roleMs": 829.6615,
+        "resolverFanoutMs": 0.410418,
+        "totalMs": 3505.942792
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "RUN",
+        "roles": [
+          {
+            "expression": "V750",
+            "role": "FORMAL_ENTITY_CANDIDATE"
+          },
+          {
+            "expression": "不锈钢接轴",
+            "role": "CONFIG_VALUE"
+          },
+          {
+            "expression": "成本差",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "formalResults": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "entityType": "recipe",
+                "canonicalId": "11",
+                "canonicalName": "V750-通用款",
+                "matchKind": "EXACT"
+              },
+              {
+                "entityType": "recipe",
+                "canonicalId": "12",
+                "canonicalName": "V750-豪贝款",
+                "matchKind": "EXACT"
+              }
+            ],
+            "typeResults": [
+              {
+                "entityType": "recipe",
+                "result": {
+                  "entityType": "recipe",
+                  "mention": "V750",
+                  "status": "AMBIGUOUS",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "11",
+                      "canonicalName": "V750-通用款",
+                      "matchKind": "EXACT"
+                    },
+                    {
+                      "entityType": "recipe",
+                      "canonicalId": "12",
+                      "canonicalName": "V750-豪贝款",
+                      "matchKind": "EXACT"
+                    }
+                  ],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.180208
+              },
+              {
+                "entityType": "coil",
+                "result": {
+                  "entityType": "coil",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.072459
+              },
+              {
+                "entityType": "template",
+                "result": {
+                  "entityType": "template",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.031417
+              },
+              {
+                "entityType": "part",
+                "result": {
+                  "entityType": "part",
+                  "mention": "V750",
+                  "status": "NOT_FOUND",
+                  "canonicalId": null,
+                  "canonicalName": null,
+                  "candidates": [],
+                  "source": "formal",
+                  "verified": false
+                },
+                "resolverMs": 0.126334
+              }
+            ]
+          }
+        ],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-07",
+      "run": 1,
+      "user": "12-120多少钱？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:32.739Z",
+      "businessMemo": "# Relevant business concepts\n\n- `12-120` / Coil Common Designation\n- Coil Scheme / Coil Scheme Family（仅在业务模型定义范围内提及）\n- STATOR / 定子\n- Part\n- Recipe Configurable Cost Driver（作为成本相关概念类别，不做任何成本计算或当前事实判断）\n\n# Business meaning\n\n根据 Company Business Model，`12-120` 是工厂关于线圈／定子方案的常用规格表达，不是唯一正式 Coil Scheme identity。\n\n- `12`：定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120`：硅钢片／线圈方案片数；\n- `120` 不是功率；\n- `120` 不是库存。\n\n同一个 `12-120` 可以存在多套正式线圈方案。具体正式方案与这个 common designation 不是同一个概念；不能仅凭俗称认定某一套唯一方案。用户说“查 12-120”时，首先是在提及一个常用规格表达；至于成本、库存或实际配置所对应的具体正式方案，必须另行确认。\n\n因此，用户问“12-120多少钱”，在业务语言上是在询问这个常用规格表达相关方案的成本。但“多少钱”属于成本维度；本 Business Model 未定义具体成本数值、成本公式或当前成本事实。\n\n# Relevant relationships\n\n- `12-120` 与 STATOR：`12` 是定子工厂规格俗称，对应标准定子直径 120 mm；但定子规格本身不等于某一套绕组方案。\n- `12-120` 与 Coil Scheme：`12-120` 是常用规格表达，不是唯一正式 Coil Scheme identity；同一 `12-120` 可对应多套正式线圈方案。\n- `12-120` 与 Part：业务模型说明 Coil Scheme 不是普通 Part；`12-120` 作为 common designation 也不等同于普通目录零件。\n- `12-120` 与 Recipe / BOM / 成本项：Recipe 包含 Coil Scheme、线圈片数等可配置成本驱动项；BOM 是按 Recipe 当前配置正式展开后的物料／工艺组成。但本 Business Model 不提供具体成本数值、当前库存或数据库事实。\n\n# Unknown business terms\n\n- “多少钱”在本 Business Model 中未定义具体成本数值、成本公式、报价规则或当前成本事实。\n- `12-120` 对应的具体正式 Coil Scheme、Recipe 配置、BOM 展开结果、库存状态与价格，Business Model 未定义。\n- 若问题涉及当前成本或报价，Business Model 未定义，不能据此判断或猜测。",
+      "policyMemo": "**Memo：关于“12-120多少钱？”的处理**\n\n- **意图性质**：当前仅是一个价格询问，属于只读查询/试算性质；未表达任何保存、正式修改或持久化意图。\n- **配置暂不构成正式变更**：若问题仅指向该命名的线圈方案，不涉及对正式配方的覆盖性修改；不应据此升级为正式写入。\n- **名称不等同于正式身份**：`12-120` 只是候选标识，需经正式目录解析确认其对应的正式方案，不能凭名称直接认定。\n- **该名称可能对应多个方案**：同一常用命名可能对应多个正式方案。涉及具体方案的成本或库存时，不得默认选取第一个方案，也不得在未明确要求合并的情况下把各方案数量或金额相加。\n- **金额口径需标注**：若给出金额，必须说明其口径，例如是当前正式成本、临时试算成本，还是历史报价等，不得把试算金额标为正式成本。\n- **需澄清则澄清**：若解析出多个候选方案，应做有边界的澄清，由提问方选定方案后再答复；不得臆造编号或自行选定。\n- **保存与写入**：本句属查询类意图，不触发任何持久化动作。若后续出现正式修改或保存要求，须先形成冻结方案并经明确确认后才可执行，不得在仅规划或试算阶段声称已完成变更。\n- **注意事项**：以上均为业务语义层面的处理说明；正式的金额基准与写入可行性以正式业务规则和边界为准。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: 12-120 | CONCEPT_ONLY\nROLE: 多少钱 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "12-120",
+          "role": "CONCEPT_ONLY"
+        },
+        {
+          "expression": "多少钱",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "STOP_CONCEPT_ONLY",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 3024.7265,
+        "policyMs": 2703.494208,
+        "referenceMs": 0,
+        "roleMs": 820.545125,
+        "resolverFanoutMs": 0,
+        "totalMs": 3845.416625
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_CONCEPT_ONLY",
+        "roles": [
+          {
+            "expression": "12-120",
+            "role": "CONCEPT_ONLY"
+          },
+          {
+            "expression": "多少钱",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "formalResults": [],
+        "failures": [
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH",
+          "ROLE_NOT_PRESERVED:12-120",
+          "FORMAL_TARGET_NOT_RESOLVED"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-08",
+      "run": 1,
+      "user": "12-120有两个方案吧？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:36.585Z",
+      "businessMemo": "# 业务概念 Memo\n\n## Relevant business concepts\n- **`12-120` / Coil Common Designation**：工厂关于线圈／定子方案的常用规格表达。\n- **COIL / COIL SCHEME**：一套具体可使用的线圈／绕组方案。\n- **STATOR / 定子**：电机定子本体或定子规格这一层业务概念。\n\n## Business meaning\n`12-120` 是常用规格俗称，不是唯一的正式 Coil Scheme identity：\n- `12` 是定子的工厂规格俗称，对应标准定子直径 120 mm；\n- `120` 是硅钢片／线圈方案片数；\n- `120` 不是功率，也不是库存。\n\n同一个 `12-120` 可以存在多套正式线圈方案。因此用户说“查 12-120”，首先是在提及这个常用规格表达，而不是在指名某一套唯一正式方案。\n\n## Relevant relationships\n`12-120` 与具体 Coil Scheme 不是同一个概念：具体正式方案与这个 common designation 分属不同身份层次。具体方案可能还以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分；只有这些正式区分条件明确后，才谈得上具体使用的是哪一套方案。\n\n## Unknown business terms\n“有两个方案”中的“两个”这一具体数量，Company Business Model 未定义，也不提供任何当前事实或候选数量。业务模型只说明同一 `12-120` 可以存在多套正式方案，但未定义具体在某处恰好对应几套。具体正式方案须另行确认。",
+      "policyMemo": "# Memo：关于“12-120 有两个方案吧？”\n\n- **适用规则：** 常见线圈型号可能对应多个正式方案，不能默认取第一个方案。\n- **处理含义：** 应将“12-120”视为候选称呼，需经过正式解析确认对应方案；如确有多个，应作为有限选项呈现让用户选择或查看某个具体方案，而非默认其一。\n- **保存含义：** 本句仅为询问/读查询，未表达持久化意图，不涉及写入，也无需保存确认。\n- **注意事项：** 不得将多个方案的库存或成本静默合并；如需汇总，须由用户明确要求并依据正式汇总能力。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: 12-120 | CONCEPT_ONLY\nROLE: 两个方案 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "12-120",
+          "role": "CONCEPT_ONLY"
+        },
+        {
+          "expression": "两个方案",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "STOP_CONCEPT_ONLY",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 1956.95075,
+        "policyMs": 1818.589459,
+        "referenceMs": 0,
+        "roleMs": 1221.863459,
+        "resolverFanoutMs": 0,
+        "totalMs": 3178.86975
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_CONCEPT_ONLY",
+        "roles": [
+          {
+            "expression": "12-120",
+            "role": "CONCEPT_ONLY"
+          },
+          {
+            "expression": "两个方案",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "formalResults": [],
+        "failures": [
+          "GATE_INCORRECT",
+          "RESOLVER_CALL_CONTRACT_BREACH",
+          "ROLE_NOT_PRESERVED:12-120",
+          "FORMAL_TARGET_NOT_RESOLVED"
+        ],
+        "overall": "FAIL"
+      }
+    },
+    {
+      "id": "T-09",
+      "run": 1,
+      "user": "模板和配方有什么区别？",
+      "recentOwnerWording": null,
+      "startedAt": "2026-10-02T01:27:39.764Z",
+      "businessMemo": "# 模板和配方有什么区别？\n\n## Relevant business concepts\n- TEMPLATE / 模板\n- RECIPE / 配方\n- BOM\n- Recipe Configurable Cost Drivers\n- 泵壳结构 / Template 款式\n\n## Business meaning\n- **Template（模板）**：是专门为 Recipe 准备的可复用 BOM 蓝图。它基于某一种泵壳结构，记录用这套泵壳组合成水泵时必须固定搭配的零件型号（如轴承、油封、螺丝及其它固定结构零件）。它不代表完整成品、不代表客户最终配置、不等于最终 BOM，且按业务定义本身不负责成本计算。\n- **Recipe（配方）**：是可保存、可复用的 OEM 水泵生产配置基础，不是绝对固定的 Finished Product。它可以包含或决定功率规格、Template／泵壳款式、Coil Scheme、线圈片数、机筒长度、电缆、包装、工艺选项及其它可配置项目；是报价、客户配置和生产配置的基础。\n\n## Relevant relationships\n- 新建 Recipe 必须基于 Template。\n- Template 提供固定机械结构蓝图；Recipe 在 Template 基础上加入动力、线圈和其它 OEM 配置；BOM 才是根据 Recipe 当前配置正式展开后的物料／工艺组成。\n- 因此 Template 只是 BOM 的一个输入来源，Recipe 是配置基础，BOM 才是最终展开结果。\n- Template 解决的是固定机械结构如何复用，不替代客户配置、动力配置或最终物料展开。\n- 同一个 Recipe 基础仍可按客户要求（如线圈片数、电缆、包装、机筒长度、转子工艺等）调整。\n\n## Unknown business terms\n- 无（用户提问中的“模板”“配方”均在公司业务模型中有明确定义）。",
+      "policyMemo": "# Memo：关于“模板和配方有什么区别？”\n\n- 该问题属于概念性询问，不涉及临时试算、明确保存或任何业务状态变更。\n- 依据规则，临时试算不改变正式存储状态；明确保存意图才构成持久化变更；未表达保存意图时不得默认升级为正式写入；存在歧义时不得自行选择。\n- 若问题进一步进入对具体条目的技术资料查询，应以正式技术资料为权威，不得用命名相近的旧有资料或默认值补全缺失的技术事实。\n- 若涉及写入，必须经确认后方可执行；推理与回答本身不构成写入授权。\n- 本 Memo 不解释业务概念本身，仅说明处理与保存含义。",
+      "referenceDetection": {
+        "status": "NONE",
+        "surface": null
+      },
+      "referenceMemo": null,
+      "reference": {
+        "status": "NONE",
+        "surface": null,
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": "ROLE: 模板 | CONCEPT_ONLY\nROLE: 配方 | CONCEPT_ONLY",
+      "roles": [
+        {
+          "expression": "模板",
+          "role": "CONCEPT_ONLY"
+        },
+        {
+          "expression": "配方",
+          "role": "CONCEPT_ONLY"
+        }
+      ],
+      "gate": "STOP_CONCEPT_ONLY",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 0,
+        "role": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2106.099375,
+        "policyMs": 1604.099458,
+        "referenceMs": 0,
+        "roleMs": 979.093125,
+        "resolverFanoutMs": 0,
+        "totalMs": 3085.242791
+      },
+      "evaluation": {
+        "reference": {
+          "status": "NONE",
+          "surface": null,
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_CONCEPT_ONLY",
+        "roles": [
+          {
+            "expression": "模板",
+            "role": "CONCEPT_ONLY"
+          },
+          {
+            "expression": "配方",
+            "role": "CONCEPT_ONLY"
+          }
+        ],
+        "formalResults": [],
+        "failures": [],
+        "overall": "PASS"
+      }
+    },
+    {
+      "id": "T-10",
+      "run": 1,
+      "user": "刚才那个线圈多少钱？",
+      "recentOwnerWording": "我先看看12-120。",
+      "startedAt": "2026-10-02T01:27:42.849Z",
+      "businessMemo": "# Relevant business concepts\n\n- **线圈**：在本公司业务语言中对应 COIL / COIL SCHEME，即一套具体可使用的线圈／绕组方案。\n- **`12-120`**：用户此前提到的常用规格表达，与“线圈”相关，但它是 common designation，不是唯一正式方案身份。\n- **Coil configuration**：Recipe 的一项可配置成本项，包含 Coil Scheme、线圈片数及相关线圈配置。\n\n# Business meaning\n\n用户原话“刚才那个线圈多少钱？”中的“线圈”，按 Company Business Model 应理解为 **COIL / COIL SCHEME**，即一套具体可使用的线圈／绕组方案，而不是定子本身，也不是普通 Part。\n\n“刚才那个”若指前文的 `12-120`，则它首先是一个**常用规格表达**：`12` 是定子工厂规格俗称（对应标准定子直径 120 mm），`120` 是硅钢片／线圈方案片数，`120` 不是功率，也不是库存。\n\nBusiness Model 明确指出：同一个 `12-120` 可以存在多套正式线圈方案。因此“那个线圈”在业务上并不自动锁定为某一套唯一正式 COIL SCHEME。\n\n# Relevant relationships\n\n- `12-120`（common designation）与具体正式 COIL SCHEME 不是同一个概念；不能仅凭俗称认定唯一方案。\n- COIL SCHEME 可能以材质、槽眼、电压、频率、市场、绕组参数、线重等属性区分。\n- COIL SCHEME 属于 Recipe 的 Coil configuration，是可配置成本项，不是普通 Part。\n- 成本与具体正式方案的对应关系，Business Model 要求另行确认；本 Memo 不提供成本事实。\n\n# Unknown business terms\n\n- **“刚才那个”所指的具体对象**：Business Model 未定义对话上下文，无法确认它具体指哪一套正式 COIL SCHEME。\n- **“多少钱”所对应的成本口径**：Business Model 不提供成本公式，也不提供数据库当前事实，因此该成本含义在本业务模型下未定义。\n- **该线圈对应的具体正式方案**：仅凭 `12-120` 或“那个线圈”无法确定，Business Model 未定义唯一映射。",
+      "policyMemo": "# Memo：线圈价格的询问如何处理\n\n**适用规则**\n- 实体提及不等于正式身份：`12-120` 只是候选，需先解析为唯一正式线圈方案；存在多个方案时不得默认选择或静默合并。\n- 若为方案专属价格/成本，需指明所依据的具体方案。\n- 金额口径须明示：区分当前正式成本、临时试算成本、历史报价等，不得混标。\n\n**处理含义**\n- 本条“刚才那个线圈多少钱？”缺少明确的方案选择，且可能涉及多方案，应先做有界澄清或给出受限方案选项，由用户确定后再报单一方案的成本/价格。\n- 若用户实际想要的是某情景下的试算（如长度、规格等变化），则按临时试算处理，并明确标注其为试算口径，而非正式成本。\n\n**保存含义**\n- 本询问为读取/试算性质，不构成任何持久化意图，不会改动正式配方或业务状态。\n- 未表达保存或正式修改意图时，不得推断为正式写入；如后续用户明确要求“保存/正式修改/更新正式配方”等，才进入需确认的写路径。\n\n**注意事项**\n- 不得凭空编造 ID 或取首个部分匹配。\n- 涉及库存时同样须区分在手、扣除预留后可用等口径，但本问聚焦价格/成本。\n- 若方案歧义未澄清，则不给出确定金额，先请用户选定方案。",
+      "referenceDetection": {
+        "status": "DETECTED",
+        "surface": "刚才那个线圈"
+      },
+      "referenceMemo": "REFERENCE_STATUS: UNRESOLVED\nREFERENCE_SURFACE: 刚才那个线圈\nRESOLVED_LANGUAGE_REFERENCE: NONE",
+      "reference": {
+        "status": "UNRESOLVED",
+        "surface": "刚才那个线圈",
+        "resolvedLanguageReference": null
+      },
+      "roleMemo": null,
+      "roles": [],
+      "gate": "STOP_UNRESOLVED_REFERENCE",
+      "formalTargets": [],
+      "formalResults": [],
+      "modelCalls": {
+        "business": 1,
+        "policy": 1,
+        "reference": 1,
+        "role": 0,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "businessMs": 2891.301417,
+        "policyMs": 2942.684125,
+        "referenceMs": 885.013916,
+        "roleMs": 0,
+        "resolverFanoutMs": 0,
+        "totalMs": 2942.898584
+      },
+      "evaluation": {
+        "reference": {
+          "status": "UNRESOLVED",
+          "surface": "刚才那个线圈",
+          "resolvedLanguageReference": null
+        },
+        "gate": "STOP_UNRESOLVED_REFERENCE",
+        "roles": [],
+        "formalResults": [],
+        "failures": [
+          "REFERENCE_STATUS_INCORRECT",
+          "REFERENCE_RESOLUTION_INCORRECT",
+          "GATE_INCORRECT",
+          "ROLE_CALL_CONTRACT_BREACH",
+          "RESOLVER_CALL_CONTRACT_BREACH",
+          "ROLE_NOT_PRESERVED:12-120",
+          "FORMAL_TARGET_NOT_RESOLVED"
+        ],
+        "overall": "FAIL"
+      }
+    }
+  ]
+}
