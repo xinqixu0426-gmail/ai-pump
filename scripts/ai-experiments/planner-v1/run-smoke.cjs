@@ -7,6 +7,7 @@ const { createPlannerCapabilityCatalogSnapshot } = require('./capabilityCatalogS
 const { TARGETED_CASES, BASE_CASES, NEGATIVE_CASES } = require('./cases.cjs');
 const { runPlannerPipeline } = require('./plannerPipeline.cjs');
 const { evaluatePlannerCase, evaluateRequirement } = require('./plannerEvaluator.cjs');
+const { detectComparisonBasisMissing } = require('./requirementContradictionDetector.cjs');
 const { runGroundingPipeline } = require('../business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../business-policy-intent/groundingFixture.cjs');
 
@@ -63,6 +64,12 @@ function retryMetrics(results) {
         retriesFailed: retried.filter(item => item.evaluation.requirement.overall === 'FAIL').length,
         scenarioGoalMissingTriggers: retried.filter(item => item.requirementRetry.reasons.includes('SCENARIO_GOAL_MISSING')).length,
         scenarioClassUnderclassifiedTriggers: retried.filter(item => item.requirementRetry.reasons.includes('SCENARIO_CLASS_UNDERCLASSIFIED')).length,
+        comparisonBasisMissingTriggers: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING')).length,
+        comparisonBasisRetriesTriggered: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING')).length,
+        comparisonBasisRetriesRecovered: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING') && item.evaluation.requirement.overall === 'PASS').length,
+        comparisonBasisRetriesFailed: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING') && item.evaluation.requirement.overall === 'FAIL').length,
+        comparisonBasisFalsePositives: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING') && !detectComparisonBasisMissing({ requirement: item.requirementAttempts[0].normalizedRequirement, context: item.context })).length,
+        comparisonBasisFalseNegatives: first.filter(item => item.item.requirementRetry.triggered === false && detectComparisonBasisMissing({ requirement: item.item.requirementAttempts[0].normalizedRequirement, context: item.item.context })).length,
         retryFalsePositives: retried.filter(item => first.find(value => value.item === item).evaluation.overall === 'PASS').length,
         retryFalseNegatives: first.filter(item => item.item.requirementRetry.triggered === false && item.item.requirement.scenarioOverrides.length && item.item.requirement.goalFacts.includes('CURRENT_COST') && !item.item.requirement.goalFacts.some(fact => ['SCENARIO_COST', 'SCENARIO_COMPARISON', 'COST_DIFFERENCE'].includes(fact))).length,
         maxAttemptsObserved: Math.max(0, ...results.map(item => item.requirementAttempts.length)),

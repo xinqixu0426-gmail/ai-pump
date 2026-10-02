@@ -1,0 +1,10 @@
+{
+  "phase": "M4-4F",
+  "scope": "full",
+  "status": "NOT_RUN",
+  "reason": "REGRESSION_RELIABILITY_PREREQUISITE_FAILED",
+  "failedRegression": "P-11 ELECTROPHORESIS 2/3: one fresh Requirement output used scenario override '增加电泳', which is not an owner-language span in the frozen wording '做电泳成本增加多少？'; the frozen provenance validator rejected it.",
+  "comparisonBasisDetector": true,
+  "compilerModelCalls": 0,
+  "frozenUpstreamChanged": false
+}

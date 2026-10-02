@@ -27,6 +27,7 @@ async function runPlannerPipeline({ rawOwnerInput, upstream, capabilityCatalog }
     const contradiction = detectRequirementContradiction({ requirement: firstAttempt.normalized.requirement, context });
     const secondAttempt = contradiction.detected ? await runAttempt(retryAddendum(contradiction.reasons)) : null;
     const finalAttempt = secondAttempt || firstAttempt;
+    const finalContradiction = detectRequirementContradiction({ requirement: finalAttempt.normalized.requirement, context });
     const requirementMemo = finalAttempt.memo;
     const requirement = finalAttempt.normalized.requirement;
     const requirementValidation = finalAttempt.validation;
@@ -47,7 +48,7 @@ async function runPlannerPipeline({ rawOwnerInput, upstream, capabilityCatalog }
         plannerMs: attempt.plannerMs,
     })));
     const requirementPlannerMs = firstAttempt.plannerMs + (secondAttempt ? secondAttempt.plannerMs : 0);
-    return Object.freeze({ context, rawRequirementMemo: firstAttempt.memo, parsedRequirement: firstAttempt.parsed, normalizedRequirement: requirement, requirementMemo, requirement, requirementValidation, requirementAttempts: attempts, requirementRetry: Object.freeze({ triggered: contradiction.detected, reasons: contradiction.reasons, addendum: contradiction.detected ? retryAddendum(contradiction.reasons) : null, finalSource: secondAttempt ? 'RETRY' : 'FIRST' }), plannerMemo: requirementMemo, rawPlan, plan: rawPlan, validation, validatedPlan: validation.validatedPlan, modelCalls: Object.freeze({ requirementPlanner: attempts.length, planner: attempts.length, planCompiler: 0, intent: 0, utteranceExtractor: 0 }), timings: Object.freeze({ requirementPlannerMs, requirementFirstMs: firstAttempt.plannerMs, requirementRetryMs: secondAttempt ? secondAttempt.plannerMs : 0, plannerMs: requirementPlannerMs, planCompilerMs: compilerMs }), execution: Object.freeze({ toolCalls: 0, businessApiCalls: 0, dbAccessAttempts: 0, writeAttempts: 0 }) });
+    return Object.freeze({ context, rawRequirementMemo: firstAttempt.memo, parsedRequirement: firstAttempt.parsed, normalizedRequirement: requirement, requirementMemo, requirement, requirementValidation, requirementAttempts: attempts, requirementRetry: Object.freeze({ triggered: contradiction.detected, reasons: contradiction.reasons, addendum: contradiction.detected ? retryAddendum(contradiction.reasons) : null, finalSource: secondAttempt ? 'RETRY' : 'FIRST', exhaustedReasons: Object.freeze(secondAttempt ? finalContradiction.reasons : []) }), plannerMemo: requirementMemo, rawPlan, plan: rawPlan, validation, validatedPlan: validation.validatedPlan, modelCalls: Object.freeze({ requirementPlanner: attempts.length, planner: attempts.length, planCompiler: 0, intent: 0, utteranceExtractor: 0 }), timings: Object.freeze({ requirementPlannerMs, requirementFirstMs: firstAttempt.plannerMs, requirementRetryMs: secondAttempt ? secondAttempt.plannerMs : 0, plannerMs: requirementPlannerMs, planCompilerMs: compilerMs }), execution: Object.freeze({ toolCalls: 0, businessApiCalls: 0, dbAccessAttempts: 0, writeAttempts: 0 }) });
 }
 
 module.exports = { runPlannerPipeline };

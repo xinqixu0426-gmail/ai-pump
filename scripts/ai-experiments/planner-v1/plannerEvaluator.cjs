@@ -1,6 +1,7 @@
 'use strict';
 
 const { PLAN_STATUSES, STEP_MODES } = require('./plannerMemo.cjs');
+const { detectComparisonBasisMissing } = require('./requirementContradictionDetector.cjs');
 
 function normalized(value) { return String(value || '').normalize('NFKC').replace(/[\s，。！？、:：;；,.!?()（）-]/gu, '').toLowerCase(); }
 function contains(value, term) { return normalized(value).includes(normalized(term)); }
@@ -41,6 +42,7 @@ function evaluateRequirement(testCase, output) {
         const term = target.mention || target.canonicalName;
         if (term && !requirement.targets.some(value => contains(value, term) || target.canonicalName && contains(value, target.canonicalName))) failures.push(`REQUIREMENT_TARGET_NOT_PRESERVED:${term}`);
     }
+    if (detectComparisonBasisMissing({ requirement, context: output.context })) failures.push('COMPARISON_BASIS_REQUIRED');
     if (/(?:capabilityId|endpoint|http|sql|数据库表|executor|tool|function\s*\()/iu.test(output.requirementMemo)) failures.push('REQUIREMENT_IMPLEMENTATION_LEAK');
     return Object.freeze({ overall: failures.length ? 'FAIL' : 'PASS', failures: Object.freeze(unique(failures)) });
 }

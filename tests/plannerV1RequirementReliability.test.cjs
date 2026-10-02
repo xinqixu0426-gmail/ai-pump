@@ -64,3 +64,43 @@ test('RN-12 to RN-15 bound retry preserves target and explicit write intent', as
     const badWrite = await runPlannerPipeline({ rawOwnerInput: 'V750通用款加浮球，先算一下，不保存。', upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async (_input, dependencies) => dependencies.retryAddendum ? memo({ write: 'YES' }) : memo({ fact: 'CURRENT_COST' }) });
     assert.ok(badWrite.requirementValidation.violations.some(item => item.code === 'REQUIREMENT_WRITE_INTENT_CONTRADICTION'));
 });
+
+test('CB-01 to CB-07 detect only comparison goals without a retained basis', () => {
+    const oneTarget = U.V750_GENERIC_QUALIFIED;
+    const twoTargets = Object.freeze({ ...U.V750_GENERIC_QUALIFIED, finalGroundedTargets: Object.freeze([...U.V750_GENERIC_QUALIFIED.finalGroundedTargets, ...U.V110.finalGroundedTargets]) });
+    const qualifiedPair = U.QUALIFIED_STYLES;
+    const comparison = (fact, override = 'NONE', upstream = oneTarget) => normalized([
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款', `GOAL_FACT: ${fact}`, 'SELECTION_REQUIREMENT: NONE',
+        ...(override === 'NONE' ? [] : [`SCENARIO_OVERRIDE: ${override}`]), 'WRITE_REQUIRED: NO',
+    ], upstream).requirement;
+    assert.ok(detectRequirementContradiction({ requirement: comparison('COST_DIFFERENCE'), context: context(oneTarget) }).reasons.includes('COMPARISON_BASIS_MISSING'));
+    assert.ok(detectRequirementContradiction({ requirement: comparison('SCENARIO_COMPARISON'), context: context(oneTarget) }).reasons.includes('COMPARISON_BASIS_MISSING'));
+    assert.equal(detectRequirementContradiction({ requirement: comparison('COST_DIFFERENCE', '加浮球 | FLOAT'), context: context(oneTarget) }).reasons.includes('COMPARISON_BASIS_MISSING'), false);
+    assert.equal(detectRequirementContradiction({ requirement: comparison('COST_DIFFERENCE', 'NONE', twoTargets), context: context(twoTargets) }).reasons.includes('COMPARISON_BASIS_MISSING'), false);
+    assert.equal(detectRequirementContradiction({ requirement: comparison('COST_DIFFERENCE', 'NONE', qualifiedPair), context: context(qualifiedPair) }).reasons.includes('COMPARISON_BASIS_MISSING'), false);
+    assert.equal(detectRequirementContradiction({ requirement: comparison('SCENARIO_COST'), context: context(oneTarget) }).reasons.includes('COMPARISON_BASIS_MISSING'), false);
+    assert.equal(detectRequirementContradiction({ requirement: comparison('CURRENT_COST'), context: context(oneTarget) }).reasons.includes('COMPARISON_BASIS_MISSING'), false);
+});
+
+test('CB-08 to CB-11 bound comparison-basis retry without inventing a basis', async () => {
+    const first = memo({ fact: 'COST_DIFFERENCE', override: 'NONE' });
+    const recovered = memo({ fact: 'COST_DIFFERENCE', override: '不锈钢接轴 | ROTOR_PROCESS' });
+    let calls = 0;
+    const recoveredOutput = await runPlannerPipeline({ rawOwnerInput: 'V750通用款做不锈钢接轴成本差多少？', upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async (_input, dependencies) => {
+        calls += 1;
+        return dependencies.retryAddendum ? recovered : first;
+    } });
+    assert.equal(calls, 2);
+    assert.ok(recoveredOutput.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING'));
+    assert.equal(recoveredOutput.requirement.scenarioOverrides[0].expression, '不锈钢接轴');
+    const exhaustedOutput = await runPlannerPipeline({ rawOwnerInput: 'V750通用款做不锈钢接轴成本差多少？', upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => first });
+    assert.equal(exhaustedOutput.requirementAttempts.length, 2);
+    assert.ok(exhaustedOutput.requirementRetry.exhaustedReasons.includes('COMPARISON_BASIS_MISSING'));
+    const pairUpstream = Object.freeze({ ...U.V750_GENERIC_QUALIFIED, finalGroundedTargets: Object.freeze([...U.V750_GENERIC_QUALIFIED.finalGroundedTargets, ...U.V110.finalGroundedTargets]) });
+    let pairCalls = 0;
+    await runPlannerPipeline({ rawOwnerInput: 'V750通用款和V110成本差多少？', upstream: pairUpstream, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => {
+        pairCalls += 1;
+        return ['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款', 'TARGET: V110', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO'].join('\n');
+    } });
+    assert.equal(pairCalls, 1);
+});
