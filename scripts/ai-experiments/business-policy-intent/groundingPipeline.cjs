@@ -4,6 +4,7 @@ const { runBusinessAgent } = require('./businessAgent.cjs');
 const { runPolicyAgent } = require('./policyAgent.cjs');
 const { detectReferenceSurface } = require('./referenceDetection.cjs');
 const { runReferenceResolver, parseReferenceMemo } = require('./referenceResolver.cjs');
+const { buildNarrowBusinessReferenceHint } = require('./referenceHint.cjs');
 const { runRoleClassifier, parseRoleMemo } = require('./roleClassifier.cjs');
 const { resolveAgentEntity } = require('../../../api/ontology/agentResolver.cjs');
 
@@ -69,21 +70,25 @@ async function runGroundingPipeline(input, dependencies = {}) {
     const resolver = dependencies.resolveAgentEntity || resolveAgentEntity;
     const totalStart = process.hrtime.bigint();
     const detection = detectReferenceSurface(input.userInput);
-    const referencePromise = detection.status === 'DETECTED'
-        ? timed(() => referenceRunner({ userInput: input.userInput, recentOwnerWording: input.recentOwnerWording || '', referenceSurface: detection.surface }, dependencies))
-        : Promise.resolve({ value: null, ms: 0 });
-    const [business, policy, referenceModel] = await Promise.all([
+    const [business, policy] = await Promise.all([
         timed(() => businessRunner({ userInput: input.userInput, recentConversation: input.recentOwnerWording, businessModel: input.businessModel }, dependencies)),
         timed(() => policyRunner({ userInput: input.userInput, recentConversation: input.recentOwnerWording, domainPolicy: input.domainPolicy }, dependencies)),
-        referencePromise,
     ]);
-    const reference = parseReferenceMemo(referenceModel.value, detection);
+    const referenceHintStarted = process.hrtime.bigint();
+    const businessReferenceHint = detection.status === 'DETECTED'
+        ? buildNarrowBusinessReferenceHint({ recentOwnerWording: input.recentOwnerWording || '', businessMemo: business.value })
+        : null;
+    const referenceHintMs = detection.status === 'DETECTED' ? elapsed(referenceHintStarted) : 0;
+    const referenceModel = detection.status === 'DETECTED'
+        ? await timed(() => referenceRunner({ userInput: input.userInput, recentOwnerWording: input.recentOwnerWording || '', referenceSurface: detection.surface, businessReferenceHint }, dependencies))
+        : { value: null, ms: 0 };
+    const reference = parseReferenceMemo(referenceModel.value, detection, input.recentOwnerWording || '');
     if (reference.status === 'UNRESOLVED') {
         return Object.freeze({
-            businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, referenceMemo: referenceModel.value, reference,
+            businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference,
             roleMemo: null, roles: Object.freeze([]), gate: 'STOP_UNRESOLVED_REFERENCE', formalTargets: Object.freeze([]), formalResults: Object.freeze([]),
             modelCalls: Object.freeze({ business: 1, policy: 1, reference: 1, role: 0, intent: 0, utteranceExtractor: 0 }),
-            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceMs: referenceModel.ms, roleMs: 0, resolverFanoutMs: 0, totalMs: elapsed(totalStart) }),
+            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, roleMs: 0, resolverFanoutMs: 0, totalMs: elapsed(totalStart) }),
         });
     }
     const role = await timed(() => roleRunner({ userInput: input.userInput, businessMemo: business.value, policyMemo: policy.value, reference }, dependencies));
@@ -95,10 +100,10 @@ async function runGroundingPipeline(input, dependencies = {}) {
     }
     const resolverFanoutMs = formalResults.reduce((sum, result) => sum + result.typeResults.reduce((subtotal, item) => subtotal + item.resolverMs, 0), 0);
     return Object.freeze({
-        businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, referenceMemo: referenceModel.value, reference,
+        businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference,
         roleMemo: role.value, roles: parsedRole.roles, gate: gate.gate, formalTargets: gate.formalTargets, formalResults: Object.freeze(formalResults),
         modelCalls: Object.freeze({ business: 1, policy: 1, reference: detection.status === 'DETECTED' ? 1 : 0, role: 1, intent: 0, utteranceExtractor: 0 }),
-        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceMs: referenceModel.ms, roleMs: role.ms, resolverFanoutMs, totalMs: elapsed(totalStart) }),
+        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, roleMs: role.ms, resolverFanoutMs, totalMs: elapsed(totalStart) }),
     });
 }
 

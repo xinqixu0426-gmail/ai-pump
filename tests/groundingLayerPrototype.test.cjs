@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { detectReferenceSurface } = require('../scripts/ai-experiments/business-policy-intent/referenceDetection.cjs');
 const { parseReferenceMemo } = require('../scripts/ai-experiments/business-policy-intent/referenceResolver.cjs');
+const { messagesForReferenceResolver } = require('../scripts/ai-experiments/business-policy-intent/referenceResolver.cjs');
 const { messagesForRoleClassifier, parseRoleMemo } = require('../scripts/ai-experiments/business-policy-intent/roleClassifier.cjs');
+const { buildNarrowBusinessReferenceHint } = require('../scripts/ai-experiments/business-policy-intent/referenceHint.cjs');
 const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
 const { evaluateGrounding } = require('../scripts/ai-experiments/business-policy-intent/groundingEvaluator.cjs');
@@ -20,7 +22,7 @@ function dependencies({ reference = null, role, resolver, runRoleClassifier: rol
     return {
         runBusinessAgent: async input => { assert.equal(input.businessModel, 'BUSINESS_MODEL'); return 'Business Memo'; },
         runPolicyAgent: async input => { assert.equal(input.domainPolicy, 'DOMAIN_POLICY'); return 'Policy Memo'; },
-        runReferenceResolver: async input => { assert.equal('businessMemo' in input, false); assert.equal('policyMemo' in input, false); return reference; },
+        runReferenceResolver: async input => { assert.equal('businessMemo' in input, false); assert.equal('policyMemo' in input, false); assert.ok(input.businessReferenceHint); return reference; },
         runRoleClassifier: roleRunner || (async input => { assert.equal(input.businessMemo, 'Business Memo'); assert.equal(input.policyMemo, 'Policy Memo'); return role; }),
         resolveAgentEntity: resolver || (async input => notFound(input.entityType, input.mention)),
     };
@@ -51,7 +53,7 @@ test('Unresolved reference is an early stop before Role and resolver calls', asy
 });
 
 test('Resolved reference remains language only before Role classification', () => {
-    const result = parseReferenceMemo(referenceMemo('RESOLVED', '刚才那个线圈', '12-120'), { status: 'DETECTED', surface: '刚才那个线圈' });
+    const result = parseReferenceMemo(referenceMemo('RESOLVED', '刚才那个线圈', '12-120'), { status: 'DETECTED', surface: '刚才那个线圈' }, '我先看看12-120。');
     assert.deepEqual(result, { status: 'RESOLVED', surface: '刚才那个线圈', resolvedLanguageReference: '12-120' });
     assert.equal(Object.hasOwn(result, 'entityType'), false);
     assert.equal(Object.hasOwn(result, 'canonicalId'), false);
@@ -59,10 +61,44 @@ test('Resolved reference remains language only before Role classification', () =
 
 test('Minimal Role protocol has no entity type, request class, grounding need, or query role', () => {
     const messages = messagesForRoleClassifier({ userInput: 'V750换木箱多少钱？', businessMemo: 'B', policyMemo: 'P', reference: { status: 'NONE' } });
-    assert.doesNotMatch(messages[0].content, /REQUEST_CLASS|GROUNDING_NEED|QUERY_ONLY|RECIPE\/COIL/u);
+    assert.doesNotMatch(messages[0].content, /ROLE:\s*原始语言表达\s*\|\s*(?:RECIPE|COIL|TEMPLATE|PART)/u);
     assert.deepEqual(parseRoleMemo('ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 换木箱 | CONFIG_VALUE'), {
         roles: [{ expression: 'V750', role: 'FORMAL_ENTITY_CANDIDATE' }, { expression: '换木箱', role: 'CONFIG_VALUE' }],
     });
+});
+
+test('Formal candidate means a resolver candidate for the current request, not an already unique identity', () => {
+    const prompt = messagesForRoleClassifier({ userInput: '12-120多少钱？', businessMemo: 'B', policyMemo: 'P', reference: { status: 'NONE' } })[0].content;
+    assert.match(prompt, /不要求已经唯一、canonical 或已绑定正式实体/u);
+    assert.match(prompt, /12-120多少钱/u);
+    assert.match(prompt, /FORMAL_ENTITY_CANDIDATE/u);
+});
+
+test('Narrow business reference hint exposes only prior owner expression and category', () => {
+    const hint = buildNarrowBusinessReferenceHint({
+        recentOwnerWording: '我先看看12-120。刚才看的是V750通用款。先看通用款模板。',
+        businessMemo: '12-120 是线圈相关表达。\nV750通用款 是 Recipe 产品配置。\n通用款模板 是 Template 相关表达。',
+    });
+    assert.match(hint.text, /12-120：线圈\/线圈方案相关业务表达/u);
+    assert.match(hint.text, /V750通用款：配方\/产品配置相关业务表达/u);
+    assert.match(hint.text, /通用款模板：模板相关业务表达/u);
+    assert.doesNotMatch(hint.text, /canonical|candidate|候选|成本|库存|\bid\b|\d+个/u);
+});
+
+test('Reference prompt receives a narrow category hint, not a Business or Policy Memo', () => {
+    const messages = messagesForReferenceResolver({
+        userInput: '刚才那个线圈多少钱？',
+        recentOwnerWording: '我先看看12-120。',
+        referenceSurface: '刚才那个线圈',
+        businessReferenceHint: { text: '12-120：线圈/线圈方案相关业务表达' },
+    });
+    assert.match(messages[0].content, /12-120：线圈\/线圈方案相关业务表达/u);
+    assert.doesNotMatch(messages[0].content, /Business Memo（帮助理解|Policy Memo（帮助保留/u);
+});
+
+test('Reference parsing rejects an antecedent absent from recent owner wording', () => {
+    const result = parseReferenceMemo(referenceMemo('RESOLVED', '它', 'V750'), { status: 'DETECTED', surface: '它' }, '我先看看12-120。');
+    assert.equal(result.status, 'UNRESOLVED');
 });
 
 test('No reference surface has zero Reference calls and Role output drives a formal-only fan-out', async () => {

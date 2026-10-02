@@ -35,6 +35,24 @@ const TARGETED_CASES = Object.freeze([
     { id: 'T-10', user: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看12-120。', referenceStatus: 'RESOLVED', referenceSurface: '刚才那个线圈', resolvedLanguageReference: '12-120', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
 ]);
 
+const REFERENCE_FOCUSED_CASES = Object.freeze([
+    { id: 'R-REF-01', user: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看12-120。', referenceStatus: 'RESOLVED', referenceSurface: '刚才那个线圈', resolvedLanguageReference: '12-120', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
+    { id: 'R-REF-02', user: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看V750。', referenceStatus: 'UNRESOLVED', referenceSurface: '刚才那个线圈', gate: 'STOP_UNRESOLVED_REFERENCE', roleCalls: 0, resolverCalls: 0 },
+    { id: 'R-REF-03', user: '刚才那个线圈多少钱？', recentOwnerWording: '我在看12-120和12-130。', referenceStatus: 'UNRESOLVED', referenceSurface: '刚才那个线圈', gate: 'STOP_UNRESOLVED_REFERENCE', roleCalls: 0, resolverCalls: 0 },
+    { id: 'R-REF-04', user: '它现在成本多少？', recentOwnerWording: '刚才看的是V750通用款。', referenceStatus: 'RESOLVED', referenceSurface: '它', resolvedLanguageReference: 'V750通用款', roles: [formal(['V750', '通用款'])], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target(['V750', '通用款'], 'recipe', 'EXACT')] },
+    { id: 'R-REF-05', user: '这个有哪些固定件？', recentOwnerWording: '先看通用款模板。', referenceStatus: 'RESOLVED', referenceSurface: '这个', resolvedLanguageReference: '通用款模板', roles: [formal('通用款模板')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('通用款模板', 'template', 'EXACT')] },
+]);
+
+const ROLE_FOCUSED_CASES = Object.freeze([
+    { id: 'R-ROLE-01', user: '12-120是什么意思？', referenceStatus: 'NONE', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'R-ROLE-02', user: '12-120多少钱？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
+    { id: 'R-ROLE-03', user: '12-120有几个方案？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
+    { id: 'R-ROLE-04', user: 'V750是什么？', referenceStatus: 'NONE', roles: [concept('V750')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'R-ROLE-05', user: 'V750现在成本多少？', referenceStatus: 'NONE', roles: [formal('V750')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('V750', 'recipe', 'MULTIPLE')] },
+]);
+
+const FOCUSED_CASES = Object.freeze([...TARGETED_CASES, ...REFERENCE_FOCUSED_CASES, ...ROLE_FOCUSED_CASES]);
+
 const FULL_CASES = Object.freeze([
     { id: 'G-01', user: '模板和配方有什么区别？', referenceStatus: 'NONE', roles: [concept('模板'), concept('配方')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
     { id: 'G-02', user: '12-120是什么意思？', referenceStatus: 'NONE', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
@@ -79,19 +97,19 @@ async function execute(testCase, env, run, fixture) {
 async function main() {
     const env = { ...process.env, ...(fs.existsSync(path.join(root, '.env')) ? dotenv.parse(fs.readFileSync(path.join(root, '.env'))) : {}) };
     env.DEEPSEEK_MODEL = 'deepseek-chat';
-    const base = scope === 'full' ? FULL_CASES : TARGETED_CASES;
+    const base = scope === 'full' ? FULL_CASES : FOCUSED_CASES;
     const repeats = scope === 'full' ? FULL_CASES.filter(item => FULL_REPEATS.includes(item.id)) : [];
     const fixture = createGroundingFixture();
     try {
-        console.error(`M4-3A-R4 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
+        console.error(`M4-3A-R5 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
         const executions = [];
         for (const testCase of base) executions.push(await execute(testCase, env, 1, fixture));
         for (const testCase of repeats) executions.push(await execute(testCase, env, 2, fixture));
         const timed = executions.filter(item => item.timings);
         const modelCalls = executions.reduce((sum, item) => sum + (item.modelCalls ? Object.values(item.modelCalls).reduce((subtotal, value) => subtotal + value, 0) : 0), 0);
         const resolverCalls = executions.reduce((sum, item) => sum + (item.formalResults?.reduce((subtotal, result) => subtotal + result.typeResults.length, 0) || 0), 0);
-        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
-        const result = { phase: 'M4-3A-R4', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, results: executions };
+        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
+        const result = { phase: 'M4-3A-R5', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, results: executions };
         if (outputPath) fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
         console.log(JSON.stringify({ ...result, results: executions.map(item => ({ id: item.id, run: item.run, evaluation: item.evaluation, reference: item.reference, roles: item.roles, gate: item.gate, formalResults: item.formalResults?.map(value => ({ mention: value.mention, entityType: value.entityType, status: value.status, typeResults: value.typeResults.map(type => ({ entityType: type.entityType, status: type.result.status })) })), timings: item.timings, error: item.error || null })) }, null, 2));
     } finally { fixture.close(); }
@@ -102,4 +120,4 @@ if (process.argv[1] && path.basename(process.argv[1]) === 'run-grounding-smoke.c
     main().catch(error => { console.error(error.stack || error); process.exitCode = 1; }).finally(() => clearInterval(keepAlive));
 }
 
-module.exports = { TARGETED_CASES, FULL_CASES, FULL_REPEATS, execute, resolverCallsFor };
+module.exports = { TARGETED_CASES, REFERENCE_FOCUSED_CASES, ROLE_FOCUSED_CASES, FOCUSED_CASES, FULL_CASES, FULL_REPEATS, execute, resolverCallsFor };
