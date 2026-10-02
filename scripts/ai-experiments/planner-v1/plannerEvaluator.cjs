@@ -4,6 +4,13 @@ const { PLAN_STATUSES, STEP_MODES } = require('./plannerMemo.cjs');
 
 function normalized(value) { return String(value || '').normalize('NFKC').replace(/[\s，。！？、:：;；,.!?()（）-]/gu, '').toLowerCase(); }
 function contains(value, term) { return normalized(value).includes(normalized(term)); }
+function preservesOwnerSpan(value, term) {
+    if (contains(value, term) || contains(term, value)) return true;
+    const actual = normalized(value);
+    const expected = normalized(term);
+    for (let start = 0; start < expected.length; start += 1) for (let end = expected.length; end - start >= 2; end -= 1) if (actual.includes(expected.slice(start, end))) return true;
+    return false;
+}
 function planText(plan) { return [plan.ownerGoal, ...plan.groundedTargets, ...plan.requiredFacts.flatMap(fact => Object.values(fact)), ...plan.steps.flatMap(step => Object.values(step)), plan.completion, plan.blockReason, plan.resumeRequirement].join('\n'); }
 function visibleIds(catalog) { return new Set(catalog.visibleCapabilities.map(capability => capability.capabilityId)); }
 function hasCapabilityPath(steps, alternatives) {
@@ -22,11 +29,12 @@ function evaluateRequirement(testCase, output) {
     if (!requirement.ownerGoal) failures.push('REQUIREMENT_OWNER_GOAL_MISSING');
     for (const fact of expected.facts || []) if (!requirement.goalFacts.includes(fact)) failures.push(`REQUIREMENT_GOAL_FACT_MISSING:${fact}`);
     if (expected.factsAny?.length && !expected.factsAny.some(fact => requirement.goalFacts.includes(fact))) failures.push(`REQUIREMENT_GOAL_FACT_MISSING_ANY:${expected.factsAny.join(',')}`);
+    for (const fact of requirement.goalFacts) if (expected.allowedFacts?.length && !expected.allowedFacts.includes(fact)) failures.push(`REQUIREMENT_GOAL_FACT_UNNECESSARY:${fact}`);
     if (expected.selection && requirement.selectionRequirement !== expected.selection) failures.push('REQUIREMENT_SELECTION_INCORRECT');
     for (const [index, expression] of (expected.overrides || []).entries()) {
-        const actual = requirement.scenarioOverrides.find(override => contains(override.expression, expression));
-        if (!actual) failures.push(`REQUIREMENT_OVERRIDE_LOSS:${expression}`);
-        else if (expected.classes?.[index] && actual.scenarioClass !== expected.classes[index]) failures.push(`REQUIREMENT_SCENARIO_CLASS_INCORRECT:${expression}`);
+        const actual = requirement.scenarioOverrides.filter(override => preservesOwnerSpan(override.expression, expression));
+        if (!actual.length) failures.push(`REQUIREMENT_OVERRIDE_LOSS:${expression}`);
+        else if (expected.classes?.[index] && !actual.some(override => override.scenarioClass === expected.classes[index])) failures.push(`REQUIREMENT_SCENARIO_CLASS_INCORRECT:${expression}`);
     }
     if (expected.write && requirement.writeRequired !== expected.write) failures.push('REQUIREMENT_WRITE_INCORRECT');
     for (const target of output.context.finalGroundedTargets || []) {
@@ -86,4 +94,4 @@ function evaluatePlannerCase(testCase, output) {
     return Object.freeze({ overall: failures.length ? 'FAIL' : 'PASS', failures, requirement, compiler, classifications: Object.freeze({ requirement: requirement.failures, compiler: compiler.failures, planContract: Object.freeze((output.validation?.violations || []).map(violation => violation.code)), evaluatorContract: Object.freeze([]) }), planStatus: output.rawPlan.status, validatedStatus: output.validation?.effectivePlanStatus, steps: output.rawPlan.steps, requiredFacts: output.rawPlan.requiredFacts, groundedTargets: output.rawPlan.groundedTargets });
 }
 
-module.exports = { evaluatePlannerCase, evaluateRequirement, evaluateCompiledPlan, evaluateCompilerSafety, hasCapabilityPath };
+module.exports = { evaluatePlannerCase, evaluateRequirement, evaluateCompiledPlan, evaluateCompilerSafety, hasCapabilityPath, preservesOwnerSpan };

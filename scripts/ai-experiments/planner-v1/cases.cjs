@@ -7,7 +7,7 @@ function base(id, user, upstream, expected) { return Object.freeze({ id, user, u
 const BASE_CASES = Object.freeze([
     base('P-01', '模板和配方有什么区别？', U.CONCEPT, { status: 'NO_TOOL_REQUIRED', steps: 0, requirement: { status: 'NO_FORMAL_FACT_REQUIRED' } }),
     base('P-02', '12-120是什么意思？', U.CONCEPT, { status: 'NO_TOOL_REQUIRED', steps: 0, requirement: { status: 'NO_FORMAL_FACT_REQUIRED' } }),
-    base('P-03', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'READY', targetTerms: ['通用款模板'], capabilityPaths: [['templates.detail']], modes: ['READ'], minFacts: 1, requirement: { facts: ['FORMAL_DETAIL'] } }),
+    base('P-03', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'READY', targetTerms: ['通用款模板'], capabilityPaths: [['templates.detail'], ['relations.read']], modes: ['READ'], minFacts: 1, requirement: { factsAny: ['FORMAL_DETAIL', 'RELATION'], allowedFacts: ['FORMAL_DETAIL', 'RELATION'] } }),
     base('P-04', '查一下V750通用款成本。', U.V750_GENERIC_QUALIFIED, { status: 'READY', targetTerms: ['V750通用款'], capabilityPaths: [['recipes.current_costs']], modes: ['READ'], minFacts: 1, requirement: { facts: ['CURRENT_COST'] } }),
     base('P-05', '查一下V750成本。', U.V750_GENERIC, { status: 'BLOCKED_AMBIGUITY', ambiguityUsage: 'SELECTION_REQUIRED', steps: 0, requirement: { facts: ['CURRENT_COST'], selection: 'SINGLE_TARGET_REQUIRED' } }),
     base('P-06', '12-120多少钱？', U.COIL_GENERIC, { status: 'BLOCKED_AMBIGUITY', ambiguityUsage: 'SELECTION_REQUIRED', steps: 0, requirement: { facts: ['CURRENT_COST'], selection: 'SINGLE_TARGET_REQUIRED' } }),
@@ -26,9 +26,9 @@ const BASE_CASES = Object.freeze([
 ]);
 
 const NEGATIVE_CASES = Object.freeze([
-    base('N-01', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'BLOCKED_CAPABILITY', steps: 0, catalogOmit: ['templates.detail'], requirement: { facts: ['FORMAL_DETAIL'] } }),
+    base('N-01', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'BLOCKED_CAPABILITY', steps: 0, catalogOmit: ['templates.detail', 'relations.read'], requirement: { factsAny: ['FORMAL_DETAIL', 'RELATION'], allowedFacts: ['FORMAL_DETAIL', 'RELATION'] } }),
     base('N-02', '12-120多少钱？', U.COIL_GENERIC, { status: 'BLOCKED_AMBIGUITY', steps: 0, requirement: { facts: ['CURRENT_COST'], selection: 'SINGLE_TARGET_REQUIRED' } }),
-    base('N-03', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'READY', capabilityPaths: [['templates.detail']], modes: ['READ'], minFacts: 1, requirement: { facts: ['FORMAL_DETAIL'] } }),
+    base('N-03', '通用款模板有哪些固定件？', U.TEMPLATE, { status: 'READY', capabilityPaths: [['templates.detail'], ['relations.read']], modes: ['READ'], minFacts: 1, requirement: { factsAny: ['FORMAL_DETAIL', 'RELATION'], allowedFacts: ['FORMAL_DETAIL', 'RELATION'] } }),
     base('N-04', 'V750通用款电缆5米，木箱，先算一下，不保存。', U.V750_GENERIC_QUALIFIED, { status: 'BLOCKED_CAPABILITY', steps: 0, noWrite: true, requirement: { factsAny: ['SCENARIO_COMPARISON', 'SCENARIO_COST', 'COST_DIFFERENCE'], overrides: ['电缆5米', '木箱'], classes: ['CABLE', 'PACKAGING'], write: 'NO' } }),
     base('N-05', 'V750通用款换木箱成本差多少？', U.V750_GENERIC_QUALIFIED, { status: 'BLOCKED_CAPABILITY', steps: 0, noWrite: true, catalogHasHiddenWrite: true, requirement: { factsAny: ['SCENARIO_COMPARISON', 'COST_DIFFERENCE'], overrides: ['木箱'], classes: ['PACKAGING'] } }),
     base('N-06', 'V750通用款和V110成本差多少？', Object.freeze({ ...U.V750_GENERIC_QUALIFIED, finalGroundedTargets: Object.freeze([...U.V750_GENERIC_QUALIFIED.finalGroundedTargets, ...U.V110.finalGroundedTargets]) }), { status: 'READY', capabilityPaths: [['cost.recipe_difference'], ['recipes.current_costs', 'COMPUTE']], modes: ['READ'], multiTarget: true, requirement: { facts: ['COST_DIFFERENCE'] } }),

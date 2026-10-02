@@ -1,0 +1,9 @@
+{
+  "phase": "M4-4E",
+  "scope": "full",
+  "status": "NOT_RUN",
+  "reason": "REPEAT_RELIABILITY_PREREQUISITE_FAILED",
+  "failedRepeat": "P-12_ROTOR_PROCESS 4/5; one Requirement call omitted the owner scenario override and did not meet the approved retry triggers.",
+  "compilerModelCalls": 0,
+  "frozenUpstreamChanged": false
+}
