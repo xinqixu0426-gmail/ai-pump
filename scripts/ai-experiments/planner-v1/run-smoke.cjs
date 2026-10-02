@@ -7,7 +7,7 @@ const { createPlannerCapabilityCatalogSnapshot } = require('./capabilityCatalogS
 const { TARGETED_CASES, BASE_CASES, NEGATIVE_CASES } = require('./cases.cjs');
 const { runPlannerPipeline } = require('./plannerPipeline.cjs');
 const { evaluatePlannerCase, evaluateRequirement } = require('./plannerEvaluator.cjs');
-const { detectComparisonBasisMissing } = require('./requirementContradictionDetector.cjs');
+const { detectComparisonBasisMissing, detectOverrideProvenanceInvalid } = require('./requirementContradictionDetector.cjs');
 const { runGroundingPipeline } = require('../business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../business-policy-intent/groundingFixture.cjs');
 
@@ -70,6 +70,12 @@ function retryMetrics(results) {
         comparisonBasisRetriesFailed: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING') && item.evaluation.requirement.overall === 'FAIL').length,
         comparisonBasisFalsePositives: retried.filter(item => item.requirementRetry.reasons.includes('COMPARISON_BASIS_MISSING') && !detectComparisonBasisMissing({ requirement: item.requirementAttempts[0].normalizedRequirement, context: item.context })).length,
         comparisonBasisFalseNegatives: first.filter(item => item.item.requirementRetry.triggered === false && detectComparisonBasisMissing({ requirement: item.item.requirementAttempts[0].normalizedRequirement, context: item.item.context })).length,
+        overrideProvenanceInvalidTriggers: retried.filter(item => item.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID')).length,
+        overrideProvenanceRetriesTriggered: retried.filter(item => item.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID')).length,
+        overrideProvenanceRetriesRecovered: retried.filter(item => item.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID') && item.evaluation.requirement.overall === 'PASS').length,
+        overrideProvenanceRetriesFailed: retried.filter(item => item.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID') && item.evaluation.requirement.overall === 'FAIL').length,
+        overrideProvenanceFalsePositives: retried.filter(item => item.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID') && !detectOverrideProvenanceInvalid({ requirement: item.requirementAttempts[0].normalizedRequirement, validation: item.requirementAttempts[0].validation })).length,
+        overrideProvenanceFalseNegatives: first.filter(item => item.item.requirementRetry.triggered === false && detectOverrideProvenanceInvalid({ requirement: item.item.requirementAttempts[0].normalizedRequirement, validation: item.item.requirementAttempts[0].validation })).length,
         retryFalsePositives: retried.filter(item => first.find(value => value.item === item).evaluation.overall === 'PASS').length,
         retryFalseNegatives: first.filter(item => item.item.requirementRetry.triggered === false && item.item.requirement.scenarioOverrides.length && item.item.requirement.goalFacts.includes('CURRENT_COST') && !item.item.requirement.goalFacts.some(fact => ['SCENARIO_COST', 'SCENARIO_COMPARISON', 'COST_DIFFERENCE'].includes(fact))).length,
         maxAttemptsObserved: Math.max(0, ...results.map(item => item.requirementAttempts.length)),

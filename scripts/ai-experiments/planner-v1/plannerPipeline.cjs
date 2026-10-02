@@ -24,10 +24,10 @@ async function runPlannerPipeline({ rawOwnerInput, upstream, capabilityCatalog }
         return Object.freeze({ memo, parsed, normalized, validation, plannerMs });
     };
     const firstAttempt = await runAttempt();
-    const contradiction = detectRequirementContradiction({ requirement: firstAttempt.normalized.requirement, context });
+    const contradiction = detectRequirementContradiction({ requirement: firstAttempt.normalized.requirement, context, validation: firstAttempt.validation });
     const secondAttempt = contradiction.detected ? await runAttempt(retryAddendum(contradiction.reasons)) : null;
     const finalAttempt = secondAttempt || firstAttempt;
-    const finalContradiction = detectRequirementContradiction({ requirement: finalAttempt.normalized.requirement, context });
+    const finalContradiction = detectRequirementContradiction({ requirement: finalAttempt.normalized.requirement, context, validation: finalAttempt.validation });
     const requirementMemo = finalAttempt.memo;
     const requirement = finalAttempt.normalized.requirement;
     const requirementValidation = finalAttempt.validation;

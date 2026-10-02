@@ -1,0 +1,198 @@
+{
+  "phase": "M4-4G",
+  "suite": "requirement-reliability-comparison-and-override-provenance",
+  "passed": 38,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "RN-01",
+      "pass": true,
+      "finding": "UNRESOLVED overrides raw READY"
+    },
+    {
+      "id": "RN-02",
+      "pass": true,
+      "finding": "MULTIPLE overrides raw unresolved"
+    },
+    {
+      "id": "RN-03",
+      "pass": true,
+      "finding": "EXACT overrides raw unresolved"
+    },
+    {
+      "id": "RN-04",
+      "pass": true,
+      "finding": "concept upstream controls no-formal status"
+    },
+    {
+      "id": "RN-05",
+      "pass": true,
+      "finding": "RELATION is valid for template fixed-part goal"
+    },
+    {
+      "id": "RN-06",
+      "pass": true,
+      "finding": "FACT equivalence accepts a relation goal"
+    },
+    {
+      "id": "RN-07",
+      "pass": true,
+      "finding": "unresolved keeps cost goal while compiler blocks"
+    },
+    {
+      "id": "RN-08",
+      "pass": true,
+      "finding": "current-only scenario cost goal contradicts override"
+    },
+    {
+      "id": "RN-09",
+      "pass": true,
+      "finding": "scenario cost has no contradiction"
+    },
+    {
+      "id": "RN-10",
+      "pass": true,
+      "finding": "cost difference has no contradiction"
+    },
+    {
+      "id": "RN-11",
+      "pass": true,
+      "finding": "memo-supported OTHER triggers recheck"
+    },
+    {
+      "id": "RN-12",
+      "pass": true,
+      "finding": "pipeline allows one retry only"
+    },
+    {
+      "id": "RN-13",
+      "pass": true,
+      "finding": "retry target remains grounded"
+    },
+    {
+      "id": "RN-14",
+      "pass": true,
+      "finding": "retry cannot reverse explicit no-save intent"
+    },
+    {
+      "id": "RN-15",
+      "pass": true,
+      "finding": "retry result is validated"
+    },
+    {
+      "id": "CB-01",
+      "pass": true,
+      "finding": "one target cost difference without override is incomplete"
+    },
+    {
+      "id": "CB-02",
+      "pass": true,
+      "finding": "one target scenario comparison without override is incomplete"
+    },
+    {
+      "id": "CB-03",
+      "pass": true,
+      "finding": "scenario override is a comparison basis"
+    },
+    {
+      "id": "CB-04",
+      "pass": true,
+      "finding": "two explicit targets are a comparison basis"
+    },
+    {
+      "id": "CB-05",
+      "pass": true,
+      "finding": "qualified target set is a comparison basis"
+    },
+    {
+      "id": "CB-06",
+      "pass": true,
+      "finding": "scenario cost is not necessarily comparison"
+    },
+    {
+      "id": "CB-07",
+      "pass": true,
+      "finding": "current cost is not comparison"
+    },
+    {
+      "id": "CB-08",
+      "pass": true,
+      "finding": "comparison basis retry is bounded to one retry"
+    },
+    {
+      "id": "CB-09",
+      "pass": true,
+      "finding": "retry may recover the owner scenario override"
+    },
+    {
+      "id": "CB-10",
+      "pass": true,
+      "finding": "unrecovered comparison-basis gap remains explicit after retry"
+    },
+    {
+      "id": "CB-11",
+      "pass": true,
+      "finding": "two-target comparison does not retry"
+    },
+    {
+      "id": "OP-01",
+      "pass": true,
+      "finding": "owner span 做电泳 is valid"
+    },
+    {
+      "id": "OP-02",
+      "pass": true,
+      "finding": "owner subspan 电泳 is valid"
+    },
+    {
+      "id": "OP-03",
+      "pass": true,
+      "finding": "paraphrase 增加电泳 is invalid"
+    },
+    {
+      "id": "OP-04",
+      "pass": true,
+      "finding": "owner span 电缆5米 is valid"
+    },
+    {
+      "id": "OP-05",
+      "pass": true,
+      "finding": "paraphrase 改成5米电缆 is invalid"
+    },
+    {
+      "id": "OP-06",
+      "pass": true,
+      "finding": "invalid provenance triggers one retry"
+    },
+    {
+      "id": "OP-07",
+      "pass": true,
+      "finding": "retry restores an exact owner span"
+    },
+    {
+      "id": "OP-08",
+      "pass": true,
+      "finding": "persistently invalid provenance stays a failure"
+    },
+    {
+      "id": "OP-09",
+      "pass": true,
+      "finding": "retry remains bounded to one retry"
+    },
+    {
+      "id": "OP-10",
+      "pass": true,
+      "finding": "valid first span does not retry"
+    },
+    {
+      "id": "OP-11",
+      "pass": true,
+      "finding": "both valid owner override spans do not retry"
+    },
+    {
+      "id": "OP-12",
+      "pass": true,
+      "finding": "one invalid override makes the whole requirement retry"
+    }
+  ]
+}

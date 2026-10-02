@@ -1,0 +1,10 @@
+{
+  "phase": "M4-4G",
+  "scope": "full",
+  "status": "NOT_RUN",
+  "reason": "P11_PROVENANCE_RELIABILITY_PREREQUISITE_FAILED",
+  "failedReliability": "P-11 ELECTROPHORESIS 9/10: one Requirement memo retained a valid owner span but added CURRENT_COST and RELATION to a scenario-comparison goal, causing the deterministic compiler to correctly return BLOCKED_CAPABILITY.",
+  "planCompilerChanged": false,
+  "compilerModelCalls": 0,
+  "frozenUpstreamChanged": false
+}

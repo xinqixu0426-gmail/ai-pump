@@ -14,7 +14,7 @@ function messagesForRequirementPlanner(input, retryAddendum = null) {
             'REQUIREMENT_STATUS 只作原始观测记录：READY | NO_FORMAL_FACT_REQUIRED | UNRESOLVED_GROUNDING。它会由后续冻结 Grounding 证据确定性归一；不要用它代替 GOAL_FACT、Selection 或场景判断。',
             'GOAL_FACT 只能是 FORMAL_DETAIL | CURRENT_COST | RELATION | CANDIDATE_SET | SCENARIO_COST | SCENARIO_COMPARISON | COST_DIFFERENCE | OTHER。用最少的事实类表达目标。',
             'SELECTION_REQUIREMENT 只能是 NONE | SINGLE_TARGET_REQUIRED | WHOLE_SET。多个候选中需要某个候选专属事实时 SINGLE_TARGET_REQUIRED；目标本身是候选集合、数量或列表时 WHOLE_SET；显式限定的多个正式 target 用 NONE。',
-            '场景变化必须逐行保留老板原话；每行可选分类 PACKAGING | CABLE | FLOAT | SURFACE_TREATMENT | ROTOR_PROCESS | COIL | BARREL | OTHER。PACKAGING 是包装材料或方式；CABLE 是电缆长度、规格或线缆配置；FLOAT 是浮球相关配置；SURFACE_TREATMENT 是表面处理/表面工艺；ROTOR_PROCESS 是转子制造/加工工艺（如接轴、转轴相关工艺选项）；COIL 是线圈方案/绕组变化；BARREL 是机筒/桶体长度变化。只有 Business Memo 无法归入这些类别才使用 OTHER。不要把它翻译成数据库字段或正式 ID。',
+            '场景变化必须逐行直接复制老板原话中的实际连续文字片段，不要改写、补词或同义转述；每行可选分类 PACKAGING | CABLE | FLOAT | SURFACE_TREATMENT | ROTOR_PROCESS | COIL | BARREL | OTHER。PACKAGING 是包装材料或方式；CABLE 是电缆长度、规格或线缆配置；FLOAT 是浮球相关配置；SURFACE_TREATMENT 是表面处理/表面工艺；ROTOR_PROCESS 是转子制造/加工工艺（如接轴、转轴相关工艺选项）；COIL 是线圈方案/绕组变化；BARREL 是机筒/桶体长度变化。只有 Business Memo 无法归入这些类别才使用 OTHER。不要把它翻译成数据库字段或正式 ID。',
             'WRITE_REQUIRED 只反映老板是否明确要求正式保存/修改；“先算一下、不保存、预览”是 NO。当前阶段写入限制会由后续确定性层处理。',
             '严格只输出下列行，不写解释：',
             'REQUIREMENT_STATUS: ...',

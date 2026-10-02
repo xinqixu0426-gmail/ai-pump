@@ -104,3 +104,59 @@ test('CB-08 to CB-11 bound comparison-basis retry without inventing a basis', as
     } });
     assert.equal(pairCalls, 1);
 });
+
+test('OP-01 to OP-05 preserve strict owner-span override provenance', () => {
+    const owner = 'V750通用款做电泳成本增加多少？';
+    const validLong = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED, owner);
+    const validShort = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED, owner);
+    const invalid = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 增加电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED, owner);
+    const multiOwner = 'V750通用款电缆5米，木箱，先算一下，不保存。';
+    const cable = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: SCENARIO_COST', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 电缆5米 | CABLE', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED, multiOwner);
+    const rewrittenCable = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: SCENARIO_COST', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 改成5米电缆 | CABLE', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED, multiOwner);
+    assert.equal(validateRequirementMemo({ requirement: validLong.requirement, context: context(U.V750_GENERIC_QUALIFIED, owner) }).validationStatus, 'VALID');
+    assert.equal(validateRequirementMemo({ requirement: validShort.requirement, context: context(U.V750_GENERIC_QUALIFIED, owner) }).validationStatus, 'VALID');
+    assert.ok(validateRequirementMemo({ requirement: invalid.requirement, context: context(U.V750_GENERIC_QUALIFIED, owner) }).violations.some(item => item.code === 'REQUIREMENT_OVERRIDE_NOT_IN_OWNER_WORDING'));
+    assert.equal(validateRequirementMemo({ requirement: cable.requirement, context: context(U.V750_GENERIC_QUALIFIED, multiOwner) }).validationStatus, 'VALID');
+    assert.ok(validateRequirementMemo({ requirement: rewrittenCable.requirement, context: context(U.V750_GENERIC_QUALIFIED, multiOwner) }).violations.some(item => item.code === 'REQUIREMENT_OVERRIDE_NOT_IN_OWNER_WORDING'));
+});
+
+test('OP-06 to OP-12 retry only invalid override provenance and remains bounded', async () => {
+    const owner = 'V750通用款做电泳成本增加多少？';
+    const invalid = ['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 增加电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO'].join('\n');
+    const recovered = invalid.replace('增加电泳', '做电泳');
+    let calls = 0;
+    const output = await runPlannerPipeline({ rawOwnerInput: owner, upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async (_input, dependencies) => {
+        calls += 1;
+        return dependencies.retryAddendum ? recovered : invalid;
+    } });
+    assert.equal(calls, 2);
+    assert.ok(output.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID'));
+    assert.equal(output.requirementValidation.validationStatus, 'VALID');
+    assert.equal(output.requirement.targets[0], 'V750通用款');
+    const exhausted = await runPlannerPipeline({ rawOwnerInput: owner, upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => invalid });
+    assert.equal(exhausted.requirementAttempts.length, 2);
+    assert.ok(exhausted.requirementRetry.exhaustedReasons.includes('OVERRIDE_PROVENANCE_INVALID'));
+    let validCalls = 0;
+    await runPlannerPipeline({ rawOwnerInput: owner, upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => {
+        validCalls += 1;
+        return recovered;
+    } });
+    assert.equal(validCalls, 1);
+    const multiOwner = 'V750通用款电缆5米，木箱，先算一下，不保存。';
+    const multiValid = ['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 场景成本', 'TARGET: V750通用款', 'GOAL_FACT: SCENARIO_COST', 'SELECTION_REQUIREMENT: NONE', 'SCENARIO_OVERRIDE: 电缆5米 | CABLE', 'SCENARIO_OVERRIDE: 木箱 | PACKAGING', 'WRITE_REQUIRED: NO'].join('\n');
+    const multiInvalid = multiValid.replace('木箱 | PACKAGING', '改木箱包装 | PACKAGING');
+    let multiCalls = 0;
+    const multiOutput = await runPlannerPipeline({ rawOwnerInput: multiOwner, upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async (_input, dependencies) => {
+        multiCalls += 1;
+        return dependencies.retryAddendum ? multiValid : multiInvalid;
+    } });
+    assert.equal(multiCalls, 2);
+    assert.ok(multiOutput.requirementRetry.reasons.includes('OVERRIDE_PROVENANCE_INVALID'));
+    assert.equal(multiOutput.requirementValidation.validationStatus, 'VALID');
+    let multiValidCalls = 0;
+    await runPlannerPipeline({ rawOwnerInput: multiOwner, upstream: U.V750_GENERIC_QUALIFIED, capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => {
+        multiValidCalls += 1;
+        return multiValid;
+    } });
+    assert.equal(multiValidCalls, 1);
+});
