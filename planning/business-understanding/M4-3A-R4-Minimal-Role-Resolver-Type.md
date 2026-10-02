@@ -84,7 +84,7 @@ The first targeted execution used `DeepSeek / deepseek-chat`, the permitted netw
 | T-09 — Template vs Recipe | PASS | Both concept-only; zero resolver calls. |
 | T-10 — resolved 12-120 reference | FAIL | Reference Resolver returned `UNRESOLVED / NONE` despite recent Owner wording `我先看看12-120。`; early stop correctly suppressed Role and resolver. |
 
-The targeted total is **6 PASS / 4 FAIL**. Per the frozen prerequisite rule, the full M4-3A smoke and stability repeats were not run; `M4-3A-R4-Full-Smoke.json` was not created.
+The targeted total is **7 PASS / 3 FAIL**. Per the frozen prerequisite rule, the full M4-3A smoke and stability repeats were not run; `M4-3A-R4-Full-Smoke.json` was not created.
 
 ## Raw-output evidence and failure classification
 
