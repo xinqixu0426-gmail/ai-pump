@@ -5,7 +5,7 @@ const { callDeepSeek } = require('./modelClient.cjs');
 const ROLE_NAMES = new Set(['FORMAL_ENTITY_CANDIDATE', 'CONFIG_VALUE', 'CONCEPT_ONLY']);
 
 function messagesForRoleClassifier(input) {
-    return [
+    const messages = [
         { role: 'system', content: [
             '你是 Minimal Grounding Role Classifier。唯一职责：标注哪些老板语言表达值得进入正式 identity resolver。',
             '严格只输出以下行，不要任何标题、解释或其它字段：',
@@ -23,6 +23,8 @@ function messagesForRoleClassifier(input) {
         ].join('\n') },
         { role: 'user', content: '请只按 ROLE 行协议输出。' },
     ];
+    if (input.retryAddendum) messages.push({ role: 'user', content: input.retryAddendum });
+    return messages;
 }
 
 function parseRoleMemo(memo) {

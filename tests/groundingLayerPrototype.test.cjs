@@ -13,6 +13,7 @@ const { buildGroundingWorkingUtterance } = require('../scripts/ai-experiments/bu
 const { resolveReferenceFastPath } = require('../scripts/ai-experiments/business-policy-intent/referenceFastPath.cjs');
 const { alignRoleExpressionToWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/spanAlignment.cjs');
 const { detectConceptQuestionFastPath } = require('../scripts/ai-experiments/business-policy-intent/conceptQuestionFastPath.cjs');
+const { ROLE_RETRY_ADDENDUM, detectRoleContradiction } = require('../scripts/ai-experiments/business-policy-intent/roleContradiction.cjs');
 const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult, validateCandidateProposals } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
 const { refineQualifiedTargets } = require('../scripts/ai-experiments/business-policy-intent/qualifierRefinement.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
@@ -314,6 +315,61 @@ test('Resolved reference is rewritten before Concept Fast Path and formal facts 
     }, '我先看看12-120。');
     assert.equal(fact.conceptFastPath.status, 'NOT_MATCHED');
     assert.equal(factRoleCalls, 1);
+});
+
+test('Role contradiction detector retries only an all-concept or empty response to a formal-fact query', () => {
+    const fact = detectConceptQuestionFastPath('通用款模板有哪些固定件？');
+    assert.equal(detectRoleContradiction({ conceptFastPath: fact, roles: [{ expression: '通用款模板', role: 'CONCEPT_ONLY' }] }).triggered, true);
+    assert.equal(detectRoleContradiction({ conceptFastPath: fact, roles: [] }).triggered, true);
+    assert.equal(detectRoleContradiction({ conceptFastPath: fact, roles: [{ expression: '木箱', role: 'CONFIG_VALUE' }] }).triggered, false);
+    assert.equal(detectRoleContradiction({ conceptFastPath: fact, roles: [{ expression: '通用款模板', role: 'FORMAL_ENTITY_CANDIDATE' }] }).triggered, false);
+    assert.equal(detectRoleContradiction({ conceptFastPath: detectConceptQuestionFastPath('模板和配方有什么区别？'), roles: [] }).triggered, false);
+});
+
+test('A single contradiction retry can recover a formal proposal and still requires resolver evidence', async () => {
+    const calls = [];
+    const result = await run('通用款模板有哪些固定件？', {
+        role: 'unused',
+        runRoleClassifier: async input => {
+            calls.push(input);
+            return calls.length === 1
+                ? roleMemo(['ROLE: 通用款模板 | CONCEPT_ONLY', 'ROLE: 固定件 | CONCEPT_ONLY'])
+                : roleMemo(['ROLE: 通用款模板 | FORMAL_ENTITY_CANDIDATE']);
+        },
+        resolver: async input => input.entityType === 'template'
+            ? { entityType: 'template', mention: input.mention, status: 'RESOLVED', canonicalId: '31', canonicalName: '通用款模板', candidates: [{ canonicalId: '31', canonicalName: '通用款模板' }] }
+            : notFound(input.entityType, input.mention),
+    });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].retryAddendum, ROLE_RETRY_ADDENDUM);
+    assert.equal(result.roleRetryTriggered, true);
+    assert.equal(result.roleAttempts, 2);
+    assert.equal(result.gate, 'RUN');
+    assert.equal(result.finalGroundedTargets[0].canonicalName, '通用款模板');
+});
+
+test('A failed contradiction retry stops safely without a resolver and never exceeds two attempts', async () => {
+    let roleCalls = 0;
+    let resolverCalls = 0;
+    const result = await run('通用款模板有哪些固定件？', {
+        role: 'unused',
+        runRoleClassifier: async () => { roleCalls += 1; return roleMemo(['ROLE: 通用款模板 | CONCEPT_ONLY']); },
+        resolver: async () => { resolverCalls += 1; throw new Error('must not resolve'); },
+    });
+    assert.equal(roleCalls, 2);
+    assert.equal(result.roleStatus, 'UNRESOLVED_AFTER_RETRY');
+    assert.equal(result.gate, 'STOP_ROLE_UNRESOLVED');
+    assert.equal(result.probeResults.length, 0);
+    assert.equal(resolverCalls, 0);
+});
+
+test('Role retry addendum is separate from the frozen base Role prompt', () => {
+    const base = messagesForRoleClassifier({ workingUtterance: 'V750多少钱？', businessMemo: 'B', policyMemo: 'P' });
+    const retry = messagesForRoleClassifier({ workingUtterance: 'V750多少钱？', businessMemo: 'B', policyMemo: 'P', retryAddendum: ROLE_RETRY_ADDENDUM });
+    assert.equal(base.length, 2);
+    assert.equal(retry.length, 3);
+    assert.equal(base[0].content, retry[0].content);
+    assert.equal(retry[2].content, ROLE_RETRY_ADDENDUM);
 });
 
 test('Business and Policy remain frozen, Intent is absent, and production Runtime imports no prototype', () => {

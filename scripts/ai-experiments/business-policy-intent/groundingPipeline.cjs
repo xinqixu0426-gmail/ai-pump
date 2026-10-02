@@ -11,6 +11,7 @@ const { resolveReferenceFastPath } = require('./referenceFastPath.cjs');
 const { alignRoleExpressionToWorkingUtterance } = require('./spanAlignment.cjs');
 const { detectConceptQuestionFastPath } = require('./conceptQuestionFastPath.cjs');
 const { refineQualifiedTargets } = require('./qualifierRefinement.cjs');
+const { ROLE_RETRY_ADDENDUM, detectRoleContradiction } = require('./roleContradiction.cjs');
 const { resolveAgentEntity } = require('../../../api/ontology/agentResolver.cjs');
 
 const FANOUT_ENTITY_TYPES = Object.freeze(['recipe', 'coil', 'template', 'part']);
@@ -138,17 +139,17 @@ async function runGroundingPipeline(input, dependencies = {}) {
     if (reference.status === 'UNRESOLVED') {
         return Object.freeze({
             businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceFastPath, referenceSource, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
-            conceptFastPath: null, roleMemo: null, roles: Object.freeze([]), gate: 'STOP_UNRESOLVED_REFERENCE', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
+            conceptFastPath: null, firstRoleMemo: null, secondRoleMemo: null, roleMemo: null, roles: Object.freeze([]), roleAttempts: 0, roleRetryTriggered: false, roleContradiction: null, roleStatus: 'NOT_RUN', retryAddendumUsed: false, gate: 'STOP_UNRESOLVED_REFERENCE', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
             modelCalls: Object.freeze({ business: 1, policy: 1, reference: referenceSource === 'LLM' ? 1 : 0, role: 0, intent: 0, utteranceExtractor: 0 }),
-            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs: 0, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
+            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs: 0, roleFirstMs: 0, roleRetryMs: 0, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
         });
     }
     if (working.rewrite.failure) {
         return Object.freeze({
             businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceFastPath, referenceSource, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
-            conceptFastPath: null, roleMemo: null, roles: Object.freeze([]), gate: 'STOP_REFERENCE_REWRITE_FAILURE', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
+            conceptFastPath: null, firstRoleMemo: null, secondRoleMemo: null, roleMemo: null, roles: Object.freeze([]), roleAttempts: 0, roleRetryTriggered: false, roleContradiction: null, roleStatus: 'NOT_RUN', retryAddendumUsed: false, gate: 'STOP_REFERENCE_REWRITE_FAILURE', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
             modelCalls: Object.freeze({ business: 1, policy: 1, reference: detection.status === 'DETECTED' ? 1 : 0, role: 0, intent: 0, utteranceExtractor: 0 }),
-            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs: 0, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
+            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs: 0, roleFirstMs: 0, roleRetryMs: 0, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
         });
     }
     const conceptFastPathStarted = process.hrtime.bigint();
@@ -157,15 +158,25 @@ async function runGroundingPipeline(input, dependencies = {}) {
     if (conceptFastPath.status === 'MATCHED_CONCEPT_ONLY') {
         return Object.freeze({
             businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceFastPath, referenceSource, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
-            conceptFastPath, roleMemo: null, roles: Object.freeze([]), gate: 'STOP_CONCEPT_ONLY', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
+            conceptFastPath, firstRoleMemo: null, secondRoleMemo: null, roleMemo: null, roles: Object.freeze([]), roleAttempts: 0, roleRetryTriggered: false, roleContradiction: null, roleStatus: 'NOT_RUN', retryAddendumUsed: false, gate: 'STOP_CONCEPT_ONLY', candidateProposals: Object.freeze([]), rejectedCandidateProposals: Object.freeze([]), spanAlignments: Object.freeze([]), probeResults: Object.freeze([]), supportedProbeResults: Object.freeze([]), unresolvedProbeResults: Object.freeze([]), unresolvedProposalWarnings: Object.freeze([]), qualifierRefinements: Object.freeze([]), finalGroundedTargets: Object.freeze([]),
             modelCalls: Object.freeze({ business: 1, policy: 1, reference: referenceSource === 'LLM' ? 1 : 0, role: 0, intent: 0, utteranceExtractor: 0 }),
-            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
+            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs, roleFirstMs: 0, roleRetryMs: 0, roleMs: 0, spanAlignmentMs: 0, resolverProbeMs: 0, qualifierRefinementMs: 0, totalMs: elapsed(totalStart) }),
         });
     }
-    const role = await timed(() => roleRunner({ workingUtterance: working.workingUtterance, businessMemo: business.value, policyMemo: policy.value }, dependencies));
-    const parsedRole = parseRoleMemo(role.value);
+    const firstRole = await timed(() => roleRunner({ workingUtterance: working.workingUtterance, businessMemo: business.value, policyMemo: policy.value }, dependencies));
+    const firstParsedRole = parseRoleMemo(firstRole.value);
+    const contradiction = detectRoleContradiction({ conceptFastPath, roles: firstParsedRole.roles });
+    const retryRole = contradiction.triggered
+        ? await timed(() => roleRunner({ workingUtterance: working.workingUtterance, businessMemo: business.value, policyMemo: policy.value, retryAddendum: ROLE_RETRY_ADDENDUM }, dependencies))
+        : { value: null, ms: 0 };
+    const parsedRole = contradiction.triggered ? parseRoleMemo(retryRole.value) : firstParsedRole;
+    const roleAttempts = contradiction.triggered ? 2 : 1;
+    const roleUnresolvedAfterRetry = contradiction.triggered && !parsedRole.roles.some(item => item.role === 'FORMAL_ENTITY_CANDIDATE');
     const spanAlignmentStarted = process.hrtime.bigint();
-    const gate = computeGroundingGate({ referenceStatus: reference.status, roles: parsedRole.roles, workingUtterance: working.workingUtterance });
+    const computedGate = computeGroundingGate({ referenceStatus: reference.status, roles: parsedRole.roles, workingUtterance: working.workingUtterance });
+    const gate = roleUnresolvedAfterRetry
+        ? Object.freeze({ ...computedGate, gate: 'STOP_ROLE_UNRESOLVED', candidateProposals: Object.freeze([]) })
+        : computedGate;
     const spanAlignmentMs = elapsed(spanAlignmentStarted);
     const probeResults = [];
     if (gate.gate === 'RUN') {
@@ -177,9 +188,9 @@ async function runGroundingPipeline(input, dependencies = {}) {
     const qualifierRefinementMs = elapsed(refinementStarted);
     return Object.freeze({
         businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceFastPath, referenceSource, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
-        conceptFastPath, roleMemo: role.value, roles: parsedRole.roles, gate: gate.gate, candidateProposals: gate.candidateProposals, rejectedCandidateProposals: gate.rejectedCandidateProposals || Object.freeze([]), spanAlignments: gate.spanAlignments || Object.freeze([]), probeResults: Object.freeze(probeResults), ...validation,
-        modelCalls: Object.freeze({ business: 1, policy: 1, reference: referenceSource === 'LLM' ? 1 : 0, role: 1, intent: 0, utteranceExtractor: 0 }),
-        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs, roleMs: role.ms, spanAlignmentMs, resolverProbeMs, qualifierRefinementMs, totalMs: elapsed(totalStart) }),
+        conceptFastPath, firstRoleMemo: firstRole.value, secondRoleMemo: retryRole.value, roleMemo: contradiction.triggered ? retryRole.value : firstRole.value, roles: parsedRole.roles, roleAttempts, roleRetryTriggered: contradiction.triggered, roleContradiction: contradiction, roleStatus: roleUnresolvedAfterRetry ? 'UNRESOLVED_AFTER_RETRY' : 'RESOLVED', retryAddendumUsed: contradiction.triggered, gate: gate.gate, candidateProposals: gate.candidateProposals, rejectedCandidateProposals: gate.rejectedCandidateProposals || Object.freeze([]), spanAlignments: gate.spanAlignments || Object.freeze([]), probeResults: Object.freeze(probeResults), ...validation,
+        modelCalls: Object.freeze({ business: 1, policy: 1, reference: referenceSource === 'LLM' ? 1 : 0, role: roleAttempts, intent: 0, utteranceExtractor: 0 }),
+        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceFastPathMs, referenceMs: referenceModel.ms, referenceRewriteMs, conceptFastPathMs, roleFirstMs: firstRole.ms, roleRetryMs: retryRole.ms, roleMs: firstRole.ms + retryRole.ms, spanAlignmentMs, resolverProbeMs, qualifierRefinementMs, totalMs: elapsed(totalStart) }),
     });
 }
 

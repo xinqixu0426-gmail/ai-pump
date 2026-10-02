@@ -1,0 +1,113 @@
+{
+  "phase": "M4-3A-R10",
+  "kind": "DETERMINISTIC_ROLE_RETRY_TESTS",
+  "total": 9,
+  "pass": 9,
+  "fail": 0,
+  "results": [
+    {
+      "id": "CR-01",
+      "status": "PASS",
+      "expectedTriggered": true,
+      "actual": {
+        "triggered": true,
+        "reason": "FORMAL_FACT_SIGNAL_WITH_ONLY_CONCEPT_OR_EMPTY_ROLE_OUTPUT",
+        "formalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "formalCandidateCount": 0,
+        "configValueCount": 0,
+        "allConceptOnly": true
+      }
+    },
+    {
+      "id": "CR-02",
+      "status": "PASS",
+      "expectedTriggered": true,
+      "actual": {
+        "triggered": true,
+        "reason": "FORMAL_FACT_SIGNAL_WITH_ONLY_CONCEPT_OR_EMPTY_ROLE_OUTPUT",
+        "formalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "formalCandidateCount": 0,
+        "configValueCount": 0,
+        "allConceptOnly": true
+      }
+    },
+    {
+      "id": "CR-03",
+      "status": "PASS",
+      "expectedTriggered": false,
+      "actual": {
+        "triggered": false,
+        "reason": null,
+        "formalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "formalCandidateCount": 0,
+        "configValueCount": 1,
+        "allConceptOnly": false
+      }
+    },
+    {
+      "id": "CR-04",
+      "status": "PASS",
+      "expectedTriggered": false,
+      "actual": {
+        "triggered": false,
+        "reason": null,
+        "formalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "formalCandidateCount": 1,
+        "configValueCount": 0,
+        "allConceptOnly": false
+      }
+    },
+    {
+      "id": "CR-05",
+      "status": "PASS",
+      "expectedTriggered": false,
+      "actual": {
+        "triggered": false,
+        "reason": null,
+        "formalFactSignals": [],
+        "formalCandidateCount": 0,
+        "configValueCount": 0,
+        "allConceptOnly": true
+      }
+    },
+    {
+      "id": "CR-06",
+      "status": "PASS",
+      "expectedTriggered": false,
+      "actual": {
+        "triggered": false,
+        "reason": "ROLE_NOT_RUN_FOR_UNRESOLVED_REFERENCE"
+      }
+    },
+    {
+      "id": "CR-07",
+      "status": "PASS",
+      "expected": "second all-concept output stops STOP_ROLE_UNRESOLVED",
+      "actual": "covered by groundingLayerPrototype deterministic pipeline test"
+    },
+    {
+      "id": "CR-08",
+      "status": "PASS",
+      "expected": "retry formal proposal continues resolver probe",
+      "actual": "covered by groundingLayerPrototype deterministic pipeline test"
+    },
+    {
+      "id": "CR-09",
+      "status": "PASS",
+      "expected": "retry addendum contains no case answer",
+      "actual": "上一轮输出与当前请求存在结构矛盾：当前请求包含正式事实查询信号，但你没有提出任何 FORMAL_ENTITY_CANDIDATE 或 CONFIG_VALUE。请重新检查老板原话中的业务主体。仍只按原 ROLE 协议输出，不得为了消除矛盾强行制造实体；如果确实没有 formal candidate，应保持原判断。"
+    }
+  ]
+}

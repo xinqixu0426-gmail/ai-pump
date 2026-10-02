@@ -40,6 +40,7 @@ function evaluateGrounding(testCase, output) {
     const failures = [];
     const warnings = roleWarnings(output);
     const conceptMatched = output.conceptFastPath?.status === 'MATCHED_CONCEPT_ONLY';
+    const contradiction = output.roleContradiction;
     if (testCase.conceptFastPath === 'MATCHED_CONCEPT_ONLY' && !conceptMatched) failures.push('CONCEPT_FAST_PATH_INCORRECT');
     if (testCase.conceptFastPath === 'NOT_MATCHED' && conceptMatched) failures.push('CONCEPT_FALSE_POSITIVE');
     if (testCase.gate === 'RUN' && conceptMatched) failures.push('CONCEPT_FALSE_POSITIVE');
@@ -57,7 +58,17 @@ function evaluateGrounding(testCase, output) {
         if (!output.workingUtterance.includes(output.reference.resolvedLanguageReference || '')) failures.push('RESOLVED_EXPRESSION_NOT_INSERTED');
     }
     if (output.gate !== testCase.gate) failures.push('GATE_INCORRECT');
-    if (testCase.roleCalls !== undefined && output.modelCalls.role !== testCase.roleCalls) failures.push('ROLE_CALL_CONTRACT_BREACH');
+    if ((output.roleAttempts || 0) > 2) failures.push('ROLE_RETRY_MAX_ATTEMPTS_BREACH');
+    if (contradiction?.triggered && !output.roleRetryTriggered) failures.push('ROLE_RETRY_FALSE_NEGATIVE');
+    if (!contradiction?.triggered && output.roleRetryTriggered) failures.push('ROLE_RETRY_FALSE_POSITIVE');
+    if (output.roleStatus === 'UNRESOLVED_AFTER_RETRY') failures.push('ROLE_UNRESOLVED_AFTER_RETRY');
+    if (testCase.roleCalls !== undefined) {
+        const actualRoleCalls = output.modelCalls.role;
+        const roleCallValid = output.roleRetryTriggered
+            ? actualRoleCalls >= testCase.roleCalls && actualRoleCalls <= 2
+            : actualRoleCalls === testCase.roleCalls;
+        if (!roleCallValid) failures.push('ROLE_CALL_CONTRACT_BREACH');
+    }
     if (testCase.resolverCalls !== undefined) {
         const actualCalls = probeResults.reduce((sum, item) => sum + item.typeResults.length, 0);
         if (testCase.resolverCalls === 0 ? actualCalls !== 0 : actualCalls < testCase.resolverCalls) failures.push('RESOLVER_CALL_CONTRACT_BREACH');
@@ -90,7 +101,7 @@ function evaluateGrounding(testCase, output) {
     if (probeResults.some(result => result.status === 'MULTIPLE_TYPE' && result.entityType)) failures.push('CROSS_TYPE_SILENT_SELECTION');
     if (finalTargets.some(target => target.status === 'UNRESOLVED' || target.source === 'UNRESOLVED_PROPOSAL_WARNING')) failures.push('UNRESOLVED_PROPOSAL_ACCEPTED_AS_TARGET');
     return Object.freeze({
-        reference: output.reference, conceptFastPath: output.conceptFastPath || null, gate: output.gate, roles: output.roles, candidateProposals: output.candidateProposals || Object.freeze([]), probeResults, finalGroundedTargets: finalTargets,
+        reference: output.reference, conceptFastPath: output.conceptFastPath || null, roleContradiction: contradiction || null, roleAttempts: output.roleAttempts || 0, roleRetryTriggered: output.roleRetryTriggered || false, gate: output.gate, roles: output.roles, candidateProposals: output.candidateProposals || Object.freeze([]), probeResults, finalGroundedTargets: finalTargets,
         warnings: Object.freeze([...new Set(warnings)]),
         failures: Object.freeze([...new Set(failures)]), overall: failures.length ? 'FAIL' : 'PASS',
     });
