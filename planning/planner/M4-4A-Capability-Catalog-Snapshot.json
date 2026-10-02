@@ -1,0 +1,61 @@
+{
+  "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+  "registryPath": "api/capabilities/registry.cjs",
+  "totalCapabilities": 147,
+  "operationCounts": {
+    "query": 41,
+    "preview": 5,
+    "command": 78,
+    "maintenance": 23
+  },
+  "visibleCapabilities": [
+    {
+      "capabilityId": "templates.detail",
+      "mode": "READ",
+      "domain": "template",
+      "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    },
+    {
+      "capabilityId": "recipes.current_costs",
+      "mode": "READ",
+      "domain": "recipes",
+      "description": "读取已正式定位配方的当前权威成本基准。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    },
+    {
+      "capabilityId": "relations.read",
+      "mode": "READ",
+      "domain": "catalog",
+      "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    },
+    {
+      "capabilityId": "cost.recipe_difference",
+      "mode": "READ",
+      "domain": "cost",
+      "description": "读取两个已正式定位配方的当前权威成本差异。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    },
+    {
+      "capabilityId": "coils.list",
+      "mode": "READ",
+      "domain": "coil",
+      "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    },
+    {
+      "capabilityId": "recipes.scenario_compare_preview",
+      "mode": "PREVIEW",
+      "domain": "recipes",
+      "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+      "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+    }
+  ],
+  "visibleReadCapabilities": 5,
+  "visibleAnalysisCapabilities": 0,
+  "visiblePreviewCapabilities": 1,
+  "hiddenWriteCapabilities": 101,
+  "plannerVisibleCapabilityCount": 6,
+  "plannerWriteCapabilitiesVisible": 0
+}

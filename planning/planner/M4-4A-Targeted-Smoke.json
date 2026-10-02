@@ -1,0 +1,2119 @@
+{
+  "phase": "M4-4A",
+  "scope": "targeted",
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "capabilityCatalog": {
+    "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+    "registryPath": "api/capabilities/registry.cjs",
+    "totalCapabilities": 147,
+    "operationCounts": {
+      "query": 41,
+      "preview": 5,
+      "command": 78,
+      "maintenance": 23
+    },
+    "visibleCapabilities": [
+      {
+        "capabilityId": "templates.detail",
+        "mode": "READ",
+        "domain": "template",
+        "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      },
+      {
+        "capabilityId": "recipes.current_costs",
+        "mode": "READ",
+        "domain": "recipes",
+        "description": "读取已正式定位配方的当前权威成本基准。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      },
+      {
+        "capabilityId": "relations.read",
+        "mode": "READ",
+        "domain": "catalog",
+        "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      },
+      {
+        "capabilityId": "cost.recipe_difference",
+        "mode": "READ",
+        "domain": "cost",
+        "description": "读取两个已正式定位配方的当前权威成本差异。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      },
+      {
+        "capabilityId": "coils.list",
+        "mode": "READ",
+        "domain": "coil",
+        "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      },
+      {
+        "capabilityId": "recipes.scenario_compare_preview",
+        "mode": "PREVIEW",
+        "domain": "recipes",
+        "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+        "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+      }
+    ],
+    "visibleReadCapabilities": 5,
+    "visibleAnalysisCapabilities": 0,
+    "visiblePreviewCapabilities": 1,
+    "hiddenWriteCapabilities": 101,
+    "plannerVisibleCapabilityCount": 6,
+    "plannerWriteCapabilitiesVisible": 0
+  },
+  "toolCalls": 0,
+  "businessApiCalls": 0,
+  "dbAccessAttempts": 0,
+  "writeAttempts": 0,
+  "modelCalls": 10,
+  "performance": {
+    "plannerMedianMs": 1736.548333,
+    "businessMedianMs": 0,
+    "policyMedianMs": 0,
+    "groundingMedianMs": 0,
+    "totalMedianMs": 1736.548333
+  },
+  "results": [
+    {
+      "id": "P-01",
+      "user": "模板和配方有什么区别？",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "NOT_REQUIRED",
+        "finalGroundedTargets": [],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "模板和配方有什么区别？",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "NOT_REQUIRED",
+        "finalGroundedTargets": [],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: NO_TOOL_REQUIRED\n\nOWNER_GOAL: 模板和配方有什么区别？\n\nGROUNDED_TARGET: 概念解释，非事实查询目标\n\nREQUIRED_FACT: NONE\n\nSTEP: NONE\n\nCOMPLETION: 概念问题且 Grounding NOT_REQUIRED，无需正式事实或能力调用，直接依据 BUSINESS_MEMO 解释 Template 与 Recipe 的区别。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: NO_TOOL_REQUIRED\n\nOWNER_GOAL: 模板和配方有什么区别？\n\nGROUNDED_TARGET: 概念解释，非事实查询目标\n\nREQUIRED_FACT: NONE\n\nSTEP: NONE\n\nCOMPLETION: 概念问题且 Grounding NOT_REQUIRED，无需正式事实或能力调用，直接依据 BUSINESS_MEMO 解释 Template 与 Recipe 的区别。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+        "status": "NO_TOOL_REQUIRED",
+        "ownerGoal": "模板和配方有什么区别？",
+        "groundedTargets": [
+          "概念解释，非事实查询目标"
+        ],
+        "requiredFacts": [],
+        "steps": [],
+        "completion": "概念问题且 Grounding NOT_REQUIRED，无需正式事实或能力调用，直接依据 BUSINESS_MEMO 解释 Template 与 Recipe 的区别。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "NO",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": [
+          "REQUIRED_FACT: NONE",
+          "STEP: NONE"
+        ]
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 2023.294625
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "PASS",
+        "failures": [],
+        "planStatus": "NO_TOOL_REQUIRED",
+        "steps": [],
+        "requiredFacts": [],
+        "groundedTargets": [
+          "概念解释，非事实查询目标"
+        ]
+      }
+    },
+    {
+      "id": "P-03",
+      "user": "通用款模板有哪些固定件？",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": 21,
+            "canonicalName": "通用款模板",
+            "candidates": [
+              {
+                "canonicalId": 21,
+                "canonicalName": "通用款模板"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "通用款模板有哪些固定件？",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "通用款模板",
+            "entityType": "template",
+            "status": "EXACT",
+            "canonicalId": 21,
+            "canonicalName": "通用款模板",
+            "candidates": [
+              {
+                "canonicalId": 21,
+                "canonicalName": "通用款模板"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: READY\n\nOWNER_GOAL: 通用款模板有哪些固定件？\n\nGROUNDED_TARGET: 通用款模板\n\nREQUIRED_FACT: F1 | 通用款模板的当前详情与固定件关系 | 通用款模板 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | templates.detail | 通用款模板 | F1 | NONE\n\nCOMPLETION: 读取通用款模板的当前详情与固定件关系后即可回答固定件清单。\n\nWRITE_REQUIRED: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: READY\n\nOWNER_GOAL: 通用款模板有哪些固定件？\n\nGROUNDED_TARGET: 通用款模板\n\nREQUIRED_FACT: F1 | 通用款模板的当前详情与固定件关系 | 通用款模板 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | templates.detail | 通用款模板 | F1 | NONE\n\nCOMPLETION: 读取通用款模板的当前详情与固定件关系后即可回答固定件清单。\n\nWRITE_REQUIRED: NO",
+        "status": "READY",
+        "ownerGoal": "通用款模板有哪些固定件？",
+        "groundedTargets": [
+          "通用款模板"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "通用款模板的当前详情与固定件关系",
+            "target": "通用款模板",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "通用款模板",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "读取通用款模板的当前详情与固定件关系后即可回答固定件清单。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": null,
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1239.066084
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "PASS",
+        "failures": [],
+        "planStatus": "READY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "通用款模板",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "通用款模板的当前详情与固定件关系",
+            "target": "通用款模板",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "通用款模板"
+        ]
+      }
+    },
+    {
+      "id": "P-05",
+      "user": "查一下V750成本。",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": 12,
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "V750 has multiple recipe candidates",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "查一下V750成本。",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750",
+            "entityType": "recipe",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              },
+              {
+                "canonicalId": 12,
+                "canonicalName": "V750-豪贝款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "V750 has multiple recipe candidates",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: BLOCKED_AMBIGUITY\n\nOWNER_GOAL: 查一下V750成本。\n\nGROUNDED_TARGET: owner-mention=V750 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\n\nREQUIRED_FACT: F1 | V750 对应的唯一正式配方 | V750 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | recipes.current_costs | V750 | F1 | NONE\n\nCOMPLETION: 需要先解决 V750 多候选歧义，确定唯一正式配方后才能读取其权威成本基准。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: BLOCKED_AMBIGUITY\n\nOWNER_GOAL: 查一下V750成本。\n\nGROUNDED_TARGET: owner-mention=V750 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\n\nREQUIRED_FACT: F1 | V750 对应的唯一正式配方 | V750 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | recipes.current_costs | V750 | F1 | NONE\n\nCOMPLETION: 需要先解决 V750 多候选歧义，确定唯一正式配方后才能读取其权威成本基准。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+        "status": "BLOCKED_AMBIGUITY",
+        "ownerGoal": "查一下V750成本。",
+        "groundedTargets": [
+          "owner-mention=V750 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750 对应的唯一正式配方",
+            "target": "V750",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "需要先解决 V750 多候选歧义，确定唯一正式配方后才能读取其权威成本基准。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "NO",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1392.596875
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "STEP_COUNT_INCORRECT",
+          "SILENT_MULTIPLE_SELECTION"
+        ],
+        "planStatus": "BLOCKED_AMBIGUITY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750 对应的唯一正式配方",
+            "target": "V750",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "owner-mention=V750 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ]
+      }
+    },
+    {
+      "id": "P-06",
+      "user": "12-120多少钱？",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 1,
+                "canonicalName": "12-120 普通小眼"
+              },
+              {
+                "canonicalId": 2,
+                "canonicalName": "12-120 加强大眼"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "12-120 has multiple coil candidates",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "12-120多少钱？",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 1,
+                "canonicalName": "12-120 普通小眼"
+              },
+              {
+                "canonicalId": 2,
+                "canonicalName": "12-120 加强大眼"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "12-120 has multiple coil candidates",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: BLOCKED_AMBIGUITY\nOWNER_GOAL: 12-120多少钱？\nGROUNDED_TARGET: owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\nREQUIRED_FACT: F1 | 12-120 的正式候选定位（消除 MULTIPLE） | 12-120 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nSTEP: P1 | READ | coils.list | 12-120 | F1 | NONE\nCOMPLETION: 无法在 MULTIPLE 状态下确定 12-120 的唯一正式对象；需先解决候选歧义后方可规划成本读取。\nWRITE_REQUIRED: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: BLOCKED_AMBIGUITY\nOWNER_GOAL: 12-120多少钱？\nGROUNDED_TARGET: owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\nREQUIRED_FACT: F1 | 12-120 的正式候选定位（消除 MULTIPLE） | 12-120 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nSTEP: P1 | READ | coils.list | 12-120 | F1 | NONE\nCOMPLETION: 无法在 MULTIPLE 状态下确定 12-120 的唯一正式对象；需先解决候选歧义后方可规划成本读取。\nWRITE_REQUIRED: NO",
+        "status": "BLOCKED_AMBIGUITY",
+        "ownerGoal": "12-120多少钱？",
+        "groundedTargets": [
+          "owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "12-120 的正式候选定位（消除 MULTIPLE）",
+            "target": "12-120",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "coils.list",
+            "target": "12-120",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "无法在 MULTIPLE 状态下确定 12-120 的唯一正式对象；需先解决候选歧义后方可规划成本读取。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": null,
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1736.548333
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "STEP_COUNT_INCORRECT",
+          "SILENT_MULTIPLE_SELECTION"
+        ],
+        "planStatus": "BLOCKED_AMBIGUITY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "coils.list",
+            "target": "12-120",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "12-120 的正式候选定位（消除 MULTIPLE）",
+            "target": "12-120",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ]
+      }
+    },
+    {
+      "id": "P-07",
+      "user": "12-120有几个方案？",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 1,
+                "canonicalName": "12-120 普通小眼"
+              },
+              {
+                "canonicalId": 2,
+                "canonicalName": "12-120 加强大眼"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "12-120 has multiple coil candidates",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "12-120有几个方案？",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "MULTIPLE",
+        "finalGroundedTargets": [
+          {
+            "mention": "12-120",
+            "entityType": "coil",
+            "status": "MULTIPLE",
+            "canonicalId": null,
+            "canonicalName": null,
+            "candidates": [
+              {
+                "canonicalId": 1,
+                "canonicalName": "12-120 普通小眼"
+              },
+              {
+                "canonicalId": 2,
+                "canonicalName": "12-120 加强大眼"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "12-120 has multiple coil candidates",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: BLOCKED_AMBIGUITY\n\nOWNER_GOAL: 12-120有几个方案？\n\nGROUNDED_TARGET: owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\n\nREQUIRED_FACT: NONE\n\nSTEP: NONE\n\nCOMPLETION: NONE\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: BLOCKED_AMBIGUITY\n\nOWNER_GOAL: 12-120有几个方案？\n\nGROUNDED_TARGET: owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED\n\nREQUIRED_FACT: NONE\n\nSTEP: NONE\n\nCOMPLETION: NONE\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+        "status": "BLOCKED_AMBIGUITY",
+        "ownerGoal": "12-120有几个方案？",
+        "groundedTargets": [
+          "owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ],
+        "requiredFacts": [],
+        "steps": [],
+        "completion": "NONE",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "NO",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": [
+          "REQUIRED_FACT: NONE",
+          "STEP: NONE"
+        ]
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1300.543375
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "PLAN_STATUS_INCORRECT"
+        ],
+        "planStatus": "BLOCKED_AMBIGUITY",
+        "steps": [],
+        "requiredFacts": [],
+        "groundedTargets": [
+          "owner-mention=12-120 | formal-status=MULTIPLE | canonical-name=NONE | resolver-evidence=PROVIDED"
+        ]
+      }
+    },
+    {
+      "id": "P-08",
+      "user": "查一下V750通用款现在用哪个线圈。",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "查一下V750通用款现在用哪个线圈。",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: READY\n\nOWNER_GOAL: 查一下V750通用款现在用哪个线圈。\n\nGROUNDED_TARGET: V750-通用款\n\nREQUIRED_FACT: F1 | V750-通用款当前使用的线圈 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | relations.read | V750-通用款 | F1 | NONE\n\nCOMPLETION: 读取V750-通用款当前正式关系中的线圈，即完成查询。\n\nWRITE_REQUIRED: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: READY\n\nOWNER_GOAL: 查一下V750通用款现在用哪个线圈。\n\nGROUNDED_TARGET: V750-通用款\n\nREQUIRED_FACT: F1 | V750-通用款当前使用的线圈 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | relations.read | V750-通用款 | F1 | NONE\n\nCOMPLETION: 读取V750-通用款当前正式关系中的线圈，即完成查询。\n\nWRITE_REQUIRED: NO",
+        "status": "READY",
+        "ownerGoal": "查一下V750通用款现在用哪个线圈。",
+        "groundedTargets": [
+          "V750-通用款"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750-通用款当前使用的线圈",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "relations.read",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "读取V750-通用款当前正式关系中的线圈，即完成查询。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": null,
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1270.79725
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "PASS",
+        "failures": [],
+        "planStatus": "READY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "relations.read",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750-通用款当前使用的线圈",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "V750-通用款"
+        ]
+      }
+    },
+    {
+      "id": "P-09",
+      "user": "V750通用款换木箱成本差多少？",
+      "upstreamSource": "REAL_FROZEN_UPSTREAM_CHAIN",
+      "upstream": {
+        "groundingResult": "RESOLVED",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750通用款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750通用款",
+              "alignedWorkingSpan": "V750通用款",
+              "workingUtterance": "V750通用款换木箱成本差多少？"
+            }
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的 750 功率等级。\n- **通用款**：泵壳结构／Template 款式。\n- **V750-通用款**：V 系列 750 功率等级加通用款泵壳结构，形成的一套 Recipe 配置基础。\n- **包装配置（Packing configuration）**：Recipe 的可配置成本维度之一，包括纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- **木箱、纸箱**：包装物料，属于 Part 范畴中的包装物料。\n\n# Business meaning\n\n- `V750` 不能被理解为一个固定、不可改变的 Finished Product；`V750-通用款` 是一套 Recipe 配置基础，而不是固定成品 SKU。\n- 「换木箱」在本公司业务语言里属于 **OEM 配置变化**，即 Recipe 的 Packing configuration 发生变化，而不是功率等级、泵壳款式或基础型号改变。\n- 木箱与纸箱属于包装物料，是可目录化的物理 Part；包装配置又是会因客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的 Recipe Configurable Cost Driver。\n\n# Relevant relationships\n\n- Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置；包装配置是 Recipe 的可配置成本维度之一。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；包装物料会体现在该 Recipe 当前配置展开后的 BOM 中。\n- 最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项。\n- 因此，纸箱换木箱影响的是该 Recipe 当前配置下的包装物料及相关成本项，而 **不是** 功率等级、泵壳款式或基础型号的变化。\n\n# Unknown business terms\n\n- 「成本差多少」涉及具体成本数值／成本公式，**本业务模型未定义**，无法给出。\n- 具体某一套 V750-通用款 Recipe 当前使用哪一种纸箱或木箱、对应哪一种包装物料型号，**本业务模型未定义**，需另行确认。\n- 该变化下具体展开的 BOM 明细与成本组成，**本业务模型未定义**，不能由本模型推断。",
+        "policyMemo": "**Memo**\n\n- 该请求描述的是 Recipe 配置变化（包装由原配置改为木箱），并询问“成本差多少”，整体目标属于临时配置试算／分析。\n- 该请求按临时配置试算处理：可基于临时配置重算成本差额，不改变正式配方或已保存的业务状态。\n- 配置覆盖与试算输入可共同参与试算，但不能仅凭“换”这一动作词认定为正式修改。\n- 本次未表达保存意图，因此不触发任何持久化写入，也不得声称已修改正式配方。\n- 若后续明确要求保存、更新正式配方或长期沿用，则属另一类处理路径，须经明确确认后另行处理。\n- 返回成本信息时需标明为临时试算口径，不得表述为当前正式成本。\n- 若“木箱”所指的包装配置存在多种可选方案，需先限定明确方案，不得默认选取。",
+        "upstreamTimings": {
+          "businessMs": 3013.202958,
+          "policyMs": 2464.185417,
+          "referenceHintMs": 0,
+          "referenceFastPathMs": 0,
+          "referenceMs": 0,
+          "referenceRewriteMs": 0.055208,
+          "conceptFastPathMs": 0.142583,
+          "roleFirstMs": 1162.434375,
+          "roleRetryMs": 0,
+          "roleMs": 1162.434375,
+          "spanAlignmentMs": 0.328,
+          "resolverProbeMs": 1.037666,
+          "qualifierRefinementMs": 0.178708,
+          "totalMs": 4178.240792
+        },
+        "upstreamModelCalls": {
+          "business": 1,
+          "policy": 1,
+          "reference": 0,
+          "role": 1,
+          "intent": 0,
+          "utteranceExtractor": 0
+        },
+        "source": "REAL_FROZEN_UPSTREAM_CHAIN"
+      },
+      "context": {
+        "rawOwnerInput": "V750通用款换木箱成本差多少？",
+        "businessMemo": "# Relevant business concepts\n\n- **V750**：工厂内部 Recipe／产品规格代号体系中的 750 功率等级。\n- **通用款**：泵壳结构／Template 款式。\n- **V750-通用款**：V 系列 750 功率等级加通用款泵壳结构，形成的一套 Recipe 配置基础。\n- **包装配置（Packing configuration）**：Recipe 的可配置成本维度之一，包括纸箱、木箱、珍珠棉、泡沫及其它包装物料。\n- **木箱、纸箱**：包装物料，属于 Part 范畴中的包装物料。\n\n# Business meaning\n\n- `V750` 不能被理解为一个固定、不可改变的 Finished Product；`V750-通用款` 是一套 Recipe 配置基础，而不是固定成品 SKU。\n- 「换木箱」在本公司业务语言里属于 **OEM 配置变化**，即 Recipe 的 Packing configuration 发生变化，而不是功率等级、泵壳款式或基础型号改变。\n- 木箱与纸箱属于包装物料，是可目录化的物理 Part；包装配置又是会因客户 OEM 要求变化、并进一步影响 BOM、制造工艺或成本的 Recipe Configurable Cost Driver。\n\n# Relevant relationships\n\n- Recipe 在 Template 基础上加入动力、线圈及其它 OEM 配置；包装配置是 Recipe 的可配置成本维度之一。\n- BOM 是根据 Recipe 当前配置正式展开后的物料／工艺组成；包装物料会体现在该 Recipe 当前配置展开后的 BOM 中。\n- 最终成本组成可以包含物理 BOM Parts、线圈／电机相关配置、制造工艺成本、包装配置与其它依 Recipe 配置而变的成本项。\n- 因此，纸箱换木箱影响的是该 Recipe 当前配置下的包装物料及相关成本项，而 **不是** 功率等级、泵壳款式或基础型号的变化。\n\n# Unknown business terms\n\n- 「成本差多少」涉及具体成本数值／成本公式，**本业务模型未定义**，无法给出。\n- 具体某一套 V750-通用款 Recipe 当前使用哪一种纸箱或木箱、对应哪一种包装物料型号，**本业务模型未定义**，需另行确认。\n- 该变化下具体展开的 BOM 明细与成本组成，**本业务模型未定义**，不能由本模型推断。",
+        "policyMemo": "**Memo**\n\n- 该请求描述的是 Recipe 配置变化（包装由原配置改为木箱），并询问“成本差多少”，整体目标属于临时配置试算／分析。\n- 该请求按临时配置试算处理：可基于临时配置重算成本差额，不改变正式配方或已保存的业务状态。\n- 配置覆盖与试算输入可共同参与试算，但不能仅凭“换”这一动作词认定为正式修改。\n- 本次未表达保存意图，因此不触发任何持久化写入，也不得声称已修改正式配方。\n- 若后续明确要求保存、更新正式配方或长期沿用，则属另一类处理路径，须经明确确认后另行处理。\n- 返回成本信息时需标明为临时试算口径，不得表述为当前正式成本。\n- 若“木箱”所指的包装配置存在多种可选方案，需先限定明确方案，不得默认选取。",
+        "groundingResult": "RESOLVED",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": "11",
+            "canonicalName": "V750-通用款",
+            "candidates": [],
+            "source": "RESOLVER_PROBE",
+            "proposal": {
+              "expression": "V750通用款",
+              "role": "FORMAL_ENTITY_CANDIDATE",
+              "source": "ROLE_CLASSIFIER",
+              "sourceExpression": "V750通用款",
+              "alignedWorkingSpan": "V750通用款",
+              "workingUtterance": "V750通用款换木箱成本差多少？"
+            }
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: BLOCKED_AMBIGUITY\nOWNER_GOAL: 计算 V750-通用款 由纸箱改为木箱后的成本差额\nGROUNDED_TARGET: V750-通用款 | EXACT\nREQUIRED_FACT: F1 | V750-通用款 当前 Recipe 的正式配置详情（含当前包装配置：纸箱及其物料型号） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F2 | V750-通用款 当前 Recipe 的权威成本基准 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F3 | 「木箱」所指的具体包装配置方案（包装物料型号） | V750-通用款 | NONE | NONE\nSTEP: P1 | READ | recipes.current_costs | V750-通用款 | F2 | NONE\nCOMPLETION: 需先明确「木箱」具体所指包装配置方案后方可继续规划；当前 MULTIPLE 未限定，属方案专属事实歧义\nWRITE_REQUIRED: NO\nPREVIEW_PLAN_AVAILABLE: NO\nUPSTREAM_CONTRACT_GAP: NONE",
+      "plan": {
+        "raw": "PLAN_STATUS: BLOCKED_AMBIGUITY\nOWNER_GOAL: 计算 V750-通用款 由纸箱改为木箱后的成本差额\nGROUNDED_TARGET: V750-通用款 | EXACT\nREQUIRED_FACT: F1 | V750-通用款 当前 Recipe 的正式配置详情（含当前包装配置：纸箱及其物料型号） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F2 | V750-通用款 当前 Recipe 的权威成本基准 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F3 | 「木箱」所指的具体包装配置方案（包装物料型号） | V750-通用款 | NONE | NONE\nSTEP: P1 | READ | recipes.current_costs | V750-通用款 | F2 | NONE\nCOMPLETION: 需先明确「木箱」具体所指包装配置方案后方可继续规划；当前 MULTIPLE 未限定，属方案专属事实歧义\nWRITE_REQUIRED: NO\nPREVIEW_PLAN_AVAILABLE: NO\nUPSTREAM_CONTRACT_GAP: NONE",
+        "status": "BLOCKED_AMBIGUITY",
+        "ownerGoal": "计算 V750-通用款 由纸箱改为木箱后的成本差额",
+        "groundedTargets": [
+          "V750-通用款 | EXACT"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750-通用款 当前 Recipe 的正式配置详情（含当前包装配置：纸箱及其物料型号）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "V750-通用款 当前 Recipe 的权威成本基准",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "「木箱」所指的具体包装配置方案（包装物料型号）",
+            "target": "V750-通用款",
+            "sourceRequirement": "NONE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F2",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "需先明确「木箱」具体所指包装配置方案后方可继续规划；当前 MULTIPLE 未限定，属方案专属事实歧义",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "NO",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [
+          "NONE"
+        ],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 2285.537542
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "PLAN_STATUS_INCORRECT",
+          "CAPABILITY_MISSING:recipes.scenario_compare_preview",
+          "CAPABILITY_MISSING:LOCAL_DETERMINISTIC",
+          "MODE_MISSING:PREVIEW",
+          "MODE_MISSING:COMPUTE",
+          "PREVIEW_DEPENDENCY_MISSING",
+          "SILENT_MULTIPLE_SELECTION"
+        ],
+        "planStatus": "BLOCKED_AMBIGUITY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F2",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "V750-通用款 当前 Recipe 的正式配置详情（含当前包装配置：纸箱及其物料型号）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "V750-通用款 当前 Recipe 的权威成本基准",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "「木箱」所指的具体包装配置方案（包装物料型号）",
+            "target": "V750-通用款",
+            "sourceRequirement": "NONE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "V750-通用款 | EXACT"
+        ]
+      }
+    },
+    {
+      "id": "P-13",
+      "user": "V750通用款电缆5米，木箱，先算一下，不保存。",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "V750通用款电缆5米，木箱，先算一下，不保存。",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: READ\nOWNER_GOAL: 计算 V750通用款电缆5米、木箱配置的电缆/木箱成本试算，不保存。\nGROUNDED_TARGET: V750-通用款\nREQUIRED_FACT: F1 | 已正式定位 V750通用款 模板的当前详情与固定件关系 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F2 | V750通用款 对应的当前权威成本基准（配方当前成本） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F3 | 电缆5米、木箱配置场景下的权威成本预览 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F4 | 当前正式配置与场景预览之间的成本差额 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nSTEP: P1 | READ | templates.detail | V750-通用款 | F1 | NONE\nSTEP: P2 | READ | recipes.current_costs | V750-通用款 | F2 | NONE\nSTEP: P3 | PREVIEW | recipes.scenario_compare_preview | V750-通用款 | F3 | F1,F2\nSTEP: P4 | COMPUTE | LOCAL_DETERMINISTIC | V750-通用款 | F4 | F2,F3\nCOMPLETION: 获取 V750通用款 模板详情与权威成本基准后，生成电缆5米、木箱配置场景的权威成本预览，并对差额做确定性计算；全程只读不保存。\nWRITE_REQUIRED: NO\nPREVIEW_PLAN_AVAILABLE: YES",
+      "plan": {
+        "raw": "PLAN_STATUS: READ\nOWNER_GOAL: 计算 V750通用款电缆5米、木箱配置的电缆/木箱成本试算，不保存。\nGROUNDED_TARGET: V750-通用款\nREQUIRED_FACT: F1 | 已正式定位 V750通用款 模板的当前详情与固定件关系 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F2 | V750通用款 对应的当前权威成本基准（配方当前成本） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F3 | 电缆5米、木箱配置场景下的权威成本预览 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nREQUIRED_FACT: F4 | 当前正式配置与场景预览之间的成本差额 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\nSTEP: P1 | READ | templates.detail | V750-通用款 | F1 | NONE\nSTEP: P2 | READ | recipes.current_costs | V750-通用款 | F2 | NONE\nSTEP: P3 | PREVIEW | recipes.scenario_compare_preview | V750-通用款 | F3 | F1,F2\nSTEP: P4 | COMPUTE | LOCAL_DETERMINISTIC | V750-通用款 | F4 | F2,F3\nCOMPLETION: 获取 V750通用款 模板详情与权威成本基准后，生成电缆5米、木箱配置场景的权威成本预览，并对差额做确定性计算；全程只读不保存。\nWRITE_REQUIRED: NO\nPREVIEW_PLAN_AVAILABLE: YES",
+        "status": "READ",
+        "ownerGoal": "计算 V750通用款电缆5米、木箱配置的电缆/木箱成本试算，不保存。",
+        "groundedTargets": [
+          "V750-通用款"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "已正式定位 V750通用款 模板的当前详情与固定件关系",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "V750通用款 对应的当前权威成本基准（配方当前成本）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "电缆5米、木箱配置场景下的权威成本预览",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F4",
+            "description": "当前正式配置与场景预览之间的成本差额",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P2",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F2",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P3",
+            "mode": "PREVIEW",
+            "capability": "recipes.scenario_compare_preview",
+            "target": "V750-通用款",
+            "produces": "F3",
+            "dependsOn": "F1,F2"
+          },
+          {
+            "stepId": "P4",
+            "mode": "COMPUTE",
+            "capability": "LOCAL_DETERMINISTIC",
+            "target": "V750-通用款",
+            "produces": "F4",
+            "dependsOn": "F2,F3"
+          }
+        ],
+        "completion": "获取 V750通用款 模板详情与权威成本基准后，生成电缆5米、木箱配置场景的权威成本预览，并对差额做确定性计算；全程只读不保存。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "YES",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 2493.9355
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "PLAN_STATUS_INCORRECT"
+        ],
+        "planStatus": "READ",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P2",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F2",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P3",
+            "mode": "PREVIEW",
+            "capability": "recipes.scenario_compare_preview",
+            "target": "V750-通用款",
+            "produces": "F3",
+            "dependsOn": "F1,F2"
+          },
+          {
+            "stepId": "P4",
+            "mode": "COMPUTE",
+            "capability": "LOCAL_DETERMINISTIC",
+            "target": "V750-通用款",
+            "produces": "F4",
+            "dependsOn": "F2,F3"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "已正式定位 V750通用款 模板的当前详情与固定件关系",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "V750通用款 对应的当前权威成本基准（配方当前成本）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "电缆5米、木箱配置场景下的权威成本预览",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F4",
+            "description": "当前正式配置与场景预览之间的成本差额",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "V750-通用款"
+        ]
+      }
+    },
+    {
+      "id": "P-16",
+      "user": "这个多少钱？",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "UNRESOLVED",
+        "finalGroundedTargets": [],
+        "groundingAmbiguity": "unresolved owner reference",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "这个多少钱？",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "UNRESOLVED",
+        "finalGroundedTargets": [],
+        "groundingAmbiguity": "unresolved owner reference",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: BLOCKED_GROUNDING\n\nOWNER_GOAL: 这个多少钱？\n\nGROUNDED_TARGET: NONE\n\nREQUIRED_FACT: F1 | 老板所指“这个”对应的正式实体定位 | NONE | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | NONE | NONE | F1 | NONE\n\nCOMPLETION: 无法规划，因为没有已正式定位的目标实体。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+      "plan": {
+        "raw": "PLAN_STATUS: BLOCKED_GROUNDING\n\nOWNER_GOAL: 这个多少钱？\n\nGROUNDED_TARGET: NONE\n\nREQUIRED_FACT: F1 | 老板所指“这个”对应的正式实体定位 | NONE | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nSTEP: P1 | READ | NONE | NONE | F1 | NONE\n\nCOMPLETION: 无法规划，因为没有已正式定位的目标实体。\n\nWRITE_REQUIRED: NO\n\nPREVIEW_PLAN_AVAILABLE: NO",
+        "status": "BLOCKED_GROUNDING",
+        "ownerGoal": "这个多少钱？",
+        "groundedTargets": [
+          "NONE"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "老板所指“这个”对应的正式实体定位",
+            "target": "NONE",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "NONE",
+            "target": "NONE",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "completion": "无法规划，因为没有已正式定位的目标实体。",
+        "writeRequired": "NO",
+        "previewPlanAvailable": "NO",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": []
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 1519.6585
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "PLANNER_INVENTED_CAPABILITY",
+          "STEP_COUNT_INCORRECT",
+          "BLOCKED_GROUNDING_HAS_STEPS"
+        ],
+        "planStatus": "BLOCKED_GROUNDING",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "NONE",
+            "target": "NONE",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "老板所指“这个”对应的正式实体定位",
+            "target": "NONE",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          }
+        ],
+        "groundedTargets": [
+          "NONE"
+        ]
+      }
+    },
+    {
+      "id": "P-17",
+      "user": "把V750通用款包装改成木箱并保存。",
+      "upstreamSource": "FROZEN_UPSTREAM_FIXTURE_R10",
+      "upstream": {
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "source": "FROZEN_UPSTREAM_FIXTURE_R10"
+      },
+      "context": {
+        "rawOwnerInput": "把V750通用款包装改成木箱并保存。",
+        "businessMemo": "业务模型说明：Template 是可复用结构；Recipe 是具体产品配置。木箱、浮球、电泳、不锈钢接轴和电缆长度属于可配置成本/工艺描述，不是顶层正式实体。",
+        "policyMemo": "规则：多候选不得静默选择；未明确保存时仅允许临时读取或试算；正式写入必须受到保护。",
+        "groundingResult": "EXACT",
+        "finalGroundedTargets": [
+          {
+            "mention": "V750通用款",
+            "entityType": "recipe",
+            "status": "EXACT",
+            "canonicalId": 11,
+            "canonicalName": "V750-通用款",
+            "candidates": [
+              {
+                "canonicalId": 11,
+                "canonicalName": "V750-通用款"
+              }
+            ],
+            "source": "FROZEN_GROUNDING_V1_FIXTURE"
+          }
+        ],
+        "groundingAmbiguity": "NONE",
+        "capabilityCatalog": {
+          "source": "api/capabilities/registry.cjs:listBusinessCapabilities",
+          "registryPath": "api/capabilities/registry.cjs",
+          "totalCapabilities": 147,
+          "operationCounts": {
+            "query": 41,
+            "preview": 5,
+            "command": 78,
+            "maintenance": 23
+          },
+          "visibleCapabilities": [
+            {
+              "capabilityId": "templates.detail",
+              "mode": "READ",
+              "domain": "template",
+              "description": "读取一个已正式定位模板的当前详情与固定件关系。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.current_costs",
+              "mode": "READ",
+              "domain": "recipes",
+              "description": "读取已正式定位配方的当前权威成本基准。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "relations.read",
+              "mode": "READ",
+              "domain": "catalog",
+              "description": "读取已正式定位实体的当前正式关系，例如配方当前线圈。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "cost.recipe_difference",
+              "mode": "READ",
+              "domain": "cost",
+              "description": "读取两个已正式定位配方的当前权威成本差异。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "coils.list",
+              "mode": "READ",
+              "domain": "coil",
+              "description": "读取已正式定位线圈方案的当前权威规格与成本相关正式记录。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            },
+            {
+              "capabilityId": "recipes.scenario_compare_preview",
+              "mode": "PREVIEW",
+              "domain": "recipes",
+              "description": "在不保存的前提下，对已正式定位配方的配置场景进行权威成本预览。",
+              "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE"
+            }
+          ],
+          "visibleReadCapabilities": 5,
+          "visibleAnalysisCapabilities": 0,
+          "visiblePreviewCapabilities": 1,
+          "hiddenWriteCapabilities": 101,
+          "plannerVisibleCapabilityCount": 6,
+          "plannerWriteCapabilitiesVisible": 0
+        }
+      },
+      "plannerMemo": "PLAN_STATUS: READY\n\nOWNER_GOAL: 把V750通用款包装改成木箱并保存。\n\nGROUNDED_TARGET: V750-通用款 | EXACT\n\nREQUIRED_FACT: F1 | 当前正式配方详情与可配置成本/工艺描述（包装、木箱等） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nREQUIRED_FACT: F2 | 当前权威成本基准 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nREQUIRED_FACT: F3 | 包装改为木箱后的场景成本预览 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | F1,F2\n\nREQUIRED_FACT: F4 | 包装变更差额 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | F2,F3\n\nSTEP: P1 | READ | recipes.current_costs | V750-通用款 | F1 | NONE\n\nSTEP: P1 | READ | templates.detail | V750-通用款 | F1 | NONE\n\nSTEP: P2 | PREVIEW | recipes.scenario_compare_preview | V750-通用款 | F3 | F1,F2\n\nSTEP: P3 | COMPUTE | LOCAL_DETERMINISTIC | V750-通用款 | F4 | F2,F3\n\nCOMPLETION: 已完成正式配置读取与木箱包装场景的权威成本预览及差额计算，未执行任何保存写入。\n\nWRITE_REQUIRED: YES\n\nPREVIEW_PLAN_AVAILABLE: YES\n\nRAW_OWNER_INPUT: 把V750通用款包装改成木箱并保存。",
+      "plan": {
+        "raw": "PLAN_STATUS: READY\n\nOWNER_GOAL: 把V750通用款包装改成木箱并保存。\n\nGROUNDED_TARGET: V750-通用款 | EXACT\n\nREQUIRED_FACT: F1 | 当前正式配方详情与可配置成本/工艺描述（包装、木箱等） | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nREQUIRED_FACT: F2 | 当前权威成本基准 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE\n\nREQUIRED_FACT: F3 | 包装改为木箱后的场景成本预览 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | F1,F2\n\nREQUIRED_FACT: F4 | 包装变更差额 | V750-通用款 | AUTHORITATIVE_BUSINESS_SOURCE | F2,F3\n\nSTEP: P1 | READ | recipes.current_costs | V750-通用款 | F1 | NONE\n\nSTEP: P1 | READ | templates.detail | V750-通用款 | F1 | NONE\n\nSTEP: P2 | PREVIEW | recipes.scenario_compare_preview | V750-通用款 | F3 | F1,F2\n\nSTEP: P3 | COMPUTE | LOCAL_DETERMINISTIC | V750-通用款 | F4 | F2,F3\n\nCOMPLETION: 已完成正式配置读取与木箱包装场景的权威成本预览及差额计算，未执行任何保存写入。\n\nWRITE_REQUIRED: YES\n\nPREVIEW_PLAN_AVAILABLE: YES\n\nRAW_OWNER_INPUT: 把V750通用款包装改成木箱并保存。",
+        "status": "READY",
+        "ownerGoal": "把V750通用款包装改成木箱并保存。",
+        "groundedTargets": [
+          "V750-通用款 | EXACT"
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "当前正式配方详情与可配置成本/工艺描述（包装、木箱等）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "当前权威成本基准",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "包装改为木箱后的场景成本预览",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "F1,F2"
+          },
+          {
+            "factId": "F4",
+            "description": "包装变更差额",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "F2,F3"
+          }
+        ],
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P2",
+            "mode": "PREVIEW",
+            "capability": "recipes.scenario_compare_preview",
+            "target": "V750-通用款",
+            "produces": "F3",
+            "dependsOn": "F1,F2"
+          },
+          {
+            "stepId": "P3",
+            "mode": "COMPUTE",
+            "capability": "LOCAL_DETERMINISTIC",
+            "target": "V750-通用款",
+            "produces": "F4",
+            "dependsOn": "F2,F3"
+          }
+        ],
+        "completion": "已完成正式配置读取与木箱包装场景的权威成本预览及差额计算，未执行任何保存写入。",
+        "writeRequired": "YES",
+        "previewPlanAvailable": "YES",
+        "missingCapabilities": [],
+        "upstreamContractGaps": [],
+        "malformedLines": [
+          "RAW_OWNER_INPUT: 把V750通用款包装改成木箱并保存。"
+        ]
+      },
+      "modelCalls": {
+        "planner": 1,
+        "intent": 0,
+        "utteranceExtractor": 0
+      },
+      "timings": {
+        "plannerMs": 2121.418833
+      },
+      "execution": {
+        "toolCalls": 0,
+        "businessApiCalls": 0,
+        "dbAccessAttempts": 0,
+        "writeAttempts": 0
+      },
+      "evaluation": {
+        "overall": "FAIL",
+        "failures": [
+          "PLAN_STATUS_INCORRECT"
+        ],
+        "planStatus": "READY",
+        "steps": [
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "recipes.current_costs",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P1",
+            "mode": "READ",
+            "capability": "templates.detail",
+            "target": "V750-通用款",
+            "produces": "F1",
+            "dependsOn": "NONE"
+          },
+          {
+            "stepId": "P2",
+            "mode": "PREVIEW",
+            "capability": "recipes.scenario_compare_preview",
+            "target": "V750-通用款",
+            "produces": "F3",
+            "dependsOn": "F1,F2"
+          },
+          {
+            "stepId": "P3",
+            "mode": "COMPUTE",
+            "capability": "LOCAL_DETERMINISTIC",
+            "target": "V750-通用款",
+            "produces": "F4",
+            "dependsOn": "F2,F3"
+          }
+        ],
+        "requiredFacts": [
+          {
+            "factId": "F1",
+            "description": "当前正式配方详情与可配置成本/工艺描述（包装、木箱等）",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F2",
+            "description": "当前权威成本基准",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "NONE"
+          },
+          {
+            "factId": "F3",
+            "description": "包装改为木箱后的场景成本预览",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "F1,F2"
+          },
+          {
+            "factId": "F4",
+            "description": "包装变更差额",
+            "target": "V750-通用款",
+            "sourceRequirement": "AUTHORITATIVE_BUSINESS_SOURCE",
+            "dependencies": "F2,F3"
+          }
+        ],
+        "groundedTargets": [
+          "V750-通用款 | EXACT"
+        ]
+      }
+    }
+  ]
+}
