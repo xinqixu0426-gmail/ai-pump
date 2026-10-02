@@ -9,6 +9,7 @@ const { parseReferenceMemo } = require('../scripts/ai-experiments/business-polic
 const { messagesForReferenceResolver } = require('../scripts/ai-experiments/business-policy-intent/referenceResolver.cjs');
 const { messagesForRoleClassifier, parseRoleMemo } = require('../scripts/ai-experiments/business-policy-intent/roleClassifier.cjs');
 const { buildNarrowBusinessReferenceHint } = require('../scripts/ai-experiments/business-policy-intent/referenceHint.cjs');
+const { buildGroundingWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/workingUtterance.cjs');
 const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
 const { evaluateGrounding } = require('../scripts/ai-experiments/business-policy-intent/groundingEvaluator.cjs');
@@ -23,7 +24,7 @@ function dependencies({ reference = null, role, resolver, runRoleClassifier: rol
         runBusinessAgent: async input => { assert.equal(input.businessModel, 'BUSINESS_MODEL'); return 'Business Memo'; },
         runPolicyAgent: async input => { assert.equal(input.domainPolicy, 'DOMAIN_POLICY'); return 'Policy Memo'; },
         runReferenceResolver: async input => { assert.equal('businessMemo' in input, false); assert.equal('policyMemo' in input, false); assert.ok(input.businessReferenceHint); return reference; },
-        runRoleClassifier: roleRunner || (async input => { assert.equal(input.businessMemo, 'Business Memo'); assert.equal(input.policyMemo, 'Policy Memo'); return role; }),
+        runRoleClassifier: roleRunner || (async input => { assert.equal(input.businessMemo, 'Business Memo'); assert.equal(input.policyMemo, 'Policy Memo'); assert.equal(typeof input.workingUtterance, 'string'); assert.equal('userInput' in input, false); return role; }),
         resolveAgentEntity: resolver || (async input => notFound(input.entityType, input.mention)),
     };
 }
@@ -60,7 +61,7 @@ test('Resolved reference remains language only before Role classification', () =
 });
 
 test('Minimal Role protocol has no entity type, request class, grounding need, or query role', () => {
-    const messages = messagesForRoleClassifier({ userInput: 'V750换木箱多少钱？', businessMemo: 'B', policyMemo: 'P', reference: { status: 'NONE' } });
+    const messages = messagesForRoleClassifier({ workingUtterance: 'V750换木箱多少钱？', businessMemo: 'B', policyMemo: 'P' });
     assert.doesNotMatch(messages[0].content, /ROLE:\s*原始语言表达\s*\|\s*(?:RECIPE|COIL|TEMPLATE|PART)/u);
     assert.deepEqual(parseRoleMemo('ROLE: V750 | FORMAL_ENTITY_CANDIDATE\nROLE: 换木箱 | CONFIG_VALUE'), {
         roles: [{ expression: 'V750', role: 'FORMAL_ENTITY_CANDIDATE' }, { expression: '换木箱', role: 'CONFIG_VALUE' }],
@@ -68,7 +69,7 @@ test('Minimal Role protocol has no entity type, request class, grounding need, o
 });
 
 test('Formal candidate means a resolver candidate for the current request, not an already unique identity', () => {
-    const prompt = messagesForRoleClassifier({ userInput: '12-120多少钱？', businessMemo: 'B', policyMemo: 'P', reference: { status: 'NONE' } })[0].content;
+    const prompt = messagesForRoleClassifier({ workingUtterance: '12-120多少钱？', businessMemo: 'B', policyMemo: 'P' })[0].content;
     assert.match(prompt, /不要求已经唯一、canonical 或已绑定正式实体/u);
     assert.match(prompt, /12-120多少钱/u);
     assert.match(prompt, /FORMAL_ENTITY_CANDIDATE/u);
@@ -101,6 +102,61 @@ test('Reference parsing rejects an antecedent absent from recent owner wording',
     assert.equal(result.status, 'UNRESOLVED');
 });
 
+test('Resolved reference uses an exact deterministic working-utterance rewrite with provenance', () => {
+    const result = buildGroundingWorkingUtterance({
+        rawOwnerInput: '刚才那个线圈多少钱？',
+        reference: { status: 'RESOLVED', surface: '刚才那个线圈', resolvedLanguageReference: '12-120' },
+    });
+    assert.equal(result.workingUtterance, '12-120多少钱？');
+    assert.deepEqual(result.rewrite, {
+        applied: true,
+        sourceSurface: '刚才那个线圈',
+        replacement: '12-120',
+        rawOwnerInput: '刚才那个线圈多少钱？',
+        workingUtterance: '12-120多少钱？',
+        source: 'RESOLVED_OWNER_LANGUAGE_REFERENCE',
+        failure: null,
+    });
+});
+
+test('No reference keeps raw owner language and an unresolved reference never rewrites', () => {
+    const none = buildGroundingWorkingUtterance({ rawOwnerInput: 'V750换木箱多少钱？', reference: { status: 'NONE' } });
+    const unresolved = buildGroundingWorkingUtterance({ rawOwnerInput: '这个多少钱？', reference: { status: 'UNRESOLVED', surface: '这个' } });
+    assert.equal(none.workingUtterance, 'V750换木箱多少钱？');
+    assert.equal(none.rewrite.applied, false);
+    assert.equal(unresolved.workingUtterance, '这个多少钱？');
+    assert.equal(unresolved.rewrite.applied, false);
+});
+
+test('Rewrite mismatch fails closed before Role and resolver', async () => {
+    let roleCalls = 0;
+    let resolverCalls = 0;
+    const result = await run('刚才那个线圈多少钱？', {
+        reference: referenceMemo('RESOLVED', '不存在的指代', '12-120'),
+        role: 'must not run',
+        runRoleClassifier: async () => { roleCalls += 1; throw new Error('must not classify'); },
+        resolver: async () => { resolverCalls += 1; throw new Error('must not resolve'); },
+    }, '我先看看12-120。');
+    assert.equal(result.gate, 'STOP_REFERENCE_REWRITE_FAILURE');
+    assert.equal(result.referenceRewrite.failure, 'REFERENCE_REWRITE_MISMATCH');
+    assert.equal(roleCalls, 0);
+    assert.equal(resolverCalls, 0);
+});
+
+test('Resolved-reference Role input is rewritten and old reference target is filtered before resolver', async () => {
+    const resolverCalls = [];
+    const result = await run('刚才那个线圈多少钱？', {
+        reference: referenceMemo('RESOLVED', '刚才那个线圈', '12-120'),
+        role: roleMemo(['ROLE: 刚才那个线圈 | FORMAL_ENTITY_CANDIDATE', 'ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE']),
+        resolver: async input => { resolverCalls.push(input); return notFound(input.entityType, input.mention); },
+    }, '我先看看12-120。');
+    assert.equal(result.workingUtterance, '12-120多少钱？');
+    assert.deepEqual(result.formalTargets.map(target => target.mention), ['12-120']);
+    assert.deepEqual(result.rejectedFormalTargets, [{ expression: '刚才那个线圈', reason: 'OUT_OF_WORKING_UTTERANCE_INFERENCE' }]);
+    assert.equal(resolverCalls.length, 4);
+    assert.ok(resolverCalls.every(call => call.mention === '12-120'));
+});
+
 test('No reference surface has zero Reference calls and Role output drives a formal-only fan-out', async () => {
     const calls = [];
     const result = await run('V750换木箱多少钱？', {
@@ -110,7 +166,7 @@ test('No reference surface has zero Reference calls and Role output drives a for
     assert.equal(result.modelCalls.reference, 0);
     assert.equal(result.gate, 'RUN');
     assert.deepEqual(calls, FANOUT_ENTITY_TYPES.map(entityType => ({ entityType, mention: 'V750' })));
-    assert.deepEqual(result.formalTargets, [{ mention: 'V750' }]);
+    assert.deepEqual(result.formalTargets, [{ mention: 'V750', source: 'ROLE_CLASSIFIER', sourceExpression: 'V750', workingUtterance: 'V750换木箱多少钱？' }]);
 });
 
 test('Concept-only roles stop without a resolver and no QUERY_ONLY line is required', async () => {
@@ -155,9 +211,9 @@ test('Cross-type resolver evidence remains MULTIPLE_TYPE rather than choosing a 
     assert.equal(result.entityType, null);
 });
 
-test('Multi-target qualifier-preserving Role output fans out independently', async () => {
+test('Multi-target exact owner-language Role output fans out independently', async () => {
     const calls = [];
-    await run('通用款和豪贝款的V750成本分别多少？', {
+    await run('通用款V750、豪贝款V750成本分别多少？', {
         role: roleMemo(['ROLE: 通用款V750 | FORMAL_ENTITY_CANDIDATE', 'ROLE: 豪贝款V750 | FORMAL_ENTITY_CANDIDATE']),
         resolver: async input => { calls.push(input); return notFound(input.entityType, input.mention); },
     });
@@ -167,11 +223,11 @@ test('Multi-target qualifier-preserving Role output fans out independently', asy
 });
 
 test('Evaluator accepts a supported semantic span and rejects unsupported added source text', () => {
-    const base = { reference: { status: 'NONE', surface: null, resolvedLanguageReference: null }, gate: 'STOP_NO_FORMAL_TARGET', formalTargets: [], formalResults: [], modelCalls: { role: 1 }, roleMemo: 'ROLE: 换木箱 | CONFIG_VALUE', roles: [{ expression: '换木箱', role: 'CONFIG_VALUE' }] };
+    const base = { reference: { status: 'NONE', surface: null, resolvedLanguageReference: null }, workingUtterance: 'V750换木箱多少钱？', gate: 'STOP_NO_FORMAL_TARGET', formalTargets: [], formalResults: [], modelCalls: { role: 1 }, roleMemo: 'ROLE: 换木箱 | CONFIG_VALUE', roles: [{ expression: '换木箱', role: 'CONFIG_VALUE' }] };
     const pass = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, base);
     assert.equal(pass.overall, 'PASS');
     const fail = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, { ...base, roles: [{ expression: '纸箱换木箱', role: 'CONFIG_VALUE' }] });
-    assert.match(fail.failures.join(','), /UNSUPPORTED_ROLE_SPAN/);
+    assert.match(fail.failures.join(','), /OUT_OF_WORKING_UTTERANCE_INFERENCE/);
 });
 
 test('Business and Policy remain frozen, Intent is absent, and production Runtime imports no prototype', () => {

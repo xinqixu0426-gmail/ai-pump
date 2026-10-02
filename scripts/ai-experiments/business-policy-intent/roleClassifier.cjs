@@ -5,7 +5,6 @@ const { callDeepSeek } = require('./modelClient.cjs');
 const ROLE_NAMES = new Set(['FORMAL_ENTITY_CANDIDATE', 'CONFIG_VALUE', 'CONCEPT_ONLY']);
 
 function messagesForRoleClassifier(input) {
-    const reference = input.reference || { status: 'NONE', surface: null, resolvedLanguageReference: null };
     return [
         { role: 'system', content: [
             '你是 Minimal Grounding Role Classifier。唯一职责：标注哪些老板语言表达值得进入正式 identity resolver。',
@@ -18,11 +17,9 @@ function messagesForRoleClassifier(input) {
             '同一表达的角色取决于当前请求用途：问“12-120是什么意思”时 12-120 是 CONCEPT_ONLY；问“12-120多少钱”或“12-120有几个方案”时 12-120 是 FORMAL_ENTITY_CANDIDATE。不要把“不唯一正式 identity”误判为 CONCEPT_ONLY。',
             'CONFIG_VALUE 是依附于正式对象的配置、参数、工艺或选项；例如木箱、纸箱、浮球、电泳、不锈钢接轴、长度。即使配置与 Recipe 有关，也不是 Recipe target。CONCEPT_ONLY 是当前只讨论业务定义、含义或区别而不要求绑定记录的表达。',
             '若存在已解析的语言指代，必须把该已解析语言表达作为候选或概念输出；它仍不是正式 ID。',
-            `老板原话：${input.userInput}`,
+            `Grounding Working Utterance：${input.workingUtterance}`,
             'Business Memo（帮助理解业务词，不是正式身份来源）：', input.businessMemo,
             'Policy Memo（帮助保留安全边界，不是正式身份来源）：', input.policyMemo,
-            `Reference Status: ${reference.status}`,
-            `Resolved Language Reference: ${reference.resolvedLanguageReference || 'NONE'}`,
         ].join('\n') },
         { role: 'user', content: '请只按 ROLE 行协议输出。' },
     ];

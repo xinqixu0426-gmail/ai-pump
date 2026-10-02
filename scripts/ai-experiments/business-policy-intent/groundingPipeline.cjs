@@ -6,6 +6,7 @@ const { detectReferenceSurface } = require('./referenceDetection.cjs');
 const { runReferenceResolver, parseReferenceMemo } = require('./referenceResolver.cjs');
 const { buildNarrowBusinessReferenceHint } = require('./referenceHint.cjs');
 const { runRoleClassifier, parseRoleMemo } = require('./roleClassifier.cjs');
+const { buildGroundingWorkingUtterance, roleExpressionInWorkingUtterance } = require('./workingUtterance.cjs');
 const { resolveAgentEntity } = require('../../../api/ontology/agentResolver.cjs');
 
 const FANOUT_ENTITY_TYPES = Object.freeze(['recipe', 'coil', 'template', 'part']);
@@ -16,23 +17,32 @@ function timed(runner) {
     return Promise.resolve().then(runner).then(value => ({ value, ms: elapsed(start) }));
 }
 
-function uniqueFormalTargets(roles) {
+function uniqueFormalTargets(roles, workingUtterance) {
     const seen = new Set();
-    return Object.freeze((roles || []).filter(item => item.role === 'FORMAL_ENTITY_CANDIDATE' && item.expression)
+    const rejected = [];
+    const formalTargets = (roles || []).filter(item => item.role === 'FORMAL_ENTITY_CANDIDATE' && item.expression)
+        .filter(item => {
+            if (workingUtterance !== undefined && !roleExpressionInWorkingUtterance(item.expression, workingUtterance)) {
+                rejected.push(Object.freeze({ expression: item.expression, reason: 'OUT_OF_WORKING_UTTERANCE_INFERENCE' }));
+                return false;
+            }
+            return true;
+        })
         .filter(item => {
             if (seen.has(item.expression)) return false;
             seen.add(item.expression);
             return true;
-        }).map(item => Object.freeze({ mention: item.expression })));
+        }).map(item => Object.freeze({ mention: item.expression, source: 'ROLE_CLASSIFIER', sourceExpression: item.expression, workingUtterance }));
+    return Object.freeze({ formalTargets: Object.freeze(formalTargets), rejectedFormalTargets: Object.freeze(rejected) });
 }
 
-function computeGroundingGate({ referenceStatus, roles }) {
+function computeGroundingGate({ referenceStatus, roles, workingUtterance }) {
     if (referenceStatus === 'UNRESOLVED') return Object.freeze({ gate: 'STOP_UNRESOLVED_REFERENCE', formalTargets: Object.freeze([]) });
-    const formalTargets = uniqueFormalTargets(roles);
-    if (formalTargets.length) return Object.freeze({ gate: 'RUN', formalTargets });
+    const { formalTargets, rejectedFormalTargets } = uniqueFormalTargets(roles, workingUtterance);
+    if (formalTargets.length) return Object.freeze({ gate: 'RUN', formalTargets, rejectedFormalTargets });
     const roleValues = (roles || []).map(item => item.role);
-    if (roleValues.length && roleValues.every(value => value === 'CONCEPT_ONLY')) return Object.freeze({ gate: 'STOP_CONCEPT_ONLY', formalTargets });
-    return Object.freeze({ gate: 'STOP_NO_FORMAL_TARGET', formalTargets });
+    if (roleValues.length && roleValues.every(value => value === 'CONCEPT_ONLY')) return Object.freeze({ gate: 'STOP_CONCEPT_ONLY', formalTargets, rejectedFormalTargets });
+    return Object.freeze({ gate: 'STOP_NO_FORMAL_TARGET', formalTargets, rejectedFormalTargets });
 }
 
 function formalStatus(result) {
@@ -83,27 +93,38 @@ async function runGroundingPipeline(input, dependencies = {}) {
         ? await timed(() => referenceRunner({ userInput: input.userInput, recentOwnerWording: input.recentOwnerWording || '', referenceSurface: detection.surface, businessReferenceHint }, dependencies))
         : { value: null, ms: 0 };
     const reference = parseReferenceMemo(referenceModel.value, detection, input.recentOwnerWording || '');
+    const rewriteStarted = process.hrtime.bigint();
+    const working = buildGroundingWorkingUtterance({ rawOwnerInput: input.userInput, reference });
+    const referenceRewriteMs = elapsed(rewriteStarted);
     if (reference.status === 'UNRESOLVED') {
         return Object.freeze({
-            businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference,
-            roleMemo: null, roles: Object.freeze([]), gate: 'STOP_UNRESOLVED_REFERENCE', formalTargets: Object.freeze([]), formalResults: Object.freeze([]),
+            businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
+            roleMemo: null, roles: Object.freeze([]), gate: 'STOP_UNRESOLVED_REFERENCE', formalTargets: Object.freeze([]), rejectedFormalTargets: Object.freeze([]), formalResults: Object.freeze([]),
             modelCalls: Object.freeze({ business: 1, policy: 1, reference: 1, role: 0, intent: 0, utteranceExtractor: 0 }),
             timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, roleMs: 0, resolverFanoutMs: 0, totalMs: elapsed(totalStart) }),
         });
     }
-    const role = await timed(() => roleRunner({ userInput: input.userInput, businessMemo: business.value, policyMemo: policy.value, reference }, dependencies));
+    if (working.rewrite.failure) {
+        return Object.freeze({
+            businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
+            roleMemo: null, roles: Object.freeze([]), gate: 'STOP_REFERENCE_REWRITE_FAILURE', formalTargets: Object.freeze([]), rejectedFormalTargets: Object.freeze([]), formalResults: Object.freeze([]),
+            modelCalls: Object.freeze({ business: 1, policy: 1, reference: detection.status === 'DETECTED' ? 1 : 0, role: 0, intent: 0, utteranceExtractor: 0 }),
+            timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, referenceRewriteMs: 0, roleMs: 0, resolverFanoutMs: 0, totalMs: elapsed(totalStart) }),
+        });
+    }
+    const role = await timed(() => roleRunner({ workingUtterance: working.workingUtterance, businessMemo: business.value, policyMemo: policy.value }, dependencies));
     const parsedRole = parseRoleMemo(role.value);
-    const gate = computeGroundingGate({ referenceStatus: reference.status, roles: parsedRole.roles });
+    const gate = computeGroundingGate({ referenceStatus: reference.status, roles: parsedRole.roles, workingUtterance: working.workingUtterance });
     const formalResults = [];
     if (gate.gate === 'RUN') {
         for (const target of gate.formalTargets) formalResults.push(await resolveFormalCandidate(target, resolver, dependencies));
     }
     const resolverFanoutMs = formalResults.reduce((sum, result) => sum + result.typeResults.reduce((subtotal, item) => subtotal + item.resolverMs, 0), 0);
     return Object.freeze({
-        businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference,
-        roleMemo: role.value, roles: parsedRole.roles, gate: gate.gate, formalTargets: gate.formalTargets, formalResults: Object.freeze(formalResults),
+        businessMemo: business.value, policyMemo: policy.value, referenceDetection: detection, businessReferenceHint, referenceMemo: referenceModel.value, reference, workingUtterance: working.workingUtterance, referenceRewrite: working.rewrite,
+        roleMemo: role.value, roles: parsedRole.roles, gate: gate.gate, formalTargets: gate.formalTargets, rejectedFormalTargets: gate.rejectedFormalTargets || Object.freeze([]), formalResults: Object.freeze(formalResults),
         modelCalls: Object.freeze({ business: 1, policy: 1, reference: detection.status === 'DETECTED' ? 1 : 0, role: 1, intent: 0, utteranceExtractor: 0 }),
-        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, roleMs: role.ms, resolverFanoutMs, totalMs: elapsed(totalStart) }),
+        timings: Object.freeze({ businessMs: business.ms, policyMs: policy.ms, referenceHintMs, referenceMs: referenceModel.ms, referenceRewriteMs, roleMs: role.ms, resolverFanoutMs, totalMs: elapsed(totalStart) }),
     });
 }
 
