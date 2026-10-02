@@ -40,6 +40,9 @@ function localMemoText(expression, businessMemo) {
 }
 
 function categoryFor(expression, businessMemo) {
+    if (/^\d+(?:-\d+)+$/u.test(expression)) return '线圈/线圈方案相关业务表达';
+    if (/^V\d+/iu.test(expression)) return '配方/产品配置相关业务表达';
+    if (/模板$/u.test(expression)) return '模板相关业务表达';
     const local = localMemoText(expression, businessMemo);
     if (/coil|线圈|绕组|定子/u.test(local)) return '线圈/线圈方案相关业务表达';
     if (/template|模板|泵壳/u.test(local)) return '模板相关业务表达';

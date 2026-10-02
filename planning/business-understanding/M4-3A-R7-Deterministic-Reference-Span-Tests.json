@@ -1,0 +1,186 @@
+{
+  "phase": "M4-3A-R7",
+  "kind": "DETERMINISTIC_REFERENCE_SPAN_TESTS",
+  "total": 9,
+  "pass": 9,
+  "fail": 0,
+  "cases": [
+    {
+      "id": "RF-N01_MULTI_COIL",
+      "expected": "SAFE_UNRESOLVED",
+      "actual": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "刚才那个线圈",
+        "recentCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          },
+          {
+            "expression": "12-130",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          },
+          {
+            "expression": "12-130",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": null,
+        "reason": "MULTIPLE_TYPED_COMPATIBLE_CANDIDATES"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RF-N02_MULTI_RECIPE",
+      "expected": "SAFE_UNRESOLVED",
+      "actual": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "它",
+        "recentCandidates": [
+          {
+            "expression": "V750",
+            "category": "配方/产品配置相关业务表达"
+          },
+          {
+            "expression": "V110",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "V750",
+            "category": "配方/产品配置相关业务表达"
+          },
+          {
+            "expression": "V110",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": null,
+        "reason": "MULTIPLE_GENERIC_CANDIDATES"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RF-N03_TYPE_INCOMPATIBLE",
+      "expected": "SAFE_UNRESOLVED",
+      "actual": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "刚才那个线圈",
+        "recentCandidates": [
+          {
+            "expression": "V750",
+            "category": "配方/产品配置相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [],
+        "resolvedLanguageReference": null,
+        "reason": "NO_TYPED_COMPATIBLE_CANDIDATE"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RF-N04_NO_RECENT",
+      "expected": "SAFE_UNRESOLVED",
+      "actual": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "这个",
+        "recentCandidates": [],
+        "compatibleCandidates": [],
+        "resolvedLanguageReference": null,
+        "reason": "NO_RECENT_OWNER_CANDIDATE"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "SA-01",
+      "expression": "V750-通用款",
+      "workingUtterance": "V750通用款现在成本多少？",
+      "expected": {
+        "status": "UNIQUE_MATCH",
+        "alignedExpression": "V750通用款"
+      },
+      "actual": {
+        "status": "UNIQUE_MATCH",
+        "expression": "V750-通用款",
+        "alignedExpression": "V750通用款",
+        "matchCount": 1
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "SA-02",
+      "expression": "V750-通用款",
+      "workingUtterance": "V750 通用款现在成本多少？",
+      "expected": {
+        "status": "UNIQUE_MATCH",
+        "alignedExpression": "V750 通用款"
+      },
+      "actual": {
+        "status": "UNIQUE_MATCH",
+        "expression": "V750-通用款",
+        "alignedExpression": "V750 通用款",
+        "matchCount": 1
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "SA-03",
+      "expression": "V750-通用款",
+      "workingUtterance": "V750通用款和V750豪贝款分别多少钱？",
+      "expected": {
+        "status": "UNIQUE_MATCH",
+        "alignedExpression": "V750通用款"
+      },
+      "actual": {
+        "status": "UNIQUE_MATCH",
+        "expression": "V750-通用款",
+        "alignedExpression": "V750通用款",
+        "matchCount": 1
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "SA-04",
+      "expression": "V750豪贝款",
+      "workingUtterance": "V750通用款现在成本多少？",
+      "expected": {
+        "status": "NO_MATCH",
+        "alignedExpression": null
+      },
+      "actual": {
+        "status": "NO_MATCH",
+        "expression": "V750豪贝款",
+        "alignedExpression": null,
+        "matchCount": 0
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "SA-05",
+      "expression": "12-120",
+      "workingUtterance": "12-120和12-120分别多少钱？",
+      "expected": {
+        "status": "AMBIGUOUS",
+        "alignedExpression": null
+      },
+      "actual": {
+        "status": "AMBIGUOUS",
+        "expression": "12-120",
+        "alignedExpression": null,
+        "matchCount": 2
+      },
+      "status": "PASS"
+    }
+  ]
+}

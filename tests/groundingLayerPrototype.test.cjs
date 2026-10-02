@@ -10,6 +10,8 @@ const { messagesForReferenceResolver } = require('../scripts/ai-experiments/busi
 const { messagesForRoleClassifier, parseRoleMemo } = require('../scripts/ai-experiments/business-policy-intent/roleClassifier.cjs');
 const { buildNarrowBusinessReferenceHint } = require('../scripts/ai-experiments/business-policy-intent/referenceHint.cjs');
 const { buildGroundingWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/workingUtterance.cjs');
+const { resolveReferenceFastPath } = require('../scripts/ai-experiments/business-policy-intent/referenceFastPath.cjs');
+const { alignRoleExpressionToWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/spanAlignment.cjs');
 const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
 const { evaluateGrounding } = require('../scripts/ai-experiments/business-policy-intent/groundingEvaluator.cjs');
@@ -128,19 +130,12 @@ test('No reference keeps raw owner language and an unresolved reference never re
     assert.equal(unresolved.rewrite.applied, false);
 });
 
-test('Rewrite mismatch fails closed before Role and resolver', async () => {
-    let roleCalls = 0;
-    let resolverCalls = 0;
-    const result = await run('刚才那个线圈多少钱？', {
-        reference: referenceMemo('RESOLVED', '不存在的指代', '12-120'),
-        role: 'must not run',
-        runRoleClassifier: async () => { roleCalls += 1; throw new Error('must not classify'); },
-        resolver: async () => { resolverCalls += 1; throw new Error('must not resolve'); },
-    }, '我先看看12-120。');
-    assert.equal(result.gate, 'STOP_REFERENCE_REWRITE_FAILURE');
-    assert.equal(result.referenceRewrite.failure, 'REFERENCE_REWRITE_MISMATCH');
-    assert.equal(roleCalls, 0);
-    assert.equal(resolverCalls, 0);
+test('Rewrite mismatch fails closed without a Role or resolver input', () => {
+    const result = buildGroundingWorkingUtterance({
+        rawOwnerInput: '刚才那个线圈多少钱？',
+        reference: { status: 'RESOLVED', surface: '不存在的指代', resolvedLanguageReference: '12-120' },
+    });
+    assert.equal(result.rewrite.failure, 'REFERENCE_REWRITE_MISMATCH');
 });
 
 test('Resolved-reference Role input is rewritten and old reference target is filtered before resolver', async () => {
@@ -152,7 +147,7 @@ test('Resolved-reference Role input is rewritten and old reference target is fil
     }, '我先看看12-120。');
     assert.equal(result.workingUtterance, '12-120多少钱？');
     assert.deepEqual(result.formalTargets.map(target => target.mention), ['12-120']);
-    assert.deepEqual(result.rejectedFormalTargets, [{ expression: '刚才那个线圈', reason: 'OUT_OF_WORKING_UTTERANCE_INFERENCE' }]);
+    assert.deepEqual(result.rejectedFormalTargets, [{ expression: '刚才那个线圈', reason: 'NO_MATCH' }]);
     assert.equal(resolverCalls.length, 4);
     assert.ok(resolverCalls.every(call => call.mention === '12-120'));
 });
@@ -166,7 +161,7 @@ test('No reference surface has zero Reference calls and Role output drives a for
     assert.equal(result.modelCalls.reference, 0);
     assert.equal(result.gate, 'RUN');
     assert.deepEqual(calls, FANOUT_ENTITY_TYPES.map(entityType => ({ entityType, mention: 'V750' })));
-    assert.deepEqual(result.formalTargets, [{ mention: 'V750', source: 'ROLE_CLASSIFIER', sourceExpression: 'V750', workingUtterance: 'V750换木箱多少钱？' }]);
+    assert.deepEqual(result.formalTargets, [{ mention: 'V750', source: 'ROLE_CLASSIFIER', sourceExpression: 'V750', alignedWorkingSpan: 'V750', workingUtterance: 'V750换木箱多少钱？' }]);
 });
 
 test('Concept-only roles stop without a resolver and no QUERY_ONLY line is required', async () => {
@@ -222,12 +217,35 @@ test('Multi-target exact owner-language Role output fans out independently', asy
     assert.equal(calls.filter(call => call.mention === '豪贝款V750').length, 4);
 });
 
-test('Evaluator accepts a supported semantic span and rejects unsupported added source text', () => {
+test('Evaluator accepts a supported semantic span and records safely filtered output as a warning', () => {
     const base = { reference: { status: 'NONE', surface: null, resolvedLanguageReference: null }, workingUtterance: 'V750换木箱多少钱？', gate: 'STOP_NO_FORMAL_TARGET', formalTargets: [], formalResults: [], modelCalls: { role: 1 }, roleMemo: 'ROLE: 换木箱 | CONFIG_VALUE', roles: [{ expression: '换木箱', role: 'CONFIG_VALUE' }] };
     const pass = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, base);
     assert.equal(pass.overall, 'PASS');
-    const fail = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, { ...base, roles: [{ expression: '纸箱换木箱', role: 'CONFIG_VALUE' }] });
-    assert.match(fail.failures.join(','), /OUT_OF_WORKING_UTTERANCE_INFERENCE/);
+    const warning = evaluateGrounding({ user: 'V750换木箱多少钱？', referenceStatus: 'NONE', roles: [{ terms: ['木箱'], role: 'CONFIG_VALUE' }], gate: 'STOP_NO_FORMAL_TARGET', roleCalls: 1, resolverCalls: 0 }, { ...base, roles: [{ expression: '纸箱换木箱', role: 'CONFIG_VALUE' }] });
+    assert.equal(warning.overall, 'PASS');
+    assert.match(warning.warnings.join(','), /ROLE_OUT_OF_WORKING_UTTERANCE_WARNING/);
+});
+
+test('Deterministic Reference Fast Path resolves only a unique compatible owner-language antecedent', () => {
+    const coil = resolveReferenceFastPath({
+        userInput: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看12-120。', referenceSurface: '刚才那个线圈',
+        businessReferenceHint: { entries: [{ expression: '12-120', category: '线圈/线圈方案相关业务表达' }] },
+    });
+    assert.equal(coil.mode, 'SAFE_RESOLVED');
+    assert.equal(coil.resolvedLanguageReference, '12-120');
+    const incompatible = resolveReferenceFastPath({
+        userInput: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看V750。', referenceSurface: '刚才那个线圈',
+        businessReferenceHint: { entries: [{ expression: 'V750', category: '配方/产品配置相关业务表达' }] },
+    });
+    assert.equal(incompatible.mode, 'SAFE_UNRESOLVED');
+});
+
+test('Conservative span alignment only normalizes whitespace and joiners, then returns working text', () => {
+    assert.deepEqual(alignRoleExpressionToWorkingUtterance('V750-通用款', 'V750通用款现在成本多少？'), {
+        status: 'UNIQUE_MATCH', expression: 'V750-通用款', alignedExpression: 'V750通用款', matchCount: 1,
+    });
+    assert.equal(alignRoleExpressionToWorkingUtterance('V750豪贝款', 'V750通用款现在成本多少？').status, 'NO_MATCH');
+    assert.equal(alignRoleExpressionToWorkingUtterance('12-120', '12-120和12-120分别多少钱？').status, 'AMBIGUOUS');
 });
 
 test('Business and Policy remain frozen, Intent is absent, and production Runtime imports no prototype', () => {

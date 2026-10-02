@@ -109,15 +109,21 @@ async function main() {
     const repeats = scope === 'full' ? FULL_CASES.filter(item => FULL_REPEATS.includes(item.id)) : [];
     const fixture = createGroundingFixture();
     try {
-        console.error(`M4-3A-R6 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
+        console.error(`M4-3A-R7 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
         const executions = [];
         for (const testCase of base) executions.push(await execute(testCase, env, 1, fixture));
         for (const testCase of repeats) executions.push(await execute(testCase, env, 2, fixture));
         const timed = executions.filter(item => item.timings);
         const modelCalls = executions.reduce((sum, item) => sum + (item.modelCalls ? Object.values(item.modelCalls).reduce((subtotal, value) => subtotal + value, 0) : 0), 0);
         const resolverCalls = executions.reduce((sum, item) => sum + (item.formalResults?.reduce((subtotal, result) => subtotal + result.typeResults.length, 0) || 0), 0);
-        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
-        const result = { phase: 'M4-3A-R6', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, results: executions };
+        const referenceFastPathResolved = executions.filter(item => item.referenceFastPath?.mode === 'SAFE_RESOLVED').length;
+        const referenceFastPathUnresolved = executions.filter(item => item.referenceFastPath?.mode === 'SAFE_UNRESOLVED').length;
+        const referenceLlmCalls = executions.reduce((sum, item) => sum + (item.modelCalls?.reference || 0), 0);
+        const spanAlignments = executions.flatMap(item => item.spanAlignments || []);
+        const warnings = executions.flatMap(item => item.evaluation?.warnings || []);
+        const filteredExpressions = executions.flatMap(item => item.rejectedFormalTargets || []).map(item => item.expression);
+        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceFastPathMedianMs: median(timed.map(item => item.timings.referenceFastPathMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), spanAlignmentMedianMs: median(timed.map(item => item.timings.spanAlignmentMs || 0)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
+        const result = { phase: 'M4-3A-R7', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, referenceFastPathResolved, referenceFastPathUnresolved, referenceLlmCallsAvoided: referenceFastPathResolved + referenceFastPathUnresolved, referenceLlmCalls, spanAlignmentAttempts: spanAlignments.length, spanAlignmentSuccess: spanAlignments.filter(item => item.status === 'UNIQUE_MATCH').length, spanAlignmentNoMatch: spanAlignments.filter(item => item.status === 'NO_MATCH').length, spanAlignmentAmbiguous: spanAlignments.filter(item => item.status === 'AMBIGUOUS').length, roleOutOfWorkingUtteranceWarnings: warnings.length, filteredRoleExpressions: filteredExpressions, results: executions };
         if (outputPath) fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
         console.log(JSON.stringify({ ...result, results: executions.map(item => ({ id: item.id, run: item.run, evaluation: item.evaluation, reference: item.reference, roles: item.roles, gate: item.gate, formalResults: item.formalResults?.map(value => ({ mention: value.mention, entityType: value.entityType, status: value.status, typeResults: value.typeResults.map(type => ({ entityType: type.entityType, status: type.result.status })) })), timings: item.timings, error: item.error || null })) }, null, 2));
     } finally { fixture.close(); }
