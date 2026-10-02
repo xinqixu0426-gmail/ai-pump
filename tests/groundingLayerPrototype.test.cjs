@@ -12,6 +12,7 @@ const { buildNarrowBusinessReferenceHint } = require('../scripts/ai-experiments/
 const { buildGroundingWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/workingUtterance.cjs');
 const { resolveReferenceFastPath } = require('../scripts/ai-experiments/business-policy-intent/referenceFastPath.cjs');
 const { alignRoleExpressionToWorkingUtterance } = require('../scripts/ai-experiments/business-policy-intent/spanAlignment.cjs');
+const { detectConceptQuestionFastPath } = require('../scripts/ai-experiments/business-policy-intent/conceptQuestionFastPath.cjs');
 const { FANOUT_ENTITY_TYPES, runGroundingPipeline, computeGroundingGate, deriveFormalResult } = require('../scripts/ai-experiments/business-policy-intent/groundingPipeline.cjs');
 const { createGroundingFixture } = require('../scripts/ai-experiments/business-policy-intent/groundingFixture.cjs');
 const { evaluateGrounding } = require('../scripts/ai-experiments/business-policy-intent/groundingEvaluator.cjs');
@@ -246,6 +247,55 @@ test('Conservative span alignment only normalizes whitespace and joiners, then r
     });
     assert.equal(alignRoleExpressionToWorkingUtterance('V750豪贝款', 'V750通用款现在成本多少？').status, 'NO_MATCH');
     assert.equal(alignRoleExpressionToWorkingUtterance('12-120', '12-120和12-120分别多少钱？').status, 'AMBIGUOUS');
+});
+
+test('High-precision Concept Fast Path detects only explicit definition, comparison, and classification grammar', () => {
+    for (const utterance of ['V750是什么？', '12-120是什么意思？', '模板和配方有什么区别？', '不锈钢接轴在我们业务里算什么？', '浮球在我们这里是配置还是固定件？']) {
+        assert.equal(detectConceptQuestionFastPath(utterance).status, 'MATCHED_CONCEPT_ONLY', utterance);
+    }
+    for (const utterance of ['V750多少钱？', 'V750现在成本多少？', '12-120有几个方案？', '通用款模板有哪些固定件？', 'V750现在用哪个线圈？']) {
+        assert.equal(detectConceptQuestionFastPath(utterance).status, 'NOT_MATCHED', utterance);
+    }
+});
+
+test('Concept Fast Path stops before Role and resolver, but unresolved reference retains priority', async () => {
+    let roleCalls = 0;
+    let resolverCalls = 0;
+    const concept = await run('V750是什么？', {
+        role: 'must not run',
+        runRoleClassifier: async () => { roleCalls += 1; throw new Error('must not classify'); },
+        resolver: async () => { resolverCalls += 1; throw new Error('must not resolve'); },
+    });
+    assert.equal(concept.conceptFastPath.status, 'MATCHED_CONCEPT_ONLY');
+    assert.equal(concept.gate, 'STOP_CONCEPT_ONLY');
+    assert.equal(concept.modelCalls.role, 0);
+    assert.equal(roleCalls, 0);
+    assert.equal(resolverCalls, 0);
+    const unresolved = await run('这个是什么？', {
+        role: 'must not run',
+        runRoleClassifier: async () => { throw new Error('must not classify'); },
+    });
+    assert.equal(unresolved.gate, 'STOP_UNRESOLVED_REFERENCE');
+    assert.equal(unresolved.conceptFastPath, null);
+});
+
+test('Resolved reference is rewritten before Concept Fast Path and formal facts continue to Role', async () => {
+    let conceptRoleCalls = 0;
+    const concept = await run('这个是什么意思？', {
+        role: 'must not run',
+        runRoleClassifier: async () => { conceptRoleCalls += 1; throw new Error('must not classify'); },
+    }, '我先看看12-120。');
+    assert.equal(concept.reference.status, 'RESOLVED');
+    assert.equal(concept.workingUtterance, '12-120是什么意思？');
+    assert.equal(concept.conceptFastPath.status, 'MATCHED_CONCEPT_ONLY');
+    assert.equal(conceptRoleCalls, 0);
+    let factRoleCalls = 0;
+    const fact = await run('这个多少钱？', {
+        role: roleMemo(['ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE']),
+        runRoleClassifier: async input => { factRoleCalls += 1; assert.equal(input.workingUtterance, '12-120多少钱？'); return roleMemo(['ROLE: 12-120 | FORMAL_ENTITY_CANDIDATE']); },
+    }, '我先看看12-120。');
+    assert.equal(fact.conceptFastPath.status, 'NOT_MATCHED');
+    assert.equal(factRoleCalls, 1);
 });
 
 test('Business and Policy remain frozen, Intent is absent, and production Runtime imports no prototype', () => {

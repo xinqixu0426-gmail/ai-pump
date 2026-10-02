@@ -39,6 +39,12 @@ function hasForbiddenLeak(text) {
 function evaluateGrounding(testCase, output) {
     const failures = [];
     const warnings = roleWarnings(output);
+    const conceptMatched = output.conceptFastPath?.status === 'MATCHED_CONCEPT_ONLY';
+    if (testCase.conceptFastPath === 'MATCHED_CONCEPT_ONLY' && !conceptMatched) failures.push('CONCEPT_FAST_PATH_INCORRECT');
+    if (testCase.conceptFastPath === 'NOT_MATCHED' && conceptMatched) failures.push('CONCEPT_FALSE_POSITIVE');
+    if (testCase.gate === 'RUN' && conceptMatched) failures.push('CONCEPT_FALSE_POSITIVE');
+    if (conceptMatched && output.modelCalls.role !== 0) failures.push('CONCEPT_FAST_PATH_ROLE_CALL_BREACH');
+    if (conceptMatched && output.formalResults.length !== 0) failures.push('CONCEPT_FAST_PATH_RESOLVER_CALL_BREACH');
     if (testCase.referenceStatus && output.reference.status !== testCase.referenceStatus) failures.push('REFERENCE_STATUS_INCORRECT');
     if (testCase.referenceSurface && output.reference.surface !== testCase.referenceSurface) failures.push('REFERENCE_SURFACE_INCORRECT');
     if (testCase.resolvedLanguageReference && output.reference.resolvedLanguageReference !== testCase.resolvedLanguageReference) failures.push('REFERENCE_RESOLUTION_INCORRECT');
@@ -54,7 +60,10 @@ function evaluateGrounding(testCase, output) {
         const actualCalls = output.formalResults.reduce((sum, item) => sum + item.typeResults.length, 0);
         if (actualCalls !== testCase.resolverCalls) failures.push('RESOLVER_CALL_CONTRACT_BREACH');
     }
-    for (const expected of testCase.roles || []) if (!roleMatches(output, expected)) failures.push(`ROLE_NOT_PRESERVED:${expected.terms?.join('+') || expected.expression}`);
+    for (const expected of testCase.roles || []) {
+        if (conceptMatched && expected.role === 'CONCEPT_ONLY') continue;
+        if (!roleMatches(output, expected)) failures.push(`ROLE_NOT_PRESERVED:${expected.terms?.join('+') || expected.expression}`);
+    }
     for (const expected of testCase.targets || []) {
         const found = output.formalResults.find(item => expressionHasTerms(item.mention, expected.terms || [expected.mention]));
         if (!found) failures.push('FORMAL_TARGET_NOT_RESOLVED');
@@ -78,7 +87,7 @@ function evaluateGrounding(testCase, output) {
     if (output.formalResults.some(result => result.status === 'MULTIPLE' && result.canonicalId)) failures.push('SILENT_FIRST_RESULT_BINDING');
     if (output.formalResults.some(result => result.status === 'MULTIPLE_TYPE' && result.entityType)) failures.push('CROSS_TYPE_SILENT_SELECTION');
     return Object.freeze({
-        reference: output.reference, gate: output.gate, roles: output.roles, formalResults: output.formalResults,
+        reference: output.reference, conceptFastPath: output.conceptFastPath || null, gate: output.gate, roles: output.roles, formalResults: output.formalResults,
         warnings: Object.freeze([...new Set(warnings)]),
         failures: Object.freeze([...new Set(failures)]), overall: failures.length ? 'FAIL' : 'PASS',
     });

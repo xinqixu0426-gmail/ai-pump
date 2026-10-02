@@ -1,0 +1,717 @@
+{
+  "phase": "M4-3A-R8",
+  "kind": "CONCEPT_FAST_PATH_TESTS",
+  "total": 17,
+  "pass": 17,
+  "fail": 0,
+  "cases": [
+    {
+      "id": "CF-P01",
+      "utterance": "V750是什么？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750是什么？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "DEFINITION_WHAT_IS",
+        "matchedSurface": "V750是什么",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P02",
+      "utterance": "12-120是什么意思？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120是什么意思？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "DEFINITION_WHAT_DOES_IT_MEAN",
+        "matchedSurface": "12-120是什么意思",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P03",
+      "utterance": "模板和配方有什么区别？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "模板和配方有什么区别？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "CONCEPT_COMPARISON",
+        "matchedSurface": "模板和配方有什么区别",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P04",
+      "utterance": "BOM跟模板有什么区别？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "BOM跟模板有什么区别？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "CONCEPT_COMPARISON",
+        "matchedSurface": "BOM跟模板有什么区别",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P05",
+      "utterance": "不锈钢接轴在我们业务里算什么？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "不锈钢接轴在我们业务里算什么？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "BUSINESS_CLASSIFICATION",
+        "matchedSurface": "不锈钢接轴在我们业务里算什么",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P06",
+      "utterance": "浮球在我们这里是配置还是固定件？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "浮球在我们这里是配置还是固定件？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "BUSINESS_CLASSIFICATION",
+        "matchedSurface": "浮球在我们这里是配置还是固定件",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-P07",
+      "utterance": "木箱和纸箱在系统里分别算什么？",
+      "expected": "MATCHED_CONCEPT_ONLY",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "木箱和纸箱在系统里分别算什么？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "BUSINESS_CLASSIFICATION",
+        "matchedSurface": "木箱和纸箱在系统里分别算什么",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N01",
+      "utterance": "V750多少钱？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N02",
+      "utterance": "V750现在成本多少？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750现在成本多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "成本",
+          "现在"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N03",
+      "utterance": "12-120有几个方案？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120有几个方案？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "几个方案"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N04",
+      "utterance": "通用款模板有哪些固定件？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "通用款模板有哪些固定件？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "哪些",
+          "有哪些固定件"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N05",
+      "utterance": "V750现在用哪个线圈？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750现在用哪个线圈？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "哪个",
+          "现在",
+          "用哪个"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N06",
+      "utterance": "12-120库存多少？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120库存多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "库存"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "CF-N07",
+      "utterance": "V750通用款报价是多少？",
+      "expected": "NOT_MATCHED",
+      "actual": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "V750通用款报价是多少？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "报价"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RC-01",
+      "current": "这个是什么？",
+      "recent": "",
+      "detection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "reference": {
+        "mode": "SAFE_UNRESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "这个",
+        "recentCandidates": [],
+        "compatibleCandidates": [],
+        "resolvedLanguageReference": null,
+        "reason": "NO_RECENT_OWNER_CANDIDATE"
+      },
+      "workingUtterance": "这个是什么？",
+      "concept": null,
+      "expected": {
+        "expectedReference": "UNRESOLVED",
+        "expectedConcept": null,
+        "expectedNextStage": "STOP_UNRESOLVED_REFERENCE"
+      },
+      "actual": {
+        "referenceStatus": "UNRESOLVED",
+        "nextStage": "STOP_UNRESOLVED_REFERENCE"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RC-02",
+      "current": "这个是什么意思？",
+      "recent": "我先看看12-120。",
+      "detection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "reference": {
+        "mode": "SAFE_RESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "这个",
+        "recentCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": "12-120",
+        "reason": "UNIQUE_GENERIC_CANDIDATE"
+      },
+      "workingUtterance": "12-120是什么意思？",
+      "concept": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120是什么意思？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [],
+        "status": "MATCHED_CONCEPT_ONLY",
+        "patternFamily": "DEFINITION_WHAT_DOES_IT_MEAN",
+        "matchedSurface": "12-120是什么意思",
+        "reason": "HIGH_PRECISION_CONCEPT_PATTERN"
+      },
+      "expected": {
+        "expectedReference": "RESOLVED",
+        "expectedConcept": "MATCHED_CONCEPT_ONLY",
+        "expectedNextStage": "STOP_CONCEPT_ONLY"
+      },
+      "actual": {
+        "referenceStatus": "RESOLVED",
+        "nextStage": "STOP_CONCEPT_ONLY"
+      },
+      "status": "PASS"
+    },
+    {
+      "id": "RC-03",
+      "current": "这个多少钱？",
+      "recent": "我先看看12-120。",
+      "detection": {
+        "status": "DETECTED",
+        "surface": "这个"
+      },
+      "reference": {
+        "mode": "SAFE_RESOLVED",
+        "source": "DETERMINISTIC_REFERENCE_FAST_PATH",
+        "referenceSurface": "这个",
+        "recentCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "compatibleCandidates": [
+          {
+            "expression": "12-120",
+            "category": "线圈/线圈方案相关业务表达"
+          }
+        ],
+        "resolvedLanguageReference": "12-120",
+        "reason": "UNIQUE_GENERIC_CANDIDATE"
+      },
+      "workingUtterance": "12-120多少钱？",
+      "concept": {
+        "source": "DETERMINISTIC_CONCEPT_FAST_PATH",
+        "workingUtterance": "12-120多少钱？",
+        "negativeFormalFactSignalsChecked": [
+          "多少钱",
+          "价格",
+          "成本",
+          "库存",
+          "现货",
+          "几个方案",
+          "多少方案",
+          "哪个",
+          "哪些",
+          "现在",
+          "当前",
+          "用了什么",
+          "用哪个",
+          "有哪些固定件",
+          "固定件列表",
+          "数量",
+          "报价",
+          "配方内容",
+          "BOM内容",
+          "正式记录"
+        ],
+        "detectedFormalFactSignals": [
+          "多少钱"
+        ],
+        "status": "NOT_MATCHED",
+        "patternFamily": null,
+        "matchedSurface": null,
+        "reason": "FORMAL_FACT_SIGNAL_PRESENT"
+      },
+      "expected": {
+        "expectedReference": "RESOLVED",
+        "expectedConcept": "NOT_MATCHED",
+        "expectedNextStage": "ROLE_RESOLVER_CONTINUE"
+      },
+      "actual": {
+        "referenceStatus": "RESOLVED",
+        "nextStage": "ROLE_RESOLVER_CONTINUE"
+      },
+      "status": "PASS"
+    }
+  ]
+}

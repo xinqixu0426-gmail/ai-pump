@@ -31,7 +31,7 @@ const TARGETED_CASES = Object.freeze([
     { id: 'T-06', user: 'V750如果做不锈钢接轴成本差多少？', referenceStatus: 'NONE', roles: [formal('V750'), config('不锈钢接轴')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('V750', 'recipe', 'MULTIPLE')] },
     { id: 'T-07', user: '12-120多少钱？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
     { id: 'T-08', user: '12-120有两个方案吧？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
-    { id: 'T-09', user: '模板和配方有什么区别？', referenceStatus: 'NONE', roles: [concept('模板'), concept('配方')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'T-09', user: '模板和配方有什么区别？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('模板'), concept('配方')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'T-10', user: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看12-120。', referenceStatus: 'RESOLVED', referenceSurface: '刚才那个线圈', resolvedLanguageReference: '12-120', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
 ]);
 
@@ -44,10 +44,10 @@ const REFERENCE_FOCUSED_CASES = Object.freeze([
 ]);
 
 const ROLE_FOCUSED_CASES = Object.freeze([
-    { id: 'R-ROLE-01', user: '12-120是什么意思？', referenceStatus: 'NONE', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'R-ROLE-01', user: '12-120是什么意思？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'R-ROLE-02', user: '12-120多少钱？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
     { id: 'R-ROLE-03', user: '12-120有几个方案？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
-    { id: 'R-ROLE-04', user: 'V750是什么？', referenceStatus: 'NONE', roles: [concept('V750')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'R-ROLE-04', user: 'V750是什么？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('V750')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'R-ROLE-05', user: 'V750现在成本多少？', referenceStatus: 'NONE', roles: [formal('V750')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('V750', 'recipe', 'MULTIPLE')] },
 ]);
 
@@ -62,8 +62,8 @@ const WORKING_UTTERANCE_FOCUSED_CASES = Object.freeze([
 const FOCUSED_CASES = Object.freeze([...TARGETED_CASES, ...REFERENCE_FOCUSED_CASES, ...ROLE_FOCUSED_CASES, ...WORKING_UTTERANCE_FOCUSED_CASES]);
 
 const FULL_CASES = Object.freeze([
-    { id: 'G-01', user: '模板和配方有什么区别？', referenceStatus: 'NONE', roles: [concept('模板'), concept('配方')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
-    { id: 'G-02', user: '12-120是什么意思？', referenceStatus: 'NONE', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'G-01', user: '模板和配方有什么区别？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('模板'), concept('配方')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
+    { id: 'G-02', user: '12-120是什么意思？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('12-120')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'G-03', user: '12-120多少钱？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
     { id: 'G-04', user: '12-120有两个方案吧？', referenceStatus: 'NONE', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
     { id: 'G-05', user: '查一下V750成本。', referenceStatus: 'NONE', roles: [formal('V750')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('V750', 'recipe', 'MULTIPLE')] },
@@ -75,10 +75,10 @@ const FULL_CASES = Object.freeze([
     { id: 'G-11', user: '刚才那个线圈多少钱？', recentOwnerWording: '我先看看12-120。', referenceStatus: 'RESOLVED', referenceSurface: '刚才那个线圈', resolvedLanguageReference: '12-120', roles: [formal('12-120')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('12-120', 'coil', 'MULTIPLE')] },
     { id: 'G-12', user: '这个换木箱多少钱？', referenceStatus: 'UNRESOLVED', referenceSurface: '这个', gate: 'STOP_UNRESOLVED_REFERENCE', roleCalls: 0, resolverCalls: 0 },
     { id: 'G-13', user: '它现在成本多少？', recentOwnerWording: '刚才看的是V750通用款。', referenceStatus: 'RESOLVED', referenceSurface: '它', resolvedLanguageReference: 'V750通用款', roles: [formal(['V750', '通用款'])], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target(['V750', '通用款'], 'recipe', 'EXACT')] },
-    { id: 'G-14', user: 'V750就是固定成品吧？', referenceStatus: 'NONE', roles: [concept('V750')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'G-14', user: 'V750就是固定成品吧？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('V750')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'G-15', user: 'V750包装改木箱。', referenceStatus: 'NONE', roles: [formal('V750'), config('木箱')], gate: 'RUN', roleCalls: 1, resolverCalls: 4, targets: [target('V750', 'recipe', 'MULTIPLE')] },
-    { id: 'G-16', user: '木箱和纸箱在我们系统里分别算什么？', referenceStatus: 'NONE', roles: [concept('木箱'), concept('纸箱')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
-    { id: 'N-01', user: '随便看看模板是什么', referenceStatus: 'NONE', roles: [concept('模板')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 1, resolverCalls: 0 },
+    { id: 'G-16', user: '木箱和纸箱在我们系统里分别算什么？', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('木箱'), concept('纸箱')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
+    { id: 'N-01', user: '随便看看模板是什么', referenceStatus: 'NONE', conceptFastPath: 'MATCHED_CONCEPT_ONLY', roles: [concept('模板')], gate: 'STOP_CONCEPT_ONLY', roleCalls: 0, resolverCalls: 0 },
     { id: 'N-02', user: '这个多少钱？', referenceStatus: 'UNRESOLVED', referenceSurface: '这个', gate: 'STOP_UNRESOLVED_REFERENCE', roleCalls: 0, resolverCalls: 0 },
     { id: 'N-03', user: 'V750、V110现在分别多少钱？', referenceStatus: 'NONE', roles: [formal('V750'), formal('V110')], gate: 'RUN', roleCalls: 1, resolverCalls: 8, targets: [target('V750', 'recipe', 'MULTIPLE'), target('V110', 'recipe', 'EXACT')] },
     { id: 'N-04', user: '12-120和12-130分别多少钱？', referenceStatus: 'NONE', roles: [formal('12-120'), formal('12-130')], gate: 'RUN', roleCalls: 1, resolverCalls: 8, targets: [target('12-120', 'coil', 'MULTIPLE'), target('12-130', 'coil', 'EXACT')] },
@@ -109,7 +109,7 @@ async function main() {
     const repeats = scope === 'full' ? FULL_CASES.filter(item => FULL_REPEATS.includes(item.id)) : [];
     const fixture = createGroundingFixture();
     try {
-        console.error(`M4-3A-R7 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
+        console.error(`M4-3A-R8 ${scope} grounding smoke starting: ${base.length + repeats.length} runs`);
         const executions = [];
         for (const testCase of base) executions.push(await execute(testCase, env, 1, fixture));
         for (const testCase of repeats) executions.push(await execute(testCase, env, 2, fixture));
@@ -122,8 +122,9 @@ async function main() {
         const spanAlignments = executions.flatMap(item => item.spanAlignments || []);
         const warnings = executions.flatMap(item => item.evaluation?.warnings || []);
         const filteredExpressions = executions.flatMap(item => item.rejectedFormalTargets || []).map(item => item.expression);
-        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceFastPathMedianMs: median(timed.map(item => item.timings.referenceFastPathMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), spanAlignmentMedianMs: median(timed.map(item => item.timings.spanAlignmentMs || 0)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
-        const result = { phase: 'M4-3A-R7', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, referenceFastPathResolved, referenceFastPathUnresolved, referenceLlmCallsAvoided: referenceFastPathResolved + referenceFastPathUnresolved, referenceLlmCalls, spanAlignmentAttempts: spanAlignments.length, spanAlignmentSuccess: spanAlignments.filter(item => item.status === 'UNIQUE_MATCH').length, spanAlignmentNoMatch: spanAlignments.filter(item => item.status === 'NO_MATCH').length, spanAlignmentAmbiguous: spanAlignments.filter(item => item.status === 'AMBIGUOUS').length, roleOutOfWorkingUtteranceWarnings: warnings.length, filteredRoleExpressions: filteredExpressions, results: executions };
+        const conceptFastPathHits = executions.filter(item => item.conceptFastPath?.status === 'MATCHED_CONCEPT_ONLY').length;
+        const metrics = { businessMedianMs: median(timed.map(item => item.timings.businessMs)), policyMedianMs: median(timed.map(item => item.timings.policyMs)), referenceHintMedianMs: median(timed.map(item => item.timings.referenceHintMs || 0)), referenceFastPathMedianMs: median(timed.map(item => item.timings.referenceFastPathMs || 0)), referenceMedianMs: median(timed.map(item => item.timings.referenceMs)), referenceRewriteMedianMs: median(timed.map(item => item.timings.referenceRewriteMs || 0)), conceptFastPathMedianMs: median(timed.map(item => item.timings.conceptFastPathMs || 0)), roleMedianMs: median(timed.map(item => item.timings.roleMs)), spanAlignmentMedianMs: median(timed.map(item => item.timings.spanAlignmentMs || 0)), resolverFanoutMedianMs: median(timed.map(item => item.timings.resolverFanoutMs)), totalMedianMs: median(timed.map(item => item.timings.totalMs)) };
+        const result = { phase: 'M4-3A-R8', scope, provider: 'DeepSeek', model: env.DEEPSEEK_MODEL, policySource: 'BOOTSTRAP_PLUS_CANDIDATE', ontologyUsed: true, intentAgentCalls: 0, utteranceExtractorCalls: 0, modelCalls, resolverCalls, fixtureSource: fixture.source, metrics, referenceFastPathResolved, referenceFastPathUnresolved, referenceLlmCallsAvoided: referenceFastPathResolved + referenceFastPathUnresolved, referenceLlmCalls, conceptFastPathHits, roleLlmCallsAvoidedByConceptFastPath: conceptFastPathHits, resolverCallsAvoidedByConceptFastPath: conceptFastPathHits, spanAlignmentAttempts: spanAlignments.length, spanAlignmentSuccess: spanAlignments.filter(item => item.status === 'UNIQUE_MATCH').length, spanAlignmentNoMatch: spanAlignments.filter(item => item.status === 'NO_MATCH').length, spanAlignmentAmbiguous: spanAlignments.filter(item => item.status === 'AMBIGUOUS').length, roleOutOfWorkingUtteranceWarnings: warnings.length, filteredRoleExpressions: filteredExpressions, results: executions };
         if (outputPath) fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
         console.log(JSON.stringify({ ...result, results: executions.map(item => ({ id: item.id, run: item.run, evaluation: item.evaluation, reference: item.reference, roles: item.roles, gate: item.gate, formalResults: item.formalResults?.map(value => ({ mention: value.mention, entityType: value.entityType, status: value.status, typeResults: value.typeResults.map(type => ({ entityType: type.entityType, status: type.result.status })) })), timings: item.timings, error: item.error || null })) }, null, 2));
     } finally { fixture.close(); }
