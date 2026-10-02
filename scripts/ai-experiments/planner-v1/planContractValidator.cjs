@@ -1,7 +1,7 @@
 'use strict';
 
 const { PLAN_STATUSES, STEP_MODES, AMBIGUITY_USAGES } = require('./plannerMemo.cjs');
-const { canCapabilitySatisfyFact } = require('./capabilityCatalogSnapshot.cjs');
+const { canCapabilitySatisfyStep } = require('./capabilityCatalogSnapshot.cjs');
 const { validatePlannerAdmission } = require('./plannerAdmissionGuard.cjs');
 
 const WRITE_ENABLED = false;
@@ -35,7 +35,7 @@ function validatePlanContract({ plan, context }) {
     if (!AMBIGUITY_USAGES.has(plan?.ambiguityUsage || 'NONE')) addViolation(violations, 'AMBIGUITY_USAGE_INVALID', plan?.ambiguityUsage);
     if (ZERO_STEP_STATUSES.has(status) && steps.length) addViolation(violations, 'BLOCKED_PLAN_STEP_VIOLATION', status);
     if (ZERO_STEP_STATUSES.has(status) && facts.length) addViolation(violations, 'BLOCKED_REQUIRED_FACT_VIOLATION', status);
-    if (status === 'BLOCKED_CAPABILITY' && !(plan?.missingCapabilities || []).length) addViolation(violations, 'MISSING_CAPABILITY_REQUIRED');
+    if (status === 'BLOCKED_CAPABILITY' && !(plan?.missingRequirements || []).length && !(plan?.missingCapabilities || []).length) addViolation(violations, 'MISSING_CAPABILITY_REQUIRED');
     if (status === 'BLOCKED_POLICY' && steps.length && plan?.previewPlanAvailable !== 'YES') addViolation(violations, 'BLOCKED_POLICY_SUBPLAN_UNAVAILABLE');
     if (!WRITE_ENABLED && plan?.writeRequired === 'YES' && status === 'READY') {
         writeStageViolation = true;
@@ -54,10 +54,12 @@ function validatePlanContract({ plan, context }) {
             const capability = catalog.get(step.capability);
             if (!capability) addViolation(violations, 'PLANNER_INVENTED_CAPABILITY', step.capability);
             else if (capability.mode !== step.mode) addViolation(violations, 'CAPABILITY_MODE_NOT_ALLOWED', step.capability);
-            else for (const factId of splitIds(step.produces)) {
-                const fact = facts.find(item => item.factId === factId);
-                const satisfaction = canCapabilitySatisfyFact({ capability, fact, targets: context?.finalGroundedTargets || [] });
-                if (satisfaction === 'NO') addViolation(violations, 'CAPABILITY_OUTPUT_MISMATCH', `${step.capability}:${factId}`);
+            else {
+                const outputFacts = splitIds(step.produces).map(factId => facts.find(item => item.factId === factId)).filter(Boolean);
+                if (!outputFacts.some(fact => fact.factClass === 'OTHER')) {
+                    const satisfaction = canCapabilitySatisfyStep({ capability, facts: outputFacts, targets: context?.finalGroundedTargets || [] });
+                    if (satisfaction === 'NO') addViolation(violations, 'CAPABILITY_OUTPUT_MISMATCH', step.capability);
+                }
             }
         }
         const produced = splitIds(step.produces);

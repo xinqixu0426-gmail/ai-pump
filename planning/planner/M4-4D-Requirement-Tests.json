@@ -1,0 +1,21 @@
+{
+  "phase": "M4-4D",
+  "suite": "requirement",
+  "passed": 3,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "R-01",
+      "result": "VALID_GOAL_FACT_TARGET_SELECTION_OVERRIDE_WRITE_CONTRACT"
+    },
+    {
+      "id": "R-02",
+      "result": "REJECTS_INVENTED_TARGET_INVALID_FACT_AND_NON_OWNER_OVERRIDE"
+    },
+    {
+      "id": "R-03",
+      "result": "ENFORCES_NO_FORMAL_FACT_AND_UNRESOLVED_CONTRACT"
+    }
+  ],
+  "plannerSeesCapabilityCatalog": false
+}

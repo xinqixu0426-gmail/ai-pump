@@ -1,7 +1,9 @@
 'use strict';
 
-const { runPlannerAgent } = require('./plannerAgent.cjs');
-const { parsePlannerMemo } = require('./plannerMemo.cjs');
+const { runRequirementPlannerAgent } = require('./requirementPlannerAgent.cjs');
+const { parseRequirementMemo } = require('./requirementMemo.cjs');
+const { validateRequirementMemo } = require('./requirementValidator.cjs');
+const { compilePlan } = require('./planCompiler.cjs');
 const { buildPlannerContext } = require('./plannerContext.cjs');
 const { validatePlanContract } = require('./planContractValidator.cjs');
 
@@ -10,11 +12,16 @@ function elapsed(started) { return Number(process.hrtime.bigint() - started) / 1
 async function runPlannerPipeline({ rawOwnerInput, upstream, capabilityCatalog }, dependencies = {}) {
     const context = buildPlannerContext({ rawOwnerInput, upstream, capabilityCatalog });
     const started = process.hrtime.bigint();
-    const plannerRunner = dependencies.runPlannerAgent || runPlannerAgent;
-    const memo = await plannerRunner(context, dependencies);
-    const parsed = parsePlannerMemo(memo);
-    const validation = validatePlanContract({ plan: parsed, context });
-    return Object.freeze({ context, plannerMemo: memo, rawPlan: parsed, plan: parsed, validation, validatedPlan: validation.validatedPlan, modelCalls: Object.freeze({ planner: 1, intent: 0, utteranceExtractor: 0 }), timings: Object.freeze({ plannerMs: elapsed(started) }), execution: Object.freeze({ toolCalls: 0, businessApiCalls: 0, dbAccessAttempts: 0, writeAttempts: 0 }) });
+    const requirementRunner = dependencies.runRequirementPlannerAgent || runRequirementPlannerAgent;
+    const requirementMemo = await requirementRunner(context, dependencies);
+    const requirementPlannerMs = elapsed(started);
+    const requirement = parseRequirementMemo(requirementMemo);
+    const requirementValidation = validateRequirementMemo({ requirement, context });
+    const compilerStarted = process.hrtime.bigint();
+    const rawPlan = compilePlan({ requirement, context });
+    const compilerMs = elapsed(compilerStarted);
+    const validation = validatePlanContract({ plan: rawPlan, context });
+    return Object.freeze({ context, requirementMemo, requirement, requirementValidation, plannerMemo: requirementMemo, rawPlan, plan: rawPlan, validation, validatedPlan: validation.validatedPlan, modelCalls: Object.freeze({ requirementPlanner: 1, planner: 1, planCompiler: 0, intent: 0, utteranceExtractor: 0 }), timings: Object.freeze({ requirementPlannerMs, plannerMs: requirementPlannerMs, planCompilerMs: compilerMs }), execution: Object.freeze({ toolCalls: 0, businessApiCalls: 0, dbAccessAttempts: 0, writeAttempts: 0 }) });
 }
 
 module.exports = { runPlannerPipeline };

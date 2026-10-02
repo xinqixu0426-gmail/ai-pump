@@ -14,7 +14,7 @@ const SEMANTICS = Object.freeze({
     'relations.read': Object.freeze({ targetTypes: ['recipe', 'template', 'coil', 'part'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_relation_root'], produces: ['RELATION'], directGoalClasses: ['current_relation'], notFor: ['cost_calculation', 'scenario_override'], provenance: ['api/capabilities/registry.cjs:relations.read', 'api/routes/ai/executors/queryExecutors.cjs'] }),
     'cost.recipe_difference': Object.freeze({ targetTypes: ['recipe_pair'], targetCardinality: 'TWO', accepts: ['two_formally_grounded_recipes'], produces: ['COST_DIFFERENCE', 'CURRENT_COST'], directGoalClasses: ['recipe_cost_difference'], notFor: ['single_recipe_cost', 'coil_cost', 'scenario_override'], provenance: ['api/capabilities/registry.cjs:cost.recipe_difference', 'api/services/costQueries.cjs:getRecipeDifference'] }),
     'coils.list': Object.freeze({ targetTypes: ['coil'], targetCardinality: 'ONE_OR_SET', accepts: ['one_or_more_formally_grounded_coil_schemes'], produces: ['FORMAL_DETAIL', 'CURRENT_COST', 'CANDIDATE_SET'], directGoalClasses: ['coil_current_cost', 'coil_detail', 'coil_candidate_set'], notFor: ['recipe_current_cost', 'recipe_scenario_override'], provenance: ['api/capabilities/registry.cjs:coils.list', 'api/routes/coils.cjs:GET list', 'api/db.cjs:coilRow'] }),
-    'recipes.scenario_compare_preview': Object.freeze({ targetTypes: ['recipe'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_recipe', 'explicit_owner_scenario_overrides', 'formal_packaging_part_selection_when_packaging_changes'], produces: ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'FORMAL_DETAIL'], directGoalClasses: ['recipe_scenario_cost', 'recipe_scenario_comparison'], notFor: ['stainless_shaft_joint_override', 'unbound_packaging_material_name'], provenance: ['api/capabilities/registry.cjs:recipes.scenario_compare_preview', 'api/services/recipeScenarioComparison.cjs:ALLOWED_OVERRIDES,compare'] }),
+    'recipes.scenario_compare_preview': Object.freeze({ targetTypes: ['recipe'], targetCardinality: 'ONE', accepts: ['one_formally_grounded_recipe', 'explicit_owner_scenario_overrides', 'formal_packaging_part_selection_when_packaging_changes'], produces: ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'COST_DIFFERENCE', 'FORMAL_DETAIL'], directGoalClasses: ['recipe_scenario_cost', 'recipe_scenario_comparison'], scenarioClasses: Object.freeze({ FLOAT: 'SUPPORTED', CABLE: 'SUPPORTED', COIL: 'SUPPORTED', BARREL: 'SUPPORTED', SURFACE_TREATMENT: 'SUPPORTED', PACKAGING: 'FORMAL_BINDING_REQUIRED', ROTOR_PROCESS: 'UNSUPPORTED', OTHER: 'UNKNOWN' }), notFor: ['stainless_shaft_joint_override', 'unbound_packaging_material_name'], provenance: ['api/capabilities/registry.cjs:recipes.scenario_compare_preview', 'api/services/recipeScenarioComparison.cjs:ALLOWED_OVERRIDES,compare'] }),
 });
 
 function plannerModeFor(capability) { return capability.operation === 'preview' ? 'PREVIEW' : 'READ'; }
@@ -38,6 +38,23 @@ function canCapabilitySatisfyFact({ capability, fact, targets = [] }) {
     return cardinalityCompatible(capability.targetCardinality, targetCount) ? 'YES' : 'NO';
 }
 
+// Step satisfaction is intentionally broader than an isolated fact check. A
+// pair capability can authoritatively return the two constituent current-cost
+// details and their difference in a single response.
+function canCapabilitySatisfyStep({ capability, facts = [], targets = [] }) {
+    if (!capability || !facts.length) return 'UNKNOWN';
+    if (facts.some(fact => !capability.produces?.includes(fact.factClass))) return 'NO';
+    if (!targets.length) return 'UNKNOWN';
+    const targetTypes = [...new Set(targets.map(target => target.entityType).filter(Boolean))];
+    const targetCount = targets.length;
+    const pairFacts = facts.some(fact => fact.factClass === 'COST_DIFFERENCE');
+    if (capability.targetTypes.includes('recipe_pair') && pairFacts) {
+        return targetCount === 2 && targetTypes.length === 1 && targetTypes[0] === 'recipe' ? 'YES' : 'NO';
+    }
+    if (!targetTypes.length || !targetTypes.every(type => capability.targetTypes.includes(type))) return 'NO';
+    return cardinalityCompatible(capability.targetCardinality, targetCount) ? 'YES' : 'NO';
+}
+
 function createPlannerCapabilityCatalogSnapshot() {
     const all = listBusinessCapabilities();
     const byId = new Map(all.map(capability => [capability.capabilityId, capability]));
@@ -54,4 +71,4 @@ function createPlannerCapabilityCatalogSnapshot() {
     return Object.freeze({ source: 'api/capabilities/registry.cjs:listBusinessCapabilities', registryPath: 'api/capabilities/registry.cjs', totalCapabilities: all.length, operationCounts: Object.freeze(operationCounts), factClasses: FACT_CLASSES, visibleCapabilities: Object.freeze(visible), visibleReadCapabilities: visible.filter(capability => capability.mode === 'READ').length, visibleAnalysisCapabilities: 0, visiblePreviewCapabilities: visible.filter(capability => capability.mode === 'PREVIEW').length, hiddenWriteCapabilities: hiddenWrite.length, plannerVisibleCapabilityCount: visible.length, plannerWriteCapabilitiesVisible: 0 });
 }
 
-module.exports = { PLANNER_VISIBLE_IDS, FACT_CLASSES, SEMANTICS, canCapabilitySatisfyFact, targetTypesForFact, createPlannerCapabilityCatalogSnapshot };
+module.exports = { PLANNER_VISIBLE_IDS, FACT_CLASSES, SEMANTICS, canCapabilitySatisfyFact, canCapabilitySatisfyStep, targetTypesForFact, createPlannerCapabilityCatalogSnapshot };

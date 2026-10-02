@@ -1,0 +1,130 @@
+{
+  "phase": "M4-4D",
+  "suite": "compiler",
+  "passed": 20,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "C-01",
+      "pass": true,
+      "actual": "BLOCKED_GROUNDING",
+      "expected": "BLOCKED_GROUNDING"
+    },
+    {
+      "id": "C-02",
+      "pass": true,
+      "actual": "recipes.current_costs",
+      "expected": "recipes.current_costs"
+    },
+    {
+      "id": "C-03",
+      "pass": true,
+      "actual": "BLOCKED_AMBIGUITY",
+      "expected": "BLOCKED_AMBIGUITY"
+    },
+    {
+      "id": "C-04",
+      "pass": true,
+      "actual": "NO_TOOL_REQUIRED",
+      "expected": "NO_TOOL_REQUIRED"
+    },
+    {
+      "id": "C-05",
+      "pass": true,
+      "actual": "recipes.current_costs",
+      "expected": "recipes.current_costs"
+    },
+    {
+      "id": "C-06",
+      "pass": true,
+      "actual": "cost.recipe_difference",
+      "expected": "cost.recipe_difference"
+    },
+    {
+      "id": "C-07",
+      "pass": true,
+      "actual": "coils.list",
+      "expected": "coils.list"
+    },
+    {
+      "id": "C-08",
+      "pass": true,
+      "actual": "relations.read",
+      "expected": "relations.read"
+    },
+    {
+      "id": "C-09",
+      "pass": true,
+      "actual": "templates.detail",
+      "expected": "templates.detail"
+    },
+    {
+      "id": "C-10",
+      "pass": true,
+      "actual": "READY",
+      "expected": "READY"
+    },
+    {
+      "id": "C-11",
+      "pass": true,
+      "actual": "READY",
+      "expected": "READY"
+    },
+    {
+      "id": "C-12",
+      "pass": true,
+      "actual": "READY",
+      "expected": "READY"
+    },
+    {
+      "id": "C-13",
+      "pass": true,
+      "actual": "BLOCKED_CAPABILITY",
+      "expected": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "C-14",
+      "pass": true,
+      "actual": "BLOCKED_CAPABILITY",
+      "expected": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "C-15",
+      "pass": true,
+      "actual": "BLOCKED_CAPABILITY",
+      "expected": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "C-16",
+      "pass": true,
+      "actual": "BLOCKED_POLICY",
+      "expected": "BLOCKED_POLICY"
+    },
+    {
+      "id": "C-17",
+      "pass": true,
+      "actual": "READY",
+      "expected": "READY"
+    },
+    {
+      "id": "C-18",
+      "pass": true,
+      "actual": "YES",
+      "expected": "YES"
+    },
+    {
+      "id": "C-19",
+      "pass": true,
+      "actual": "YES",
+      "expected": "YES"
+    },
+    {
+      "id": "C-20",
+      "pass": true,
+      "actual": "NO",
+      "expected": "NO"
+    }
+  ],
+  "evaluatorBugAFixed": true,
+  "evaluatorBugBFixed": true
+}

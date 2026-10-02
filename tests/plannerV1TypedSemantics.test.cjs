@@ -28,8 +28,8 @@ test('TS-01 to TS-06 typed capability target compatibility is derived from descr
 
 test('TS-07 and TS-08 scenario descriptor exposes audited outputs and rejects absent fact class', () => {
     const preview = byId.get('recipes.scenario_compare_preview');
-    assert.deepEqual(preview.produces, ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'FORMAL_DETAIL']);
-    assert.equal(canCapabilitySatisfyFact({ capability: preview, fact: fact('COST_DIFFERENCE', 'V750通用款'), targets: [recipe] }), 'NO');
+    assert.deepEqual(preview.produces, ['CURRENT_COST', 'SCENARIO_COST', 'SCENARIO_COMPARISON', 'COST_DIFFERENCE', 'FORMAL_DETAIL']);
+    assert.equal(canCapabilitySatisfyFact({ capability: preview, fact: fact('COST_DIFFERENCE', 'V750通用款'), targets: [recipe] }), 'YES');
 });
 
 test('AG-01 to AG-05 admission guard rejects only impossible upstream status contradictions', () => {
@@ -62,5 +62,5 @@ test('MO-01 to MO-03 multi-output preview and scenario override preservation con
     const result = valid(['PLAN_STATUS: READY', 'OWNER_GOAL: x', 'SCENARIO_OVERRIDE: 电缆5米', 'SCENARIO_OVERRIDE: 木箱', 'REQUIRED_FACT: F1 | CURRENT_COST | current | V750通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE', 'REQUIRED_FACT: F2 | SCENARIO_COST | scenario | V750通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE', 'REQUIRED_FACT: F3 | DERIVED_COMPUTE | delta | V750通用款 | LOCAL_DETERMINISTIC | F1,F2', 'STEP: P1 | PREVIEW | recipes.scenario_compare_preview | V750通用款 | F1,F2 | NONE', 'STEP: P2 | COMPUTE | NONE | inputs=F1,F2 | F3 | P1', 'WRITE_REQUIRED: NO']);
     assert.equal(result.validationStatus, 'VALID');
     assert.equal(result.validatedPlan.steps[0].produces, 'F1,F2');
-    assert.ok(valid(['PLAN_STATUS: READY', 'OWNER_GOAL: x', 'REQUIRED_FACT: F1 | COST_DIFFERENCE | impossible | V750通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE', 'STEP: P1 | PREVIEW | recipes.scenario_compare_preview | V750通用款 | F1 | NONE', 'WRITE_REQUIRED: NO']).violations.some(item => item.code === 'CAPABILITY_OUTPUT_MISMATCH'));
+    assert.ok(valid(['PLAN_STATUS: READY', 'OWNER_GOAL: x', 'REQUIRED_FACT: F1 | CANDIDATE_SET | impossible | V750通用款 | AUTHORITATIVE_BUSINESS_SOURCE | NONE', 'STEP: P1 | PREVIEW | recipes.scenario_compare_preview | V750通用款 | F1 | NONE', 'WRITE_REQUIRED: NO']).violations.some(item => item.code === 'CAPABILITY_OUTPUT_MISMATCH'));
 });
