@@ -1,0 +1,87 @@
+{
+  "phase": "M4-4B",
+  "source": "tests/plannerV1ContractValidator.test.cjs",
+  "passed": 22,
+  "failed": 0,
+  "computeCapabilityLookupAttempts": 0,
+  "cases": [
+    {
+      "id": "PC-01",
+      "pass": true,
+      "validationStatus": "VALID",
+      "effectivePlanStatus": "NO_TOOL_REQUIRED",
+      "violations": [],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-02",
+      "pass": false,
+      "validationStatus": "INVALID",
+      "effectivePlanStatus": "NO_TOOL_REQUIRED",
+      "violations": [
+        {
+          "code": "BLOCKED_PLAN_STEP_VIOLATION",
+          "detail": "NO_TOOL_REQUIRED"
+        }
+      ],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-03",
+      "pass": true,
+      "validationStatus": "VALID",
+      "effectivePlanStatus": "BLOCKED_AMBIGUITY",
+      "violations": [],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-04",
+      "pass": false,
+      "validationStatus": "INVALID",
+      "effectivePlanStatus": "BLOCKED_AMBIGUITY",
+      "violations": [
+        {
+          "code": "BLOCKED_PLAN_STEP_VIOLATION",
+          "detail": "BLOCKED_AMBIGUITY"
+        }
+      ],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-07",
+      "pass": true,
+      "validationStatus": "VALID",
+      "effectivePlanStatus": "BLOCKED_POLICY",
+      "violations": [],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-09",
+      "pass": true,
+      "validationStatus": "SAFE_BLOCKED",
+      "effectivePlanStatus": "BLOCKED_POLICY",
+      "violations": [
+        {
+          "code": "WRITE_STAGE_POLICY_VIOLATION"
+        }
+      ],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-11",
+      "pass": true,
+      "validationStatus": "VALID",
+      "effectivePlanStatus": "READY",
+      "violations": [],
+      "computeCapabilityLookupAttempts": 0
+    },
+    {
+      "id": "PC-15",
+      "pass": true,
+      "validationStatus": "VALID",
+      "effectivePlanStatus": "READY",
+      "violations": [],
+      "computeCapabilityLookupAttempts": 0
+    }
+  ]
+}
