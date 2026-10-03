@@ -1,0 +1,11 @@
+{
+  "phase": "M5-D1-R1",
+  "category": "AGENT_ADAPTER_ERROR",
+  "layer": "costExecutors.calculate_coil_cost",
+  "exactRootCause": "A resolved canonical coil identity deliberately exposes minimal identity evidence, while the adapter overwrote model-provided spec/sheets with undefined before POST /api/coils/calculate.",
+  "fixApplied": true,
+  "fix": "When canonical coilId is present and dimensions are absent, hydrate spec/sheets/material/slotType from the same formal /api/coils catalog before the existing formal preview route.",
+  "businessApiSemanticsChanged": false,
+  "costFormulaChanged": false,
+  "regression": "PASS"
+}

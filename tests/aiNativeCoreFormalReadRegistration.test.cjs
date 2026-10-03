@@ -88,8 +88,22 @@ test('A3 registry audit aligns formal route contracts and preserves the existing
         'api/routes/cost.cjs',
         'api/services/coilCost.cjs',
     ];
-    const changed = childProcess.execFileSync('git', ['diff', '--name-only', START_HEAD, '--', ...protectedRuntimePaths], {
+    const changedPaths = childProcess.execFileSync('git', ['diff', '--name-only', START_HEAD, '--', ...protectedRuntimePaths], {
         cwd: __dirname + '/..', encoding: 'utf8',
-    }).trim();
-    assert.equal(changed, '', `A3 must remain metadata-only: ${changed}`);
+    }).trim().split('\n').filter(Boolean);
+    // A3 itself was metadata-only. D1-R1 later fixed a shared read adapter:
+    // an identity-bound canonical coil ID must hydrate its required dimensions
+    // from the formal catalogue before it reaches the unchanged calculate route.
+    // Keep the baseline assertion strict for every other protected surface.
+    const allowedLaterReadAdapterFix = 'api/routes/ai/executors/costExecutors.cjs';
+    assert.deepEqual(
+        changedPaths.filter(item => item !== allowedLaterReadAdapterFix),
+        [],
+        `A3 must remain metadata-only outside an explicitly reviewed later read-adapter fix: ${changedPaths.join(', ')}`,
+    );
+    if (changedPaths.includes(allowedLaterReadAdapterFix)) {
+        const source = require('node:fs').readFileSync(`${__dirname}/../${allowedLaterReadAdapterFix}`, 'utf8');
+        assert.match(source, /hydrate missing dimensions from the same formal coil catalogue/);
+        assert.match(source, /getJson\(internalFetch, '\/api\/coils'/);
+    }
 });

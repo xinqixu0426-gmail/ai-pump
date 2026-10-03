@@ -58,6 +58,8 @@ const READ_ONLY_PREVIEWS = [
     /^\/api\/recipes\/(?:bom-draft|cost-draft|[1-9][0-9]*\/cost-preview)$/,
     /^\/api\/recipes\/[1-9][0-9]*\/scenario-compare-preview$/,
     /^\/api\/templates\/[1-9][0-9]*\/cost-preview$/,
+    /^\/api\/entity-lookup$/,
+    /^\/api\/relations\/read$/,
 ];
 
 async function startAiHttpRuntime(options = {}) {
@@ -103,6 +105,10 @@ async function startAiHttpRuntime(options = {}) {
         app.use('/api/settings', require('../../api/routes/settings.cjs'));
         app.use('/api/quality', require('../../api/routes/quality.cjs'));
         app.use('/api/files', require('../../api/routes/files.cjs'));
+        // Formal identity resolution is a read-only safety dependency for
+        // candidate Agent tests. Production mounts the same route in api.cjs.
+        app.use('/api/entity-lookup', require('../../api/routes/entityLookup.cjs').createEntityLookupRouter({ db: require('../../api/db.cjs').db }));
+        app.use('/api/relations', require('../../api/routes/relationRead.cjs').createRelationReadRouter({ db: require('../../api/db.cjs').db }));
         app.use(require('../../api/routes/ai/conversations.cjs'));
         app.use(require('../../api/routes/ai/personalMemory.cjs'));
         const chat = require('../../api/routes/ai/chat.cjs');

@@ -67,6 +67,22 @@ async function executeCostTool(toolName, args, internalFetch) {
             let material = args.material || '';
             let slotType = args.slotType || '';
             let selectedCoilId = args.coilId || null;
+            let resolvedSpec = args.spec;
+            let resolvedSheets = args.sheets;
+            // A canonical coil ID is sufficient identity evidence, but the
+            // calculation route still needs dimensions. The public resolver
+            // intentionally returns an identity-minimal projection, so safely
+            // hydrate missing dimensions from the same formal coil catalogue
+            // rather than trusting an LLM-supplied spec/sheets pair.
+            if (selectedCoilId && (!String(resolvedSpec || '').trim() || !Number(resolvedSheets))) {
+                const coils = await getJson(internalFetch, '/api/coils', '线圈记录读取失败');
+                const selected = (Array.isArray(coils) ? coils : []).find(coil => Number(coil.id ?? coil.Id) === Number(selectedCoilId));
+                if (!selected) return { success: false, code: 'COIL_SCHEME_NOT_FOUND', error: '已确认线圈身份未在正式目录中找到。' };
+                resolvedSpec = selected.spec;
+                resolvedSheets = selected.sheets;
+                material ||= selected.material || '';
+                slotType ||= selected.slotType || '';
+            }
             if (!args.coilId && !args.schemeCode) {
                 const targetDiameter = coilDiameter(args.spec);
                 const targetSheets = Number(args.sheets || 0);
@@ -100,11 +116,11 @@ async function executeCostTool(toolName, args, internalFetch) {
                 }
             }
             const data = await postJson(internalFetch, '/api/coils/calculate', {
-                spec: args.spec,
+                spec: resolvedSpec,
                 coilId: selectedCoilId,
                 schemeCode: args.schemeCode || '',
                 schemeFamilyCode: args.schemeFamilyCode || '',
-                sheets: args.sheets,
+                sheets: resolvedSheets,
                 material,
                 slotType,
                 wireWeight: args.wireWeight ?? null,
@@ -114,8 +130,8 @@ async function executeCostTool(toolName, args, internalFetch) {
             // 按材质/槽眼/方案 ID 收窄时，必须让调用方看到"同一规格片数还有别的正式方案"，
             // 否则用户只会被告知其中一套成本（12-220 = 钢带/小眼 + 冷轧/国标眼）。
             const ambiguity = await lookupOtherOfficialVariants(internalFetch, {
-                spec: args.spec,
-                sheets: args.sheets,
+                spec: resolvedSpec,
+                sheets: resolvedSheets,
                 excludeIds: [data?.coilId ?? selectedCoilId],
             });
             if (ambiguity.variants.length === 0) return { success: true, data };

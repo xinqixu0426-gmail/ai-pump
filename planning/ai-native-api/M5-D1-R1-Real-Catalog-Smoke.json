@@ -1,0 +1,5 @@
+{
+  "phase": "M5-D1-R1",
+  "status": "NOT_RERUN",
+  "reason": "Controlled fixture reliability closure is REWORK; real-catalog fresh smoke is deferred to avoid presenting stale or incomparable D1 local-catalog data as R1 evidence."
+}

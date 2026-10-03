@@ -5,9 +5,11 @@ const test = require('node:test');
 const { AI_TOOLS } = require('../api/routes/ai/tools.cjs');
 const { AI_FORMAL_TOOLS } = require('../api/services/aiFormalToolDefinitions.cjs');
 const { executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
+const { executeCostTool } = require('../api/routes/ai/executors/costExecutors.cjs');
+const { createFactLedger } = require('../api/services/ai-assistant/factLedger.cjs');
 const { createToolSchemaSession } = require('../api/services/ai-assistant/toolSchemaLoader.cjs');
 const { validateAnswer } = require('../api/services/ai-assistant/answerValidator.cjs');
-const { callKey, runApiNativeAgentCandidate } = require('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs');
+const { callKey, businessEvidenceFingerprint, renderClaimableFactsForModel, runApiNativeAgentCandidate } = require('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs');
 
 function toolCall(id, name, args) { return { id, type: 'function', function: { name, arguments: JSON.stringify(args) } }; }
 function scripted(messages) {
@@ -19,7 +21,7 @@ function scripted(messages) {
         return next;
     }, { calls });
 }
-function baseInput() { return { rawOwnerInput: '请查正式数据', businessMemo: '# Business\n正式业务语义。', policyMemo: '# Policy\n只读。' }; }
+function baseInput() { return { rawOwnerInput: '请查正式数据', businessMemo: '# Business\n正式业务语义。', policyMemo: '# Policy\n只读。', finalizationEnabled: false }; }
 
 test('AG-01..06: initial control tools load a canonical schema, execute it, return its fact to the same conversation, and never ledger load_tools', async () => {
     const model = scripted([
@@ -108,6 +110,90 @@ test('AG-15: Answer Validator rejects a money claim bound to the wrong entity ev
     assert.equal(result.answerValidation.valid, false);
     assert.equal(result.answerValidation.code, 'MONEY_CLAIM_BINDING_MISMATCH');
     assert.equal(result.answer, '本轮正式查询已完成，但无法验证回答中的业务事实；请根据正式查询结果重新查询。');
+});
+
+test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is not ledgered twice, and finalization has a reserved repair', async () => {
+    const model = scripted([
+        { content: '', tool_calls: [toolCall('load-1', 'load_tools', { toolNames: ['get_all_recipes'] })] },
+        { content: '', tool_calls: [toolCall('read-1', 'get_all_recipes', {})] },
+        // The initial investigation draft is ignored by the final-only phase. The first
+        // final envelope is intentionally malformed, then the reserved repair corrects it.
+        { content: 'draft awaiting finalization' },
+        { content: 'not-json' },
+        { content: JSON.stringify({ answer: '已取得正式配方当前成本。', claims: [{ text: '已取得正式配方当前成本。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
+    ]);
+    let finalValidations = 0;
+    const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true }, {
+        modelCall: model,
+        executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: { currentTotalCost: 100, costBasis: 'current' } }),
+        validateAnswer: raw => {
+            finalValidations += 1;
+            if (raw === 'not-json') return { valid: false, code: 'ANSWER_ENVELOPE_INVALID', answer: null, goals: [] };
+            return { valid: true, code: null, answer: '已取得正式配方当前成本。', goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] };
+        },
+    });
+    assert.equal(result.answerValidation.valid, true);
+    assert.equal(result.metrics.mainModelCalls, 5);
+    assert.equal(finalValidations, 2);
+    assert.equal(result.claimableFacts.some(item => item.predicate === 'formal_result_available'), true);
+    assert.equal(model.calls.at(-1).tools.length, 0);
+    assert.match(model.calls.at(-1).messages.at(-1).content, /CLAIMABLE FACT CATALOG/);
+
+    const duplicateModel = scripted([
+        { content: '', tool_calls: [toolCall('load-1', 'load_tools', { toolNames: ['search_coils'] })] },
+        { content: '', tool_calls: [toolCall('read-1', 'search_coils', { spec: '12' })] },
+        { content: '', tool_calls: [toolCall('read-2', 'search_coils', { spec: '13' })] },
+        { content: JSON.stringify({ answer: '已取得正式目录。', claims: [{ text: '已取得正式目录。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
+    ]);
+    const duplicated = await runApiNativeAgentCandidate(baseInput(), {
+        modelCall: duplicateModel,
+        executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: [{ id: 1, name: 'V750-通用款' }] }),
+    });
+    assert.equal(duplicated.metrics.noNewEvidenceEvents, 1);
+    assert.equal(duplicated.metrics.duplicateFactsAvoided, 1);
+    assert.equal(duplicated.factLedger.facts.filter(item => item.predicate === 'formal_result_available').length, 1);
+    assert.equal(businessEvidenceFingerprint({ data: { fetchedAt: 'a', value: 1 } }), businessEvidenceFingerprint({ data: { fetchedAt: 'b', value: 1 } }));
+
+    const catalog = renderClaimableFactsForModel({ facts: [{ factId: 'F-001', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', source: { tool: 'get_recipe_detail' } }] });
+    assert.deepEqual(catalog, [{ factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款', id: 1 }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', qualifiers: null, sourceTool: 'get_recipe_detail' }]);
+});
+
+test('R1-20: a formally resolved coil ID safely hydrates official dimensions before the cost preview route', async () => {
+    const requests = [];
+    const internalFetch = async (url, options = {}) => {
+        requests.push({ url, options });
+        if (url.startsWith('/api/coils')) return new Response(JSON.stringify({ success: true, data: [{ id: 71, spec: '12', sheets: 120, material: '钢带', slotType: '小眼', schemeStatus: 'official' }] }), { status: 200 });
+        if (url === '/api/coils/calculate') return new Response(JSON.stringify({ success: true, data: { coilId: 71, totalCost: 88.5 } }), { status: 200 });
+        throw new Error(`Unexpected route ${url}`);
+    };
+    const result = await executeCostTool('calculate_coil_cost', { coilId: 71 }, internalFetch);
+    assert.equal(result.success, true);
+    const calculation = requests.find(item => item.url === '/api/coils/calculate');
+    assert.ok(calculation);
+    assert.deepEqual(JSON.parse(calculation.options.body), {
+        spec: '12', coilId: 71, schemeCode: '', schemeFamilyCode: '', sheets: 120,
+        material: '钢带', slotType: '小眼', wireWeight: null, includeTesting: true,
+    });
+});
+
+test('R1-06..16: candidate-only scenario facts retain entity, basis and candidate qualifiers without changing the default ledger', () => {
+    const result = { success: true, verified: true, data: {
+        scenarios: [
+            { scenarioKey: 'base', role: 'BASE', label: '当前', cost: { currentTotalCost: 100, currency: 'CNY', costBasis: 'CURRENT_REBUILT_BASE' } },
+            { scenarioKey: 'float', role: 'CANDIDATE', label: '浮球', cost: { currentTotalCost: 118, currency: 'CNY', costBasis: 'CURRENT_REBUILT_SCENARIO' } },
+        ], comparisons: [{ baseScenarioKey: 'base', candidateScenarioKey: 'float', status: 'COMPARABLE', delta: 18, currency: 'CNY' }],
+    } };
+    const bindings = new Map([['recipe:1', { verified: true, canonicalName: 'V750-通用款' }]]);
+    const defaultLedger = createFactLedger();
+    defaultLedger.appendToolResult({ toolName: 'compare_recipe_scenarios', args: { recipeId: 1 }, result, entityBindings: bindings });
+    assert.equal(defaultLedger.facts().some(item => item.predicate === 'scenario_cost'), false);
+    const candidateLedger = createFactLedger({ includeScenarioComparisonFacts: true });
+    candidateLedger.appendToolResult({ toolName: 'compare_recipe_scenarios', args: { recipeId: 1 }, result, entityBindings: bindings });
+    const facts = candidateLedger.facts();
+    assert.deepEqual(facts.filter(item => item.predicate === 'scenario_cost').map(item => [item.value, item.entity.canonicalName, item.basis, item.qualifiers.scenarioKey]), [
+        [100, 'V750-通用款', 'CURRENT_REBUILT_BASE', 'base'], [118, 'V750-通用款', 'CURRENT_REBUILT_SCENARIO', 'float'],
+    ]);
+    assert.deepEqual(facts.filter(item => item.predicate === 'scenario_cost_difference').map(item => [item.value, item.basis, item.qualifiers.candidateScenarioKey]), [[18, 'SCENARIO_COMPARISON', 'float']]);
 });
 
 test('candidate implementation remains isolated from current production runtime and broker selection', () => {

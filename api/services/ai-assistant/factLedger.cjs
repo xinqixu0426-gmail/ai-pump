@@ -91,6 +91,31 @@ function scalarFacts(data, base) {
     return facts;
 }
 
+// Scenario comparison is a formal multi-basis result.  Preserve its compact
+// scalar evidence before generic traversal reaches verbose read-set metadata;
+// this performs no cost calculation and only projects values the formal API
+// already returned with their scenario and basis bindings intact.
+function scenarioComparisonFacts(data, base) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.scenarios)) return [];
+    const facts = [];
+    for (const scenario of data.scenarios) {
+        const cost = scenario?.cost;
+        const value = finite(cost?.currentTotalCost);
+        if (value === null) continue;
+        facts.push(makeFact({ entity: base.entity, predicate: 'scenario_cost', value, unit: text(cost?.currency) || 'CNY',
+            basis: text(cost?.costBasis) || null, capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { scenarioKey: text(scenario?.scenarioKey), role: text(scenario?.role), label: text(scenario?.label) } }));
+    }
+    for (const comparison of Array.isArray(data.comparisons) ? data.comparisons : []) {
+        const value = finite(comparison?.delta);
+        if (value === null) continue;
+        facts.push(makeFact({ entity: base.entity, predicate: 'scenario_cost_difference', value, unit: text(comparison?.currency) || 'CNY',
+            basis: 'SCENARIO_COMPARISON', capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: { baseScenarioKey: text(comparison?.baseScenarioKey), candidateScenarioKey: text(comparison?.candidateScenarioKey), status: text(comparison?.status) } }));
+    }
+    return facts;
+}
+
 function genericFormalFacts(data, base, limit = 80) {
     const facts = [];
     const visit = (value, path, depth) => {
@@ -118,7 +143,8 @@ function genericFormalFacts(data, base, limit = 80) {
     return facts;
 }
 
-function createFactLedger() {
+function createFactLedger(options = {}) {
+    const includeScenarioComparisonFacts = options.includeScenarioComparisonFacts === true;
     const facts = [];
     const observations = [];
     let sequence = 0;
@@ -147,6 +173,9 @@ function createFactLedger() {
                 // without copying business algorithms into the adapter.
                 added.push(append(makeFact({ entity, predicate: 'formal_result_available', value: true, capabilityId, tool })));
                 for (const fact of scalarFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                if (includeScenarioComparisonFacts) {
+                    for (const fact of scenarioComparisonFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                }
                 for (const fact of genericFormalFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 if (Array.isArray(data) && data.length === 0) {
                     added.push(append(makeFact({ entity, predicate: 'query_no_results', value: true, capabilityId, tool })));
@@ -222,4 +251,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection, scenarioComparisonFacts };

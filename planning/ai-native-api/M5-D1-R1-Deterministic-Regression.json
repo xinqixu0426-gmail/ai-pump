@@ -1,0 +1,29 @@
+{
+  "phase": "M5-D1-R1",
+  "deterministic": {
+    "pass": 20,
+    "fail": 0,
+    "checks": [
+      "R1-01 isolated controlled fixture contract",
+      "R1-02 ordinary executor contract",
+      "R1-03 no local/production database contract",
+      "R1-04 complete count survives projection truncation",
+      "R1-05 projection completeness stays separate from business completeness",
+      "R1-06 claimable fact ID/entity mapping",
+      "R1-07 claimable facts are ledger-only",
+      "R1-08 duplicate fact reduction",
+      "R1-09 investigation budget reserves finalization calls",
+      "R1-10 invalid final envelope receives one repair",
+      "R1-11 stable formal result fingerprint",
+      "R1-12 no-new-evidence avoids duplicate facts",
+      "R1-13 differing formal evidence remains distinct",
+      "R1-14 nested scenario arguments remain distinct",
+      "R1-15 wrong entity money rejected",
+      "R1-16 wrong basis money rejected",
+      "R1-17 load_tools remains fact-free",
+      "R1-18 write tools remain unavailable",
+      "R1-19 rotor process remains unsupported",
+      "R1-20 canonical coil ID hydrates formal dimensions before preview"
+    ]
+  }
+}
