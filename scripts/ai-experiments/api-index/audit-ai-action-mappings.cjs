@@ -60,17 +60,23 @@ function buildAudit() {
   if (names.length !== 36 || Object.keys(reviewed).length !== 36 || names.some(name => !reviewed[name])) throw new Error('Expected exactly 36 unlinked actions');
   const matrix = names.map(name => {
     const cap = getAiCapability(name);
-    if (!cap || cap.formalCapabilityIds.length) throw new Error(`No longer unlinked: ${name}`);
+    if (!cap) throw new Error(`Missing reviewed AI action: ${name}`);
     const [primaryClass, routes, service, behavior, links, proposed, eligibility, indexReason, notes] = reviewed[name];
     if (![A, B, C, D].includes(primaryClass) || !['EXPOSE_V1', 'DEFER_V1', 'EXCLUDE_V1'].includes(eligibility)) throw new Error(`Invalid review: ${name}`);
     const recommended = links ? links.split(',') : [];
     recommended.forEach(id => { if (!getBusinessCapability(id)) throw new Error(`Invented link: ${name} -> ${id}`); });
-    if (proposed && getBusinessCapability(proposed)) throw new Error(`Proposed ID already registered: ${proposed}`);
+    // A2's proposed IDs are historical audit evidence. Later phases may
+    // register an approved proposal; retain the classification without
+    // rewriting the A2 snapshot or treating the approved registration as a
+    // failed audit.
+    const proposalRegistrationStatus = proposed
+      ? (getBusinessCapability(proposed) ? 'REGISTERED_SINCE_A2' : 'PROPOSED_ONLY')
+      : null;
     return { toolName: name, executorKey: cap.executorKey, access: cap.access, operation: cap.operation,
       actualApiRoutes: routes.split(','), actualServices: [service], actualBusinessBehavior: behavior,
       currentFormalCapabilityIds: [...cap.formalCapabilityIds], primaryClass,
       recommendedFormalCapabilityIds: recommended, proposedFormalCapabilityId: proposed || null,
-      proposedFormalCapabilityStatus: proposed ? 'PROPOSED_ONLY' : null,
+      proposedFormalCapabilityStatus: proposalRegistrationStatus,
       mappingSemantics: primaryClass === A ? 'DIRECT' : primaryClass === B ? 'COMPOSITE' : primaryClass === C ? 'REGISTRY_GAP' : 'DERIVED_OR_LEGACY',
       mappingEvidence: [executorEvidence(name, cap.executorKey), service.includes('Executors.cjs::') ? `api/routes/ai/executors/${service}` : `api/routes/${service}`, 'api/capabilities/registry.cjs'],
       indexEligibility: eligibility, indexReason, notes };

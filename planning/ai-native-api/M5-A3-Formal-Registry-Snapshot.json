@@ -1,0 +1,117 @@
+{
+  "phase": "M5-A3",
+  "startHead": "39e3c4ec8db2433da1bd416d4163325d5df682d8",
+  "formalCapabilityCount": 153,
+  "writeCapabilityCount": 101,
+  "a3AddedWriteCapabilities": [],
+  "coreCapabilities": [
+    {
+      "capabilityId": "orders.readiness.read",
+      "method": "GET",
+      "path": "/api/orders/:id/readiness",
+      "access": "query",
+      "operation": "query",
+      "domain": "order",
+      "inputSchema": "GET /api/orders/:id/readiness",
+      "outputSchema": "OrderReadiness with ready/waiting_materials/needs_review/blocked/not_applicable state and formal readiness details",
+      "sourceOfTruth": "orders+active_orders+parts+coils+recipes+currentPurchasePlan+orderPlanning+orderReadiness",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    },
+    {
+      "capabilityId": "orders.knowledge_package.read",
+      "method": "GET",
+      "path": "/api/orders/:id/knowledge-package",
+      "access": "query",
+      "operation": "query",
+      "domain": "order",
+      "inputSchema": "GET /api/orders/:id/knowledge-package",
+      "outputSchema": "OrderKnowledgePackage with live order/readiness/action plan, confirmed requirements/execution records and linked source files; drafts excluded",
+      "sourceOfTruth": "orders+currentPurchasePlan+activeOrderReadiness+orderRequirements+orderExecutionRecords+factory_file_links",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    },
+    {
+      "capabilityId": "recipes.technical_files.list",
+      "method": "GET",
+      "path": "/api/recipes/:id/technical-files",
+      "access": "query",
+      "operation": "query",
+      "domain": "recipe",
+      "inputSchema": "GET /api/recipes/:id/technical-files",
+      "outputSchema": "RecipeTechnicalFile[] with parsed report summary and measured testCurve statistics",
+      "sourceOfTruth": "recipes+recipe_technical_files+factory_files",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    },
+    {
+      "capabilityId": "coils.cost_preview",
+      "method": "POST",
+      "path": "/api/coils/calculate",
+      "access": "preview",
+      "operation": "preview",
+      "domain": "coil",
+      "inputSchema": "POST /api/coils/calculate { spec, sheets, material?, slotType?, coilId?, schemeCode?, schemeFamilyCode?, wireWeight?, copperPrice?, includeTesting? }",
+      "outputSchema": "CoilCostPreview with selected formal scheme, requested/applied wire weight, pricing mode, totalCost and ambiguity/error details",
+      "sourceOfTruth": "coils+stator_variants+coilCost",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    },
+    {
+      "capabilityId": "market.copper_price.read",
+      "method": "GET",
+      "path": "/api/copper-price",
+      "access": "query",
+      "operation": "query",
+      "domain": "cost",
+      "inputSchema": "GET /api/copper-price",
+      "outputSchema": "CurrentCopperPriceSnapshot { livePrice, livePricePerKg, dbPrice, source, sourceOfTruth, asOf, stale, lastError }",
+      "sourceOfTruth": "dailyMarketSnapshot+coils.copper_base",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    },
+    {
+      "capabilityId": "coils.spec_options.read",
+      "method": "GET",
+      "path": "/api/coils/specs",
+      "access": "query",
+      "operation": "query",
+      "domain": "coil",
+      "inputSchema": "GET /api/coils/specs",
+      "outputSchema": "CoilSpecOptions with available specs, diameters, materials, slot types, sheets and per-material/slot variants",
+      "sourceOfTruth": "coils+stator_variants",
+      "riskLevel": "low",
+      "callers": [
+        "web",
+        "ai",
+        "internal"
+      ],
+      "requiresConfirmation": false
+    }
+  ]
+}

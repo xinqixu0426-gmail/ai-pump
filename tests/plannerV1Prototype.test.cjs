@@ -17,7 +17,9 @@ function contextFor(testCase, overriddenCatalog = catalog) { return { rawOwnerIn
 
 test('Planner capability snapshot remains derived from the authoritative registry and exposes no writes', () => {
     assert.equal(catalog.registryPath, 'api/capabilities/registry.cjs');
-    assert.equal(catalog.totalCapabilities, 147);
+    // Phase A3 adds six non-write formal read/preview registrations. The
+    // planner-visible projection remains unchanged and still exposes no write.
+    assert.equal(catalog.totalCapabilities, 153);
     assert.equal(catalog.plannerWriteCapabilitiesVisible, 0);
     assert.equal(catalog.visibleReadCapabilities, 5);
     assert.equal(catalog.visiblePreviewCapabilities, 1);

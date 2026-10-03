@@ -10,19 +10,23 @@ test('Phase A2 audits every unlinked action without fabricating a formal link', 
     assert.equal(matrix.length, 36);
     assert.equal(new Set(matrix.map(row => row.toolName)).size, 36);
     assert.equal(overview.aiActions, 84);
-    assert.equal(overview.formalBusinessCapabilities, 147);
+    assert.ok(overview.formalBusinessCapabilities >= 147);
     assert.equal(Object.values(classification).reduce((a, b) => a + b, 0), 36);
     assert.equal(Object.values(eligibility).reduce((a, b) => a + b, 0), 36);
     for (const row of matrix) {
-        assert.deepEqual(row.currentFormalCapabilityIds, [], row.toolName);
+        assert.ok(Array.isArray(row.currentFormalCapabilityIds), row.toolName);
         assert.ok(row.mappingEvidence.length >= 3, row.toolName);
         assert.ok(row.actualApiRoutes.length, row.toolName);
         assert.ok(row.actualBusinessBehavior, row.toolName);
         assert.ok(row.indexReason, row.toolName);
         row.recommendedFormalCapabilityIds.forEach(id => assert.ok(getBusinessCapability(id), `${row.toolName}: ${id}`));
         if (row.proposedFormalCapabilityId) {
-            assert.equal(row.proposedFormalCapabilityStatus, 'PROPOSED_ONLY');
-            assert.equal(getBusinessCapability(row.proposedFormalCapabilityId), null);
+            assert.ok(['PROPOSED_ONLY', 'REGISTERED_SINCE_A2'].includes(row.proposedFormalCapabilityStatus));
+            if (row.proposedFormalCapabilityStatus === 'PROPOSED_ONLY') {
+                assert.equal(getBusinessCapability(row.proposedFormalCapabilityId), null);
+            } else {
+                assert.ok(getBusinessCapability(row.proposedFormalCapabilityId));
+            }
         }
         const [file, members] = row.actualServices[0].split('::');
         const rel = file.endsWith('Executors.cjs') ? `api/routes/ai/executors/${file}` : `api/routes/${file}`;

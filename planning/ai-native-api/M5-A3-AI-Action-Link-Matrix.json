@@ -1,0 +1,169 @@
+{
+  "phase": "M5-A3",
+  "aiActionCount": 84,
+  "explicitFormalLinkedActions": 56,
+  "remainingUnlinkedActions": 28,
+  "brokenDeclaredFormalLinks": [],
+  "actionLinks": [
+    {
+      "toolName": "compare_recipes",
+      "executorKey": "recipe",
+      "access": "read",
+      "operation": "preview",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "cost.recipe_difference",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "POST /api/cost/recipe-difference { leftRecipeId?, leftRecipeName?, rightRecipeId?, rightRecipeName?, limit? }",
+          "sourceOfTruth": "saved_recipe_ids+current_template_ids+costEngine"
+        }
+      ]
+    },
+    {
+      "toolName": "explain_cost_change",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "cost.recipe_difference",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "POST /api/cost/recipe-difference { leftRecipeId?, leftRecipeName?, rightRecipeId?, rightRecipeName?, limit? }",
+          "sourceOfTruth": "saved_recipe_ids+current_template_ids+costEngine"
+        }
+      ]
+    },
+    {
+      "toolName": "check_order_readiness",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "formalCapabilityIds": [
+        "orders.readiness.read"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "orders.readiness.read",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/orders/:id/readiness",
+          "sourceOfTruth": "orders+active_orders+parts+coils+recipes+currentPurchasePlan+orderPlanning+orderReadiness"
+        }
+      ]
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "formalCapabilityIds": [
+        "orders.knowledge_package.read"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "orders.knowledge_package.read",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/orders/:id/knowledge-package",
+          "sourceOfTruth": "orders+currentPurchasePlan+activeOrderReadiness+orderRequirements+orderExecutionRecords+factory_file_links"
+        }
+      ]
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "formalCapabilityIds": [
+        "recipes.list",
+        "recipes.technical_files.list"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "recipes.list",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/recipes?keyword?&hasTechnicalFiles?",
+          "sourceOfTruth": "recipes+recipe_technical_files"
+        },
+        {
+          "capabilityId": "recipes.technical_files.list",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/recipes/:id/technical-files",
+          "sourceOfTruth": "recipes+recipe_technical_files+factory_files"
+        }
+      ]
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "preview",
+      "formalCapabilityIds": [
+        "coils.list",
+        "coils.cost_preview"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "coils.list",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/coils?spec?&sheets?&material?&slotType?&schemeCode?&schemeStatus?&isDefault?&ratedVoltageV?&ratedFrequencyHz?&market?&schemeFamilyCode?",
+          "sourceOfTruth": "coils+stator_variants"
+        },
+        {
+          "capabilityId": "coils.cost_preview",
+          "access": "preview",
+          "operation": "preview",
+          "inputSchema": "POST /api/coils/calculate { spec, sheets, material?, slotType?, coilId?, schemeCode?, schemeFamilyCode?, wireWeight?, copperPrice?, includeTesting? }",
+          "sourceOfTruth": "coils+stator_variants+coilCost"
+        }
+      ]
+    },
+    {
+      "toolName": "get_copper_price",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "query",
+      "formalCapabilityIds": [
+        "market.copper_price.read"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "market.copper_price.read",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/copper-price",
+          "sourceOfTruth": "dailyMarketSnapshot+coils.copper_base"
+        }
+      ]
+    },
+    {
+      "toolName": "get_coil_specs",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "formalCapabilityIds": [
+        "coils.spec_options.read"
+      ],
+      "formalCapabilities": [
+        {
+          "capabilityId": "coils.spec_options.read",
+          "access": "query",
+          "operation": "query",
+          "inputSchema": "GET /api/coils/specs",
+          "sourceOfTruth": "coils+stator_variants"
+        }
+      ]
+    }
+  ]
+}
