@@ -28,8 +28,10 @@ async function buildPlannerCatalogSnapshot({ getJson, clock } = {}) {
     const rows = {}; const provenance = { sourceMode: 'OFFICIAL_GET' };
     for (const [domain, route] of Object.entries(ROUTES)) {
         const response = await getJson(route);
-        if (response?.success !== true || !Array.isArray(response.data)) throw new Error(`CATALOG_READ_FAILED:${domain}`);
-        rows[domain] = response.data;
+        // The existing internal API client unwraps the formal { success, data } envelope.
+        const records = Array.isArray(response) ? response : response?.success === true ? response.data : null;
+        if (!Array.isArray(records)) throw new Error(`CATALOG_READ_FAILED:${domain}`);
+        rows[domain] = records;
         provenance[domain] = route;
     }
     return snapshotFromRows(rows, provenance, clock);

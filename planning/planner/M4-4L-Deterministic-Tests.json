@@ -1,0 +1,12 @@
+{
+  "phase": "M4-4L",
+  "command": "node --test tests/plannerV1MinimalFullContext.test.cjs",
+  "result": "PASS",
+  "nodeTestGroups": { "pass": 6, "fail": 0 },
+  "requiredAssertionIds": ["ML-01", "ML-02", "ML-03", "ML-04", "ML-05", "ML-06", "ML-07", "ML-08", "ML-09", "ML-10", "ML-11", "ML-12", "ML-13", "ML-14", "ML-15", "ML-16", "ML-17", "ML-18"],
+  "requiredAssertionsPassed": 18,
+  "requiredAssertionsFailed": 0,
+  "additionalChecks": ["formal four-route internal-client GET projection", "full-width colon mechanical parsing", "strict owner-span provenance"],
+  "modelCalls": 0,
+  "writeExecutions": 0
+}
