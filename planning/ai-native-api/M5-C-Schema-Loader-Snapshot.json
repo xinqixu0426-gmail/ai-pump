@@ -1,0 +1,103 @@
+{
+  "phase": "M5-C",
+  "startHead": "ed6984f680afdfa4c28cc6bb0c42ac7458805ea6",
+  "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+  "modelIndexCount": 31,
+  "maxLoadBatch": 8,
+  "maxLoadedToolsPerRequest": 16,
+  "maxLoadedSchemaChars": 32000,
+  "loadToolsDefinition": {
+    "type": "function",
+    "function": {
+      "name": "load_tools",
+      "description": "从当前可发现的只读或预览工具目录中加载少量完整调用 schema。该控制操作不读取业务数据、不执行工具，也不产生业务事实。",
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "toolNames": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "toolNames"
+        ]
+      }
+    }
+  },
+  "canonicalDefinitionCount": 84,
+  "privateToolLoadStatus": {
+    "get_recipe_technical_profile": true,
+    "compare_recipe_scenarios": true,
+    "preview_profitability": true,
+    "preview_virtual_readiness": true
+  },
+  "writeLoadStatus": "TOOL_SCHEMA_NOT_DISCOVERABLE",
+  "deferredLoadStatus": "TOOL_SCHEMA_NOT_DISCOVERABLE",
+  "unknownLoadStatus": "TOOL_SCHEMA_NOT_DISCOVERABLE",
+  "sampleSessions": [
+    {
+      "name": "recipe-comparison",
+      "requestedToolNames": [
+        "get_all_recipes",
+        "compare_recipes"
+      ],
+      "loadedToolNames": [
+        "get_all_recipes",
+        "compare_recipes"
+      ],
+      "loadedSchemaChars": 862,
+      "loadedSchemaEstimatedTokens": 216,
+      "apiIndexEstimatedTokens": 1550,
+      "combinedEstimatedTokens": 1766,
+      "schemaFingerprint": "376cc555e8f766d8254e37270b9031b37902327332016461163bb3b9277b7d9f"
+    },
+    {
+      "name": "coil-cost-investigation",
+      "requestedToolNames": [
+        "search_coils",
+        "calculate_coil_cost",
+        "get_copper_price"
+      ],
+      "loadedToolNames": [
+        "search_coils",
+        "calculate_coil_cost",
+        "get_copper_price"
+      ],
+      "loadedSchemaChars": 2156,
+      "loadedSchemaEstimatedTokens": 539,
+      "apiIndexEstimatedTokens": 1550,
+      "combinedEstimatedTokens": 2089,
+      "schemaFingerprint": "79c0d3d7854525789fe98a71a838484e642bdaac56d0e09962570dcc796fe684"
+    },
+    {
+      "name": "recipe-scenario-investigation",
+      "requestedToolNames": [
+        "get_all_recipes",
+        "compare_recipe_scenarios",
+        "search_parts"
+      ],
+      "loadedToolNames": [
+        "search_parts",
+        "get_all_recipes",
+        "compare_recipe_scenarios"
+      ],
+      "loadedSchemaChars": 4006,
+      "loadedSchemaEstimatedTokens": 1002,
+      "apiIndexEstimatedTokens": 1550,
+      "combinedEstimatedTokens": 2552,
+      "schemaFingerprint": "d04c600eefd87d882b27b4858274b02ccd40fa915059c78585059abc0c82133b"
+    }
+  ],
+  "allModelSchemas": {
+    "chars": 23628,
+    "estimatedTokens": 5907
+  }
+}
