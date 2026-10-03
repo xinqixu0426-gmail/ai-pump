@@ -1,0 +1,41 @@
+{
+  "phase": "M5-D1-FINAL",
+  "acceptanceState": "BLOCKED_PRE_RUN_EVALUATOR_DEFECT",
+  "testedSourceCommit": "82b0dce603c7ee2c715a55799ce1b04db0344bc7",
+  "branch": "ai-native/m3-optimization-v1",
+  "timestamp": "2026-10-03T17:42:16Z",
+  "candidateSourceHash": "1f7ab3e9afbbd93fa34f517d07a58573a862fb1dddd59ee5ac43198a3ab150fe",
+  "candidatePromptHash": "cbee7e0d582b7bf3b899a9768170f5703d030b79f47dfa7e2e75ffacd337df44",
+  "businessAgentPromptHash": "d8a1cec5f921b975156d4226c7f068453480d44480a16c895a1dae590cf525ba",
+  "policyAgentPromptHash": "36255ce44de279cd1be34f6ad18f423ba447c4c009cf9b8a1bc34c64b1545038",
+  "companyBusinessModelHash": "6a83f299cf00d11941d8dc38cab0495c9c504e69ad591e3cd077d9c586e141d4",
+  "domainPolicyHash": "b93b5dc95c8171345e22e246915ce2ab52429e3acff5f592cc598f44eb90a5e7",
+  "ontologyHash": "ee860ba477a00abb95aa8221ab2326ae8690f10935d82521adff15f327e59fb9",
+  "apiIndexFingerprint": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18",
+  "apiIndexCount": 31,
+  "canonicalToolDefinitionsFingerprint": "763450f2b674be51bad99dbe7cc93c8499c24b9d093e22e1c1593d8e5d3be61d",
+  "scenarioToolSchemaFingerprint": "05d052d38c8a419a9f38bb8cf97a744656cec84777f24ed87b78cbb7512c6a12",
+  "controlledFixtureHash": "a1e6df3db8e5f70b79d715df1986e88e7a02e4ebf4b9ef1ed9f3a078df8855d7",
+  "controlledEvaluatorHash": "41196e4240a91be2e242640fdecb4718d028ff84347aab6c82045db58f3d89c9",
+  "realCatalogEvaluatorHash": "0da4e312e8885f04990f4ecd62e0d8dc1fec41326f9e7a4e2f765023d9cfc666",
+  "provider": "DeepSeek",
+  "model": "deepseek-chat",
+  "budgets": {
+    "maxMainModelCalls": 10,
+    "maxBusinessToolCalls": 8,
+    "maxLoadToolsCalls": 4,
+    "maxResolveCalls": 6,
+    "maxFinalizationCalls": 2,
+    "contextWindow": 65536
+  },
+  "freshModelAcceptanceStarted": false,
+  "invalidatingDefect": {
+    "type": "REAL_CATALOG_EVALUATOR_AND_SAFETY_TELEMETRY_DEFECT",
+    "source": "scripts/ai-experiments/api-native-agent/run-d1-smoke.cjs",
+    "details": [
+      "safety() returns fixed zero values for accepted safety metrics rather than deriving them from traces, executor receipts, formal outcome receipts, answer validation, and mutation observations.",
+      "summarize() classifies only the final status and does not evaluate REAL-01 through REAL-06 business outcomes.",
+      "The real-suite case table still labels D1-07 as ROTOR_PROCESS_GAP, which contradicts the frozen baseline where Rotor Process scenario preview is supported."
+    ]
+  }
+}
