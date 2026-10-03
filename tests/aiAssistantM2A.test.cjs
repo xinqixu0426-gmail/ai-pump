@@ -36,7 +36,7 @@ function context() { return { resolvedRecipeIds: new Set(), resolvedRecipeBindin
 async function call(name, args, state) { return executeAgentTool(name, args, state, { executeToolCall: formal }); }
 
 test('M2-A exposes only the core read/analyze tool surface and generic prompt', () => {
-    assert.deepEqual(AGENT_TOOLS.map(item => item.function.name), ['find_recipe', 'list_recipes', 'recipe_current_cost', 'compare_recipe_costs', 'find_coils', 'coil_inventory', 'coil_cost', 'find_part', 'part_inventory', 'preview_part_stock_change', 'preview_profitability', 'preview_virtual_readiness']);
+    assert.deepEqual(AGENT_TOOLS.map(item => item.function.name), ['find_recipe', 'list_recipes', 'recipe_current_cost', 'compare_recipe_costs', 'find_coils', 'coil_inventory', 'coil_cost', 'find_part', 'part_inventory', 'preview_part_stock_change', 'preview_profitability_legacy', 'preview_virtual_readiness_legacy']);
     const prompt = mainAgentSystemPrompt('policy');
     assert.doesNotMatch(prompt, /V550|340|cableLength|先用 find_recipe/);
     assert.match(prompt, /自主选择必要工具和顺序/);
@@ -54,9 +54,9 @@ test('recipe IDs bind only from a unique formal result and all money is projecte
     assert.equal('execution' in recipe, false);
     const cost = await call('recipe_current_cost', { recipeId: 12 }, state);
     assert.deepEqual(cost.data, { recipeId: 12, recipeName: 'V550', unitCost: 268.7, currency: 'CNY', costBasis: 'currentFullCost', costComplete: true });
-    const profit = await call('preview_profitability', { recipeId: 12, cableLength: 5, unitPrice: 340 }, state);
+    const profit = await call('preview_profitability_legacy', { recipeId: 12, cableLength: 5, unitPrice: 340 }, state);
     assert.deepEqual(Object.keys(profit.data).sort(), ['costBasis', 'costComplete', 'currency', 'grossMarginOnSales', 'grossProfitPerUnit', 'markupOnCost', 'scenarioKey', 'unitCost', 'unitPrice']);
-    const readiness = await call('preview_virtual_readiness', { recipeId: 12, quantity: 300 }, state);
+    const readiness = await call('preview_virtual_readiness_legacy', { recipeId: 12, quantity: 300 }, state);
     assert.equal(readiness.data.shortageItems[0].shortageQuantity, 280);
     await assert.rejects(() => call('recipe_current_cost', { recipeId: 999 }, state), error => error instanceof AgentToolError);
 });
@@ -87,7 +87,7 @@ test('ambiguous coils remain distinct and cannot be silently used for inventory 
 const CORE_16 = [
     ['12-120还有多少库存？', ['find_coils', 'coil_inventory']], ['12-120成本多少？', ['find_coils', 'coil_cost']], ['V550现在成本多少？', ['find_recipe', 'recipe_current_cost']], ['列一下配方。', ['list_recipes']],
     ['V550现在成本多少？顺便看看12-120还有多少库存。', ['find_recipe', 'recipe_current_cost', 'find_coils', 'coil_inventory']], ['12-120现在库存还有多少，成本又是多少？', ['find_coils', 'coil_inventory', 'coil_cost']],
-    ['V550和V750成本差多少？', ['find_recipe', 'find_recipe', 'compare_recipe_costs']], ['V550如果现在再做300台，库存够不够？', ['find_recipe', 'preview_virtual_readiness']], ['V550如果做300台，缺什么料？', ['find_recipe', 'preview_virtual_readiness']], ['V550电缆改成5米，卖340元，毛利多少？先不要保存。', ['find_recipe', 'preview_profitability']],
+    ['V550和V750成本差多少？', ['find_recipe', 'find_recipe', 'compare_recipe_costs']], ['V550如果现在再做300台，库存够不够？', ['find_recipe', 'preview_virtual_readiness_legacy']], ['V550如果做300台，缺什么料？', ['find_recipe', 'preview_virtual_readiness_legacy']], ['V550电缆改成5米，卖340元，毛利多少？先不要保存。', ['find_recipe', 'preview_profitability_legacy']],
     ['V550现在成本多少？', ['find_recipe', 'recipe_current_cost']], ['那V750呢？', ['find_recipe', 'recipe_current_cost']], ['这两个差多少？', ['find_recipe', 'find_recipe', 'compare_recipe_costs']],
     ['12-120还有多少？', ['find_coils', 'coil_inventory']], ['它成本呢？', ['find_coils', 'coil_cost']], ['有其他同规格方案吗？', ['find_coils']],
 ];
@@ -123,7 +123,7 @@ test('generic normalized part identity and base profitability use formal data wi
     assert.equal('id' in found.data[0], false);
     assert.deepEqual((await executeAgentTool('preview_part_stock_change', { partRef: found.data[0].partRef, delta: 10 }, state, { executeToolCall: run })).data, { model: part.model, currentStock: 7, delta: 10, nextStock: 17, clampedToZero: false, preview: true });
     state.resolvedRecipeIds.add(12);
-    const profit = await executeAgentTool('preview_profitability', { recipeId: 12, unitPrice: 360 }, state, { executeToolCall: run });
+    const profit = await executeAgentTool('preview_profitability_legacy', { recipeId: 12, unitPrice: 360 }, state, { executeToolCall: run });
     assert.equal(profit.data.costBasis, 'CURRENT_REBUILT_BASE');
     assert.deepEqual(baseProfitabilityArgs, {
         version: 1,

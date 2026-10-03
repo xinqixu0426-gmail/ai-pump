@@ -5,15 +5,15 @@
 // page context, or a failed technical call into a formal fact.
 
 const SENSITIVE_KEYS = new Set([
-    'confirmationToken', 'partId', 'recipeId', 'coilId', 'orderId', 'customerId',
-    'operationId', 'idempotencyKey', 'argsHash', 'proposalHash', 'executionEvidence',
+    'confirmationToken', 'operationId', 'idempotencyKey', 'argsHash', 'proposalHash', 'executionEvidence', 'apiTrace',
 ]);
-const MAX_MODEL_PROJECTION_BYTES = 4 * 1024;
-const MAX_MODEL_PROJECTION_ARRAY_ITEMS = 12;
+const MAX_MODEL_PROJECTION_BYTES = 16 * 1024;
+const MAX_MODEL_PROJECTION_ARRAY_ITEMS = 100;
 const MAX_MODEL_PROJECTION_OBJECT_FIELDS = 24;
 const MAX_MODEL_PROJECTION_DEPTH = 4;
 
 function finite(value) {
+    if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
 }
@@ -30,7 +30,8 @@ function entityFromBindings(args = {}, bindings) {
         const id = Number(rawId);
         if (!Number.isSafeInteger(id) || id < 1 || !value?.verified) continue;
         const fields = [`${type}Id`, 'entityId', 'canonicalId'];
-        if (fields.some(field => Number(args?.[field]) === id)) {
+        if (fields.some(field => Number(args?.[field]) === id)
+            || (type === 'recipe' && Number(args?.basisRef?.recipeId) === id)) {
             return { type, id, canonicalName: text(value.canonicalName) };
         }
     }
@@ -164,27 +165,61 @@ function createFactLedger() {
 
 function modelProjection(result, factIds) {
     const budget = { remaining: MAX_MODEL_PROJECTION_BYTES };
+    const collections = [];
+    let truncated = false;
+    let truncationCount = 0;
+    const markTruncated = () => { truncated = true; truncationCount += 1; };
     const consume = value => {
         const source = Buffer.from(String(value), 'utf8');
         const accepted = source.subarray(0, Math.max(0, budget.remaining));
         budget.remaining -= accepted.length;
         return accepted.toString('utf8');
     };
-    const project = (value, depth = 0) => {
+    const project = (value, depth = 0, path = '$') => {
         if (value === null || value === undefined) return value;
-        if (typeof value === 'string') return consume(value);
+        if (typeof value === 'string') { const projected = consume(value); if (projected !== value) markTruncated(); return projected; }
         if (typeof value === 'number' || typeof value === 'boolean') { consume(String(value)); return value; }
-        if (depth >= MAX_MODEL_PROJECTION_DEPTH || budget.remaining <= 0) return '[内容已截断]';
-        if (Array.isArray(value)) return value.slice(0, MAX_MODEL_PROJECTION_ARRAY_ITEMS).map(item => project(item, depth + 1));
+        if (depth >= MAX_MODEL_PROJECTION_DEPTH || budget.remaining <= 0) { markTruncated(); return '[内容已截断]'; }
+        if (Array.isArray(value)) {
+            const output = [];
+            const priorTruncations = truncationCount;
+            for (let index = 0; index < value.length && index < MAX_MODEL_PROJECTION_ARRAY_ITEMS && budget.remaining > 0; index += 1) {
+                output.push(project(value[index], depth + 1, `${path}[${index}]`));
+            }
+            if (output.length < value.length) markTruncated();
+            collections.push({ path, totalCount: value.length, returnedCount: output.length,
+                hasMore: output.length < value.length || truncationCount > priorTruncations,
+                complete: output.length === value.length && truncationCount === priorTruncations });
+            return output;
+        }
         if (typeof value !== 'object') return consume(String(value));
         const output = {};
         for (const [key, child] of Object.entries(value)) {
-            if (SENSITIVE_KEYS.has(key) || Object.keys(output).length >= MAX_MODEL_PROJECTION_OBJECT_FIELDS || budget.remaining <= 0) continue;
-            output[consume(key)] = project(child, depth + 1);
+            if (SENSITIVE_KEYS.has(key)) continue;
+            if (Object.keys(output).length >= MAX_MODEL_PROJECTION_OBJECT_FIELDS || budget.remaining <= 0) { markTruncated(); continue; }
+            output[consume(key)] = project(child, depth + 1, `${path}.${key}`);
+        }
+        for (const collection of collections.filter(item => item.path.startsWith(`${path}.`) && !item.path.slice(path.length + 1).includes('.'))) {
+            const reportedTotal = Number(value.totalCount);
+            if (value.totalCount !== null && value.totalCount !== undefined && Number.isSafeInteger(reportedTotal) && reportedTotal >= collection.totalCount) {
+                collection.totalCount = reportedTotal;
+            }
+            if (value.complete === false || value.hasMore === true || collection.returnedCount < collection.totalCount) {
+                collection.complete = false;
+                collection.hasMore = true;
+            }
+            const cursor = value.nextCursor ?? value.cursor;
+            if (typeof cursor === 'string' && cursor.length <= 500) collection.cursor = cursor;
+        }
+        if (collections.some(item => item.path.startsWith(`${path}.`) && !item.complete)) {
+            if (output.complete === true) output.complete = false;
+            if (output.hasMore === false) output.hasMore = true;
         }
         return output;
     };
-    return { ...project(result), factRefs: Array.isArray(factIds) ? factIds.slice(0, 96) : [] };
+    const projected = project(result);
+    return { ...projected, factRefs: Array.isArray(factIds) ? factIds.slice(0, 96) : [],
+        projection: { truncated, collections } };
 }
 
 module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection };

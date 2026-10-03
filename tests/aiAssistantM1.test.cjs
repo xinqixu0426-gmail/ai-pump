@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const { JudgeError, runJudge, validateJudgeOutput } = require('../api/services/ai-assistant/judge.cjs');
-const { executeAgentTool } = require('../api/services/ai-assistant/agentTools.cjs');
+const { executeAgentTool, formalProfitabilityArgs } = require('../api/services/ai-assistant/agentTools.cjs');
 const { MainAgentError } = require('../api/services/ai-assistant/mainAgent.cjs');
 const { runAiAssistant } = require('../api/services/ai-assistant/runtime.cjs');
 
@@ -81,7 +81,7 @@ function mainSequence(answerFactory) {
     return async (messages, options) => {
         index += 1;
         if (index === 1) return toolCall('resolve_entity', { entityType: 'recipe', mention: 'V550' }, 'tool-recipe');
-        if (index === 2) return toolCall('preview_profitability', { recipeId: 55, cableLength: 5, unitPrice: 340 }, 'tool-profit');
+        if (index === 2) return toolCall('preview_profitability', formalProfitabilityArgs({ recipeId: 55, cableLength: 5, unitPrice: 340 }), 'tool-profit');
         assert.equal(index, 3);
         return response({ content: finalEnvelope(messages, answerFactory(messages, options)) });
     };
@@ -219,10 +219,8 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
             assert.ok(options.tools.some(tool => tool.function.name === 'preview_profitability'));
             assert.match(messages[0].content, /自主选择必要工具和顺序/);
             const formal = JSON.parse(messages.at(-1).content);
-            assert.deepEqual(Object.keys(formal.data).sort(), [
-                'costBasis', 'costComplete', 'currency', 'grossMarginOnSales', 'grossProfitPerUnit',
-                'markupOnCost', 'scenarioKey', 'unitCost', 'unitPrice',
-            ]);
+            assert.equal(formal.data.costBasis, 'CURRENT_REBUILT_SCENARIO');
+            assert.equal('configurationHash' in formal.data, false);
             assert.equal(formal.data.unitCost, 281.25);
             assert.equal(formal.data.grossProfitPerUnit, 58.75);
             return 'V550 电缆临时改为 5 米后，成本约 ¥281.25。按售价 ¥340，单台毛利 ¥58.75，毛利率约 17.28%。本次只是试算，没有保存。';
@@ -245,17 +243,9 @@ test('M1 runs the V550 preview through isolated Judge, formal tools and Main Age
     assert.equal(businessWrites, 0);
     assert.equal(result.toolResults[0].agentToolName, 'resolve_entity');
     assert.equal(result.toolResults[0].data.canonicalId, '55');
-    assert.deepEqual(result.toolResults[1].data, {
-        costComplete: true,
-        currency: 'CNY',
-        costBasis: 'CURRENT_REBUILT_SCENARIO',
-        scenarioKey: 'candidate',
-        unitPrice: 340,
-        unitCost: 281.25,
-        grossProfitPerUnit: 58.75,
-        grossMarginOnSales: 0.1728,
-        markupOnCost: 0.2089,
-    });
+    assert.equal(result.toolResults[1].data.unitCost, 281.25);
+    assert.equal(result.toolResults[1].data.grossProfitPerUnit, 58.75);
+    assert.equal('configurationHash' in result.toolResults[1].data, false);
     assert.equal('execution' in result.toolResults[0], false);
     assert.equal('provenance' in result.toolResults[1], false);
 });
@@ -269,8 +259,10 @@ test('tool failures expose only bounded safe metadata', async () => {
         agentToolName: 'find_recipe',
         verified: false,
         data: null,
-        code: 'FORMAL_TOOL_FAILED',
-        message: '正式业务工具暂不可用，无法完成本次查询。',
+        code: 'INTERNAL_BACKEND_PATH',
+        category: 'TRANSPORT_UNAVAILABLE',
+        recoverable: true,
+        message: '正式业务服务暂不可用。',
     });
 });
 

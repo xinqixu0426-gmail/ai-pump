@@ -1,0 +1,38 @@
+{
+  "phase": "M5-A",
+  "testFile": "tests/aiNativeApiFoundation.test.cjs",
+  "targeted": { "pass": 10, "fail": 0 },
+  "coverage": {
+    "A1_A2": "formal broker schema to adapter and executor, including private tools",
+    "B1_B2_B3": "14-item completeness, 110-item truncation disclosure, business ID preservation and token redaction",
+    "C1_C2": "different and equivalent nested tool calls",
+    "D1_D2_D3": "invalid argument, unsupported, ambiguity and not-found remain distinct; stale and transport also covered",
+    "E1_E2": "null, undefined, empty, whitespace and NaN do not form numeric zero facts",
+    "F1_F2_F3": "wrong entity and wrong basis rejected, correct cited entity+basis accepted; nested formal recipe identity preserved",
+    "G1_G2_G3": "exclusiveMinimum, pattern, const and actual schema vocabulary",
+    "H1_H2_H3": "raw packing rejected as unbound, formal packing accepted, rotor override not in schema",
+    "I1_I2": "84 definition/registry/schema/dispatcher actions accounted; private formal links checked"
+  },
+  "metrics": {
+    "schemaAdapterContractFailures": 0,
+    "silentCollectionTruncation": 0,
+    "businessIdentityProjectionLosses": 0,
+    "nestedCallDedupCollisions": 0,
+    "formalErrorCategoryLossesForTestedCategories": 0,
+    "nullToZeroFactBugs": 0,
+    "wrongEntityClaimAcceptances": 0,
+    "wrongBasisClaimAcceptances": 0,
+    "schemaFeatureGapsForExposedTools": 0,
+    "executorRegistryOrphans": 0,
+    "writeExecutions": 0
+  },
+  "gates": {
+    "npm test": "PASS 2234/2234",
+    "verify:api-contract": "PASS 29/29",
+    "test:deep-api": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "test:ai-architecture": "PASS 9/9",
+    "verify:ai-assistant-release": "PASS"
+  }
+}

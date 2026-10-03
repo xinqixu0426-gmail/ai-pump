@@ -3,6 +3,7 @@
 const { executeToolCall } = require('../../routes/ai/executor.cjs');
 const { prepareProtectedWriteProposal, selectProtectedWriteTools } = require('./protectedWriteBroker.cjs');
 const { resolveAgentEntity, resolvePageContextEntity } = require('../../ontology/agentResolver.cjs');
+const { formalToolFailure } = require('../aiFormalToolError.cjs');
 const {
     RESOLVE_ENTITY_TOOL,
     executeBrokeredCapability,
@@ -33,10 +34,10 @@ const AGENT_TOOLS = Object.freeze([
     tool('find_part', '按用户给出的完整型号查询正式零件候选。多个候选不会替用户选择。', { keyword: { type: 'string', minLength: 1, maxLength: 120 } }, ['keyword']),
     tool('part_inventory', '读取一个已由本轮 find_part 唯一确认的正式零件当前库存。', { partRef: { type: 'string', minLength: 1, maxLength: 40 } }, ['partRef']),
     tool('preview_part_stock_change', '按已确认零件的当前正式库存，预览一个不保存的库存增减结果。', { partRef: { type: 'string', minLength: 1, maxLength: 40 }, delta: { type: 'integer', minimum: -1000000, maximum: 1000000 } }, ['partRef', 'delta']),
-    tool('preview_profitability', '对已确认配方按售价执行正式毛利试算；未提供配置覆盖时使用当前正式配置。只读，不保存。', {
+    tool('preview_profitability_legacy', '旧 prototype 简化毛利试算适配器；正式 Main Agent 使用 preview_profitability 的完整正式 schema。', {
         recipeId: { type: 'integer', minimum: 1 }, cableLength: { type: 'number', minimum: 0 }, unitPrice: { type: 'number', minimum: 0 },
     }, ['recipeId', 'unitPrice']),
-    tool('preview_virtual_readiness', '按当前库存和活动订单占用，预览已确认配方生产指定数量时的齐料和缺料。只读。', {
+    tool('preview_virtual_readiness_legacy', '旧 prototype 简化齐料预览适配器；正式 Main Agent 使用 preview_virtual_readiness 的完整正式 schema。', {
         recipeId: { type: 'integer', minimum: 1 }, quantity: { type: 'integer', minimum: 1, maximum: 100000 },
     }, ['recipeId', 'quantity']),
 ]);
@@ -82,7 +83,7 @@ function integerDelta(value) {
 }
 function safeProjection(agentToolName, result, data) {
     if (result?.success !== false) return { success: true, agentToolName, verified: result?.executionEvidence?.verified === true, data };
-    return { success: false, agentToolName, verified: false, data: null, code: 'FORMAL_TOOL_FAILED', message: '正式业务工具暂不可用，无法完成本次查询。' };
+    return formalToolFailure(result, agentToolName);
 }
 function rawRecipes(result) {
     return (Array.isArray(result?.data) ? result.data : []).flatMap(recipe => {
@@ -102,7 +103,8 @@ function rawCoils(result) {
 function rawParts(result) {
     return (Array.isArray(result?.parts) ? result.parts : Array.isArray(result?.data) ? result.data : []).flatMap(part => {
         const id = Number(part?.id ?? part?.Id); const model = String(part?.model || '').trim();
-        return Number.isSafeInteger(id) && id > 0 && model ? [{ id, model, category: String(part.category || '').trim() || null, supplier: String(part.supplier || '').trim() || null, stock: Number.isFinite(Number(part.stock)) ? Number(part.stock) : null }] : [];
+        const stock = part.stock === null || part.stock === undefined || part.stock === '' ? null : Number(part.stock);
+        return Number.isSafeInteger(id) && id > 0 && model ? [{ id, model, category: String(part.category || '').trim() || null, supplier: String(part.supplier || '').trim() || null, stock: Number.isFinite(stock) ? stock : null }] : [];
     });
 }
 function coilProjection(coils) { return coils.slice(0, 30).map(coil => ({ id: coil.id, commonDesignation: `${coil.spec}-${coil.sheets}`, schemeCode: coil.schemeCode, schemeName: coil.schemeName, material: coil.material, slotType: coil.slotType })); }
@@ -232,8 +234,7 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
             ...(resolution.status === 'RESOLVED' ? {} : { code: `ENTITY_${resolution.status}`, message: '页面候选未能通过正式身份验证。' }) };
     }
 
-    if (context.selectedToolNames instanceof Set && context.selectedToolNames.has(name)
-        && !['preview_profitability', 'preview_virtual_readiness'].includes(name)) {
+    if (context.selectedToolNames instanceof Set && context.selectedToolNames.has(name)) {
         return executeBrokeredCapability(name, args, context, { executeToolCall: runFormalTool });
     }
 
@@ -344,12 +345,12 @@ async function executeAgentTool(name, args, context = {}, dependencies = {}) {
         const result = await formal('calculate_coil_cost', { coilId, spec: coil.spec, sheets: coil.sheets, ...(coil.schemeCode ? { schemeCode: coil.schemeCode } : {}) });
         return safeProjection(name, result, coilCostProjection(result?.data));
     }
-    if (name === 'preview_profitability') {
+    if (name === 'preview_profitability_legacy') {
         strictObject(args, ['recipeId', 'cableLength', 'unitPrice'], name); const recipeId = boundId(args.recipeId, 'recipeId', recipeIds); const cableLength = args.cableLength === undefined ? undefined : Number(args.cableLength); const unitPrice = Number(args.unitPrice);
         if ((cableLength !== undefined && (!Number.isFinite(cableLength) || cableLength < 0)) || !Number.isFinite(unitPrice) || unitPrice < 0) throw new AgentToolError('AGENT_TOOL_ARGS_INVALID', '电缆长度或售价无效');
         const result = await formal('preview_profitability', formalProfitabilityArgs({ recipeId, cableLength, unitPrice })); return safeProjection(name, result, profitabilityProjection(result?.data));
     }
-    if (name === 'preview_virtual_readiness') {
+    if (name === 'preview_virtual_readiness_legacy') {
         strictObject(args, ['recipeId', 'quantity'], name); const recipeId = boundId(args.recipeId, 'recipeId', recipeIds); const quantity = Number(args.quantity);
         if (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity > 100000) throw new AgentToolError('AGENT_TOOL_ARGS_INVALID', 'quantity 无效');
         const result = await formal('preview_virtual_readiness', formalReadinessArgs(recipeId, quantity)); return safeProjection(name, result, readinessProjection(result?.data));

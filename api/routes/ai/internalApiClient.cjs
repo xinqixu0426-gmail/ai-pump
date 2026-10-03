@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { fetchWithPolicy } = require('../../services/httpClient.cjs');
 const { getInternalApiTimeoutMs, getServerPort } = require('../../services/environment.cjs');
 const { isMutatingMethod } = require('../../services/internalWriteAuthorization.cjs');
+const { safeDetails } = require('../../services/aiFormalToolError.cjs');
 
 function createInternalFetch(context = {}, sharedTrace = null) {
     const trace = sharedTrace || [];
@@ -63,6 +64,7 @@ async function readApiJson(response, fallbackError) {
         const error = new Error(fallbackError || `API 返回了非 JSON 响应：${response.status}`);
         error.code = 'INTERNAL_API_PROTOCOL_FAILURE';
         error.statusCode = response.status;
+        error.details = safeDetails(result.details || result.validation || result);
         error.formalApiOutcome = 'protocol_failure';
         throw error;
     }

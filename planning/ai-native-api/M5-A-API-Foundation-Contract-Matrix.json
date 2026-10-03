@@ -1,0 +1,52 @@
+{
+  "phase": "M5-A",
+  "startHead": "e3c61bbb73a11c6ee87758733f31f2d7461a4f86",
+  "authority": {
+    "toolDefinitions": ["api/routes/ai/tools.cjs", "api/services/aiFormalToolDefinitions.cjs"],
+    "inputValidator": "api/services/aiToolInputValidator.cjs",
+    "capabilityRegistry": "api/capabilities/registry.cjs",
+    "executorDispatcher": "api/routes/ai/executor.cjs",
+    "executorImplementations": "api/routes/ai/executors/*Executors.cjs",
+    "agentAdapter": "api/services/ai-assistant/agentTools.cjs"
+  },
+  "counts": {
+    "genericAiTools": 80,
+    "privateAssistantOnlyFormalTools": 4,
+    "registeredAiCapabilities": 84,
+    "executorActions": 84,
+    "formalBusinessCapabilities": 147,
+    "aiCapabilitiesWithExplicitFormalLinks": 48,
+    "legacyOrCompositeAiCapabilitiesWithoutExplicitFormalLinks": 36,
+    "orphanTools": 0,
+    "orphanExecutorActions": 0,
+    "missingExecutor": 0,
+    "missingSchema": 0,
+    "brokenDeclaredFormalLinks": 0
+  },
+  "privateAssistantTools": [
+    { "name": "compare_recipe_scenarios", "identityField": "recipeId", "executor": "business", "formalCapability": "recipes.scenario_compare_preview" },
+    { "name": "preview_profitability", "identityField": "basisRef.recipeId", "executor": "business", "formalCapability": "cost.profitability_preview" },
+    { "name": "preview_virtual_readiness", "identityField": "basisRef.recipeId", "executor": "business", "formalCapability": "inventory.virtual_readiness_preview" },
+    { "name": "get_recipe_technical_profile", "identityField": "recipeId", "executor": "recipe", "formalCapability": "recipes.technical_profile.get" }
+  ],
+  "contractChecks": {
+    "definitionToValidator": "tests/aiNativeApiFoundation.test.cjs",
+    "brokerSchemaToAgentAdapter": "tests/aiNativeApiFoundation.test.cjs",
+    "registryToExecutorAction": "tests/aiNativeApiFoundation.test.cjs",
+    "declaredFormalLinks": "tests/aiNativeApiFoundation.test.cjs"
+  },
+  "unlinkedLegacyOrCompositeAiActions": [
+    "get_management_action_center", "plan_factory_workflow", "get_business_alerts", "get_dashboard_summary",
+    "get_order_readiness_overview", "check_order_readiness", "plan_order_readiness_actions",
+    "search_factory_knowledge", "get_factory_knowledge_detail", "get_factory_knowledge_health",
+    "get_order_knowledge_package", "get_data_quality_summary", "analyze_recipe_configuration",
+    "get_factory_learning_health", "get_factory_rule_candidates", "get_factory_rule_impact",
+    "get_factory_rule_compliance", "get_factory_rule_history", "get_order_detail", "build_order_draft",
+    "inspect_quotation_file", "build_quotation_draft", "preview_recipe_cost", "explain_cost_change",
+    "search_factory_file_archive_targets", "get_recipe_detail", "get_recipe_technical_files",
+    "build_recipe_bom_draft", "preview_pump_shell_cost", "compare_recipes", "full_calculate",
+    "dynamic_config_cost", "calculate_coil_cost", "get_copper_price", "get_coil_specs",
+    "get_rotor_drawing_history"
+  ],
+  "note": "An absent explicit formalCapabilityIds link for a legacy/composite AI action is recorded separately from an invalid declared link. No formal capability mapping was invented in this phase."
+}

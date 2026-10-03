@@ -6,6 +6,7 @@
 const { AI_TOOLS } = require('../../routes/ai/tools.cjs');
 const { AI_FORMAL_TOOLS } = require('../../services/aiFormalToolDefinitions.cjs');
 const { getAiCapability, listAiCapabilities } = require('../../capabilities/registry.cjs');
+const { formalToolFailure } = require('../aiFormalToolError.cjs');
 
 const MAX_DYNAMIC_TOOLS = 10;
 const MAX_EXPOSED_TOOLS = MAX_DYNAMIC_TOOLS + 2; // + identity tools
@@ -65,8 +66,8 @@ const ENTITY_ARGUMENTS = Object.freeze({
     get_recipe_technical_files: Object.freeze({ entityType: 'recipe', field: 'recipeId', rejectedFields: ['recipeName'] }),
     preview_recipe_cost: Object.freeze({ entityType: 'recipe', field: 'recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
     compare_recipe_scenarios: Object.freeze({ entityType: 'recipe', field: 'recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
-    preview_profitability: Object.freeze({ entityType: 'recipe', field: 'recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
-    preview_virtual_readiness: Object.freeze({ entityType: 'recipe', field: 'recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
+    preview_profitability: Object.freeze({ entityType: 'recipe', field: 'basisRef.recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
+    preview_virtual_readiness: Object.freeze({ entityType: 'recipe', field: 'basisRef.recipeId', rejectedFields: ['recipeName', 'baseRecipeId'] }),
     get_recipes_by_coil: Object.freeze({ entityType: 'coil', field: 'coilId' }),
     calculate_coil_cost: Object.freeze({ entityType: 'coil', field: 'coilId' }),
     get_recipes_by_part: Object.freeze({ entityType: 'part', field: 'partId' }),
@@ -96,11 +97,11 @@ function boundToolDefinition(name) {
     if (!binding) return original;
     const parameters = JSON.parse(JSON.stringify(original.function.parameters || { type: 'object', properties: {} }));
     parameters.properties ||= {};
-    parameters.properties[binding.field] ||= { type: 'integer', minimum: 1 };
+    if (!binding.field.includes('.')) parameters.properties[binding.field] ||= { type: 'integer', minimum: 1 };
     for (const field of binding.rejectedFields || []) delete parameters.properties[field];
     delete parameters.anyOf;
     delete parameters.oneOf;
-    parameters.required = [...new Set([...(parameters.required || []), binding.field])]
+    parameters.required = [...new Set([...(parameters.required || []), binding.field.split('.')[0]])]
         .filter(field => !new Set(binding.rejectedFields || []).has(field));
     return Object.freeze({ type: 'function', function: Object.freeze({
         name: original.function.name,
@@ -191,7 +192,7 @@ function boundEntity(context, entityType, id) {
 function redactFormalResult(value) {
     if (Array.isArray(value)) return value.map(redactFormalResult);
     if (!value || typeof value !== 'object') return value;
-    const blocked = new Set(['confirmationToken', 'idempotencyKey', 'argsHash', 'proposalHash', 'operationId', 'executionEvidence', 'apiTrace']);
+    const blocked = new Set(['confirmationToken', 'idempotencyKey', 'argsHash', 'proposalHash', 'operationId', 'executionEvidence', 'apiTrace', 'configurationHash', 'profitabilityId', 'readSetId']);
     return Object.fromEntries(Object.entries(value)
         .filter(([key]) => !blocked.has(key))
         .map(([key, child]) => [key, redactFormalResult(child)]));
@@ -214,7 +215,8 @@ async function executeBrokeredCapability(name, args = {}, context = {}, dependen
                 throw error;
             }
         }
-        const entity = boundEntity(context, binding.entityType, nextArgs[binding.field]);
+        const identityValue = binding.field.split('.').reduce((value, field) => value?.[field], nextArgs);
+        const entity = boundEntity(context, binding.entityType, identityValue);
         if (binding.entityType === 'coil' && name === 'calculate_coil_cost') {
             const attributes = entity.identityAttributes || {};
             nextArgs.spec = attributes.spec;
@@ -225,8 +227,7 @@ async function executeBrokeredCapability(name, args = {}, context = {}, dependen
     const runFormalTool = dependencies.executeToolCall;
     if (typeof runFormalTool !== 'function') throw new Error('正式能力执行器不可用。');
     const result = await runFormalTool(name, nextArgs, { allowWrite: false, signal: context.signal });
-    if (result?.success === false) return Object.freeze({ success: false, agentToolName: name, verified: false,
-        data: null, code: result.code || 'FORMAL_TOOL_FAILED', message: '正式业务能力暂不可用，无法完成本次查询。' });
+    if (result?.success === false) return formalToolFailure(result, name);
     return Object.freeze({ success: true, agentToolName: name, verified: result?.executionEvidence?.verified === true,
         capabilityId: getAiCapability(name).capabilityId, data: redactFormalResult(result?.data ?? result) });
 }

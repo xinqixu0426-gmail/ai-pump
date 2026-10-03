@@ -99,7 +99,11 @@ test('public progress and metrics are high-level metadata only', () => {
 test('model-facing formal tool projections are bounded while preserving fact references', () => {
     const projected = modelProjection({ success: true, data: { rows: Array.from({ length: 100 }, (_, index) => ({ label: `row-${index}`, detail: 'x'.repeat(800) })), confirmationToken: 'must-not-leak' } }, ['F-001', 'F-002']);
     assert.deepEqual(projected.factRefs, ['F-001', 'F-002']);
-    assert.equal(projected.data.rows.length <= 12, true);
+    assert.equal(projected.data.rows.length > 12, true);
+    assert.deepEqual(projected.projection.collections.find(item => item.path === '$.data.rows'), {
+        path: '$.data.rows', totalCount: 100, returnedCount: projected.data.rows.length,
+        hasMore: true, complete: false,
+    });
     assert.equal(JSON.stringify(projected).length <= MAX_MODEL_PROJECTION_BYTES * 2, true);
     assert.doesNotMatch(JSON.stringify(projected), /must-not-leak/);
 });

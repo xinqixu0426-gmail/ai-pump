@@ -8,6 +8,7 @@ const { renderInvestigationContext } = require('./context.cjs');
 const { selectCapabilities } = require('./capabilityBroker.cjs');
 const { createFactLedger, modelProjection } = require('./factLedger.cjs');
 const { validateAnswer } = require('./answerValidator.cjs');
+const { formalToolFailure } = require('../aiFormalToolError.cjs');
 
 const MAX_TOOL_CALLS = 6;
 const MAX_MAIN_MODEL_CALLS = 7;
@@ -93,8 +94,13 @@ function safeAssistantToolMessage(message, calls) {
     };
 }
 
+function canonicalJson(value) {
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+    if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    return JSON.stringify(value);
+}
 function canonicalToolCall(call) {
-    return `${call.name}:${JSON.stringify(call.args, Object.keys(call.args).sort())}`;
+    return `${call.name}:${canonicalJson(call.args)}`;
 }
 
 function runtimeLimit(input) {
@@ -264,14 +270,7 @@ async function runMainAgent(input = {}, dependencies = {}) {
                         lookupEntities: dependencies.lookupEntities, internalFetch: dependencies.internalFetch,
                         resolvePageContextEntity: dependencies.resolvePageContextEntity }));
                 } catch (error) {
-                    result = {
-                        success: false,
-                        agentToolName: call.name,
-                        verified: false,
-                        data: null,
-                        code: 'TOOL_ARGUMENT_REJECTED',
-                        message: '该工具调用缺少本轮已验证的正式身份或参数无效；请先查询正式候选后再继续。',
-                    };
+                    result = formalToolFailure({ code: error?.code || 'TOOL_ARGUMENT_REJECTED', details: error?.details }, call.name);
                 }
                 if (result.success) callKeys.add(canonicalToolCall(call));
                 toolResults.push(result);
@@ -316,4 +315,5 @@ module.exports = {
     mainAgentSystemPrompt,
     runMainAgent,
     toolCallsFrom,
+    canonicalToolCall,
 };

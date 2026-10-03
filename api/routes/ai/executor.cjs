@@ -444,6 +444,7 @@ async function executeToolCallImplementation(toolName, args, options = {}) {
                 statusCode: err.statusCode || null,
                 formalApiOutcome: err.formalApiOutcome || null,
                 error: err.message,
+                details: err.details || null,
             },
             typeof internalFetch.getApiTrace === 'function'
                 ? internalFetch.getApiTrace()

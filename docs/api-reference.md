@@ -511,7 +511,7 @@ V8.4 使用 `factory_workflow_runs` 保存每次已确认尝试的计划指纹�
 
 `POST /api/ai/chat` 仅供已认证 Owner 使用。它传入当前用户消息和有界的普通 user/assistant 会话文本，依次调用隔离的 DeepSeek Judge 与 DeepSeek Main Agent；Main Agent 只能经受限正式工具读取或试算业务事实。没有 Provider 请求覆盖、canary、shadow、确定性语义路由或旧运行时回退。
 
-当前 Assistant 工具面中的 `find_part`、`part_inventory` 与 `preview_part_stock_change` 都是只读能力：零件身份先通过正式目录唯一绑定，模型只获得本轮临时 `partRef` 句柄，不获得内部 `partId`；库存假设由正式当前库存生成预览且不会签发确认令牌。持久化模式只暴露 registry 选择的 `prepare_*` 受保护适配器，当前可预览零件库存、线圈库存、配方更新和订单状态更新；每项都先走正式 preflight，确认令牌永不进入模型上下文。`preview_profitability` 的 `unitPrice` 必填，配置覆盖可选；未给覆盖时使用一个无覆盖的 `CURRENT_REBUILT` 当前正式配置情景。线圈候选在同一轮发现多个正式方案后保持歧义，模型自行加方案筛选不得建立绑定，只有用户明确提供正式区分属性才能绑定。
+Assistant 旧 `find_part`、`part_inventory` 与 `preview_part_stock_change` 适配器都是只读能力，旧 `find_part` 只给本轮临时 `partRef`。当前 Capability Broker 暴露的正式目录工具可返回业务实体 ID；这些 ID 是正式调查所需身份，不是秘密，但使用前仍需本轮正式身份绑定。模型投影隐去确认令牌、幂等键、操作号等敏感字段；集合截断时返回总数、已返回数及不完整标记，不得把截断集合解释为完整结果。持久化模式只暴露 registry 选择的 `prepare_*` 受保护适配器，每项先走正式 preflight，确认令牌不进入模型上下文。当前 broker 暴露的 `preview_profitability`、`preview_virtual_readiness` 与 `compare_recipe_scenarios` 使用正式嵌套请求 schema，已验证的配方身份分别位于 `basisRef.recipeId` 或顶层 `recipeId`；旧简化试算原型分别命名为 `preview_profitability_legacy`、`preview_virtual_readiness_legacy`，不在当前 Main Agent 正式工具面。线圈候选同轮存在多个正式方案时保持歧义，不得静默建立绑定。
 
 读取完成时 SSE 发送 `content` 与 `done`。Judge 判定持久修改且服务器写开关开启时，Main Agent 只能生成一项 `AI_ASSISTANT_WRITE_PROPOSAL`：事件包含受保护预览的 `capabilityId`、目标展示名、冻结的当前/拟议状态与变更行及不透明 `confirmationToken`。令牌、内部 ID、operationId、hash 与幂等键不进入模型、正文、会话持久化或普通日志。浏览器仅将令牌提交至 `POST /api/ai/write/confirm`；该端点再次校验 Owner 与服务器写开关，只执行冻结参数并仅在正式审计和回读都成功时返回已验证结果。无法证明提交效果时返回 `UNKNOWN_EFFECT` 与 `manualReviewRequired`，不会重试。
 

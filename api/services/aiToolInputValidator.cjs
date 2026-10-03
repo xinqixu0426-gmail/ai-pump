@@ -35,6 +35,9 @@ function normalizeString(value, schema, path) {
             allowedValues: schema.enum,
         });
     }
+    if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(normalized)) {
+        fail(`${path} 格式无效`, path);
+    }
     return normalized;
 }
 
@@ -49,6 +52,9 @@ function normalizeNumber(value, schema, path, integer = false) {
     if (integer && !Number.isInteger(value)) fail(`${path} 必须是整数`, path);
     if (schema.minimum !== undefined && value < schema.minimum) {
         fail(`${path} 不能小于 ${schema.minimum}`, path);
+    }
+    if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) {
+        fail(`${path} 必须大于 ${schema.exclusiveMinimum}`, path);
     }
     if (schema.maximum !== undefined && value > schema.maximum) {
         fail(`${path} 不能大于 ${schema.maximum}`, path);
@@ -72,7 +78,7 @@ function normalizeObject(value, schema, path) {
         return normalizeLooseJson(value, path);
     }
     const unknownFields = Object.keys(value).filter(key => !Object.hasOwn(properties, key));
-    if (unknownFields.length > 0) {
+    if (unknownFields.length > 0 && schema.additionalProperties !== true && !schema.additionalProperties) {
         fail(`${path} 包含未声明字段：${unknownFields.join('、')}`, path, { unknownFields });
     }
     const normalized = {};
@@ -97,7 +103,7 @@ function normalizeObject(value, schema, path) {
                 && properties[key].minLength === 0
             )
         ) continue;
-        normalized[key] = normalizeBySchema(raw, properties[key], `${path}.${key}`);
+        normalized[key] = normalizeBySchema(raw, properties[key] || (typeof schema.additionalProperties === 'object' ? schema.additionalProperties : {}), `${path}.${key}`);
     }
     return normalized;
 }
@@ -120,7 +126,14 @@ function normalizeLooseJson(value, path) {
 }
 
 function normalizeArray(value, schema, path) {
-    if (!Array.isArray(value)) fail(`${path} 必须是数组`, path);
+    if (!Array.isArray(value)) {
+        if (path.endsWith('.packingParts')) {
+            const error = new AiToolInputValidationError(`${path} 必须使用正式包装零件身份、角色及数量`, { path });
+            error.code = 'PACKING_FORMAL_BINDING_REQUIRED';
+            throw error;
+        }
+        fail(`${path} 必须是数组`, path);
+    }
     if (schema.minItems !== undefined && value.length < schema.minItems) {
         fail(`${path} 至少需要 ${schema.minItems} 项`, path);
     }
