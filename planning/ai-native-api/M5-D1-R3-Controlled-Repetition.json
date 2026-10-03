@@ -1,0 +1,15 @@
+{
+  "phase": "M5-D1-R1",
+  "runsPerCase": 3,
+  "cases": [],
+  "results": [],
+  "summary": {
+    "completed": 0,
+    "partial": 0,
+    "unavailable": 0,
+    "clarification": 0,
+    "fail": 0,
+    "semanticPass": 0,
+    "semanticFail": 0
+  }
+}

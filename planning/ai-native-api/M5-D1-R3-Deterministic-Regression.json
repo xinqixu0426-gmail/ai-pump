@@ -1,0 +1,8 @@
+{
+  "runId": "d1-r3-deterministic-91fd54b",
+  "sourceCommit": "91fd54be9967f113d6ed8181235c9aa908394e62",
+  "source": "node --test tests/apiNativeAgentCandidate.test.cjs tests/d1R1ReliabilityContract.test.cjs tests/d1R2EvidenceSemantics.test.cjs tests/d1R3EvidenceFidelity.test.cjs",
+  "pass": 30,
+  "fail": 0,
+  "coverage": ["per-record coil cost evidence", "equal amounts retain distinct entities", "missing is not zero", "completion review remains bounded", "scenario/current/difference validation", "write tools remain unavailable"]
+}

@@ -1,0 +1,1703 @@
+{
+  "runId": "d1-r3-coil-flow-1791041112977",
+  "source": "isolated temporary SQLite + real Executor + formal GET /api/coils",
+  "fixtureKind": "D1-R1-isolated-formal-runtime",
+  "localBusinessDbTouched": false,
+  "productionDbTouched": false,
+  "args": {
+    "spec": "12",
+    "sheets": 120
+  },
+  "fieldFlowMatrix": [
+    {
+      "field": "id",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 503
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 504
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 503
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 504
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 503
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 504
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "schemeCode",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "schemeName",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "12-120-A"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "12-120-B"
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "cost",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "ledger": [
+        {
+          "entity": "12-120-A",
+          "predicate": "coil_directory_cost",
+          "value": 66,
+          "basis": "FORMAL_COIL_DIRECTORY_COST",
+          "unit": "CNY",
+          "moneyRole": "CURRENT_FORMAL"
+        },
+        {
+          "entity": "12-120-B",
+          "predicate": "coil_directory_cost",
+          "value": 71,
+          "basis": "FORMAL_COIL_DIRECTORY_COST",
+          "unit": "CNY",
+          "moneyRole": "CURRENT_FORMAL"
+        }
+      ],
+      "modelProjection": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "claimableCatalog": [
+        {
+          "factId": "F-002",
+          "claimType": "CURRENT_COST",
+          "entity": {
+            "type": "coil",
+            "canonicalName": "12-120-A"
+          },
+          "predicate": "coil_directory_cost",
+          "value": 66,
+          "unit": "CNY",
+          "basis": "FORMAL_COIL_DIRECTORY_COST",
+          "sourceTool": "search_coils"
+        },
+        {
+          "factId": "F-003",
+          "claimType": "CURRENT_COST",
+          "entity": {
+            "type": "coil",
+            "canonicalName": "12-120-B"
+          },
+          "predicate": "coil_directory_cost",
+          "value": 71,
+          "unit": "CNY",
+          "basis": "FORMAL_COIL_DIRECTORY_COST",
+          "sourceTool": "search_coils"
+        }
+      ]
+    },
+    {
+      "field": "totalCost",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "unitCost",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "MISSING"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "MISSING"
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "unitPrice",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 0
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 0
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 0
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 0
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 0
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 0
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "kitPrice",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": 66
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": 71
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    },
+    {
+      "field": "pricingMode",
+      "formalApi": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "kit"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "kit"
+        }
+      ],
+      "executor": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "kit"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "kit"
+        }
+      ],
+      "agentResult": [
+        {
+          "schemeCode": "12-120-A",
+          "value": "kit"
+        },
+        {
+          "schemeCode": "12-120-B",
+          "value": "kit"
+        }
+      ],
+      "ledger": [],
+      "modelProjection": "NOT_SEPARATELY_PROJECTED",
+      "claimableCatalog": "NOT_CLAIMABLE_AS_TOTAL_COST"
+    }
+  ],
+  "rawRecords": [
+    {
+      "id": 503,
+      "schemeCode": "12-120-A",
+      "schemeName": "12-120-A",
+      "cost": 66,
+      "totalCost": "MISSING",
+      "unitCost": "MISSING",
+      "unitPrice": 0,
+      "kitPrice": 66,
+      "pricingMode": "kit"
+    },
+    {
+      "id": 504,
+      "schemeCode": "12-120-B",
+      "schemeName": "12-120-B",
+      "cost": 71,
+      "totalCost": "MISSING",
+      "unitCost": "MISSING",
+      "unitPrice": 0,
+      "kitPrice": 71,
+      "pricingMode": "kit"
+    }
+  ],
+  "formalApiResult": {
+    "success": true,
+    "count": 2,
+    "filters": {
+      "spec": "12",
+      "sheets": 120,
+      "material": "",
+      "slotType": ""
+    },
+    "queryReceipt": {
+      "appliedFilters": {
+        "spec": "12",
+        "sheets": 120
+      },
+      "totalCount": 2,
+      "returnedCount": 2,
+      "truncated": false,
+      "possiblyTruncated": false,
+      "authoritative": true
+    },
+    "data": [
+      {
+        "id": 503,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-A",
+        "schemeName": "12-120-A",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 66,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 66,
+        "stock": 20,
+        "defaultCapacitor": null,
+        "defaultWireGauge": null,
+        "mainWireGauge": "",
+        "mainWireData": "",
+        "auxWireGauge": "",
+        "auxWireData": "",
+        "createdAt": "2026-10-03T00:00:00.000Z",
+        "updatedAt": "2026-10-03T00:00:00.000Z"
+      },
+      {
+        "id": 504,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-B",
+        "schemeName": "12-120-B",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 71,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 71,
+        "stock": 20,
+        "defaultCapacitor": null,
+        "defaultWireGauge": null,
+        "mainWireGauge": "",
+        "mainWireData": "",
+        "auxWireGauge": "",
+        "auxWireData": "",
+        "createdAt": "2026-10-03T00:00:00.000Z",
+        "updatedAt": "2026-10-03T00:00:00.000Z"
+      }
+    ],
+    "sources": [
+      {
+        "sourceTable": "coils",
+        "sourceId": 503,
+        "title": "12-120 钢带 小眼"
+      },
+      {
+        "sourceTable": "coils",
+        "sourceId": 504,
+        "title": "12-120 钢带 小眼"
+      }
+    ],
+    "executionEvidence": {
+      "verified": true,
+      "kind": "formal_api_query",
+      "calls": [
+        {
+          "method": "GET",
+          "path": "/api/coils?spec=12&sheets=120"
+        }
+      ]
+    },
+    "provenance": {
+      "kind": "live_business",
+      "label": "实时业务数据",
+      "fetchedAt": "2026-10-03T15:25:12.968Z"
+    }
+  },
+  "agentResult": {
+    "success": true,
+    "agentToolName": "search_coils",
+    "verified": true,
+    "capabilityId": "ai.search_coils",
+    "data": [
+      {
+        "id": 503,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-A",
+        "schemeName": "12-120-A",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 66,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 66,
+        "stock": 20,
+        "defaultCapacitor": null,
+        "defaultWireGauge": null,
+        "mainWireGauge": "",
+        "mainWireData": "",
+        "auxWireGauge": "",
+        "auxWireData": "",
+        "createdAt": "2026-10-03T00:00:00.000Z",
+        "updatedAt": "2026-10-03T00:00:00.000Z"
+      },
+      {
+        "id": 504,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-B",
+        "schemeName": "12-120-B",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 71,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 71,
+        "stock": 20,
+        "defaultCapacitor": null,
+        "defaultWireGauge": null,
+        "mainWireGauge": "",
+        "mainWireData": "",
+        "auxWireGauge": "",
+        "auxWireData": "",
+        "createdAt": "2026-10-03T00:00:00.000Z",
+        "updatedAt": "2026-10-03T00:00:00.000Z"
+      }
+    ]
+  },
+  "ledgerFacts": [
+    {
+      "factId": "F-001",
+      "entity": null,
+      "predicate": "formal_result_available",
+      "value": true,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-002",
+      "entity": {
+        "type": "coil",
+        "id": 503,
+        "canonicalName": "12-120-A"
+      },
+      "predicate": "coil_directory_cost",
+      "value": 66,
+      "unit": "CNY",
+      "basis": "FORMAL_COIL_DIRECTORY_COST",
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      },
+      "qualifiers": {
+        "moneyRole": "CURRENT_FORMAL",
+        "pricingMode": "kit",
+        "costField": "cost",
+        "schemeName": "12-120-A"
+      }
+    },
+    {
+      "factId": "F-003",
+      "entity": {
+        "type": "coil",
+        "id": 504,
+        "canonicalName": "12-120-B"
+      },
+      "predicate": "coil_directory_cost",
+      "value": 71,
+      "unit": "CNY",
+      "basis": "FORMAL_COIL_DIRECTORY_COST",
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      },
+      "qualifiers": {
+        "moneyRole": "CURRENT_FORMAL",
+        "pricingMode": "kit",
+        "costField": "cost",
+        "schemeName": "12-120-B"
+      }
+    },
+    {
+      "factId": "F-004",
+      "entity": null,
+      "predicate": "formal_field:[0].id",
+      "value": 503,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-005",
+      "entity": null,
+      "predicate": "formal_field:[0].spec",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-006",
+      "entity": null,
+      "predicate": "formal_field:[0].material",
+      "value": "钢带",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-007",
+      "entity": null,
+      "predicate": "formal_field:[0].unitPrice",
+      "value": 0,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-008",
+      "entity": null,
+      "predicate": "formal_field:[0].sheets",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-009",
+      "entity": null,
+      "predicate": "formal_field:[0].diameterMm",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-010",
+      "entity": null,
+      "predicate": "formal_field:[0].commonName",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-011",
+      "entity": null,
+      "predicate": "formal_field:[0].slotType",
+      "value": "小眼",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-012",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeCode",
+      "value": "12-120-A",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-013",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeName",
+      "value": "12-120-A",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-014",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeStatus",
+      "value": "official",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-015",
+      "entity": null,
+      "predicate": "formal_field:[0].isDefault",
+      "value": false,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-016",
+      "entity": null,
+      "predicate": "formal_field:[0].market",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-017",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeFamilyCode",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-018",
+      "entity": null,
+      "predicate": "formal_field:[0].pricingMode",
+      "value": "kit",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-019",
+      "entity": null,
+      "predicate": "formal_field:[0].kitPrice",
+      "value": 66,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-020",
+      "entity": null,
+      "predicate": "formal_field:[0].wireWeight",
+      "value": 0.5,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-021",
+      "entity": null,
+      "predicate": "formal_field:[0].copperBase",
+      "value": 88,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-022",
+      "entity": null,
+      "predicate": "formal_field:[0].coilFee",
+      "value": 2,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-023",
+      "entity": null,
+      "predicate": "formal_field:[0].rotorFee",
+      "value": 1,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-024",
+      "entity": null,
+      "predicate": "formal_field:[0].cost",
+      "value": 66,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-025",
+      "entity": null,
+      "predicate": "formal_field:[0].stock",
+      "value": 20,
+      "unit": "COUNT",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-026",
+      "entity": null,
+      "predicate": "formal_field:[0].mainWireGauge",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-027",
+      "entity": null,
+      "predicate": "formal_field:[0].mainWireData",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-028",
+      "entity": null,
+      "predicate": "formal_field:[0].auxWireGauge",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-029",
+      "entity": null,
+      "predicate": "formal_field:[0].auxWireData",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-030",
+      "entity": null,
+      "predicate": "formal_field:[0].createdAt",
+      "value": "2026-10-03T00:00:00.000Z",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-031",
+      "entity": null,
+      "predicate": "formal_field:[0].updatedAt",
+      "value": "2026-10-03T00:00:00.000Z",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-032",
+      "entity": null,
+      "predicate": "formal_field:[1].id",
+      "value": 504,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-033",
+      "entity": null,
+      "predicate": "formal_field:[1].spec",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-034",
+      "entity": null,
+      "predicate": "formal_field:[1].material",
+      "value": "钢带",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-035",
+      "entity": null,
+      "predicate": "formal_field:[1].unitPrice",
+      "value": 0,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-036",
+      "entity": null,
+      "predicate": "formal_field:[1].sheets",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-037",
+      "entity": null,
+      "predicate": "formal_field:[1].diameterMm",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-038",
+      "entity": null,
+      "predicate": "formal_field:[1].commonName",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-039",
+      "entity": null,
+      "predicate": "formal_field:[1].slotType",
+      "value": "小眼",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-040",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeCode",
+      "value": "12-120-B",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-041",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeName",
+      "value": "12-120-B",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-042",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeStatus",
+      "value": "official",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-043",
+      "entity": null,
+      "predicate": "formal_field:[1].isDefault",
+      "value": false,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-044",
+      "entity": null,
+      "predicate": "formal_field:[1].market",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-045",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeFamilyCode",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-046",
+      "entity": null,
+      "predicate": "formal_field:[1].pricingMode",
+      "value": "kit",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-047",
+      "entity": null,
+      "predicate": "formal_field:[1].kitPrice",
+      "value": 71,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-048",
+      "entity": null,
+      "predicate": "formal_field:[1].wireWeight",
+      "value": 0.5,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-049",
+      "entity": null,
+      "predicate": "formal_field:[1].copperBase",
+      "value": 88,
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-050",
+      "entity": null,
+      "predicate": "formal_field:[1].coilFee",
+      "value": 2,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-051",
+      "entity": null,
+      "predicate": "formal_field:[1].rotorFee",
+      "value": 1,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-052",
+      "entity": null,
+      "predicate": "formal_field:[1].cost",
+      "value": 71,
+      "unit": "CNY",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-053",
+      "entity": null,
+      "predicate": "formal_field:[1].stock",
+      "value": 20,
+      "unit": "COUNT",
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-054",
+      "entity": null,
+      "predicate": "formal_field:[1].mainWireGauge",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-055",
+      "entity": null,
+      "predicate": "formal_field:[1].mainWireData",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-056",
+      "entity": null,
+      "predicate": "formal_field:[1].auxWireGauge",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-057",
+      "entity": null,
+      "predicate": "formal_field:[1].auxWireData",
+      "value": "",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-058",
+      "entity": null,
+      "predicate": "formal_field:[1].createdAt",
+      "value": "2026-10-03T00:00:00.000Z",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    },
+    {
+      "factId": "F-059",
+      "entity": null,
+      "predicate": "formal_field:[1].updatedAt",
+      "value": "2026-10-03T00:00:00.000Z",
+      "unit": null,
+      "basis": null,
+      "authority": "FORMAL_API",
+      "capabilityId": "ai.search_coils",
+      "verified": true,
+      "source": {
+        "tool": "search_coils"
+      }
+    }
+  ],
+  "modelProjection": {
+    "success": true,
+    "agentToolName": "search_coils",
+    "verified": true,
+    "capabilityId": "ai.search_coils",
+    "data": [
+      {
+        "id": 503,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-A",
+        "schemeName": "12-120-A",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 66,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 66
+      },
+      {
+        "id": 504,
+        "spec": "12",
+        "material": "钢带",
+        "unitPrice": 0,
+        "sheets": 120,
+        "statorVariantId": null,
+        "diameterMm": 120,
+        "commonName": "12",
+        "slotType": "小眼",
+        "schemeCode": "12-120-B",
+        "schemeName": "12-120-B",
+        "schemeStatus": "official",
+        "isDefault": false,
+        "ratedVoltageV": null,
+        "ratedFrequencyHz": null,
+        "market": "",
+        "schemeFamilyCode": "",
+        "pricingMode": "kit",
+        "kitPrice": 71,
+        "wireWeight": 0.5,
+        "copperBase": 88,
+        "coilFee": 2,
+        "rotorFee": 1,
+        "cost": 71
+      }
+    ],
+    "factRefs": [
+      "F-001",
+      "F-002",
+      "F-003",
+      "F-004",
+      "F-005",
+      "F-006",
+      "F-007",
+      "F-008",
+      "F-009",
+      "F-010",
+      "F-011",
+      "F-012",
+      "F-013",
+      "F-014",
+      "F-015",
+      "F-016",
+      "F-017",
+      "F-018",
+      "F-019",
+      "F-020",
+      "F-021",
+      "F-022",
+      "F-023",
+      "F-024",
+      "F-025",
+      "F-026",
+      "F-027",
+      "F-028",
+      "F-029",
+      "F-030",
+      "F-031",
+      "F-032",
+      "F-033",
+      "F-034",
+      "F-035",
+      "F-036",
+      "F-037",
+      "F-038",
+      "F-039",
+      "F-040",
+      "F-041",
+      "F-042",
+      "F-043",
+      "F-044",
+      "F-045",
+      "F-046",
+      "F-047",
+      "F-048",
+      "F-049",
+      "F-050",
+      "F-051",
+      "F-052",
+      "F-053",
+      "F-054",
+      "F-055",
+      "F-056",
+      "F-057",
+      "F-058",
+      "F-059"
+    ],
+    "projection": {
+      "truncated": true,
+      "collections": [
+        {
+          "path": "$.data",
+          "totalCount": 2,
+          "returnedCount": 2,
+          "hasMore": true,
+          "complete": false
+        }
+      ]
+    }
+  },
+  "claimableCatalog": [
+    {
+      "factId": "F-001",
+      "entity": null,
+      "predicate": "formal_result_available",
+      "value": true,
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-002",
+      "claimType": "CURRENT_COST",
+      "entity": {
+        "type": "coil",
+        "canonicalName": "12-120-A"
+      },
+      "predicate": "coil_directory_cost",
+      "value": 66,
+      "unit": "CNY",
+      "basis": "FORMAL_COIL_DIRECTORY_COST",
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-003",
+      "claimType": "CURRENT_COST",
+      "entity": {
+        "type": "coil",
+        "canonicalName": "12-120-B"
+      },
+      "predicate": "coil_directory_cost",
+      "value": 71,
+      "unit": "CNY",
+      "basis": "FORMAL_COIL_DIRECTORY_COST",
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-005",
+      "entity": null,
+      "predicate": "formal_field:[0].spec",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-008",
+      "entity": null,
+      "predicate": "formal_field:[0].sheets",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-012",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeCode",
+      "value": "12-120-A",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-013",
+      "entity": null,
+      "predicate": "formal_field:[0].schemeName",
+      "value": "12-120-A",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-033",
+      "entity": null,
+      "predicate": "formal_field:[1].spec",
+      "value": "12",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-036",
+      "entity": null,
+      "predicate": "formal_field:[1].sheets",
+      "value": 120,
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-040",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeCode",
+      "value": "12-120-B",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    },
+    {
+      "factId": "F-041",
+      "entity": null,
+      "predicate": "formal_field:[1].schemeName",
+      "value": "12-120-B",
+      "unit": null,
+      "basis": null,
+      "sourceTool": "search_coils"
+    }
+  ],
+  "conclusion": "The formal list provides each coil scheme cost. R3 preserves it as a per-record FORMAL_COIL_DIRECTORY_COST fact; price parameters remain non-claimable as complete cost."
+}

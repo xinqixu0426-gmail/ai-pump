@@ -1,0 +1,9 @@
+{
+  "runId": "d1-r3-real-catalog-not-run",
+  "sourceCommit": "91fd54be9967f113d6ed8181235c9aa908394e62",
+  "status": "NOT_RUN",
+  "reason": "The final controlled suite on the same implementation produced 8/10 semantic pass; R3 is REWORK and no real-catalog result is represented as a pass.",
+  "realCatalogReadPerformed": "NOT_OBSERVED",
+  "realBusinessDataMutations": "NOT_OBSERVED",
+  "productionDbAccessed": "NOT_OBSERVED"
+}
