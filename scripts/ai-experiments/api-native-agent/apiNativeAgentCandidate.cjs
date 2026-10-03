@@ -26,6 +26,7 @@ const MAX_CURRENT_TOOL_RESULT_CHARS = 16 * 1024;
 const MAX_HISTORICAL_TOOL_RESULT_CHARS = 900;
 const MAX_FINALIZATION_MODEL_CALLS = 2;
 const MAX_COMPLETION_REVIEWS_PER_REQUEST = 1;
+const MAX_TERMINAL_OUTCOME_REVIEWS = 1;
 
 class CandidateAgentError extends Error {
     constructor(code, message) { super(message); this.name = 'CandidateAgentError'; this.code = code; }
@@ -196,6 +197,26 @@ function renderClaimableFactsForModel(ledgerOrSnapshot) {
     }
     return Object.freeze(entries);
 }
+function formalScenarioOutcomeReceipts(data) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.scenarios)) return [];
+    const comparisons = Array.isArray(data.comparisons) ? data.comparisons : [];
+    return data.scenarios.filter(item => item?.role && item.role !== 'BASE').map(scenario => {
+        const comparison = comparisons.find(item => item?.candidateScenarioKey === scenario.scenarioKey) || null;
+        const notApplied = Array.isArray(scenario.notApplied) ? scenario.notApplied : [];
+        const applicationStatus = notApplied.length ? 'NOT_APPLIED' : 'APPLIED';
+        const comparisonStatus = comparison?.status || null;
+        return Object.freeze({ scenarioKey: scenario.scenarioKey || null, label: scenario.label || null, role: scenario.role,
+            applicationStatus, appliedOverrideKeys: Object.keys(scenario.appliedOverrides || scenario.overrides || {}),
+            notAppliedOverrideKeys: notApplied.map(item => item?.key || item?.field || item?.code).filter(Boolean), comparisonStatus,
+            capabilityOutcome: applicationStatus === 'NOT_APPLIED' ? 'REQUESTED_CHANGE_NOT_APPLIED'
+                : comparisonStatus && comparisonStatus !== 'COMPARABLE' ? 'NON_COMPARABLE' : 'EXECUTABLE_RESULT' });
+    });
+}
+function finalizationEvidenceSummary(catalog, receipts) {
+    return Object.freeze({ availableClaimTypes: [...new Set(catalog.map(item => item.claimType).filter(Boolean))].sort(),
+        scenarioOutcomes: receipts.map(item => ({ applicationStatus: item.applicationStatus, comparisonStatus: item.comparisonStatus, capabilityOutcome: item.capabilityOutcome })),
+        capabilityGap: receipts.some(item => ['REQUESTED_CHANGE_NOT_APPLIED', 'NON_COMPARABLE'].includes(item.capabilityOutcome)) });
+}
 function compactHistoricalToolMessages(messages) {
     const toolIndexes = messages.map((message, index) => message.role === 'tool' ? index : -1).filter(index => index >= 0);
     // Keep the newest formal result at the Phase-A projection budget.  Older
@@ -246,14 +267,14 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         ...boundedRecentConversation(input.recentConversation),
         { role: 'user', content: rawOwnerInput },
     ];
-    const toolResults = []; const traces = []; const finalizationAttempts = []; const successfulCalls = new Set(); const formalEvidence = new Set();
+    const toolResults = []; const traces = []; const finalizationAttempts = []; const formalOutcomeReceipts = []; const successfulCalls = new Set(); const formalEvidence = new Set();
     const context = { selectedToolNames: new Set(), entityBindings: new Map(), resolvedRecipeIds: new Set(), resolvedRecipeBindings: new Map(), resolvedCoilBindings: new Map(), resolvedPartBindings: new Map(), ambiguousCoilKeys: new Set(), signal: input.signal };
     let mainModelCalls = 0; let loadToolsCalls = 0; let resolveCalls = 0; let businessToolCalls = 0;
     let secondDecisionAfterResult = false; let resultReturnedToAgent = false; let noNewEvidenceEvents = 0; let duplicateFactsAvoided = 0; let consecutiveNoNewEvidence = 0; let noProgressEvents = 0;
-    let completionReviewCalls = 0; let completionReviewResumed = 0; const stoppingReasons = [];
+    let completionReviewCalls = 0; let completionReviewResumed = 0; let terminalOutcomeReviewCalls = 0; const stoppingReasons = [];
 
     function metrics() {
-        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, completionReviewCalls, completionReviewResumed, stoppingReasons: [...stoppingReasons], loadedToolNames: session.loadedToolNames(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
+        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, completionReviewCalls, completionReviewResumed, terminalOutcomeReviewCalls, stoppingReasons: [...stoppingReasons], loadedToolNames: session.loadedToolNames(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
     }
     function appendToolMessage(call, result, appendFacts = true) {
         let factIds = [];
@@ -279,7 +300,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         const raw = String(content || '').trim() || finalFallback(ledger, fallbackStatus);
         const validation = validator(raw, { ledger: ledger.snapshot(), judge: { questions: [rawOwnerInput] }, mode: 'READ' });
         const snapshot = ledger.snapshot(); const claimableFacts = renderClaimableFactsForModel(snapshot);
-        return Object.freeze({ rawOwnerInput, rawFinalEnvelope: raw, answer: validation.answer, answerValidation: validation, toolResults: Object.freeze(toolResults), factLedger: snapshot, claimableFacts, traces: Object.freeze(traces), finalizationAttempts: Object.freeze([...finalizationAttempts]), metrics: metrics(), durationMs: Date.now() - startedAt, context: Object.freeze({ rawOwnerInputTokensEst: estimateTokens(rawOwnerInput), businessMemoTokensEst: estimateTokens(input.businessMemo), policyMemoTokensEst: estimateTokens(input.policyMemo), ontologyContextTokensEst: estimateTokens(ontologyContext), apiIndexTokensEst: estimateTokens(apiIndexText), loadedSchemaTokensEst: estimateTokens(JSON.stringify(session.loadedDefinitions())), factCatalogChars: JSON.stringify(claimableFacts).length, factCatalogFactCount: claimableFacts.length, totalApproxContextTokens: estimateTokens(messages.map(item => item.content || JSON.stringify(item.tool_calls || '')).join('\n')) }), flags: Object.freeze({ apiIndexUsed: true, loadToolsUsed: loadToolsCalls > 0, onDemandSchemaUsed: session.loadedToolNames().length > 0, toolResultsReturnToSameAgent: resultReturnedToAgent, secondToolDecisionAfterResult: secondDecisionAfterResult, judgeRouterUsed: false, domainToolNamesSelectionUsed: false, mandatoryGroundingLayerUsed: false }) });
+        return Object.freeze({ rawOwnerInput, rawFinalEnvelope: raw, answer: validation.answer, answerValidation: validation, toolResults: Object.freeze(toolResults), factLedger: snapshot, claimableFacts, formalOutcomeReceipts: Object.freeze([...formalOutcomeReceipts]), traces: Object.freeze(traces), finalizationAttempts: Object.freeze([...finalizationAttempts]), metrics: metrics(), durationMs: Date.now() - startedAt, context: Object.freeze({ rawOwnerInputTokensEst: estimateTokens(rawOwnerInput), businessMemoTokensEst: estimateTokens(input.businessMemo), policyMemoTokensEst: estimateTokens(input.policyMemo), ontologyContextTokensEst: estimateTokens(ontologyContext), apiIndexTokensEst: estimateTokens(apiIndexText), loadedSchemaTokensEst: estimateTokens(JSON.stringify(session.loadedDefinitions())), factCatalogChars: JSON.stringify(claimableFacts).length, factCatalogFactCount: claimableFacts.length, totalApproxContextTokens: estimateTokens(messages.map(item => item.content || JSON.stringify(item.tool_calls || '')).join('\n')) }), flags: Object.freeze({ apiIndexUsed: true, loadToolsUsed: loadToolsCalls > 0, onDemandSchemaUsed: session.loadedToolNames().length > 0, toolResultsReturnToSameAgent: resultReturnedToAgent, secondToolDecisionAfterResult: secondDecisionAfterResult, judgeRouterUsed: false, domainToolNamesSelectionUsed: false, mandatoryGroundingLayerUsed: false }) });
     }
 
     async function finalize(draft, fallbackStatus = 'PARTIAL') {
@@ -287,10 +308,13 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         let prior = String(draft || '');
         for (let attempt = 0; attempt < MAX_FINALIZATION_MODEL_CALLS; attempt += 1) {
             const catalog = renderClaimableFactsForModel(ledger.snapshot());
+            const outcomeSummary = finalizationEvidenceSummary(catalog, formalOutcomeReceipts);
             messages.push({ role: 'system', content: [
                 'FINALIZE phase: business tools are no longer available. Do not add facts, infer amounts, or call tools.',
                 'Return only the required answer JSON envelope. Cover every owner-requested outcome that has supporting Claimable Fact Catalog evidence. If the owner asks for a difference, directly state the formal difference using RECIPE_COST_DIFFERENCE or SCENARIO_DELTA; do not replace it with only two absolute costs. For a scenario request, use SCENARIO_COST for the candidate amount and SCENARIO_DELTA when the owner asks how much it changes. Claims may cite only this deterministic Claimable Fact Catalog. Every money sentence must include its exact canonical entity name from the cited Fact Catalog; never use a pronoun as the money subject. Do not repeat a money amount in an uncited disclaimer: either keep it in the same cited sentence or make that disclaimer its own cited claim. For a CLARIFICATION or UNAVAILABLE response that states no verified business fact, use claims: [] and empty goal factIds; never create an uncited explanatory claim. Do not include internal IDs, suppliers, or unrelated metadata. Write one to four short factual sentences only: every claims[].text must be a byte-for-byte contiguous sentence copied from answer (including punctuation), and answer must contain no additional factual sentence without a claim.',
                 `CLAIMABLE FACT CATALOG:\n${JSON.stringify(catalog)}`,
+                `FINALIZATION EVIDENCE SUMMARY (control evidence only; no amounts):\n${JSON.stringify(outcomeSummary)}`,
+                'Prior drafts are non-authoritative. A prior UNAVAILABLE/PARTIAL statement cannot override APPLIED, COMPARABLE formal outcome evidence or the Claimable Fact Catalog.',
                 prior ? `Prior draft to correct:\n${prior}` : '',
             ].filter(Boolean).join('\n\n') });
             compactHistoricalToolMessages(messages);
@@ -378,6 +402,15 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             } catch (error) { result = formalToolFailure({ code: error?.code || 'FORMAL_TOOL_FAILED', details: error?.details }, call.name); }
             if (result.success === true && call.name !== 'resolve_entity' && call.name !== 'resolve_page_context_entity') successfulCalls.add(callKey(call.name, call.args));
             appendToolMessage(call, result, true);
+            if (call.name === 'compare_recipe_scenarios' && result?.success === true) {
+                const receipts = formalScenarioOutcomeReceipts(result.data);
+                formalOutcomeReceipts.push(...receipts);
+                if (receipts.some(item => ['REQUESTED_CHANGE_NOT_APPLIED', 'NON_COMPARABLE'].includes(item.capabilityOutcome)) && terminalOutcomeReviewCalls < MAX_TERMINAL_OUTCOME_REVIEWS) {
+                    terminalOutcomeReviewCalls += 1;
+                    stoppingReasons.push('TERMINAL_OUTCOME_REVIEW');
+                    messages.push({ role: 'system', content: 'TERMINAL OUTCOME REVIEW: Formal outcome evidence says this scenario path did not apply the requested change or is non-comparable. Do not treat base/no-op values as the requested result. Check only for another clearly applicable loaded/indexed read or preview capability; otherwise stop and state the formal capability gap. Do not substitute an unrelated entity or configuration.' });
+                }
+            }
         }
     }
     return finalize(finalFallback(ledger, 'PARTIAL'), 'PARTIAL');
@@ -397,6 +430,8 @@ module.exports = {
     candidateSystemPrompt,
     businessEvidenceFingerprint,
     callKey,
+    finalizationEvidenceSummary,
+    formalScenarioOutcomeReceipts,
     renderClaimableFactsForModel,
     runApiNativeAgentCandidate,
     runtimeToolDefinitions,
