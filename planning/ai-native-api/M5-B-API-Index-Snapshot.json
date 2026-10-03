@@ -1,0 +1,824 @@
+{
+  "phase": "M5-B",
+  "startHead": "5e0503ebb97468e1246ab2dc275e6b5e54cb5870",
+  "fingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+  "fullInventoryCount": 84,
+  "fullInventoryUnclassified": 0,
+  "modelIndexV1Count": 31,
+  "formalLinkedModelEntries": 27,
+  "reviewedCompositeModelEntries": 4,
+  "reviewedComposites": [
+    "search_factory_knowledge",
+    "get_factory_knowledge_detail",
+    "get_order_detail",
+    "get_recipe_detail"
+  ],
+  "modelIndexQueryCount": 25,
+  "modelIndexPreviewCount": 6,
+  "modelIndexWriteCount": 0,
+  "a2ExposeV1Total": 12,
+  "a2ExposeV1Present": [
+    "check_order_readiness",
+    "search_factory_knowledge",
+    "get_factory_knowledge_detail",
+    "get_order_knowledge_package",
+    "get_order_detail",
+    "explain_cost_change",
+    "get_recipe_detail",
+    "get_recipe_technical_files",
+    "compare_recipes",
+    "calculate_coil_cost",
+    "get_copper_price",
+    "get_coil_specs"
+  ],
+  "a2ExposeV1Missing": [],
+  "deferredToolLeaks": [],
+  "excludedToolLeaks": [],
+  "duplicateToolNames": 0,
+  "classifications": {
+    "FORMAL_LINKED": 27,
+    "REVIEWED_COMPOSITE": 4,
+    "DEFERRED_UNLINKED": 24,
+    "WRITE_PROTECTED": 29
+  },
+  "metrics": {
+    "fullInventoryCount": 84,
+    "modelIndexV1Count": 31,
+    "renderedChars": 6198,
+    "estimatedTokens": 1550,
+    "fullToolSchemaCharsForSameTools": 23628,
+    "fullToolSchemaEstimatedTokens": 5907,
+    "reductionRatio": 0.7377
+  },
+  "entries": [
+    {
+      "toolName": "search_business_changes",
+      "displayName": "查询业务变更",
+      "operation": "query",
+      "domains": [
+        "business_history"
+      ],
+      "summary": "查询订单、报价、采购、零件价格/库存、配方、泵壳模板、线圈和客户的正式业务变更历史。用户问“今天/最近有没有修改”“改了什么”“为什么改”“哪些业务发生过某类调整”时必须使用本工具，不能用管理行动中心、当前列表或知识快照代替。时间、数量和筛选结果来自结构化业务事件；semanticQuery 仅用于按含义寻找相关变更。只读。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "business_changes.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_parts",
+      "displayName": "搜索零件",
+      "operation": "query",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "按关键词、物料类别或库存状态查询正式零件库。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "parts.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_coil_specs",
+      "displayName": "读取线圈规格",
+      "operation": "query",
+      "domains": [
+        "coil"
+      ],
+      "summary": "获取数据库中所有可用的线圈规格及其片数列表",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.spec_options.read"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_coils",
+      "displayName": "查询线圈库存",
+      "operation": "query",
+      "domains": [
+        "coil"
+      ],
+      "summary": "从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆横截面积、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼、方案编码、状态、默认标记、电压、频率、市场和方案族筛选；schemeStatus 明确区分正式、测试和停用方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "displayName": "计算线圈成本",
+      "operation": "preview",
+      "domains": [
+        "cost",
+        "coil"
+      ],
+      "summary": "计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部已登记方案或实时库存；用户要求“全部方案、全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。",
+      "requiredInputs": [
+        "sheets",
+        "spec"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.list",
+        "coils.cost_preview"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_copper_price",
+      "displayName": "查询铜价",
+      "operation": "query",
+      "domains": [
+        "cost",
+        "coil"
+      ],
+      "summary": "读取每日铜价快照（元/吨、元/千克），以 asOf 标明行情时间，stale=true 表示非今日行情，不冒充实时行情",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "market.copper_price.read"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_factory_knowledge_detail",
+      "displayName": "读取知识详情",
+      "operation": "query",
+      "domains": [
+        "knowledge"
+      ],
+      "summary": "读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息；即使聊天直接上传的 PDF 已支持文字层解析，也不能据此推断该知识资料正文。",
+      "requiredInputs": [
+        "id"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "dataMode": "derived",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_factory_knowledge",
+      "displayName": "搜索工厂知识库",
+      "operation": "query",
+      "domains": [
+        "knowledge",
+        "coil",
+        "catalog"
+      ],
+      "summary": "搜索工厂知识库中的业务规则、独立资料、已确认知识和历史快照，用于解释用途、兼容性、工厂约定或资料内容。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "dataMode": "derived",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "displayName": "读取订单知识包",
+      "operation": "query",
+      "domains": [
+        "knowledge",
+        "order",
+        "file"
+      ],
+      "summary": "读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。本工具已包含 get_order_detail、check_order_readiness 和 plan_order_readiness_actions 的核心结果，需要完整上下文时单次调用即可，不要再顺序重复调用这些工具。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.knowledge_package.read"
+      ],
+      "dataMode": "derived",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "check_order_readiness",
+      "displayName": "检查订单生产准备",
+      "operation": "query",
+      "domains": [
+        "management",
+        "order"
+      ],
+      "summary": "实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和销售单价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.readiness.read"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_order_detail",
+      "displayName": "读取订单详情",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。若当前问题还涉及人工确认的客户要求、执行档案、历史异常或来源文件，服务端会在本能力成功后按同一订单目标自动补充知识包；模型不要改调其他能力或重复调用。禁止根据名称、消息序号或历史回答猜测订单ID。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_purchase_overview",
+      "displayName": "读取采购总览",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "purchasing.overview"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recent_orders",
+      "displayName": "读取最近订单",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。具名客户或合同号模糊筛选若唯一命中一张订单，服务端会自动伴随读取该订单知识包；多条命中不会猜选。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_quotation_detail",
+      "displayName": "读取报价详情",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID必须来自用户明确输入、当前报价页面或 search_quotations 的正式结果。",
+      "requiredInputs": [
+        "quotationId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "quotations.detail"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_customer_history",
+      "displayName": "查询客户历史",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；只问报价时必须传 historyType=quotation，只问订单时必须传 historyType=order，同时询问两类历史才使用 all。也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "customerName"
+        ],
+        [
+          "customerId"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "customers.list",
+        "customers.history"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_customers",
+      "displayName": "查询客户列表",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "读取正式客户列表，可按客户名称筛选。查询客户列表时使用，不得退回知识库。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "customers.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_quotations",
+      "displayName": "查询报价列表",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "读取正式报价列表及每条命中报价的完整正式字段，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。需要稳定读取一份指定报价时使用 get_quotation_detail；若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "quotations.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "explain_cost_change",
+      "displayName": "解释成本差异",
+      "operation": "preview",
+      "domains": [
+        "quotation",
+        "cost"
+      ],
+      "summary": "按当日完整成本解释两个配方之间的差异，不写库。包含当前BOM、线圈、安装/打包工资、表面处理和管理费；任一配方缺价时明确失败。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_all_recipes",
+      "displayName": "读取配方列表",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。名称类型尚不确定时，可以与线圈、零件、模板目录组合查证；明确物料查询优先 search_parts，不能把相似配方自动替代用户目标。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipe_detail",
+      "displayName": "读取配方明细",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipe_parts",
+      "displayName": "读取配方规范零件",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已确认的正式配方ID读取该配方保存的规范零件关系。只读取 partsJson 中带正式 partId 的零件，不包含线圈、额外配置、包装、模板默认件或动态展开 BOM；缺失或冲突的历史引用会失败关闭，不能猜补。分页由系统确定性完成。",
+      "requiredInputs": [
+        "recipeId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "ontology.relations.resolve"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "displayName": "读取配方技术档案",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取指定配方的正式技术档案和性能测试报告数据。按配方ID或名称定位后调用正式配方技术档案 API；files[].testCurve 返回逐点流量、扬程、电流、效率，以及服务端确定性计算的 maxHead、maxFlow、maxCurrent、maxUnitEfficiency 和对应测试点。associationWarnings 会提示报告内部型号与关联配方不一致，回答时应明确提醒核实归属，但不否定报告已关联的事实。回答最高扬程、最大流量、最大电流或最高效率时必须直接使用这些正式统计，不得让模型自行挑选极值。只读，不上传、修改或删除文件。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.list",
+        "recipes.technical_files.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipe_technical_profile",
+      "displayName": "读取配方正式技术档案",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取一个已由正式配方目录确认身份的配方 canonical 技术档案。只返回正式技术事实及正式关系，不读取 legacy technical_data_json，也不返回 Rotor shadow。",
+      "requiredInputs": [
+        "recipeId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.technical_profile.get"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipes_by_coil",
+      "displayName": "按线圈反查配方",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已知线圈方案的ID反查当前引用它的配方（成品型号）。",
+      "requiredInputs": [
+        "coilId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.by_coil"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_recipes_by_part",
+      "displayName": "按零件反查配方",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已确认的正式零件ID反查哪些配方在保存的 partsJson 中规范引用它。只接受正式 partId 关系，不用同名、供应商、模糊或首条结果补造关系；分页由系统确定性完成。",
+      "requiredInputs": [
+        "partId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "ontology.relations.resolve"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "get_template_detail",
+      "displayName": "读取泵壳模板详情",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按模板ID或泵壳型号读取一个正式泵壳模板的完整档案，包括 BOM、泵壳组件、转子参数、工资、表面处理、成本模式、套件成本和备注。只读，不修改模板；名称多匹配时返回候选，不猜选。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "templateId"
+        ],
+        [
+          "shellModel"
+        ]
+      ],
+      "entityScopes": [
+        "single"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "templates.list",
+        "templates.detail"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "search_templates",
+      "displayName": "查询泵壳模板",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取正式泵壳模板列表及每条命中模板的完整正式字段，可按泵壳型号或描述筛选。结果包括 BOM、泵壳组件、转子参数、工资、表面处理和套件成本等档案；稳定读取一个指定模板时使用 get_template_detail。查询模板时使用，不得当作零件搜索。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "templates.list"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "compare_recipe_scenarios",
+      "displayName": "同口径情景成本比较",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份，表面处理费用只能由用户或正式配方政策提供，不能传入零件价格、成本或铜价。",
+      "requiredInputs": [
+        "baselinePolicy",
+        "recipeId",
+        "scenarios",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.scenario_compare_preview"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "compare_recipes",
+      "displayName": "对比配方",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。选择器优先使用配方ID（已 canonical 解析时不得退回名称）；名称必须唯一匹配，多匹配或缺价时明确失败。当用户说\"对比V750和V550\"时使用",
+      "requiredInputs": [
+        "recipe1",
+        "recipe2"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "preview_profitability",
+      "displayName": "正式毛利试算",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "在一次当前正式情景成本重建的同一读取集合上，试算单台毛利、销售毛利率和成本加价率。只读，不保存报价或订单；不接受客户端成本、毛利或历史加价倍数。",
+      "requiredInputs": [
+        "basisRef",
+        "currency",
+        "quantity",
+        "unitPrice",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.profitability_preview"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    },
+    {
+      "toolName": "preview_virtual_readiness",
+      "displayName": "虚拟数量齐料预览",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "inventory"
+      ],
+      "summary": "按当前库存并扣除活动订单占用，预览某一已正式绑定配方情景生产指定数量时的库存管理物料齐料情况。只读，不创建订单、不预留库存；不接受客户端库存或忽略订单占用的开关。",
+      "requiredInputs": [
+        "basisRef",
+        "quantity",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "inventory.virtual_readiness_preview"
+      ],
+      "dataMode": "live",
+      "riskLevel": "low"
+    }
+  ],
+  "renderedIndex": "[READ] search_business_changes — business_history\n查询订单、报价、采购、零件价格/库存、配方、泵壳模板、线圈和客户的正式业务变更历史。用户问“今天/最近有没有修改”“改了什么”“为什么改”“哪些业务发生过某类调整”时必须使用本工具，不能用管理行动中心、当前列表或知识快照代替。时间、数量和筛选结果来自结构化业务事件；semanticQuery 仅用于按含义寻找相关变更。只读。\nRequired: none\n\n[READ] search_parts — catalog\n按关键词、物料类别或库存状态查询正式零件库。\nRequired: none\n\n[READ] get_coil_specs — coil\n获取数据库中所有可用的线圈规格及其片数列表\nRequired: none\n\n[READ] search_coils — coil\n从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆横截面积、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼、方案编码、状态、默认标记、电压、频率、市场和方案族筛选；schemeStatus 明确区分正式、测试和停用方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。\nRequired: none\n\n[PREVIEW] calculate_coil_cost — cost/coil\n计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部已登记方案或实时库存；用户要求“全部方案、全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。\nRequired: sheets, spec\n\n[READ] get_copper_price — cost/coil\n读取每日铜价快照（元/吨、元/千克），以 asOf 标明行情时间，stale=true 表示非今日行情，不冒充实时行情\nRequired: none\n\n[READ] get_factory_knowledge_detail — knowledge\n读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息；即使聊天直接上传的 PDF 已支持文字层解析，也不能据此推断该知识资料正文。\nRequired: id\n\n[READ] search_factory_knowledge — knowledge/coil/catalog\n搜索工厂知识库中的业务规则、独立资料、已确认知识和历史快照，用于解释用途、兼容性、工厂约定或资料内容。\nRequired: none\n\n[READ] get_order_knowledge_package — knowledge/order/file\n读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。本工具已包含 get_order_detail、check_order_readiness 和 plan_order_readiness_actions 的核心结果，需要完整上下文时单次调用即可，不要再顺序重复调用这些工具。\nRequired one of: orderId | orderQuery\n\n[READ] check_order_readiness — management/order\n实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和销售单价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。\nRequired one of: orderId | orderQuery\n\n[READ] get_order_detail — order\n读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。若当前问题还涉及人工确认的客户要求、执行档案、历史异常或来源文件，服务端会在本能力成功后按同一订单目标自动补充知识包；模型不要改调其他能力或重复调用。禁止根据名称、消息序号或历史回答猜测订单ID。\nRequired one of: orderId | orderQuery\n\n[READ] get_purchase_overview — order\n读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。\nRequired: none\n\n[READ] get_recent_orders — order\n读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。具名客户或合同号模糊筛选若唯一命中一张订单，服务端会自动伴随读取该订单知识包；多条命中不会猜选。\nRequired: none\n\n[READ] get_quotation_detail — quotation\n按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID必须来自用户明确输入、当前报价页面或 search_quotations 的正式结果。\nRequired: quotationId\n\n[READ] search_customer_history — quotation\n按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；只问报价时必须传 historyType=quotation，只问订单时必须传 historyType=order，同时询问两类历史才使用 all。也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。\nRequired one of: customerName | customerId\n\n[READ] search_customers — quotation\n读取正式客户列表，可按客户名称筛选。查询客户列表时使用，不得退回知识库。\nRequired: none\n\n[READ] search_quotations — quotation\n读取正式报价列表及每条命中报价的完整正式字段，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。需要稳定读取一份指定报价时使用 get_quotation_detail；若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。\nRequired: none\n\n[PREVIEW] explain_cost_change — quotation/cost\n按当日完整成本解释两个配方之间的差异，不写库。包含当前BOM、线圈、安装/打包工资、表面处理和管理费；任一配方缺价时明确失败。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。\nRequired: none\n\n[READ] get_all_recipes — recipe\n从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。名称类型尚不确定时，可以与线圈、零件、模板目录组合查证；明确物料查询优先 search_parts，不能把相似配方自动替代用户目标。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。\nRequired: none\n\n[READ] get_recipe_detail — recipe\n读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。\nRequired one of: recipeId | recipeName\n\n[READ] get_recipe_parts — recipe\n按一个已确认的正式配方ID读取该配方保存的规范零件关系。只读取 partsJson 中带正式 partId 的零件，不包含线圈、额外配置、包装、模板默认件或动态展开 BOM；缺失或冲突的历史引用会失败关闭，不能猜补。分页由系统确定性完成。\nRequired: recipeId\n\n[READ] get_recipe_technical_files — recipe\n读取指定配方的正式技术档案和性能测试报告数据。按配方ID或名称定位后调用正式配方技术档案 API；files[].testCurve 返回逐点流量、扬程、电流、效率，以及服务端确定性计算的 maxHead、maxFlow、maxCurrent、maxUnitEfficiency 和对应测试点。associationWarnings 会提示报告内部型号与关联配方不一致，回答时应明确提醒核实归属，但不否定报告已关联的事实。回答最高扬程、最大流量、最大电流或最高效率时必须直接使用这些正式统计，不得让模型自行挑选极值。只读，不上传、修改或删除文件。\nRequired one of: recipeId | recipeName\n\n[READ] get_recipe_technical_profile — recipe\n读取一个已由正式配方目录确认身份的配方 canonical 技术档案。只返回正式技术事实及正式关系，不读取 legacy technical_data_json，也不返回 Rotor shadow。\nRequired: recipeId\n\n[READ] get_recipes_by_coil — recipe\n按一个已知线圈方案的ID反查当前引用它的配方（成品型号）。\nRequired: coilId\n\n[READ] get_recipes_by_part — recipe\n按一个已确认的正式零件ID反查哪些配方在保存的 partsJson 中规范引用它。只接受正式 partId 关系，不用同名、供应商、模糊或首条结果补造关系；分页由系统确定性完成。\nRequired: partId\n\n[READ] get_template_detail — recipe\n按模板ID或泵壳型号读取一个正式泵壳模板的完整档案，包括 BOM、泵壳组件、转子参数、工资、表面处理、成本模式、套件成本和备注。只读，不修改模板；名称多匹配时返回候选，不猜选。\nRequired one of: templateId | shellModel\n\n[READ] search_templates — recipe\n读取正式泵壳模板列表及每条命中模板的完整正式字段，可按泵壳型号或描述筛选。结果包括 BOM、泵壳组件、转子参数、工资、表面处理和套件成本等档案；稳定读取一个指定模板时使用 get_template_detail。查询模板时使用，不得当作零件搜索。\nRequired: none\n\n[PREVIEW] compare_recipe_scenarios — recipe/cost\n在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份，表面处理费用只能由用户或正式配方政策提供，不能传入零件价格、成本或铜价。\nRequired: baselinePolicy, recipeId, scenarios, version\n\n[PREVIEW] compare_recipes — recipe/cost\n按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。选择器优先使用配方ID（已 canonical 解析时不得退回名称）；名称必须唯一匹配，多匹配或缺价时明确失败。当用户说\"对比V750和V550\"时使用\nRequired: recipe1, recipe2\n\n[PREVIEW] preview_profitability — recipe/cost\n在一次当前正式情景成本重建的同一读取集合上，试算单台毛利、销售毛利率和成本加价率。只读，不保存报价或订单；不接受客户端成本、毛利或历史加价倍数。\nRequired: basisRef, currency, quantity, unitPrice, version\n\n[PREVIEW] preview_virtual_readiness — recipe/inventory\n按当前库存并扣除活动订单占用，预览某一已正式绑定配方情景生产指定数量时的库存管理物料齐料情况。只读，不创建订单、不预留库存；不接受客户端库存或忽略订单占用的开关。\nRequired: basisRef, quantity, version"
+}

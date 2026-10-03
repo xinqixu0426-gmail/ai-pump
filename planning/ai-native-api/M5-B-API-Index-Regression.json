@@ -1,0 +1,2466 @@
+{
+  "phase": "M5-B",
+  "checks": {
+    "fullInventoryCount": true,
+    "fullInventoryUnclassified": true,
+    "modelIndexWriteCount": true,
+    "reviewedCompositeCount": true,
+    "a2ExposeV1Missing": true,
+    "deferredToolLeaks": true,
+    "excludedToolLeaks": true,
+    "duplicateToolNames": true,
+    "modelCalls": 0
+  },
+  "fullInventory": [
+    {
+      "toolName": "search_business_changes",
+      "displayName": "查询业务变更",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "business_history"
+      ],
+      "summary": "查询订单、报价、采购、零件价格/库存、配方、泵壳模板、线圈和客户的正式业务变更历史。用户问“今天/最近有没有修改”“改了什么”“为什么改”“哪些业务发生过某类调整”时必须使用本工具，不能用管理行动中心、当前列表或知识快照代替。时间、数量和筛选结果来自结构化业务事件；semanticQuery 仅用于按含义寻找相关变更。只读。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "business_changes.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "adjust_part_stock",
+      "displayName": "调整零件库存",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "批量调整零件库库存。按零件型号精确定位，多型号必须放在同一次原子批量调整中；入库传正数，出库传负数。只用于零件库，不用于“规格-片数”线圈成品。",
+      "requiredInputs": [
+        "items"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "inventory.parts.batch_adjust_stock"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "critical",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "batch_create_parts",
+      "displayName": "批量新增零件",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "批量新增/录入零件到数据库。适用于价格表、图片识别结果或用户一次提供两条及以上零件；同型号但供应商不同允许分别建档，同型号同供应商的现有零件会在正式预览中跳过。调用后必须显示一次整批确认卡片",
+      "requiredInputs": [
+        "parts"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "parts.batch_create"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "batch_update_prices",
+      "displayName": "批量调价",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "按类别或明确零件目标批量调整价格。当用户说\"把所有轴承涨价10%\"或指定一个/多个正式零件调价时使用；明确目标必须用partId，或同时提供完整型号和供应商",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "category",
+          "percentChange"
+        ],
+        [
+          "absoluteChange",
+          "category"
+        ],
+        [
+          "percentChange",
+          "targets"
+        ],
+        [
+          "absoluteChange",
+          "targets"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "parts.batch_update_prices"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "create_part",
+      "displayName": "新建零件",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "新建/录入单个零件到数据库。仅用于一条零件；两条及以上必须使用 batch_create_parts",
+      "requiredInputs": [
+        "model",
+        "price"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "parts.create"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "delete_part",
+      "displayName": "删除零件",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "软删除一个明确零件。优先传正式 partId，并保留完整型号和供应商供用户核对；仅按型号调用时若存在多个同型号记录会停止并要求澄清。调用后必须显示正式删除预览确认卡片",
+      "requiredInputs": [
+        "model"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "parts.delete"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "update_part",
+      "displayName": "修改零件",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "只修改一个零件的资料字段（价格、供应商、类别、包装二级分类），不修改库存。库存增减统一使用 adjust_part_stock，禁止通过本工具提交 stock 或 stockDelta。",
+      "requiredInputs": [
+        "model"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "parts.update"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "search_parts",
+      "displayName": "搜索零件",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "catalog"
+      ],
+      "summary": "按关键词、物料类别或库存状态查询正式零件库。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "parts.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "adjust_coil_stock",
+      "displayName": "调整线圈库存",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "coil"
+      ],
+      "summary": "批量调整线圈/定子成品库存。用户说“12-120”时表示规格俗称12、片数120，不是零件型号；入库传正数，出库传负数。同一简写存在多个正式材质或槽眼方案时必须先让用户明确，禁止默认选择。",
+      "requiredInputs": [
+        "items"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "inventory.coils.adjust_stock"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "critical",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_coil_specs",
+      "displayName": "读取线圈规格",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "coil"
+      ],
+      "summary": "获取数据库中所有可用的线圈规格及其片数列表",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.spec_options.read"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "search_coils",
+      "displayName": "查询线圈库存",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "coil"
+      ],
+      "summary": "从正式线圈 API 列出全部已登记线圈/定子成品方案、实时库存和完整档案。它是“全部方案、全部正式方案、有哪些方案、材质槽眼、成本库存、默认电容/搭配电缆横截面积、主副线漆包线线径和绕组数据”的权威 List/Query 能力，可按规格、片数、材质、槽眼、方案编码、状态、默认标记、电压、频率、市场和方案族筛选；schemeStatus 明确区分正式、测试和停用方案。单个指定方案的插值或自定义线重试算才使用 calculate_coil_cost；不得用知识快照代替当前线圈档案。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "dynamic_config_cost",
+      "displayName": "计算动态配置成本",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "cost"
+      ],
+      "summary": "计算动态配置成本（浮球、电缆、包材）",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "full_calculate",
+      "displayName": "完整成本估算",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "cost"
+      ],
+      "summary": "已有正式配方的兼容成本试算。只接受配方ID或可唯一匹配的完整配方名；配方内已有的线圈、浮球、电缆和包装会按角色替换而不是重复相加。用户给出泵壳模板和临时配置（线圈、浮球、木箱、珍珠棉等）时必须使用 build_recipe_bom_draft。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ],
+        [
+          "pumphousing_model"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "displayName": "计算线圈成本",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "cost",
+        "coil"
+      ],
+      "summary": "计算一个指定线圈方案的成本，支持自定义线重和插值。权威职责是 Calculation/Preview，不负责列出数据库中的全部已登记方案或实时库存；用户要求“全部方案、全部正式方案、有哪些方案、库存”时必须使用 search_coils。材质或槽眼不明确且会影响计算时，不得默认选择，应让用户确认或先用 search_coils 读取候选。",
+      "requiredInputs": [
+        "sheets",
+        "spec"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "coils.list",
+        "coils.cost_preview"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_copper_price",
+      "displayName": "查询铜价",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "cost",
+        "coil"
+      ],
+      "summary": "读取每日铜价快照（元/吨、元/千克），以 asOf 标明行情时间，stale=true 表示非今日行情，不冒充实时行情",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "market.copper_price.read"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "generate_rotor_drawing",
+      "displayName": "生成转子图纸",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "drawing"
+      ],
+      "summary": "生成转子图纸PDF。当用户提到\"出图\"\"转子图\"\"画一张图\"时使用。可以传泵壳型号(shell_model)自动获取所有默认参数（轴承、油封、开档、定位等），只需补充片数和用户明确提供的尺寸即可。没有提供的参数由模板补全，不要反复追问用户。出图大约15-30秒。",
+      "requiredInputs": [
+        "piece_count"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "drawings.rotor.generate_pdf"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "print_rotor_drawing",
+      "displayName": "打印转子图纸",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "drawing"
+      ],
+      "summary": "打印已生成的转子图纸。当用户说\"帮我打印图纸\"\"打印上一张图\"时使用。需要提供jobId（可从出图历史获取）",
+      "requiredInputs": [
+        "jobId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "drawings.rotor.print_pdf"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "critical",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_rotor_drawing_history",
+      "displayName": "读取出图历史",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "drawing"
+      ],
+      "summary": "获取转子出图历史记录。当用户说\"看看出图记录\"\"最近出的图\"\"上一张图的jobId\"时使用",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "archive_factory_file",
+      "displayName": "归档工厂文件",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "file"
+      ],
+      "summary": "把聊天中已经上传的工厂文件正式关联到客户、报价、订单、配方或质量问题；知识库目标使用资料归档语义。只能使用附件上下文中的精确 fileId；业务对象必须先通过 search_factory_file_archive_targets 找到精确 targetId，不能猜测。归档到知识库时不传 targetId，由系统基于同一文件创建或复用知识资料。需要用户确认后执行。",
+      "requiredInputs": [
+        "fileId",
+        "targetType"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "files.archive"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "search_factory_file_archive_targets",
+      "displayName": "查找业务资料关联目标",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "file"
+      ],
+      "summary": "为聊天附件查找可关联的真实业务资料对象，支持客户、报价、订单、配方、配方检查问题和AI回答问题。关联前必须先用本工具核对目标；返回多个候选时必须让用户选择，禁止猜测ID。只读。",
+      "requiredInputs": [
+        "targetType"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "sync_factory_knowledge",
+      "displayName": "同步工厂知识库",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "knowledge"
+      ],
+      "summary": "把当前系统里的零件、模板、配方、线圈、客户、报价、订单、质量问题和业务规则增量同步成工厂知识条目，并刷新 SQLite FTS 索引。需要用户确认后执行。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "knowledge.sync_derived"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_factory_knowledge_detail",
+      "displayName": "读取知识详情",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "knowledge"
+      ],
+      "summary": "读取某条工厂知识库条目的完整内容。通常先用 search_factory_knowledge 找到 id，再调用本工具。配方中的 .xls/.xlsx 附件若标记为 pump_performance_test，必须称为性能测试报告，不是图纸。独立资料 metadata.parserStatus=metadata_only 时只能说明文件存在及其人工填写信息；即使聊天直接上传的 PDF 已支持文字层解析，也不能据此推断该知识资料正文。",
+      "requiredInputs": [
+        "id"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "reviewed_composite_exception"
+    },
+    {
+      "toolName": "get_factory_knowledge_health",
+      "displayName": "检查知识库健康状态",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "knowledge"
+      ],
+      "summary": "实时检查工厂知识库自动同步是否正常，返回健康级别、待同步数量、异常原因、最近同步记录以及是否建议人工恢复。适合用户问“知识库正常吗”“最近同步成功了吗”“为什么同步失败”“是否需要手动同步”。只读，不执行同步。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "search_factory_knowledge",
+      "displayName": "搜索工厂知识库",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "knowledge",
+        "coil",
+        "catalog"
+      ],
+      "summary": "搜索工厂知识库中的业务规则、独立资料、已确认知识和历史快照，用于解释用途、兼容性、工厂约定或资料内容。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "reviewed_composite_exception"
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "displayName": "读取订单知识包",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "knowledge",
+        "order",
+        "file"
+      ],
+      "summary": "读取一个订单的完整只读知识包：实时订单明细、采购与待办、实时生产准备和处理方案，以及人工确认的客户要求、执行事实和来源文件。草稿不会作为正式事实返回。本工具已包含 get_order_detail、check_order_readiness 和 plan_order_readiness_actions 的核心结果，需要完整上下文时单次调用即可，不要再顺序重复调用这些工具。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.knowledge_package.read"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_business_alerts",
+      "displayName": "读取经营异常",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "management"
+      ],
+      "summary": "获取报价和订单经营异常提醒，不写库。适合用户问“现在还有哪些报价订单风险”“有什么需要跟进”“哪些订单卡住了”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_dashboard_summary",
+      "displayName": "读取运营看板",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "management"
+      ],
+      "summary": "获取运营数据汇总（订单统计、配方数量、零件数量、成本/利润、今日工作台、待采购供应商关注等）。当用户说\"最近的运营数据\"\"系统概况\"\"今天该处理什么\"\"待采购任务\"时使用",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_management_action_center",
+      "displayName": "读取管理待办",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "management"
+      ],
+      "summary": "实时读取个人管理助理的今日执行队列，汇总订单准备、经营风险、数据质量、规则学习和知识健康。progress 返回最近24小时自动归档、仍待处理、暂时受阻和反复出现的事项；同时返回最先处理的三项、排序依据、最短处理路径和完成标准。resolution.canAiConfirm=true 时只表示可继续读取最新订单处理方案并发起确认，不得直接宣称已执行。该工具只读，不创建任务、不修改业务数据。用户问“今天先处理什么”“处理了哪些”“现在最重要的待办”“工厂有哪些风险需要优先跟进”时使用。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "execute_order_readiness_action",
+      "displayName": "执行订单处理步骤",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "management",
+        "order"
+      ],
+      "summary": "执行订单处理方案中当前已解锁的AI可确认步骤。只能在本轮先读取 plan_order_readiness_actions、用户明确要求执行具体步骤后调用；调用后仍会显示确认卡片，用户确认时后端重新校验实时方案。人工、等待或有前置阻塞的步骤不能执行。",
+      "requiredInputs": [
+        "actionId",
+        "orderId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.execute_readiness_action",
+        "workbench.execution_runs.record"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "plan_order_readiness_actions",
+      "displayName": "生成订单处理方案",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "management",
+        "order"
+      ],
+      "summary": "根据订单实时生产准备检查结果生成按依赖排序的处理方案。区分AI可发起确认、人工补资料、采购跟进和等待状态；本工具会自行完成所需的准备检查，只生成方案，不执行写操作，无需先调用 check_order_readiness。若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单的问题怎么处理”“给出处理方案”“下一步做什么”时使用。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "check_order_readiness",
+      "displayName": "检查订单生产准备",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "management",
+        "order"
+      ],
+      "summary": "实时检查一个订单当前能否进入生产。按顺序核对订单状态、配方与BOM快照、零件库存、线圈库存、采购进度、锁定成本和销售单价，返回可生产、待补料、待复核、数据阻塞或不适用。只读，不修改订单和库存。已知 orderId 时可直接单次调用，无需先调用 get_order_detail；若还需要人工确认的客户要求和执行事实，服务端会在本能力成功后按同一订单目标自动补充知识包，模型不要改调其他能力。用户问“这个订单能不能生产”“是否齐料”“还缺什么”“生产准备情况”时使用。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.readiness.read"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_order_readiness_overview",
+      "displayName": "读取订单准备总览",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "management",
+        "order"
+      ],
+      "summary": "实时汇总全部活动订单的生产准备情况，按数据阻塞、待补料、待复核、可生产分类，并返回每个订单的主要问题和下一步。只读，不修改订单、采购和库存。用户问“哪些订单不能生产”“所有订单准备情况”“目前有多少订单缺料”时使用。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "execute_factory_workflow_step",
+      "displayName": "执行工厂工作流步骤",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "management",
+        "quotation"
+      ],
+      "summary": "执行 V8 工厂执行计划中当前已解锁的跨模块写步骤。当前仅支持 quotation_to_order 的 convert_quotation：必须先在本轮调用 plan_factory_workflow，使用其返回的精确 quotationId/actionId；调用后显示确认卡片。用户确认时会重新生成实时计划、预检订单草稿、调用事务转单接口，并自动检查新订单生产准备。计划过期、报价未接受、已转单、资料不完整或步骤受阻时立即停止。",
+      "requiredInputs": [
+        "actionId",
+        "quotationId",
+        "workflowType"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "workflow.quotation.convert_to_order",
+        "workbench.execution_runs.record"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "critical",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "plan_factory_workflow",
+      "displayName": "生成工厂工作流计划",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "management",
+        "quotation"
+      ],
+      "summary": "V8 统一执行计划：把订单生产准备、报价转订单或当前管理待办拆成按依赖排序的结构化步骤，明确自动检查、需要业务判断、需要确认、人工处理、等待和阻塞状态，并返回最近执行记录、失败原因、最新复查和可恢复步骤。",
+      "requiredInputs": [
+        "workflowType"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "add_recipe_to_order",
+      "displayName": "订单追加产品",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "向已存在的订单中追加配方/产品。当用户说\"给订单XX加一台YY\"时使用",
+      "requiredInputs": [
+        "orderId",
+        "qty",
+        "reason",
+        "recipeName"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.update_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "create_order",
+      "displayName": "新建订单",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "新建订单。当用户说\"新建订单\"\"下一个订单\"\"给XX客户开个订单\"时使用。可以直接附带要生产的产品。",
+      "requiredInputs": [
+        "customerName"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.create"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "delete_order",
+      "displayName": "删除订单",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "彻底删除一个订单。当用户说\"删掉订单5\"时使用",
+      "requiredInputs": [
+        "orderId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.delete"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "generate_purchase_list",
+      "displayName": "生成采购清单",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "为订单生成采购清单和采购TODO。自动汇总所有配方零件需求、扣减库存、按供应商分组。当用户说\"生成订单5的采购清单\"时使用",
+      "requiredInputs": [
+        "orderId",
+        "reason"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.update_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "remove_recipe_from_order",
+      "displayName": "订单移除产品",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "从订单中精确移除一个产品明细。必须使用订单详情返回的 orderItemId；recipeName 仅可作为身份交叉核对",
+      "requiredInputs": [
+        "orderId",
+        "orderItemId",
+        "reason"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.update_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "update_order_item",
+      "displayName": "修改订单产品",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "精确修改订单中一个产品明细的数量或销售单价。必须使用订单详情返回的 orderItemId；recipeName 仅可作为身份交叉核对",
+      "requiredInputs": [
+        "orderId",
+        "orderItemId",
+        "reason"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.update_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "update_order_status",
+      "displayName": "修改订单状态",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order"
+      ],
+      "summary": "执行允许的订单状态动作：确认订单、关闭订单或取消订单。采购中和采购完成由数量进度自动推导。",
+      "requiredInputs": [
+        "orderId",
+        "status"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.change_status"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_order_detail",
+      "displayName": "读取订单详情",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取某个订单的实时业务详情（配方列表、采购清单、待办、金额和状态）。用户明确提供订单ID时传 orderId；只提供客户名或合同号时必须传 orderQuery，由正式订单查询唯一解析。若当前问题还涉及人工确认的客户要求、执行档案、历史异常或来源文件，服务端会在本能力成功后按同一订单目标自动补充知识包；模型不要改调其他能力或重复调用。禁止根据名称、消息序号或历史回答猜测订单ID。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "orderId"
+        ],
+        [
+          "orderQuery"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "reviewed_composite_exception"
+    },
+    {
+      "toolName": "get_purchase_overview",
+      "displayName": "读取采购总览",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取当前全部活动订单的采购任务总览，返回供应商、物料、计划/已下单/已到货/已入库/待采购数量及关联订单。仅当用户询问采购任务、供应商、采购物料、待采购数量或采购进度时使用；“采购中的订单/单子/单据有几个”属于订单状态查询，禁止使用本工具。只读，不修改采购、订单或库存。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "purchasing.overview"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recent_orders",
+      "displayName": "读取最近订单",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "order"
+      ],
+      "summary": "读取正式订单列表。“订单、单子、单据”都指订单；“采购中的单子/单据”必须调用本工具并传 status=采购中。用户明确状态、客户或合同号时必须把条件传入，不得读取全量后由模型二次筛选。具名客户或合同号模糊筛选若唯一命中一张订单，服务端会自动伴随读取该订单知识包；多条命中不会猜选。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "orders.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "save_order_execution_draft",
+      "displayName": "保存订单执行档案草稿",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order",
+        "file"
+      ],
+      "summary": "把用户明确描述的订单执行事实保存为一条可编辑草稿。适用于生产前资源准备、生产中产能或供应商调整、过程异常，以及生产后质量、交付和客户反馈。仅保存草稿，不确认知识，不修改订单状态、配方、采购或库存；只能在用户明确要求保存后调用，并且需要确认卡片。",
+      "requiredInputs": [
+        "orderId",
+        "phase",
+        "recordType",
+        "summaryText"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.execution_records.create_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "save_order_requirement_draft",
+      "displayName": "保存客户要求草稿",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "order",
+        "file"
+      ],
+      "summary": "把已经根据订单附件整理好的客户要求保存为可编辑草稿。仅保存草稿，不确认知识、不修改订单明细、配方、采购或库存。只能在用户明确要求保存草稿后调用，并且必须使用真实订单ID和附件上下文中的精确 fileId；需要用户确认卡片。",
+      "requiredInputs": [
+        "orderId",
+        "summaryText"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "orders.requirements.save_draft"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "build_order_draft",
+      "displayName": "生成订单草稿",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "order",
+        "quotation"
+      ],
+      "summary": "生成订单保存草稿，不写库。适合用户确认报价或产品明细后，先预览订单、采购清单和待办。",
+      "requiredInputs": [
+        "customerName",
+        "items"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "refresh_factory_rule_candidates",
+      "displayName": "归纳候选业务规则",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "quality"
+      ],
+      "summary": "根据同类配方的确认、特殊情况和忽略反馈重新归纳候选业务规则并计算置信度。反馈绑定生成时的泵壳模板和配方版本；更换模板标为范围漂移，修改配方标为内容过期，两者都不计入规则。只生成候选项，不会自动批准；失去最低支持证据的旧规则会失效，已批准规则低于65%置信度时会自动撤回批准并移除规则知识；写库前必须确认。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "quality.rule_candidates.refresh"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "restore_factory_rule_event",
+      "displayName": "恢复规则审核状态",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "quality"
+      ],
+      "summary": "把规则恢复到某条历史事件中的审核状态。只恢复候选、批准或驳回状态，保留当前规则内容和学习证据；恢复批准时会重新校验证据并自动同步规则知识。写库前必须确认。",
+      "requiredInputs": [
+        "eventId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "quality.rule_events.restore"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "review_factory_rule_candidate",
+      "displayName": "审核候选业务规则",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "quality"
+      ],
+      "summary": "批准、驳回或恢复某条候选业务规则。批准要求至少2个不同配方确认且置信度不低于65%；批准会自动写入对应规则知识，驳回或失效会自动移除，不需要再执行全量知识库同步；写库前必须确认。",
+      "requiredInputs": [
+        "candidateId",
+        "status"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "quality.rule_candidates.review"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "set_recipe_analysis_feedback",
+      "displayName": "保存配方检查反馈",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "quality"
+      ],
+      "summary": "保存用户对配方智能检查某条提醒的判断。仅在用户明确要求确认问题、忽略提醒、标记特殊情况或恢复复核时使用，写库前必须确认。findingKey 必须来自最近一次 analyze_recipe_configuration 的结果，不得自行编造。",
+      "requiredInputs": [
+        "decision",
+        "findingKey",
+        "findingType",
+        "recipeId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "quality.recipe_feedback.save"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "medium",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_data_quality_summary",
+      "displayName": "读取数据质量",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "获取数据质量报告，不写库。适合用户问“系统资料还有什么问题”“AI 准确性风险在哪里”“基础数据健康度”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_factory_learning_health",
+      "displayName": "检查学习证据健康状态",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "检查配方智能检查学习反馈的健康状态，只读。覆盖所有已确认、特殊情况和忽略的同类高频项反馈，包括尚未形成候选规则的记录；区分仍有效、内容过期、模板漂移和配方已归档，并返回需要重新检查的配方。适合用户问“哪些学习反馈过期了”“哪些配方需要重新智能检查”“知识学习证据是否健康”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_factory_rule_candidates",
+      "displayName": "读取候选业务规则",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "读取从配方检查人工反馈中归纳出的候选业务规则、确认/特殊情况/忽略/范围漂移/内容过期证据、置信度和批准门槛，只读。范围漂移表示配方已更换泵壳模板；内容过期表示配方在反馈后又被修改，这些历史证据都不会计入当前规则。适合用户问“有哪些规则待审核”“已经批准了哪些学习规则”“某条规则为什么不能批准”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_factory_rule_compliance",
+      "displayName": "检查规则执行情况",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "汇总全部已批准工厂规则的当前执行情况，只读。返回存在问题的规则、受影响配方、规则问题总数和已记录例外。适合用户问“哪些配方不符合工厂规则”“批准的规则执行得怎么样”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_factory_rule_history",
+      "displayName": "读取规则变更记录",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "读取工厂规则的生命周期记录，只读。可查看候选生成、证据变化、范围漂移或内容过期导致的失效、批准、批准自动撤回、驳回和重新激活的时间、状态与说明。适合回答“这条规则为什么变了”“最近规则发生了什么变化”。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_factory_rule_impact",
+      "displayName": "分析规则影响范围",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quality"
+      ],
+      "summary": "分析某条候选或已批准工厂规则对当前配方的实际影响，只读。返回同模板配方中已符合、需要复核、特殊情况和已忽略的数量及清单。适合在批准规则前确认影响范围，或回答“这条规则会影响哪些配方”。",
+      "requiredInputs": [
+        "candidateId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "analyze_recipe_configuration",
+      "displayName": "智能检查配方",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "quality",
+        "recipe"
+      ],
+      "summary": "分析某个配方的相似配方、确定性漏项、同类高频项和固定件价格异常，不写库。适合用户问“这个配方有没有漏东西”“价格是否合理”“找相近配方”“帮我检查配置”。结果是带证据的复核建议，禁止描述为自动判定或自动修改。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "build_quotation_draft",
+      "displayName": "生成报价草稿",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "生成客户报价保存草稿，不写库。适合 AI 先试算成本后，为客户组装报价明细，确认后再调用正式写操作。",
+      "requiredInputs": [
+        "items"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "get_quotation_detail",
+      "displayName": "读取报价详情",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "按报价ID读取一份正式报价的完整详情，包括客户、状态、全部报价明细、成本售价、备注、转换订单信息和时间字段。只读，不修改报价；ID必须来自用户明确输入、当前报价页面或 search_quotations 的正式结果。",
+      "requiredInputs": [
+        "quotationId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "quotations.detail"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "search_customer_history",
+      "displayName": "查询客户历史",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "按具名客户查询正式客户身份及其历史报价和订单，不写库。它是“某客户的全部报价/历史报价/历史订单”的权威能力，能区分客户不存在与客户存在但记录为零；只问报价时必须传 historyType=quotation，只问订单时必须传 historyType=order，同时询问两类历史才使用 all。也适合报价前查看同客户、同型号或相近产品的历史价格。单纯按报价状态筛选当前报价列表时使用 search_quotations。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "customerName"
+        ],
+        [
+          "customerId"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "customers.list",
+        "customers.history"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "search_customers",
+      "displayName": "查询客户列表",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "读取正式客户列表，可按客户名称筛选。查询客户列表时使用，不得退回知识库。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "customers.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "search_quotations",
+      "displayName": "查询报价列表",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "quotation"
+      ],
+      "summary": "读取正式报价列表及每条命中报价的完整正式字段，权威职责是按报价状态、客户名称等条件筛选当前报价。状态查询必须传 status，API 只返回命中项，禁止先查全部再由模型筛选。需要稳定读取一份指定报价时使用 get_quotation_detail；若目标是某一个具名客户的全部报价、历史报价或报价与订单历史，应使用 search_customer_history，以区分客户不存在与客户存在但没有报价。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "quotations.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "explain_cost_change",
+      "displayName": "解释成本差异",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "quotation",
+        "cost"
+      ],
+      "summary": "按当日完整成本解释两个配方之间的差异，不写库。包含当前BOM、线圈、安装/打包工资、表面处理和管理费；任一配方缺价时明确失败。适合用户问“为什么12-140比12-120贵”“两个型号贵在哪里”。返回总差额和主要差异驱动项。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "inspect_quotation_file",
+      "displayName": "识别报价文件",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "quotation",
+        "file"
+      ],
+      "summary": "只读解析已上传的 Excel/CSV 报价文件，并用当前客户与配方数据核对字段映射。返回原表工作表/行号、客户匹配、每行配方匹配、数量、文件单价、歧义、警告和可选 quotationDraftInput；不创建客户、配方或报价。只有 readyForSaveDraft=true 才表示全部客户和配方均精确匹配，仍需调用 build_quotation_draft 重新计算正式报价草稿。",
+      "requiredInputs": [
+        "fileId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "preview_recipe_cost",
+      "displayName": "配方成本试算",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "quotation",
+        "recipe",
+        "cost"
+      ],
+      "summary": "查询已有配方的当前完整参考成本，或基于该配方做动态成本试算，不写库。两种口径都以 currentTotalCost 为主成本字段，unitCost 仅为一个兼容周期的废弃别名；无覆盖参数时返回 sourceOfTruth=costEngine、costBasis=currentFullCost，有覆盖参数时返回 costBasis=overridePreview。适合用户问“V750当前成本是多少”或“某配方在180mm机筒/140片/带浮球时总成本是多少”。如果只问泵壳本身成本，用 preview_pump_shell_cost。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "create_recipe",
+      "displayName": "新建配方",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "新建配方。当用户说\"新建配方XX\"时使用。零件可用简化格式如 [{model:\"201轴承\",qty:2}]，后端会自动匹配完整信息",
+      "requiredInputs": [
+        "coilSheets",
+        "coilSpec",
+        "name",
+        "naming"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "recipes.create"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "delete_recipe",
+      "displayName": "删除配方",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "删除配方。当用户说\"删掉配方XX\"时使用",
+      "requiredInputs": [
+        "recipeName"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "recipes.delete"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "update_recipe",
+      "displayName": "修改配方",
+      "access": "write",
+      "operation": "command",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "修改配方信息（成品型号、配置摘要、增减零件）。当用户说\"把V750配方里的XX换成YY\"或\"给V750配方加个零件\"时使用",
+      "requiredInputs": [
+        "recipeName"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "WRITE_PROTECTED",
+      "formalCapabilityIds": [
+        "recipes.update"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "stable",
+      "riskLevel": "high",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "write_protected"
+    },
+    {
+      "toolName": "get_all_recipes",
+      "displayName": "读取配方列表",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "从正式配方 API 获取成品型号列表，可按成品型号或配置摘要筛选。名称类型尚不确定时，可以与线圈、零件、模板目录组合查证；明确物料查询优先 search_parts，不能把相似配方自动替代用户目标。用户询问哪些配方有测试报告或有报告的配方数量时，设置 hasTechnicalFiles=true。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recipe_detail",
+      "displayName": "读取配方明细",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取指定配方的正式明细和 BOM；需要当前完整成本时设置 includeCurrentCost=true，结果以 currentCost.currentTotalCost 和 costBasis=currentFullCost 返回。currentCost.unitCost 仅为一个兼容周期的废弃别名。按配方ID、名称或可唯一匹配的简称定位，名称匹配忽略大小写；多条命中时停止并返回候选。只读，不使用保存成本或覆盖试算冒充当前成本。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "REVIEWED_COMPOSITE",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "reviewed_composite_exception"
+    },
+    {
+      "toolName": "get_recipe_parts",
+      "displayName": "读取配方规范零件",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已确认的正式配方ID读取该配方保存的规范零件关系。只读取 partsJson 中带正式 partId 的零件，不包含线圈、额外配置、包装、模板默认件或动态展开 BOM；缺失或冲突的历史引用会失败关闭，不能猜补。分页由系统确定性完成。",
+      "requiredInputs": [
+        "recipeId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "ontology.relations.resolve"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "displayName": "读取配方技术档案",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取指定配方的正式技术档案和性能测试报告数据。按配方ID或名称定位后调用正式配方技术档案 API；files[].testCurve 返回逐点流量、扬程、电流、效率，以及服务端确定性计算的 maxHead、maxFlow、maxCurrent、maxUnitEfficiency 和对应测试点。associationWarnings 会提示报告内部型号与关联配方不一致，回答时应明确提醒核实归属，但不否定报告已关联的事实。回答最高扬程、最大流量、最大电流或最高效率时必须直接使用这些正式统计，不得让模型自行挑选极值。只读，不上传、修改或删除文件。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "recipeId"
+        ],
+        [
+          "recipeName"
+        ]
+      ],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.list",
+        "recipes.technical_files.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recipe_technical_profile",
+      "displayName": "读取配方正式技术档案",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取一个已由正式配方目录确认身份的配方 canonical 技术档案。只返回正式技术事实及正式关系，不读取 legacy technical_data_json，也不返回 Rotor shadow。",
+      "requiredInputs": [
+        "recipeId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.technical_profile.get"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recipes_by_coil",
+      "displayName": "按线圈反查配方",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已知线圈方案的ID反查当前引用它的配方（成品型号）。",
+      "requiredInputs": [
+        "coilId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.by_coil"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_recipes_by_part",
+      "displayName": "按零件反查配方",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按一个已确认的正式零件ID反查哪些配方在保存的 partsJson 中规范引用它。只接受正式 partId 关系，不用同名、供应商、模糊或首条结果补造关系；分页由系统确定性完成。",
+      "requiredInputs": [
+        "partId"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "ontology.relations.resolve"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "get_template_detail",
+      "displayName": "读取泵壳模板详情",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "按模板ID或泵壳型号读取一个正式泵壳模板的完整档案，包括 BOM、泵壳组件、转子参数、工资、表面处理、成本模式、套件成本和备注。只读，不修改模板；名称多匹配时返回候选，不猜选。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [
+        [
+          "templateId"
+        ],
+        [
+          "shellModel"
+        ]
+      ],
+      "entityScopes": [
+        "single"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "templates.list",
+        "templates.detail"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "search_templates",
+      "displayName": "查询泵壳模板",
+      "access": "read",
+      "operation": "query",
+      "domains": [
+        "recipe"
+      ],
+      "summary": "读取正式泵壳模板列表及每条命中模板的完整正式字段，可按泵壳型号或描述筛选。结果包括 BOM、泵壳组件、转子参数、工资、表面处理和套件成本等档案；稳定读取一个指定模板时使用 get_template_detail。查询模板时使用，不得当作零件搜索。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "templates.list"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "build_recipe_bom_draft",
+      "displayName": "生成 BOM 草稿",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "优先沿用已有配方的完整配置，仅覆盖用户明确给定项，按当前价格生成 BOM 并由正式成本引擎计算总成本，不写库。用户给出泵壳型号/模板、线圈规格片数、机筒长度、浮球、电缆、木箱、珍珠棉等并询问成本时优先使用；不得把泵壳模板缩写成配方名交给 full_calculate。包装和可选零件应原样传入用户说出的名称（例如“木箱”“珍珠棉”），服务端会按模板历史选择和正式零件目录解析；禁止自行翻译、缩写或生成 unknown_* 占位型号。",
+      "requiredInputs": [],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "derived",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "compare_recipe_scenarios",
+      "displayName": "同口径情景成本比较",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份，表面处理费用只能由用户或正式配方政策提供，不能传入零件价格、成本或铜价。",
+      "requiredInputs": [
+        "baselinePolicy",
+        "recipeId",
+        "scenarios",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "recipes.scenario_compare_preview"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "compare_recipes",
+      "displayName": "对比配方",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "按当日完整成本对比两个配方的BOM、工资、表面处理和管理费差异；costDiff 和明细 diff 均按“配方2减配方1”计算，正数表示配方2更贵。选择器优先使用配方ID（已 canonical 解析时不得退回名称）；名称必须唯一匹配，多匹配或缺价时明确失败。当用户说\"对比V750和V550\"时使用",
+      "requiredInputs": [
+        "recipe1",
+        "recipe2"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "preview_profitability",
+      "displayName": "正式毛利试算",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "在一次当前正式情景成本重建的同一读取集合上，试算单台毛利、销售毛利率和成本加价率。只读，不保存报价或订单；不接受客户端成本、毛利或历史加价倍数。",
+      "requiredInputs": [
+        "basisRef",
+        "currency",
+        "quantity",
+        "unitPrice",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "cost.profitability_preview"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    },
+    {
+      "toolName": "preview_pump_shell_cost",
+      "displayName": "泵壳成本试算",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "cost"
+      ],
+      "summary": "计算泵壳模板在指定机筒长度下的泵壳本体成本，不写库。用户问“V750 180mm机筒泵壳成本”“180mm机筒高度时泵壳多少钱”“不锈钢机筒加长后泵壳成本”时使用。会触发不锈钢机筒整体泵壳随长度加价规则；未提供泵壳型号时应先追问型号。",
+      "requiredInputs": [
+        "customBarrelLength"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "DEFERRED_UNLINKED",
+      "formalCapabilityIds": [],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": false,
+      "modelIndexV1Reason": "unlinked_deferred"
+    },
+    {
+      "toolName": "preview_virtual_readiness",
+      "displayName": "虚拟数量齐料预览",
+      "access": "read",
+      "operation": "preview",
+      "domains": [
+        "recipe",
+        "inventory"
+      ],
+      "summary": "按当前库存并扣除活动订单占用，预览某一已正式绑定配方情景生产指定数量时的库存管理物料齐料情况。只读，不创建订单、不预留库存；不接受客户端库存或忽略订单占用的开关。",
+      "requiredInputs": [
+        "basisRef",
+        "quantity",
+        "version"
+      ],
+      "alternativeRequiredInputGroups": [],
+      "entityScopes": [
+        "single",
+        "collection",
+        "global"
+      ],
+      "backingType": "FORMAL_LINKED",
+      "formalCapabilityIds": [
+        "inventory.virtual_readiness_preview"
+      ],
+      "formalLinksValid": true,
+      "dataMode": "live",
+      "riskLevel": "low",
+      "definitionFound": true,
+      "modelIndexV1Eligible": true,
+      "modelIndexV1Reason": "formal_linked_read_or_preview"
+    }
+  ]
+}
