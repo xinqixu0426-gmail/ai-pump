@@ -149,6 +149,8 @@ function renderClaimableFactsForModel(ledgerOrSnapshot) {
     const facts = Array.isArray(ledgerOrSnapshot?.facts) ? ledgerOrSnapshot.facts : [];
     const seen = new Set();
     const entries = [];
+    const structuredMoney = new Set(facts.filter(fact => fact?.verified && fact?.qualifiers?.moneyRole)
+        .map(fact => stableJson([fact.entity?.type || null, fact.entity?.canonicalName || null, fact.value, fact.unit])));
     for (const fact of facts) {
         if (!fact?.verified) continue;
         // Generic deep field observations stay in the ledger for audit.  Only
@@ -157,15 +159,30 @@ function renderClaimableFactsForModel(ledgerOrSnapshot) {
         // of finalization choices without adding evidence.
         const fieldPath = String(fact.predicate || '').replace(/^formal_field:/, '').split('.').at(-1).replace(/\[\d+\]/g, '');
         if (String(fact.predicate || '').startsWith('formal_field:')
-            && !/^(?:id|name|recipeName|coilId|schemeCode|schemeName|spec|sheets|currentTotalCost|totalCost|costDifference|costBasis|complete|totalCount|count)$/i.test(fieldPath)) continue;
+            && !/^(?:name|recipeName|schemeCode|schemeName|spec|sheets|currentTotalCost|totalCost|costDifference|costDiff|costBasis|complete|totalCount|count)$/i.test(fieldPath)) continue;
+        // A structured current/scenario/difference fact is the authoritative
+        // finalization choice. Suppress its generic deep-field duplicate so a
+        // model cannot accidentally cite the less-specific observation.
+        if (String(fact.predicate || '').startsWith('formal_field:')
+            && /^(?:currentTotalCost|totalCost|costDifference|costDiff)$/i.test(fieldPath)
+            && structuredMoney.has(stableJson([fact.entity?.type || null, fact.entity?.canonicalName || null, fact.value, fact.unit]))) continue;
         const entity = fact.entity ? `${fact.entity.type}/${fact.entity.canonicalName || fact.entity.id}` : 'none';
+        const moneyRole = fact.qualifiers?.moneyRole || null;
         const scenario = fact.qualifiers?.scenario || fact.qualifiers?.scenarioKey || null;
-        const key = stableJson([entity, fact.predicate, fact.value, fact.unit, fact.basis, scenario, fact.source?.tool]);
+        const participants = fact.qualifiers?.participants || null;
+        const key = stableJson([entity, fact.predicate, fact.value, fact.unit, fact.basis, moneyRole, scenario, participants, fact.source?.tool]);
         if (seen.has(key)) continue;
         seen.add(key);
-        entries.push({ factId: fact.factId, entity: fact.entity ? { type: fact.entity.type, canonicalName: fact.entity.canonicalName, id: fact.entity.id } : null,
-            predicate: fact.predicate, value: fact.value, unit: fact.unit, basis: fact.basis,
-            qualifiers: fact.qualifiers || null, sourceTool: fact.source?.tool || null });
+        const claimType = moneyRole === 'CURRENT_FORMAL' || moneyRole === 'CURRENT_BASE' ? 'CURRENT_COST'
+            : moneyRole === 'SCENARIO_CANDIDATE' ? 'SCENARIO_COST'
+                : moneyRole === 'SCENARIO_DIFFERENCE' ? 'SCENARIO_DELTA'
+                    : moneyRole === 'RECIPE_DIFFERENCE' ? 'RECIPE_COST_DIFFERENCE' : null;
+        const qualifiers = fact.qualifiers || {};
+        entries.push({ factId: fact.factId, ...(claimType ? { claimType } : {}),
+            entity: fact.entity ? { type: fact.entity.type, canonicalName: fact.entity.canonicalName } : null,
+            ...(participants ? { participants } : {}), predicate: fact.predicate, value: fact.value, unit: fact.unit, basis: fact.basis,
+            ...(qualifiers.scenarioKey || qualifiers.label || qualifiers.role ? { scenario: { scenarioKey: qualifiers.scenarioKey || null, label: qualifiers.label || null, role: qualifiers.role || null } } : {}),
+            ...(qualifiers.direction ? { direction: qualifiers.direction } : {}), sourceTool: fact.source?.tool || null });
     }
     return Object.freeze(entries);
 }
@@ -206,7 +223,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
     // Candidate-only projection asks the shared ledger to retain formal
     // scenario basis/delta facts. Default production callers retain their
     // existing ledger behavior unchanged.
-    const ledger = dependencies.factLedger || createFactLedger({ includeScenarioComparisonFacts: true });
+    const ledger = dependencies.factLedger || createFactLedger({ includeRecipeComparisonFacts: true, includeScenarioComparisonFacts: true });
     const validator = dependencies.validateAnswer || validateAnswer;
     const maxMainModelCalls = Number.isSafeInteger(input.maxMainModelCalls)
         ? Math.max(1, Math.min(input.maxMainModelCalls, MAX_MAIN_MODEL_CALLS))
@@ -258,7 +275,7 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
             const catalog = renderClaimableFactsForModel(ledger.snapshot());
             messages.push({ role: 'system', content: [
                 'FINALIZE phase: business tools are no longer available. Do not add facts, infer amounts, or call tools.',
-                'Return only the required answer JSON envelope. Cover every owner-requested outcome that has supporting Claimable Fact Catalog evidence; do not omit a distinct formal scalar merely because related component facts are present. Claims may cite only this deterministic Claimable Fact Catalog. Every money sentence must include its exact canonical entity name from the cited Fact Catalog; never use a pronoun as the money subject. Write the answer as short factual sentences only: every claims[].text must be a byte-for-byte contiguous sentence copied from answer (including punctuation), and answer must contain no additional factual sentence without a claim.',
+                'Return only the required answer JSON envelope. Cover every owner-requested outcome that has supporting Claimable Fact Catalog evidence. If the owner asks for a difference, directly state the formal difference using RECIPE_COST_DIFFERENCE or SCENARIO_DELTA; do not replace it with only two absolute costs. For a scenario request, use SCENARIO_COST for the candidate amount and SCENARIO_DELTA when the owner asks how much it changes. Claims may cite only this deterministic Claimable Fact Catalog. Every money sentence must include its exact canonical entity name from the cited Fact Catalog; never use a pronoun as the money subject. Do not repeat a money amount in an uncited disclaimer: either keep it in the same cited sentence or make that disclaimer its own cited claim. For a CLARIFICATION or UNAVAILABLE response that states no verified business fact, use claims: [] and empty goal factIds; never create an uncited explanatory claim. Do not include internal IDs, suppliers, or unrelated metadata. Write one to four short factual sentences only: every claims[].text must be a byte-for-byte contiguous sentence copied from answer (including punctuation), and answer must contain no additional factual sentence without a claim.',
                 `CLAIMABLE FACT CATALOG:\n${JSON.stringify(catalog)}`,
                 prior ? `Prior draft to correct:\n${prior}` : '',
             ].filter(Boolean).join('\n\n') });
@@ -271,13 +288,13 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
                 continue;
             }
             const finalized = complete(message.content || prior, fallbackStatus);
-            finalizationAttempts.push(Object.freeze({ attempt: attempt + 1, code: finalized.answerValidation.code || null, valid: finalized.answerValidation.valid === true, raw: String(message.content || '').slice(0, 6000) }));
+            finalizationAttempts.push(Object.freeze({ attempt: attempt + 1, code: finalized.answerValidation.code || null, detail: finalized.answerValidation.detail || null, valid: finalized.answerValidation.valid === true, raw: String(message.content || '').slice(0, 6000) }));
             if (finalized.answerValidation.valid === true) {
                 return Object.freeze({ ...finalized, finalizationAttempts: Object.freeze([...finalizationAttempts]) });
             }
             prior = String(message.content || prior);
             messages.push({ role: 'assistant', content: prior });
-            messages.push({ role: 'system', content: `The envelope was rejected with ${finalized.answerValidation.code}. Use only matching Claimable Fact Catalog entries and return corrected JSON only.` });
+            messages.push({ role: 'system', content: `The envelope was rejected with ${finalized.answerValidation.code}. Safe validation detail: ${JSON.stringify(finalized.answerValidation.detail || null)}. Use only matching Claimable Fact Catalog entries and return corrected JSON only. If the detail says a difference fact is missing, do not cite two absolute costs as a difference; select a compatible formal difference entry instead.` });
         }
         return complete(finalFallback(ledger, fallbackStatus), fallbackStatus);
     }

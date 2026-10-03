@@ -1,0 +1,5 @@
+{
+  "phase": "M5-D1-R2",
+  "status": "NOT_RUN",
+  "reason": "The required controlled 10/10 gate was not met; real-catalog smoke was not used to conceal a controlled-fixture reliability shortfall."
+}

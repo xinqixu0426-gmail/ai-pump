@@ -42,7 +42,7 @@ test('R1-06..08: claimable facts are ledger projections, retain provenance, and 
     ];
     const catalog = renderClaimableFactsForModel({ facts });
     assert.equal(catalog.length, 1);
-    assert.deepEqual(catalog[0], { factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款', id: 1 }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'CURRENT', qualifiers: { scenarioKey: 'base' }, sourceTool: 'get_recipe_detail' });
+    assert.deepEqual(catalog[0], { factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款' }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'CURRENT', scenario: { scenarioKey: 'base', label: null, role: null }, sourceTool: 'get_recipe_detail' });
     assert.equal(JSON.stringify(catalog).includes('invented'), false);
 });
 

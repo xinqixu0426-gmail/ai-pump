@@ -70,11 +70,11 @@ function scalarFacts(data, base) {
     const capabilityId = base.capabilityId;
     const basis = text(data.costBasis) || text(data.inventoryBasis) || text(data.basis) || null;
     const facts = [];
-    const addNumber = (field, predicate, unit, factBasis = basis) => {
+    const addNumber = (field, predicate, unit, factBasis = basis, qualifiers = null) => {
         const value = finite(data[field]);
-        if (value !== null) facts.push(makeFact({ entity, predicate, value, unit, basis: factBasis, capabilityId, tool }));
+        if (value !== null) facts.push(makeFact({ entity, predicate, value, unit, basis: factBasis, capabilityId, tool, qualifiers }));
     };
-    addNumber('currentTotalCost', 'current_cost', 'CNY');
+    addNumber('currentTotalCost', 'current_cost', 'CNY', basis, { moneyRole: 'CURRENT_FORMAL' });
     addNumber('unitCost', 'unit_cost', 'CNY');
     addNumber('totalCost', 'total_cost', 'CNY');
     addNumber('unitPrice', 'unit_price', 'CNY');
@@ -91,6 +91,22 @@ function scalarFacts(data, base) {
     return facts;
 }
 
+// The formal compare_recipes result is directional: recipe2 minus recipe1.
+// This only projects the returned difference and its formal pair; it never
+// derives a new amount from the two absolute costs.
+function recipeComparisonFacts(data, base) {
+    if (!data || typeof data !== 'object') return [];
+    const value = finite(data.costDiff ?? data.costDifference ?? data.totalDiff);
+    const left = data.left || data.recipe1 || {};
+    const right = data.right || data.recipe2 || {};
+    const leftName = text(left.name || left.recipeName);
+    const rightName = text(right.name || right.recipeName);
+    if (value === null || !leftName || !rightName) return [];
+    return [makeFact({ entity: null, predicate: 'recipe_cost_difference', value, unit: text(data.currency) || 'CNY',
+        basis: text(data.costBasis) || null, capabilityId: base.capabilityId, tool: base.tool,
+        qualifiers: { moneyRole: 'RECIPE_DIFFERENCE', participants: { left: { canonicalName: leftName }, right: { canonicalName: rightName } }, direction: 'RIGHT_MINUS_LEFT' } })];
+}
+
 // Scenario comparison is a formal multi-basis result.  Preserve its compact
 // scalar evidence before generic traversal reaches verbose read-set metadata;
 // this performs no cost calculation and only projects values the formal API
@@ -102,16 +118,21 @@ function scenarioComparisonFacts(data, base) {
         const cost = scenario?.cost;
         const value = finite(cost?.currentTotalCost);
         if (value === null) continue;
+        const role = text(scenario?.role);
+        // A formally rejected/no-op candidate must never become a claimable
+        // scenario amount just because the transport returned a base-shaped
+        // cost object.
+        if (role !== 'BASE' && Array.isArray(scenario?.notApplied) && scenario.notApplied.length > 0) continue;
         facts.push(makeFact({ entity: base.entity, predicate: 'scenario_cost', value, unit: text(cost?.currency) || 'CNY',
             basis: text(cost?.costBasis) || null, capabilityId: base.capabilityId, tool: base.tool,
-            qualifiers: { scenarioKey: text(scenario?.scenarioKey), role: text(scenario?.role), label: text(scenario?.label) } }));
+            qualifiers: { moneyRole: role === 'BASE' ? 'CURRENT_BASE' : 'SCENARIO_CANDIDATE', scenarioKey: text(scenario?.scenarioKey), role, label: text(scenario?.label) } }));
     }
     for (const comparison of Array.isArray(data.comparisons) ? data.comparisons : []) {
         const value = finite(comparison?.delta);
-        if (value === null) continue;
+        if (value === null || text(comparison?.status) !== 'COMPARABLE') continue;
         facts.push(makeFact({ entity: base.entity, predicate: 'scenario_cost_difference', value, unit: text(comparison?.currency) || 'CNY',
             basis: 'SCENARIO_COMPARISON', capabilityId: base.capabilityId, tool: base.tool,
-            qualifiers: { baseScenarioKey: text(comparison?.baseScenarioKey), candidateScenarioKey: text(comparison?.candidateScenarioKey), status: text(comparison?.status) } }));
+            qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE', baseScenarioKey: text(comparison?.baseScenarioKey), candidateScenarioKey: text(comparison?.candidateScenarioKey), status: text(comparison?.status) } }));
     }
     return facts;
 }
@@ -145,6 +166,7 @@ function genericFormalFacts(data, base, limit = 80) {
 
 function createFactLedger(options = {}) {
     const includeScenarioComparisonFacts = options.includeScenarioComparisonFacts === true;
+    const includeRecipeComparisonFacts = options.includeRecipeComparisonFacts === true;
     const facts = [];
     const observations = [];
     let sequence = 0;
@@ -173,6 +195,9 @@ function createFactLedger(options = {}) {
                 // without copying business algorithms into the adapter.
                 added.push(append(makeFact({ entity, predicate: 'formal_result_available', value: true, capabilityId, tool })));
                 for (const fact of scalarFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                if (includeRecipeComparisonFacts) {
+                    for (const fact of recipeComparisonFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                }
                 if (includeScenarioComparisonFacts) {
                     for (const fact of scenarioComparisonFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 }
@@ -251,4 +276,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection, scenarioComparisonFacts };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection, recipeComparisonFacts, scenarioComparisonFacts };

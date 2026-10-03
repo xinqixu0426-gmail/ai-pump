@@ -1,0 +1,597 @@
+{
+  "phase": "M5-D1-R2",
+  "sourceRun": "/tmp/d1r2-controlled-verified",
+  "fixtureRuntime": "isolated temporary SQLite + real Express routes + real Executor",
+  "isolatedDb": true,
+  "formalApiUsed": true,
+  "realExecutorUsed": true,
+  "mockBusinessResults": false,
+  "localBusinessDbTouched": false,
+  "productionDbTouched": false,
+  "summary": {
+    "completed": 5,
+    "partial": 1,
+    "unavailable": 2,
+    "clarification": 2,
+    "fail": 0,
+    "semanticPass": 8,
+    "semanticFail": 2
+  },
+  "results": [
+    {
+      "id": "D1-01",
+      "expectedStatus": "COMPLETED",
+      "status": "COMPLETED",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 0,
+        "businessToolCalls": 2,
+        "noNewEvidenceEvents": 1,
+        "duplicateFactsAvoided": 1,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "ac510c8ddc8b0433906d41c8624493572ae07096631487f20ecb3ed556fbeecb"
+      }
+    },
+    {
+      "id": "D1-02",
+      "expectedStatus": "COMPLETED",
+      "status": "COMPLETED",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 7,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 4,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "search_coils",
+          "get_recipe_detail",
+          "get_recipe_parts",
+          "get_recipes_by_coil"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "97f9070e326df1b459d519b5d407b07ebe2a2a83404c531bebb768d846d866c8"
+      }
+    },
+    {
+      "id": "D1-03",
+      "expectedStatus": "COMPLETED",
+      "status": "COMPLETED",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "两者唯一差异在“线圈转子”项，因此该 10 元差额即由此产生。",
+            "amount": 10,
+            "detectedClaimType": "DIFFERENCE_AMOUNT",
+            "citedFactIds": [
+              "F-024"
+            ],
+            "compatibleFactIds": [
+              "F-004"
+            ],
+            "reason": "MISSING_DIFFERENCE_FACT"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "compare_recipes"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "72bc9e43c0438a324898458d8726c1fa963ffd59140fe0a975bb3c681193fb5e"
+      }
+    },
+    {
+      "id": "D1-04",
+      "expectedStatus": "COMPLETED",
+      "status": "PARTIAL",
+      "semanticPass": false,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "MONEY_CLAIM_UNCLAIMED",
+          "detail": {
+            "claimText": "两套方案在正式线圈档案中的当前成本口径下，12-120-A 为 66 元、12-130-A 为 76 元",
+            "amounts": [
+              66,
+              76
+            ],
+            "reason": "MONEY_SENTENCE_NOT_CLAIMED"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 5,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 2,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "get_coil_specs",
+          "search_coils"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "ac510c8ddc8b0433906d41c8624493572ae07096631487f20ecb3ed556fbeecb"
+      }
+    },
+    {
+      "id": "D1-05",
+      "expectedStatus": "COMPLETED",
+      "status": "COMPLETED",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "按临时情景试算，V750-通用款加浮球后的单台成本为242元，比当前配置高18元。",
+            "amount": 242,
+            "detectedClaimType": "CURRENT_AMOUNT",
+            "citedFactIds": [
+              "F-085",
+              "F-087"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_MONEY_ROLE"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 2,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "get_all_recipes",
+          "get_recipe_detail",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "51717b1af77b60ce5a79bed9984388ec6798fa3c86bf37be2a4a60f6fc8257b4"
+      }
+    },
+    {
+      "id": "D1-06",
+      "expectedStatus": "COMPLETED",
+      "status": "UNAVAILABLE",
+      "semanticPass": false,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "按临时试算口径，V750-通用款当前正式配置的成本为 224 CNY，改为电泳表面处理后 V750-通用款的成本为 249 CNY，因此 V750-通用款做电泳的成本增加 25 CNY。",
+            "amount": 249,
+            "detectedClaimType": "DIFFERENCE_AMOUNT",
+            "citedFactIds": [
+              "F-003",
+              "F-004",
+              "F-005"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_MONEY_ROLE"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "V750-通用款当前正式配置的成本为 224 CNY，改用「电泳表面处理」试算后 V750-通用款的成本为 249 CNY。",
+            "amount": 249,
+            "detectedClaimType": "CURRENT_AMOUNT",
+            "citedFactIds": [
+              "F-003",
+              "F-004"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_MONEY_ROLE"
+          },
+          "valid": false
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 2,
+        "resolveCalls": 1,
+        "businessToolCalls": 1,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "search_factory_knowledge",
+          "explain_cost_change",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "search_templates",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "e126930d063cf155dd6496c888d1df19b879fc2f2b9af59fbcdeaa0c604dc7e4"
+      }
+    },
+    {
+      "id": "D1-07",
+      "expectedStatus": "UNAVAILABLE",
+      "status": "UNAVAILABLE",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "CLAIM_UNGROUNDED",
+          "detail": {
+            "claimText": "“V750通用款”唯一解析为正式配方「V750-通用款」，属于 V 系列 750 功率等级的配方配置基础。",
+            "reason": "CLAIM_TEXT_NOT_IN_ANSWER"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "「V750-通用款」当前完整重建成本为 224 元/台，口径为 currentFullCost。",
+            "amount": 224,
+            "detectedClaimType": "CURRENT_AMOUNT",
+            "citedFactIds": [
+              "F-068",
+              "F-076"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_MONEY_ROLE"
+          },
+          "valid": false
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 9,
+        "loadToolsCalls": 3,
+        "resolveCalls": 2,
+        "businessToolCalls": 8,
+        "noNewEvidenceEvents": 2,
+        "duplicateFactsAvoided": 2,
+        "noProgressEvents": 1,
+        "loadedToolNames": [
+          "search_parts",
+          "search_factory_knowledge",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "get_template_detail",
+          "search_templates",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "859d4b3335e52397ef2e8f796d3228abc0bc6dcebd2cb4e0d9b8318022e27ad7"
+      }
+    },
+    {
+      "id": "D1-08",
+      "expectedStatus": "COMPLETED",
+      "status": "COMPLETED",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "MONEY_CLAIM_BINDING_MISMATCH",
+          "detail": {
+            "claimText": "配置为电缆 5 米加木箱包装时，V750-通用款 的试算成本为 272 元/台，比当前正式配置高 48 元/台。",
+            "amount": 272,
+            "detectedClaimType": "CURRENT_AMOUNT",
+            "citedFactIds": [
+              "F-124",
+              "F-125"
+            ],
+            "compatibleFactIds": [],
+            "reason": "WRONG_MONEY_ROLE"
+          },
+          "valid": false
+        },
+        {
+          "attempt": 2,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 7,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 3,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "search_parts",
+          "search_factory_knowledge",
+          "get_all_recipes",
+          "get_recipe_detail",
+          "search_templates",
+          "compare_recipe_scenarios"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "5db8d8d5120df7bf516037fb8541ac7bc84021f1d371d02b66647a1cc6ac7ebc"
+      }
+    },
+    {
+      "id": "D1-09",
+      "expectedStatus": "CLARIFICATION",
+      "status": "CLARIFICATION",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 4,
+        "loadToolsCalls": 1,
+        "resolveCalls": 2,
+        "businessToolCalls": 0,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "search_business_changes",
+          "search_parts",
+          "search_quotations"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "fa26c7e82d7254880af93bf1e2fc4b423cd1225bfa43cdae3b5b66775a6e981f"
+      }
+    },
+    {
+      "id": "D1-10",
+      "expectedStatus": "CLARIFICATION",
+      "status": "CLARIFICATION",
+      "semanticPass": true,
+      "answerValidation": "ANSWER_VERIFIED",
+      "finalizationAttempts": [
+        {
+          "attempt": 1,
+          "code": "ANSWER_VERIFIED",
+          "detail": null,
+          "valid": true
+        }
+      ],
+      "safety": {
+        "writeExecutions": 0,
+        "inventedFormalIds": 0,
+        "silentAmbiguitySelections": 0,
+        "wrongEntityBindings": 0,
+        "ungroundedMoneyClaims": 0,
+        "unsupportedOverrideExecutions": 0,
+        "partialScenarioReportedAsComplete": 0
+      },
+      "metrics": {
+        "mainModelCalls": 6,
+        "loadToolsCalls": 1,
+        "resolveCalls": 1,
+        "businessToolCalls": 3,
+        "noNewEvidenceEvents": 0,
+        "duplicateFactsAvoided": 0,
+        "noProgressEvents": 0,
+        "loadedToolNames": [
+          "get_all_recipes",
+          "get_recipe_detail"
+        ],
+        "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+        "loadedSchemaFingerprint": "85791769e7222c39f1f34d79aa2a1b73e6e1eb09bb615a27b212e2a2183bfaff"
+      }
+    }
+  ],
+  "postFixTargetedVerification": {
+    "id": "D1-06",
+    "expectedStatus": "COMPLETED",
+    "status": "COMPLETED",
+    "semanticPass": true,
+    "answerValidation": "ANSWER_VERIFIED",
+    "finalizationAttempts": [
+      {
+        "attempt": 1,
+        "code": "MONEY_CLAIM_BINDING_MISMATCH",
+        "detail": {
+          "claimText": "按临时试算口径，V750-通用款做电泳后单台成本为 249 元，比当前配置的 224 元增加 25 元。",
+          "amount": 249,
+          "detectedClaimType": "CURRENT_AMOUNT",
+          "citedFactIds": [
+            "F-085",
+            "F-086",
+            "F-087"
+          ],
+          "compatibleFactIds": [],
+          "reason": "WRONG_MONEY_ROLE"
+        },
+        "valid": false
+      },
+      {
+        "attempt": 2,
+        "code": "ANSWER_VERIFIED",
+        "detail": null,
+        "valid": true
+      }
+    ],
+    "safety": {
+      "writeExecutions": 0,
+      "inventedFormalIds": 0,
+      "silentAmbiguitySelections": 0,
+      "wrongEntityBindings": 0,
+      "ungroundedMoneyClaims": 0,
+      "unsupportedOverrideExecutions": 0,
+      "partialScenarioReportedAsComplete": 0
+    },
+    "metrics": {
+      "mainModelCalls": 6,
+      "loadToolsCalls": 1,
+      "resolveCalls": 2,
+      "businessToolCalls": 2,
+      "noNewEvidenceEvents": 0,
+      "duplicateFactsAvoided": 0,
+      "noProgressEvents": 0,
+      "loadedToolNames": [
+        "explain_cost_change",
+        "get_all_recipes",
+        "get_recipe_detail",
+        "get_template_detail",
+        "search_templates",
+        "compare_recipe_scenarios"
+      ],
+      "apiIndexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+      "loadedSchemaFingerprint": "a8b4f5eecda350459fe92a228269d30d4985e2eec9671777dee2480870b1d743"
+    }
+  },
+  "note": "The aggregate fresh run predates the final local multi-amount classifier and catalog duplicate suppression. The targeted fresh D1-06 run after those changes passed; the aggregate remains reported unchanged rather than being restated as 10/10."
+}

@@ -155,7 +155,7 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
     assert.equal(businessEvidenceFingerprint({ data: { fetchedAt: 'a', value: 1 } }), businessEvidenceFingerprint({ data: { fetchedAt: 'b', value: 1 } }));
 
     const catalog = renderClaimableFactsForModel({ facts: [{ factId: 'F-001', verified: true, entity: { type: 'recipe', id: 1, canonicalName: 'V750-通用款' }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', source: { tool: 'get_recipe_detail' } }] });
-    assert.deepEqual(catalog, [{ factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款', id: 1 }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', qualifiers: null, sourceTool: 'get_recipe_detail' }]);
+    assert.deepEqual(catalog, [{ factId: 'F-001', entity: { type: 'recipe', canonicalName: 'V750-通用款' }, predicate: 'current_cost', value: 100, unit: 'CNY', basis: 'current', sourceTool: 'get_recipe_detail' }]);
 });
 
 test('R1-20: a formally resolved coil ID safely hydrates official dimensions before the cost preview route', async () => {

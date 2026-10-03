@@ -1,0 +1,7 @@
+{
+  "phase": "M5-D1-R2",
+  "status": "NOT_RUN",
+  "reason": "The required 10/10 controlled first-pass gate was not met by the aggregate fresh run; repetition is intentionally not substituted for that gate.",
+  "cases": [],
+  "runsPerCase": 0
+}
