@@ -76,7 +76,12 @@ function scalarFacts(data, base) {
     };
     addNumber('currentTotalCost', 'current_cost', 'CNY', basis, { moneyRole: 'CURRENT_FORMAL' });
     addNumber('unitCost', 'unit_cost', 'CNY');
-    addNumber('totalCost', 'total_cost', 'CNY');
+    // The formal coil preview route returns `totalCost` as its authoritative
+    // calculation result.  Make that tool contract explicit rather than
+    // treating every arbitrary totalCost field as a current-cost fact.
+    addNumber('totalCost', 'total_cost', 'CNY',
+        tool === 'calculate_coil_cost' ? (basis || 'FORMAL_COIL_COST_CALCULATION') : basis,
+        tool === 'calculate_coil_cost' ? { moneyRole: 'CURRENT_FORMAL', pricingMode: text(data.pricingMode) } : null);
     addNumber('unitPrice', 'unit_price', 'CNY');
     addNumber('grossProfitPerUnit', 'gross_profit_per_unit', 'CNY');
     addNumber('grossMarginOnSales', 'gross_margin_on_sales', 'PERCENT');
@@ -137,6 +142,39 @@ function scenarioComparisonFacts(data, base) {
     return facts;
 }
 
+// search_coils is a formal directory query.  Its record-level `cost` is the
+// registered cost for that exact coil scheme, not an invitation to re-run a
+// formula in the ledger.  Keep the source contract narrow: only the explicit
+// `cost` field is a directory cost, while unitPrice/kitPrice remain pricing
+// parameters and must not be promoted to a full current-cost assertion.
+function coilDirectoryCostFacts(data, base) {
+    if (base.tool !== 'search_coils' || !data || typeof data !== 'object') return [];
+    // Generic Brokered search_coils projects the formal list directly as an
+    // array; the raw Executor wraps the same records in { data }.  Both are
+    // canonical read-path shapes and must retain identical per-record facts.
+    const rows = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+    const facts = [];
+    for (const row of rows) {
+        const id = Number(row?.id ?? row?.Id);
+        const schemeCode = text(row?.schemeCode);
+        const schemeName = text(row?.schemeName);
+        const value = finite(row?.cost);
+        if (!Number.isSafeInteger(id) || id < 1 || !schemeCode || value === null) continue;
+        facts.push(makeFact({
+            entity: { type: 'coil', id, canonicalName: schemeCode },
+            predicate: 'coil_directory_cost', value, unit: 'CNY',
+            basis: 'FORMAL_COIL_DIRECTORY_COST', capabilityId: base.capabilityId, tool: base.tool,
+            qualifiers: {
+                moneyRole: 'CURRENT_FORMAL',
+                pricingMode: text(row?.pricingMode),
+                costField: 'cost',
+                ...(schemeName ? { schemeName } : {}),
+            },
+        }));
+    }
+    return facts;
+}
+
 function genericFormalFacts(data, base, limit = 80) {
     const facts = [];
     const visit = (value, path, depth) => {
@@ -167,6 +205,7 @@ function genericFormalFacts(data, base, limit = 80) {
 function createFactLedger(options = {}) {
     const includeScenarioComparisonFacts = options.includeScenarioComparisonFacts === true;
     const includeRecipeComparisonFacts = options.includeRecipeComparisonFacts === true;
+    const includeCoilDirectoryCostFacts = options.includeCoilDirectoryCostFacts === true;
     const facts = [];
     const observations = [];
     let sequence = 0;
@@ -200,6 +239,9 @@ function createFactLedger(options = {}) {
                 }
                 if (includeScenarioComparisonFacts) {
                     for (const fact of scenarioComparisonFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
+                }
+                if (includeCoilDirectoryCostFacts) {
+                    for (const fact of coilDirectoryCostFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 }
                 for (const fact of genericFormalFacts(data, { entity, tool, capabilityId })) added.push(append(fact));
                 if (Array.isArray(data) && data.length === 0) {
@@ -276,4 +318,4 @@ function modelProjection(result, factIds) {
         projection: { truncated, collections } };
 }
 
-module.exports = { MAX_MODEL_PROJECTION_BYTES, createFactLedger, modelProjection, recipeComparisonFacts, scenarioComparisonFacts };
+module.exports = { MAX_MODEL_PROJECTION_BYTES, coilDirectoryCostFacts, createFactLedger, modelProjection, recipeComparisonFacts, scenarioComparisonFacts };

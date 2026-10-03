@@ -123,7 +123,7 @@ test('R1-04..10: claimable facts retain entity and basis, duplicate evidence is 
         { content: JSON.stringify({ answer: '已取得正式配方当前成本。', claims: [{ text: '已取得正式配方当前成本。', factIds: ['F-001'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-001'] }] }) },
     ]);
     let finalValidations = 0;
-    const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true }, {
+    const result = await runApiNativeAgentCandidate({ ...baseInput(), finalizationEnabled: true, completionReviewEnabled: false }, {
         modelCall: model,
         executeToolCall: async () => ({ success: true, verified: true, executionEvidence: { verified: true }, data: { currentTotalCost: 100, costBasis: 'current' } }),
         validateAnswer: raw => {

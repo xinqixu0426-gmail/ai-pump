@@ -25,6 +25,7 @@ const MAX_RUNTIME_MS = 120_000;
 const MAX_CURRENT_TOOL_RESULT_CHARS = 16 * 1024;
 const MAX_HISTORICAL_TOOL_RESULT_CHARS = 900;
 const MAX_FINALIZATION_MODEL_CALLS = 2;
+const MAX_COMPLETION_REVIEWS_PER_REQUEST = 1;
 
 class CandidateAgentError extends Error {
     constructor(code, message) { super(message); this.name = 'CandidateAgentError'; this.code = code; }
@@ -71,6 +72,7 @@ function candidateSystemPrompt({ businessMemo, policyMemo, ontologyContext, apiI
         'Initially you only have load_tools and resolve_entity. Before calling an indexed business tool, load its schema with load_tools. Choose tools and order yourself; do not assume an ID, money amount, inventory, relationship, or current configuration.',
         'If a formal result is ambiguous, not found, unsupported, or incomplete, investigate safely when useful or ask for clarification. Never silently choose a candidate. Never call a write tool or claim a write happened.',
         'After every formal result, decide yourself whether more investigation is needed. A formal count can answer a count question even if item detail projection is truncated. Projection truncation is not the same as an incomplete formal business query. If a result says NO_NEW_EVIDENCE or INVESTIGATION_NO_PROGRESS, use existing evidence, choose another capability, or clarify; do not repeatedly vary arbitrary filters. Stop once formal evidence is sufficient.',
+        'Before ending investigation, compare the owner request with the formal evidence already obtained. Resolving an identity is not by itself a cost, inventory, or relationship answer. If a requested fact is already present, use it without repeating a query. If a requested fact is still missing and a loaded read/preview tool can investigate it, continue safely. If a necessary input is genuinely missing, a target remains ambiguous, or the capability is unavailable, say that specific reason. Do not guess data, silently select candidates, or write data.',
         'When ready, return JSON only: {"answer":"Chinese answer","claims":[{"text":"exact assertion in answer","factIds":["F-001"]}],"goals":[{"questionIndex":0,"status":"COMPLETED|PARTIAL|UNAVAILABLE|CLARIFICATION","factIds":["F-001"]}]}. Every factual assertion needs cited fact IDs. A clarification/unavailable answer may use an empty factIds array. Never show IDs, tool names, API paths, tokens, or internal JSON to the owner.',
         '', 'FULL BUSINESS MEMO:', businessMemo || 'No business memo was supplied.',
         '', 'FULL POLICY MEMO:', policyMemo || 'No policy memo was supplied.',
@@ -223,12 +225,13 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
     // Candidate-only projection asks the shared ledger to retain formal
     // scenario basis/delta facts. Default production callers retain their
     // existing ledger behavior unchanged.
-    const ledger = dependencies.factLedger || createFactLedger({ includeRecipeComparisonFacts: true, includeScenarioComparisonFacts: true });
+    const ledger = dependencies.factLedger || createFactLedger({ includeRecipeComparisonFacts: true, includeScenarioComparisonFacts: true, includeCoilDirectoryCostFacts: true });
     const validator = dependencies.validateAnswer || validateAnswer;
     const maxMainModelCalls = Number.isSafeInteger(input.maxMainModelCalls)
         ? Math.max(1, Math.min(input.maxMainModelCalls, MAX_MAIN_MODEL_CALLS))
         : MAX_MAIN_MODEL_CALLS;
     const finalizationEnabled = input.finalizationEnabled !== false;
+    const completionReviewEnabled = input.completionReviewEnabled !== false;
     const startedAt = Date.now();
     const messages = [
         { role: 'system', content: candidateSystemPrompt({ businessMemo: input.businessMemo, policyMemo: input.policyMemo, ontologyContext, apiIndex: apiIndexText }) },
@@ -239,9 +242,10 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
     const context = { selectedToolNames: new Set(), entityBindings: new Map(), resolvedRecipeIds: new Set(), resolvedRecipeBindings: new Map(), resolvedCoilBindings: new Map(), resolvedPartBindings: new Map(), ambiguousCoilKeys: new Set(), signal: input.signal };
     let mainModelCalls = 0; let loadToolsCalls = 0; let resolveCalls = 0; let businessToolCalls = 0;
     let secondDecisionAfterResult = false; let resultReturnedToAgent = false; let noNewEvidenceEvents = 0; let duplicateFactsAvoided = 0; let consecutiveNoNewEvidence = 0; let noProgressEvents = 0;
+    let completionReviewCalls = 0; let completionReviewResumed = 0; const stoppingReasons = [];
 
     function metrics() {
-        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, loadedToolNames: session.loadedToolNames(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
+        return Object.freeze({ mainModelCalls, loadToolsCalls, resolveCalls, businessToolCalls, noNewEvidenceEvents, duplicateFactsAvoided, noProgressEvents, completionReviewCalls, completionReviewResumed, stoppingReasons: [...stoppingReasons], loadedToolNames: session.loadedToolNames(), apiIndexFingerprint: apiIndex.fingerprint, loadedSchemaFingerprint: session.snapshot().schemaFingerprint });
     }
     function appendToolMessage(call, result, appendFacts = true) {
         let factIds = [];
@@ -258,7 +262,9 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         if (noProgress) noProgressEvents += 1;
         const projection = appendFacts ? { ...candidateToolProjection(result, factIds), ...(noNewEvidence ? { control: { code: noProgress ? 'INVESTIGATION_NO_PROGRESS' : 'NO_NEW_EVIDENCE', message: noProgress ? '连续正式查询未增加业务证据；请使用已有证据、换能力或澄清，不要继续重复同一路径。' : '本次正式结果没有增加新的业务证据；请使用已有证据、换能力或澄清。' } } : {}) } : { controlPlane: true, success: result.success, code: result.code || null, loadedToolNames: result.loadedToolNames || [], newlyLoadedToolNames: result.newlyLoadedToolNames || [] };
         messages.push({ role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify(projection) });
-        toolResults.push(result); traces.push({ name: call.name, success: result.success === true, code: result.code || null, factIds, noNewEvidence, controlPlane: appendFacts === false });
+        toolResults.push(result); traces.push({ name: call.name, argKeys: Object.keys(call.args || {}).sort(), success: result.success === true, verified: result.verified === true,
+            code: result.code || null, factIds, noNewEvidence, controlPlane: appendFacts === false,
+            ...(appendFacts ? { businessExecution: result.success === true && result.verified === true } : {}) });
         resultReturnedToAgent = true;
     }
     function complete(content, fallbackStatus) {
@@ -307,6 +313,18 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
         mainModelCalls += 1;
         const calls = toolCallsFrom(message);
         if (calls.length === 0) {
+            // A no-tool response is a candidate answer, not proof that every
+            // requested business outcome is complete.  The same conversation
+            // gets one bounded, tool-capable review; it is deliberately not a
+            // router and carries no case/tool-specific instruction.
+            if (completionReviewEnabled && finalizationEnabled && completionReviewCalls < MAX_COMPLETION_REVIEWS_PER_REQUEST && turn + 1 < maxMainModelCalls) {
+                completionReviewCalls += 1;
+                stoppingReasons.push('MODEL_READY_TO_ANSWER');
+                messages.push({ role: 'assistant', content: String(message.content || '') });
+                messages.push({ role: 'system', content: 'COMPLETION REVIEW: Recheck the owner\'s original request against the formal evidence already obtained. Identity alone is not a requested cost, inventory, or relationship result. If all requested facts are already supported, return the final JSON answer now without extra calls. If a requested fact is missing and an available read/preview capability can investigate it, continue with tools. If necessary input is missing, a target is ambiguous, or capability is unavailable, state that exact reason. Do not guess, silently choose, or write.' });
+                continue;
+            }
+            stoppingReasons.push(completionReviewCalls ? 'COMPLETION_REVIEW_CONFIRMED' : 'MODEL_READY_TO_ANSWER');
             if (finalizationEnabled) return finalize(message.content, 'UNAVAILABLE');
             const completed = complete(message.content, 'UNAVAILABLE');
             // This is a generic answer-envelope repair, not task routing: the
@@ -318,6 +336,10 @@ async function runApiNativeAgentCandidate(input = {}, dependencies = {}) {
                 continue;
             }
             return completed;
+        }
+        if (completionReviewCalls > 0) {
+            completionReviewResumed += 1;
+            stoppingReasons.push('COMPLETION_REVIEW_RESUMED');
         }
         messages.push(assistantToolMessage(message, calls));
         for (const rawCall of calls) {
