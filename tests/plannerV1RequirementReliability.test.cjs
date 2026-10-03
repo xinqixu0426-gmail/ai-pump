@@ -14,8 +14,10 @@ const { UPSTREAM_FIXTURES: U } = require('../scripts/ai-experiments/planner-v1/f
 
 const catalog = createPlannerCapabilityCatalogSnapshot();
 function context(upstream, rawOwnerInput = 'V750通用款加浮球以后多少钱？') { return { rawOwnerInput, ...upstream, capabilityCatalog: catalog }; }
+function provenanceContext(upstream, rawOwnerInput) { return { ...context(upstream, rawOwnerInput), goalProvenanceRequired: true }; }
 function parsed(lines) { return parseRequirementMemo(lines.join('\n')); }
 function normalized(lines, upstream, rawOwnerInput) { return normalizeRequirementStatus({ requirement: parsed(lines), context: context(upstream, rawOwnerInput) }); }
+function provenanceNormalized(lines, upstream, rawOwnerInput) { return normalizeRequirementStatus({ requirement: parsed(lines), context: provenanceContext(upstream, rawOwnerInput) }); }
 function memo({ status = 'READY', fact = 'SCENARIO_COST', target = 'V750通用款', override = '加浮球 | FLOAT', write = 'NO' } = {}) { return [`REQUIREMENT_STATUS: ${status}`, 'OWNER_GOAL: 场景成本', `TARGET: ${target}`, `GOAL_FACT: ${fact}`, 'SELECTION_REQUIREMENT: NONE', `SCENARIO_OVERRIDE: ${override}`, `WRITE_REQUIRED: ${write}`].join('\n'); }
 
 test('RN-01 to RN-04 normalize Requirement status only from frozen upstream evidence', () => {
@@ -159,4 +161,81 @@ test('OP-06 to OP-12 retry only invalid override provenance and remains bounded'
         return multiValid;
     } });
     assert.equal(multiValidCalls, 1);
+});
+
+test('GP-01 to GP-07 validate terminal Goal Fact provenance without deleting legitimate multi-goals', () => {
+    const owner = 'V750通用款做电泳成本增加多少？';
+    const costDifference = provenanceNormalized([
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款',
+        'GOAL_FACT: COST_DIFFERENCE | OWNER_SPAN=成本增加多少', 'SELECTION_REQUIREMENT: NONE',
+        'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO',
+    ], U.V750_GENERIC_QUALIFIED, owner);
+    assert.equal(validateRequirementMemo({ requirement: costDifference.requirement, context: provenanceContext(U.V750_GENERIC_QUALIFIED, owner) }).validationStatus, 'VALID');
+    const currentCost = provenanceNormalized([
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款',
+        'GOAL_FACT: CURRENT_COST | OWNER_SPAN=成本增加多少', 'SELECTION_REQUIREMENT: NONE',
+        'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO',
+    ], U.V750_GENERIC_QUALIFIED, owner);
+    assert.ok(validateRequirementMemo({ requirement: currentCost.requirement, context: provenanceContext(U.V750_GENERIC_QUALIFIED, owner) }).violations.some(item => item.code === 'REQUIREMENT_GOAL_FACT_PROVENANCE_UNSUPPORTED'));
+    const relation = provenanceNormalized([
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款',
+        'GOAL_FACT: RELATION | OWNER_SPAN=成本增加多少', 'SELECTION_REQUIREMENT: NONE',
+        'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO',
+    ], U.V750_GENERIC_QUALIFIED, owner);
+    assert.ok(validateRequirementMemo({ requirement: relation.requirement, context: provenanceContext(U.V750_GENERIC_QUALIFIED, owner) }).violations.some(item => item.code === 'REQUIREMENT_GOAL_FACT_PROVENANCE_UNSUPPORTED'));
+    const multiOwner = '查一下V750通用款现在用哪个线圈，再告诉我当前成本。';
+    const multiGoal = provenanceNormalized([
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 两项读取', 'TARGET: V750通用款',
+        'GOAL_FACT: RELATION | OWNER_SPAN=现在用哪个线圈', 'GOAL_FACT: CURRENT_COST | OWNER_SPAN=当前成本',
+        'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO',
+    ], U.V750_GENERIC_QUALIFIED, multiOwner);
+    assert.equal(validateRequirementMemo({ requirement: multiGoal.requirement, context: provenanceContext(U.V750_GENERIC_QUALIFIED, multiOwner) }).validationStatus, 'VALID');
+    const missingGoal = evaluateRequirement({ requirement: { facts: ['RELATION', 'CURRENT_COST'] } }, { requirement: Object.freeze({ ...multiGoal.requirement, goalFacts: Object.freeze(['CURRENT_COST']) }), requirementValidation: validateRequirementMemo({ requirement: multiGoal.requirement, context: provenanceContext(U.V750_GENERIC_QUALIFIED, multiOwner) }), context: provenanceContext(U.V750_GENERIC_QUALIFIED, multiOwner) });
+    assert.ok(missingGoal.failures.includes('REQUIREMENT_GOAL_FACT_MISSING:RELATION'));
+});
+
+test('GP-08 to GP-13 normalize redundant selection and dedupe only identical frozen identities', () => {
+    const exact = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: V750通用款', 'GOAL_FACT: CURRENT_COST', 'SELECTION_REQUIREMENT: SINGLE_TARGET_REQUIRED', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED);
+    assert.equal(exact.requirement.selectionRequirement, 'NONE');
+    const qualified = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: V750通用款', 'GOAL_FACT: CURRENT_COST', 'SELECTION_REQUIREMENT: SINGLE_TARGET_REQUIRED', 'WRITE_REQUIRED: NO'], U.QUALIFIED_STYLES);
+    assert.equal(qualified.requirement.selectionRequirement, 'NONE');
+    const multipleCost = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: V750', 'GOAL_FACT: CURRENT_COST', 'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO'], U.V750_GENERIC);
+    assert.equal(multipleCost.requirement.selectionRequirement, 'SINGLE_TARGET_REQUIRED');
+    const multipleSet = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: 12-120', 'GOAL_FACT: CANDIDATE_SET', 'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO'], U.COIL_GENERIC);
+    assert.equal(multipleSet.requirement.selectionRequirement, 'WHOLE_SET');
+    const duplicate = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: V750通用款', 'TARGET: V750-通用款', 'GOAL_FACT: CURRENT_COST', 'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO'], U.V750_GENERIC_QUALIFIED);
+    assert.equal(duplicate.requirement.targets.length, 1);
+    assert.equal(duplicate.targetDeduplications, 1);
+    const pairUpstream = Object.freeze({ ...U.V750_GENERIC_QUALIFIED, finalGroundedTargets: Object.freeze([...U.V750_GENERIC_QUALIFIED.finalGroundedTargets, ...U.V110.finalGroundedTargets]) });
+    const pair = normalized(['REQUIREMENT_STATUS: READY', 'OWNER_GOAL: x', 'TARGET: V750通用款', 'TARGET: V110', 'GOAL_FACT: COST_DIFFERENCE', 'SELECTION_REQUIREMENT: NONE', 'WRITE_REQUIRED: NO'], pairUpstream);
+    assert.equal(pair.requirement.targets.length, 2);
+});
+
+test('GP-14 to GP-17 retry exactly once for Goal Fact overexpansion and retains a minimal valid terminal goal', async () => {
+    const owner = 'V750通用款做电泳成本增加多少？';
+    const first = [
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款',
+        'GOAL_FACT: COST_DIFFERENCE | OWNER_SPAN=成本增加多少', 'GOAL_FACT: CURRENT_COST | OWNER_SPAN=成本增加多少',
+        'GOAL_FACT: RELATION | OWNER_SPAN=成本增加多少', 'SELECTION_REQUIREMENT: SINGLE_TARGET_REQUIRED',
+        'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO',
+    ].join('\n');
+    const recovered = [
+        'REQUIREMENT_STATUS: READY', 'OWNER_GOAL: 比较成本', 'TARGET: V750通用款',
+        'GOAL_FACT: COST_DIFFERENCE | OWNER_SPAN=成本增加多少', 'SELECTION_REQUIREMENT: NONE',
+        'SCENARIO_OVERRIDE: 做电泳 | SURFACE_TREATMENT', 'WRITE_REQUIRED: NO',
+    ].join('\n');
+    let calls = 0;
+    const output = await runPlannerPipeline({ rawOwnerInput: owner, upstream: Object.freeze({ ...U.V750_GENERIC_QUALIFIED, goalProvenanceRequired: true }), capabilityCatalog: catalog }, { runRequirementPlannerAgent: async (_input, dependencies) => {
+        calls += 1;
+        return dependencies.retryAddendum ? recovered : first;
+    } });
+    assert.equal(calls, 2);
+    assert.ok(output.requirementRetry.reasons.includes('GOAL_FACT_OVEREXPANDED'));
+    assert.equal(output.requirementValidation.validationStatus, 'VALID');
+    assert.deepEqual(output.requirement.goalFacts, ['COST_DIFFERENCE']);
+    assert.equal(output.requirement.selectionRequirement, 'NONE');
+    assert.equal(output.requirement.targets.length, 1);
+    const exhausted = await runPlannerPipeline({ rawOwnerInput: owner, upstream: Object.freeze({ ...U.V750_GENERIC_QUALIFIED, goalProvenanceRequired: true }), capabilityCatalog: catalog }, { runRequirementPlannerAgent: async () => first });
+    assert.equal(exhausted.requirementAttempts.length, 2);
+    assert.ok(exhausted.requirementRetry.exhaustedReasons.includes('GOAL_FACT_OVEREXPANDED'));
 });

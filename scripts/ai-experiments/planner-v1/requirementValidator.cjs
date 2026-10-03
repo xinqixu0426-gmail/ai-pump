@@ -1,6 +1,7 @@
 'use strict';
 
 const { GOAL_FACT_CLASSES, SELECTION_REQUIREMENTS, SCENARIO_CLASSES } = require('./requirementMemo.cjs');
+const { validateTerminalGoalProvenance } = require('./terminalGoalProvenance.cjs');
 
 function normalized(value) { return String(value || '').normalize('NFKC').replace(/[\s，。！？、:：;；,.!?（）()\-－–—]/gu, '').toLowerCase(); }
 function contains(value, term) { return normalized(value).includes(normalized(term)); }
@@ -17,6 +18,12 @@ function validateRequirementMemo({ requirement, context }) {
     if (!requirement.ownerGoal) add(violations, 'REQUIREMENT_OWNER_GOAL_MISSING');
     if (!SELECTION_REQUIREMENTS.has(requirement.selectionRequirement)) add(violations, 'REQUIREMENT_SELECTION_INVALID');
     for (const fact of requirement.goalFacts) if (!GOAL_FACT_CLASSES.has(fact)) add(violations, 'REQUIREMENT_GOAL_FACT_INVALID', fact);
+    if (context.goalProvenanceRequired) for (const fact of requirement.goalFacts) {
+        const provenance = (requirement.goalFactProvenance || []).find(item => item.factClass === fact);
+        if (!provenance?.ownerSpan) { add(violations, 'REQUIREMENT_GOAL_FACT_OWNER_SPAN_MISSING', fact); continue; }
+        const terminal = validateTerminalGoalProvenance({ rawOwnerInput: context.rawOwnerInput, factClass: fact, ownerSpan: provenance.ownerSpan, businessMemo: context.businessMemo, scenarioContext: requirement.scenarioOverrides });
+        if (terminal.status !== 'SUPPORTED') add(violations, 'REQUIREMENT_GOAL_FACT_PROVENANCE_UNSUPPORTED', `${fact}:${terminal.reason}`);
+    }
     for (const override of requirement.scenarioOverrides) {
         if (!SCENARIO_CLASSES.has(override.scenarioClass)) add(violations, 'REQUIREMENT_SCENARIO_CLASS_INVALID', override.scenarioClass);
         if (!contains(context.rawOwnerInput, override.expression)) add(violations, 'REQUIREMENT_OVERRIDE_NOT_IN_OWNER_WORDING', override.expression);

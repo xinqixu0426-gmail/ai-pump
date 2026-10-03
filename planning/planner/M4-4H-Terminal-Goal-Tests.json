@@ -1,0 +1,93 @@
+{
+  "phase": "M4-4H",
+  "suite": "terminal-goal-provenance-and-minimality",
+  "passed": 17,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "GP-01",
+      "pass": true,
+      "finding": "COST_DIFFERENCE has an exact terminal owner span"
+    },
+    {
+      "id": "GP-02",
+      "pass": true,
+      "finding": "comparison wording cannot support CURRENT_COST as an independent terminal goal"
+    },
+    {
+      "id": "GP-03",
+      "pass": true,
+      "finding": "relation without relationship wording is overexpanded"
+    },
+    {
+      "id": "GP-04",
+      "pass": true,
+      "finding": "explicit CURRENT_COST owner span is valid"
+    },
+    {
+      "id": "GP-05",
+      "pass": true,
+      "finding": "explicit relation owner span is retained"
+    },
+    {
+      "id": "GP-06",
+      "pass": true,
+      "finding": "two explicit owner terminal goals stay distinct"
+    },
+    {
+      "id": "GP-07",
+      "pass": true,
+      "finding": "provenance validation does not infer or add a dropped multi-goal"
+    },
+    {
+      "id": "GP-08",
+      "pass": true,
+      "finding": "EXACT grounding normalizes redundant single-target selection"
+    },
+    {
+      "id": "GP-09",
+      "pass": true,
+      "finding": "qualified target set is not unresolved ambiguity"
+    },
+    {
+      "id": "GP-10",
+      "pass": true,
+      "finding": "candidate-specific fact over unresolved MULTIPLE requires a selection"
+    },
+    {
+      "id": "GP-11",
+      "pass": true,
+      "finding": "candidate-set goal over MULTIPLE consumes the whole set"
+    },
+    {
+      "id": "GP-12",
+      "pass": true,
+      "finding": "mention and canonical name of the same frozen target dedupe"
+    },
+    {
+      "id": "GP-13",
+      "pass": true,
+      "finding": "two different formal identities do not dedupe"
+    },
+    {
+      "id": "GP-14",
+      "pass": true,
+      "finding": "overexpanded goal fact triggers exactly one retry"
+    },
+    {
+      "id": "GP-15",
+      "pass": true,
+      "finding": "retry retains only a minimal valid terminal goal"
+    },
+    {
+      "id": "GP-16",
+      "pass": true,
+      "finding": "persistent overexpansion remains a failure"
+    },
+    {
+      "id": "GP-17",
+      "pass": true,
+      "finding": "goal-minimality retry is bounded to two attempts"
+    }
+  ]
+}

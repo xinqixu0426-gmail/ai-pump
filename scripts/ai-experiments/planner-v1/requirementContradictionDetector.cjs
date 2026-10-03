@@ -37,6 +37,11 @@ function detectOverrideProvenanceInvalid({ requirement, validation }) {
     return provenanceInvalid && scenarioClassesValid && targetsFromGrounding;
 }
 
+function detectGoalOverexpansion({ requirement: _requirement, validation, context }) {
+    if (!context.goalProvenanceRequired) return false;
+    return (validation?.violations || []).some(violation => ['REQUIREMENT_GOAL_FACT_OWNER_SPAN_MISSING', 'REQUIREMENT_GOAL_FACT_PROVENANCE_UNSUPPORTED'].includes(violation.code));
+}
+
 function detectRequirementContradiction({ requirement, context, validation = null }) {
     const reasons = [];
     const hasScenario = requirement.scenarioOverrides.length > 0;
@@ -46,6 +51,7 @@ function detectRequirementContradiction({ requirement, context, validation = nul
     if (hasScenario && requirement.scenarioOverrides.some(override => override.scenarioClass === 'OTHER' && businessMemoHasClassificationEvidence(override, context.businessMemo))) reasons.push('SCENARIO_CLASS_UNDERCLASSIFIED');
     if (detectComparisonBasisMissing({ requirement, context })) reasons.push('COMPARISON_BASIS_MISSING');
     if (detectOverrideProvenanceInvalid({ requirement, validation })) reasons.push('OVERRIDE_PROVENANCE_INVALID');
+    if (detectGoalOverexpansion({ requirement, validation, context })) reasons.push('GOAL_FACT_OVEREXPANDED');
     return Object.freeze({ detected: reasons.length > 0, reasons: Object.freeze(reasons) });
 }
 
@@ -55,7 +61,8 @@ function retryAddendum(reasons) {
     if (reasons.includes('SCENARIO_CLASS_UNDERCLASSIFIED')) instructions.push('上一轮 scenario class 使用 OTHER，但 Business Memo 对该配置提供了可归类的业务含义。请只根据 Business Memo 和老板原话重新检查 scenario class。不要判断 capability 是否支持。');
     if (reasons.includes('COMPARISON_BASIS_MISSING')) instructions.push('上一轮 Requirement 要求比较/差异结果，但没有保留形成比较所需的第二个正式目标或老板明确提出的场景变化。请重新检查老板原话中用于形成比较的变化条件或第二个对象。不要改变 frozen Grounded Target，不要判断 capability 是否支持，也不要发明正式对象。');
     if (reasons.includes('OVERRIDE_PROVENANCE_INVALID')) instructions.push('上一轮场景变化表达不是老板原话中的实际连续文字片段。请重新检查老板原话，并只使用老板实际说过的连续文字片段填写 SCENARIO_OVERRIDE。不要改写、补词、同义转述或扩大含义。不要改变 frozen Grounded Target；除非其它字段本身存在独立错误，否则保持 Goal Fact、Scenario Class、Selection Requirement 和 Write Requirement 的原语义。');
+    if (reasons.includes('GOAL_FACT_OVEREXPANDED')) instructions.push('上一轮 Requirement 中包含老板没有明确要求作为最终结果的额外 Goal Fact。请重新检查老板原话，只保留老板明确要求得到的终点业务事实。执行过程中可能需要的中间事实、Capability可能顺带返回的事实，不要作为 GOAL_FACT。每个 GOAL_FACT 必须对应老板原话中的实际连续文字片段。不要改变 frozen Grounded Target，不要判断 capability。');
     return instructions.join('\n');
 }
 
-module.exports = { detectRequirementContradiction, detectComparisonBasisMissing, detectOverrideProvenanceInvalid, retryAddendum };
+module.exports = { detectRequirementContradiction, detectComparisonBasisMissing, detectOverrideProvenanceInvalid, detectGoalOverexpansion, retryAddendum };

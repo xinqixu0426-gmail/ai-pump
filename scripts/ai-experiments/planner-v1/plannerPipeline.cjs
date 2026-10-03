@@ -44,6 +44,12 @@ async function runPlannerPipeline({ rawOwnerInput, upstream, capabilityCatalog }
         effectiveStatus: attempt.normalized.effectiveStatus,
         statusSource: attempt.normalized.statusSource,
         statusNormalized: attempt.normalized.statusNormalized,
+        rawSelectionRequirement: attempt.normalized.rawSelectionRequirement,
+        effectiveSelectionRequirement: attempt.normalized.effectiveSelectionRequirement,
+        selectionNormalized: attempt.normalized.selectionNormalized,
+        rawTargetCount: attempt.normalized.requirement.rawTargets?.length || 0,
+        effectiveTargetCount: attempt.normalized.requirement.targets.length,
+        targetDeduplications: attempt.normalized.targetDeduplications,
         validation: attempt.validation,
         plannerMs: attempt.plannerMs,
     })));

@@ -10,7 +10,7 @@ function isNone(value) { return ['NONE', '无', '没有', '无需求'].includes(
 
 function parseRequirementMemo(memo) {
     const result = {
-        raw: String(memo || ''), status: null, ownerGoal: null, targets: [], goalFacts: [], scenarioOverrides: [],
+        raw: String(memo || ''), status: null, ownerGoal: null, targets: [], goalFacts: [], goalFactProvenance: [], scenarioOverrides: [],
         writeRequired: null, selectionRequirement: 'NONE', malformedLines: [], ignoredWarnings: [],
     };
     let ignoredEchoSection = false;
@@ -25,7 +25,15 @@ function parseRequirementMemo(memo) {
         const target = valueAfter('TARGET:', line);
         if (target !== null) { if (!isNone(target)) result.targets.push(target); ignoredEchoSection = false; continue; }
         const goalFact = valueAfter('GOAL_FACT:', line);
-        if (goalFact !== null) { if (!isNone(goalFact)) result.goalFacts.push(goalFact); ignoredEchoSection = false; continue; }
+        if (goalFact !== null) {
+            if (!isNone(goalFact)) {
+                const [factClass, ownerSpanValue] = goalFact.split('|').map(value => value.trim());
+                const ownerSpan = ownerSpanValue?.startsWith('OWNER_SPAN=') ? ownerSpanValue.slice('OWNER_SPAN='.length).trim() : ownerSpanValue || null;
+                result.goalFacts.push(factClass);
+                result.goalFactProvenance.push(Object.freeze({ factClass, ownerSpan }));
+            }
+            ignoredEchoSection = false; continue;
+        }
         const selection = valueAfter('SELECTION_REQUIREMENT:', line);
         if (selection !== null) { result.selectionRequirement = selection; ignoredEchoSection = false; continue; }
         const override = valueAfter('SCENARIO_OVERRIDE:', line);
@@ -46,7 +54,7 @@ function parseRequirementMemo(memo) {
     // READY requirement, where it remains a real (and deliberately weak)
     // semantic class for later review.
     if (['NO_FORMAL_FACT_REQUIRED', 'UNRESOLVED_GROUNDING'].includes(result.status) && result.goalFacts.every(value => value === 'OTHER')) result.goalFacts = [];
-    return Object.freeze({ ...result, targets: Object.freeze(result.targets), goalFacts: Object.freeze(result.goalFacts), scenarioOverrides: Object.freeze(result.scenarioOverrides), malformedLines: Object.freeze(result.malformedLines), ignoredWarnings: Object.freeze([...new Set(result.ignoredWarnings)]) });
+    return Object.freeze({ ...result, targets: Object.freeze(result.targets), goalFacts: Object.freeze(result.goalFacts), goalFactProvenance: Object.freeze(result.goalFactProvenance), scenarioOverrides: Object.freeze(result.scenarioOverrides), malformedLines: Object.freeze(result.malformedLines), ignoredWarnings: Object.freeze([...new Set(result.ignoredWarnings)]) });
 }
 
 module.exports = { REQUIREMENT_STATUSES, GOAL_FACT_CLASSES, SELECTION_REQUIREMENTS, SCENARIO_CLASSES, parseRequirementMemo };

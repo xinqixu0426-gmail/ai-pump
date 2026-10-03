@@ -11,6 +11,7 @@ function buildPlannerContext({ rawOwnerInput, upstream, capabilityCatalog }) {
         finalGroundedTargets: upstream.finalGroundedTargets || Object.freeze([]),
         groundingAmbiguity: upstream.groundingAmbiguity || 'NONE',
         candidateSetComplete: upstream.candidateSetComplete || 'UNKNOWN',
+        goalProvenanceRequired: upstream.goalProvenanceRequired === true,
         capabilityCatalog,
     };
     return Object.freeze({ ...context, admission: buildPlannerAdmission({ rawOwnerInput, upstream }) });
