@@ -1,0 +1,12 @@
+{
+  "phase": "M4-4K",
+  "command": "node --test tests/plannerV1FullContext.test.cjs",
+  "result": "PASS",
+  "nodeTestGroups": { "pass": 4, "fail": 0 },
+  "requiredAssertionIds": ["FC-01", "FC-02", "FC-03", "FC-04", "FC-05", "FC-06", "FC-07", "FC-08", "FC-09", "FC-10", "FC-11"],
+  "requiredAssertionsPassed": 11,
+  "requiredAssertionsFailed": 0,
+  "additionalChecks": ["official GET catalog builder calls all four formal endpoints", "explicit save is not misread as no-save from negated Policy wording", "EXPLAIN + COST is rejected", "an existing ID absent from owner wording is rejected"],
+  "modelCalls": 0,
+  "writeExecutions": 0
+}

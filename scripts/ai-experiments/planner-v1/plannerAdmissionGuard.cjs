@@ -2,7 +2,7 @@
 
 function hasMultiple(targets) { return (targets || []).some(target => target.status === 'MULTIPLE' || target.status === 'MULTIPLE_TYPE'); }
 function hasExactOrQualified(targets) { return (targets || []).some(target => ['EXACT', 'QUALIFIED_EXACT', 'QUALIFIED_SET'].includes(target.status)); }
-function explicitNoSave(rawOwnerInput, policyMemo) { return /不保存|先算一下|仅预览|临时试算/u.test(`${rawOwnerInput || ''}\n${policyMemo || ''}`); }
+function explicitNoSave(rawOwnerInput) { return /不保存|先算一下|仅预览|临时试算/u.test(String(rawOwnerInput || '')); }
 
 function buildPlannerAdmission({ rawOwnerInput, upstream }) {
     const targets = upstream.finalGroundedTargets || [];
@@ -14,7 +14,7 @@ function buildPlannerAdmission({ rawOwnerInput, upstream }) {
         exactOrQualified,
         multiple,
         candidateSetComplete: multiple ? (upstream.candidateSetComplete || 'UNKNOWN') : 'NO',
-        explicitNoSave: explicitNoSave(rawOwnerInput, upstream.policyMemo),
+        explicitNoSave: explicitNoSave(rawOwnerInput),
         allowedStatuses: Object.freeze(unresolved ? ['BLOCKED_GROUNDING'] : multiple ? ['READY', 'NO_TOOL_REQUIRED', 'BLOCKED_AMBIGUITY', 'BLOCKED_CAPABILITY', 'BLOCKED_POLICY'] : ['READY', 'NO_TOOL_REQUIRED', 'BLOCKED_CAPABILITY', 'BLOCKED_POLICY']),
     });
 }

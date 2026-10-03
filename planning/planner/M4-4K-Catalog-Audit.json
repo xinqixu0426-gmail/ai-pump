@@ -1,0 +1,42 @@
+{
+  "phase": "M4-4K",
+  "auditConclusion": "Current local authenticated GET catalog unavailable; same-26 planner smoke uses clearly labeled frozen fixture catalog, not current formal production data.",
+  "officialReadRoutes": {
+    "recipes": "/api/recipes",
+    "coils": "/api/coils",
+    "templates": "/api/templates",
+    "parts": "/api/parts"
+  },
+  "routeImplementations": {
+    "recipes": "api/routes/recipes.cjs -> recipeQueries.getAllRecipes",
+    "coils": "api/routes/coils.cjs -> coilQueries.getAllCoils",
+    "templates": "api/routes/templates.cjs -> templateQueries.getAllTemplates",
+    "parts": "api/routes/parts.cjs -> partQueries.listParts"
+  },
+  "officialApiAccess": {
+    "localhostPort": 3002,
+    "unauthenticatedGetStatus": 401,
+    "existingLocalEnvPasswordLoginStatus": 401,
+    "credentialsPersisted": false,
+    "snapshotObtained": false
+  },
+  "readOnlyLocalDiagnostic": {
+    "source": "pump.db; better-sqlite3 readonly=true and PRAGMA query_only=ON; diagnostic only, never the planner catalog source",
+    "records": { "recipes": 2, "coils": 14, "templates": 1, "parts": 89 },
+    "projectedIdentityAndCostFieldChars": 6965,
+    "durableDatabaseWrites": 0,
+    "frozenCorpusIdentityMatch": false,
+    "mismatchExamples": ["Current local Recipes contain V750 classic and V550 classic, not V750-通用款 and V110-通用款", "Current local Coils do not contain 12-120-A / 12-120-B formal scheme codes"]
+  },
+  "smokeCatalog": {
+    "sourceMode": "FROZEN_GROUNDING_FIXTURE",
+    "sourcePath": "scripts/ai-experiments/planner-v1/frozenUpstreamFixture.cjs",
+    "records": { "recipes": 3, "coils": 3, "templates": 1, "parts": 0 },
+    "serializedChars": 1135,
+    "estimatedTokens": 284,
+    "currentFormalBusinessCatalog": false
+  },
+  "builder": "scripts/ai-experiments/planner-v1/fullContextCatalog.cjs:buildPlannerCatalogSnapshot",
+  "builderInput": "authenticated read-only GET JSON callback for the four formal endpoints",
+  "remainingNeed": "A matching authenticated test catalog/API environment is required to validate the proposed architecture against real formal catalog data."
+}
