@@ -1,0 +1,106 @@
+{
+  "phase": "M5-D1-R5A",
+  "runId": "r5a-rotor-process-contract-2026-10-04",
+  "canonicalField": "rotorProcessMode",
+  "allowedValues": [
+    "standard_45_steel",
+    "stainless_shaft_joint"
+  ],
+  "baselineRule": {
+    "unconfiguredRecipe": "standard_45_steel",
+    "legacyBooleanCompatibility": "hasStainlessShaftJoint=true maps to stainless_shaft_joint only when already present in an in-memory legacy recipe shape",
+    "persistentScope": "none; Recipe Scenario Preview only"
+  },
+  "inputContract": {
+    "tool": "compare_recipe_scenarios",
+    "route": "POST /api/recipes/:id/scenario-compare-preview",
+    "path": "scenarios[].overrides.rotorProcessMode",
+    "rejectsClientPrice": true,
+    "unknownModeCode": "SCENARIO_COMPARE_INVALID_INPUT",
+    "settingMissingCode": "ROTOR_PROCESS_COST_UNAVAILABLE",
+    "settingInvalidCode": "STAINLESS_SHAFT_JOINT_COST_INVALID"
+  },
+  "normalizationAndApplication": {
+    "normalizer": "recipeScenarioComparison.normalizeOverrides",
+    "scenarioAdapter": "recipeScenarioComparison.makeScenarioRecipe",
+    "appliedOverrideField": "appliedOverrides.rotorProcessMode",
+    "notSilentlyDropped": true,
+    "readSetIncludesSetting": "system_settings.stainless_shaft_joint_default_cost when stainless_shaft_joint is present"
+  },
+  "costEngine": {
+    "resolver": "rotorShaftJoint.resolveRotorProcessMode",
+    "formalSettingResolver": "rotorShaftJoint.defaultStainlessShaftJointCost",
+    "bomLine": {
+      "costRole": "rotorProcess",
+      "costSource": "process",
+      "inventoryType": "none",
+      "processCode": "stainless_friction_weld"
+    },
+    "calculation": "costEngine.calculateRecipeCost consumes the generated formal process BOM line; no Scenario service arithmetic is used",
+    "output": "scenarios[].cost.rotorProcess plus comparisons[].delta"
+  },
+  "endToEndTrace": {
+    "ownerBusinessMeaning": "不锈钢接轴 is Rotor Process, not a normal Part replacement",
+    "toolOverride": {
+      "rotorProcessMode": "stainless_shaft_joint"
+    },
+    "normalizedOverride": {
+      "rotorProcessMode": "stainless_shaft_joint"
+    },
+    "formalAppliedOverride": {
+      "rotorProcessMode": "stainless_shaft_joint"
+    },
+    "scenarioStatus": "APPLIED",
+    "comparisonStatus": "COMPARABLE",
+    "factRoles": [
+      "CURRENT_BASE",
+      "SCENARIO_CANDIDATE",
+      "SCENARIO_DIFFERENCE"
+    ],
+    "writeExecution": false
+  },
+  "targetedCandidateRuns": {
+    "fixture": "isolated temporary SQLite + real Express routes + real Executor",
+    "D1-07": {
+      "requestedRuns": 3,
+      "semanticPass": 3,
+      "formalApplication": "APPLIED",
+      "formalComparison": "COMPARABLE",
+      "appliedField": "rotorProcessMode",
+      "fixtureFormalResultCny": {
+        "base": 224,
+        "candidate": 230,
+        "delta": 6
+      }
+    },
+    "D1-06Protection": {
+      "requestedRuns": 2,
+      "semanticPass": 2
+    },
+    "D1-08Protection": {
+      "requestedRuns": 2,
+      "semanticPass": 2
+    },
+    "additionalObservedD1-06Diagnostic": {
+      "semanticPass": false,
+      "outcome": "safe UNAVAILABLE after the model did not load compare_recipe_scenarios",
+      "writeExecution": false,
+      "includedInRequestedProtectionSample": false
+    }
+  },
+  "metadata": {
+    "formalCapability": "recipes.scenario_compare_preview",
+    "apiIndexExposureCount": {
+      "before": 31,
+      "after": 31
+    },
+    "apiIndexFingerprint": {
+      "before": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+      "after": "734be7888b47f19baf76b5f55282d408e2416eec0b2924c3a91b90d197473f18"
+    },
+    "scenarioFlowSchemaFingerprint": {
+      "before": "d04c600eefd87d882b27b4858274b02ccd40fa915059c78585059abc0c82133b",
+      "after": "05d052d38c8a419a9f38bb8cf97a744656cec84777f24ed87b78cbb7512c6a12"
+    }
+  }
+}

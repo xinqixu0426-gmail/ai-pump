@@ -21,6 +21,7 @@ const CONFIGURATION_POLICY_FIELD_TYPES = Object.freeze({
     coilMaterial: 'string',
     coilSlotType: 'coilSlotType',
     customBarrelLength: 'number',
+    rotorProcessMode: 'rotorProcessMode',
 });
 const SURFACE_TREATMENT_MODES = new Set([
     'none',
@@ -32,6 +33,7 @@ const SURFACE_TREATMENT_MODES = new Set([
 ]);
 const ACCESSORY_TYPES = new Set(['standard', 'xinjie']);
 const COIL_SLOT_TYPES = new Set(['小眼', '国标眼']);
+const ROTOR_PROCESS_MODES = new Set(['standard_45_steel', 'stainless_shaft_joint']);
 const MAX_ALLOWED_VALUES = 100;
 
 function policyError(code, message, statusCode = 400, details) {
@@ -74,6 +76,9 @@ function normalizeFieldValue(value, type, field) {
     }
     if (type === 'coilSlotType' && !COIL_SLOT_TYPES.has(text)) {
         throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field} 不是支持的槽眼类型`);
+    }
+    if (type === 'rotorProcessMode' && !ROTOR_PROCESS_MODES.has(text)) {
+        throw policyError('RECIPE_CONFIGURATION_POLICY_INVALID', `${field} 不是支持的转子工艺`);
     }
     return text;
 }

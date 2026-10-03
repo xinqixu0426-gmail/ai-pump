@@ -1,6 +1,11 @@
 const { roundMoney } = require('./costEngine.cjs');
 const { calculateCoilCost } = require('./coilCost.cjs');
 const { currentSavedParts, parseSavedParts } = require('./savedPartReferences.cjs');
+const {
+    buildStainlessShaftJointBomPart,
+    isRotorProcessPart,
+    resolveRotorProcessMode,
+} = require('./rotorShaftJoint.cjs');
 
 function parseParts(value) {
     return parseSavedParts(value, '配方物料');
@@ -148,7 +153,14 @@ function buildCurrentRecipeCostBasis(recipe, dependencies = {}) {
     const sourceParts = Array.isArray(currentBom?.parts)
         ? currentBom.parts
         : currentSavedParts(recipe.partsJson, catalog, '配方 BOM');
-    const parts = refreshCoilSnapshot(sourceParts, recipe, coils);
+    const rotorProcess = resolveRotorProcessMode(recipe.rotorProcessMode, getSetting);
+    const rotorPart = buildStainlessShaftJointBomPart(rotorProcess);
+    const withoutRotorProcess = sourceParts.filter(part => !isRotorProcessPart(part));
+    const parts = refreshCoilSnapshot(
+        rotorPart ? [...withoutRotorProcess, rotorPart] : withoutRotorProcess,
+        recipe,
+        coils
+    );
     const partsResult = calculateRecipeCost(parts, partsCache, partsByModel, { getSetting });
     const partialPartsCost = roundMoney(Number(partsResult.totalCost || 0));
     const laborDetails = buildLaborCostDetails(recipe, getSetting);
@@ -166,6 +178,11 @@ function buildCurrentRecipeCostBasis(recipe, dependencies = {}) {
 
     return {
         parts,
+        rotorProcess: {
+            mode: rotorProcess.rotorProcessMode,
+            process: rotorProcess.rotorShaftProcess,
+            cost: rotorProcess.stainlessShaftJointCost,
+        },
         partsResult,
         laborDetails,
         laborCost,

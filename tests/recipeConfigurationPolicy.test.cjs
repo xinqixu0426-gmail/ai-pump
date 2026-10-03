@@ -44,6 +44,28 @@ test('未配置策略保持历史开放模式', () => {
     }));
 });
 
+test('转子工艺政策只接受正式枚举并按配方政策限制情景覆盖', () => {
+    const policy = normalizeRecipeConfigurationPolicy({
+        version: 1,
+        fields: { rotorProcessMode: ['standard_45_steel', 'stainless_shaft_joint'] },
+    });
+    assert.deepEqual(policy.fields.rotorProcessMode, ['standard_45_steel', 'stainless_shaft_joint']);
+    assert.doesNotThrow(() => assertRecipeConfigurationAllowed({
+        baseline: { rotorProcessMode: 'standard_45_steel' },
+        overrides: { rotorProcessMode: 'stainless_shaft_joint' },
+        policy,
+    }));
+    assert.throws(() => normalizeRecipeConfigurationPolicy({
+        version: 1,
+        fields: { rotorProcessMode: ['unofficial_mode'] },
+    }), error => error.code === 'RECIPE_CONFIGURATION_POLICY_INVALID');
+    assert.throws(() => assertRecipeConfigurationAllowed({
+        baseline: { rotorProcessMode: 'standard_45_steel' },
+        overrides: { rotorProcessMode: 'unofficial_mode' },
+        policy,
+    }), error => error.code === 'RECIPE_CONFIGURATION_NOT_ALLOWED');
+});
+
 test('策略只限制已声明字段，基线值始终可继续使用', () => {
     const policy = normalizeRecipeConfigurationPolicy({
         version: 1,

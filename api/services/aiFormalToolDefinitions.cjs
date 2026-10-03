@@ -14,7 +14,7 @@ const AI_FORMAL_TOOLS = Object.freeze([
         type: 'function',
         function: Object.freeze({
             name: 'compare_recipe_scenarios',
-            description: '在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份，表面处理费用只能由用户或正式配方政策提供，不能传入零件价格、成本或铜价。',
+            description: '在同一次正式读取集合中，对一个已确认配方的当前重建成本和最多三个候选配置进行只读比较。不会保存配方、不会写入库存；覆盖只允许正式配置字段。包装必须引用正式包装零件身份；转子工艺只选择正式模式，费用由正式设置读取，不能传入零件价格、成本或铜价。',
             parameters: Object.freeze({
                 type: 'object', additionalProperties: false,
                 properties: {
@@ -42,6 +42,7 @@ const AI_FORMAL_TOOLS = Object.freeze([
                                 } },
                                 surfaceTreatmentMode: { type: 'string', enum: ['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom'] },
                                 surfaceTreatmentCost: { type: 'number', minimum: 0 },
+                                rotorProcessMode: { type: 'string', enum: ['standard_45_steel', 'stainless_shaft_joint'] },
                             } },
                         }, required: ['scenarioKey', 'label', 'overrides'],
                     } },
@@ -67,7 +68,7 @@ const AI_FORMAL_TOOLS = Object.freeze([
                                 overrides: { type: 'object', additionalProperties: false, properties: {
                                     hasFloat: { type: 'boolean' }, floatWire: { type: 'string' }, floatAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }, hasCable: { type: 'boolean' }, cableLength: { type: 'number', minimum: 0 }, cableWire: { type: 'string' }, cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] }, coilId: { type: 'integer', minimum: 1 }, coilSheets: { type: 'integer', minimum: 1 }, customBarrelLength: { type: 'number', exclusiveMinimum: 0 },
                                     packingParts: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { partId: { type: 'integer', minimum: 1 }, model: { type: 'string', minLength: 1, maxLength: 160 }, supplier: { type: 'string', maxLength: 160 }, qty: { type: 'number', minimum: 0 }, packingRole: { type: 'string', enum: ['container', 'pearlCotton', 'foam', 'fixed'] } }, required: ['partId', 'model', 'supplier', 'qty', 'packingRole'] } },
-                                    surfaceTreatmentMode: { type: 'string', enum: ['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom'] }, surfaceTreatmentCost: { type: 'number', minimum: 0 },
+                                    surfaceTreatmentMode: { type: 'string', enum: ['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom'] }, surfaceTreatmentCost: { type: 'number', minimum: 0 }, rotorProcessMode: { type: 'string', enum: ['standard_45_steel', 'stainless_shaft_joint'] },
                                 } },
                             }, required: ['scenarioKey', 'label', 'overrides'] } },
                         }, required: ['version', 'baselinePolicy', 'scenarios'] }, scenarioKey: { type: 'string', pattern: '^(base|[A-Za-z][A-Za-z0-9_-]{0,47})$' },
@@ -97,7 +98,7 @@ const AI_FORMAL_TOOLS = Object.freeze([
                                     hasCable: { type: 'boolean' }, cableLength: { type: 'number', minimum: 0 }, cableWire: { type: 'string' }, cableAccessoryType: { type: 'string', enum: ['standard', 'xinjie'] },
                                     coilId: { type: 'integer', minimum: 1 }, coilSheets: { type: 'integer', minimum: 1 }, customBarrelLength: { type: 'number', exclusiveMinimum: 0 },
                                     packingParts: { type: 'array', maxItems: 12, items: { type: 'object', additionalProperties: false, properties: { partId: { type: 'integer', minimum: 1 }, model: { type: 'string', minLength: 1, maxLength: 160 }, supplier: { type: 'string', maxLength: 160 }, qty: { type: 'number', minimum: 0 }, packingRole: { type: 'string', enum: ['container', 'pearlCotton', 'foam', 'fixed'] } }, required: ['partId', 'model', 'supplier', 'qty', 'packingRole'] } },
-                                    surfaceTreatmentMode: { type: 'string', enum: ['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom'] }, surfaceTreatmentCost: { type: 'number', minimum: 0 },
+                                    surfaceTreatmentMode: { type: 'string', enum: ['none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom'] }, surfaceTreatmentCost: { type: 'number', minimum: 0 }, rotorProcessMode: { type: 'string', enum: ['standard_45_steel', 'stainless_shaft_joint'] },
                                 } },
                             }, required: ['scenarioKey', 'label', 'overrides'] } },
                         }, required: ['version', 'baselinePolicy', 'scenarios'] },

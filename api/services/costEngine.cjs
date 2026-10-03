@@ -479,6 +479,12 @@ function calculateRecipeCost(parts, _partsCache = {}, partsByModel = {}, options
         if ((p.source === 'pump_shell_template' || p.costSource === 'manual') && p.snapshotPrice !== undefined) {
             price = p.snapshotPrice;
             source = p.costSource === 'manual' ? '手动估算价' : '模板手动价';
+        } else if (p.costRole === 'rotorProcess' && p.costSource === 'process' && p.snapshotPrice !== undefined) {
+            // A Rotor Process is a formal non-inventory process line. Its
+            // snapshotPrice is produced only by the shared process-setting
+            // resolver, never supplied by the scenario caller.
+            price = p.snapshotPrice;
+            source = '正式转子工艺费';
         } else if (p.cableAssembly === true || String(p.name || '').startsWith('成品电缆')) {
             const completeCable = calculateCompleteCableCost({
                 model: p.model,

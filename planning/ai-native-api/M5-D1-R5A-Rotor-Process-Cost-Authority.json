@@ -1,0 +1,67 @@
+{
+  "phase": "M5-D1-R5A",
+  "startHead": "23cd57743c808b8c8df3f29e8c07437cef22f8cb",
+  "auditRunId": "r5a-rotor-process-cost-authority-2026-10-04",
+  "setting": {
+    "key": "stainless_shaft_joint_default_cost",
+    "storage": "system_settings.value",
+    "bootstrapDefault": 6,
+    "acceptedRangeCny": {
+      "minimum": 5,
+      "maximum": 8
+    },
+    "meaning": "不锈钢接轴相对普通45#钢接轴工艺的正式加工附加成本",
+    "authorityType": "SURCHARGE",
+    "previousReaders": [
+      "api/services/dynamicCostPreview.cjs through resolveStainlessShaftJointConfiguration",
+      "quotation/order configuration and cost snapshot construction through the same shared rotorShaftJoint service"
+    ],
+    "newReader": "api/services/currentRecipeCost.cjs through resolveRotorProcessMode when a Recipe Scenario Preview selects stainless_shaft_joint",
+    "singleResolver": "api/services/rotorShaftJoint.cjs::defaultStainlessShaftJointCost",
+    "hardcodedAiOrScenarioPrice": false,
+    "missingBehavior": {
+      "code": "ROTOR_PROCESS_COST_UNAVAILABLE",
+      "statusCode": 422,
+      "zeroFallback": false
+    },
+    "invalidBehavior": {
+      "code": "STAINLESS_SHAFT_JOINT_COST_INVALID",
+      "statusCode": 422,
+      "zeroFallback": false
+    }
+  },
+  "baseline": {
+    "recipePersistentRotorField": false,
+    "legacyTransientFields": [
+      "has_stainless_shaft_joint",
+      "stainless_shaft_joint_cost"
+    ],
+    "scenarioDefault": "standard_45_steel",
+    "authority": "Current Recipe rows have no persisted Rotor Process column in the current schema; the existing business model defines the unconfigured/default process as ordinary 45# steel. The Scenario Preview therefore uses standard_45_steel unless a temporary override selects stainless_shaft_joint.",
+    "scope": "Preview only; no migration and no Recipe persistence behavior were added.",
+    "persistenceGap": "A later persistent Recipe Rotor Process feature needs an explicitly reviewed storage contract and write workflow."
+  },
+  "formalCostPath": [
+    "POST /api/recipes/:id/scenario-compare-preview",
+    "recipeScenarioComparison.normalizeOverrides",
+    "makeScenarioRecipe.rotorProcessMode",
+    "buildCurrentRecipeCostBasis.resolveRotorProcessMode",
+    "buildStainlessShaftJointBomPart",
+    "costEngine.calculateRecipeCost formal non-inventory rotorProcess line",
+    "scenario comparison candidate and formal delta"
+  ],
+  "directIntegrationObservation": {
+    "fixtureSettingCny": 6.5,
+    "baseCostCny": 20,
+    "candidateCostCny": 26.5,
+    "formalDeltaCny": 6.5,
+    "appliedOverride": "rotorProcessMode=stainless_shaft_joint",
+    "costDetail": {
+      "process": "stainless_friction_weld",
+      "costRole": "rotorProcess",
+      "inventoryType": "none"
+    },
+    "recipeMutated": false,
+    "inventoryMutated": false
+  }
+}

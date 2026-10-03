@@ -71,12 +71,12 @@ test('R1-15..16: answer validation still rejects wrong entity and wrong basis mo
     assert.equal(wrongBasis.code, 'MONEY_CLAIM_BINDING_MISMATCH');
 });
 
-test('R1-17..19: control-plane loads remain fact-free, write exposure is absent, and rotor stays unsupported', () => {
+test('R1-17..19: control-plane loads remain fact-free, write exposure is absent, and the controlled fixture has a formal rotor price source', () => {
     const ledger = createFactLedger();
     const append = ledger.appendToolResult({ toolName: 'load_tools', args: { toolNames: ['search_coils'] }, result: { success: true, controlPlane: true, data: {} } });
     assert.equal(append.factIds.length, 0);
     const candidate = fs.readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8');
     assert.match(candidate, /Never call a write tool/);
     const fixture = fs.readFileSync(require.resolve('../scripts/ai-experiments/api-native-agent/d1r1ControlledFixture.cjs'), 'utf8');
-    assert.doesNotMatch(fixture, /rotorProcess/);
+    assert.match(fixture, /stainless_shaft_joint_default_cost/);
 });

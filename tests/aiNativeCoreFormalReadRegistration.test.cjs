@@ -91,19 +91,29 @@ test('A3 registry audit aligns formal route contracts and preserves the existing
     const changedPaths = childProcess.execFileSync('git', ['diff', '--name-only', START_HEAD, '--', ...protectedRuntimePaths], {
         cwd: __dirname + '/..', encoding: 'utf8',
     }).trim().split('\n').filter(Boolean);
-    // A3 itself was metadata-only. D1-R1 later fixed a shared read adapter:
+    // A3 itself was metadata-only. D1-R1 later fixed a shared read adapter,
+    // and D1-R5A later extended the already-exposed formal scenario schema
+    // with one reviewed Rotor Process configuration dimension:
     // an identity-bound canonical coil ID must hydrate its required dimensions
     // from the formal catalogue before it reaches the unchanged calculate route.
     // Keep the baseline assertion strict for every other protected surface.
-    const allowedLaterReadAdapterFix = 'api/routes/ai/executors/costExecutors.cjs';
+    const allowedLaterChanges = new Set([
+        'api/routes/ai/executors/costExecutors.cjs',
+        'api/services/aiFormalToolDefinitions.cjs',
+    ]);
     assert.deepEqual(
-        changedPaths.filter(item => item !== allowedLaterReadAdapterFix),
+        changedPaths.filter(item => !allowedLaterChanges.has(item)),
         [],
-        `A3 must remain metadata-only outside an explicitly reviewed later read-adapter fix: ${changedPaths.join(', ')}`,
+        `A3 must remain metadata-only outside explicitly reviewed later safe extensions: ${changedPaths.join(', ')}`,
     );
-    if (changedPaths.includes(allowedLaterReadAdapterFix)) {
-        const source = require('node:fs').readFileSync(`${__dirname}/../${allowedLaterReadAdapterFix}`, 'utf8');
+    if (changedPaths.includes('api/routes/ai/executors/costExecutors.cjs')) {
+        const source = require('node:fs').readFileSync(`${__dirname}/../api/routes/ai/executors/costExecutors.cjs`, 'utf8');
         assert.match(source, /hydrate missing dimensions from the same formal coil catalogue/);
         assert.match(source, /getJson\(internalFetch, '\/api\/coils'/);
+    }
+    if (changedPaths.includes('api/services/aiFormalToolDefinitions.cjs')) {
+        const source = require('node:fs').readFileSync(`${__dirname}/../api/services/aiFormalToolDefinitions.cjs`, 'utf8');
+        assert.match(source, /rotorProcessMode/);
+        assert.match(source, /stainless_shaft_joint/);
     }
 });

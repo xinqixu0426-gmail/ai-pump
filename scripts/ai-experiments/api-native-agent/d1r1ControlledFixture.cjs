@@ -37,6 +37,9 @@ async function startD1R1ControlledFixture() {
     };
 
     db.prepare("UPDATE system_settings SET value='6' WHERE key='management_fee'").run();
+    // Formal preview authority for the Rotor Process scenario.  This is a
+    // setting read by the production cost service, not an evaluator oracle.
+    db.prepare("UPDATE system_settings SET value='6' WHERE key='stainless_shaft_joint_default_cost'").run();
     const shell = part('shell', 'D1-R1泵壳-V750', '泵壳', 80);
     const bearing = part('bearing', 'D1-R1轴承-202', '轴承', 8);
     // Cost engine resolves cable by its formal wire-gauge catalog name.

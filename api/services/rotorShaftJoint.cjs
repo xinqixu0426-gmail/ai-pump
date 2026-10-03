@@ -1,8 +1,11 @@
 const STAINLESS_SHAFT_JOINT_SETTING_KEY = 'stainless_shaft_joint_default_cost';
-const STAINLESS_SHAFT_JOINT_DEFAULT_COST = 6;
 const STAINLESS_SHAFT_JOINT_MIN_COST = 5;
 const STAINLESS_SHAFT_JOINT_MAX_COST = 8;
 const STAINLESS_SHAFT_JOINT_PROCESS = 'stainless_friction_weld';
+const ROTOR_PROCESS_MODES = Object.freeze({
+    STANDARD_45_STEEL: 'standard_45_steel',
+    STAINLESS_SHAFT_JOINT: 'stainless_shaft_joint',
+});
 
 function shaftJointError(message, details) {
     const error = new Error(message);
@@ -33,12 +36,43 @@ function validateStainlessShaftJointCost(value, field = 'stainlessShaftJointCost
 function defaultStainlessShaftJointCost(getSetting = () => undefined) {
     const configured = getSetting(STAINLESS_SHAFT_JOINT_SETTING_KEY);
     if (configured === undefined || configured === null || configured === '') {
-        return STAINLESS_SHAFT_JOINT_DEFAULT_COST;
+        const error = new Error('不锈钢接轴正式加工费设置缺失，无法生成正式成本试算');
+        error.code = 'ROTOR_PROCESS_COST_UNAVAILABLE';
+        error.statusCode = 422;
+        error.details = { setting: STAINLESS_SHAFT_JOINT_SETTING_KEY };
+        throw error;
     }
     return validateStainlessShaftJointCost(
         configured,
         STAINLESS_SHAFT_JOINT_SETTING_KEY
     );
+}
+
+// Scenario Preview chooses a formal mode, while the formal setting owns the
+// amount. Legacy quotation/order callers can still retain their frozen amount.
+function resolveRotorProcessMode(mode, getSetting = () => undefined) {
+    if (mode === undefined || mode === null || mode === '' || mode === ROTOR_PROCESS_MODES.STANDARD_45_STEEL) {
+        return {
+            rotorProcessMode: ROTOR_PROCESS_MODES.STANDARD_45_STEEL,
+            hasStainlessShaftJoint: false,
+            stainlessShaftJointCost: 0,
+            rotorShaftProcess: 'standard',
+        };
+    }
+    if (mode !== ROTOR_PROCESS_MODES.STAINLESS_SHAFT_JOINT) {
+        const error = new Error('rotorProcessMode 不是支持的正式转子工艺');
+        error.code = 'ROTOR_PROCESS_MODE_UNSUPPORTED';
+        error.statusCode = 422;
+        error.details = { mode };
+        throw error;
+    }
+    const stainlessShaftJointCost = defaultStainlessShaftJointCost(getSetting);
+    return {
+        rotorProcessMode: ROTOR_PROCESS_MODES.STAINLESS_SHAFT_JOINT,
+        hasStainlessShaftJoint: true,
+        stainlessShaftJointCost,
+        rotorShaftProcess: STAINLESS_SHAFT_JOINT_PROCESS,
+    };
 }
 
 function resolveStainlessShaftJointConfiguration(input = {}, getSetting = () => undefined) {
@@ -92,14 +126,15 @@ function isRotorProcessPart(part = {}) {
 }
 
 module.exports = {
-    STAINLESS_SHAFT_JOINT_DEFAULT_COST,
     STAINLESS_SHAFT_JOINT_MAX_COST,
     STAINLESS_SHAFT_JOINT_MIN_COST,
     STAINLESS_SHAFT_JOINT_PROCESS,
     STAINLESS_SHAFT_JOINT_SETTING_KEY,
+    ROTOR_PROCESS_MODES,
     buildStainlessShaftJointBomPart,
     defaultStainlessShaftJointCost,
     isRotorProcessPart,
+    resolveRotorProcessMode,
     resolveStainlessShaftJointConfiguration,
     validateStainlessShaftJointCost,
 };

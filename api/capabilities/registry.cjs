@@ -738,7 +738,7 @@ const BUSINESS_CAPABILITY_REGISTRY = Object.freeze({
     'recipes.scenario_compare_preview': definePreviewCapability({
         capabilityId: 'recipes.scenario_compare_preview', domain: 'recipes',
         inputSchema: 'POST /api/recipes/:id/scenario-compare-preview ScenarioCompareRequestV1',
-        outputSchema: 'ScenarioCompareResponseV1 with common readSetId/readSetHash, current-rebuilt costs, per-scenario configuration/configurationHash, appliedOverrides, and a top-level changes[] of configuration field differences (the sole formal evidence for a no-op candidate configuration)',
+        outputSchema: 'ScenarioCompareResponseV1 with common readSetId/readSetHash, current-rebuilt costs, per-scenario configuration/configurationHash, appliedOverrides (including formal rotorProcessMode when selected), rotor-process cost detail, and a top-level changes[] of configuration field differences (the sole formal evidence for a no-op candidate configuration)',
         sourceOfTruth: 'costEngine+recipeBomEngine+current_recipe_configuration+current_catalog+system_settings',
         riskLevel: 'low', transactionality: 'read_transaction', callers: Object.freeze(['web', 'ai', 'internal']),
     }),

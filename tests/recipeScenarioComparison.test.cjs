@@ -145,6 +145,84 @@ test('同口径情景比较：拒绝客户端价格、保留字段和错误线�
     if (mismatch.response.status === 422) assert.equal(mismatch.payload.code, 'COIL_SHEETS_MISMATCH');
 });
 
+test('同口径情景比较：Rotor Process 通过正式设置加入候选成本，不改写配方或库存', async t => {
+    const unique = `N5-rotor-${Date.now()}`;
+    const part = db.prepare(`INSERT INTO parts (model, supplier, category, price, created_at, updated_at)
+        VALUES (?, '转子工艺测试', '其他', 20, datetime('now'), datetime('now'))`).run(`${unique}-part`);
+    const template = db.prepare(`INSERT INTO pump_shell_templates (shell_model, parts_json, shell_components_json, created_at, updated_at)
+        VALUES (?, ?, '[]', datetime('now'), datetime('now'))`).run(
+        `${unique}-shell`, JSON.stringify([{ partId: Number(part.lastInsertRowid), model: `${unique}-part`, supplier: '转子工艺测试', qty: 1 }])
+    );
+    const recipe = db.prepare(`INSERT INTO recipes (name, spec, parts_json, extra_parts_json, packing_parts_json,
+        template_id, assembly_wage, packing_wage, surface_treatment_cost, management_fee, created_at, updated_at)
+        VALUES (?, 'N5-rotor', '[]', '[]', '[]', ?, 0, 0, 0, 0, datetime('now'), datetime('now'))`)
+        .run(unique, template.lastInsertRowid);
+    const recipeId = Number(recipe.lastInsertRowid);
+    const setting = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('stainless_shaft_joint_default_cost');
+    db.prepare('UPDATE system_settings SET value = ? WHERE key = ?').run('6.5', 'stainless_shaft_joint_default_cost');
+    t.after(() => {
+        db.prepare('UPDATE system_settings SET value = ? WHERE key = ?').run(setting.value, 'stainless_shaft_joint_default_cost');
+        db.prepare('DELETE FROM recipes WHERE id = ?').run(recipeId);
+        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(template.lastInsertRowid);
+        db.prepare('DELETE FROM parts WHERE id = ?').run(part.lastInsertRowid);
+    });
+    const beforeRecipe = db.prepare('SELECT * FROM recipes WHERE id = ?').get(recipeId);
+    const beforeInventory = db.prepare('SELECT stock FROM parts WHERE id = ?').get(part.lastInsertRowid).stock;
+    const { response, payload } = await post(`/api/recipes/${recipeId}/scenario-compare-preview`, {
+        version: 1,
+        baselinePolicy: 'CURRENT_REBUILT',
+        scenarios: [{
+            scenarioKey: 'stainless',
+            label: '不锈钢接轴转子工艺',
+            overrides: { rotorProcessMode: 'stainless_shaft_joint' },
+        }],
+    });
+    assert.equal(response.status, 200, JSON.stringify(payload));
+    const [base, candidate] = payload.data.scenarios;
+    assert.equal(candidate.appliedOverrides.rotorProcessMode, 'stainless_shaft_joint');
+    assert.equal(candidate.configuration.rotorProcessMode, 'stainless_shaft_joint');
+    assert.equal(candidate.cost.rotorProcess.cost, 6.5);
+    assert.equal(candidate.cost.rotorProcess.process, 'stainless_friction_weld');
+    assert.equal(payload.data.comparisons[0].status, 'COMPARABLE');
+    assert.equal(payload.data.comparisons[0].delta, 6.5);
+    assert.equal(candidate.cost.currentTotalCost - base.cost.currentTotalCost, 6.5);
+    assert.ok(payload.data.sourceVersions.some(item => item.entityType === 'setting' && item.entityId === 'stainless_shaft_joint_default_cost'));
+    assert.deepEqual(db.prepare('SELECT * FROM recipes WHERE id = ?').get(recipeId), beforeRecipe);
+    assert.equal(db.prepare('SELECT stock FROM parts WHERE id = ?').get(part.lastInsertRowid).stock, beforeInventory);
+});
+
+test('同口径情景比较：Rotor Process 费用缺失或无效时拒绝，绝不按零计价', async t => {
+    const unique = `N5-rotor-setting-${Date.now()}`;
+    const template = db.prepare(`INSERT INTO pump_shell_templates (shell_model, parts_json, shell_components_json, created_at, updated_at)
+        VALUES (?, '[]', '[]', datetime('now'), datetime('now'))`).run(`${unique}-shell`);
+    const recipe = db.prepare(`INSERT INTO recipes (name, spec, parts_json, extra_parts_json, packing_parts_json,
+        template_id, assembly_wage, packing_wage, surface_treatment_cost, management_fee, created_at, updated_at)
+        VALUES (?, 'N5-rotor-setting', '[]', '[]', '[]', ?, 0, 0, 0, 0, datetime('now'), datetime('now'))`)
+        .run(unique, template.lastInsertRowid);
+    const recipeId = Number(recipe.lastInsertRowid);
+    const setting = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('stainless_shaft_joint_default_cost');
+    t.after(() => {
+        db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
+            .run('stainless_shaft_joint_default_cost', setting.value);
+        db.prepare('DELETE FROM recipes WHERE id = ?').run(recipeId);
+        db.prepare('DELETE FROM pump_shell_templates WHERE id = ?').run(template.lastInsertRowid);
+    });
+    const request = {
+        version: 1,
+        baselinePolicy: 'CURRENT_REBUILT',
+        scenarios: [{ scenarioKey: 'stainless', label: '不锈钢接轴', overrides: { rotorProcessMode: 'stainless_shaft_joint' } }],
+    };
+    db.prepare('DELETE FROM system_settings WHERE key = ?').run('stainless_shaft_joint_default_cost');
+    const missing = await post(`/api/recipes/${recipeId}/scenario-compare-preview`, request);
+    assert.equal(missing.response.status, 422, JSON.stringify(missing.payload));
+    assert.equal(missing.payload.code, 'ROTOR_PROCESS_COST_UNAVAILABLE');
+
+    db.prepare('INSERT INTO system_settings (key, value) VALUES (?, ?)').run('stainless_shaft_joint_default_cost', 'not-a-number');
+    const invalid = await post(`/api/recipes/${recipeId}/scenario-compare-preview`, request);
+    assert.equal(invalid.response.status, 422, JSON.stringify(invalid.payload));
+    assert.equal(invalid.payload.code, 'STAINLESS_SHAFT_JOINT_COST_INVALID');
+});
+
 test('同口径情景比较：正式线圈替换重建身份且不保留旧方案字段', () => {
     const baseRecipe = {
         id: 1, name: '旧线圈配方', partsJson: '[]', extraPartsJson: '[]', packingPartsJson: '[]',

@@ -57,7 +57,11 @@ test('A/I: every exposed broker tool has a schema, registered read capability, f
 });
 
 test('A: formal private schemas survive agent adapter unchanged', async () => {
-    const inputs = [['compare_recipe_scenarios', formalComparison], ['preview_profitability', profitability], ['preview_virtual_readiness', readiness]];
+    const rotorComparison = {
+        ...formalComparison,
+        scenarios: [{ scenarioKey: 'stainless', label: '不锈钢接轴', overrides: { rotorProcessMode: 'stainless_shaft_joint' } }],
+    };
+    const inputs = [['compare_recipe_scenarios', formalComparison], ['compare_recipe_scenarios', rotorComparison], ['preview_profitability', profitability], ['preview_virtual_readiness', readiness]];
     for (const [name, args] of inputs) {
         let received;
         const result = await executeAgentTool(name, args, {
@@ -148,7 +152,10 @@ test('G/H: formal schema enforces protocol keywords and scenario/packaging bound
     assert.throws(() => validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, version: 2 }), /必须为/);
     assert.throws(() => validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { packingParts: '木箱' } }] }), { code: 'PACKING_FORMAL_BINDING_REQUIRED' });
     assert.deepEqual(validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { packingParts: [{ partId: 2, model: '木箱', supplier: 'S', qty: 1, packingRole: 'container' }] } }] }).scenarios[0].overrides.packingParts[0].partId, 2);
-    assert.throws(() => validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { rotorProcess: 'stainless' } }] }), /未声明字段/);
+    assert.equal(validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { rotorProcessMode: 'standard_45_steel' } }] }).scenarios[0].overrides.rotorProcessMode, 'standard_45_steel');
+    assert.equal(validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { rotorProcessMode: 'stainless_shaft_joint' } }] }).scenarios[0].overrides.rotorProcessMode, 'stainless_shaft_joint');
+    assert.throws(() => validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { rotorProcessMode: 'unknown' } }] }), /无效/);
+    assert.throws(() => validateAiToolArgs('compare_recipe_scenarios', { ...formalComparison, scenarios: [{ scenarioKey: 'candidate', label: 'x', overrides: { rotorProcessMode: 'stainless_shaft_joint', rotorProcessCost: 6 } }] }), /未声明字段/);
 });
 
 test('G: every keyword used by exposed tool schemas is in the implemented validator vocabulary', () => {

@@ -110,7 +110,8 @@ function createFixture(options = {}) {
     const queries = createCostQueries({
         db,
         calculateRecipeCost,
-        getSetting: key => key === 'management_fee' ? 1 : undefined,
+        getSetting: key => key === 'management_fee' ? 1
+            : key === 'stainless_shaft_joint_default_cost' ? 6 : undefined,
         listCoils: () => [],
         listRecipes,
         loadPartsData: () => ({

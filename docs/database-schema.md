@@ -116,7 +116,7 @@
 - `parts.naming_json` 只保存命名输入 `{ruleId,ruleVersion,spec}`，通过 Row Adapter 输出 `naming`，旧记录为 null。它不是完整实物规格档案，不增加 `catalog_identity_profiles.spec_revision`，也不将引用标记为已核实。通用零件新建可提交 `naming:{ruleId,spec}`；服务端生成 `model`，两者在原 parts 写事务中原子保存。
 - `parts.remark` 是零件目录备注的唯一数据库事实；HTTP 兼容期可同时返回旧别名 `notes`，Web 只使用 `remark`。BOM JSON 行中的 `notes` 是保存时生成的快照说明，与零件目录备注不是同一字段，不能互相覆盖。
 - `pump_shell_templates.configuration_policy_json` 保存模板默认客户配置范围，`recipes.configuration_policy_json` 保存创建时复制、之后独立维护的配方规则；两列为空均表示历史开放模式。迁移不回填、不改写已有报价、订单或 BOM/成本快照。
-- `system_settings.stainless_shaft_joint_default_cost` 保存报价和订单启用不锈钢接轴时的默认加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。该配置不新增表或迁移，不写入模板、配方或线圈基础成本；最终采用值冻结在报价/订单 JSON 快照中。
+- `system_settings.stainless_shaft_joint_default_cost` 保存不锈钢接轴的正式加工费；启动时缺失则幂等初始化为 `6`，正式写入口只接受 5–8 元。报价和订单启用后将采用值冻结在 JSON 快照中；Recipe Scenario Preview 也可只读地选择 `stainless_shaft_joint`，由同一设置生成非库存 `rotorProcess` 成本行。它不写入模板、配方或线圈基础成本，也不需要新增表或迁移。
 - 铜价同步只更新铜价基数或计算成本发生变化的线圈，未变化记录不写库、不生成审计快照。
 - `coils.pricing_mode` 只允许 `calculated/kit`；历史记录默认为 `calculated`。数据库约束和业务命令都要求 `kit` 模式的 `kit_price` 大于 0 且 `cost = kit_price`；该模式不使用定子、铜价、线重或加工费计算，也不参与铜价同步、定子单片价批量更新及其他片数的插值/外推。
 - `api_operations` 以 `actor_key + capability_id + idempotency_key` 唯一保存高风险命令请求哈希和成功回执，默认保留 90 天；幂等记录、业务变更、领域流水和强审计在同一 `BEGIN IMMEDIATE` 事务提交。相同键但请求哈希不同必须拒绝。

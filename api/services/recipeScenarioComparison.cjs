@@ -19,6 +19,7 @@ const ALLOWED_OVERRIDES = new Set([
     'hasCable', 'cableLength', 'cableWire', 'cableAccessoryType',
     'coilId', 'coilSheets', 'customBarrelLength',
     'packingParts', 'surfaceTreatmentMode', 'surfaceTreatmentCost',
+    'rotorProcessMode',
 ]);
 const PRICE_FIELDS = new Set([
     'unitCost', 'currentTotalCost', 'partsCost', 'coilCost', 'unitPrice',
@@ -60,6 +61,7 @@ const PACKING_ROLES = new Set(['container', 'pearlCotton', 'foam', 'fixed']);
 const SURFACE_TREATMENT_MODES = new Set([
     'none', 'painting', 'electrophoresis', 'electrophoresis_powder_coating', 'powder_coating', 'custom',
 ]);
+const ROTOR_PROCESS_MODES = new Set(['standard_45_steel', 'stainless_shaft_joint']);
 
 function normalizePackingParts(value) {
     if (!Array.isArray(value) || value.length > 12) {
@@ -124,6 +126,9 @@ function normalizeOverrides(raw) {
             normalized[field] = finite(value, field, { positive: true, integer: true });
         } else if (['floatAccessoryType', 'cableAccessoryType'].includes(field)) {
             if (!['standard', 'xinjie'].includes(value)) fail('SCENARIO_COMPARE_INVALID_INPUT', `${field} 不支持`);
+            normalized[field] = value;
+        } else if (field === 'rotorProcessMode') {
+            if (!ROTOR_PROCESS_MODES.has(value)) fail('SCENARIO_COMPARE_INVALID_INPUT', 'rotorProcessMode 不支持');
             normalized[field] = value;
         } else if (field === 'packingParts' || field === 'surfaceTreatmentMode' || field === 'surfaceTreatmentCost') {
             // These are normalized below as a group so none/cost consistency is
@@ -254,6 +259,7 @@ function configuration(recipe) {
         coilSheets: Number(recipe.coilSheets || 0), coilMaterial: recipe.coilMaterial || '钢带', coilSlotType: recipe.coilSlotType || '小眼',
         customBarrelLength: recipe.customBarrelLength ?? null, packingPartsJson: recipe.packingPartsJson || '[]',
         surfaceTreatmentMode, surfaceTreatmentCost: surfaceTreatmentMode === 'none' ? 0 : Number(recipe.surfaceTreatmentCost || 0),
+        rotorProcessMode: recipe.rotorProcessMode || (recipe.hasStainlessShaftJoint ? 'stainless_shaft_joint' : 'standard_45_steel'),
     };
 }
 
@@ -274,6 +280,7 @@ function costView(basis, basisName) {
         partialTotalCost: basis.partialTotalCost ?? null,
         currency: 'CNY', unit: 'pump', costBasis: basisName,
         missingParts: [...(basis.missingParts || [])], sourceOfTruth: 'costEngine',
+        rotorProcess: basis.rotorProcess,
     };
 }
 
@@ -336,6 +343,13 @@ function makeScenarioRecipe(baseRecipe, baseConfig, overrides, coils, catalog = 
             });
             applied.coilId = coil.id;
             if (own(overrides, 'coilSheets')) applied.coilSheets = coil.sheets;
+        } else if (field === 'rotorProcessMode') {
+            next.rotorProcessMode = value;
+            // The formal setting owns this price. A scenario only selects the
+            // process mode and never carries a client supplied cost.
+            next.hasStainlessShaftJoint = value === 'stainless_shaft_joint';
+            delete next.stainlessShaftJointCost;
+            applied.rotorProcessMode = value;
         } else if (field !== 'coilSheets' && field !== 'surfaceTreatmentCost') {
             next[field] = value;
             applied[field] = value;
@@ -374,6 +388,9 @@ function sourceRowsForReadSet(db, rawRecipe, scenarios, boms) {
     if (scenarios.some(scenario => Boolean(scenario.recipe?.hasFloat)
         && scenario.recipe.floatAccessoryType === 'xinjie')) settings.add('float_accessory_delta');
     if (scenarios.some(scenario => Boolean(scenario.recipe?.hasCable))) settings.add('cable_accessories');
+    if (scenarios.some(scenario => scenario.configuration?.rotorProcessMode === 'stainless_shaft_joint')) {
+        settings.add('stainless_shaft_joint_default_cost');
+    }
     const selectMany = (table, ids, column = 'id') => [...ids].sort((a, b) => Number(a) - Number(b))
         .map(id => db.prepare(`SELECT * FROM ${table} WHERE ${column} = ?`).get(id))
         .filter(Boolean);

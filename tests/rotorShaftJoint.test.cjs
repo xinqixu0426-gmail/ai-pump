@@ -22,7 +22,10 @@ test('不锈钢接轴默认关闭且关闭时忽略客户端费用', () => {
 
 test('不锈钢接轴启用时读取全局默认费用并生成非库存工艺行', () => {
     assert.equal(
-        resolveStainlessShaftJointConfiguration({ hasStainlessShaftJoint: true })
+        resolveStainlessShaftJointConfiguration(
+            { hasStainlessShaftJoint: true },
+            key => key === 'stainless_shaft_joint_default_cost' ? '6' : undefined
+        )
             .stainlessShaftJointCost,
         6
     );
@@ -42,6 +45,20 @@ test('不锈钢接轴启用时读取全局默认费用并生成非库存工艺�
         'hasStainlessShaftJoint',
         'stainlessShaftJointCost',
     ]);
+});
+
+test('不锈钢接轴正式设置缺失或无效时不伪造零成本', () => {
+    assert.throws(
+        () => resolveStainlessShaftJointConfiguration({ hasStainlessShaftJoint: true }),
+        error => error.code === 'ROTOR_PROCESS_COST_UNAVAILABLE'
+    );
+    assert.throws(
+        () => resolveStainlessShaftJointConfiguration(
+            { hasStainlessShaftJoint: true },
+            key => key === 'stainless_shaft_joint_default_cost' ? 'not-a-number' : undefined
+        ),
+        error => error.code === 'STAINLESS_SHAFT_JOINT_COST_INVALID'
+    );
 });
 
 test('不锈钢接轴加工费仅允许5至8元闭区间', () => {
