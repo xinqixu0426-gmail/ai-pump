@@ -1,0 +1,103 @@
+{
+  "phase": "M4-4I",
+  "suite": "owner-goal-spec-v1",
+  "passed": 19,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "GS-01",
+      "pass": true,
+      "finding": "EXPLAIN compiles to no formal fact"
+    },
+    {
+      "id": "GS-02",
+      "pass": true,
+      "finding": "READ_VALUE COST compiles to CURRENT_COST"
+    },
+    {
+      "id": "GS-03",
+      "pass": true,
+      "finding": "READ_RELATION compiles to RELATION"
+    },
+    {
+      "id": "GS-04",
+      "pass": true,
+      "finding": "LIST relation compiles to RELATION"
+    },
+    {
+      "id": "GS-05",
+      "pass": true,
+      "finding": "COUNT compiles to CANDIDATE_SET"
+    },
+    {
+      "id": "GS-06",
+      "pass": true,
+      "finding": "PREVIEW_SCENARIO VALUE COST compiles to SCENARIO_COST"
+    },
+    {
+      "id": "GS-07",
+      "pass": true,
+      "finding": "COMPARE_TARGETS DELTA COST compiles to COST_DIFFERENCE"
+    },
+    {
+      "id": "GS-08",
+      "pass": true,
+      "finding": "COMPARE_SCENARIO DELTA COST compiles to COST_DIFFERENCE"
+    },
+    {
+      "id": "GS-09",
+      "pass": true,
+      "finding": "EXACT target selection is NONE"
+    },
+    {
+      "id": "GS-10",
+      "pass": true,
+      "finding": "MULTIPLE READ_VALUE requires single target"
+    },
+    {
+      "id": "GS-11",
+      "pass": true,
+      "finding": "MULTIPLE COUNT consumes whole set"
+    },
+    {
+      "id": "GS-12",
+      "pass": true,
+      "finding": "explicit pair comparison is not ambiguity"
+    },
+    {
+      "id": "GS-13",
+      "pass": true,
+      "finding": "COUNT + DELTA is invalid"
+    },
+    {
+      "id": "GS-14",
+      "pass": true,
+      "finding": "COMPARE_SCENARIO requires override"
+    },
+    {
+      "id": "GS-15",
+      "pass": true,
+      "finding": "PREVIEW_SCENARIO requires override"
+    },
+    {
+      "id": "GS-16",
+      "pass": true,
+      "finding": "scenario override provenance stays strict"
+    },
+    {
+      "id": "GS-17",
+      "pass": true,
+      "finding": "relation request provenance stays strict"
+    },
+    {
+      "id": "GS-18",
+      "pass": true,
+      "finding": "target must derive from frozen Grounding"
+    },
+    {
+      "id": "GS-19",
+      "pass": true,
+      "finding": "leaked old GOAL_FACT line is ignored and observed"
+    }
+  ]
+}

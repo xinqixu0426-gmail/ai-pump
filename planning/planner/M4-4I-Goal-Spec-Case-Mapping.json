@@ -1,0 +1,385 @@
+{
+  "phase": "M4-4I",
+  "cases": [
+    {
+      "id": "P-01",
+      "user": "模板和配方有什么区别？",
+      "expectedGoalSpec": {
+        "goalKind": "EXPLAIN",
+        "resultShape": "DETAIL",
+        "metric": "NONE",
+        "targetCount": 0
+      },
+      "formalTargetCardinality": 0,
+      "expectedPlanStatus": "NO_TOOL_REQUIRED"
+    },
+    {
+      "id": "P-02",
+      "user": "12-120是什么意思？",
+      "expectedGoalSpec": {
+        "goalKind": "EXPLAIN",
+        "resultShape": "DETAIL",
+        "metric": "NONE",
+        "targetCount": 0
+      },
+      "formalTargetCardinality": 0,
+      "expectedPlanStatus": "NO_TOOL_REQUIRED"
+    },
+    {
+      "id": "P-03",
+      "user": "通用款模板有哪些固定件？",
+      "expectedGoalSpec": {
+        "goalKind": "LIST",
+        "resultShape": "LIST",
+        "metric": "NONE",
+        "relationRequest": "固定件",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-04",
+      "user": "查一下V750通用款成本。",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-05",
+      "user": "查一下V750成本。",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_AMBIGUITY"
+    },
+    {
+      "id": "P-06",
+      "user": "12-120多少钱？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_AMBIGUITY"
+    },
+    {
+      "id": "P-07",
+      "user": "12-120有几个方案？",
+      "expectedGoalSpec": {
+        "goalKind": "COUNT",
+        "resultShape": "COUNT",
+        "metric": "NONE",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": [
+        "NO_TOOL_REQUIRED",
+        "READY"
+      ]
+    },
+    {
+      "id": "P-08",
+      "user": "查一下V750通用款现在用哪个线圈。",
+      "expectedGoalSpec": {
+        "goalKind": "READ_RELATION",
+        "resultShape": "VALUE",
+        "metric": "NONE",
+        "relationRequest": "线圈",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-09",
+      "user": "V750通用款换木箱成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_SCENARIO",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "overrides": [
+          "木箱"
+        ],
+        "classes": [
+          "PACKAGING"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "P-10",
+      "user": "V750通用款加浮球以后多少钱？",
+      "expectedGoalSpec": {
+        "goalKind": "PREVIEW_SCENARIO",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "overrides": [
+          "加浮球"
+        ],
+        "classes": [
+          "FLOAT"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-11",
+      "user": "V750通用款做电泳成本增加多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_SCENARIO",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "overrides": [
+          "做电泳"
+        ],
+        "classes": [
+          "SURFACE_TREATMENT"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-12",
+      "user": "V750通用款做不锈钢接轴成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_SCENARIO",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "overrides": [
+          "不锈钢接轴"
+        ],
+        "classes": [
+          "ROTOR_PROCESS"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "P-13",
+      "user": "V750通用款电缆5米，木箱，先算一下，不保存。",
+      "expectedGoalSpec": {
+        "goalKind": "PREVIEW_SCENARIO",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "overrides": [
+          "电缆5米",
+          "木箱"
+        ],
+        "classes": [
+          "CABLE",
+          "PACKAGING"
+        ],
+        "write": "NO",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "P-14",
+      "user": "V750通用款和V110成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_TARGETS",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "targetCount": 2
+      },
+      "formalTargetCardinality": 2,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-15",
+      "user": "12-120-A和12-130-A成本分别多少？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 2
+      },
+      "formalTargetCardinality": 2,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "P-16",
+      "user": "这个多少钱？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 0
+      },
+      "formalTargetCardinality": 0,
+      "expectedPlanStatus": "BLOCKED_GROUNDING"
+    },
+    {
+      "id": "P-17",
+      "user": "把V750通用款包装改成木箱并保存。",
+      "expectedGoalSpec": {
+        "goalKind": "PREVIEW_SCENARIO",
+        "resultShape": "DETAIL",
+        "metric": "NONE",
+        "overrides": [
+          "木箱"
+        ],
+        "classes": [
+          "PACKAGING"
+        ],
+        "write": "YES",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_POLICY"
+    },
+    {
+      "id": "P-18",
+      "user": "通用款和豪贝款的V750成本分别多少？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 2
+      },
+      "formalTargetCardinality": 2,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "N-01",
+      "user": "通用款模板有哪些固定件？",
+      "expectedGoalSpec": {
+        "goalKind": "LIST",
+        "resultShape": "LIST",
+        "metric": "NONE",
+        "relationRequest": "固定件",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "N-02",
+      "user": "12-120多少钱？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_AMBIGUITY"
+    },
+    {
+      "id": "N-03",
+      "user": "通用款模板有哪些固定件？",
+      "expectedGoalSpec": {
+        "goalKind": "LIST",
+        "resultShape": "LIST",
+        "metric": "NONE",
+        "relationRequest": "固定件",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "N-04",
+      "user": "V750通用款电缆5米，木箱，先算一下，不保存。",
+      "expectedGoalSpec": {
+        "goalKind": "PREVIEW_SCENARIO",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "overrides": [
+          "电缆5米",
+          "木箱"
+        ],
+        "classes": [
+          "CABLE",
+          "PACKAGING"
+        ],
+        "write": "NO",
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "N-05",
+      "user": "V750通用款换木箱成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_SCENARIO",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "overrides": [
+          "木箱"
+        ],
+        "classes": [
+          "PACKAGING"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "N-06",
+      "user": "V750通用款和V110成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_TARGETS",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "targetCount": 2
+      },
+      "formalTargetCardinality": 2,
+      "expectedPlanStatus": "READY"
+    },
+    {
+      "id": "N-07",
+      "user": "V750通用款换木箱成本差多少？",
+      "expectedGoalSpec": {
+        "goalKind": "COMPARE_SCENARIO",
+        "resultShape": "DELTA",
+        "metric": "COST",
+        "overrides": [
+          "木箱"
+        ],
+        "classes": [
+          "PACKAGING"
+        ],
+        "targetCount": 1
+      },
+      "formalTargetCardinality": 1,
+      "expectedPlanStatus": "BLOCKED_CAPABILITY"
+    },
+    {
+      "id": "N-08",
+      "user": "这个多少钱？",
+      "expectedGoalSpec": {
+        "goalKind": "READ_VALUE",
+        "resultShape": "VALUE",
+        "metric": "COST",
+        "targetCount": 0
+      },
+      "formalTargetCardinality": 0,
+      "expectedPlanStatus": "BLOCKED_GROUNDING"
+    }
+  ]
+}

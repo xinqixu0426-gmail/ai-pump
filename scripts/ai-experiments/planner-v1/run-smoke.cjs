@@ -112,4 +112,4 @@ async function main({ runScope = scope, runOutputPath = outputPath, caseIds = nu
 }
 if (require.main === module || process.argv.length >= 3) main().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
 
-module.exports = { execute, selectedCases, main, firstAttemptEvaluation, retryMetrics };
+module.exports = { execute, selectedCases, main, firstAttemptEvaluation, retryMetrics, realFrozenUpstream };
