@@ -1,0 +1,226 @@
+{
+  "phase": "M5-A2",
+  "counts": {
+    "EXPOSE_V1": 12,
+    "DEFER_V1": 18,
+    "EXCLUDE_V1": 6
+  },
+  "actions": [
+    {
+      "toolName": "get_management_action_center",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Management aggregate outside core read set"
+    },
+    {
+      "toolName": "plan_factory_workflow",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Higher-level workflow planning"
+    },
+    {
+      "toolName": "get_business_alerts",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Management alert aggregate"
+    },
+    {
+      "toolName": "get_dashboard_summary",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Aggregate, not initial core read"
+    },
+    {
+      "toolName": "get_order_readiness_overview",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Aggregate order workflow"
+    },
+    {
+      "toolName": "check_order_readiness",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Owner-facing order read"
+    },
+    {
+      "toolName": "plan_order_readiness_actions",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Higher-level draft needs review"
+    },
+    {
+      "toolName": "search_factory_knowledge",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Evidence-backed knowledge search"
+    },
+    {
+      "toolName": "get_factory_knowledge_detail",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Knowledge search follow-up"
+    },
+    {
+      "toolName": "get_factory_knowledge_health",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal maintenance telemetry"
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Owner-facing order investigation"
+    },
+    {
+      "toolName": "get_data_quality_summary",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Operational quality overview"
+    },
+    {
+      "toolName": "analyze_recipe_configuration",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Requires evidence review"
+    },
+    {
+      "toolName": "get_factory_learning_health",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Factory-learning telemetry"
+    },
+    {
+      "toolName": "get_factory_rule_candidates",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule review"
+    },
+    {
+      "toolName": "get_factory_rule_impact",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule review"
+    },
+    {
+      "toolName": "get_factory_rule_compliance",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule governance"
+    },
+    {
+      "toolName": "get_factory_rule_history",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule audit"
+    },
+    {
+      "toolName": "get_order_detail",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core order detail"
+    },
+    {
+      "toolName": "build_order_draft",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Draft workflow review needed"
+    },
+    {
+      "toolName": "inspect_quotation_file",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "File parsing workflow review needed"
+    },
+    {
+      "toolName": "build_quotation_draft",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "High-level draft skill candidate"
+    },
+    {
+      "toolName": "preview_recipe_cost",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Three contracts under one cost tool; clarify before index"
+    },
+    {
+      "toolName": "explain_cost_change",
+      "primaryClass": "DIRECT_FORMAL_MAPPING",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Direct recipe cost difference explanation"
+    },
+    {
+      "toolName": "search_factory_file_archive_targets",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Archive workflow support"
+    },
+    {
+      "toolName": "get_recipe_detail",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core recipe detail with optional cost"
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Mature recipe file read"
+    },
+    {
+      "toolName": "build_recipe_bom_draft",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Powerful draft; differentiate from scenario compare"
+    },
+    {
+      "toolName": "preview_pump_shell_cost",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Shell-only derived preview"
+    },
+    {
+      "toolName": "compare_recipes",
+      "primaryClass": "DIRECT_FORMAL_MAPPING",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Direct current recipe comparison"
+    },
+    {
+      "toolName": "full_calculate",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Overlaps other cost tools but different basis"
+    },
+    {
+      "toolName": "dynamic_config_cost",
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Overlapping legacy calculator"
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core formal coil cost"
+    },
+    {
+      "toolName": "get_copper_price",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Relevant cost driver"
+    },
+    {
+      "toolName": "get_coil_specs",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Coil specification discovery"
+    },
+    {
+      "toolName": "get_rotor_drawing_history",
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Outside initial cost/read core"
+    }
+  ]
+}

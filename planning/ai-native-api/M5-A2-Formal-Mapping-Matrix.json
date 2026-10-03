@@ -1,0 +1,1040 @@
+{
+  "phase": "M5-A2",
+  "matrix": [
+    {
+      "toolName": "get_management_action_center",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/workbench/action-center"
+      ],
+      "actualServices": [
+        "workbench.cjs::buildManagementActionCenter+decorateManagementActionCenter"
+      ],
+      "actualBusinessBehavior": "Live management action queue",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "workbench.action_center.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:714",
+        "api/routes/workbench.cjs::buildManagementActionCenter+decorateManagementActionCenter",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Management aggregate outside core read set",
+      "notes": "Not execution_runs.record"
+    },
+    {
+      "toolName": "plan_factory_workflow",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/workbench/execution-plan"
+      ],
+      "actualServices": [
+        "workbench.cjs::buildFactoryExecutionPlan+decorateFactoryExecutionPlanWithHistory"
+      ],
+      "actualBusinessBehavior": "Derived factory execution plan; no execution",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:731",
+        "api/routes/workbench.cjs::buildFactoryExecutionPlan+decorateFactoryExecutionPlanWithHistory",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Higher-level workflow planning",
+      "notes": "Skill-like candidate"
+    },
+    {
+      "toolName": "get_business_alerts",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/business-alerts"
+      ],
+      "actualServices": [
+        "quality.cjs::buildBusinessAlerts"
+      ],
+      "actualBusinessBehavior": "Business alert report",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.business_alerts.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:762",
+        "api/routes/quality.cjs::buildBusinessAlerts",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Management alert aggregate",
+      "notes": "Not rule maintenance"
+    },
+    {
+      "toolName": "get_dashboard_summary",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/workbench/summary"
+      ],
+      "actualServices": [
+        "workbench.cjs::buildBusinessSummary"
+      ],
+      "actualBusinessBehavior": "Operational dashboard summary",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "workbench.summary.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/queryExecutors.cjs:933",
+        "api/routes/workbench.cjs::buildBusinessSummary",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Aggregate, not initial core read",
+      "notes": "No formal workbench query"
+    },
+    {
+      "toolName": "get_order_readiness_overview",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/orders/readiness-overview"
+      ],
+      "actualServices": [
+        "orders.cjs::orderQueries.getReadinessOverview"
+      ],
+      "actualBusinessBehavior": "Cross-order readiness overview",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "orders.readiness_overview.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/orderExecutors.cjs:439",
+        "api/routes/orders.cjs::orderQueries.getReadinessOverview",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Aggregate order workflow",
+      "notes": "Different from orders.list"
+    },
+    {
+      "toolName": "check_order_readiness",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/orders/lookup",
+        "GET /api/orders/:id/readiness"
+      ],
+      "actualServices": [
+        "orders.cjs::orderQueries.getOrderReadiness"
+      ],
+      "actualBusinessBehavior": "Single-order readiness assessment after identity resolution",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "orders.readiness.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/orderExecutors.cjs:416",
+        "api/routes/orders.cjs::orderQueries.getOrderReadiness",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Owner-facing order read",
+      "notes": "Lookup is identity support"
+    },
+    {
+      "toolName": "plan_order_readiness_actions",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "GET /api/orders/lookup",
+        "GET /api/orders/:id/readiness-plan"
+      ],
+      "actualServices": [
+        "orders.cjs::buildOrderReadinessActionDraft"
+      ],
+      "actualBusinessBehavior": "Derived readiness action draft, not execution",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/orderExecutors.cjs:454",
+        "api/routes/orders.cjs::buildOrderReadinessActionDraft",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Higher-level draft needs review",
+      "notes": "Not orders.execute_readiness_action"
+    },
+    {
+      "toolName": "search_factory_knowledge",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/knowledge",
+        "GET /api/knowledge/:id",
+        "GET /api/knowledge/overview"
+      ],
+      "actualServices": [
+        "businessExecutors.cjs::buildKnowledgeSources+buildBusinessRuleAnswerGuidance"
+      ],
+      "actualBusinessBehavior": "Search, detail hydration and freshness/evidence projection",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:826",
+        "api/routes/ai/executors/businessExecutors.cjs::buildKnowledgeSources+buildBusinessRuleAnswerGuidance",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Evidence-backed knowledge search",
+      "notes": "Composite retrieval, not single formal query"
+    },
+    {
+      "toolName": "get_factory_knowledge_detail",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/knowledge/:id",
+        "GET /api/knowledge/overview"
+      ],
+      "actualServices": [
+        "businessExecutors.cjs::buildKnowledgeSources"
+      ],
+      "actualBusinessBehavior": "Knowledge detail plus freshness",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:894",
+        "api/routes/ai/executors/businessExecutors.cjs::buildKnowledgeSources",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Knowledge search follow-up",
+      "notes": "Two unregistered knowledge reads"
+    },
+    {
+      "toolName": "get_factory_knowledge_health",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/knowledge/health"
+      ],
+      "actualServices": [
+        "knowledge.cjs::buildKnowledgeSyncHealth"
+      ],
+      "actualBusinessBehavior": "Knowledge sync health",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "knowledge.health.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:915",
+        "api/routes/knowledge.cjs::buildKnowledgeSyncHealth",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal maintenance telemetry",
+      "notes": "Not knowledge.sync_derived"
+    },
+    {
+      "toolName": "get_order_knowledge_package",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/orders/lookup",
+        "GET /api/orders/:id/knowledge-package"
+      ],
+      "actualServices": [
+        "orders.cjs::buildOrderKnowledgePackage"
+      ],
+      "actualBusinessBehavior": "Live order state and confirmed knowledge package",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "orders.knowledge_package.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/orderExecutors.cjs:393",
+        "api/routes/orders.cjs::buildOrderKnowledgePackage",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Owner-facing order investigation",
+      "notes": "Not orders.list"
+    },
+    {
+      "toolName": "get_data_quality_summary",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/summary"
+      ],
+      "actualServices": [
+        "quality.cjs::buildDataQualitySummary"
+      ],
+      "actualBusinessBehavior": "Quality score and issue summary",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.summary.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:506",
+        "api/routes/quality.cjs::buildDataQualitySummary",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Operational quality overview",
+      "notes": "No matching formal query"
+    },
+    {
+      "toolName": "analyze_recipe_configuration",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/quality/recipe-analysis"
+      ],
+      "actualServices": [
+        "quality.cjs::analyzeRecipeConfiguration"
+      ],
+      "actualBusinessBehavior": "Read-only recipe analysis and rule suggestions",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.recipe_analysis.preview",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:517",
+        "api/routes/quality.cjs::analyzeRecipeConfiguration",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Requires evidence review",
+      "notes": "Not quality.recipe_feedback.save"
+    },
+    {
+      "toolName": "get_factory_learning_health",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/rule-learning-health"
+      ],
+      "actualServices": [
+        "quality.cjs::buildFactoryLearningHealth"
+      ],
+      "actualBusinessBehavior": "Learning evidence recheck health",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.rule_learning_health.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:563",
+        "api/routes/quality.cjs::buildFactoryLearningHealth",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Factory-learning telemetry",
+      "notes": "Not refresh command"
+    },
+    {
+      "toolName": "get_factory_rule_candidates",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/rule-candidates"
+      ],
+      "actualServices": [
+        "quality.cjs::listFactoryRuleCandidates"
+      ],
+      "actualBusinessBehavior": "Learned rule candidates list",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.rule_candidates.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:581",
+        "api/routes/quality.cjs::listFactoryRuleCandidates",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule review",
+      "notes": "Not review command"
+    },
+    {
+      "toolName": "get_factory_rule_impact",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/rule-candidates/:id/impact"
+      ],
+      "actualServices": [
+        "quality.cjs::buildFactoryRuleImpact"
+      ],
+      "actualBusinessBehavior": "Candidate rule impact report",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.rule_candidates.impact",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:599",
+        "api/routes/quality.cjs::buildFactoryRuleImpact",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule review",
+      "notes": "Not review command"
+    },
+    {
+      "toolName": "get_factory_rule_compliance",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/rule-compliance"
+      ],
+      "actualServices": [
+        "quality.cjs::buildFactoryRuleCompliance"
+      ],
+      "actualBusinessBehavior": "Approved rule compliance report",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.rule_compliance.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:617",
+        "api/routes/quality.cjs::buildFactoryRuleCompliance",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule governance",
+      "notes": "No formal query"
+    },
+    {
+      "toolName": "get_factory_rule_history",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/quality/rule-events"
+      ],
+      "actualServices": [
+        "quality.cjs::listFactoryRuleEvents"
+      ],
+      "actualBusinessBehavior": "Rule event history",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "quality.rule_events.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:632",
+        "api/routes/quality.cjs::listFactoryRuleEvents",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXCLUDE_V1",
+      "indexReason": "Internal rule audit",
+      "notes": "Not restore command"
+    },
+    {
+      "toolName": "get_order_detail",
+      "executorKey": "order",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/orders/lookup",
+        "GET /api/orders/:id"
+      ],
+      "actualServices": [
+        "orderExecutors.cjs::loadOrder+resolveOrderTarget"
+      ],
+      "actualBusinessBehavior": "Order detail plus parsed items and derived presentation totals",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/orderExecutors.cjs:355",
+        "api/routes/ai/executors/orderExecutors.cjs::loadOrder+resolveOrderTarget",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core order detail",
+      "notes": "Not orders.list; adapter derives totals"
+    },
+    {
+      "toolName": "build_order_draft",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/orders/save-payload-draft"
+      ],
+      "actualServices": [
+        "orders.cjs::buildOrderSavePayloadDraft"
+      ],
+      "actualBusinessBehavior": "Non-persisted order save payload draft",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:389",
+        "api/routes/orders.cjs::buildOrderSavePayloadDraft",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Draft workflow review needed",
+      "notes": "Not orders.create/update_draft"
+    },
+    {
+      "toolName": "inspect_quotation_file",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/files/:id/quotation-draft"
+      ],
+      "actualServices": [
+        "files.cjs::buildQuotationFileDraft"
+      ],
+      "actualBusinessBehavior": "Parse uploaded file into quotation match draft",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:316",
+        "api/routes/files.cjs::buildQuotationFileDraft",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "File parsing workflow review needed",
+      "notes": "Not plain file read"
+    },
+    {
+      "toolName": "build_quotation_draft",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "GET /api/customers",
+        "GET /api/recipes",
+        "POST /api/recipes/:id/cost-preview",
+        "POST /api/quotations/save-payload-draft"
+      ],
+      "actualServices": [
+        "businessExecutors.cjs::findByNameOrId+customerMarginMultiplier"
+      ],
+      "actualBusinessBehavior": "Customer and recipe lookup, optional cost preview, quotation draft",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [
+        "customers.list",
+        "recipes.list"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:339",
+        "api/routes/ai/executors/businessExecutors.cjs::findByNameOrId+customerMarginMultiplier",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "High-level draft skill candidate",
+      "notes": "Partial formal constituents only"
+    },
+    {
+      "toolName": "preview_recipe_cost",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "GET /api/recipes",
+        "GET /api/recipes/current-costs",
+        "POST /api/recipes/bom-draft",
+        "POST /api/recipes/:id/cost-preview",
+        "GET /api/templates",
+        "GET /api/parts",
+        "GET /api/recipes?keyword="
+      ],
+      "actualServices": [
+        "businessExecutors.cjs::resolveUniqueRecipe+selectCurrentRecipeCost+normalizeRecipeCostContract"
+      ],
+      "actualBusinessBehavior": "No-override current cost; baseline BOM rebuild; legacy override preview; cross-catalog reads only on not-found",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [
+        "recipes.list",
+        "recipes.current_costs"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:161",
+        "api/routes/ai/executors/businessExecutors.cjs::resolveUniqueRecipe+selectCurrentRecipeCost+normalizeRecipeCostContract",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Three contracts under one cost tool; clarify before index",
+      "notes": "Not scenario_compare_preview; cross-catalog routes are conditional failure enrichment"
+    },
+    {
+      "toolName": "explain_cost_change",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/cost/recipe-difference"
+      ],
+      "actualServices": [
+        "cost.cjs::costQueries.getRecipeDifference"
+      ],
+      "actualBusinessBehavior": "Authoritative current recipe cost difference and drivers",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "DIRECT_FORMAL_MAPPING",
+      "recommendedFormalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DIRECT",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:489",
+        "api/routes/cost.cjs::costQueries.getRecipeDifference",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Direct recipe cost difference explanation",
+      "notes": "Presentation summary only"
+    },
+    {
+      "toolName": "search_factory_file_archive_targets",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/files/archive-targets"
+      ],
+      "actualServices": [
+        "files.cjs::searchFactoryFileArchiveTargets"
+      ],
+      "actualBusinessBehavior": "Formal target candidates for file linking",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "files.archive_targets.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:773",
+        "api/routes/files.cjs::searchFactoryFileArchiveTargets",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Archive workflow support",
+      "notes": "Not files.archive command"
+    },
+    {
+      "toolName": "get_recipe_detail",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/recipes",
+        "GET /api/recipes/:id",
+        "GET /api/recipes/current-costs",
+        "GET /api/templates",
+        "GET /api/parts",
+        "GET /api/recipes?keyword="
+      ],
+      "actualServices": [
+        "queryExecutors.cjs::resolveUniqueRecipe+selectCurrentRecipeCost"
+      ],
+      "actualBusinessBehavior": "Recipe detail plus optional rebuilt cost; cross-catalog reads only on not-found",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [
+        "recipes.list",
+        "recipes.current_costs"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/queryExecutors.cjs:476",
+        "api/routes/ai/executors/queryExecutors.cjs::resolveUniqueRecipe+selectCurrentRecipeCost",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core recipe detail with optional cost",
+      "notes": "GET detail unregistered; cross-catalog routes are conditional failure enrichment"
+    },
+    {
+      "toolName": "get_recipe_technical_files",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/recipes",
+        "GET /api/recipes/:id/technical-files",
+        "GET /api/templates",
+        "GET /api/parts",
+        "GET /api/recipes?keyword="
+      ],
+      "actualServices": [
+        "recipes.cjs::listRecipeTechnicalFiles"
+      ],
+      "actualBusinessBehavior": "Files attached to resolved recipe; cross-catalog reads only on not-found",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [
+        "recipes.list"
+      ],
+      "proposedFormalCapabilityId": "recipes.technical_files.list",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/queryExecutors.cjs:514",
+        "api/routes/recipes.cjs::listRecipeTechnicalFiles",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Mature recipe file read",
+      "notes": "Not upload/delete or technical profile; cross-catalog routes are conditional failure enrichment"
+    },
+    {
+      "toolName": "build_recipe_bom_draft",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/recipes/bom-draft"
+      ],
+      "actualServices": [
+        "recipes.cjs::recipeQueries.getBomDraft"
+      ],
+      "actualBusinessBehavior": "Unsaved configured BOM and cost preview",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:124",
+        "api/routes/recipes.cjs::recipeQueries.getBomDraft",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Powerful draft; differentiate from scenario compare",
+      "notes": "Different current/same-read-set contract"
+    },
+    {
+      "toolName": "preview_pump_shell_cost",
+      "executorKey": "business",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "GET /api/templates",
+        "POST /api/recipes/bom-draft"
+      ],
+      "actualServices": [
+        "recipes.cjs::recipeQueries.getBomDraft"
+      ],
+      "actualBusinessBehavior": "Template resolution, BOM draft, shell-only cost projection",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [
+        "templates.list"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/businessExecutors.cjs:258",
+        "api/routes/recipes.cjs::recipeQueries.getBomDraft",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Shell-only derived preview",
+      "notes": "No independent cost formula"
+    },
+    {
+      "toolName": "compare_recipes",
+      "executorKey": "recipe",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/cost/recipe-difference"
+      ],
+      "actualServices": [
+        "recipeExecutors.cjs::buildRecipeComparison"
+      ],
+      "actualBusinessBehavior": "Authoritative two-recipe difference plus presentation",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "DIRECT_FORMAL_MAPPING",
+      "recommendedFormalCapabilityIds": [
+        "cost.recipe_difference"
+      ],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DIRECT",
+      "mappingEvidence": [
+        "api/routes/ai/executors/recipeExecutors.cjs:742",
+        "api/routes/ai/executors/recipeExecutors.cjs::buildRecipeComparison",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Direct current recipe comparison",
+      "notes": "Driver presentation uses formal response"
+    },
+    {
+      "toolName": "full_calculate",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/cost/full-estimate"
+      ],
+      "actualServices": [
+        "cost.cjs::costQueries.calculateFullEstimate"
+      ],
+      "actualBusinessBehavior": "Legacy free-form full estimate, not saved recipe scenario",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/costExecutors.cjs:56",
+        "api/routes/cost.cjs::costQueries.calculateFullEstimate",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Overlaps other cost tools but different basis",
+      "notes": "Do not map to current_costs"
+    },
+    {
+      "toolName": "dynamic_config_cost",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "POST /api/cost/dynamic"
+      ],
+      "actualServices": [
+        "cost.cjs::costQueries.calculateDynamic"
+      ],
+      "actualBusinessBehavior": "Legacy dynamic configuration calculator",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "LEGACY_COMPOSITE_OR_DERIVED",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": null,
+      "proposedFormalCapabilityStatus": null,
+      "mappingSemantics": "DERIVED_OR_LEGACY",
+      "mappingEvidence": [
+        "api/routes/ai/executors/costExecutors.cjs:132",
+        "api/routes/cost.cjs::costQueries.calculateDynamic",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Overlapping legacy calculator",
+      "notes": "Not scenario_compare_preview"
+    },
+    {
+      "toolName": "calculate_coil_cost",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "preview",
+      "actualApiRoutes": [
+        "GET /api/coils",
+        "POST /api/coils/calculate"
+      ],
+      "actualServices": [
+        "coils.cjs::calculateCoilCostHandler+calculateCoilCost"
+      ],
+      "actualBusinessBehavior": "Variant-safe coil cost preview and other-scheme notice",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [
+        "coils.list"
+      ],
+      "proposedFormalCapabilityId": "coils.cost_preview",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/costExecutors.cjs:66",
+        "api/routes/coils.cjs::calculateCoilCostHandler+calculateCoilCost",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Core formal coil cost",
+      "notes": "coils.list is identity, not cost"
+    },
+    {
+      "toolName": "get_copper_price",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/copper-price"
+      ],
+      "actualServices": [
+        "cost.cjs::marketSync.getCopperPrice"
+      ],
+      "actualBusinessBehavior": "Current copper price read",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "market.copper_price.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/costExecutors.cjs:61",
+        "api/routes/cost.cjs::marketSync.getCopperPrice",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Relevant cost driver",
+      "notes": "market.sync_copper_price is maintenance"
+    },
+    {
+      "toolName": "get_coil_specs",
+      "executorKey": "query",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/coils/specs"
+      ],
+      "actualServices": [
+        "coils.cjs::coilQueries.getSpecOptions"
+      ],
+      "actualBusinessBehavior": "Coil specification options read",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "coils.spec_options.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/queryExecutors.cjs:169",
+        "api/routes/coils.cjs::coilQueries.getSpecOptions",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "EXPOSE_V1",
+      "indexReason": "Coil specification discovery",
+      "notes": "Not coils.list record semantics"
+    },
+    {
+      "toolName": "get_rotor_drawing_history",
+      "executorKey": "cost",
+      "access": "read",
+      "operation": "query",
+      "actualApiRoutes": [
+        "GET /api/rotor/history"
+      ],
+      "actualServices": [
+        "rotor.cjs::listRotorHistory"
+      ],
+      "actualBusinessBehavior": "Bounded rotor drawing history projection",
+      "currentFormalCapabilityIds": [],
+      "primaryClass": "FORMAL_READ_CAPABILITY_GAP",
+      "recommendedFormalCapabilityIds": [],
+      "proposedFormalCapabilityId": "drawings.rotor.history.read",
+      "proposedFormalCapabilityStatus": "PROPOSED_ONLY",
+      "mappingSemantics": "REGISTRY_GAP",
+      "mappingEvidence": [
+        "api/routes/ai/executors/costExecutors.cjs:238",
+        "api/routes/rotor.cjs::listRotorHistory",
+        "api/capabilities/registry.cjs"
+      ],
+      "indexEligibility": "DEFER_V1",
+      "indexReason": "Outside initial cost/read core",
+      "notes": "Do not map to drawing write commands"
+    }
+  ],
+  "classification": {
+    "DIRECT_FORMAL_MAPPING": 2,
+    "COMPOSITE_EXISTING_FORMAL": 0,
+    "FORMAL_READ_CAPABILITY_GAP": 20,
+    "LEGACY_COMPOSITE_OR_DERIVED": 14
+  },
+  "eligibility": {
+    "EXPOSE_V1": 12,
+    "DEFER_V1": 18,
+    "EXCLUDE_V1": 6
+  },
+  "overview": {
+    "aiActions": 84,
+    "formalBusinessCapabilities": 147,
+    "linked": 48,
+    "unlinked": 36
+  }
+}
