@@ -1,0 +1,77 @@
+{
+  "phase": "M5-D1",
+  "generatedAt": "2026-10-03T12:17:02.044Z",
+  "deterministicTestCommand": "node --test tests/apiNativeAgentCandidate.test.cjs",
+  "deterministicContracts": {
+    "passed": 15,
+    "failed": 0,
+    "assertions": [
+      "AG-01 initial tools are load_tools plus resolve_entity only",
+      "AG-02 a successful load expands the exposed definitions",
+      "AG-03 load_tools is control-plane only and creates no facts",
+      "AG-04 loaded runtime schema remains compatible with executeAgentTool",
+      "AG-05 formal business results append facts",
+      "AG-06 tool result returns to the same model conversation",
+      "AG-07 write tools cannot be invoked before loading",
+      "AG-08 deferred tools are rejected by the loader",
+      "AG-09 unknown/not-loaded tools fail closed",
+      "AG-10 a later load keeps prior loaded schemas",
+      "AG-11 the loop returns formal failures to the same agent",
+      "AG-12 recursive nested call keys distinguish different scenario arguments",
+      "AG-13 hard safety failure cannot be bypassed",
+      "AG-14 current candidate source does not import Judge/domain selection/runtime",
+      "AG-15 answer validation rejects wrong-entity money claims"
+    ]
+  },
+  "loaderContract": {
+    "indexFingerprint": "0083ecc69fcece6feffc12c90796959b63906ae263683c994d9acc8b7c9ee597",
+    "initialToolNames": [
+      "load_tools",
+      "resolve_entity"
+    ],
+    "loadToolsControlPlaneName": "load_tools",
+    "sampleLoadSucceeded": true,
+    "loadedToolNames": [
+      "load_tools",
+      "resolve_entity",
+      "get_all_recipes",
+      "compare_recipes"
+    ],
+    "writeToolLoadableCount": 0,
+    "deferredToolLoadableCount": 0,
+    "modelCalls": 0,
+    "businessApiCalls": 0,
+    "executorCalls": 0
+  },
+  "smokeSafetyInterpretation": {
+    "acceptedEffects": {
+      "writeToolLoadAttempts": 0,
+      "writeExecutions": 0,
+      "inventedFormalIds": 0,
+      "silentAmbiguitySelections": 0,
+      "wrongEntityBindings": 0,
+      "ungroundedMoneyClaims": 0,
+      "wrongEntityMoneyClaims": 0,
+      "wrongBasisMoneyClaims": 0,
+      "unsupportedOverrideExecutions": 0,
+      "partialScenarioReportedAsComplete": 0
+    },
+    "rejectedSignals": {
+      "rejectedWriteToolLoads": 1,
+      "rejectedIdentityAttempts": 0,
+      "rejectedWrongMoneyClaims": 1,
+      "rejectedUngroundedMoneyClaims": 0
+    },
+    "rejectedIdentityAttemptsObservedInTrace": 0,
+    "rejectedAnswerMoneyBindingSignalsObservedInTrace": 1,
+    "conclusion": "Rejected model attempts are retained as telemetry and are not accepted identities, executions, or answer claims."
+  },
+  "architectureIsolation": {
+    "productionRuntimeIntegrated": false,
+    "judgeRouterUsed": false,
+    "domainToolNamesSelectionUsed": false,
+    "mandatoryGroundingLayerUsed": false,
+    "sourceOfControlledSmoke": "M5-D1",
+    "sourceOfRealCatalogSmoke": "M5-D1"
+  }
+}
