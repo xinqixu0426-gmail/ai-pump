@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { createFactLedger, modelProjection } = require('../api/services/ai-assistant/factLedger.cjs');
 const { runApiNativeAgentCandidate, renderClaimableFactsForModel } = require('../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs');
+const { validateAnswer } = require('../api/services/ai-assistant/answerValidator.cjs');
 
 function toolCall(id, name, args) { return { id, type: 'function', function: { name, arguments: JSON.stringify(args) } }; }
 function scripted(responses) {
@@ -95,4 +96,10 @@ test('R3-C/D: a completed status without both coil costs is not a completed busi
     const expected = new Set(['12-120-A', '12-130-A']);
     const outcome = [...expected].every(name => facts.some(fact => cited.has(fact.factId) && fact.entity?.canonicalName === name));
     assert.equal(outcome, false);
+});
+
+test('R3-C: a scenario delta with one entity and two scenario labels does not require recipe comparison participants', () => {
+    const raw = JSON.stringify({ answer: '电缆5米+木箱相比当前正式配置，V750-通用款成本增加48元。', claims: [{ text: '电缆5米+木箱相比当前正式配置，V750-通用款成本增加48元。', factIds: ['F-1'] }], goals: [{ questionIndex: 0, status: 'COMPLETED', factIds: ['F-1'] }] });
+    const result = validateAnswer(raw, { ledger: { facts: [{ factId: 'F-1', verified: true, entity: { type: 'recipe', canonicalName: 'V750-通用款' }, predicate: 'scenario_cost_difference', value: 48, unit: 'CNY', qualifiers: { moneyRole: 'SCENARIO_DIFFERENCE', baseScenarioKey: 'base', candidateScenarioKey: 'cable5_wooden', status: 'COMPARABLE' } }] }, judge: { questions: ['owner'] } });
+    assert.equal(result.valid, true);
 });

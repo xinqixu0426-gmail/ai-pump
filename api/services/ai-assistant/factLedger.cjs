@@ -154,6 +154,12 @@ function coilDirectoryCostFacts(data, base) {
     // canonical read-path shapes and must retain identical per-record facts.
     const rows = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
     const facts = [];
+    // search_coils is a complete, non-paginated formal directory query in the
+    // current executor contract.  Retain its returned set size separately so
+    // a count answer is grounded even when the Broker projects only the list.
+    facts.push(makeFact({ entity: null, predicate: 'coil_directory_count', value: rows.length, unit: 'COUNT',
+        basis: 'FORMAL_SEARCH_COILS_COMPLETE_RESULT', capabilityId: base.capabilityId, tool: base.tool,
+        qualifiers: { resultCompleteness: 'COMPLETE_SINGLE_RESPONSE' } }));
     for (const row of rows) {
         const id = Number(row?.id ?? row?.Id);
         const schemeCode = text(row?.schemeCode);

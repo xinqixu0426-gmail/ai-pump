@@ -101,7 +101,10 @@ function claimMoneyBinding(claim, verified, allFacts) {
             const namedEntities = [...new Set(allFacts.flatMap(fact => [fact?.entity?.canonicalName, ...participantsFor(fact)]).filter(Boolean))];
             const mentioned = namedEntities.filter(name => clause.includes(name));
             const type = clauseClaimType(clause, mention);
-            if (type === 'DIFFERENCE_AMOUNT' && mentioned.length >= 2 && cited.some(fact => ['RECIPE_DIFFERENCE', 'SCENARIO_DIFFERENCE'].includes(moneyRole(fact)))
+            // Pair participant validation is meaningful for a recipe-vs-
+            // recipe difference.  Scenario deltas are bound to one entity and
+            // their base/candidate scenario keys, not two entity participants.
+            if (type === 'DIFFERENCE_AMOUNT' && mentioned.length >= 2 && cited.some(fact => moneyRole(fact) === 'RECIPE_DIFFERENCE')
                 && !cited.some(fact => {
                     const pair = participantsFor(fact); return mentioned.every(name => pair.includes(name));
                 })) return { valid: false, detail: bindingDetail({ claim, value, type, cited, allFacts, reason: 'WRONG_COMPARISON_PARTICIPANTS' }) };
@@ -123,7 +126,7 @@ function claimMoneyBinding(claim, verified, allFacts) {
             }
             const compatible = matching.filter(fact => compatibilityFor(type, fact));
             if (!compatible.length) return { valid: false, detail: bindingDetail({ claim, value, type, cited, allFacts, reason: 'WRONG_MONEY_ROLE' }) };
-            if (type === 'DIFFERENCE_AMOUNT' && mentioned.length >= 2 && !compatible.some(fact => {
+            if (type === 'DIFFERENCE_AMOUNT' && mentioned.length >= 2 && compatible.some(fact => moneyRole(fact) === 'RECIPE_DIFFERENCE') && !compatible.some(fact => {
                 const pair = participantsFor(fact); return mentioned.every(name => pair.includes(name));
             })) return { valid: false, detail: bindingDetail({ claim, value, type, cited, allFacts, reason: 'WRONG_COMPARISON_PARTICIPANTS' }) };
         }
