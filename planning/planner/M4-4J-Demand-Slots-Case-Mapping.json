@@ -1,0 +1,20 @@
+{
+  "phase": "M4-4J",
+  "purpose": "Evaluator-only semantic expectations; never included in the model prompt.",
+  "source": "scripts/ai-experiments/planner-v1/demandSlotsCases.cjs",
+  "cases": [
+    ["P-01", "DETAIL", "NONE", "NO"], ["P-02", "DETAIL", "NONE", "NO"], ["P-03", "LIST", "NONE", "NO"],
+    ["P-04", "VALUE", "COST", "NO"], ["P-05", "VALUE", "COST", "NO"], ["P-06", "VALUE", "COST", "NO"],
+    ["P-07", "COUNT", "NONE", "NO"], ["P-08", "VALUE", "NONE", "NO"], ["P-09", "DELTA", "COST", "NO"],
+    ["P-10", "VALUE", "COST", "NO"], ["P-11", "DELTA", "COST", "NO"], ["P-12", "DELTA", "COST", "NO"],
+    ["P-13", "VALUE", "COST", "NO"], ["P-14", "DELTA", "COST", "NO"], ["P-15", "VALUE", "COST", "NO"],
+    ["P-16", "VALUE", "COST", "NO"], ["P-17", "NONE", "NONE", "YES"], ["P-18", "VALUE", "COST", "NO"],
+    ["N-01", "LIST", "NONE", "NO"], ["N-02", "VALUE", "COST", "NO"], ["N-03", "LIST", "NONE", "NO"],
+    ["N-04", "VALUE", "COST", "NO"], ["N-05", "DELTA", "COST", "NO"], ["N-06", "DELTA", "COST", "NO"],
+    ["N-07", "DELTA", "COST", "NO"], ["N-08", "VALUE", "COST", "NO"]
+  ],
+  "rowFormat": ["case", "resultShape", "metric", "writeRequired"],
+  "relationCases": ["P-03", "P-08", "N-01", "N-03"],
+  "scenarioCases": ["P-09", "P-10", "P-11", "P-12", "P-13", "P-17", "N-04", "N-05", "N-07"],
+  "targetCardinalitySource": "Frozen Grounding fixtures and P-09 real frozen upstream output; never the LLM"
+}

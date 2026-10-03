@@ -1,0 +1,12 @@
+{
+  "phase": "M4-4J",
+  "sameCorpus": "18 Base + 8 Negative; original owner wording unchanged",
+  "runs": [
+    { "version": "M4-4D old Requirement", "oneShotSemanticPass": 16, "finalPass": 16, "total": 26, "retryDependency": "subsequent hardening used bounded retry", "medianModelMs": 1273.18925, "llmOutputFields": "status, owner goal, target, goal facts, selection, scenario override, write" },
+    { "version": "M4-4H hardened Requirement", "fullRun": "NOT_RUN", "p11Repeat": "10/10", "p13Repeat": "0/3", "p03Repeat": "2/3", "retryDependency": "bounded retry enabled", "source": ["M4-4H-P11-Goal-Minimality-Reliability.json", "M4-4H-Regression-Reliability.json"] },
+    { "version": "M4-4I Goal Spec", "oneShotSemanticPass": 16, "finalPass": 16, "total": 26, "retryDependency": "none", "medianModelMs": 1042.488625, "llmOutputFields": "goal kind, result shape, metric, target, relation request, scenario override, write", "p11Repeat": "1/5", "p13Repeat": "4/5" },
+    { "version": "M4-4J Demand Slots", "oneShotSemanticPass": 23, "finalPass": 23, "total": 26, "retryDependency": "none", "medianModelMs": 994.720708, "llmOutputFields": "result shape, metric, relation request, scenario override, write", "p11Repeat": "4/5", "p13Repeat": "1/5" }
+  ],
+  "interpretation": "Demand Slots improves the full 26-case one-shot result by seven cases over M4-4I, but repeat variance remains material; M4-4H lacks a comparable full run.",
+  "sources": ["M4-4D-Full-Smoke.json", "M4-4H-P11-Goal-Minimality-Reliability.json", "M4-4H-Regression-Reliability.json", "M4-4I-Goal-Spec-Full-Smoke.json", "M4-4I-Goal-Spec-Repeat-Smoke.json", "M4-4J-Demand-Slots-Full.json", "M4-4J-Demand-Slots-Repeat.json"]
+}

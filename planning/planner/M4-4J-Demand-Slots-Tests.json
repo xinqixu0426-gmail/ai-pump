@@ -1,0 +1,11 @@
+{
+  "phase": "M4-4J",
+  "command": "node --test tests/plannerV1DemandSlots.test.cjs",
+  "result": "PASS",
+  "nodeTestGroups": { "pass": 5, "fail": 0 },
+  "assertionIds": ["DS-01", "DS-02", "DS-03", "DS-04", "DS-05", "DS-06", "DS-07", "DS-08", "DS-09", "DS-10", "DS-11", "DS-12", "DS-13", "DS-14", "DS-15", "DS-16", "DS-17", "DS-18", "DS-19", "DS-20", "DS-21", "DS-22", "DS-23", "DS-24"],
+  "deterministicAssertionsPassed": 24,
+  "deterministicAssertionsFailed": 0,
+  "modelCalls": { "semanticCompiler": 0, "planCompiler": 0 },
+  "source": "tests/plannerV1DemandSlots.test.cjs"
+}
