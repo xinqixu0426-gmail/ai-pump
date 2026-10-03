@@ -117,6 +117,14 @@ function runtimeToolDefinitions(session) {
 }
 function finalFallback(ledger, status = 'UNAVAILABLE') {
     const snapshot = ledger.snapshot(); const facts = snapshot.facts.filter(item => item.verified);
+    if (status === 'UNAVAILABLE') return JSON.stringify({
+        answer: '当前正式业务能力无法可靠完成该请求；不会把未应用的配置、零差额或未核验数据当作结果。',
+        claims: [], goals: [{ questionIndex: 0, status, factIds: [] }],
+    });
+    if (status === 'CLARIFICATION') return JSON.stringify({
+        answer: '当前缺少能够唯一确定对象或范围的必要信息；请补充具体对象或范围。',
+        claims: [], goals: [{ questionIndex: 0, status, factIds: [] }],
+    });
     const factIds = facts.filter(item => item.predicate !== 'identity_resolved').slice(0, 2).map(item => item.factId);
     const answer = factIds.length ? '已取得部分正式结果，但不足以可靠完成全部请求；请补充对象或范围。' : '当前没有足够的正式业务事实完成该请求；请补充对象或范围。';
     return JSON.stringify({ answer, claims: factIds.length ? [{ text: answer, factIds }] : [], goals: [{ questionIndex: 0, status, factIds }] });
