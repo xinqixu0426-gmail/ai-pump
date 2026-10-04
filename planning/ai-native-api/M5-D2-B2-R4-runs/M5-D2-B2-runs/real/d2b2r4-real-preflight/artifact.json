@@ -1,0 +1,29 @@
+{
+  "phase": "M5-D2-B2",
+  "kind": "real",
+  "runId": "d2b2r4-real-preflight",
+  "preflight": true,
+  "modelCallsEnabled": false,
+  "readPreviewOnly": true,
+  "databaseSource": {
+    "databaseSource": "LOCAL_BUSINESS_DB",
+    "pathCategory": "LOCAL_NON_TEMP"
+  },
+  "discovery": {
+    "cases": [],
+    "limitations": [
+      "REAL-W1-01:FORMAL_DETAIL_UNAVAILABLE",
+      "REAL-W1-02:FORMAL_READINESS_UNAVAILABLE",
+      "REAL-W1-05:NO_SHARED_CANONICAL_MATERIAL",
+      "REAL-W1-03:FORMAL_PURCHASE_UNAVAILABLE",
+      "REAL-W1-04:FORMAL_VIRTUAL_READINESS_UNAVAILABLE"
+    ]
+  },
+  "database": {
+    "beforeHash": "2fe82bcc454a3436a2f5fa1a07f46d9014900da7282823ec52653cd2d8a79147",
+    "afterHash": "2fe82bcc454a3436a2f5fa1a07f46d9014900da7282823ec52653cd2d8a79147",
+    "changedTables": [],
+    "mutations": 0
+  },
+  "results": []
+}

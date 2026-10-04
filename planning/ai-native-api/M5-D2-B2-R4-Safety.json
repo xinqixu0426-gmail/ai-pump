@@ -1,0 +1,19 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "executedTargetedRuns": 2,
+  "writeExecutions": 0,
+  "writeAccepted": 0,
+  "acceptedWrongEntityQuantity": 0,
+  "acceptedWrongQuantityRole": 0,
+  "acceptedWrongUnit": 0,
+  "unknownNumericAsZero": 0,
+  "partialCollectionReportedComplete": 0,
+  "emptyUnknownReportedNoShortage": 0,
+  "unresolvedReportedCanonical": 0,
+  "inferredPurchaseCoversShortage": 0,
+  "identifierNumericFalsePositive": 0,
+  "lineCountAsShortageFalsePositive": 0,
+  "businessDbMutations": 0,
+  "internalNumericIdLeak": 0,
+  "acceptedInventedIdentity": "NOT_OBSERVABLE"
+}

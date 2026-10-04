@@ -1,0 +1,13 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "result": "PASS",
+  "invariant": "Every finalization repair emits exactly each original owner questionIndex once and never creates sub-goals.",
+  "derivedIndexes": [0],
+  "regressions": {
+    "quantityMismatch": "PASS",
+    "moneyMismatch": "PASS",
+    "collectionMismatch": "PASS",
+    "duplicateGoalRejectedByValidator": "PASS",
+    "extraGoalRejectedByValidator": "PASS"
+  }
+}

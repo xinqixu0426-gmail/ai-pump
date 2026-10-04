@@ -1,0 +1,18 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "result": "PASS",
+  "reviewedMetadataBaseline": "5fa2cc918463b42b5ba8df415b68ba65acb669ae",
+  "reviewedProductCommit": "85877dfd748f87c1aee324eb25de0e581a211b1e",
+  "path": "api/routes/ai/tools.cjs",
+  "reviewedDelta": [
+    "get_purchase_overview description adds pending/unfinished procurement-task wording",
+    "pendingOnly description specifies pendingQty > 0 pending/unfinished procurement tasks"
+  ],
+  "toolDefinitionCount": 80,
+  "apiIndexCount": 31,
+  "apiIndexFingerprint": "2fc41d3ea8400d1729f522ef1580f1e885fc56eeddc008b8db70585cee0cb2e7",
+  "pendingOnlySchema": { "type": "boolean", "required": false },
+  "writeCapabilityAdded": false,
+  "wholeFileAllowlisted": false,
+  "unreviewedToolsCjsDriftRejected": true
+}

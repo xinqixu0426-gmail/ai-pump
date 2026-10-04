@@ -1,0 +1,12 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "result": "PASS",
+  "pendingOnlyFormalSemantics": "pendingQty > 0 pending/unfinished procurement tasks",
+  "acceptedPaths": {
+    "completeFiltered": "verified get_purchase_overview call uses pendingOnly=true and its formal purchase_tasks collection is COMPLETE",
+    "partial": "verified purchase_tasks collection is PARTIAL, returned formal rows are delivered, and the owner answer discloses that more records were not returned"
+  },
+  "rejectedPath": "An unfiltered COMPLETE purchase collection cannot be presented as the complete pending-only collection.",
+  "fixedLimitRequired": false,
+  "fixedPartialFixtureRequired": false
+}

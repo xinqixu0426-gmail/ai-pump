@@ -1,0 +1,6 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "status": "NOT_RUN",
+  "reason": "The R4 targeted matrix stopped at its first semantic failure under the frozen no-fix-in-place rule.",
+  "planned": ["D1-03", "D1-07", "D1-08", "D1-10"]
+}

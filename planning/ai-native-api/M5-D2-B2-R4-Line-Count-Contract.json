@@ -1,0 +1,15 @@
+{
+  "phase": "AI-NATIVE D2-B2-R4",
+  "contract": "raw_unit_preserved_before_normalized_unit",
+  "result": "PASS",
+  "collectionLineUnits": ["项", "条"],
+  "ordinaryCountUnitRetained": ["台"],
+  "verifiedExamples": {
+    "缺1项物料": "SHORTAGE_LINE_COUNT/count",
+    "缺2条物料记录": "SHORTAGE_LINE_COUNT/count",
+    "缺3台水泵": "SHORTAGE/count",
+    "缺1项物料：D1-R1轴承-202缺3个": ["SHORTAGE_LINE_COUNT/count", "SHORTAGE/piece"]
+  },
+  "identifierNumericRegression": "PASS",
+  "strictEntityRoleUnitValidation": "PASS"
+}
