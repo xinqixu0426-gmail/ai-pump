@@ -1,0 +1,36 @@
+{
+  "phase": "D2-B2-R6H4-C1.2",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "0eea1e5aebcf34598a2225934f55810b3d49c174",
+  "manifest": "planning/ai-native-api/M5-D2-B2-R6H4C11-Freeze-Manifest.json",
+  "diagnostic": {
+    "caseId": "D01",
+    "countedAsAcceptance": false,
+    "markers": [
+      "DIAG_START",
+      "FIXTURE_READY",
+      "MEMO_START",
+      "MEMO_DONE",
+      "CANDIDATE_START",
+      "CANDIDATE_DONE",
+      "SCORING_DONE",
+      "DIAG_END"
+    ],
+    "durationMs": 27789,
+    "memoResult": "PASS",
+    "candidateResult": "PASS",
+    "diagnosis": "SINGLE_CASE_PROVIDER_PATH_PASS"
+  },
+  "formalBatch": {
+    "preGateRunId": "r6c12-pre-20261005-01",
+    "domainRunId": "r6c12-domain-20261005-01",
+    "domainArtifactWritten": false,
+    "domainRunnerReceipt": false,
+    "domainErrorObject": false,
+    "lastObservedOutput": "runtime initialization only",
+    "subsequentSuitesStarted": false
+  },
+  "classification": "PROCESS_TERMINATION",
+  "sourceChanges": false,
+  "actionTaken": "Stopped after the missing-artifact condition; no retry or source change."
+}
