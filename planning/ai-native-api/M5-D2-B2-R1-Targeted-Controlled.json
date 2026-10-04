@@ -1,0 +1,19 @@
+{
+  "status": "REWORK",
+  "plannedRuns": 13,
+  "executedRuns": 1,
+  "stoppedAfterFirstSemanticFailure": true,
+  "runs": [{
+    "runId": "d2b2r1-w101-1",
+    "caseId": "W1-01",
+    "semanticPass": false,
+    "declaredStatus": "UNAVAILABLE",
+    "classification": "AGENT_RELIABILITY_FAILURE",
+    "formalReadinessExecuted": true,
+    "finalizationAttemptCodes": ["OPERATIONAL_QUANTITY_BINDING_MISMATCH", "OPERATIONAL_QUANTITY_BINDING_MISMATCH"],
+    "formalResultObtainedButDeliveryFailed": true,
+    "databaseMutations": 0,
+    "stagedEvidence": "planning/ai-native-api/M5-D2-B2-runs/controlled/d2b2r1-w101-1/artifact.json"
+  }],
+  "unexecutedByFreezeRule": {"W1-01": 2, "W1-03": 3, "W1-06": 3, "W1-02": 1, "W1-05": 1, "W1-09": 1, "W1-10": 1}
+}

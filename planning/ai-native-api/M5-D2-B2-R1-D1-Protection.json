@@ -1,0 +1,5 @@
+{
+  "status": "NOT_RUN",
+  "reason": "The first frozen D2 targeted semantic sample failed. The no-fix-in-place rule stopped all further fresh model samples, including D1 protection, to avoid mixing evidence across a required repair.",
+  "plannedCases": ["D1-03", "D1-07", "D1-08", "D1-10"]
+}

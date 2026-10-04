@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "modelCalls": 0,
+  "databaseSource": "LOCAL_BUSINESS_DB",
+  "localDbGuard": "PASS",
+  "environmentBeforeRuntimeImport": "PASS",
+  "dynamicCaseDiscovery": "PASS",
+  "oracleBuild": "PASS",
+  "database": {
+    "changedTables": [],
+    "mutations": 0
+  },
+  "stagingOutput": "PASS",
+  "dataLimitations": ["No dynamically applicable local real-catalog W1 case was found during this preflight."],
+  "productionMacMiniAccess": false
+}

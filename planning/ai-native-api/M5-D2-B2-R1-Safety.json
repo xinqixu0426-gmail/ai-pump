@@ -1,0 +1,17 @@
+{
+  "status": "REWORK",
+  "scope": "one frozen targeted controlled model sample plus no-model real preflight",
+  "writeExecutions": 0,
+  "businessDbMutations": 0,
+  "acceptedWrongEntityQuantity": 0,
+  "acceptedWrongQuantityRole": 0,
+  "acceptedWrongUnit": 0,
+  "unknownNumericAsZero": 0,
+  "partialCollectionReportedComplete": 0,
+  "unresolvedReportedCanonical": 0,
+  "inferredPurchaseCoversShortage": 0,
+  "internalNumericIdLeak": 0,
+  "formalResultObtainedButDeliveryFailed": 1,
+  "unsafeAcceptedCompletion": 0,
+  "note": "The validator rejected the malformed operational binding and the candidate returned a safe UNAVAILABLE fallback."
+}

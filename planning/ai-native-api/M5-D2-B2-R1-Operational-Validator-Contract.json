@@ -1,0 +1,28 @@
+{
+  "status": "REWORK",
+  "implemented": {
+    "localPhraseBoundaries": ["，", ",", "；", ";", "。", "：", ":", "、", "newline"],
+    "quantityRoles": ["SHORTAGE_LINE_COUNT", "SHORTAGE", "REQUIRED", "AVAILABLE", "PLANNED_PURCHASE", "ORDERED", "RECEIVED", "STOCKED"],
+    "strictChecksRetained": ["value", "quantityRole", "unit", "entity", "collectionCompleteness"],
+    "finalizerPolicy": "Answer requested operational facts only; prefer one role per short factual sentence; permit up to eight short operational sentences.",
+    "repairPolicy": "For OPERATIONAL_QUANTITY_BINDING_MISMATCH, use the validator detail's exact role/value/unit/entity and split distinct roles."
+  },
+  "deterministicRegression": {
+    "lineCount": "PASS",
+    "multiQuantity": "PASS",
+    "sameValueDifferentRoles": "PASS",
+    "zeroRoleCollision": "PASS",
+    "wrongRoleRejected": "PASS",
+    "wrongEntityRejected": "PASS",
+    "wrongUnitRejected": "PASS",
+    "missingUnitFailClosed": "PASS"
+  },
+  "remainingFailure": {
+    "caseId": "W1-01",
+    "code": "OPERATIONAL_QUANTITY_BINDING_MISMATCH",
+    "incorrectMention": {"value": 1, "role": "SHORTAGE", "unit": null},
+    "sourceText": "D1-R1轴承-202",
+    "cause": "The parser only excluded a bare numeric fragment when followed by a letter/CJK character. A hyphen after the numeric identifier fragment was not excluded.",
+    "safetyOutcome": "FAIL_CLOSED"
+  }
+}

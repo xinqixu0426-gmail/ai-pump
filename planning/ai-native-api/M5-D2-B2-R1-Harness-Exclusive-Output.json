@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "semanticRunnerWritesCanonicalArtifacts": false,
+  "runIdRequired": true,
+  "exclusiveRunLock": "PASS",
+  "sameRunOverwrite": "REJECTED:D2_B2_RUN_ALREADY_EXISTS",
+  "differentRunsIsolated": "PASS",
+  "controlledAndRepetitionSeparate": "PASS",
+  "realSeparate": "PASS",
+  "assemblerOnlyCanonicalWriter": "PASS",
+  "assemblerMissingRun": "REJECTED:D2_B2_REQUIRED_RUN_MISSING",
+  "atomicPublish": "temp-write-then-rename",
+  "realRunnerHash": "c68c5db7e0a1e84c9f9d917031af1c6b1bb3f26e82f063c6660e5ce2e9a96ce7",
+  "exclusiveEvidenceContractHash": "bf5cbb460cc6995475ad8765bf3280a35b354c9e8146d62bd9cb1d890fd9c19e"
+}
