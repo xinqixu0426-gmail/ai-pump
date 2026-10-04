@@ -15,6 +15,7 @@ const r6Fresh = require('../scripts/ai-experiments/api-native-agent/d2B2R6FreshR
 const { freezeManifestData, verifyR6AcceptanceFreeze } = require('../scripts/ai-experiments/api-native-agent/d2B2R6FreezeVerifier.cjs');
 const { createFrozenRagFixtureExecutor } = require('../scripts/ai-experiments/api-native-agent/d2B2R6RagFixtureAdapter.cjs');
 const { buildApiIndex } = require('../api/services/ai-assistant/apiIndex.cjs');
+const durable = require('../scripts/ai-experiments/api-native-agent/d2B2R6DurableFreshRunner.cjs');
 function testFreezeManifest(directory, harnessFreezeCommit = 'test-freeze') {
   const target = path.join(directory, 'freeze-manifest.json'); fs.writeFileSync(target, JSON.stringify(freezeManifestData(harnessFreezeCommit)));
   return target;
@@ -163,6 +164,31 @@ test('R6H4C01 FI-01..20: frozen RAG adapter and byte-level freeze verifier rejec
   fs.writeFileSync(manifestPath, JSON.stringify(freezeManifestData('integrity-freeze')));
   assert.throws(() => r6Fresh.preflight('rag', { manifestPath, harnessFreezeCommit: 'caller-forgery' }), /R6_ACCEPTANCE_FREEZE_INTEGRITY_FAILED/);
   assert.equal(r6Fresh.preflight('rag', { manifestPath }).modelCalls, 0);
+});
+test('R6H4C13 DR-01..25: durable per-case checkpoints are immutable, resumable, and finalize into existing suite artifacts', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'd2-b2-r6-durable-')); const manifestPath = testFreezeManifest(root, 'durable-freeze');
+  const result = slot => ({ caseId: slot.caseId, runNumber: slot.runNumber || 1, semanticPass: slot.caseKey !== 'D02', safety: { wrongEntity: 0, wrongQuantity: 0, unknownAsZero: 0, partialAsComplete: 0, formalConflictSilentSelection: 0, write: 0 }, domainCoverageScore: { missingDomainApis: [], invalidNotApplicable: [], writeInDomainSet: [], applicableExecutionCoverage: 1 }, ragObservation: { ragSearchRequired: true, ragSearchExecuted: true }, answerRelevance: { answerDumpedUnrequestedContext: false }, ragAuthorityScore: slot.caseKey?.startsWith('RAG-') ? { semanticPass: true, ragCurrentOverride: false, historyPresentedAsCurrent: false } : null });
+  const execute = async slot => ({ result: result(slot), database: { beforeHash: `before-${slot.caseKey}`, afterHash: `after-${slot.caseKey}`, changedTables: [], mutations: 0 }, durationMs: 1 });
+  const batch = durable.createFreshBatch(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', manifestPath });
+  assert.equal(batch.expectedCaseCount, 12); assert.equal(batch.expectedCaseKeys[0], 'D01');
+  await durable.runFreshCase(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', caseKey: 'D01', manifestPath, executeCase: execute });
+  assert.equal(fs.existsSync(path.join(root, 'M5-D2-B2-runs', 'domain-corpus', 'durable-domain', 'cases', 'D01.json')), true);
+  await assert.rejects(() => durable.runFreshCase(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', caseKey: 'D01', manifestPath, executeCase: execute }), /R6_DURABLE_CASE_ALREADY_COMPLETED/);
+  const inspection = durable.inspectFreshBatch(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', manifestPath }); assert.deepEqual(inspection.completedCases, ['D01']); assert.equal(inspection.pendingCases[0], 'D02');
+  const attempt = path.join(root, 'M5-D2-B2-runs', 'domain-corpus', 'durable-domain', 'attempts', 'D03-attempt-1.started.json'); fs.writeFileSync(attempt, JSON.stringify({ status: 'STARTED' }));
+  assert.ok(durable.inspectFreshBatch(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', manifestPath }).interruptedCases.includes('D03'));
+  await durable.runFreshCase(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', caseKey: 'D03', manifestPath, executeCase: execute });
+  for (const key of batch.expectedCaseKeys.filter(key => !['D01', 'D03'].includes(key))) await durable.runFreshCase(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', caseKey: key, manifestPath, executeCase: execute });
+  const finalized = durable.finalizeFreshSuite(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', manifestPath }); assert.equal(finalized.results.length, 12); assert.equal(finalized.database.mutations, 0); assert.equal(finalized.results.some(item => item.caseId === 'D02' && item.semanticPass === false), true);
+  assert.throws(() => durable.createFreshBatch(root, { suite: 'domain-corpus', batchRunId: 'durable-domain', manifestPath }), /D2_B2_RUN_ALREADY_EXISTS/);
+  for (const [suite, count] of [['rag', 4], ['targeted', 14], ['d1-protection', 4]]) {
+    const runId = `durable-${suite}`; const next = durable.createFreshBatch(root, { suite, batchRunId: runId, manifestPath });
+    for (const key of next.expectedCaseKeys) await durable.runFreshCase(root, { suite, batchRunId: runId, caseKey: key, manifestPath, executeCase: execute });
+    assert.equal(durable.finalizeFreshSuite(root, { suite, batchRunId: runId, manifestPath }).results.length, count);
+  }
+  const mismatch = JSON.parse(fs.readFileSync(path.join(root, 'M5-D2-B2-runs', 'rag', 'durable-rag', 'batch.json'), 'utf8')); mismatch.caseInputHashes['RAG-01'] = 'wrong'; fs.writeFileSync(path.join(root, 'M5-D2-B2-runs', 'rag', 'durable-rag', 'batch.json'), JSON.stringify(mismatch));
+  assert.throws(() => durable.inspectFreshBatch(root, { suite: 'rag', batchRunId: 'durable-rag', manifestPath }), /R6_DURABLE_BATCH_IDENTITY_MISMATCH/);
+  assert.equal(fs.readFileSync(path.join(__dirname, '../scripts/ai-experiments/api-native-agent/apiNativeAgentCandidate.cjs'), 'utf8').includes('d2B2R6DurableFreshRunner'), false);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');

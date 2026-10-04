@@ -18,6 +18,7 @@ const HASHED_FILES = Object.freeze({
     answerRelevanceScorer: 'scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceScoring.cjs',
     assembler: 'scripts/ai-experiments/api-native-agent/d2B2R6AcceptanceAssembler.cjs',
     freshRunners: 'scripts/ai-experiments/api-native-agent/d2B2R6FreshRunners.cjs',
+    durableFreshRunner: 'scripts/ai-experiments/api-native-agent/d2B2R6DurableFreshRunner.cjs',
     freezeVerifier: 'scripts/ai-experiments/api-native-agent/d2B2R6FreezeVerifier.cjs',
 });
 function sha(file) { return crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, file))).digest('hex'); }
