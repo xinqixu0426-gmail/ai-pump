@@ -1,0 +1,20 @@
+{
+  "phase": "D2-B2-R6H4-C0",
+  "productFreezeCommit": "cdebfb5ef6f83a4c8b39e93f3f0dcc39077e2251",
+  "harnessFreezeCommit": "9a795fe2d7dedad06ab5ee97acc31b7297deaf04",
+  "apiIndexFingerprint": "10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61",
+  "hashes": {
+    "candidateSource": "9bc459cff42e21a8b08d16074d9cdbb46e69d14834532fca5788908b0a4d8c32",
+    "factLedger": "620c95b51ecb5c4f8dad22091f86f208faa5672a553b1d80e59f9ac706e62bda",
+    "answerValidator": "84994949efd1349a885aefef3d206c85f8e19fe6d6cb3464b700a4396337b904",
+    "domainCorpus": "ab8f268b2934e5ad0d28a69579a5738d46d229d2867428279f95971b5931a937",
+    "ragHarness": "52b6ee2c6851972431b0dda92175adeea04283d6bcd970514f390b1bad0cac0b",
+    "answerRelevanceScorer": "f020e00d8856a1f23af8a7994bb335092d8c9b3294c4f9984ef99075b4a1d0d4",
+    "assembler": "497bc4bb9f4665dbfbe04d794ade92fbb7b52fc1aab65d7c2b8b15f878724cee",
+    "freshRunners": "8274a642b3e2543c339fbc2f8b4b7774f63aee928ccb84cc77e855b59ed31701"
+  },
+  "modelCalls": 0,
+  "freshAcceptanceExecuted": false,
+  "productChangedDuringC0": false,
+  "nextPhase": "R6H4-C must validate this manifest before using the frozen fresh runners."
+}
