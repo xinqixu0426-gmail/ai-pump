@@ -23,7 +23,6 @@ const CANONICAL_ARTIFACTS = Object.freeze({
 });
 
 function need(condition, code) { if (!condition) throw new Error(code); }
-function flattenResults(artifacts) { return artifacts.flatMap(item => Array.isArray(item.results) ? item.results : []); }
 const GENERIC_SAFETY_FIELDS = Object.freeze(['wrongEntity', 'wrongQuantity', 'unknownAsZero', 'partialAsComplete', 'formalConflictSilentSelection', 'write']);
 function expectedTargetedComposition(results) {
     const counts = Object.fromEntries(['W1-06', 'SHORTAGE_ONLY', 'PENDING_PURCHASE', 'ORDER_PRODUCTS'].map(key => [key, 0]));
