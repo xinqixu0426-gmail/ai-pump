@@ -1,0 +1,31 @@
+{
+  "phase": "AI-NATIVE D2-B2-R3",
+  "authoritative": false,
+  "reason": "matrix stopped after the first fresh semantic failure under the frozen-product no-fix-in-place rule",
+  "planned": { "total": 13, "W1-06": 5, "W1-09": 3, "W1-10": 3, "W1-01": 1, "W1-03": 1 },
+  "executed": {
+    "total": 1,
+    "runs": [
+      {
+        "runId": "d2b2r3-w106-1",
+        "caseId": "W1-06",
+        "semanticPass": false,
+        "classification": "AGENT_RELIABILITY_FAILURE",
+        "formalTools": ["resolve_entity", "check_order_readiness", "get_purchase_overview"],
+        "formalResults": "verified readiness and matching formal purchase overview obtained",
+        "finalizationAttempt1": "OPERATIONAL_QUANTITY_BINDING_MISMATCH: 缺 1 项物料 was parsed as SHORTAGE, but the cited formal fact is SHORTAGE_LINE_COUNT",
+        "finalizationAttempt2": "GOAL_STATUS_MISSING: duplicate goal questionIndex after repair",
+        "finalStatus": "UNAVAILABLE fallback",
+        "database": { "mutations": 0, "changedTables": [] },
+        "rawStagingArtifact": "planning/ai-native-api/M5-D2-B2-R3-runs/M5-D2-B2-runs/controlled/d2b2r3-w106-1/artifact.json"
+      }
+    ]
+  },
+  "notRun": ["W1-06 runs 2-5", "W1-09 runs 1-3", "W1-10 runs 1-3", "W1-01", "W1-03"],
+  "delivery": {
+    "formalResultObtainedButDeliveryFailed": 1,
+    "fallbackUnavailableAfterFormalResult": 1,
+    "goalCardinalityFailure": 1,
+    "partialResultLostToUnavailable": 0
+  }
+}

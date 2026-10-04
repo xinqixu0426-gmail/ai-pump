@@ -1,0 +1,16 @@
+{
+  "phase": "AI-NATIVE D2-B2-R3",
+  "scope": "one frozen targeted controlled sample plus no-model real preflight",
+  "writeExecutions": 0,
+  "businessDbMutations": 0,
+  "acceptedWrongEntityQuantity": 0,
+  "acceptedWrongQuantityRole": 0,
+  "acceptedWrongUnit": 0,
+  "unknownNumericAsZero": 0,
+  "partialCollectionReportedComplete": 0,
+  "emptyUnknownReportedNoShortage": 0,
+  "unresolvedReportedCanonical": 0,
+  "inferredPurchaseCoversShortage": 0,
+  "identifierNumericFalsePositive": 0,
+  "note": "The rejected W1-06 finalization attempt is not an accepted unsafe answer. It exposed a validator parsing false positive and resulted in a safe UNAVAILABLE fallback."
+}

@@ -1,0 +1,32 @@
+{
+  "phase": "AI-NATIVE D2-B2-R3",
+  "productFixCommit": "85877dfd748f87c1aee324eb25de0e581a211b1e",
+  "contracts": {
+    "goalCardinality": {
+      "rule": "goals[] cardinality equals the original owner-question cardinality, not the number of subtasks, claims, formal calls, or business outcomes",
+      "validator": "strict; duplicate, extra, and missing questionIndex values remain GOAL_STATUS_MISSING",
+      "finalizer": "combines all supporting fact IDs for one owner question into its one goal"
+    },
+    "noShortage": {
+      "rule": "a no-shortage claim requires formal ready readiness, a COMPLETE shortage collection, and formal returnedCount=0 plus totalCount=0",
+      "normalization": "formal canProduce=true is a ready-equivalent when the producer uses a localized readiness verdict",
+      "failClosed": ["partial collection", "unknown collection", "unresolved requirement count", "non-ready verdict"]
+    },
+    "partialPurchaseCollection": {
+      "rule": "a verified PARTIAL collection may be delivered as PARTIAL with returned rows and an explicit more-records disclosure; it cannot be described as complete",
+      "pendingOnlyFormalMeaning": "pendingOnly=true filters formal purchase tasks to pendingQty > 0",
+      "toolDiscoveryMetadata": "pending/unfinished procurement is documented as the owner-language alias for this formal filter"
+    }
+  },
+  "deterministic": {
+    "goalTests": "PASS",
+    "noShortageTests": "PASS",
+    "partialCollectionTests": "PASS",
+    "r2IdentifierParserRegression": "PASS",
+    "harnessRegression": "PASS before frozen model sample"
+  },
+  "postFreezeFinding": {
+    "status": "REWORK",
+    "reason": "fresh W1-06 sample exposed an additional local grammar defect: 缺 1 项物料 was classified as SHORTAGE rather than SHORTAGE_LINE_COUNT. The R3 product commit was already frozen, so it was not repaired in place."
+  }
+}

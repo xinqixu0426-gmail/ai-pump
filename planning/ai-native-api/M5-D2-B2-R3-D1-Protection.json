@@ -1,0 +1,6 @@
+{
+  "phase": "AI-NATIVE D2-B2-R3",
+  "status": "NOT_RUN",
+  "reason": "R3 frozen targeted product sample failed before the D1 protection phase; no model samples were run after the failure.",
+  "planned": ["D1-03", "D1-07", "D1-08", "D1-10"]
+}
