@@ -4,8 +4,7 @@
 // this module only exposes its deterministic plan; it never starts a model.
 const path = require('node:path');
 const { startD1R1ControlledFixture } = require('./d1r1ControlledFixture.cjs');
-const { environment } = require('./run-d1-r1-controlled.cjs');
-const { CASES, runCandidateCase } = require('./run-d1-final-controlled.cjs');
+const { CASES, finalAcceptanceEnvironment, runCandidateCase } = require('./run-d1-final-controlled.cjs');
 const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
 const { compareDatabaseSnapshots, databaseSnapshot } = require('./d1FinalAcceptanceEvaluator.cjs');
 const { serializeRun, writeFinalV2Artifacts } = require('./d1FinalAcceptanceEvidence.cjs');
@@ -22,12 +21,16 @@ function buildRepetitionPlan(cases = CASES, runsPerCase = RUNS_PER_CASE) {
 }
 async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-native-api')) {
     if (process.env.D1_FINAL_ALLOW_MODEL_RUN !== '1') throw new Error('D1_FINAL_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');
+    const env = finalAcceptanceEnvironment();
     const fixture = await startD1R1ControlledFixture();
     try {
         const { executeToolCall } = require('../../../api/routes/ai/executor.cjs');
         const before = databaseSnapshot(fixture.db);
         const oracleById = await buildControlledOracles(executeToolCall, fixture.ids);
-        const env = environment(); const results = [];
+        if (process.env.D1_FINAL_PREFLIGHT_ONLY === '1') {
+            return Object.freeze({ phase: 'M5-D1-FINAL-V2', preflight: true, fixtureRuntime: fixture.fixtureKind, oracleCount: Object.keys(oracleById).length, plannedRuns: buildRepetitionPlan().length, modelCallsEnabled: false });
+        }
+        const results = [];
         for (const plan of buildRepetitionPlan()) {
             const item = await runCandidateCase({ id: plan.caseId, rawOwnerInput: plan.rawOwnerInput, oracle: oracleById[plan.caseId] }, env, executeToolCall);
             results.push(serializeRun({ ...item, runId: plan.runId, runNumber: plan.runNumber }));
@@ -38,6 +41,6 @@ async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-nati
         return output;
     } finally { await fixture.close(); }
 }
-if (require.main === module) main(process.env.D1_FINAL_OUTPUT_DIR || undefined).then(result => console.log(JSON.stringify({ plannedRuns: result.plannedRuns, database: result.database }, null, 2))).catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
+if (require.main === module) main(process.env.D1_FINAL_OUTPUT_DIR || undefined).then(result => console.log(JSON.stringify({ preflight: result.preflight === true, plannedRuns: result.plannedRuns, database: result.database || null }, null, 2))).catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
 
 module.exports = { REPETITION_CASE_IDS, RUNS_PER_CASE, buildRepetitionPlan, main };

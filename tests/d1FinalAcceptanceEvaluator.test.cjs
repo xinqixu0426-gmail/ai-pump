@@ -13,7 +13,7 @@ const {
 const { scenarioOracle } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceOracles.cjs');
 const { evaluateProductDrift, PRODUCT_BASELINE_COMMIT } = require('../scripts/ai-experiments/api-native-agent/d1FinalProductDriftGuard.cjs');
 const { buildRepetitionPlan, REPETITION_CASE_IDS, RUNS_PER_CASE } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled-repetition.cjs');
-const { main: controlledMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs');
+const { finalAcceptanceEnvironment, main: controlledMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs');
 const { main: repetitionMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-controlled-repetition.cjs');
 const { assertRealDatabaseSource, initializeRealHarness, main: realMain } = require('../scripts/ai-experiments/api-native-agent/run-d1-final-real-catalog.cjs');
 const { FINAL_V2_ARTIFACTS, deriveFinalizationStats, derivePerformance, scanForSecrets, serializeRun, writeFinalV2Artifacts } = require('../scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvidence.cjs');
@@ -180,6 +180,19 @@ test('FH1R1 runners require explicit model opt-in before opening a runtime', asy
         if (previous === undefined) delete process.env.D1_FINAL_ALLOW_MODEL_RUN;
         else process.env.D1_FINAL_ALLOW_MODEL_RUN = previous;
     }
+});
+
+test('SR-01..07: Final runners own the environment helper and initialize it before fixture/executor work', () => {
+    assert.equal(typeof finalAcceptanceEnvironment, 'function');
+    const env = finalAcceptanceEnvironment();
+    assert.equal(env.DEEPSEEK_MODEL, 'deepseek-chat');
+    assert.equal(env.AI_CONTEXT_WINDOW_TOKENS, process.env.D1_R1_CONTEXT_WINDOW_TOKENS || '65536');
+    const controlledSource = fs.readFileSync(path.join(process.cwd(), 'scripts/ai-experiments/api-native-agent/run-d1-final-controlled.cjs'), 'utf8');
+    const repetitionSource = fs.readFileSync(path.join(process.cwd(), 'scripts/ai-experiments/api-native-agent/run-d1-final-controlled-repetition.cjs'), 'utf8');
+    assert.doesNotMatch(controlledSource, /\{\s*freshMemos,\s*environment\s*\}/u);
+    assert.doesNotMatch(repetitionSource, /run-d1-r1-controlled\.cjs.*environment/u);
+    assert.ok(controlledSource.indexOf('const env = finalAcceptanceEnvironment();') < controlledSource.indexOf('startD1R1ControlledFixture()'));
+    assert.ok(repetitionSource.indexOf('const env = finalAcceptanceEnvironment();') < repetitionSource.indexOf('startD1R1ControlledFixture()'));
 });
 
 test('FH1R1 manifest separates product and harness commits with runner hashes and no provider call', () => {

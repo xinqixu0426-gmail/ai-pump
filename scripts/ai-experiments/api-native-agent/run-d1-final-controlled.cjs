@@ -3,8 +3,10 @@
 // Explicit opt-in CLI for a later frozen Final Acceptance. This module never
 // runs at import time; FH1 only unit-tests its deterministic dependencies.
 const path = require('node:path');
+const fs = require('node:fs');
+const dotenv = require('dotenv');
 const { startD1R1ControlledFixture } = require('./d1r1ControlledFixture.cjs');
-const { freshMemos, environment } = require('./run-d1-r1-controlled.cjs');
+const { freshMemos } = require('./run-d1-r1-controlled.cjs');
 const { runApiNativeAgentCandidate } = require('./apiNativeAgentCandidate.cjs');
 const { buildControlledOracles } = require('./d1FinalAcceptanceOracles.cjs');
 const { classifyRun, compareDatabaseSnapshots, databaseSnapshot } = require('./d1FinalAcceptanceEvaluator.cjs');
@@ -18,6 +20,12 @@ const CASES = Object.freeze([
     ['D1-09', '这个多少钱？'], ['D1-10', '查V750的成本。'],
 ]);
 
+function finalAcceptanceEnvironment() {
+    const envPath = path.join(path.resolve(__dirname, '../../..'), '.env');
+    if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: false, quiet: true });
+    return { ...process.env, DEEPSEEK_MODEL: 'deepseek-chat', AI_CONTEXT_WINDOW_TOKENS: process.env.D1_R1_CONTEXT_WINDOW_TOKENS || '65536' };
+}
+
 async function runCandidateCase(testCase, env, executeToolCall) {
     const memos = await freshMemos(testCase.rawOwnerInput, env);
     const candidate = await runApiNativeAgentCandidate({ rawOwnerInput: testCase.rawOwnerInput, businessMemo: memos.businessMemo, policyMemo: memos.policyMemo, env }, { executeToolCall });
@@ -25,12 +33,16 @@ async function runCandidateCase(testCase, env, executeToolCall) {
 }
 async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-native-api')) {
     if (process.env.D1_FINAL_ALLOW_MODEL_RUN !== '1') throw new Error('D1_FINAL_MODEL_RUN_REQUIRES_EXPLICIT_OPT_IN');
+    const env = finalAcceptanceEnvironment();
     const fixture = await startD1R1ControlledFixture();
     try {
         const { executeToolCall } = require('../../../api/routes/ai/executor.cjs');
         const before = databaseSnapshot(fixture.db);
         const oracleById = await buildControlledOracles(executeToolCall, fixture.ids);
-        const env = environment(); const results = [];
+        if (process.env.D1_FINAL_PREFLIGHT_ONLY === '1') {
+            return Object.freeze({ phase: 'M5-D1-FINAL-V2', preflight: true, fixtureRuntime: fixture.fixtureKind, oracleCount: Object.keys(oracleById).length, modelCallsEnabled: false });
+        }
+        const results = [];
         for (const [id, rawOwnerInput] of CASES) results.push(await runCandidateCase({ id, rawOwnerInput, oracle: oracleById[id] }, env, executeToolCall));
         const database = compareDatabaseSnapshots(before, databaseSnapshot(fixture.db));
         const output = Object.freeze({ phase: 'M5-D1-FINAL-V2', fixtureRuntime: fixture.fixtureKind, modelCallsEnabled: true, database, productDrift: productDriftFromGit(),
@@ -39,5 +51,5 @@ async function main(outputDirectory = path.join(process.cwd(), 'planning/ai-nati
         return output;
     } finally { await fixture.close(); }
 }
-if (require.main === module) main(process.env.D1_FINAL_OUTPUT_DIR || undefined).then(result => console.log(JSON.stringify({ cases: result.results.length, database: result.database }, null, 2))).catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
-module.exports = { CASES, main, runCandidateCase };
+if (require.main === module) main(process.env.D1_FINAL_OUTPUT_DIR || undefined).then(result => console.log(JSON.stringify({ preflight: result.preflight === true, cases: result.results?.length || 0, database: result.database || null }, null, 2))).catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
+module.exports = { CASES, finalAcceptanceEnvironment, main, runCandidateCase };
