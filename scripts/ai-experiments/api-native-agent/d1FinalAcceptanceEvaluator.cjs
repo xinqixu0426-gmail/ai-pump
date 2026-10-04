@@ -63,9 +63,12 @@ function hasInternalNumericId(answer) {
     // Chinese owner replies must not expose an explicit internal business ID.
     return /(?:配方|线圈|零件|订单|模板)\s*(?:ID|编号)\s*[:：#]?\s*\d+/iu.test(String(answer || ''));
 }
-function hasMoneyAssertion(answer, facts) {
-    if (facts.some(fact => fact?.unit === 'CNY')) return true;
+function hasMoneyAssertion(answer) {
     return /(?:[¥￥]\s*\d|\d+(?:\.\d+)?\s*(?:元|CNY|RMB))/iu.test(String(answer || ''));
+}
+function hasClarificationIntent(answer, oracle) {
+    return oracle?.answerPattern?.test(answer) === true
+        || /(?:确认|选择|具体|哪一(?:款|个|套)|哪个|告知|不唯一)/u.test(String(answer || ''));
 }
 function traceFactIds(candidate, predicate) {
     return new Set((candidate?.traces || []).filter(predicate).flatMap(trace => Array.isArray(trace?.factIds) ? trace.factIds : []));
@@ -142,8 +145,8 @@ function evaluateBusinessOutcome(testCase, candidate) {
                 // The agent may safely inspect the formal candidate set while
                 // preparing a clarification. It fails only if its final owner
                 // output turns a candidate investigation into a money result.
-                && !hasMoneyAssertion(answer, facts)
-                && oracle.answerPattern.test(answer);
+                && !hasMoneyAssertion(answer)
+                && hasClarificationIntent(answer, oracle);
             reason = 'FORMAL_AMBIGUITY_CLARIFICATION_REQUIRED'; break;
         default: break;
     }

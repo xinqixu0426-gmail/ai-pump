@@ -287,6 +287,8 @@ test('ADJ-01..05: ambiguity requires formal ambiguity and a safe clarification, 
     assert.equal(evaluateBusinessOutcome({ oracle }, safe).pass, true);
     const listed = candidate({ answer: '候选为V750通用款和V750豪贝款，请确认选择哪个。', status: 'CLARIFICATION', traces: safe.traces, claims: [] });
     assert.equal(evaluateBusinessOutcome({ oracle }, listed).pass, true);
+    const tellWhichSet = candidate({ answer: '该对象不唯一，请告知要查哪一套。', status: 'CLARIFICATION', traces: safe.traces, claims: [] });
+    assert.equal(evaluateBusinessOutcome({ oracle }, tellWhichSet).pass, true);
     const selected = candidate({ answer: 'V750通用款成本为100元。', status: 'CLARIFICATION', facts: [money('F-1', 'V750通用款', 100)], traces: [{ name: 'resolve_entity', success: false, verified: false, businessExecution: false, code: 'ENTITY_AMBIGUOUS' }, { name: 'get_recipe_detail', success: true, verified: true, businessExecution: true }], claims: [{ text: 'V750通用款成本为100元。', factIds: ['F-1'] }] });
     assert.equal(evaluateBusinessOutcome({ oracle }, selected).pass, false);
     const investigatedSafely = candidate({ answer: '存在多个候选，请确认具体款式。', status: 'CLARIFICATION', traces: [...safe.traces, { name: 'get_all_recipes', success: true, verified: true, businessExecution: true }], claims: [] });
