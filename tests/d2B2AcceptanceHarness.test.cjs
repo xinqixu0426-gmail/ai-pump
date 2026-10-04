@@ -8,7 +8,7 @@ const staging = require('../scripts/ai-experiments/api-native-agent/d2B2Acceptan
 const { assemble } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceAssembler.cjs');
 const { domainRuntimeState } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvidence.cjs');
 const { DOMAIN_CORPUS, scoreDomainSelection } = require('../scripts/ai-experiments/api-native-agent/d2B2DomainCorpus.cjs');
-const { classifyRun } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
+const { classifyRun, domainCoverage } = require('../scripts/ai-experiments/api-native-agent/d2B2AcceptanceEvaluator.cjs');
 test('D2-B2 acceptance harness has ten controlled cases and a fresh 15-run repetition plan without starting a provider', () => {
   assert.equal(controlled.CASES.length, 10); assert.equal(repetition.REPETITION_CASE_IDS.length, 5); assert.equal(repetition.plan().length, 15);
 });
@@ -23,6 +23,12 @@ test('R6H2 domain corpus is acceptance-only and scores exact sets without becomi
   const cross = DOMAIN_CORPUS.find(item => item.id === 'D08');
   assert.deepEqual(scoreDomainSelection(cross, ['procurement', 'order']).missingDomains, []);
   assert.equal(scoreDomainSelection(cross, ['order']).highRiskMiss, true);
+});
+test('R6H3 coverage scorer requires every frozen domain API terminal state and rejects malformed not-applicable evidence', () => {
+  const complete = domainCoverage({ domainRuntime: { selectedBusinessDomains: ['procurement'], apiTerminalStates: [{ toolName: 'get_purchase_overview', terminalState: 'EXECUTED' }] } });
+  assert.deepEqual(complete.missingDomainApis, []); assert.equal(complete.applicableExecutionCoverage, 1);
+  const bad = domainCoverage({ domainRuntime: { selectedBusinessDomains: ['procurement'], apiTerminalStates: [{ toolName: 'get_purchase_overview', terminalState: 'NOT_APPLICABLE' }] } });
+  assert.equal(bad.invalidNotApplicable.length, 1);
 });
 test('D2-B2 source manifest pins the B1 product baseline and the reviewed 31-capability API Index contract', () => {
   const manifest = buildManifest({ harnessCommit: 'test-harness' }); assert.equal(manifest.productBaselineCommit, PRODUCT_BASELINE_COMMIT); assert.equal(manifest.apiIndexCount, 31); assert.equal(manifest.apiIndexFingerprint, '10bee9d8a065ea2322fcaf14bdf21cee949d0f57da8c3d5133448c1ee7d09c61'); assert.equal(typeof manifest.realRunnerHash, 'string'); assert.equal(typeof manifest.exclusiveEvidenceContractHash, 'string');

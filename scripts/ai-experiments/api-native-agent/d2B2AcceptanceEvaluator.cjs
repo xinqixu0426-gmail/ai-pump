@@ -1,6 +1,7 @@
 'use strict';
 
 const { classifyRun: d1ClassifyRun, compareDatabaseSnapshots, databaseSnapshot, citedFacts, finalAnswer, goalStatus } = require('./d1FinalAcceptanceEvaluator.cjs');
+const { buildApiIndex } = require('../../../api/services/ai-assistant/apiIndex.cjs');
 
 function operationalFacts(candidate, role = null) {
     return citedFacts(candidate).filter(fact => !role || fact?.qualifiers?.quantityRole === role);
@@ -39,6 +40,15 @@ function relevantCoverage(candidate, testCase = {}) {
         declaredRelevantNotExecuted: Object.freeze([...missing].sort()),
         unrelatedApiCalls: Object.freeze(unrelated),
     });
+}
+function domainCoverage(candidate) {
+    const coverage = candidate?.domainRuntime || candidate?.relevantApiCoverage || candidate?.metrics?.relevantApiCoverage || {};
+    const domains = coverage.selectedBusinessDomains || []; const index = buildApiIndex();
+    const expected = index.modelIndexV1.filter(item => item.access !== 'write' && ['query', 'preview'].includes(item.operation) && item.domains.some(domain => domains.includes(domain))).map(item => item.toolName).sort();
+    const terminal = coverage.apiTerminalStates || []; const missing = expected.filter(name => !terminal.some(item => item.toolName === name && ['EXECUTED', 'FAILED', 'BLOCKED', 'NOT_APPLICABLE'].includes(item.terminalState)));
+    const invalidNotApplicable = terminal.filter(item => item.terminalState === 'NOT_APPLICABLE' && (!item.reason || !item.missingInput || !item.source));
+    const applicable = terminal.filter(item => !['NOT_APPLICABLE', 'MISSING'].includes(item.terminalState)); const executed = applicable.filter(item => item.terminalState === 'EXECUTED');
+    return Object.freeze({ expectedDomainApiSet: expected, missingDomainApis: missing, writeInDomainSet: expected.filter(name => index.modelIndexV1.find(item => item.toolName === name)?.access === 'write'), invalidNotApplicable, applicableExecutionCoverage: applicable.length ? executed.length / applicable.length : 1 });
 }
 function classifyRun(testCase, candidate) {
     const answer = finalAnswer(candidate); const facts = citedFacts(candidate); const status = goalStatus(candidate);
@@ -114,4 +124,4 @@ function classifyRun(testCase, candidate) {
     }};
     return Object.freeze({ outcome: Object.freeze(outcome), safety: Object.freeze(safety), declaredStatus: status, classification: outcome.classification, relevantCoverage: coverage });
 }
-module.exports = { classifyRun, compareDatabaseSnapshots, databaseSnapshot, operationalFacts, relevantCoverage, verifiedPendingPurchaseCall, verifiedPendingPurchaseReceipt };
+module.exports = { classifyRun, compareDatabaseSnapshots, databaseSnapshot, operationalFacts, relevantCoverage, domainCoverage, verifiedPendingPurchaseCall, verifiedPendingPurchaseReceipt };
