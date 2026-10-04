@@ -1,0 +1,17 @@
+{
+  "phase": "M5-D1-FINAL-V2-R1",
+  "status": "INFRASTRUCTURE_FAILURE",
+  "runner": "run-d1-final-controlled.cjs",
+  "error": {
+    "name": "TypeError",
+    "message": "environment is not a function",
+    "location": "run-d1-final-controlled.cjs:33:21"
+  },
+  "freshModelRunsStarted": 0,
+  "results": [],
+  "database": {
+    "status": "NOT_FINALIZED",
+    "reason": "runner failed before after-snapshot comparison"
+  },
+  "note": "No semantic score or safety zero may be inferred from this runner startup failure."
+}

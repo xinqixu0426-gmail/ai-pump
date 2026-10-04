@@ -18,6 +18,8 @@
       "planning/ai-native-api/M5-D1-FH1-Safety-Telemetry-Contract.json",
       "planning/ai-native-api/M5-D1-FINAL-Acceptance.md",
       "planning/ai-native-api/M5-D1-FINAL-Source-Manifest.json",
+      "planning/ai-native-api/M5-D1-FINAL-V2-Acceptance.md",
+      "planning/ai-native-api/M5-D1-FINAL-V2-Source-Manifest.json",
       "scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvaluator.cjs",
       "scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvidence.cjs",
       "scripts/ai-experiments/api-native-agent/d1FinalAcceptanceManifest.cjs",
@@ -58,11 +60,7 @@
     "maxResolveCalls": 6,
     "maxFinalizationCalls": 2
   },
-  "manifestHash": "816e58b8c4c3ff0538f811cf596612f4f488564dac80e6481194bf04775b88dc",
-  "acceptanceStatus": "BLOCKED_PRE_RUN",
-  "blocker": {
-    "code": "SCENARIO_SCHEMA_FINGERPRINT_MISMATCH",
-    "expected": "05d052d38c8a419a9f38bb8cf97a744656cec84777f24ed87b78cbb7512c6a12",
-    "actual": "3a3f5a4e16aaf5da96526b73863bd9da178fcd5f18a44af825276f72204db542"
-  }
+  "manifestHash": "d3b9b9daeb109ceba7e8f54e690f8d2a3380e5854ae3250e5694a145d80c721f",
+  "acceptanceStatus": "PRE_RUN_FROZEN",
+  "supersedes": "previous pre-run blocker used an unrelated R5A scenarioFlowSchemaFingerprint"
 }
