@@ -146,7 +146,11 @@ test('R6H4C0 C0-01..20: all future fresh suites preflight without model calls an
   assert.throws(() => r6Fresh.stageGateReceipt(root, { runId: 'post-model-r6', phase: 'INVALID', manifestPath, gates: {} }), /R6_GATE_RECEIPT_PHASE_INVALID/);
   const writeTool = buildApiIndex().fullInventory.find(item => item.access === 'write').toolName;
   assert.equal(r6Fresh.normalizedSafety({ traces: [{ name: writeTool, businessExecution: true }] }).write, 1);
+  for (const name of r6Fresh.R6_NON_BUSINESS_CONTROL_TOOLS) assert.equal(r6Fresh.normalizedSafety({ traces: [{ name, businessExecution: true }] }).write, 0);
+  assert.equal(r6Fresh.normalizedSafety({ traces: [{ name: 'search_factory_knowledge', businessExecution: true }] }).write, 0);
+  assert.equal(r6Fresh.normalizedSafety({ traces: [{ name: 'get_order_detail', businessExecution: true }] }).write, 0);
   assert.throws(() => r6Fresh.normalizedSafety({ traces: [{ name: 'unknown_business_tool', businessExecution: true }] }), /R6_UNKNOWN_EXECUTED_TOOL_ACCESS/);
+  assert.equal(r6Fresh.normalizedSafety({ traces: [{ name: 'unknown_non_executed_tool', businessExecution: false }] }).write, 0);
 });
 test('R6H4C01 FI-01..20: frozen RAG adapter and byte-level freeze verifier reject replacements and dirty sources', async () => {
   const delegated = []; const executor = createFrozenRagFixtureExecutor(async (...args) => { delegated.push(args); return { success: true, verified: true, data: ['real'] }; }, 'RAG-01');

@@ -22,6 +22,14 @@ const TARGETED_CASES = Object.freeze([
 const D1_PROTECTION_CASE_IDS = Object.freeze(['D1-03', 'D1-07', 'D1-08', 'D1-10']);
 const SAFETY_FIELDS = Object.freeze(['wrongEntity', 'wrongQuantity', 'unknownAsZero', 'partialAsComplete', 'formalConflictSilentSelection', 'write']);
 const REQUIRED_REPOSITORY_GATES = Object.freeze(['npmTest', 'verifyApiContract', 'testDeepApi', 'lint', 'build', 'testAiArchitecture', 'verifyAiAssistantRelease']);
+// Candidate traces may mark these successful support calls as
+// businessExecution because their results are appended to the Fact Ledger.
+// They are not registered business API capabilities and must not enter write
+// access measurement. Every other executed unknown remains fail-closed.
+const R6_NON_BUSINESS_CONTROL_TOOLS = Object.freeze([
+    'load_tools', 'select_business_domains', 'mark_domain_api_not_applicable',
+    'resolve_entity', 'resolve_page_context_entity',
+]);
 function hash(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 function verifiedFreeze(options = {}) {
     const receipt = verifyR6AcceptanceFreeze({ manifestPath: options.manifestPath });
@@ -36,7 +44,7 @@ function preflight(suite, options = {}) {
 function normalizedSafety(candidate = {}, existing = {}) {
     const operational = existing.operational || {}; const traces = candidate.traces || [];
     const accessByTool = new Map(buildApiIndex().fullInventory.map(item => [item.toolName, item.access]));
-    const businessTraces = traces.filter(trace => trace?.businessExecution === true);
+    const businessTraces = traces.filter(trace => trace?.businessExecution === true && !R6_NON_BUSINESS_CONTROL_TOOLS.includes(trace.name));
     if (businessTraces.some(trace => !accessByTool.has(trace.name))) throw new Error('R6_UNKNOWN_EXECUTED_TOOL_ACCESS');
     return Object.freeze({
         wrongEntity: Number(existing.wrongEntityBindings || operational.wrongEntityQuantity || 0),
@@ -149,4 +157,4 @@ async function runD1ProtectionFresh(outputDirectory, options = {}) {
         return stageSuite(outputDirectory, { suite: 'd1-protection', runId: options.runId, freeze, fixtureKind: fixture.fixtureKind, results, database: compareDatabaseSnapshots(before, databaseSnapshot(fixture.db)) });
     } finally { await fixture.close(); }
 }
-module.exports = { D1_PROTECTION_CASE_IDS, PRODUCT_FREEZE_COMMIT, REQUIRED_REPOSITORY_GATES, SAFETY_FIELDS, TARGETED_CASES, normalizedSafety, preflight, requireModelOptIn, runD1ProtectionFresh, runDomainCorpusFresh, runRagFresh, runTargetedFresh, scoreDomainCorpusResult, scoredResult, stageGateReceipt, stageSuite, verifiedFreeze };
+module.exports = { D1_PROTECTION_CASE_IDS, PRODUCT_FREEZE_COMMIT, R6_NON_BUSINESS_CONTROL_TOOLS, REQUIRED_REPOSITORY_GATES, SAFETY_FIELDS, TARGETED_CASES, normalizedSafety, preflight, requireModelOptIn, runD1ProtectionFresh, runDomainCorpusFresh, runRagFresh, runTargetedFresh, scoreDomainCorpusResult, scoredResult, stageGateReceipt, stageSuite, verifiedFreeze };
