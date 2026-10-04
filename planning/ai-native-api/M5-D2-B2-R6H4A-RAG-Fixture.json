@@ -1,0 +1,1 @@
+{"phase":"R6H4-A","fixture":"acceptance-only deterministic RAG fixtures","scenarios":["RAG-01","RAG-02","RAG-03","RAG-04"],"realBusinessDbTouched":false,"modelCalls":0}
