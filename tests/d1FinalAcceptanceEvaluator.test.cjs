@@ -95,7 +95,8 @@ test('OR-08/09 and CO-04/05/06/07: formal scenario oracle only scores applied co
     assert.equal(unavailable.applicability, 'DATA_LIMITATION');
 });
 
-test('product drift guard permits only Final harness artifacts and rejects product paths', () => {
+test('V3 product drift guard is pinned to the R6 product baseline and rejects product paths', () => {
+    assert.equal(PRODUCT_BASELINE_COMMIT, 'f68dbaf024f3f424d7052da88d0009f6b7dd8043');
     const allowed = evaluateProductDrift(['scripts/ai-experiments/api-native-agent/d1FinalAcceptanceEvaluator.cjs', 'tests/d1FinalAcceptanceEvaluator.test.cjs']);
     assert.equal(allowed.pass, true);
     assert.equal(allowed.productBaselineCommit, PRODUCT_BASELINE_COMMIT);

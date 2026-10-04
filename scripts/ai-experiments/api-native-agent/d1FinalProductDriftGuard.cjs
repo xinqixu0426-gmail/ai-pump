@@ -2,7 +2,9 @@
 
 const { execFileSync } = require('node:child_process');
 
-const PRODUCT_BASELINE_COMMIT = '82b0dce603c7ee2c715a55799ce1b04db0344bc7';
+// R6 is the reviewed Candidate product baseline. Final V3 may change only
+// harness/evidence files beyond this commit.
+const PRODUCT_BASELINE_COMMIT = 'f68dbaf024f3f424d7052da88d0009f6b7dd8043';
 const HARNESS_ALLOWLIST = Object.freeze([
     /^planning\/ai-native-api\/M5-D1-(?:FINAL|FH1)-/,
     /^scripts\/ai-experiments\/api-native-agent\/d1FinalAcceptance(?:Evaluator|Oracles|Evidence|Manifest)?\.cjs$/,
